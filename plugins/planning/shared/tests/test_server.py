@@ -690,6 +690,51 @@ class TestSnapshot(ServerCase):
         code, _, out = self.get("/api/state", {**guest, "If-None-Match": h["ETag"]})
         self.assertEqual((code, out["me"]["name"]), (200, "Annie"))
 
+    def test_a_presence_change_alone_answers_only_the_presence_part(self):
+        ann_pid, ann = self.join("Ann")
+        bo_pid, bo = self.join("Bo")
+        _, h, snap = self.get("/api/state?since=0", ann)
+        self.post("/api/heartbeat", {"q": "Q1", "tab": "t1"}, bo)
+        code, h2, out = self.get(f"/api/state?since={snap['rev']}", {**ann, "If-None-Match": h["ETag"]})
+        self.assertEqual((code, sorted(out)), (200, ["lastSeen", "presence", "presenceOnly", "rev", "serverTime"]))
+        self.assertEqual((out["rev"], out["presenceOnly"]), (snap["rev"], True))
+        self.assertIn({"pid": bo_pid, "q": "Q1", "typing": False, "chatTyping": False, "state": "active"}, out["presence"])
+        code, _, _ = self.get(f"/api/state?since={snap['rev']}", {**ann, "If-None-Match": h2["ETag"]})
+        self.assertEqual(code, 304)
+        self.post("/api/chat", {"text": "Hello"}, bo)
+        code, _, out = self.get(f"/api/state?since={snap['rev']}", {**ann, "If-None-Match": h2["ETag"]})
+        self.assertEqual((code, "presenceOnly" in out, [m["text"] for m in out["chat"]]), (200, False, ["Hello"]))
+        self.assertEqual(out["me"]["pid"], ann_pid)
+
+    def test_the_clock_tick_answers_presence_so_an_offline_person_drops_out(self):
+        _, ann = self.join("Ann")
+        bo_pid, bo = self.join("Bo")
+        self.post("/api/heartbeat", {"tab": "t1"}, bo)
+        _, h, snap = self.get("/api/state?since=0", ann)
+        self.assertIn(bo_pid, [p["pid"] for p in snap["presence"]])
+        later = self.app.session.clock() + session.OFFLINE_AFTER + 1
+        with mock.patch.object(self.app.session, "clock", lambda: later), mock.patch.object(server.time, "time", lambda: later):
+            code, _, out = self.get(f"/api/state?since={snap['rev']}", {**ann, "If-None-Match": h["ETag"]})
+        self.assertEqual((code, out.get("presenceOnly")), (200, True))
+        self.assertNotIn(bo_pid, [p["pid"] for p in out["presence"]])
+        self.assertIn(bo_pid, out["lastSeen"])
+
+    def test_chat_pages_through_get_api_chat_as_a_person(self):
+        _, ann = self.join("Ann")
+        ids = []
+        for i in range(55):
+            with mock.patch.object(self.app.session, "clock", lambda i=i: 1_900_000_000.0 + 2 * i):
+                ids.append(self.post("/api/chat", {"text": f"Message {i}"}, ann)[2]["id"])
+        snap = self.get("/api/state", ann)[2]
+        self.assertEqual(([m["id"] for m in snap["chat"]], snap["chatBefore"]), (ids[5:], ids[5]))
+        code, _, out = self.get(f"/api/chat?before={snap['chatBefore']}&limit=3", ann)
+        self.assertEqual((code, [m["id"] for m in out["chat"]], out["before"]), (200, ids[2:5], ids[2]))
+        code, _, out = self.get(f"/api/chat?around={ids[0]}&limit=4", ann)
+        self.assertEqual((code, [m["id"] for m in out["chat"]], "before" in out), (200, ids[:4], False))
+        self.assertEqual(self.get(f"/api/chat?before={ids[5]}")[0], 401)
+        code, _, out = self.get(f"/api/chat?before={ids[5]}&limit=101", ann)
+        self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "limit"))
+
     def test_the_owner_sees_the_guest_link_and_whether_it_changed(self):
         self.app.session.set_share("https://one-a.trycloudflare.com")
         self.app.session.set_share("https://two-b.trycloudflare.com")

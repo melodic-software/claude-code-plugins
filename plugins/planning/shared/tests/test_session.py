@@ -1866,6 +1866,87 @@ class TestChatAndNotifications(SessionCase):
 # ---------------------------------------------------------------------------------------------
 
 
+class TestChatWindow(SessionCase):
+    """The snapshot carries the newest 50 messages; GET /api/chat pages through the rest, read the same way."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo, self.cy = self.people("Ann", "Bo", "Cy")
+
+    def say(self, n, who=None):
+        return [self.act("chat", who or self.ann, {"text": f"Message {i}"})["id"] for i in range(1, n + 1)]
+
+    def page(self, pid, **query):
+        return self.s.chat_page(pid, {k: str(v) for k, v in query.items()})
+
+    def test_a_snapshot_carries_the_newest_50_messages_and_a_cursor_while_older_ones_exist(self):
+        ids = self.say(120)
+        snap = self.s.snapshot(self.bo)
+        self.assertEqual([m["id"] for m in snap["chat"]], ids[70:])
+        self.assertEqual(snap["chatBefore"], ids[70])
+
+    def test_fifty_messages_or_fewer_carry_no_cursor(self):
+        ids = self.say(50)
+        snap = self.s.snapshot(self.bo)
+        self.assertEqual(([m["id"] for m in snap["chat"]], "chatBefore" in snap), (ids, False))
+
+    def test_before_pages_back_to_the_first_message(self):
+        ids = self.say(120)
+        out = self.page(self.bo, before=ids[70])
+        self.assertEqual(([m["id"] for m in out["chat"]], out["before"]), (ids[20:70], ids[20]))
+        out = self.page(self.bo, before=ids[20])
+        self.assertEqual(([m["id"] for m in out["chat"]], "before" in out), (ids[:20], False))
+        self.assertEqual(self.page(self.bo, before=ids[0]), {"chat": []})
+
+    def test_around_centers_the_message_and_stays_inside_the_ends(self):
+        ids = self.say(120)
+        out = self.page(self.bo, around=ids[29], limit=10)
+        self.assertEqual(([m["id"] for m in out["chat"]], out["before"]), (ids[24:34], ids[24]))
+        out = self.page(self.bo, around=ids[1], limit=10)
+        self.assertEqual(([m["id"] for m in out["chat"]], "before" in out), (ids[:10], False))
+        self.assertEqual([m["id"] for m in self.page(self.bo, around=ids[119], limit=10)["chat"]], ids[110:])
+
+    def test_limit_is_a_whole_number_from_1_to_100(self):
+        ids = self.say(120)
+        self.assertEqual(len(self.page(self.bo, before=ids[119], limit=100)["chat"]), 100)
+        for bad in ("101", "0", "-1", "ten", "1.5", "²"):
+            err = self.refused("bad-field", "chat_page", self.bo, {"before": ids[119], "limit": bad}, http=400)
+            self.assertEqual(err.details["field"], "limit")
+        self.refused("bad-field", "chat_page", self.bo, {})
+        self.refused("bad-field", "chat_page", self.bo, {"before": ids[1], "around": ids[1]})
+        self.refused("not-found", "chat_page", self.bo, {"before": "M9999"}, http=404)
+
+    def test_a_removed_persons_messages_are_out_of_every_page_and_no_cursor(self):
+        mine = self.say(3, self.cy)
+        ids = self.say(60)
+        self.act("set_removed", HOST, {"pid": self.cy, "on": True})
+        out = self.page(self.bo, before=ids[10])
+        self.assertEqual([m["id"] for m in out["chat"]], ids[:10])
+        for key in ("before", "around"):
+            self.refused("not-found", "chat_page", self.bo, {key: mine[1]}, http=404)
+        self.assertEqual([m["id"] for m in self.page(self.bo, around=ids[0])["chat"]], ids[:50])
+
+    def test_pages_mask_others_reactions_where_names_are_masked_as_the_snapshot_does(self):
+        ids = self.say(60)
+        self.act("react_chat", self.bo, {"id": ids[0], "emoji": "👍", "on": True})
+        self.act("react_chat", self.cy, {"id": ids[0], "emoji": "👍", "on": True})
+        self.act("update_settings", HOST, {"names": "initials"})
+        self.assertEqual(self.page(self.bo, around=ids[0])["chat"][0]["reactions"], {"👍": [self.bo, ""]})
+        self.assertEqual(self.page(self.ann, around=ids[0])["chat"][0]["reactions"], {"👍": ["", ""]})
+        self.assertEqual(self.page(HOST, around=ids[0])["chat"][0]["reactions"], {"👍": [self.bo, self.cy]})
+        self.act("react_chat", self.bo, {"id": ids[59], "emoji": "👍", "on": True})
+        self.assertEqual(self.s.snapshot(self.ann)["chat"][-1]["reactions"], {"👍": [""]})
+
+    def test_a_reply_and_a_mention_notify_with_the_message_id_the_page_jumps_to(self):
+        first = self.say(1, self.bo)[0]
+        self.say(70)
+        mid = self.act("chat", self.cy, {"text": "Back to it", "replyTo": first})["id"]
+        note = self.notes(self.bo, "reply")[-1]
+        self.assertEqual(note["msg"], mid)
+        self.assertIn(first, [m["id"] for m in self.page(self.bo, around=first)["chat"]])
+        self.assertNotIn(first, [m["id"] for m in self.s.snapshot(self.bo)["chat"]])
+
+
 class TestWriteLimits(SessionCase):
     """Every route a person can write through is held to one write a second (Contracts, "Body caps
     and limits"), the heartbeat to about one a second, and stored chat, notes and suggestions are
@@ -3198,6 +3279,36 @@ class TestPresenceStates(SessionCase):
 
     def beat(self, pid, **body):
         return self.s.heartbeat(pid, body)
+
+    def test_a_beat_that_changes_nothing_anyone_sees_moves_no_presence_counter(self):
+        self.beat(self.ann)
+        rev = self.s.presence_rev()
+        self.clock.tick(2)
+        self.beat(self.ann)
+        self.assertEqual(self.s.presence_rev(), rev)
+        self.clock.tick(2)
+        self.beat(self.ann, q="Q1")
+        self.assertGreater(self.s.presence_rev(), rev)
+        rev = self.s.presence_rev()
+        self.clock.tick(2)
+        self.beat(self.ann, q="Q1", chatTyping=True)
+        self.assertGreater(self.s.presence_rev(), rev)
+
+    def test_a_beat_after_going_offline_moves_the_presence_counter(self):
+        self.beat(self.ann)
+        rev = self.s.presence_rev()
+        self.clock.tick(session.OFFLINE_AFTER)
+        self.beat(self.ann)
+        self.assertGreater(self.s.presence_rev(), rev)
+
+    def test_the_presence_view_is_the_snapshots_presence_part(self):
+        self.beat(self.ann, q="Q1")
+        self.clock.tick(session.OFFLINE_AFTER)
+        self.beat(self.bo)
+        snap, view = self.s.snapshot(self.bo), self.s.presence_view(self.bo)
+        self.assertEqual(sorted(view), ["lastSeen", "presence", "serverTime"])
+        self.assertEqual(view, {k: snap[k] for k in view})
+        self.assertEqual(([p["pid"] for p in view["presence"]], list(view["lastSeen"])), ([self.bo], [self.ann]))
 
     def test_presence_thresholds_offline_after_90_seconds_without_a_beat(self):
         self.beat(self.ann)

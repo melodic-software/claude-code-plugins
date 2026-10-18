@@ -60,16 +60,17 @@ def main():
     try:
         people = seed(app)
         port = app.guest_port
-        _, _, snap = call(port, "GET", "/api/state?since=0", headers=people[0])
+        _, first, snap = call(port, "GET", "/api/state?since=0", headers=people[0])
         raw = json.dumps(snap).encode()
         print(f"guest snapshot: {len(raw)} bytes raw, {len(gzip.compress(raw))} gzip, {len(snap.get('chat', []))} chat messages")
-        stop = threading.Event()
+        stop, beats = threading.Event(), {}
 
         def page(h, k):
             nxt = time.monotonic() + k * BEAT_EVERY / PEOPLE
             while not stop.is_set():
                 if time.monotonic() >= nxt:
-                    call(port, "POST", "/api/heartbeat", {"q": "", "typing": False, "chatTyping": False, "visible": True, "lastInput": 5, "tab": f"t{k}"}, h)
+                    code, _, _ = call(port, "POST", "/api/heartbeat", {"q": "", "typing": False, "chatTyping": False, "visible": True, "lastInput": 5, "tab": f"t{k}"}, h)
+                    beats[code] = beats.get(code, 0) + 1
                     nxt += BEAT_EVERY
                 time.sleep(0.02)
 
@@ -77,22 +78,24 @@ def main():
         for b in beaters:
             b.start()
         counts = {"304": 0, "presence-only": 0, "full": 0}
-        tags, read, rev, tag = set(), 0, snap["rev"], ""
+        tag = first["ETag"]
+        tags, read, rev = {tag}, 0, snap["rev"]
         end = time.monotonic() + seconds
         while time.monotonic() < end:
-            code, headers, body = call(port, "GET", f"/api/state?since={rev}", headers={**people[0], **({"If-None-Match": tag} if tag else {})})
+            code, headers, body = call(port, "GET", f"/api/state?since={rev}", headers={**people[0], "If-None-Match": tag})
             if code == 304:
                 counts["304"] += 1
             else:
                 read += len(json.dumps(body).encode())
                 counts["presence-only" if body.get("presenceOnly") else "full"] += 1
                 rev = body["rev"]
-            tag = headers.get("ETag", tag)
+            tag = headers["ETag"]
             tags.add(tag)
             time.sleep(POLL_EVERY)
         stop.set()
         polls = sum(counts.values())
         print(f"idle {seconds:.0f} s, {PEOPLE} pages beating: {polls} polls: {counts['304']} not modified, {counts['presence-only']} presence-only, {counts['full']} full")
+        print(f"heartbeats by status: {beats}")
         print(f"ETag changed {len(tags) - 1} times; poller read {read} bytes ({read / seconds:.0f} bytes/s)")
     finally:
         app.shutdown()

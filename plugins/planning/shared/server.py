@@ -208,7 +208,7 @@ ROUTES = {
 }
 UPLOAD_CHUNK = "/api/upload/chunk"
 CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chunk-Total", "sha256": "X-Chunk-Sha256", "fileSha256": "X-File-Sha256"}
-GET_ROUTES = {"/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history"), "/api/report/image": ("owner", "report_image")}
+GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history"), "/api/report/image": ("owner", "report_image")}
 # The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
 # requests. Anywhere else the header answers 401, so the key never acts as the person's session secret.
 WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
@@ -748,9 +748,11 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.send(200, app.session.anonymous_view())
         if app.old_pages and not query:
             return self.send(200, app.old_page_view())
-        tag = app.etag(pid)
-        if self.headers.get("If-None-Match") == tag:  # identity() already refused a removed or waiting person
+        tag, sent = app.etag(pid), self.headers.get("If-None-Match") or ""
+        if sent == tag:  # identity() already refused a removed or waiting person
             return self.send(304, b"", extra={"ETag": tag})
+        if sent.rsplit(".", 2)[0] == tag.rsplit(".", 2)[0]:  # only presence or the clock moved: send just that part
+            return self.send(200, {"rev": app.session.state["rev"], "presenceOnly": True, **app.session.presence_view(pid)}, extra={"ETag": tag})
         snap = app.session.snapshot(pid)
         snap["build"] = app.build
         if snap["me"]["role"] in ("owner", "leader"):
@@ -970,7 +972,7 @@ class App:
         tick = int(time.time() // PRESENCE_TICK)
         who = hashlib.sha256(pid.encode()).hexdigest()[:8]
         st = self.session.state
-        return f'"{st["rev"]}.{self.session.presence_rev()}.{tick}.{who}.{self.build}.{int(self.tunnel_up)}"'
+        return f'"{st["rev"]}.{who}.{self.build}.{int(self.tunnel_up)}.{self.session.presence_rev()}.{tick}"'
 
     def changed(self):
         with self.hub.cond:

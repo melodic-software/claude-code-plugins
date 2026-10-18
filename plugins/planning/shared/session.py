@@ -97,6 +97,8 @@ JOINS_PER_WINDOW = 30
 JOIN_KEY_WINDOW = 600.0
 JOINS_PER_KEY = 60  # judgment: per guest key across all addresses, above JOINS_PER_WINDOW so one office NAT joins at once
 MAX_CHAT = 2000  # the newest messages kept, so chat cannot grow state.json without bound
+CHAT_WINDOW = 50  # judgment: the newest messages a snapshot carries; GET /api/chat pages through the rest
+CHAT_PAGE_MAX = 100  # judgment: the most messages one GET /api/chat returns
 MAX_ANNOTATIONS = 2000  # judgment: notes across all prototype questions; at the cap a new one is refused, none dropped
 MAX_MY_NOTES = 30  # judgment: notes one person pins on one prototype question
 MAX_SELECTOR = 1000  # judgment: characters in a note's element path; 32 levels of tag:nth-of-type(n) fit
@@ -1375,6 +1377,8 @@ class Session:
         with self._lock:
             person = self._person(pid)
             now = self.now()
+            rec = self._presence.get(pid)
+            was = self._presence_entry(pid, rec, now) if rec and now - self._seen(rec) < OFFLINE_AFTER else None
             rec = self._presence.setdefault(pid, {"at": now, "tabs": collections.OrderedDict()})
             old = rec["tabs"].get(tab)
             changed = old is not None and (old["visible"] != visible or (old.get("awayAt") is not None) != away)
@@ -1403,7 +1407,8 @@ class Session:
             while len(tabs) >= MAX_TABS:
                 tabs.popitem(last=False)
             tabs[tab] = beat
-            self._presence_rev += 1
+            if self._presence_entry(pid, rec, now) != was:  # a beat that changes nothing anyone sees moves no ETag
+                self._presence_rev += 1
             self._wrote(pid, route, now)
             recent.append(now)
             if changed:
@@ -4557,6 +4562,7 @@ class Session:
             by = st["suggestionVotes"].get(qid, {})
             suggestions[qid] = [{**s, "votes": sorted(v for v, sid in by.items() if sid == s["id"] and v in active)} for s in lst if s["pid"] in active]
         cur = self._current_round()
+        chat = self._visible_chat(active)
         base = {
             "schemaVersion": st["schemaVersion"],
             "rev": st["rev"],
@@ -4573,7 +4579,7 @@ class Session:
             "suggestions": suggestions,
             "disagreements": {q: [d for d in lst if d["pid"] in active] for q, lst in st.get("disagreements", {}).items()},
             "results": {q: shown for q, lst in st["results"].items() if (shown := [r for r in lst if self._result_shown(r)])},
-            "chat": [self._public_chat(m, active) for m in st["chat"] if m["pid"] in active],
+            "chat": chat[-CHAT_WINDOW:],
             "annotations": [a for a in st["annotations"] if a["pid"] in active],
             "people": [
                 {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")}
@@ -4585,6 +4591,8 @@ class Session:
             # the last names of people no longer here whom a text mentions, so <@pid> still reads as them
             "mentions": {p: st["people"][p]["name"] for p in self._mentioned_anywhere() if p in st["people"] and p not in active},
         }
+        if len(chat) > CHAT_WINDOW:
+            base["chatBefore"] = base["chat"][0]["id"]  # older messages exist: GET /api/chat?before=<it> reads them
         base = json.loads(json.dumps(base))
         self._base_cache = (st["rev"], base)
         return base
@@ -4634,6 +4642,41 @@ class Session:
         reactions = {e: pids for e, pids in reactions.items() if pids}
         return {**out, "reactions": reactions} if reactions else out
 
+    def _visible_chat(self, active):
+        """Every kept message whose author is in, as people read it, oldest first."""
+        return [self._public_chat(m, active) for m in self.state["chat"] if m["pid"] in active]
+
+    def _masked_chat(self, msgs, pid):
+        """Messages as this viewer reads them: where names are masked, others' reactions name nobody."""
+        me = self._person(pid)
+        if me["role"] in ("owner", "leader") or self.state["session"]["settings"]["names"] == "full":
+            return msgs
+        return [{**m, "reactions": {e: [p if p == pid else "" for p in ps] for e, ps in m["reactions"].items()}} if "reactions" in m else m for m in msgs]
+
+    def chat_page(self, pid, query):
+        """GET /api/chat?before=<id>|around=<id>[&limit=<n>]: chat beyond the snapshot's window, read as the snapshot
+        reads it. `before` gives the `limit` messages just older than that one; `around` gives `limit` messages with
+        that one in the middle. Each answer names `before`, its oldest message, while older ones exist."""
+        before, around = query.get("before"), query.get("around")
+        if (before is None) == (around is None):
+            raise _bad("before", "Give before or around, a message id.")
+        raw = query.get("limit", str(CHAT_WINDOW))
+        if not re.fullmatch(r"[0-9]{1,3}", raw) or not 1 <= int(raw) <= CHAT_PAGE_MAX:
+            raise _bad("limit", f"limit must be a whole number from 1 to {CHAT_PAGE_MAX}.")
+        limit = int(raw)
+        with self._lock:
+            self._person(pid)
+            msgs = self._visible_chat({p for p in self.state["people"] if self._active(p)})
+            at = next((i for i, m in enumerate(msgs) if m["id"] == (before or around)), None)
+            if at is None:
+                raise DomainError(404, "not-found", "No such message.")
+            end = at if before else min(len(msgs), max(0, at - limit // 2) + limit)
+            start = max(0, end - limit)
+            out = {"chat": copy.deepcopy(self._masked_chat(msgs[start:end], pid))}
+            if start:
+                out["before"] = msgs[start]["id"]
+            return out
+
     def _own_view_cards(self, pid, active):
         """The questions whose cards this viewer reads differently from everyone: the owner sees hidden
         answers and how many earlier versions each has (`versions`; the versions themselves come from
@@ -4679,16 +4722,10 @@ class Session:
                 snap["people"] = [{**p, "name": initials(p["name"]) if mode == "initials" else "Someone"} for p in base["people"]]
                 snap["mentions"] = {p: initials(n) if mode == "initials" else "Someone" for p, n in base["mentions"].items()}
                 snap["cards"] = {q: [{**c, "votes": [v if v == pid else "" for v in c["votes"]]} for c in lst] for q, lst in snap["cards"].items()}
-                snap["chat"] = [
-                    {**m, "reactions": {e: [p if p == pid else "" for p in ps] for e, ps in m["reactions"].items()}} if "reactions" in m else m for m in base["chat"]
-                ]
+                snap["chat"] = self._masked_chat(base["chat"], pid)
                 snap["suggestions"] = {q: [{**s, "votes": [v if v == pid else "" for v in s["votes"]]} for s in lst] for q, lst in base["suggestions"].items()}
                 snap["disagreements"] = {q: [{**d, "pid": d["pid"] if d["pid"] == pid else ""} for d in lst] for q, lst in base["disagreements"].items()}
-            now = self.now()
-            snap["serverTime"] = now
-            here = self._present()
-            snap["presence"] = [self._presence_entry(p, v, now) for p, v in self._presence.items() if p in here]
-            snap["lastSeen"] = {p: self._seen(v) for p, v in self._presence.items() if p not in here and self._active(p)}
+            snap.update(self._presence_view())
             notes = st["notifications"].get(pid, [])
             snap["me"] = {
                 "pid": pid,
@@ -4744,6 +4781,22 @@ class Session:
                     for qid, lst in st["cards"].items()
                 }
             return snap
+
+    def _presence_view(self):
+        """The snapshot's time-and-presence part, the same for every viewer: `serverTime`, `presence` and `lastSeen`.
+        GET /api/state sends it alone when nothing else in the viewer's snapshot changed."""
+        now = self.now()
+        here = self._present()
+        return {
+            "serverTime": now,
+            "presence": [self._presence_entry(p, v, now) for p, v in self._presence.items() if p in here],
+            "lastSeen": {p: self._seen(v) for p, v in self._presence.items() if p not in here and self._active(p)},
+        }
+
+    def presence_view(self, pid):
+        with self._lock:
+            self._person(pid)
+            return self._presence_view()
 
     def _presence_entry(self, pid, v, now):
         """One wire.schema.json `presence` entry from the person's live tabs: q and typing from the latest
