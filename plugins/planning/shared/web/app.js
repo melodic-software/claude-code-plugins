@@ -5104,7 +5104,7 @@
         qAct("Approve", "vf-btn-primary", guarded(() => ({ title: `Join ${li._it.m.fromName} and ${li._it.m.toName}?`, ok: "Join them", body: `${li._it.m.fromName}'s answers, votes, chat and suggestions move to ${li._it.m.toName}. This cannot be undone.` }),
           () => Core.mergeAct(li._it.m.id, "approve").then(() => flash("Joined.")).catch(fail))));
       if (it.t === "report" && owner) a.push(
-        ...(it.f.status === "open" && !it.f.asked ? [qAct("Ask Claude about this report", "vf-btn-ghost vf-rep-ask", guarded(REPORT_ASK, () => Core.reportAct(li._it.f.id, "ask").then(() => flash("Asked. Claude proposes a fix in the terminal.")).catch(fail)))] : []),
+        ...(!it.f.asked ? [qAct("Ask Claude about this report", "vf-btn-ghost vf-rep-ask", guarded(REPORT_ASK, () => Core.reportAct(li._it.f.id, "ask").then(() => flash("Asked. Claude proposes a fix in the terminal.")).catch(fail)))] : []),
         ...(it.f.status === "open" ? [qAct("Seen", "vf-btn-ghost", () => Core.reportAct(li._it.f.id, "seen").then(() => flash("Marked seen. The reporter is told.")).catch(fail))] : []),
         qAct("Resolved", "vf-btn-primary", () => Core.reportAct(li._it.f.id, "resolved").then(() => flash("Resolved. The reporter is told.")).catch(fail)));
       if (it.t === "ready" && owner) a.push(qAct("Send round to Claude", "vf-btn-primary", e => roundAction(e.currentTarget)));

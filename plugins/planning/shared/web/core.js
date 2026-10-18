@@ -520,7 +520,7 @@
     /** Report a problem: text, the page context (Core.reportContext) and at most one picture, a data: URL. */
     report: (text, ctx, image) => act("/api/report", { text, ctx, ...(image ? { image } : {}) }),
     /** Owner: mark a report seen or resolved; either tells the reporter. */
-    /** Owner: seen | resolved tell the reporter; ask hands an open report to Claude (a report alone never reaches it). */
+    /** Owner: seen | resolved tell the reporter; ask hands a report to Claude once (a report alone never reaches it). */
     reportAct: (id, action) => act("/api/report/act", { id, action }),
     /** Owner: one report's picture, as a data: URL. */
     reportImage: async id => {

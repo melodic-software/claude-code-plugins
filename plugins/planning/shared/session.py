@@ -3662,14 +3662,14 @@ class Session:
 
     def act_on_report(self, pid, body):
         """POST /api/report/act: the owner marks a report seen or resolved, which tells the reporter, or asks Claude
-        about an open one, which writes `report-filed`: a guest's report alone never reaches Claude."""
+        about one not yet resolved, which writes `report-filed`: a guest's report alone never reaches Claude."""
         action = _choice(body, "action", ("seen", "resolved", "ask"))
         with self._tx():
             self._owner(pid)
             fid = _ident(body, "id")
             r = self._report(fid)
             if action == "ask":
-                if r["status"] != "open" or "asked" in r:
+                if r["status"] == "resolved" or "asked" in r:
                     state = "asked" if "asked" in r else r["status"]
                     raise DomainError(409, "wrong-status", f"Report {fid} is {state}.", status=state)
                 r["asked"] = self.now()

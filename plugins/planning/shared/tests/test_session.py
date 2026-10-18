@@ -5059,19 +5059,28 @@ class TestReports(SessionCase):
         self.assertTrue(self.s.snapshot(HOST)["reports"][0]["asked"])
         self.assertEqual(self.notes(self.ann, "report"), [])
 
-    def test_ask_is_the_owners_once_and_only_on_an_open_report(self):
+    def test_ask_is_the_owners_once_and_never_on_a_resolved_report(self):
         self.file(self.ann)
         self.refused("owner-only", "act_on_report", self.ann, {"id": "F1", "action": "ask"}, http=403)
         self.act("act_on_report", HOST, {"id": "F1", "action": "ask"})
         self.refused("wrong-status", "act_on_report", HOST, {"id": "F1", "action": "ask"}, http=409)
         self.file(self.ann)
         self.act("act_on_report", HOST, {"id": "F2", "action": "seen"})
+        self.act("act_on_report", HOST, {"id": "F2", "action": "ask"})
         self.refused("wrong-status", "act_on_report", HOST, {"id": "F2", "action": "ask"}, http=409)
         self.file(self.ann)
         self.act("act_on_report", HOST, {"id": "F3", "action": "resolved"})
         self.refused("wrong-status", "act_on_report", HOST, {"id": "F3", "action": "ask"}, http=409)
         self.refused("not-found", "act_on_report", HOST, {"id": "F9", "action": "ask"}, http=404)
-        self.assertEqual([e["report"] for e in self.events("report-filed")], ["F1"])
+        self.assertEqual([e["report"] for e in self.events("report-filed")], ["F1", "F2"])
+
+    def test_ask_on_a_seen_report_keeps_it_seen_and_hands_it_to_claude(self):
+        self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.assertEqual(self.act("act_on_report", HOST, {"id": "F1", "action": "ask"}), {"id": "F1", "status": "seen", "asked": True})
+        self.assertEqual([(e["report"], e["text"]) for e in self.events("report-filed")], [("F1", "Send does nothing")])
+        self.assertEqual((self.s.state["reports"]["F1"]["status"], len(self.notes(self.ann, "report"))), ("seen", 1))
+        self.act("act_on_report", HOST, {"id": "F1", "action": "resolved"})
 
     def test_a_picture_is_taken_while_uploads_are_off_and_other_uploads_are_still_refused(self):
         self.assertFalse(self.s.state["session"]["settings"]["uploads"])
