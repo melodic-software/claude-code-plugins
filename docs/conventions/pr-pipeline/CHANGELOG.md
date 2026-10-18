@@ -1,12 +1,18 @@
 # Changelog for the PR pipeline convention
 
-## 2.11.1 - 2026-10-18
+## 2.11.2 - 2026-10-18
 
 The broker's `workflow-modified` refusal has one exception, for a lane's post-run report job
 (`work-resolve-issue` `report-outcome`, `pr-unblock` `report-escalation`): it still mints when
 every main commit that changed the workflow is signed, GitHub-made, on a linear range and landed
 after run start, at most 50 minutes ago ([azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39)).
 The model step stays strict. `version` stays 2.
+
+## 2.11.1 - 2026-10-18
+
+The `resolve-issue` job passes `timeout-minutes: 25` to the write runner, down from 50, so a stuck
+run frees its concurrency slot sooner. Of the 40 most recent successful runs the job took 3.5
+minutes at the median, 10 at the 90th percentile and 15.4 at the maximum. `version` stays 2.
 
 ## 2.11.0 - 2026-10-18
 
