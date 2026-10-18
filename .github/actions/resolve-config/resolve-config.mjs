@@ -20,6 +20,7 @@ import {
   modelSettings,
   neededFacts,
   resolve,
+  resolveLimits,
   resolveRoute,
 } from "./resolve.mjs";
 
@@ -262,6 +263,14 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
     );
   }
   return resolved;
+}
+
+// The base config's resolved `limits`, for a script that resolves no lane
+// slot; a config the resolver refuses throws.
+export function limitsFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  return resolveLimits(filesUnderBase(basePath, configPath), { configPath });
 }
 
 // A run that is no lane activity resolves only its model route.

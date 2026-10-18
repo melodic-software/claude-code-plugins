@@ -17,6 +17,11 @@ name: maintenance-audit-lane-runs
 #   at most 5 issues, within 50 calls. It writes with the job's own token, so
 #   its issues come from github-actions[bot] and start no workflow.
 #
+# A fourth job, triage-sweep, runs alone every hour (and with the daily run):
+# it dispatches intake-triage.yml for open issues intake never reached, at
+# most 5 a pass, and files one needs-triage issue for an issue 2 dispatches
+# left untriaged. It uses the job's own token, never the lanes App.
+#
 # How to stop it: set the organization or repository lanes kill-switch
 # variable to anything but "false"; every job checks it first.
 #
@@ -25,12 +30,14 @@ name: maintenance-audit-lane-runs
 on:
   schedule:
     - cron: "33 6 * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 permissions: {}
 
+# The hourly pass has its own group, so it never waits behind the daily audit.
 concurrency:
-  group: maintenance-audit-lane-runs
+  group: maintenance-audit-lane-runs-${{ github.event.schedule == '17 * * * *' && 'triage' || 'audit' }}
   cancel-in-progress: false
 
 defaults:
@@ -39,7 +46,7 @@ defaults:
 
 jobs:
   collect:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event.schedule != '17 * * * *'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -201,10 +208,15 @@ jobs:
         with:
           install-subprocess-isolation: true
 
+      # A schedule run can carry github-merge-queue[bot] as its actor, since
+      # the queue lands main's commits; the action's actor check refuses any
+      # bot not named here (claude-code-action src/github/validation/actor.ts
+      # :11-28, :42-81 at the pin). The run executes main's own code, with no
+      # pull request head. Never '*'.
       - name: Judge the unit
         id: judge
         if: steps.prompt.outcome == 'success'
-        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
+        uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967 # v1.0.252
         env:
           # Strips the OAuth token and other credentials from any subprocess
           # (as in pr-verify.yml).
@@ -213,6 +225,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
+          allowed_bots: github-merge-queue
           prompt: ${{ steps.prompt.outputs.prompt }}
           claude_args: >-
             --setting-sources user
@@ -298,3 +311,52 @@ jobs:
         run: |
           mkdir -p "$FINDINGS_DIR"
           node .base/.github/scripts/maintenance-audit-lane-runs/file-findings.mjs
+
+  # A dispatch sent with this token starts a run as github-actions[bot]
+  # (41898282), which intake-triage.yml admits; intake itself uses its own
+  # GITHUB_TOKEN and the Claude OAuth secret, no App token. At most 120 REST
+  # calls, of the token's 1,000 an hour per repository: up to 15 issue pages,
+  # then for at most 20 candidates up to 3 comment pages and the latest run,
+  # at most 5 dispatches (2 calls) and 5 filings (4 calls); the pass stops
+  # before an action the calls left cannot finish.
+  triage-sweep:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: maintenance-audit-lane-runs-triage-sweep
+      cancel-in-progress: false
+    permissions:
+      actions: write # dispatch intake-triage.yml and read its runs
+      contents: read # check out main
+      issues: write # write the state comment and file the needs-triage issue
+    steps:
+      - name: Check out the run's main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Sweep for untriaged issues
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          CALL_BUDGET: "120"
+        run: node .base/.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs

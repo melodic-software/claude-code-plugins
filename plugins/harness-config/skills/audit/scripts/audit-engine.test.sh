@@ -109,7 +109,17 @@ cat >"$DOCS/llms.txt" <<'EOF'
 
 - [All settings](https://code.claude.com/docs/en/settings-reference.md): Complete reference for every Claude Code settings.json key.
 - [Environment variables](https://code.claude.com/docs/en/env-vars.md): Reference for environment variables that control Claude Code behavior.
+- [Mods overview](https://code.claude.com/docs/en/plugins/mods/overview.md): Add panes, commands, and tool call rules to Claude Code with a mod.
 EOF
+# The mods overview, holding the two sentences the mod rows quote, copied from
+# the published page (https://code.claude.com/docs/en/plugins/mods/overview.md,
+# read 2026-10-18), plus a decoy line that names a lever and built-in mods
+# without the other levers.
+MODS_NOTE='  If you set `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` during early access, remove it. Claude Code v2.1.287 and later ignores it, so setting it to `0` doesn'"'"'t keep mods off.'
+MODS_BUILTIN='The settings and flags that stop installed mods, such as `disableAllHooks`, `--bare`, and `--safe-mode`, don'"'"'t stop built-in mods.'
+mkdir -p "$DOCS/plugins/mods"
+printf '%s\n' '# Mods overview' '' '## Turn mods on or off' '' 'Set `disableAllHooks` to stop the mods you installed; see built-in mods below.' '' '<Note>' "$MODS_NOTE" '</Note>' '' \
+  '## Mods built into Claude Code' '' "$MODS_BUILTIN" >"$DOCS/plugins/mods/overview.md"
 cat >"$DOCS/env-vars.md" <<'EOF'
 # Environment variables
 
@@ -363,6 +373,82 @@ assert_eq "case 4m: a managed guard option gets a set row" "ok" \
 rc=0
 out=$(SETTINGS_AUDIT_MANAGED_PATH="$m/managed.json" run "$m" --table 2>&1) || rc=$?
 assert_contains "case 4m: the table prints a set mod-plane key" "$out" "allowModsToOverrideDenyRules set in managed to true"
+
+# --- Case 4f: the early-access mods variable is flagged at any value -----------
+# Expected values: the checklist row flags the variable at any value in user,
+# project or local env, and the detail quotes the page's sentence on it, read
+# this run, never a claim of the engine's own.
+m="$(make_machine fnhooks)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {env:{"CLAUDE_CODE_ENABLE_FUNCTION_HOOKS":"0"}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"env":{"CLAUDE_CODE_ENABLE_FUNCTION_HOOKS":"1"}}' >"$m/user/settings.json"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 4f: a project env value of 0 is a warning" "warning" \
+  "$(jq -r '.findings[] | select(.identity.claim=="function-hooks-flag-dead" and .identity.sites[0].surface==".claude/settings.json") | .severity' <<<"$out")"
+assert_eq "case 4f: the user scope is read too" "1" \
+  "$(jq -r '[.findings[] | select(.identity.claim=="function-hooks-flag-dead" and .identity.sites[0].surface=="user:settings.json")] | length' <<<"$out")"
+fh="$(jq -r '.findings[] | select(.identity.claim=="function-hooks-flag-dead") | .detail' <<<"$out" | head -n1)"
+assert_contains "case 4f: the detail quotes the page's sentence verbatim" "$fh" "\"${MODS_NOTE#  }\""
+assert_contains "case 4f: the detail names the page it quotes" "$fh" "plugins/mods/overview"
+assert_contains "case 4f: the detail points at the section to recheck" "$fh" "mods/overview#turn-mods-on-or-off"
+m="$(make_machine fnhooks-absent)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {env:{"CLAUDE_CODE_DISABLE_AUTO_MEMORY":"1"}}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1)
+assert_eq "case 4f: another env variable is no finding" "0" \
+  "$(jq -r '[.findings[] | select(.identity.claim=="function-hooks-flag-dead")] | length' <<<"$out")"
+
+# --- Case 4g: built-in mods are reported beside every hook lever --------------
+# Expected values: the checklist row makes a set disableAllHooks an info finding
+# and quotes the page's sentence on the levers, never a claim of its own.
+m="$(make_machine builtin-levers)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {disableAllHooks:true}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1)
+bm="$(jq -r '.findings[] | select(.identity.claim=="builtin-mods-survive-levers") | "\(.severity) \(.detail)"' <<<"$out")"
+assert_contains "case 4g: disableAllHooks set yields an info finding" "$bm" "info "
+assert_contains "case 4g: the detail quotes the page's sentence verbatim" "$bm" "\"$MODS_BUILTIN\""
+assert_contains "case 4g: the detail points at the built-in mods section" "$bm" "mods/overview#mods-built-into-claude-code"
+m="$(make_machine builtin-levers-unset)"
+printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1)
+assert_eq "case 4g: with no lever set it is an ok row, not a finding" "ok 0" \
+  "$(jq -r '"\(.rows[] | select(.claim=="builtin-mods-survive-levers") | .status) \([.findings[] | select(.identity.claim=="builtin-mods-survive-levers")] | length)"' <<<"$out")"
+assert_contains "case 4g: the ok row quotes the sentence too" \
+  "$(jq -r '.rows[] | select(.claim=="builtin-mods-survive-levers") | .detail' <<<"$out")" "\"$MODS_BUILTIN\""
+
+# --- Case 4h: an unconfirmed upstream statement is not-inspectable -------------
+# Expected values: with the page read but neither sentence on it, or the page
+# not read at all, both rows say the statement could not be confirmed, carry
+# the pointer, and raise no finding.
+m="$(make_machine mods-unconfirmed)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {disableAllHooks:true,env:{"CLAUDE_CODE_ENABLE_FUNCTION_HOOKS":"0"}}' >"$m/project/.claude/settings.json"
+mods_rows() {
+  jq -r '[.rows[] | select(.claim=="builtin-mods-survive-levers" or .claim=="function-hooks-flag-dead") | .status] | join(" ")' <<<"$1"
+}
+mods_findings() {
+  jq -r '[.findings[] | select(.identity.claim=="builtin-mods-survive-levers" or .identity.claim=="function-hooks-flag-dead")] | length' <<<"$1"
+}
+d="$m/docs-nosentence"
+mkdir -p "$d/plugins/mods"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$DOCS/settings-reference.md" "$d/"
+printf '%s\n' '# Mods overview' '' '## Mods built into Claude Code' '' 'Some features are mods.' >"$d/plugins/mods/overview.md"
+out=$(run "$m" --json --docs-dir "$d" 2>&1)
+assert_eq "case 4h: a page without the sentences makes both rows not-inspectable" "not-inspectable not-inspectable" "$(mods_rows "$out")"
+assert_eq "case 4h: and raises no finding" "0" "$(mods_findings "$out")"
+assert_contains "case 4h: the built-in row says the statement was not confirmed" \
+  "$(jq -r '.rows[] | select(.claim=="builtin-mods-survive-levers") | .detail' <<<"$out")" "could not be confirmed"
+assert_contains "case 4h: and carries the pointer" \
+  "$(jq -r '.rows[] | select(.claim=="builtin-mods-survive-levers") | .detail' <<<"$out")" "mods/overview#mods-built-into-claude-code"
+assert_contains "case 4h: the variable row carries its pointer" \
+  "$(jq -r '.rows[] | select(.claim=="function-hooks-flag-dead") | .detail' <<<"$out")" "mods/overview#turn-mods-on-or-off"
+d="$m/docs-nopage"
+mkdir -p "$d"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$DOCS/settings-reference.md" "$d/"
+out=$(DOCS_FIXTURE="$d" run "$m" --json 2>&1)
+assert_eq "case 4h: the page is unread when the fetch fails" "unread" "$(jq -r '.docs.pages[] | select(.slug=="plugins/mods/overview") | .state' <<<"$out")"
+assert_eq "case 4h: a failed fetch makes both rows not-inspectable" "not-inspectable not-inspectable" "$(mods_rows "$out")"
+assert_eq "case 4h: and raises no finding either" "0" "$(mods_findings "$out")"
+assert_contains "case 4h: the variable row says the statement was not confirmed" \
+  "$(jq -r '.rows[] | select(.claim=="function-hooks-flag-dead") | .detail' <<<"$out")" "could not be confirmed"
 
 # strictPluginOnlyCustomization is per-surface. "mcp" does not switch hooks off.
 # "hooks" does. v2.1.257 closed the /mcp reconnect bypass; the lever row says so.
@@ -848,7 +934,7 @@ rc=0
 out=$(DOCS_FIXTURE="$m/noindex" run "$m" --json 2>&1) || rc=$?
 assert_exit "case 25: no row resting on an unread page is an error" 0 "$rc"
 assert_eq "case 25: the index is unread" "unread" "$(jq -r '.docs.index.state' <<<"$out")"
-assert_eq "case 25: both pages unread for that reason" "index-unread index-unread" "$(jq -r '[.docs.pages[] | select(.state=="unread") | .reason] | join(" ")' <<<"$out")"
+assert_eq "case 25: every page unread for that reason" "index-unread index-unread index-unread" "$(jq -r '[.docs.pages[] | select(.state=="unread") | .reason] | join(" ")' <<<"$out")"
 assert_eq "case 25: the env row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="env-page-not-fetched:MY_SINK") | .status' <<<"$out")"
 assert_eq "case 25: the key rows are not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="key-page-not-fetched:permissions") | .status' <<<"$out")"
 assert_eq "case 25: the effortLevel row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="effortLevel:max") | .status' <<<"$out")"
@@ -1558,7 +1644,7 @@ docs_with_link "$m/docs" hooks sandboxing
 cp "$HOOKS_MD" "$m/docs/hooks.md"
 cp "$HOOKS_MD" "$m/docs/sandboxing.md"
 out=$(run "$m" --json --docs-dir "$m/docs" 2>&1) || true
-assert_eq "case 51: the linked page joins the docs pages, one no check reads does not" "settings-reference env-vars hooks" "$(pages "$out")"
+assert_eq "case 51: the linked page joins the docs pages, one no check reads does not" "settings-reference env-vars plugins/mods/overview hooks" "$(pages "$out")"
 assert_eq "case 51: it is read from --docs-dir" "read docs-dir true" "$(jq -r '.docs.pages[] | select(.slug=="hooks") | "\(.state) \(.source) \(.url_or_path | endswith("/docs/hooks.md"))"' <<<"$out")"
 assert_eq "case 51: an event in the Event table is ok" "ok none" "$(hook_row "$out" documented-hook-event:PreToolUse)"
 assert_eq "case 51: a name from another table is not an event" "finding error" "$(hook_row "$out" undocumented-hook-event:Bash)"
@@ -1589,7 +1675,7 @@ assert_eq "case 51: no event is called unknown on it" "not-inspectable none" "$(
 docs_with_link "$m/nolink" hooks-guide
 cp "$HOOKS_MD" "$m/nolink/hooks.md"
 out=$(run "$m" --json --docs-dir "$m/nolink" 2>&1) || true
-assert_eq "case 51: a page settings-reference does not link is not acquired" "settings-reference env-vars" "$(pages "$out")"
+assert_eq "case 51: a page settings-reference does not link is not acquired" "settings-reference env-vars plugins/mods/overview" "$(pages "$out")"
 
 # --- Case 52: the fallbackModel cap and enum values come from the page ----------
 m="$(make_machine caps)"

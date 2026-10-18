@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: wf-task-tools-track-stages
+description: 'Regression guard for the task-tools branch of /session-flow:workflow progress tracking. In a session whose tool list holds the Task tools, work that spans 3+ stages is tracked as one task per applicable stage created with TaskCreate, and the answer says the stage list lives in the task list. TodoWrite is not offered, so the Task tools are the only tracker on the tool list.'
+tags: [workflow, task-tools, progress-tracking]
+plugins: ["../.."]
+expected_outcome: 'The answer shows the stage overview, places the session on the ladder, and says the stage list is kept in the session task list. The run creates at least three tasks with TaskCreate, one per applicable stage.'
+execution:
+  prompt: '/session-flow:workflow I am starting a new feature, a currency filter for the report export, that will span explore through pull request. Set up tracking for its stages.'
+  allowed_tools: [Read, Glob, Grep, Skill, TaskCreate, TaskList, TaskGet, TaskUpdate]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: says-stages-in-task-list
+    type: regex
+    pattern: '^(?![^\n]*\b(?:no|not|without|never)\b[ \t]+(?:\w+[ \t]+){0,2}(?:task[ \t]+(?:list|tools?)|TaskCreate)\b)[^\n]*(?:\btask[ \t]+(?:list|tools?)\b|\bTaskCreate\b|\b(?:created|added|set[ \t]+up)\b[^\n]{0,40}\btasks\b)'
+    flags: 'mi'
+    arm: with-only
+  - name: creates-stage-tasks
+    type: tool_used
+    tool: TaskCreate
+    min: 3
+    arm: with-only

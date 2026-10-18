@@ -718,8 +718,15 @@ jobs:
       # Stale-base squash merges can silently revert recently-landed fixes when
       # a PR is cut from a base that has since moved, and the squash deletes
       # the tests that would have caught the drop (claude-code-plugins#2691).
-      # This gate covers the stale-BASE class only; a branch stale in content
+      # This check covers the stale-BASE class only; a branch stale in content
       # but current in history belongs to the post-merge silent-revert canary.
+      #
+      # ADVISORY ON pull_request (#7871). `--warn` reports every overlap as a
+      # ::warning listing the overlapping paths and exits 0; only an
+      # inconclusive git state (exit 2) fails the step. The merge queue builds
+      # and tests each change on the current base before it lands, so a PR
+      # that is only behind a fast-moving main is not failed here. merge_group
+      # declines below, as before.
       #
       # THE HEAD COMMIT, NOT THE MERGE COMMIT. On a pull_request event this job
       # checks out the synthetic merge commit, whose merge-base with the target
@@ -728,7 +735,7 @@ jobs:
       # exactly that reason. Running it in a detached worktree of the same
       # clone keeps that head-tip comparison while leaving every other step in
       # this job on the merge commit, where the diff-scoped gates want to be.
-      - name: Fail when behind base on overlapping paths
+      - name: Warn when behind base on overlapping paths
         id: stale_base
         continue-on-error: true
         env:
@@ -757,7 +764,7 @@ jobs:
           }
           trap cleanup EXIT
           cd "$head_tree"
-          "$GITHUB_WORKSPACE/scripts/check-stale-base-overlap.sh" --check "origin/$BASE_REF"
+          "$GITHUB_WORKSPACE/scripts/check-stale-base-overlap.sh" --warn "origin/$BASE_REF"
 
       # The docs-only short-circuit is a fail-open shape by construction:
       # getting it wrong makes a heavy lane report success without running. Its
@@ -952,7 +959,6 @@ jobs:
           builtin-schema: vendor.github-workflows
           files: >-
             .github/workflows/pr-require-checks.yml
-            .github/workflows/pr-bump-plugin-version.yml
             .github/workflows/post-merge-detect-silent-revert.yml
             .github/workflows/pr-test-windows.yml
             .github/workflows/release-publish-plugins.yml
@@ -1669,10 +1675,12 @@ jobs:
         run: scripts/check-plugin-catalog-enablement.sh
 
       # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose
-      # newest version heading does not outrun the manifest (static --check), a
-      # change that bumps a plugin's manifest version must update that plugin's
-      # CHANGELOG.md in the same diff (--check-bump), and no change may DROP a
-      # version heading a changelog already carried (--check-preserved).
+      # newest version heading does not outrun the manifest (static --check),
+      # only the release pull request may move a plugin's version or add a
+      # CHANGELOG heading, and its bump must be monotonic and documented
+      # (--check-bump), and no change may DROP a version heading a changelog
+      # already carried (--check-preserved). Every plugin is in fragment mode,
+      # so no other pull request bumps a version.
       # Existing "versioned but changelog-less" debt is grandfathered by name
       # in scripts/changelog-parity-baseline.txt with a stale guard; the bump
       # gate is never relaxed by the baseline.
@@ -1718,7 +1726,7 @@ jobs:
             echo "head_ref=$head_ref"
             echo "head_sha=$head_sha"
           } >>"$GITHUB_OUTPUT"
-      - name: Verify a version bump updates the plugin's CHANGELOG.md
+      - name: Verify only the release pull request versions a plugin, monotonically
         id: changelog_parity_bump
         continue-on-error: true
         env:
@@ -2565,6 +2573,10 @@ jobs:
             requirements+=(--requirement plugins/animation/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
+          # The animation render tests capture through the locked playwright's headless Chromium.
+          if [[ "$leg_needs" == *animation* ]]; then
+            node node_modules/playwright/cli.js install --only-shell chromium
+          fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           # The inventory's parser packages, installed the way a first
@@ -2621,7 +2633,7 @@ jobs:
       # makes no more legs than it has suites.
       - name: Run this leg's shell suites
         env:
-          # The animation suites fail on a missing numpy or opencv here instead of skipping green.
+          # The animation suites fail on a missing numpy, opencv or Chromium here instead of skipping green.
           ANIMATION_REQUIRE_DEPS: '1'
           # The speech suite fails on a missing numpy here instead of skipping green.
           SPEECH_REQUIRE_DEPS: '1'
@@ -2632,6 +2644,10 @@ jobs:
           # The check-visual-parity pixel cases fail on a missing pixelmatch or pngjs here instead of skipping green.
           VISUAL_COMPARE_REQUIRE: '1'
           VISUAL_COMPARE_DEPS_DIR: .work
+          # On main (schedule, dispatch) a failing suite in
+          # scripts/run-plugin-tests-advisory.txt warns instead of failing the
+          # leg; pull requests and merge groups still fail on it.
+          PLUGIN_TEST_ADVISORY: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
         run: |
           jq -r --arg leg "$LEG" '.[$leg] // [] | .[]' <<<"$PLAN" >"$RUNNER_TEMP/leg-suites.txt"
           if [ ! -s "$RUNNER_TEMP/leg-suites.txt" ]; then
@@ -2707,6 +2723,10 @@ jobs:
             requirements+=(--requirement plugins/animation/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
+          # The animation render tests capture through the locked playwright's headless Chromium.
+          if [[ "$leg_needs" == *animation* ]]; then
+            node node_modules/playwright/cli.js install --only-shell chromium
+          fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           # test_fixture_parse.py and test_parser_reader.py run instead of skipping.

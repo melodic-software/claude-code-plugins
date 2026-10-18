@@ -1,8 +1,9 @@
 // maintenance-audit-lane-runs.yml's hardening, from docs/conventions/pr-pipeline/README.md
 // ("Every lane" and "The lane sweep"): only a schedule or a manual run starts
 // it, the model job holds read permissions only and runs with
-// --setting-sources user and dontAsk and no shell, only the scripted file job
-// may write issues, and every job checks the kill switch first.
+// --setting-sources user and dontAsk and no shell, only the scripted file and
+// triage-sweep jobs write, and every job checks the kill switch first. The
+// hourly schedule runs only the triage sweep.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -28,13 +29,13 @@ test("only a schedule or a manual run starts the lane, with no default permissio
   assert.match(text, /\npermissions: \{\}\n/);
 });
 
-test("the three jobs are collect, judge and file, in that order", () => {
-  assert.deepEqual(Object.keys(jobs), ["collect", "judge", "file"]);
+test("the jobs are collect, judge, file and triage-sweep, in that order", () => {
+  assert.deepEqual(Object.keys(jobs), ["collect", "judge", "file", "triage-sweep"]);
   assert.match(jobs.judge, /\n {4}needs: collect\n/);
   assert.match(jobs.file, /\n {4}needs: \[collect, judge\]\n/);
 });
 
-test("only the file job writes, and no job can mint a token", () => {
+test("only the file and triage-sweep jobs write, and no job can mint a token", () => {
   for (const job of ["collect", "judge"]) {
     assert.ok(
       Object.values(permissions(job)).every((v) => v === "read"),
@@ -46,6 +47,12 @@ test("only the file job writes, and no job can mint a token", () => {
     contents: "read",
     issues: "write",
   });
+  assert.deepEqual(permissions("triage-sweep"), {
+    actions: "write",
+    contents: "read",
+    issues: "write",
+  });
+  assert.match(jobs["triage-sweep"], /\n {10}GITHUB_TOKEN: \$\{\{ github\.token \}\}\n/);
   assert.doesNotMatch(text, /id-token|request-lane-token|secrets\.[A-Z_]*(APP|PRIVATE)_KEY/);
 });
 
@@ -65,6 +72,15 @@ test("the model runs only in judge, read-only, from the user settings source", (
   assert.doesNotMatch(jobs.judge, /Read\(~\/\*\*\)/);
 });
 
+// cant-fail-ok: the allowed_bots value is the contract. A schedule run can
+// carry the merge-queue bot as its actor; never '*'.
+test("the judge admits only the merge-queue bot as a non-human actor", () => {
+  assert.deepEqual(
+    [...jobs.judge.matchAll(/\n {10}allowed_bots: (.*)\n/g)].map((m) => m[1]),
+    ["github-merge-queue"],
+  );
+});
+
 test("every job checks the kill switch before its first API or model step", () => {
   for (const [name, block] of Object.entries(jobs)) {
     const kill = block.indexOf("check-kill-switch");
@@ -72,4 +88,13 @@ test("every job checks the kill switch before its first API or model step", () =
     const work = block.search(/node \.base\/\.github\/scripts\/maintenance-audit-lane-runs\/|claude-code-action@/);
     assert.ok(work > kill, `${name} works only after the kill switch`);
   }
+});
+
+test("the daily schedule runs the audit, the hourly one only the triage sweep", () => {
+  const crons = [...text.matchAll(/\n {4}- cron: "([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(crons, ["33 6 * * *", "17 * * * *"]);
+  assert.match(jobs.collect, /\n {4}if: github\.ref == 'refs\/heads\/main' && github\.event\.schedule != '17 \* \* \* \*'\n/);
+  assert.match(jobs["triage-sweep"], /\n {4}if: github\.ref == 'refs\/heads\/main'\n/);
+  // Two passes at once could dispatch the same issue twice.
+  assert.match(jobs["triage-sweep"], /\n {4}concurrency:\n {6}group: [^\n]+\n {6}cancel-in-progress: false\n/);
 });
