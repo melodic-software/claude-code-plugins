@@ -700,8 +700,8 @@ mods_quote() {
   [[ -n "$MP" ]] || return 0
   local q
   q="$(awk 'BEGIN { n = ARGC - 2; ARGC = 2 }
-    FNR == 1 { for (i = 1; i <= n; i++) nd[i] = ARGV[i + 1] }
-    { for (i = 1; i <= n; i++) if (index($0, nd[i]) == 0) next; sub(/^[ \t]+/, ""); print; exit }' "$MP" "$@")"
+    FNR == 1 { for (i = 1; i <= n; i++) needle[i] = ARGV[i + 1] }
+    { for (i = 1; i <= n; i++) if (index($0, needle[i]) == 0) next; sub(/^[ \t]+/, ""); print; exit }' "$MP" "$@")"
   [[ -n "$q" ]] && printf 'the mods overview (%s) says: "%s"' "$MODS_SRC" "$q"
 }
 
