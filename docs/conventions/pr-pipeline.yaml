@@ -364,3 +364,15 @@ merge:
       - "plugins/testing/skills/*/scripts/**"
       - "plugins/autonomy/scripts/**"
       - "plugins/autonomy/skills/*/scripts/**"
+    # Owner decision Q646 (2026-10-18): a .ps1 or .cjs file, or one with git
+    # mode 100755, holds the same way in the plugins the CI lanes load and,
+    # in the scorer, at the top level. work-items and review are already on
+    # the floor; other plugins stay an accepted risk (Q640c).
+    floor-script-scopes:
+      - "plugins/ai-slop/**"
+      - "plugins/source-control/**"
+      - "plugins/discovery/**"
+      - "plugins/knowledge/**"
+      - "plugins/skill-quality/**"
+      - "plugins/testing/**"
+      - "plugins/autonomy/**"

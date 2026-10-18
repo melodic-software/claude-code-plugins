@@ -1809,6 +1809,21 @@ class ReasonsComment(Unattended):
         self.assertIn("evidence-unbound:claude-review", body)
         self.assertIn(HEAD, body)
 
+    def test_a_floor_hold_says_a_human_merges_it(self) -> None:
+        # Owner decision Q648: only the owner merges a floor-held PR.
+        self.files = ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)
+        self.run_main()
+        body = next(
+            c.args[0][-1]
+            for c in self.capture.call_args_list
+            if "babysit-merge-risk" in " ".join(c.args[0])
+        )
+        self.assertIn("high-path:.github/**", body)
+        self.assertIn("a human merges it in person, never an agent or a lane", body)
+
+    def test_a_med_hold_does_not_claim_the_floor(self) -> None:
+        self.assertNotIn("never an agent", self.body())
+
     def test_an_unchanged_assessment_is_not_rewritten(self) -> None:
         body = self.body()
         self.setUp()

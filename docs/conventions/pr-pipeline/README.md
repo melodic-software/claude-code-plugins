@@ -484,7 +484,9 @@ except six:
   `mcpServers` frontmatter (and the other keys `babysit_risk.py` lists), YAML it cannot read line
   by line, a moved `---` delimiter, a rename or copy into such a path, or a new
   `!` backtick command line), `floor-paths` (globs joined to
-  that floor while it applies; a HIGH pull request waits for a human), `c2-contradictions` (true
+  that floor while it applies; a HIGH pull request waits for a human), `floor-script-scopes`
+  (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file scores HIGH with
+  the floor), `c2-contradictions` (true
   scores a removed, renamed or copied file, a schema change or more than one plugin MED),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
   `high-path-floor: true` with `floor-paths` (owner decision Q641, 2026-10-18) and leaves the

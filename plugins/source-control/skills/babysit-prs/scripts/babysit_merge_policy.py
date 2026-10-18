@@ -431,6 +431,10 @@ class PipelineConfig:
     # decision Q641); they hold a pull request for a human, unlike
     # denied-paths, which makes it ineligible.
     floor_paths: tuple[str, ...] = ()
+    # `merge.diff-check.floor-script-scopes`: globs inside which a `.ps1` or
+    # `.cjs` file, or a file with git mode 100755, holds the same way (owner
+    # decision Q646).
+    floor_script_scopes: tuple[str, ...] = ()
     c2_contradictions: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
@@ -550,6 +554,7 @@ def read_config_at(
             ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
             ("merge.diff-check.floor-paths", True),
+            ("merge.diff-check.floor-script-scopes", True),
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
             ("merge.dependabot.mode", False),
@@ -619,6 +624,7 @@ def read_config_at(
         dependabot_mode=dependabot_mode,
         high_path_floor=high_path_floor,
         floor_paths=tuple(values["merge.diff-check.floor-paths"]),
+        floor_script_scopes=tuple(values["merge.diff-check.floor-script-scopes"]),
         c2_contradictions=c2_contradictions,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,

@@ -107,6 +107,10 @@ class RiskInput:
     high_floor: bool = True
     # merge.diff-check.floor-paths: globs joined to HIGH_FLOOR while it applies.
     floor_paths: tuple[str, ...] = ()
+    # merge.diff-check.floor-script-scopes: globs inside which, as at the top
+    # level, a script file (`_SCRIPT_SUFFIXES`, or git mode 100755) scores
+    # HIGH with the floor.
+    floor_script_scopes: tuple[str, ...] = ()
     c2_contradictions: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
@@ -400,6 +404,26 @@ def _readable_globs(value: Any, unsafe: list[str]) -> tuple[str, ...]:
     return globs
 
 
+_SCRIPT_SUFFIXES = (".ps1", ".cjs")
+_EXECUTABLE_MODE = "100755"
+
+
+def _script_reasons(files: list[_File], raw_files: list[Any], scopes) -> list[Reason]:
+    hits = []
+    for f, raw in zip(files, raw_files):
+        modes = (getattr(raw, "mode", None), getattr(raw, "previous_mode", None))
+        for path in f.paths:
+            # The top level is always in scope (owner decision Q646).
+            top = "/" not in path
+            if not path or not (top or any(glob_match(g, path) for g in scopes)):
+                continue
+            if path.casefold().endswith(_SCRIPT_SUFFIXES) or _EXECUTABLE_MODE in modes:
+                hits.append(path)
+    if not hits:
+        return []
+    return [Reason("high-script", Risk.HIGH, ", ".join(dict.fromkeys(hits)))]
+
+
 # Files whose frontmatter grants capability, and the keys that grant it.
 _CAPABILITY_FILES = ("**/SKILL.md", "**/agents/*.md", "**/commands/*.md")
 _CAPABILITY_KEYS = frozenset(
@@ -527,6 +551,7 @@ def _high_path_reasons(
     configured = _readable_globs(inp.high_paths, unsafe)
     on = inp.high_floor is not False
     floor = (*HIGH_FLOOR, *_readable_globs(inp.floor_paths, unsafe)) if on else ()
+    scopes = _readable_globs(inp.floor_script_scopes, unsafe) if on else ()
     reasons = []
     if unsafe:
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
@@ -537,6 +562,7 @@ def _high_path_reasons(
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
     if on:
         reasons.extend(_capability_reasons(files, raw_files))
+        reasons.extend(_script_reasons(files, raw_files, scopes))
     return reasons
 
 

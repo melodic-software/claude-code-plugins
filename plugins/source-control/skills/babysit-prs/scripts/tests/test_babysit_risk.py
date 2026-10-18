@@ -1151,6 +1151,7 @@ def _lane_input(files):
         max_changed_lines=config.max_changed_lines,
         high_paths=config.denied_paths,
         floor_paths=config.floor_paths,
+        floor_script_scopes=config.floor_script_scopes,
         high_floor=config.high_path_floor,
         c2_contradictions=config.c2_contradictions,
         max_changed_files=config.max_changed_files,
@@ -1201,6 +1202,37 @@ class LanePathFloorTests(unittest.TestCase):
                     ),
                     _codes(result),
                 )
+
+    def test_script_types_in_lane_plugins_and_the_top_level_are_held(self):
+        # Owner decision Q646: .ps1, .cjs and mode 100755 files.
+        held = (
+            _file("plugins/testing/reference/run.ps1"),
+            _file("plugins/knowledge/vendor/x/digest.cjs"),
+            _file("plugins/autonomy/reference/tool", mode="100755"),
+            _file("install.ps1"),
+            _file("tool.cjs"),
+            _file("run-me", mode="100755"),
+        )
+        for changed in held:
+            with self.subTest(changed.path):
+                result = score(_lane_input((changed,)))
+                self.assertEqual(result.score, Risk.HIGH, _codes(result))
+                self.assertIn("high-script", _codes(result))
+
+    def test_script_types_in_other_plugins_stay_low(self):
+        # Q640c: outside the lane plugins they are an accepted risk.
+        for changed in (
+            _file("plugins/foo/reference/run.ps1"),
+            _file("plugins/foo/reference/x.cjs"),
+            _file("plugins/foo/reference/tool", mode="100755"),
+        ):
+            with self.subTest(changed.path):
+                result = score(_lane_input((changed,)))
+                self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+    def test_an_unreadable_script_scope_list_fails_closed(self):
+        result = score(_input(files=(_file("docs/a.md"),), floor_script_scopes=("**",)))
+        self.assertIn("high-path:**", _codes(result))
 
     def test_a_path_outside_the_floor_stays_low(self):
         files = (_file("plugins/foo/skills/bar/reference/notes.md"),)

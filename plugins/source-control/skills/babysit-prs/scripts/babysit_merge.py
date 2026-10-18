@@ -2932,6 +2932,7 @@ def score_unattended(
             max_changed_lines=config.max_changed_lines,
             high_paths=config.denied_paths,
             floor_paths=config.floor_paths,
+            floor_script_scopes=config.floor_script_scopes,
             lanes=lanes,
             blast_radius=None,
             **lane_switches,
@@ -3036,13 +3037,28 @@ def _first_line(text: Any) -> str:
     return str(text or "").split("\n", 1)[0].rstrip("\r")
 
 
+def _floor_held(risk: babysit_risk.RiskResult) -> bool:
+    """Whether the HIGH floor holds the pull request: a `high-` reason (a
+    floor or configured path, a capability change, a script file)."""
+    return any(
+        r.severity is babysit_risk.Risk.HIGH and r.code.startswith("high-")
+        for r in risk.reasons
+    )
+
+
 def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     """The reasons comment: a function of the score, the reasons and the head
     only, so an unchanged assessment renders the same body."""
+    wait = (
+        "A floor path or capability change holds it: a human merges it in "
+        "person, never an agent or a lane."
+        if _floor_held(risk)
+        else "This pull request waits for one."
+    )
     lines = [
         RISK_MARKER,
         f"Unattended merge: risk **{risk.score.name}** at head `{head}`. Only LOW "
-        "merges without a human; this pull request waits for one.",
+        f"merges without a human. {wait}",
         "",
         "```text",
     ]

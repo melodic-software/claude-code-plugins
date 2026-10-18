@@ -6,8 +6,11 @@
 while `high-path-floor` applies; a pull request touching one waits for a human, where a denied path
 makes it ineligible. With the floor, a SKILL.md, agents/*.md or commands/*.md change to `hooks`,
 `allowed-tools`, `tools`, `permissionMode` or `mcpServers` frontmatter, or a new `!` backtick command line,
-also scores HIGH. This repository turns `high-path-floor` back on (owner decision Q641) and lists
-`bin/`, `.lsp.json`, `settings*.json` and the scripts of the plugins the CI lanes load. `version`
+also scores HIGH. `merge.diff-check.floor-script-scopes` (a list of globs) holds a `.ps1` or `.cjs`
+file, or one with git mode 100755, inside one of them or at the top level the same way. This
+repository turns `high-path-floor` back on (owner decision Q641) and lists
+`bin/`, `.lsp.json`, `settings*.json` and the scripts of the plugins the CI lanes load, which it
+also lists as script scopes (Q646). `version`
 stays 2.
 
 ## 2.12.0 - 2026-10-18
