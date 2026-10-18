@@ -27,8 +27,9 @@
 #                   `invalid=<line>:<reason>`, the reason one of kind, until, for,
 #                   missing-phase, not-later, last-phase or outside-phase
 #
-# "Every brief scope-item maps to a phase" is judgment and stays in the skill's
-# prose; this gate does not claim it.
+# "Every brief acceptance criterion maps to a phase, and no phase does
+# Out-of-scope work" is judgment and stays in the skill's prose; this gate does
+# not claim it.
 #
 # Headings inside fenced code blocks are ignored. A fence closes only on the same
 # character with at least the opening length and no info string, so a three-backtick

@@ -80,7 +80,7 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" <PLAN.md>` and r
 
 Checked by reading, or by their own script:
 
-- **Every brief scope-item maps to a phase**. No scope-item silently dropped, no in-scope phase missing.
+- **Every brief acceptance criterion maps to a phase, and no phase does Out-of-scope work**. Walk the Brief's Acceptance criteria and Out-of-scope sections: each criterion lands in at least one phase, and no phase does work the Brief lists as Out-of-scope.
 - **Each tag has its own row**. Every tagged decision appears in that table with its what-it-changes column filled; below-bar decisions were interviewed, not decided. The script checks only that the table has rows.
 - **Displaced answers are listed at Step 5**. When an interview ledger exists, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>`. It passes when the verdict reports `open=0` and `superseded=N` (exit 1 is expected when N > 0) and every id on the ledger's `| superseded-by-plan |` rows (the verdict prints only the count) appears in the Step 5 "Displaced answers and new external effects" block.
 
