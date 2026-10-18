@@ -200,9 +200,18 @@ async function main() {
     await proto.keyboard.press("Escape");
 
     // ---------- pick a variant ----------
+    const COMMENT = "Two steps reads calmer.";
+    const gusCard = () => owner.evaluate(pid => (window.Core.snapshot()?.cards?.Q1 || []).find(c => c.pid === pid) || null, gusPid);
+    await gus.evaluate(t => window.Core.answerCiting("Q1", t, []), COMMENT);
+    await until(proto, t => window.Core.answersFor("Q1").some(a => a.cid === window.Core.me.cid && a.text === t), COMMENT);
     await proto.locator(".vp-choose").click();
     ok("Choose picks the shown variant", await until(owner, pid => (window.Core.snapshot()?.cards?.Q1 || []).some(c => c.pid === pid && c.pick === "v-2"), gusPid));
     ok("the button then says it is the choice", await until(proto, () => document.querySelector(".vp-choose").textContent === "You chose Two steps"));
+    ok("  and the person's comment stays on their card", (await gusCard())?.text === COMMENT, JSON.stringify(await gusCard()));
+    await proto.waitForTimeout(1100); // one write a second per person per route
+    await proto.locator(".vp-choose").click();
+    ok("pressing it again clears the choice and keeps the comment", await until(owner, ([pid, t]) => (window.Core.snapshot()?.cards?.Q1 || []).some(c => c.pid === pid && !c.pick && c.text === t), [gusPid, COMMENT]),
+      JSON.stringify(await gusCard()));
 
     // ---------- phone guest in another browser context, straight to /proto/Q1 ----------
     const pia = await rec.open(new URL("/proto/Q1", A.localUrl).href, { context: PHONE });

@@ -66,7 +66,7 @@
   const variants = q => q?.variants || [];
   const current = q => variants(q).find(v => v.id === ui.variant) || variants(q)[0] || null;
   const notesOn = vid => (S().annotations || []).filter(a => a.qid === qid && a.variant === vid);
-  const myPick = () => Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.claude && !a.option)?.pick || "";
+  const mine = () => Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.claude && !a.option);
   const ago = ts => {
     const s = Math.max(0, Math.round((S().serverTime || Date.now() / 1000) - ts));
     return s < 60 ? "just now" : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : `${Math.floor(s / 86400)} d ago`;
@@ -296,12 +296,13 @@
       ? `${matchMedia("(pointer: coarse)").matches ? "Tap" : "Click"} the part of ${v.label} your note is about. Esc turns Annotate off.`
       : "Try each variant. Turn on Annotate to pin a note to any part of it.";
     wholeBtn.hidden = !ui.annotate || !!ui.draft;
-    const ro = readOnly(q), mine = myPick() === v.id;
-    chooseBtn.textContent = mine ? `You chose ${v.label}` : `Choose ${v.label}`;
-    chooseBtn.setAttribute("aria-pressed", String(mine));
+    const ro = readOnly(q), rec = mine(), chosen = rec?.pick === v.id;
+    chooseBtn.textContent = chosen ? `You chose ${v.label}` : `Choose ${v.label}`;
+    chooseBtn.setAttribute("aria-pressed", String(chosen));
     chooseBtn.disabled = !!ro;
     chooseBtn.title = ro;
-    chooseBtn.onclick = () => Core.pick(qid, mine ? "" : v.id).then(() => say(mine ? "Your choice is cleared." : `You chose ${v.label}.`))
+    // A pick replaces the person's card, so it carries their comment along, as the main page's pick does.
+    chooseBtn.onclick = () => Core.pick(qid, chosen ? "" : v.id, rec?.text || "").then(() => say(chosen ? "Your choice is cleared." : `You chose ${v.label}.`))
       .catch(x => say(Core.errorText(x)));
     renderNotes(v);
     drawPins(v);
