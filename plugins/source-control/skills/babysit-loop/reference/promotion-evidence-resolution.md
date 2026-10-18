@@ -90,7 +90,10 @@ Inside its `--since` to `--through` window the publisher fails closed instead of
 Residuals: a run or issue removed while it is the newest in the window leaves no gap until a later
 one is created, and a deleted run that is the oldest of its workflow in the window leaves none at
 all; a red scheduled or canary run still counts through the demotion record
-`post-merge-demotion-alert.yml` files when it completes. A number in the window that reads as
+`post-merge-demotion-alert.yml` files when it completes. A red full run whose range that workflow
+proves holds no merge the agent identity enqueued gets a post-merge-failure record instead
+(`<!-- post-merge-failure sha=<S> signal=<name> -->`), which is not a `babysit-merge-demotion`
+record and so is no gate-failure here. A number in the window that reads as
 neither an issue nor a discussion refuses with `issue-missing:` for as long as it stays in the
 window. An identity that can write issues can delete a repeat-failure comment; the red run it names still counts unless also deleted. No demotion record
 covers a per-merge full run pr-merge dispatches with its own `GITHUB_TOKEN`; its deletion shows as
