@@ -40,7 +40,7 @@ never used in its place. An invalid value never stops the run.
 | `scaffold_stubs` | `true`, `false` (bare YAML booleans; a quoted `"true"` is invalid) | `false` | `/planning:design` handoff: names the stub files and their signatures; `/planning:plan` Step 2: places the stub phase | repository file over user config over default |
 | `shared_session.uploads` | `true`, `false` | `false` | `/planning:interview` shared lane, at start: guests may offer files | repository file over default |
 | `shared_session.names` | `full`, `initials`, `someone` | `full` | same: what guests see of who answered and voted | repository file over default |
-| `shared_session.digest_names` | `true`, `false` | `false` | same: whether the round sent to Claude names who answered | repository file over default |
+| `shared_session.digest_names` | `true`, `false` | `false` | same: whether the round sent to Claude names who answered, except people a question is aimed at, who are always named | repository file over default |
 | `shared_session.claude_take` | `answer-first`, `always` | `answer-first` | same: when people see Claude's suggestion cards | repository file over default |
 | `shared_session.voting` | `true`, `false` | `true` | same: people vote on answers | repository file over default |
 | `shared_session.signoff` | `true`, `false` | `false` | same: a leader's lock needs everyone's agreement | repository file over default |

@@ -1279,7 +1279,7 @@
       ["chat", "Chat", "Side chat for everyone"],
       ["follow", "Follow host", "Guests can follow your question"],
       ["showNames", "Show names", "Off shows initials and vote counts only"],
-      ["digestNames", "Names to Claude", "Send who answered along with the round"],
+      ["digestNames", "Names to Claude", "Send who answered along with the round, except people a question is aimed at, who are always named"],
       ["uploads", "Uploads", "Let people offer files; you accept each one"],
       ["hideClaude", "Answer first", "Claude's cards show once a person answered or voted; each person can change it"],
       ["approveJoins", "Approve new joins", "New people wait in the queue until you let them in; people already here are not affected"],

@@ -38,7 +38,7 @@
           "default": "full"
         },
         "digest_names": {
-          "description": "Whether the round sent to Claude names who answered.",
+          "description": "Whether the round sent to Claude names who answered, except people a question is aimed at, who are always named.",
           "type": "boolean",
           "default": false
         },
