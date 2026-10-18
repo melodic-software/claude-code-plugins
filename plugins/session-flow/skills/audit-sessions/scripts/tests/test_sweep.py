@@ -31,7 +31,7 @@ def record(session_id: str, **values) -> dict:
         "session_id": session_id,
         "repo_identity": v.get("identity", "github.com/o/r"),
         "cc_versions": v.get("cc_versions", ["2.0.1"]),
-        "time": {"start": v.get("start", "2026-09-01T10:00:00Z"), "active_s": v["time.active_s"]},
+        "time": {"start": v.get("start", "2026-09-01T10:00:00Z"), "active_gap_s": v["time.active_s"]},
         "tokens": {
             "main": {"output": v["tokens.main"], "cache_creation_5m": v.get("main_5m", 0), "cache_creation_1h": v.get("main_1h", 0)},
             "sub": {"output": v["tokens.sub"], "cache_creation_5m": v.get("sub_5m", 0), "cache_creation_1h": v.get("sub_1h", 0)},
@@ -41,7 +41,7 @@ def record(session_id: str, **values) -> dict:
         "human": {"turns": v["human.turns"]},
         "tools": {"interrupts": v["tools.interrupts"], "denials": {"permission-rule": v["tools.denials"]}},
         "subagents": {"count": v["subagents.count"]},
-        "stop_hooks": {"ms_p90": v["hooks.stop_ms"]},
+        "stop_hooks": {"ms_p90": v["hooks.stop_ms"] + 1000, "wait_ms_p90": v["hooks.stop_ms"]},
         "census": v.get("census", {}),
         **({"entrypoints": v["entrypoints"]} if "entrypoints" in v else {}),
     }
@@ -74,7 +74,8 @@ def test_rules_are_well_formed():
         assert rule["lens"] in LENSES and rule["unit"] in UNITS, metric
         assert rule["confidence"] in {"measured", "heuristic"} and rule["basis"], metric
         if rule["threshold"] is None:
-            assert rule["route"] is None and rule["suggested_skill"] is None, metric
+            # A report-only rule may keep its intended route (hooks.stop_ms), but names both or neither.
+            assert (rule["route"] is None) == (rule["suggested_skill"] is None), metric
         else:
             assert rule["route"] in ROUTES and rule["suggested_skill"].startswith("/"), metric
 
@@ -199,11 +200,17 @@ def test_impact_sums_excess_over_threshold_in_its_unit(data_dir):
     write_store(data_dir, record("a", **{"tokens.main": over + 100}), record("b", **{"tokens.main": over + 50}))
     found = findings_by_metric(envelope(sweep(data_dir)))
     assert found["tokens.main"]["impact"] == {"amount": 150, "unit": "tokens"}
-    write_store(data_dir, record("c", **{"time.active_s": RULE["time.active_s"]["threshold"] + 600}))
-    found = findings_by_metric(envelope(sweep(data_dir)))
-    assert found["time.active_s"]["impact"] == {"amount": 10, "unit": "min"}
     write_store(data_dir, record("d", **{"tools.denials": 99}))
     assert findings_by_metric(envelope(sweep(data_dir)))["tools.denials"]["impact"] is None
+
+
+def test_stop_wait_and_active_time_read_the_new_keys_and_report_only(data_dir):
+    assert RULE["hooks.stop_ms"]["threshold"] is None and RULE["time.active_s"]["threshold"] is None
+    write_store(data_dir, record("s1", **{"hooks.stop_ms": 100, "time.active_s": 900}))
+    env = envelope(sweep(data_dir))
+    metrics = env["data"]["metrics"]
+    assert metrics["hooks.stop_ms"]["value"] == 100 and metrics["time.active_s"]["value"] == 900
+    assert not {"hooks.stop_ms", "time.active_s"} & set(findings_by_metric(env))
 
 
 def test_report_only_metric_never_finds_and_is_listed_unchecked(data_dir):

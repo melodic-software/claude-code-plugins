@@ -71,6 +71,8 @@ COLLECTOR_INPUTS = (
     "lib/state-key.sh",
 )
 HEAD_BYTES = 4096
+# A gap between records longer than this is idle time: it ends the active stretch.
+IDLE_CUTOFF_S = 300
 
 COMMAND_RE = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
 # MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
@@ -289,6 +291,7 @@ class SessionScan:
         self.skills: Counter = Counter()
         self.slash: Counter = Counter()
         self.stop_hook_ms: list[float] = []
+        self.stop_hook_wait_ms: list[float] = []
         self.stop_hook_blocks = 0
         self.stop_hook_errors = 0
         self.compactions: list[dict] = []
@@ -455,7 +458,12 @@ class SessionScan:
         elif subtype == "stop_hook_summary":
             infos = record.get("hookInfos")
             hooks = [h for h in infos if isinstance(h, dict)] if isinstance(infos, list) else []
-            self.stop_hook_ms.append(sum(_number(h.get("durationMs")) for h in hooks))
+            durations = [_number(h.get("durationMs")) for h in hooks]
+            self.stop_hook_ms.append(sum(durations))
+            # Matching hooks run in parallel, so the person waits for the slowest one.
+            self.stop_hook_wait_ms.append(max(durations, default=0))
+            if self.stop_hook_wait_ms[-1] > self.stop_hook_ms[-1]:
+                self.census[self.bucket]["invariant:stop_wait_over_sum"] += 1
             self.stop_hook_blocks += bool(record.get("preventedContinuation"))
             self.stop_hook_errors += bool(record.get("hookErrors"))
         elif subtype == "compact_boundary":
@@ -499,6 +507,12 @@ class SessionScan:
             self.agent_name = record["agentName"]
 
     def time_block(self) -> dict:
+        block = self._time_block()
+        if block["active_gap_s"] > block["wall_clock_s"] and self.bucket in self.census:
+            self.census[self.bucket]["invariant:active_over_wall"] += 1
+        return block
+
+    def _time_block(self) -> dict:
         stamps = sorted(self.timestamps)
         gaps = [later - earlier for earlier, later in zip(stamps, stamps[1:])]
         # The gap before a typed turn: time since the previous activity record.
@@ -512,10 +526,11 @@ class SessionScan:
             "end": _iso(stamps[-1]) if stamps else None,
             "wall_clock_s": round(stamps[-1] - stamps[0]) if stamps else 0,
             "active_s": round(self.active_ms / 1000),
+            "active_gap_s": round(sum(min(g, IDLE_CUTOFF_S) for g in gaps)),
             "turn_durations": self.turn_durations,
-            "idle_gaps_gt5m": sum(g > 300 for g in gaps),
+            "idle_gaps_gt5m": sum(g > IDLE_CUTOFF_S for g in gaps),
             "idle_gaps_gt1h": sum(g > 3600 for g in gaps),
-            "human_gaps_gt5m": sum(g > 300 for g in human_gaps),
+            "human_gaps_gt5m": sum(g > IDLE_CUTOFF_S for g in human_gaps),
             "human_gaps_gt1h": sum(g > 3600 for g in human_gaps),
             "thinking_ms": round(self.thinking_ms),
         }
@@ -679,6 +694,7 @@ def build_record(
     metas = [s.meta or {} for s in subagents]
     edit_counts = scan.edits.values()
     stop_ms = scan.stop_hook_ms
+    wait_ms = scan.stop_hook_wait_ms
     suppressed = redactor.fail_closed
     scrub = Scrubber(redactor, excerpt_chars)
     # Repo identity above used the raw cwd; every string below is stored, so each goes through scrub.
@@ -728,6 +744,9 @@ def build_record(
             "ms_total": round(sum(stop_ms)),
             "ms_p50": _percentile(stop_ms, 0.5),
             "ms_p90": _percentile(stop_ms, 0.9),
+            "wait_ms_total": round(sum(wait_ms)),
+            "wait_ms_p50": _percentile(wait_ms, 0.5),
+            "wait_ms_p90": _percentile(wait_ms, 0.9),
             "blocks": scan.stop_hook_blocks,
             "errors": scan.stop_hook_errors,
         },

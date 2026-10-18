@@ -62,6 +62,15 @@ Exits 0, 1 and 2 mean what Step 2 says.
   - **As of**: 2026-10-02
   - **Recheck trigger**: either section changes what uninstall deletes or how long transcripts
     are kept.
+- **The collector parses transcript files directly**, although Claude Code does not document their
+  entry format. That is a deliberate decision: no interface reports per-session Stop-hook wait or
+  active time. The two metrics that read undocumented records (`hooks.stop_ms`, `time.active_s`)
+  are labelled heuristic, report-only until re-derived, and watched by invariant canaries in
+  `reference/canaries.json`; see the rules' `basis` in `reference/sweep-rules.json`.
+  - **Pointer**: <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>
+  - **As of**: 2026-10-18
+  - **Recheck trigger**: that section names a supported interface for per-session hook or active
+    time, or a drift run reports an invariant canary lost.
 - Scripts: `S="${CLAUDE_PLUGIN_ROOT}/skills/audit-sessions/scripts"`. Pick an interpreter that is
   Python 3.10 or newer, as `/session-flow:retro` does; with none, stop and say so.
 
