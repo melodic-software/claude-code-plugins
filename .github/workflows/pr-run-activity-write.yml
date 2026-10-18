@@ -701,10 +701,13 @@ jobs:
           name: dependency-verdict-${{ inputs.dependency-run-attempt }}
           path: ${{ runner.temp }}/dependency-verdict
 
+      # Also issue mode: report-outcome trusts a merge: human label only from
+      # a listed human or the lanes App.
       - name: Copy the trusted actors for the reply script
         id: reply-actors
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && inputs.review-replies
+          steps.head-recheck.outputs.proceed == 'true'
+          && (inputs.review-replies || inputs.issue-number != '')
           && steps.config.outputs.kind == 'script'
         env:
           COPY: ${{ runner.temp }}/base-script/.trusted-actors.json
@@ -1746,7 +1749,7 @@ jobs:
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
-          TRUSTED_ACTORS: ${{ inputs.review-replies && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
+          TRUSTED_ACTORS: ${{ (inputs.review-replies || inputs.issue-number != '') && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
           MODEL_RUN_ATTEMPT: ${{ inputs.review-run-attempt }}
