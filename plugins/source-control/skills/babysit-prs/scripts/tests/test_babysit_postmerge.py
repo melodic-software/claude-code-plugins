@@ -2245,5 +2245,35 @@ class DequeueIdentityEntries(CheckCase):
         self.assertIn("dequeue #1", str(raised.exception))
 
 
+class RoleLabelRead(unittest.TestCase):
+    """`_role_label`: an absent tracker config (404) is the default label; any
+    other failed read raises when `strict`, so a merge gate never holds on a
+    label the tracker may have remapped, and stays the default otherwise."""
+
+    def _read(self, proc: subprocess.CompletedProcess[str], **kw: Any) -> str:
+        with mock.patch.object(pm, "gh_capture", return_value=proc):
+            return pm._role_label("o", "r", **kw)
+
+    def test_a_mapped_label(self) -> None:
+        proc = completed({"config": {"role_labels": {"human-gated": " human-review "}}})
+        self.assertEqual(self._read(proc, strict=True), "human-review")
+
+    def test_an_absent_config_is_the_default_even_strict(self) -> None:
+        proc = completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
+        self.assertEqual(self._read(proc, strict=True), pm.DEFAULT_ROLE_LABEL)
+
+    def test_a_failed_read_raises_when_strict(self) -> None:
+        for stderr in (
+            "gh: Server Error (HTTP 502)",
+            "gh: API rate limit exceeded (HTTP 403)",
+            "timeout",
+        ):
+            with self.subTest(stderr=stderr):
+                proc = completed(returncode=1, stderr=stderr)
+                with self.assertRaises(pm.PostMergeReadError):
+                    self._read(proc, strict=True)
+                self.assertEqual(self._read(proc), pm.DEFAULT_ROLE_LABEL)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -183,8 +183,10 @@ runs:
             system_prompt="You run unattended as a CI lane activity on $subject, and no one can answer a question. Run every step the skill instructions name. Your scratchpad directory is $SCRATCH: put every temporary or state file there."
             if [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
               # The slash command never says the edits reach the PR only as
-              # commits on CLAUDE_BRANCH.
-              system_prompt="$system_prompt A change to a repository file reaches the branch only as a commit: before you finish, commit every repository file you changed with the mcp__github_file_ops__commit_files tool, and delete every committed path you renamed or removed with the mcp__github_file_ops__delete_files tool. An uncommitted change is discarded when the run ends."
+              # commits on CLAUDE_BRANCH. commit_files takes each file's mode
+              # from disk, and Write creates a file without the executable bit.
+              allowed="$allowed,Bash(chmod +x *)"
+              system_prompt="$system_prompt A change to a repository file reaches the branch only as a commit: before you finish, run chmod +x on every new or changed file that starts with #! or ends in .sh, because the commit takes each file's mode from disk, then commit every repository file you changed with the mcp__github_file_ops__commit_files tool, and delete every committed path you renamed or removed with the mcp__github_file_ops__delete_files tool. An uncommitted change is discarded when the run ends."
             fi
             # The web stays off unless the activity sets web-access. On, the
             # skill may search, fetch the listed domains (`any`: every one)
@@ -314,7 +316,16 @@ runs:
                     'done' \
                     'unset GH_TOKEN GITHUB_TOKEN' \
                     'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
-                    'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null' \
+                    'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null'
+                  # check-skill.sh runs each skill's scripts/*.test.sh, and
+                  # the runner's ~/.claude is read-only, so it gets a fresh,
+                  # writable HOME and CLAUDE_CONFIG_DIR.
+                  if [ "$script" = plugins/skill-quality/scripts/check-skill.sh ]; then
+                    printf '%s\n' \
+                      'HOME=$(mktemp -d) && mkdir "$HOME/.claude" || exit 2' \
+                      'export HOME CLAUDE_CONFIG_DIR="$HOME/.claude"'
+                  fi
+                  printf '%s\n' \
                     'bash "$copy" "$@"' \
                     'status=$?' \
                     'echo "exit status: $status" >&2' \

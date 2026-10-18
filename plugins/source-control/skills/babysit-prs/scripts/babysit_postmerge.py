@@ -1002,8 +1002,11 @@ def attribute(repo: str, verdict: PostMergeVerdict) -> list[int]:
     return triggered
 
 
-def _role_label(owner: str, name: str) -> str:
-    """The tracker's human-gated role label, or the default on any doubt."""
+def _role_label(owner: str, name: str, *, strict: bool = False) -> str:
+    """The tracker's human-gated role label, or the default when the tracker
+    config is absent (404) or maps none. Any other failed read is the default
+    too, unless `strict`: then it raises `PostMergeReadError`, so a merge gate
+    never holds on a label the tracker may have remapped."""
     try:
         config = _read(
             [
@@ -1014,7 +1017,9 @@ def _role_label(owner: str, name: str) -> str:
             ],
             TRACKER_CONFIG,
         )
-    except PostMergeReadError:
+    except PostMergeReadError as exc:
+        if strict and gh_http_status(str(exc)) != 404:
+            raise
         return DEFAULT_ROLE_LABEL
     label = json_object(
         json_object(json_object(config).get("config")).get("role_labels")

@@ -41,7 +41,8 @@ name: pr-merge
 # workflow-modified, once per version of the workflow file the broker named.
 #
 # How to keep one PR from merging: put the line `Hold: a human merges this`
-# in its body, or add the `do-not-merge` label. The gate refuses both.
+# in its body, or add the `do-not-merge` or `needs-human` label (the
+# human-gated role label). The gate refuses all of them.
 
 on:
   # Every trigger below is only a wake-up call. The run never trusts the event
@@ -296,10 +297,11 @@ jobs:
       # merge.dependabot.mode is off. This is only a shortlist; the gate checks
       # the author, the closing issue and verifier verdict or the Dependabot
       # tier, and every other rule again. A candidate the gate would refuse on
-      # its listed labels or body alone (the `do-not-merge` label or a hold in
-      # the body) is set aside here before it costs lane-token calls
-      # (babysit_merge_prefilter.py); the summary still reports it. Read with
-      # the job's own read-only token.
+      # its listed labels or body alone (the `do-not-merge` label, the
+      # human-gated role label from .work-item-tracker.json, `needs-human` by
+      # default, or a hold in the body) is set aside here before it costs
+      # lane-token calls (babysit_merge_prefilter.py); the summary still
+      # reports it. Read with the job's own read-only token.
       - name: List the candidate PRs
         id: candidates
         if: steps.lane-token.outputs.token != ''
@@ -316,6 +318,17 @@ jobs:
             exit 1
           fi
           authors=("app/$slug")
+          # The gate resolves the same label through babysit_postmerge._role_label.
+          human_gated=needs-human
+          if [ -f .base/.work-item-tracker.json ]; then
+            human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
+              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
+              | if . == "" then "needs-human" else . end' \
+              .base/.work-item-tracker.json) || {
+              echo "::error::cannot read the human-gated role label from the base .work-item-tracker.json"
+              exit 1
+            }
+          fi
           if [ "$DEPENDABOT" != off ]; then
             authors+=(app/dependabot)
           fi
@@ -327,7 +340,7 @@ jobs:
               | {number, head: .headRefOid, updatedAt, labels: [.labels[].name], body}]
               | unique_by(.number)' |
             python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py \
-              >"$RUNNER_TEMP/prefilter.json"
+              --human-gated "$human_gated" >"$RUNNER_TEMP/prefilter.json"
           jq -c .candidates "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/candidates.json"
           jq -c .held "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/held.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"

@@ -996,6 +996,12 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    surface in a sibling worktree refuses too. After a demotion record the resolver's
    `--window-start` adds a `gate-failure` per promotable cell at the record's creation, so no cell
    stays promoted until it is re-ratified.
+   Past an on rung, an in-flight refusal of a pull request that has no merge-queue entry of its
+   own and is not a Dependabot pull request stops the reads there: the promotion evidence,
+   eligibility, and step 4 are not read, `unattended.promoted` is `null` (`true` in the pr-merge
+   lane, which reads no promotion), and the refusal is `in-flight:<reason>` as it would be after
+   the full read. A queued pull request, a Dependabot one, or one whose queue read was not whole
+   is still read in full.
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
    A head commit whose author or committer is linked to no account refuses
    (`head-pusher-unproven:<sha>`): its pusher cannot be shown not to be a human. So does a pull
@@ -1009,13 +1015,16 @@ any refusal is the blocker `unattended merge refused: <reason>`:
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
 `--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung
 refusal dequeues every entry the identity enqueued; a queued identity entry that gained a hold
-(`do-not-merge`, a body hold, a blocking comment from an owner, member or collaborator, the opt-in
+(`do-not-merge` or `needs-human`, a body hold, a blocking comment from an owner, member or collaborator, the opt-in
 label removed, or put back after the enqueue by anyone but a human in person) leaves the queue, as
 does the assessed pull request's own entry when this run finds it ineligible, above the rung,
 unpromoted for its class, on a base that is not the default branch, or scored MED or HIGH
 (`risk:<score>`); one failed dequeue does not stop the others. An eligible MED or HIGH pull
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
-head change. A ready LOW pull request on a merge-queue base is enqueued at the pinned head, only
+head change. A pull request whose reads stopped at the in-flight refusal (step 3) gets neither
+that comment nor the verifier escalation in that run: it is not queued, so no entry of its own
+waits on them, and the first run that reads it in full with nothing in flight writes both. A
+ready LOW pull request on a merge-queue base is enqueued at the pinned head, only
 when that full SHA is the head the policy scored, after a
 second kill-switch read and a second read of the opt-in label (presence and provenance), after an
 armed auto-merge is disarmed and refused instead, and after a

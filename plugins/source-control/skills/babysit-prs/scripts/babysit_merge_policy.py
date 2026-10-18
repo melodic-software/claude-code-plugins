@@ -33,7 +33,7 @@ import sys
 import tempfile
 import urllib.request
 from collections.abc import Callable, Collection, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -1425,7 +1425,7 @@ def lane_eligibility(
     touching no `merge.diff-check.denied-paths`. Such a pull request is
     class `LANE_CLASS`; no `work-class:` label is read.
     `pr` is the REST record, whose `changed_files` the file listing must
-    reach. Holds (the `do-not-merge` label, a `Hold:` line) are the gate's.
+    reach. Holds (a hold label, a `Hold:` line) are the gate's.
     `self_logins` and `permission` are unused: no human read remains."""
     owner, name = _split_repo(repo)
     issue_number = None
@@ -1622,7 +1622,7 @@ def dependabot_eligibility(
     the head; and no human blocking comment. A running `ci-status` waits. The
     class is C2 (mechanical), so the rung and its cap still bind it. No
     closing issue and no denied-path rule: `ci-status` is the gate. The
-    `do-not-merge` label and a body hold are the gate's, as for every pull
+    hold labels and a body hold are the gate's, as for every pull
     request."""
     owner, name = _split_repo(repo)
     head = str(json_object(pr.get("head")).get("sha") or "")
@@ -1898,8 +1898,12 @@ def derive_auto_merge(
 
 @dataclass(frozen=True)
 class InFlight:
+    """`queued` holds every merge-queue entry's pull request number, or None
+    when the queue was not read whole."""
+
     clear: bool
     reason: str | None
+    queued: frozenset[int] | None = field(default=None, compare=False)
 
 
 def in_flight(
@@ -1935,6 +1939,7 @@ def in_flight(
         self_logins=self_logins,
         permission=permission,
     )
+    queued: frozenset[int] | None = None
     try:
         data = _graphql(MERGE_QUEUE, "merge queue", o=owner, r=name, b=branch)
         queue = json_object(json_object(data.get("repository")).get("mergeQueue"))
@@ -1942,16 +1947,18 @@ def in_flight(
         nodes = [json_object(n) for n in json_array(entries.get("nodes"))]
         if not queue or entries.get("totalCount") != len(nodes):
             return InFlight(False, "merge-queue-unreadable")
-        for entry in nodes:
-            number = json_object(entry.get("pullRequest")).get("number")
+        numbers = [json_object(n.get("pullRequest")).get("number") for n in nodes]
+        if all(type(n) is int for n in numbers):
+            queued = frozenset(numbers)
+        for entry, number in zip(nodes, numbers, strict=True):
             enqueuer = json_object(entry.get("enqueuer"))
             if not enqueuer:
-                return InFlight(False, f"entry-enqueuer-unknown:#{number}")
+                return InFlight(False, f"entry-enqueuer-unknown:#{number}", queued)
             if _login_key(enqueuer.get("login")) == _login_key(agent_identity):
-                return InFlight(False, f"identity-entry-queued:#{number}")
+                return InFlight(False, f"identity-entry-queued:#{number}", queued)
         merges = _merged_since(owner, name, branch, merged_since)
         if merges is None:
-            return InFlight(False, "merged-history-truncated")
+            return InFlight(False, "merged-history-truncated", queued)
         for pr in merges:
             merge = derive_auto_merge(
                 pr, human, agent_identity, lane_merges_only=lane_merges_only
@@ -1959,10 +1966,10 @@ def in_flight(
             if not isinstance(merge, AutoMerge):
                 continue
             if verified is None or not verified(merge):
-                return InFlight(False, f"unverified-auto-merge:#{merge.number}")
+                return InFlight(False, f"unverified-auto-merge:#{merge.number}", queued)
     except PolicyReadError as exc:
-        return InFlight(False, f"unreadable: {exc}")
-    return InFlight(True, None)
+        return InFlight(False, f"unreadable: {exc}", queued)
+    return InFlight(True, None, queued)
 
 
 # --- Holds on a queued entry -------------------------------------------------------------------
@@ -2068,10 +2075,15 @@ def entry_hold(
     permission: Permission | None = None,
 ) -> str | None:
     """Why a queued entry of the agent identity must leave the queue (D3): the
-    `do-not-merge` label, a body hold, a human blocking comment, or the opt-in
+    `do-not-merge` or human-gated label, a body hold, a human blocking comment, or the opt-in
     label removed since the enqueue or put back by a non-human. An unreadable
     entry is a hold."""
-    from babysit_merge import BODY_MERGE_HOLD_RE, MERGE_HOLD_LABEL  # noqa: PLC0415
+    from babysit_merge import (  # noqa: PLC0415
+        BODY_MERGE_HOLD_RE,
+        human_gated_label,
+        merge_hold_label,
+    )
+    from babysit_postmerge import PostMergeReadError  # noqa: PLC0415
 
     owner, name = _split_repo(repo)
     permission = permission or permission_reader(repo)
@@ -2089,8 +2101,9 @@ def entry_hold(
         events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
         if labels is None or not events:
             return "unreadable"
-        if any(label.casefold() == MERGE_HOLD_LABEL for label in labels):
-            return MERGE_HOLD_LABEL
+        # Only unattended runs judge queued entries.
+        if held_by := merge_hold_label(labels, human_gated=human_gated_label(repo)):
+            return held_by
         if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
             return "body-hold"
         blockers = _human_blockers(owner, name, number, identity)
@@ -2101,7 +2114,7 @@ def entry_hold(
         )
         if opt_in:
             return opt_in
-    except PolicyReadError as exc:
+    except (PolicyReadError, PostMergeReadError) as exc:
         return f"unreadable: {exc}"
     return None
 
@@ -2765,7 +2778,9 @@ def assess(
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
     in-flight rule, the promotion evidence and the pull request's
-    eligibility and class: each refuses a merge, and all are reported.
+    eligibility and class: each refuses a merge, and all are reported, but
+    an in-flight refusal of a pull request not in the merge queue stops the
+    reads there.
 
     `post_merge(floor, identity)` runs the post-merge check from the floor
     (`merged_since_floor`) and must be given: without it the path refuses.
@@ -2914,6 +2929,33 @@ def assess(
         merged_since=floor,
         lane_merges_only=lane,
     )
+    details.update(
+        rung=rung.rung,
+        rungInputs=dict(rung.inputs),
+        rungCap={"value": cap.value, "reason": cap.reason},
+        inFlight={"clear": flight.clear, "reason": flight.reason},
+    )
+    inputs["rung"] = rung.rung
+    # Past an on rung, the in-flight refusal outranks every read below. With
+    # no queue entry of its own, nothing below writes for this pull request
+    # either (its risk comment and verifier escalation wait for a run with
+    # none in flight), so it skips them. A Dependabot pull request is read in
+    # full: its class decides the gate's dependency-manager hold.
+    if (
+        rung.rung != "off"
+        and not flight.clear
+        and not dependabot_pr
+        and flight.queued is not None
+        and number not in flight.queued
+    ):
+        return UnattendedPolicy(
+            f"in-flight:{flight.reason}",
+            identity,
+            details,
+            enabled=True,
+            promoted=True if lane else None,
+            inputs=inputs,
+        )
     if dependabot_pr:
         promo = Promotion(None, "not-read-in-pr-merge-lane")
         eligible = (
@@ -2945,10 +2987,6 @@ def assess(
         eligible = eligibility(repo, number, **readers)
         promoted = promo.promoted(eligible.work_class)
     details.update(
-        rung=rung.rung,
-        rungInputs=dict(rung.inputs),
-        rungCap={"value": cap.value, "reason": cap.reason},
-        inFlight={"clear": flight.clear, "reason": flight.reason},
         promotion={
             "cells": dict(promo.cells) if promo.cells is not None else None,
             "reason": promo.reason,
@@ -2959,7 +2997,7 @@ def assess(
             "workClass": eligible.work_class,
         },
     )
-    inputs.update(rung=rung.rung, eligibility=eligible)
+    inputs["eligibility"] = eligible
     # What refuses this pull request itself, whatever else does: its own
     # queued entry leaves the queue on it.
     own = (

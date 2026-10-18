@@ -321,8 +321,11 @@ scratch directory, `$RUNNER_TEMP/lane-scratch`, passed as `--add-dir` with an `E
 its state files and its `Bash` redirects land there. `--append-system-prompt` names that
 directory, says no one can answer a question, and, when the grant can commit, tells it to commit
 every file it changed, and delete every committed path it renamed or removed, with those tools: the prompt is the slash command alone, so without this the
-skill leaves its edits uncommitted and the lane moves nothing. A `prepare: merge-base` skill
-gets neither tool nor that sentence: it stages its resolution and the runner commits
+skill leaves its edits uncommitted and the lane moves nothing. `commit_files` takes each file's
+mode from disk, and `Write` creates a file without the executable bit, so that grant also allows
+`Bash(chmod +x *)` and the sentence says to run `chmod +x` first on every new or changed file that
+starts with `#!` or ends in `.sh`. A `prepare: merge-base` skill
+gets neither tool nor those sentences: it stages its resolution and the runner commits
 ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
 `checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
@@ -340,7 +343,10 @@ the value after an `=`) naming an existing path whose real path lies outside the
 script may print lines of a file it reads, unsets `GH_TOKEN` and `GITHUB_TOKEN` in the script's
 own environment (code the script runs can still read the token from the wrapper's or the Bash
 shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
-and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, then runs the copy with
+and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, for skill-quality's
+`check-skill.sh` alone sets `HOME` to a fresh `mktemp -d` directory and `CLAUDE_CONFIG_DIR` to its
+`.claude`, since the skill tests it runs write there and the runner's `~/.claude` is read-only,
+then runs the copy with
 the arguments and prints `exit status: <n>` to stderr before exiting with that status, since the
 lane denies a chained `; echo "$?"`. The system prompt says Bash runs only the named wrappers,
 each as its own command, and that the run inspects files with Read, Grep and Glob and changes them
