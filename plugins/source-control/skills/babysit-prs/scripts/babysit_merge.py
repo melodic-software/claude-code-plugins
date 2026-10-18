@@ -3459,9 +3459,13 @@ def unattended_enqueue(
     entries = _identity_queue_entries(repo, branch, identity)
     numbers = [json_object(e.get("pullRequest")).get("number") for e in entries or []]
     step["identityEntries"] = numbers
-    # Room for queued entries: `merge.max-in-flight` less the unverified lane
-    # merges the policy counted.
-    room = inputs["config"].max_in_flight - inputs["flight"].unverified
+    # Room for queued entries: `merge.max-in-flight`, read again uncached at
+    # the default branch head, less the unverified lane merges the policy
+    # counted.
+    cap, _ = merge_policy._run_max_in_flight(
+        repo, branch, None, inputs["config"], shared=False
+    )
+    room = cap - inputs["flight"].unverified
     if entries is None or number not in numbers[: max(room, 0)]:
         # Earlier entries (another host's) fill the room, or the order cannot
         # be read: this entry leaves so no more than `merge.max-in-flight`

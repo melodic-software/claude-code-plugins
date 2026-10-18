@@ -455,7 +455,8 @@ that fails counts as a refusal.
   the wrapper disarms it.
 - **Merges in flight.** `merge.max-in-flight` (default 1) caps the identity's merge-queue entries
   plus its merged pull requests that have not passed the post-merge check. It is read at the default
-  branch head, not the pull request's base (the base's value when that read fails). The wrapper
+  branch head once per cache window, not at the pull request's base (the base's value when that
+  read fails), and read again uncached after an enqueue. The wrapper
   refuses at the cap, and an entry enqueued past it (another host's came first) dequeues itself. A
   red full run or canary run charges every unverified merge whose commit it contains, so a breakage
   found with several in flight demotes the rung and fails the post-merge check for all of them.

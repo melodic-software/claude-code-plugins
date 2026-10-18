@@ -430,8 +430,8 @@ class PipelineConfig:
     c2_contradictions: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
-    # Absent, or anything but a whole number of at least 1, is 1. `assess`
-    # replaces it with the default branch head's (`_run_max_in_flight`).
+    # Absent, or anything but a whole number of at least 1, is 1. The gate
+    # reads it at the default branch head instead (`_run_max_in_flight`).
     max_in_flight: int = 1
 
 
@@ -2193,15 +2193,24 @@ MAX_IN_FLIGHT_SECTION = "max-in-flight"
 
 
 def _run_max_in_flight(
-    repo: str, branch: str, head: str | None, base: PipelineConfig
+    repo: str,
+    branch: str,
+    head: str | None,
+    base: PipelineConfig,
+    *,
+    shared: bool = True,
 ) -> tuple[int, str]:
     """`merge.max-in-flight` and where it was read. It caps the one merge
-    queue, so every candidate of a run reads it at the head of `branch` (the
-    default branch; `head` when already read), not at its own base. It takes
-    one another gate process of the run read within `run_cache.MAX_AGE`;
-    every read is saved for them, a failed one never, and a failed one falls
-    back to `base`'s value."""
-    cached = run_cache.get(MAX_IN_FLIGHT_SECTION, repo, run_cache.MAX_AGE)
+    queue, so every candidate reads it at the head of `branch` (the default
+    branch; `head` when already read), not at its own base. `shared` reads
+    and saves it once per cache window (`run_cache.MAX_AGE`) for the run's
+    gate processes, never saving a failed read; a failed read falls back to
+    `base`'s value."""
+    cached = (
+        run_cache.get(MAX_IN_FLIGHT_SECTION, repo, run_cache.MAX_AGE)
+        if shared
+        else None
+    )
     if type(cached) is int and cached >= 1:
         return cached, "default-branch"
     owner, name = _split_repo(repo)
@@ -2225,7 +2234,8 @@ def _run_max_in_flight(
             return base.max_in_flight, "base"
     if config.error:
         return base.max_in_flight, "base"
-    run_cache.put(MAX_IN_FLIGHT_SECTION, repo, config.max_in_flight)
+    if shared:
+        run_cache.put(MAX_IN_FLIGHT_SECTION, repo, config.max_in_flight)
     return config.max_in_flight, "default-branch"
 
 
@@ -3076,13 +3086,11 @@ def assess(
         cap=cap.value,
         demoted=demotion.active,
     )
-    # The one setting not bound to the base: the cap is the run's, and the
-    # post-enqueue room check reads it from `inputs["config"]`.
+    # The one setting not bound to the base; the post-enqueue room check
+    # reads it again, uncached.
     flight_cap, cap_source = _run_max_in_flight(
         repo, default, head if isinstance(head, str) else None, config
     )
-    config = replace(config, max_in_flight=flight_cap)
-    inputs["config"] = config
     flight = in_flight(
         repo,
         **readers,

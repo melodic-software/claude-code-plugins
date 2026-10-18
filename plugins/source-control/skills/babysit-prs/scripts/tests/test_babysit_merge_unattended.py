@@ -549,6 +549,9 @@ class Unattended(unittest.TestCase):
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
         self.pr_labels: list[dict[str, Any]] = []
         self.dependabot_reads: list[policy.Eligibility] = []
+        # The default branch head the in-flight cap is read at: the base, so
+        # the cap is `self.config`'s.
+        self.main_head = BASE
 
     def _dependabot_eligibility(self, *args: Any, **kwargs: Any) -> Any:
         if not self.dependabot_reads:
@@ -568,6 +571,11 @@ class Unattended(unittest.TestCase):
         if self.default_branch is None:
             raise policy.PolicyReadError("the default branch could not be read")
         return self.default_branch
+
+    def _get(self, endpoint: str) -> tuple[int | None, Any]:
+        if endpoint == "repos/owner/repo/commits/main":
+            return 200, {"sha": self.main_head}
+        return self._real_get(endpoint)
 
     def _dispatch(self, repo: str, ref: str) -> None:
         self.log.append("dispatch")
@@ -627,8 +635,10 @@ class Unattended(unittest.TestCase):
             argv += ["--merge", "--expected-head", HEAD]
         argv += list(flags)
         out = io.StringIO()
+        self._real_get = policy._get
         patches = [
             mock.patch.object(sys, "argv", argv),
+            mock.patch.object(policy, "_get", side_effect=self._get),
             mock.patch.object(policy, "pull_request", return_value=pr_record),
             mock.patch.object(
                 policy, "_default_branch", side_effect=self._default_branch
@@ -1551,6 +1561,27 @@ class OneUnattendedMergeInFlight(Unattended):
                     "dequeue-self:id=PR_self" in self.log, not kept, self.log
                 )
                 self.assertEqual(code, 0 if kept else 10)
+
+    def test_the_room_check_reads_the_cap_again_not_from_the_run_cache(
+        self,
+    ) -> None:
+        # Another gate process saved a cap of 1; the head's is now 5, so the
+        # fifth entry stays only on a fresh read.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {run_cache.ENV: path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        run_cache.put(policy.MAX_IN_FLIGHT_SECTION, "owner/repo", 1)
+        self.config = dataclasses.replace(self.config, max_in_flight=5)
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+        self.flight = policy.InFlight(True, None, frozenset(), 1)
+        code, out = self.run_main()
+        self.assertIs(out["enqueued"], True)
+        self.assertNotIn("dequeue-self:id=PR_self", self.log)
+        self.assertEqual(code, 0)
 
     def test_the_earliest_entry_stays(self) -> None:
         self.entries = [

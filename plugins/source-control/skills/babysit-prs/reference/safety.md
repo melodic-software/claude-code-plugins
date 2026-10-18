@@ -1060,9 +1060,11 @@ Named residuals:
   lands between that read and the queue re-read counts as neither queued nor unverified, so
   concurrent hosts can exceed `merge.max-in-flight` by the entries that landed in that window. The
   `pr-merge` workflow's concurrency group serializes CI runs, so only several local hosts race.
-- `merge.max-in-flight` is read at the default branch head, shared by the run's gate processes
-  for `run_cache.MAX_AGE`, so a changed cap applies to every candidate, whatever its base, within
-  that age. When that read fails, the candidate's base commit's value applies.
+- `merge.max-in-flight` is read at the default branch head once per cache window
+  (`run_cache.MAX_AGE`), shared by the run's gate processes in that window, so a changed cap
+  applies to every candidate, whatever its base, once the window ends. The room check after an
+  enqueue reads it again, uncached. When a read fails, the candidate's base commit's value
+  applies.
 
 Operator runbook: the refusal `in-flight:merged-history-truncated` (or an unreadable post-merge
 verdict naming the read limit) means more merges landed since the floor than the history read

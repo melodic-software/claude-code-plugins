@@ -3242,14 +3242,25 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
                 self.assertEqual(details["capSource"], "default-branch")
 
     def test_an_unreadable_head_config_falls_back_to_the_bases_cap(self) -> None:
+        """Pins the fallback only: the base's cap is what the gate read before
+        this change, so this guards no regression from it."""
         for answer in (502, file_payload("merge: [unclosed\n")):
             with self.subTest(answer=answer):
-                self.moved(answer)
+                gh = self.moved(answer)
+                gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = (
+                    file_payload(
+                        LANE_PIPELINE.replace(
+                            "merge:\n", "merge:\n  max-in-flight: 3\n"
+                        )
+                    )
+                )
                 cap, details = self.cap()
-                self.assertEqual(cap, 1)
+                self.assertEqual(cap, 3)
                 self.assertEqual(details["capSource"], "base")
 
-    def test_the_heads_cap_is_read_once_per_run_and_a_failure_never(self) -> None:
+    def test_the_heads_cap_is_shared_per_cache_window_and_a_failure_never(
+        self,
+    ) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         env = {"BABYSIT_RUN_CACHE": str(pathlib.Path(tmp.name, "run.json"))}
