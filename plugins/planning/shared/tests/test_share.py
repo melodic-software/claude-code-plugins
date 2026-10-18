@@ -72,6 +72,22 @@ class TestEnsureRunning(Running):
         self.assertEqual((after["pid"], after["url"]), (before["pid"], before["url"]))
         self.assertIsNotNone(detached.exe_name(before["pid"]))
 
+    def test_a_slow_tunnel_behind_a_stale_record_never_holds_up_the_server_start(self):
+        """The server once restarted a dead recorded tunnel before it answered its first ping: a tunnel slower than
+        share.py's START_SECONDS failed the start and left that cloudflared running, recorded nowhere."""
+        rec = tunnel.read(self.d)
+        code, _, err = share(self.d, "stop")
+        self.assertEqual(code, 0, err)
+        (self.d / tunnel.RECORD).write_text(json.dumps(rec), encoding="utf-8")  # its pid has exited
+        runs = self.d.parent / "cf-runs.txt"
+        slow = env(FAKE_CF_DELAY=str(int(share_cli.START_SECONDS) + 2), SHARED_TUNNEL_SECONDS="60", FAKE_CF_ARGS=str(runs))
+        code, out, err = share(self.d, "ensure-running", environ=slow)
+        self.assertEqual(code, 0, err)
+        now = tunnel.read(self.d)
+        self.assertEqual(out["guestUrl"].split("#")[0].rstrip("/"), now["url"])
+        self.assertEqual(len(runs.read_text(encoding="utf-8").splitlines()), 1)  # the recorded tunnel is the only one started
+        self.assertIsNotNone(tunnel.alive(self.d))
+
     def test_it_answers_the_contract_fields(self):
         out = self.first
         self.assertEqual(sorted(out), ENSURE_KEYS)

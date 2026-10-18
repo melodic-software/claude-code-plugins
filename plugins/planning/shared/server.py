@@ -975,7 +975,7 @@ class App:
         self.control_port = self.hub.port
         detached.write_private(self.dir / PORTS, json.dumps({"guest": self.guest_port, "control": self.control_port}) + "\n")
         self.write_owner_link()
-        self.sync_tunnel()
+        self.sync_tunnel(restart=False)  # a tunnel start can outlast share.py's wait for this one: share.py or the watch starts it
         self.log.info("started: guest %d, control %d, build %s", self.guest_port, self.control_port, self.build)
 
     @contextlib.contextmanager
