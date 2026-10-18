@@ -65,6 +65,15 @@ test("the model runs only in judge, read-only, from the user settings source", (
   assert.doesNotMatch(jobs.judge, /Read\(~\/\*\*\)/);
 });
 
+// cant-fail-ok: the allowed_bots value is the contract. A schedule run can
+// carry the merge-queue bot as its actor; never '*'.
+test("the judge admits only the merge-queue bot as a non-human actor", () => {
+  assert.deepEqual(
+    [...jobs.judge.matchAll(/\n {10}allowed_bots: (.*)\n/g)].map((m) => m[1]),
+    ["github-merge-queue"],
+  );
+});
+
 test("every job checks the kill switch before its first API or model step", () => {
   for (const [name, block] of Object.entries(jobs)) {
     const kill = block.indexOf("check-kill-switch");
