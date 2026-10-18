@@ -1,8 +1,8 @@
 name: Request lane token
 description: >
   Exchange this job's GitHub OIDC token at the lanes token broker. In `token`
-  mode, the default, it gets one lane App installation token: it sends exactly
-  one request and never retries it, masks the token, and fails red, after
+  mode, the default, it gets one lane App installation token: it retries only
+  a 503 `github-unavailable`, with backoff, masks the token, and fails red, after
   revoking the token, unless the broker's effect, permissions, lane, activity
   and repository equal what this job resolved. In `check` mode it asks the
   broker's check endpoint, which mints nothing, whether a read lane may run,
@@ -171,6 +171,7 @@ runs:
           fail "the job cannot request an OIDC token; it needs permissions id-token: write"
 
         response="$RUNNER_TEMP/lane-token-response.json"
+        headers="$RUNNER_TEMP/lane-token-headers.txt"
         issued=""
         revoke() {
           printf 'Authorization: Bearer %s\n' "$1" |
@@ -182,19 +183,12 @@ runs:
         # prints its status, so only a token that passed every check reaches the job.
         cleanup() {
           local rc=$?
-          rm -f "$response"
+          rm -f "$response" "$headers"
           if [ "$rc" -ne 0 ] && [ -n "$issued" ]; then
             echo "Revoke attempt returned $(revoke "$issued")"
           fi
         }
         trap cleanup EXIT
-
-        oidc=$(printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" |
-          curl -sS --fail --max-time 30 -H @- "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" |
-          jq -r 'if type == "object" and (.value | type) == "string" then .value else "" end') ||
-          fail "the OIDC token request failed"
-        [ -n "$oidc" ] || fail "the OIDC token request returned no token"
-        echo "::add-mask::$oidc"
 
         body=$(jq -cn --arg lane "$LANE" --arg activity "$ACTIVITY" --arg pr "$PR_NUMBER" \
           --arg issue "$ISSUE_NUMBER" --arg dispatcher "$DISPATCHER_RUN_ID" --arg upstream "${EXPECTED_UPSTREAM_HEAD:-}" \
@@ -204,26 +198,60 @@ runs:
             + (if $dispatcher == "" then {} else {dispatcher_run_id: ($dispatcher | tonumber)} end)
             + (if $upstream == "" then {} else {expected_upstream_head: $upstream} end)')
 
-        # Exactly one request, with no retry: the broker spends this job's one
-        # mint when it answers, and a 200 lost in transit is revoked by nobody,
-        # so a second request could only be denied or issue a second token. A
-        # check that gets no answer fails closed. A check is never reserved, so
-        # re-running all jobs asks again; "Re-run failed jobs" reuses an
-        # earlier allow, which the read file's run job refuses.
-        status=$(printf 'Authorization: Bearer %s\n' "$oidc" |
-          curl -sS --proto '=https' --max-time 60 -o "$response" -w '%{http_code}' -X POST -H @- \
-            -H 'Content-Type: application/json' --data-binary "$body" "$BROKER_URL") || status=000
-        unset oidc
+        reason_of() { jq -r 'if type == "object" and (.reason | type) == "string" then .reason else "" end' "$response" 2>/dev/null || true; }
+        detail_of() { jq -r 'if type == "object" and (.detail | type) == "string" then .detail else "" end' "$response" 2>/dev/null | one_line || true; }
+
+        # The one retry is a 503 github-unavailable: the broker's GitHub call
+        # failed, as under a secondary rate limit. GitHub
+        # says to wait at least a minute, then back off exponentially:
+        # https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit
+        # A failed mint also answers github-unavailable, after the broker
+        # reserved the job's one mint, so its retry is denied already-minted and
+        # never gets a second token. Every other answer, and no answer, is
+        # final: a 200 lost in transit is revoked by nobody. A Retry-After header
+        # longer than the backoff sets the wait; no retry starts more than 8
+        # minutes after the first request, so with its 30 s OIDC and 60 s broker
+        # timeouts the last answer comes within 9.5 minutes.
+        # Each attempt takes a fresh OIDC token. A check is never reserved, so
+        # re-running all jobs asks again; "Re-run failed jobs" reuses an earlier
+        # allow, which the read file's run job refuses.
+        backoff=(60 120 240)
+        attempt=0 start=$SECONDS retried=""
+        while :; do
+          oidc=$(printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" |
+            curl -sS --fail --max-time 30 -H @- "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" |
+            jq -r 'if type == "object" and (.value | type) == "string" then .value else "" end') ||
+            fail "the OIDC token request failed"
+          [ -n "$oidc" ] || fail "the OIDC token request returned no token"
+          echo "::add-mask::$oidc"
+          status=$(printf 'Authorization: Bearer %s\n' "$oidc" |
+            curl -sS --proto '=https' --max-time 60 -o "$response" -D "$headers" -w '%{http_code}' -X POST -H @- \
+              -H 'Content-Type: application/json' --data-binary "$body" "$BROKER_URL") || status=000
+          unset oidc
+          [[ $status == 503 && $attempt -lt ${#backoff[@]} && $(reason_of) == github-unavailable ]] || break
+          delay=$((backoff[attempt] + RANDOM % 21))
+          after=$(tr -d '\r' <"$headers" 2>/dev/null |
+            awk -F': *' 'tolower($1) == "retry-after" && $2 ~ /^[0-9]+$/ && length($2) <= 6 { v = $2 + 0 } END { print v }') || after=""
+          [[ -z $after || $after -le $delay ]] || delay=$after
+          [ $((SECONDS - start + delay)) -le 480 ] || break
+          detail=$(detail_of)
+          retried="503 with reason github-unavailable${detail:+: $detail}"
+          attempt=$((attempt + 1))
+          echo "::warning::lane-token-retry: the broker answered $retried; retry $attempt of ${#backoff[@]} in ${delay}s"
+          sleep "$delay"
+        done
 
         if [ "$status" = 000 ]; then
-          fail "broker-unreachable: the lanes token broker gave no response"
+          fail "broker-unreachable: the lanes token broker gave no response${retried:+, after $retried}"
         fi
         denied=lane-token-denied
         [ "$MODE" = token ] || denied=lane-check-denied
         if [ "$status" != 200 ]; then
-          reason=$(jq -r 'if type == "object" and (.reason | type) == "string" then .reason else "" end' "$response" 2>/dev/null) || reason=""
+          reason=$(reason_of)
           [[ $reason =~ ^[a-z]+(-[a-z]+)*$ ]] || reason=unknown
-          detail=$(jq -r 'if type == "object" and (.detail | type) == "string" then .detail else "" end' "$response" 2>/dev/null | one_line) || detail=""
+          detail=$(detail_of)
+          [ "$reason" != github-unavailable ] || retried=""
+          detail="$detail${retried:+, after $retried}"
           if [[ $SUPERSEDED_OK == true && $status == 403 && $reason == workflow-modified ]]; then
             msg="lane-token-superseded: $LANE.yml changed on the default branch after this run started, so a newer run of it does this work; this run takes no token and skips the rest"
             echo "::warning::$msg"

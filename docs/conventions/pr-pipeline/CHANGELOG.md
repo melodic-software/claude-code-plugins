@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## 2.6.2 - 2026-10-17
+
+`request-lane-token` retries a broker 503 whose reason is `github-unavailable`, with a fresh OIDC
+token, after 60, 120 and 240 seconds plus up to 20 seconds of jitter, honoring a longer
+`Retry-After` header and starting no retry more than 8 minutes after the first request. Every other answer stays final
+([pr-run-activity.md](pr-run-activity.md#the-lane-token-broker)). `version` stays 2.
+
 ## 2.6.1 - 2026-10-17
 
 `address-feedback.mjs select` now also keeps a thread the lane escalated (the lanes App's last
