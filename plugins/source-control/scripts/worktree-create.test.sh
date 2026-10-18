@@ -528,6 +528,12 @@ root="$TEST_TMPDIR/wtroot5"
 out=$(bash "$HELPER" --name feat/fresh-base --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "base-ref fresh materializes the worktree" "$out/README.md"
 assert_file_absent "base-ref fresh excludes the unpushed commit" "$out/UNPUSHED.md"
+# #5983: a fresh branch must not track origin/<default>, or a bare push fails
+# under push.default=simple and push-branch.sh keeps the wrong upstream.
+assert_eq "base-ref fresh leaves branch.<name>.merge unset" "" \
+  "$(git -C "$repo" config --get branch.feat/fresh-base.merge)"
+assert_eq "base-ref fresh leaves branch.<name>.remote unset" "" \
+  "$(git -C "$repo" config --get branch.feat/fresh-base.remote)"
 
 # --- Case: .worktreeinclude copy is the (matched AND gitignored) intersection ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
@@ -1311,5 +1317,64 @@ if PATH="$no_npm_path" command -v git >/dev/null 2>&1 && PATH="$no_npm_path" com
 else
   skip_case "npm shares a PATH directory with git or bash; cannot hide it"
 fi
+
+# --- Case: a missing sourced library exits 4 with "cannot load" (#5983) ---
+# A copy of the helper beside only some of its libraries. Before the guard, the
+# missing library went unnoticed and git later reported an unrelated error.
+libless="$TEST_TMPDIR/libless/scripts"
+mkdir -p "$libless/lib"
+cp "$HELPER" "$libless/worktree-create.sh"
+cp "$SCRIPT_DIR/lib/worktree-facts.sh" "$libless/lib/"
+code=0
+err=$(bash "$libless/worktree-create.sh" --help 2>&1 >/dev/null) || code=$?
+assert_exit "missing worktree-root-resolve.sh exits 4" 4 "$code"
+assert_contains "missing worktree-root-resolve.sh names it" "$err" "cannot load worktree-root-resolve.sh"
+cp "$SCRIPT_DIR/worktree-root-resolve.sh" "$SCRIPT_DIR/worktree-root-legacy.sh" "$libless/"
+code=0
+err=$(bash "$libless/worktree-create.sh" --help 2>&1 >/dev/null) || code=$?
+assert_exit "missing hooks/worktree-path-lib.sh exits 4" 4 "$code"
+assert_contains "missing hooks/worktree-path-lib.sh names it" "$err" "cannot load hooks/worktree-path-lib.sh"
+
+# --- Case: --remove-input-files deletes the handed files and their dir (#5983) ---
+# The skill writes its two input files into a mktemp dir; the helper owns their
+# removal so the skill block needs no rm and no exit-status variable.
+# mkinputs <dir> — the two files the skill writes, the root left unconfigured.
+mkinputs() {
+  mkdir -p "$1"
+  # shellcheck disable=SC2016 # the literal unexpanded token is the point
+  printf '%s' '${user_config.worktree_root}' >"$1/worktree-root"
+  printf '%s' "$DATA_DIR" >"$1/data-root"
+}
+dir_state() { [[ -e "$1" ]] && echo present || echo absent; }
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+inputs="$TEST_TMPDIR/inputs-ok"
+mkinputs "$inputs"
+out=$(bash "$HELPER" --name feat/rm-inputs --fallback-root-file "$inputs/worktree-root" \
+  --data-root-file "$inputs/data-root" --repo-dir "$repo" --remove-input-files 2>/dev/null)
+assert_exit "--remove-input-files: create exits 0" 0 "$?"
+assert_file_exists "--remove-input-files: worktree created" "$out/README.md"
+assert_eq "--remove-input-files: input dir removed after success" absent "$(dir_state "$inputs")"
+
+inputs="$TEST_TMPDIR/inputs-refused"
+mkinputs "$inputs"
+code=0
+bash "$HELPER" --name 'feat/foo..bar' --fallback-root-file "$inputs/worktree-root" \
+  --data-root-file "$inputs/data-root" --repo-dir "$repo" --remove-input-files >/dev/null 2>&1 || code=$?
+assert_exit "--remove-input-files: invalid name still exits 2" 2 "$code"
+assert_eq "--remove-input-files: input dir removed after a refusal" absent "$(dir_state "$inputs")"
+
+inputs="$TEST_TMPDIR/inputs-shared"
+mkinputs "$inputs"
+printf 'x\n' >"$inputs/unrelated"
+bash "$HELPER" --name feat/rm-shared --fallback-root-file "$inputs/worktree-root" \
+  --data-root-file "$inputs/data-root" --repo-dir "$repo" --remove-input-files >/dev/null 2>&1
+assert_file_absent "--remove-input-files: handed file removed from a shared dir" "$inputs/data-root"
+assert_file_exists "--remove-input-files: an unrelated file is kept" "$inputs/unrelated"
+
+inputs="$TEST_TMPDIR/inputs-kept"
+mkinputs "$inputs"
+bash "$HELPER" --name feat/keep-inputs --fallback-root-file "$inputs/worktree-root" \
+  --data-root-file "$inputs/data-root" --repo-dir "$repo" >/dev/null 2>&1
+assert_file_exists "without --remove-input-files the input files stay" "$inputs/data-root"
 
 [[ $FAILED -eq 0 ]] || exit 1
