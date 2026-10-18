@@ -17,7 +17,7 @@ graders:
     pattern: 'TaskCreate\(subject=\\?"[^"\n]*(?:30|test)'
     flags: 'i'
     target: trace
-    arm: with-only
+    arm: both
   - name: task-list-read-live
     type: tool_used
     tool: TaskList
