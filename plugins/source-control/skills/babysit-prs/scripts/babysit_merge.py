@@ -141,6 +141,7 @@ import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
 import babysit_risk
+import babysit_run_cache as run_cache
 import babysit_verify_evidence as verify_evidence
 import babysit_repo_config as repo_policy
 from babysit_state import resolve_state_dir, state_lock, write_state
@@ -2634,6 +2635,8 @@ STOP_REFUSALS = (
     "rung-off:",
     merge_policy.DEFAULT_BRANCH_UNREADABLE,
 )
+# The run-cache section of queued entries a gate process judged and kept.
+SWEEP = "queue-sweep"
 UNATTENDED_QUEUE_QUERY = (
     "query($o:String!,$r:String!,$b:String!){repository(owner:$o,name:$r){"
     "mergeQueue(branch:$b){entries(first:100){totalCount nodes{enqueuedAt position "
@@ -3081,6 +3084,26 @@ def _queued_verify_hold(verifier: verify_evidence.Reader, number: int) -> str | 
         return verify_evidence.UNREADABLE
 
 
+def _sweep_key(repo: str, branch: str, identity: str, number: int) -> str:
+    return f"{repo}|{branch}|{identity.casefold()}|{number}"
+
+
+def _kept_recently(repo: str, branch: str, identity: str, number: int) -> bool:
+    """Whether a gate process of this run kept the queued entry on reads
+    taken at most `run_cache.MAX_AGE` ago, dated by its oldest input (a
+    shared permission, trusted list or verdict listing included): the bound
+    every judgment of an entry already keeps."""
+    stamp = run_cache.get(SWEEP, _sweep_key(repo, branch, identity, number), None)
+    try:
+        at = datetime.fromisoformat(stamp)
+    except (TypeError, ValueError):
+        return False
+    return (
+        at.tzinfo is not None
+        and timedelta(0) <= run_cache.now() - at <= run_cache.MAX_AGE
+    )
+
+
 def unattended_writes(
     repo: str, number: int, policy: merge_policy.UnattendedPolicy
 ) -> dict[str, Any]:
@@ -3116,23 +3139,33 @@ def unattended_writes(
                 and config.require_verifier_verdict
                 else None
             )
-            report["holds"] = {
-                n: hold
-                for n in queued
-                if (
-                    hold := merge_policy.entry_hold(
+            # When each kept entry's reads began (`_kept_recently`).
+            kept_at: dict[int, datetime] = {}
+
+            def judge(n: int) -> str | None:
+                # Dated by its oldest input: a shared permission, trusted
+                # list or verdict listing may predate the judgment.
+                with run_cache.track() as taken:
+                    began = run_cache.now()
+                    hold = merge_policy.entry_hold(
                         repo,
                         n,
                         identity,
                         self_logins=inputs.get("self_logins") or frozenset(),
                         permission=inputs.get("permission"),
-                    )
-                    or (
+                    ) or (
                         _queued_verify_hold(verifier, n)
                         if verifier is not None and n != number
                         else None
                     )
-                )
+                kept_at[n] = min([began, *taken])
+                return hold
+
+            report["holds"] = {
+                n: hold
+                for n in queued
+                if (n == number or not _kept_recently(repo, branch, identity, n))
+                and (hold := judge(n))
             }
             # This run's own read of a queued entry also counts: the pull
             # request it just found ineligible, above the rung, unpromoted
@@ -3153,6 +3186,13 @@ def unattended_writes(
             if unknown:
                 report["errors"].append(
                     f"{unknown} queue entries have an unknown enqueuer"
+                )
+        # Only an entry this process judged and kept, never its own (which
+        # its gate judges in full) or one it skipped.
+        for n, at in kept_at.items() if numbers is not None else ():
+            if n != number and n not in numbers:
+                run_cache.put(
+                    SWEEP, _sweep_key(repo, branch, identity, n), at.isoformat()
                 )
     except (postmerge.PostMergeReadError, postmerge.PostMergeWriteError) as exc:
         report["errors"].append(f"dequeue: {exc}")
