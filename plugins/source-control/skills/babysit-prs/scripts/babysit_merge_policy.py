@@ -2196,6 +2196,13 @@ def _history_checkouts() -> list[Path]:
     return [Path(__file__).resolve().parent, Path.cwd()]
 
 
+# With `--no-replace-objects`, how a history read sees a clone's real
+# commits: a graft file is ignored, and a missing object fails the read
+# rather than being lazily fetched. A graft or replace ref would cut or
+# rewrite the history a clone reports.
+HISTORY_GIT_ENV = {"GIT_GRAFT_FILE": os.devnull, "GIT_NO_LAZY_FETCH": "1"}
+
+
 def _git(root: Path, *args: str) -> str | None:
     """The stdout of `git` run in `root`, or None when it fails."""
     try:
@@ -2203,6 +2210,7 @@ def _git(root: Path, *args: str) -> str | None:
             ["git", "--no-replace-objects", "-C", str(root), *args],
             allowed_executables=("git",),
             check=False,
+            env_overrides=HISTORY_GIT_ENV,
         )
     except (RuntimeError, ValueError, OSError):
         return None
@@ -2591,10 +2599,17 @@ SHARED_MAX_AGE = timedelta(minutes=30)
 # How old a shared answer still waiting on a lane merge's verifying run may
 # be: that run may have passed since. The verify-evidence listing's bound.
 SHARED_UNVERIFIED_MAX_AGE = run_cache.MAX_AGE
-# Refusals that bind the answer to another candidate, not to an older state:
-# a recompute under one is not written over the run's answer.
+# Refusals that bind the answer to another candidate, not to an older state,
+# or leave the binding unknown: a recompute under one is not written over
+# the run's answer.
 SHARED_BINDING_REFUSALS = frozenset(
-    {"identity-differs", "self-logins-differ", "lane-differs", "floor-differs"}
+    {
+        "identity-differs",
+        "self-logins-differ",
+        "lane-differs",
+        "floor-differs",
+        "config-unreadable",
+    }
 )
 # Runner clocks may run ahead of GitHub's; `since` starts this much earlier.
 SINCE_CLOCK_MARGIN = timedelta(minutes=5)
