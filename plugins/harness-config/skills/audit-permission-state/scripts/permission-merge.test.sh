@@ -219,6 +219,58 @@ OUT=$(merge "$MIXED")
 assert_contains "the invisible command-line scope is stated" "$OUT" "CAVEAT: the command-line scope"
 assert_contains "the exact-text limitation states its error direction" "$OUT" "over-reporting allow"
 
+# --- Case 7m: deny rules are never presented as final against mods ------------
+# Expected text from the mods admin page, "Know what happens by default":
+# deny rules take precedence "where the guard loads", and "Neither applies to a
+# mod's own $.fs and $.process calls".
+NO_MANAGED=$(
+  cat <<'EOF'
+managed file absent /policy/managed-settings.json
+managed remote-cache absent /fx/home/.claude/remote-settings.json
+user settings present /fx/home/.claude/settings.json
+rule user settings deny Read(./.env)
+EOF
+)
+OUT=$(merge "$NO_MANAGED")
+assert_eq "one mod caveat line is printed" 1 "$(count_matching "$OUT" '^CAVEAT: mods: ')"
+assert_contains "the caveat bounds deny rules by the guard" "$OUT" "only where the built-in sec-default guard loads"
+assert_contains "the caveat names the calls no deny rule covers" "$OUT" '$.fs or $.process'
+assert_contains "no managed file: the guard is not seated by managed settings" "$OUT" "Guard on this machine: not seated by managed settings"
+WITH_MANAGED=$(
+  cat <<'EOF'
+managed file present /policy/managed-settings.json
+user settings present /fx/home/.claude/settings.json
+EOF
+)
+assert_contains "a managed file present: the guard is seated" "$(merge "$WITH_MANAGED")" "Guard on this machine: seated (managed settings present: file)"
+assert_contains "an unread managed surface: the guard state is unknown" "$(merge 'managed registry skipped -')" "Guard on this machine: unknown"
+assert_contains "no managed records: the guard state is not read" "$(merge 'user settings present /u')" "Guard on this machine: not read"
+# The admin page's guard options: "if you set prependPlugins, name the guard in
+# the list. Where the guard doesn't load, neither option applies", and
+# allowModsToOverrideDenyRules lets "a user's mod ... approve a call that a deny
+# rule refuses".
+OMITS_GUARD=$(printf '%s\n' "$WITH_MANAGED" 'conf managed file prependPluginsNamesGuard false')
+OUT=$(merge "$OMITS_GUARD")
+assert_contains "managed prependPlugins without the guard: not seated" "$OUT" "Guard on this machine: not seated (managed prependPlugins does not name sec-default@builtin)"
+assert_not_contains "managed prependPlugins without the guard: never seated" "$OUT" "Guard on this machine: seated"
+NAMES_GUARD=$(printf '%s\n' "$WITH_MANAGED" 'conf managed dropin-file:10-a.json prependPluginsNamesGuard false' 'conf managed file prependPluginsNamesGuard true')
+assert_contains "one managed prependPlugins naming the guard: seated" "$(merge "$NAMES_GUARD")" "Guard on this machine: seated (managed settings present: file)"
+OVERRIDE=$(printf '%s\n' "$WITH_MANAGED" 'conf managed file modsOverrideDenyRules true')
+assert_contains "managed allowModsToOverrideDenyRules: deny rules not final" "$(merge "$OVERRIDE")" "seated (managed settings present: file), but managed allowModsToOverrideDenyRules is true, so a user's mod can approve a call a deny rule refuses"
+# Drop-ins merge after the base file and a later single value replaces an
+# earlier one (lib/managed-scope.sh, drop-in merge), so the last record wins.
+OVERRIDE_OFF=$(printf '%s\n' "$WITH_MANAGED" 'conf managed file modsOverrideDenyRules true' 'conf managed dropin-file:10-a.json modsOverrideDenyRules false')
+assert_not_contains "a later drop-in turning the override off wins" "$(merge "$OVERRIDE_OFF")" "allowModsToOverrideDenyRules is true"
+OVERRIDE_BACK_ON=$(printf '%s\n' "$OVERRIDE_OFF" 'conf managed dropin-file:20-b.json modsOverrideDenyRules true')
+assert_contains "a still later drop-in turning it back on wins" "$(merge "$OVERRIDE_BACK_ON")" "allowModsToOverrideDenyRules is true"
+assert_not_contains "a user-scope override does not change the guard state" "$(merge "$(printf '%s\n' "$WITH_MANAGED" 'conf user settings modsOverrideDenyRules true')")" "allowModsToOverrideDenyRules is true"
+assert_contains "a present plist: its contents are not read" "$(merge 'managed plist present com.anthropic.claudecode')" "seated (managed settings present: plist; the plist's prependPlugins and guard options are not read)"
+assert_contains "an invalid managed registry value: the guard state is unknown" "$(merge 'managed registry invalid-json HKCU')" "Guard on this machine: unknown"
+CACHE_SKIPPED=$(printf '%s\n' 'managed file absent /policy/managed-settings.json' 'managed remote-cache skipped -' 'user settings present /u')
+assert_contains "a skipped remote cache does not make the guard state unknown" "$(merge "$CACHE_SKIPPED")" "Guard on this machine: not seated by managed settings"
+CACHE_PRESENT=$(printf '%s\n' 'managed file absent /policy/managed-settings.json' 'managed remote-cache present /r' 'user settings present /u')
+assert_contains "a present remote cache points to a sign-in" "$(merge "$CACHE_PRESENT")" "a server-managed cache is present"
+
 # --- Case 8: no scope records is an error, never an empty merge ---------------
 # A reader that died and a machine with no settings must not look the same.
 rc=0
@@ -318,6 +370,22 @@ if command -v jq >/dev/null 2>&1; then
   assert_contains "managed policy contributes" "$E2E" "scopes=managed precedence_basis=uncontested Read(./.env)"
   assert_eq "every end-to-end effective record carries a basis" \
     "$(count_matching "$E2E" '^effective ')" "$(count_matching "$E2E" 'precedence_basis=')"
+  assert_contains "a plain managed file seats the guard end to end" "$E2E" "Guard on this machine: seated (managed settings present: file)."
+
+  guard_e2e() {
+    jq -n "$1" >"$FX/policy/managed-settings.json"
+    env -u CLAUDE_CONFIG_DIR HOME="$FX/home" PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
+      PERMISSION_STATE_STARTDIR="$FX/startdir" PERMISSION_STATE_MANAGED_PATH="$FX/policy/managed-settings.json" \
+      PERMISSION_STATE_REGISTRY_KEYS="" PERMISSION_STATE_PLIST_DOMAIN="" \
+      bash "$STATE_SCRIPT" | bash "$SCRIPT" --merge-only
+  }
+  assert_contains "the reader carries a prependPlugins that omits the guard" \
+    "$(guard_e2e '{prependPlugins:["acme-guard@acme"]}')" "Guard on this machine: not seated (managed prependPlugins"
+  assert_contains "the reader accepts the guard under either id" \
+    "$(guard_e2e '{prependPlugins:["acme-guard@acme","cc-plugin-sec-default@builtin"]}')" "Guard on this machine: seated (managed settings present: file)."
+  assert_contains "the reader carries the managed deny override" \
+    "$(guard_e2e '{prependPlugins:["sec-default@builtin"],pluginConfigs:{"cc-plugin-sec-default@builtin":{options:{allowModsToOverrideDenyRules:true}}}}')" \
+    "but managed allowModsToOverrideDenyRules is true"
 else
   pass "end-to-end reader merge (skipped — jq not installed)"
 fi

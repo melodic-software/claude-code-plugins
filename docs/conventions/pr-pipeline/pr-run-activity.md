@@ -928,9 +928,11 @@ repository, started (and any re-run) by the lanes bot or a listed human, at the 
 or, with `expected_upstream_head` in the body, at that head when every commit from it to the PR's
 current head is one GitHub signed for the lanes bot (committer `web-flow`, signature `valid`) after
 this run was created, and the upstream run lists this pull request. The client
-sends it once and never retries: the broker
-reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
-and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
+retries only a 503 `github-unavailable`, with backoff
+([`request-lane-token`](../../../.github/actions/request-lane-token/README.md#what-it-does), step 3):
+the broker reserves the job's `check_run_id` before it mints, so a request after a mint or a failed
+mint is denied `already-minted`, and a 200 lost in transit leaves a token nobody revokes until it
+expires within the hour.
 
 The broker derives the grant from the default-branch tip's config and `effect-grants.json`, never
 from the request, and mints a token for this repository only, with exactly `contents`,
@@ -999,7 +1001,11 @@ Step 14 revokes the token as soon as the activity is done. Residuals:
 The write file's `issue-number` input runs a lane on an issue instead of a PR. Its one caller is
 [`work-resolve-issue.yml`](../../../.github/workflows/work-resolve-issue.yml): the `agent-ready`
 label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), then
-`report-outcome` (a script) in a second run job. What changes from the PR flow:
+`report-outcome` (a script) in a second run job. At most three `resolve-issue` jobs run at once:
+a `pick-slot` job takes the issue number modulo `SLOTS` (3), and `resolve-issue` joins the
+`work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of admissions waits
+in line, holding no runner, instead of spending the lanes App's hourly API quota at once.
+`report-outcome` takes no slot. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty, and unless a

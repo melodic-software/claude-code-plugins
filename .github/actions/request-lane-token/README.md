@@ -39,10 +39,17 @@ run, and mints nothing ([Check mode](#check-mode)).
 1. Fails red when either variable is empty, when the resolved grant is not `read` or `write` for
    each of `contents`, `pull-requests` and `issues`, or when the job lacks `id-token: write`.
 2. Requests an OIDC token for `audience` and masks it.
-3. Sends one `POST` to `broker-url` with `Authorization: Bearer <OIDC token>` and the body
-   `{"lane", "activity", "pr_number"?, "issue_number"?, "dispatcher_run_id"?}`. It never retries: the broker spends the job's one mint
-   when it answers, so a second request could only be denied `already-minted` or issue a token
-   nobody revokes. No response at all fails red with `broker-unreachable`.
+3. Sends a `POST` to `broker-url` with `Authorization: Bearer <OIDC token>` and the body
+   `{"lane", "activity", "pr_number"?, "issue_number"?, "dispatcher_run_id"?}`. It retries only a
+   503 with reason `github-unavailable` (a broker call to GitHub failed, as under a secondary rate
+   limit), with a fresh OIDC token, after 60, 120 and 240 seconds plus up to 20 seconds of jitter
+   each, as GitHub's
+   [rate-limit guidance](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit)
+   asks. A `Retry-After` header longer than the backoff sets the wait, and no retry starts more
+   than 8 minutes after the first request. A failed mint also answers `github-unavailable`, after
+   the broker reserved the job's one mint, so its retry is denied `already-minted`, never given a
+   second token; that failure also names the 503 before it. Every other answer is final, and no response at all fails red with
+   `broker-unreachable`, since a 200 lost in transit leaves a token nobody revokes.
 4. Any status but 200 fails red with `lane-token-denied`, the HTTP status, and the broker's
    `reason` and `detail`, printed as one line of data. The reasons are listed in the contract.
    With `superseded-ok: true`, a 403 with reason `workflow-modified` warns and ends green instead,
@@ -84,7 +91,7 @@ The job needs `permissions: id-token: write`, and so does the caller job that gr
 
 With `mode: check` the action takes only `broker-url`, `audience`, `lane` and `activity`; a
 `pr-number`, `issue-number`, effect or grant fails it red, so the read file's check job never carries the write
-path's inputs. It posts once to `broker-url` with its final `/token` replaced by `/check` (a URL
+path's inputs. It posts to `broker-url`, retrying a 503 `github-unavailable` as in step 3, with its final `/token` replaced by `/check` (a URL
 that does not match `^https://[^/]+/(.+/)?token$` fails red), with the body `{"lane", "activity"}`, and passes only on a 200
 whose `decision` is `allow` and whose `lane` and `activity` are its own. Any other answer fails red
 with `lane-check-denied`; no response is `broker-unreachable`. It sets no output.
