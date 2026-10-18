@@ -255,7 +255,7 @@ Prefer a built-in native mechanism over any custom extensibility point: `userCon
 component type, a native lifecycle event. Build custom only on genuine misfit, and document the
 misfit where the custom mechanism lives.
 
-Built-in-first is a gate on every customization surface, not a preference. Before building
+Built-in-first is a gate on every customization point, not a preference. Before building
 any custom config surface, a YAML concern file or a bespoke interface, first verify against the *current*
 official Claude Code plugin documentation that no native mechanism (`userConfig`, a built-in
 per-repo config surface) can host the need; the platform moves, so re-fetch
@@ -1013,7 +1013,7 @@ rationale; a hybrid gets its behavioral surface trimmed while its policy residue
 security carve-out below overrides every row of the rubric.
 
 Model-capability claims never relax the security posture. Current models resist prompt injection
-measurably better than earlier ones, but not completely, and the primary sources hedge that claim;
+better than earlier ones, but not completely;
 the plugin-acceptance security review's deny-by-default stance on egress and trust delegation is policy, not a model-era
 workaround, and stays regardless of model generation.
 
