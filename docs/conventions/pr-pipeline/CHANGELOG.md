@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 2.13.1 - 2026-10-18
+
+`resolve-issue` `web-access` `domains` changes from `any` to a list of official documentation and
+standards hosts. The docs-script rules stay denied for a list, so the run reads pages through
+`WebFetch` only. `version` stays 2.
+
 ## 2.13.0 - 2026-10-18
 
 `pr-run-activity-read.yml` gains an `output-mode` input. The default, `clean-tree`, keeps failing a

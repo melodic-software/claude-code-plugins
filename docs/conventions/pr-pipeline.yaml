@@ -157,16 +157,36 @@ activities:
       - plugins/skill-quality/scripts/check-evals-quality.sh
       - scripts/sync-shared-copies.sh
       - scripts/new-changelog-fragment.sh
-    # Lets the run read web pages, so it can check a fact against its source
-    # (for example a documented default on a vendor docs page) instead of
-    # trusting the issue's quote. It may search the web and read any site,
-    # through the research skills (/discovery:research and the like), and
-    # lists each page it read in its report. Off unless set here; `domains`
-    # can name sites instead of `any`. A page can try to steer the run, so a
-    # person still reviews every PR the run opens.
+    # Lets the run check a fact against its source (for example a documented
+    # default on a vendor docs page) instead of trusting the issue's quote.
+    # WebFetch is limited to official documentation and standards sites; the
+    # list holds no blog, forum or user-content host. The run may still search
+    # the web and uses the research skills (/discovery:research and the like),
+    # and lists each page it read in its report. The list narrows what a page
+    # can reach, not what the model decides: a page on a listed site can still
+    # try to steer the run, and a shell command such as curl is not held to
+    # the list. The AI review lanes and ci-status still check what the run
+    # produces.
     web-access:
       enabled: true
-      domains: any
+      domains:
+        - code.claude.com
+        - platform.claude.com
+        - support.claude.com
+        - docs.anthropic.com
+        - docs.github.com
+        - github.blog
+        - git-scm.com
+        - learn.microsoft.com
+        - developer.mozilla.org
+        - nodejs.org
+        - docs.npmjs.com
+        - docs.python.org
+        - docs.astral.sh
+        - json-schema.org
+        - www.w3.org
+        - html.spec.whatwg.org
+        - agentskills.io
     effect: mutate-branch
     gating: advisory
     # Reads the issue's title and body, which anyone can write, and its

@@ -274,9 +274,16 @@ test("live config: resolve-issue may run the can't-fail scan, one test file, git
   assert.deepEqual(others, []);
 });
 
-// Owner decision 2026-10-14: the run may read any web page.
-test("live config: resolve-issue may read any domain; review-dependency reads release-note hosts; no other activity reads the web", () => {
-  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"], { enabled: true, domains: "any" });
+// Owner decision 2026-10-18: the run may fetch official documentation sites only.
+test("live config: resolve-issue fetches official docs hosts; review-dependency reads release-note hosts; no other activity reads the web", () => {
+  const issueAccess = selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"];
+  assert.equal(issueAccess.enabled, true);
+  assert.ok(Array.isArray(issueAccess.domains) && issueAccess.domains.length > 0);
+  assert.deepEqual(
+    issueAccess.domains.filter((d) => d.startsWith("*") || ["github.com", "raw.githubusercontent.com"].includes(d)),
+    [],
+  );
+  assert.ok(issueAccess.domains.includes("code.claude.com"));
   const doc = parse(FILES.config);
   assert.deepEqual(doc.activities["review-dependency"]["web-access"], {
     enabled: true,
