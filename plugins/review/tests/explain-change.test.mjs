@@ -483,12 +483,12 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
   );
   chmodSync(join(fakeGh, "gh"), 0o755);
   const fakeRuns = { skip: process.platform === "win32" && "the fake gh is a script, which a shell-less spawn on Windows cannot run" };
-  const gateRun = (args, { out = "public", exit = 0, authed = "", byRepo = "" } = {}) => {
+  const gateRun = (args, { out = "public", exit = 0, authed = "", byRepo = "", env = {} } = {}) => {
     rmSync(ghCalls, { force: true });
     const run = spawnSync(process.execPath, [POLICY, "--publish-gate", ...args], {
       input: clean,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${fakeGh}${delimiter}${process.env.PATH}`, FAKE_GH_LOG: ghCalls, FAKE_GH_OUT: out, FAKE_GH_EXIT: String(exit), FAKE_GH_AUTHED: authed, FAKE_GH_BY_REPO: byRepo },
+      env: { ...process.env, PATH: `${fakeGh}${delimiter}${process.env.PATH}`, FAKE_GH_LOG: ghCalls, FAKE_GH_OUT: out, FAKE_GH_EXIT: String(exit), FAKE_GH_AUTHED: authed, FAKE_GH_BY_REPO: byRepo, ...env },
     });
     const calls = existsSync(ghCalls) ? readFileSync(ghCalls, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : [];
     return { status: run.status, medium: run.status === 0 ? JSON.parse(run.stdout).medium : null, calls };
@@ -497,7 +497,10 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
   test("the facts URL's repository is looked up through the REST API and only a public answer publishes", fakeRuns, () => {
     const found = lookedUp("https://github.com/acme/app/pull/7");
     assert.equal(found.medium, "artifact");
-    assert.deepEqual(found.calls, [["api", "repos/acme/app", "--jq", ".visibility"]]);
+    assert.deepEqual(found.calls, [["api", "--hostname", "github.com", "repos/acme/app", "--jq", ".visibility"]]);
+    // GH_HOST would send a host-less `gh api` to another server; the lookup always names the URL's host.
+    const redirected = lookedUp("https://github.com/acme/app/pull/7", { env: { GH_HOST: "evil.example.net" } });
+    assert.deepEqual(redirected.calls, [["api", "--hostname", "github.com", "repos/acme/app", "--jq", ".visibility"]]);
     for (const out of ["private", "internal", "", "garbage"]) assert.equal(lookedUp("https://github.com/acme/app/pull/7", { out }).medium, "file", `answer ${JSON.stringify(out)}`);
     assert.equal(lookedUp("https://github.com/acme/app/pull/7", { exit: 1 }).medium, "file", "a failed lookup gates as UNKNOWN");
     assert.equal(lookedUp("https://github.com/acme/app/pull/7", { out: "private", extra: ["--explicit"] }).medium, "artifact");
@@ -523,6 +526,11 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
       factsFile("http-url", "http://github.com/acme/app/pull/7"),
       factsFile("ip-url", "https://10.0.0.1/acme/app/pull/7"),
       factsFile("deep-url", "https://github.com/acme/app/extra/pull/7"),
+      factsFile("dotdot-url", "https://github.com/../../pull/7"),
+      factsFile("dot-repo-url", "https://github.com/acme/../pull/7"),
+      factsFile("owner-url", "https://github.com/ac_me/app/pull/7"),
+      factsFile("zero-pr-url", "https://github.com/acme/app/pull/0"),
+      factsFile("padded-pr-url", "https://github.com/acme/app/pull/07"),
     ];
     for (const path of unusable) {
       const run = gateRun(["--facts", path]);
@@ -535,7 +543,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     const byRepo = JSON.stringify({ "acme/public": "public" });
     const facts = gateRun(["--facts", privateFacts], { byRepo });
     assert.equal(facts.medium, "file");
-    assert.deepEqual(facts.calls, [["api", "repos/acme/secret", "--jq", ".visibility"]]);
+    assert.deepEqual(facts.calls, [["api", "--hostname", "github.com", "repos/acme/secret", "--jq", ".visibility"]]);
     for (const args of [["--repo", "acme/public"], ["--facts", privateFacts, "--repo", "acme/public"], ["--repo", "acme/public", "--facts", privateFacts]]) {
       const run = gateRun(args, { byRepo });
       assert.notEqual(run.medium, "artifact", JSON.stringify(args));
@@ -545,7 +553,8 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
   test("SKILL.md runs the gate before publishing and names the destination", () => {
     const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
     assert.match(skill, /`\/source-control:pull-request view <n> \[--repo <owner\/repo>\] --out <dir>\/facts\.json`/);
-    assert.match(skill, /`\/source-control:pull-request view <n> --diff --out <dir>\/pr\.diff`/);
+    assert.match(skill, /`\/source-control:pull-request view <url> --diff --out <dir>\/pr\.diff`, where `<url>` is the `url` in `facts\.json`/);
+    assert.match(skill, /on that path the `url` is yours, not the forge's, so keep the page as a file and do not publish it/);
     assert.match(skill, /--publish-gate --facts <dir>\/facts\.json \[--explicit\] < <dir>\/pr\.diff/);
     assert.doesNotMatch(skill, /--publish-gate --repo/);
     assert.match(skill, /publishing as a private Artifact on claude\.ai/);
@@ -749,7 +758,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     const at = setup();
     const out = publish(at, { gh: "private", out: answer(idB, "private") });
     assert.equal(out.status, 0, out.stderr);
-    assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["api", "repos/acme/app", "--jq", ".visibility"]]);
+    assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["api", "--hostname", "github.com", "repos/acme/app", "--jq", ".visibility"]]);
     assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
   });
   test("a host gh is logged in to in the facts URL asks that host's API and keys the sidecar by host", runsFake, () => {

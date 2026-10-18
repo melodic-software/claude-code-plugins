@@ -20,7 +20,7 @@ With `--risk-only`, or when asked for the risk map alone, follow [reference/risk
 
 ## 1. Decide whether to run
 
-Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call it `<dir>`. Read the pull request's facts into it through `/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json`, invoked via the Skill tool, so the file holds the forge's bytes rather than a copy of tool output. Without the `source-control` plugin, write the same fields there with the forge's own tooling, or report that the read is unavailable and stop. Then let the script decide:
+Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call it `<dir>`. Read the pull request's facts into it through `/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json`, invoked via the Skill tool, so the file holds the forge's bytes rather than a copy of tool output. Without the `source-control` plugin, write the same fields there with the forge's own tooling, or report that the read is unavailable and stop; on that path the `url` is yours, not the forge's, so keep the page as a file and do not publish it. Then let the script decide:
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" [--event ready] [--blast-radius HIGH] [--policy offer] [--requested] < <dir>/facts.json
@@ -39,7 +39,7 @@ The output names the `action`, the `triggers` that fired, the `medium`, and the 
 
 ## 2. Write the record
 
-Write the diff to `<dir>/pr.diff` through `/source-control:pull-request view <n> --diff --out <dir>/pr.diff` (same fallback as step 1), then read it from that file. Write the digest in markdown, in this order:
+Write the diff to `<dir>/pr.diff` through `/source-control:pull-request view <url> --diff --out <dir>/pr.diff`, where `<url>` is the `url` in `facts.json`, so the gated diff is the pull request whose repository the publish gate looks up (same fallback as step 1), then read it from that file. Write the digest in markdown, in this order:
 
 - **Why.** The problem the change solves, in two or three sentences.
 - **Before and after.** What a user or caller saw before, and what they see now.
