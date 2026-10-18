@@ -14,6 +14,14 @@
     },
     {
       "answer": "| Step | Who | Action |\n|---|---|---|\n| 1 | you | Open the runners page |"
+    },
+    {
+      "answer": "1. (you) Open the runners page.\n2. (me) I check the runner registered.",
+      "why": "every step labeled"
+    },
+    {
+      "answer": "| Step | Who | Action |\n|---|---|---|\n| 1 | you | Open the runners page |\n| 2 | me | Check the runner registered |",
+      "why": "every table row labeled"
     }
   ],
   "fail": [
@@ -28,6 +36,18 @@
     {
       "answer": "1. You open the settings page and copy the token.",
       "why": "sentence, not a label"
+    },
+    {
+      "answer": "1. (you) Open the runners page.\n2. Copy the token.\n3. Run the config command.",
+      "why": "only one step labeled"
+    },
+    {
+      "answer": "1. **You:** open the runners page.\n2. Check that the runner registered.",
+      "why": "only one step labeled, bold form"
+    },
+    {
+      "answer": "| Step | Who | Action |\n|---|---|---|\n| 1 | you | Open the runners page |\n| 2 | Check the runner registered |",
+      "why": "only one table row labeled"
     }
   ]
 }

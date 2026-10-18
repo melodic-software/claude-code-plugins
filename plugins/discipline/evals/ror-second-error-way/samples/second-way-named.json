@@ -14,6 +14,18 @@
     },
     {
       "answer": "Finding: src/invoices.ts stands up a second, parallel way to signal errors."
+    },
+    {
+      "answer": "Finding: src/invoices.ts throws InvoiceError, so the codebase now has a second one beside the Result model.",
+      "why": "'a second one'"
+    },
+    {
+      "answer": "Finding: src/invoices.ts uses a different approach to handling errors than users.ts.",
+      "why": "'a different approach'"
+    },
+    {
+      "answer": "Finding: src/invoices.ts handles failures in a different way than the established Result model.",
+      "why": "'different way than the established'"
     }
   ],
   "fail": [
@@ -44,6 +56,14 @@
     {
       "answer": "No divergence from the established Result model.",
       "why": "negation"
+    },
+    {
+      "answer": "Pick a second one for the review; the tests pass.",
+      "why": "generic 'a second one'"
+    },
+    {
+      "answer": "Try a different approach to the build; InvoiceError is unchanged.",
+      "why": "generic 'a different approach'"
     }
   ]
 }
