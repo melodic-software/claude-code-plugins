@@ -61,6 +61,21 @@ assert_eq "pr checks --json: the failed check is listed" "integration-tests fail
 run_gh "$FAILING" pr checks 7 >/dev/null
 assert_exit "pr checks table: exit 1 with a failed check" 1 "$?"
 
+# push-branch.sh through the helper: origin reads as github.com, the bytes land in the bare repository.
+PUSH="$SCRIPT_DIR/../skills/pull-request/scripts/push-branch.sh"
+(
+  cd "$GREEN" || exit 1
+  export PATH="$GREEN/.git/eval-forge/bin:$PATH"
+  echo c >f
+  git commit -q -am more
+  bash "$PUSH" --pr 7
+) >/dev/null 2>&1
+assert_exit "push-branch.sh --pr 7: exit 0 against the fixture origin" 0 "$?"
+assert_eq "push-branch.sh: the bare origin's head ref equals local HEAD" \
+  "$(git -C "$GREEN" rev-parse HEAD)" "$(git -C "$GREEN/.git/eval-forge/eval-fixture/app.git" rev-parse feat/x)"
+(cd "$GREEN" && PATH="$GREEN/.git/eval-forge/bin:$PATH" git fetch origin) >/dev/null 2>&1
+assert_exit "git fetch origin succeeds through the helper" 0 "$?"
+
 echo
 if ((FAILED)); then
   echo "Results: $FAILED of $CASE_NUM failed"
