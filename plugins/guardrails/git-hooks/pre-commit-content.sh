@@ -17,8 +17,8 @@
 # whole content, a changed file on the lines the commit adds, read from the
 # index (the work tree with --worktree). Every staged path is judged, a
 # force-added gitignored one included; --worktree leaves out untracked
-# gitignored files. Skipped: symbolic links, submodules, files git calls
-# binary, and files over 1 MiB. The two
+# gitignored files. Skipped: symbolic links, submodules, files holding a NUL
+# byte (whatever a `-diff` attribute says), and files over 1 MiB. The two
 # guards' path exemptions apply (tests/fixtures for secrets only).
 #
 # Findings print as "<path>:<line>: <message>" on stderr and exit 1. The
@@ -103,17 +103,13 @@ file_text() {
   fi
 }
 
+# is_binary <path>: a NUL byte in the first 8000 bytes of what the commit would
+# hold, the test git itself applies. The bytes decide, never a `-diff`
+# attribute, which makes numstat call any text file binary.
 is_binary() {
-  local stat
-  if [[ "$CHECKS_MODE" == worktree ]]; then
-    git ls-files --error-unmatch -- ":(literal)$1" >/dev/null 2>&1 || {
-      grep -Iq . -- "$1" 2>/dev/null && return 1
-      [[ -s "$1" ]]
-      return
-    }
-  fi
-  stat="$(checks_diff --numstat -- "$1" 2>/dev/null)"
-  [[ "$stat" == "-	-	"* ]]
+  local probe="$CHECKS_TMP/probe"
+  file_text "$1" | head -c 8000 >"$probe" 2>/dev/null
+  (($(wc -c <"$probe") != $(LC_ALL=C tr -d '\000' <"$probe" | wc -c)))
 }
 
 file_size() {

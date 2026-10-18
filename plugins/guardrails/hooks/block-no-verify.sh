@@ -228,15 +228,27 @@ alias_record() {
 # A persistent `git config core.hooksPath <dir>` (any scope, `set`, `--add`,
 # `--replace-all`, `--file`) points every later commit and push at other hooks.
 # Only `.githooks`, the directory plain shared git hooks live in, which setup
-# sets per clone, is allowed. Reading or unsetting the key writes no path.
+# sets per clone, is allowed, and only at local scope while `.githooks/` holds
+# the guardrails dispatcher (what setup writes before it hands over the
+# hooks-path decision): at global or system scope the value would turn off the
+# hooks of every clone that installs them elsewhere. Reading or unsetting the
+# key writes no path.
 hookspath_write_check() {
   local -a pos=()
+  local scoped=0 top
   while (($# > 0)); do
     case "$1" in
     --get | --get-all | --get-regexp | --get-urlmatch | --unset | --unset-all | \
       --remove-section | --rename-section | -l | --list | -e | --edit) return 0 ;;
-    -f | --file | --blob | -t | --type | --default | --comment) shift ;;
-    -*) ;;
+    -f | --file | --blob)
+      scoped=1
+      shift
+      ;;
+    -t | --type | --default | --comment) shift ;;
+    # Only these options keep the write in the clone's own config; any other
+    # (--global, --file=x, --glob, an abbreviation) may reach another file.
+    --local | --add | --replace-all | --fixed-value | --no-includes | --includes | --show-origin) ;;
+    -*) scoped=1 ;;
     *) pos+=("$1") ;;
     esac
     shift
@@ -248,9 +260,17 @@ hookspath_write_check() {
   esac
   ((${#pos[@]} >= 2)) || return 0
   [[ "${pos[0],,}" == core.hookspath ]] || return 0
-  [[ "${pos[1]}" == .githooks ]] && return 0
+  # A global option before `config` (-C <dir>, --git-dir) may point at another repository.
+  ((HOOK_GITINV_SUB_IDX == HOOK_GITINV_GI + 1)) || scoped=1
+  if [[ "${pos[1]}" == .githooks ]] && ((scoped == 0)); then
+    top="$(git rev-parse --show-toplevel 2>/dev/null)" || top=""
+    if [[ -n "$top" ]] && grep -qs '^# checks-dispatcher v1$' \
+      "$top/.githooks/pre-commit" "$top/.githooks/pre-push" "$top/.githooks/commit-msg"; then
+      return 0
+    fi
+  fi
   block "hooksPath-config" \
-    "BLOCKED: git config core.hooksPath ${pos[1]} points every later commit and push at other hooks. Only .githooks, the shared hooks directory, is allowed. $BYPASS_FIX"
+    "BLOCKED: git config core.hooksPath ${pos[1]} points every later commit and push at other hooks. Only .githooks, set at local scope while it holds the guardrails dispatcher, is allowed. $BYPASS_FIX"
 }
 
 # $1 subcommand, $2 its index, then the segment argv. Re-checks every definition

@@ -181,7 +181,9 @@ checks_files() {
 checks_changed_lines() {
   local out="$CHECKS_TMP/ranges"
   : >"$out"
-  checks_diff -U0 --diff-filter=ACMR --src-prefix=a/ --dst-prefix=b/ 2>/dev/null |
+  # --text: a `-diff` attribute would otherwise print "Binary files differ" and
+  # no hunks for a text file; the callers skip real binaries on their own.
+  checks_diff -U0 --text --diff-filter=ACMR --src-prefix=a/ --dst-prefix=b/ 2>/dev/null |
     awk '
       /^\+\+\+ / { path = substr($0, 5); sub(/\t$/, "", path); if (path ~ /^b\//) path = substr(path, 3); else path = ""; next }
       /^@@ / && path != "" {
