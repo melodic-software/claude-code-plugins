@@ -746,10 +746,14 @@ divergence_block() {
   jq_to "$__var" -c -n \
     --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" \
     --argjson wt "$linked" '
-    def act: [.divergences[]? | select(.versionsMatch == false) | .id];
+    # A pin at the project the run stands in is converge-actionable even when that
+    # project is itself a linked worktree, so it is never classed `worktree`.
+    ([$q[0].installed[]? | select(.currentProject == true) | .projectPath]) as $curp
+    | def act: [.divergences[]? | select(.versionsMatch == false) | .id];
     def pin_class:
       if .projectPathPresent == false then "blocked"
-      elif .projectPathPresent == true and (.projectPath as $pp | $wt | index($pp)) != null then "worktree"
+      elif .projectPathPresent == true and (.projectPath as $pp | $curp | index($pp)) == null
+           and (.projectPath as $pp | $wt | index($pp)) != null then "worktree"
       else "actionable" end;
     def version_triple:
       if type == "string" then
