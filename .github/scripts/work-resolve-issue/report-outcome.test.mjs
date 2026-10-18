@@ -34,6 +34,9 @@ const CHECKED_TIP = "c".repeat(40);
 const FRAGMENTS = "scripts/check-changelog-fragments.sh --check";
 const checksFile = ({ branch = BRANCH, tip = CHECKED_TIP, results = [{ check: FRAGMENTS, exit: 0 }] } = {}) =>
   JSON.stringify({ version: 1, branch, tip, results });
+// The runner's record when the activity lists no checks: decide() needs one
+// to open a PR at all.
+const NO_CHECKS = { tip: CHECKED_TIP, results: [] };
 const branchTip = (branch = BRANCH, sha = CHECKED_TIP) => ["GET", new RegExp(`/git/ref/heads/${branch}$`), 200, { object: { sha } }];
 
 function withDir(files, run) {
@@ -61,6 +64,7 @@ function decideDone(overrides = {}) {
     branch: BRANCH,
     changedFiles: ["plugins/work-items/README.md"],
     holdPaths: HOLD_GLOBS,
+    checks: NO_CHECKS,
     ...overrides,
   });
 }
@@ -680,6 +684,28 @@ test("main on done opens no PR and hands the issue back when the runner's checks
       },
     );
   }
+});
+
+// run-checks checks only this run's own lane branch, so a lane.json naming
+// another run's branch carries results run-checks did not write.
+test("main on done ignores check results for another run's lane branch", async () => {
+  const other = "work-resolve-issue/issue-77-99-1";
+  await withAsyncDir(
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: other }), "checks.json": checksFile({ branch: other }) },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(other),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
+      assert.ok(calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body.includes("check results are missing"));
+    },
+  );
 });
 
 test("main on done writes the runner's check results into the PR body", async () => {

@@ -504,7 +504,7 @@ export function decide({
   limits = LIMIT_DEFAULTS,
   now = Date.now(),
   runId = "",
-  checks = { tip: "", results: [] },
+  checks = null,
 }) {
   outcome = { changes: [], verification: [], notDone: [], ...outcome };
   // A limit record counts only for a run that left no outcome of its own: any
@@ -917,7 +917,10 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     }
     // The runner's check results count only while the branch is still at the
     // tip they checked; a tip that cannot be read counts as no results.
-    let checks = branch && (unreported || outcome?.exit === "done") ? checked : null;
+    // run-checks checks only this run's own lane branch (or the reuse branch),
+    // so results for another run's branch were not written by it.
+    const ownBranch = reuse !== "" || laneBranch(issueNumber).exec(branch)?.[1] === env.GITHUB_RUN_ID;
+    let checks = branch && ownBranch && (unreported || outcome?.exit === "done") ? checked : null;
     if (checks) {
       const ref = branch.split("/").map(encodeURIComponent).join("/");
       const tip = await github("GET", `${repo}/git/ref/heads/${ref}`).then((answer) => answer?.object?.sha, () => "");
