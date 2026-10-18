@@ -56,7 +56,7 @@ const commit = byId("commit");
 say(/bash "\$BIN\/post\.sh"/.test(post.run ?? ""), "the post step runs the base copy of post.sh");
 // The case arm naming the reason sets skip=awaiting-human on its next line.
 const escalates = (reason) =>
-  new RegExp(`^\\s*[a-z| -]*\\b${reason}\\b[a-z| -]*\\)\\s*\\n\\s*tree="" skip=awaiting-human$`, "m").test(post.run ?? "");
+  new RegExp(`^\\s*[a-z| -]*\\b${reason}\\b[a-z| -]*\\)\\s*\\n\\s*tree="" skip=awaiting-human$`, "m").test(post.run ?? ""); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 for (const reason of ["unresolved-conflict", "workflow-staged", "unexpected-path-staged"]) {
   say(escalates(reason), `the post step turns ${reason} into an escalation (awaiting-human)`);
 }
