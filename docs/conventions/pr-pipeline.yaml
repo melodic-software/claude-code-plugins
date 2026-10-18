@@ -332,13 +332,15 @@ merge:
   # pull request waits on a human (docs/adr/0073).
   dependabot:
     mode: enforce
-  # Owner decision Q641 (2026-10-18): the HIGH path floor is back on. A lane
-  # PR that touches a floor path, or a SKILL.md, agents/*.md or commands/*.md
-  # change to hooks, allowed-tools, tools, permissionMode or mcpServers
-  # frontmatter or a new `!` backtick command line, scores HIGH and waits for a human to
-  # merge it. floor-paths adds to the floor in the scorer (babysit_risk.py);
-  # package.json, .mcp.json and the work-items and review plugins are in it
-  # already. A denied path would instead make the PR ineligible.
+  # The HIGH path floor, floor-paths, floor-script-scopes and the capability
+  # check exist but are off here (owner decisions Q661 and Q663, 2026-10-18).
+  # The gates for a lane pull request are the non-author verifier verdict,
+  # both AI review lanes, ci-status and the post-merge revert breaker. Audit
+  # #8282, due 2026-11-18, revisits this. Setting `high-path-floor: true`
+  # turns all four on: a lane PR touching a floor path or script, or changing
+  # capability frontmatter in a SKILL.md, agents/*.md or commands/*.md, then
+  # scores HIGH and waits for a human. A denied path would instead make the
+  # PR ineligible.
   # Owner decision Q624 still holds for the rest: no denied path, size cap or
   # C2 contradiction check. Each comes back by setting it here: list
   # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
@@ -347,7 +349,7 @@ merge:
   # provenance work only; scoped lane PRs merge on the verifier verdict.
   diff-check:
     denied-paths: []
-    high-path-floor: true
+    high-path-floor: false
     floor-paths:
       - "**/bin/**"
       - "**/.lsp.json"

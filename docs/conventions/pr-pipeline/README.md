@@ -498,9 +498,12 @@ except six:
   (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file scores HIGH with
   the floor), `c2-contradictions` (true
   scores a removed, renamed or copied file, a schema change or more than one plugin MED),
-  `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
-  `high-path-floor: true` with `floor-paths` (owner decision Q641, 2026-10-18) and leaves the
-  rest off (owner decision, 2026-10-17). The local babysit lane ignores the switches and keeps
+  `max-changed-files` and `max-changed-lines` (absent is no cap). This repository lists
+  `floor-paths` and `floor-script-scopes` but sets `high-path-floor: false` (owner decisions Q661
+  and Q663, 2026-10-18; audit [#8282](https://github.com/melodic-software/claude-code-plugins/issues/8282)
+  due 2026-11-18), so the lane's gates are the non-author verifier verdict, both AI review lanes,
+  `ci-status` and the post-merge revert breaker. It leaves the rest off (owner decision,
+  2026-10-17). The local babysit lane ignores the switches and keeps
   every check, with `floor-paths` joined. The review evidence and the security lane's findings
   still count.
 

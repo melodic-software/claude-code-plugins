@@ -1133,26 +1133,32 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[6]
 
 
-def _lane_input(files):
-    """The pr-merge lane's input under this repository's own
-    docs/conventions/pr-pipeline.yaml, wired as babysit_merge.score_unattended
-    wires it."""
+def _lane_config():
     import babysit_merge_policy
 
     def file_at(path, _sha):
         found = REPO_ROOT / path
         return found.read_text(encoding="utf-8") if found.is_file() else None
 
-    config = babysit_merge_policy.read_config_at(
+    return babysit_merge_policy.read_config_at(
         "melodic-software/claude-code-plugins", "0" * 40, file_at
     )
+
+
+def _lane_input(files, *, high_floor=True):
+    """The pr-merge lane's input under this repository's own
+    docs/conventions/pr-pipeline.yaml, wired as babysit_merge.score_unattended
+    wires it, with `high-path-floor` set here rather than read: the live
+    config keeps it off (owner decisions Q661 and Q663), and these tests check
+    what its lists hold once it is on."""
+    config = _lane_config()
     return _input(
         files=files,
         max_changed_lines=config.max_changed_lines,
         high_paths=config.denied_paths,
         floor_paths=config.floor_paths,
         floor_script_scopes=config.floor_script_scopes,
-        high_floor=config.high_path_floor,
+        high_floor=high_floor,
         c2_contradictions=config.c2_contradictions,
         max_changed_files=config.max_changed_files,
         lines_optional=True,
@@ -1160,10 +1166,15 @@ def _lane_input(files):
 
 
 class LanePathFloorTests(unittest.TestCase):
-    """Owner decision Q641: the pr-merge lane applies the HIGH path floor, and
-    the config adds bin/, .lsp.json, settings*.json and the scripts of the
-    plugins the CI lanes load, so a lane pull request touching one waits for a
-    human. Paths come from the decision text."""
+    """Owner decision Q641: the config adds bin/, .lsp.json, settings*.json and
+    the scripts of the plugins the CI lanes load, so with the floor on a lane
+    pull request touching one waits for a human. Paths come from the decision
+    text. The floor itself stays off (Q661, Q663)."""
+
+    def test_the_live_config_keeps_the_floor_off(self):
+        self.assertIs(_lane_config().high_path_floor, False)
+        result = score(_lane_input((_file("plugins/foo/bin/run"),), high_floor=False))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
 
     LANE_PLUGINS = (
         "ai-slop",

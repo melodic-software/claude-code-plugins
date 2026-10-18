@@ -8,9 +8,10 @@ makes it ineligible. With the floor, a SKILL.md, agents/*.md or commands/*.md ch
 `allowed-tools`, `tools`, `permissionMode` or `mcpServers` frontmatter, or a new `!` backtick
 command line, also scores HIGH. `merge.diff-check.floor-script-scopes` (a list of globs) holds a
 `.ps1` or `.cjs` file, or one with git mode 100755, inside one of them or at the top level the same
-way. This repository turns `high-path-floor` back on (owner decision Q641) and lists `bin/`,
-`.lsp.json`, `settings*.json` and the scripts of the plugins the CI lanes load, which it also lists
-as script scopes (Q646). `version` stays 2.
+way. This repository lists `bin/`, `.lsp.json`, `settings*.json` and the scripts of the plugins
+the CI lanes load as floor paths, and those plugins as script scopes (Q646), but keeps
+`high-path-floor: false` (owner decisions Q661 and Q663), so none of these checks runs in its
+pr-merge lane until the switch is turned on. `version` stays 2.
 
 ## 2.12.2 - 2026-10-18
 
