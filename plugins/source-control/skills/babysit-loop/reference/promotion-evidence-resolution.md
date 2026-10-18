@@ -65,7 +65,7 @@ paragraph is applied.
 
 ## Deletion
 
-Inside the read window (5 days before the epoch through now) the publisher fails closed instead of losing a contrary event:
+Inside its `--since` to `--through` window the publisher fails closed instead of losing a contrary event:
 
 - `run-deleted:`: the runs of `pr-require-checks.yml` and `post-merge-detect-silent-revert.yml`
   created in the window, every event and branch, must carry consecutive `run_number` values, a
@@ -92,7 +92,7 @@ one is created, and a deleted run that is the oldest of its workflow in the wind
 all; a red scheduled or canary run still counts through the demotion record
 `post-merge-demotion-alert.yml` files when it completes. A number in the window that reads as
 neither an issue nor a discussion refuses with `issue-missing:` for as long as it stays in the
-read window. An identity that can write issues can delete a
+that window. An identity that can write issues can delete a
 repeat-failure comment; the red run it names still counts unless also deleted. No demotion record
 covers a per-merge full run pr-merge dispatches with its own `GITHUB_TOKEN`; its deletion shows as
 a `run_number` gap, or as the 6-hour dispatch-deadline failure when it was the only lane dispatch.
