@@ -240,7 +240,6 @@ for (const [label, options] of [
   ["the PR is a draft", { pulls: pull({ draft: true }) }],
   ["a human opened the PR", { pulls: pull({ user: { id: 153232337 } }) }],
   ["the PR is labeled do-not-merge", { pulls: pull({ labels: [{ name: "do-not-merge" }] }) }],
-  ["the PR is labeled needs-human", { pulls: pull({ labels: [{ name: "needs-human" }] }) }],
   ["the security lane has not reviewed the head", { comments: [marker("claude-review")] }],
   ["the code lane's marker names an older head", {
     comments: [marker("claude-review", OLD_HEAD), marker("claude-security-review")],
@@ -473,6 +472,24 @@ test("a trusted person's reply on a thread the lane escalated dispatches address
   const { result } = await decide(api);
   assert.equal(result.number, 42);
   assert.equal(api.calls.dispatch.length, 1);
+});
+
+// needs-human hands a PR to a person; their answers on its threads are what
+// address-feedback applies, so the label does not stop the dispatch.
+test("a needs-human PR with a trusted reply on an escalated thread dispatches address-feedback", async () => {
+  const api = fakeApi({ pulls: pull({ labels: [{ name: "needs-human" }] }), threads: [decidedThread()] });
+  const { result } = await decide(api);
+  assert.equal(result.number, 42);
+  assert.equal(api.calls.dispatch.length, 1);
+});
+
+test("a do-not-merge PR with a trusted reply on an escalated thread dispatches nothing", async () => {
+  const api = fakeApi({
+    pulls: pull({ labels: [{ name: "needs-human" }, { name: "do-not-merge" }] }),
+    threads: [decidedThread()],
+  });
+  assert.equal((await decide(api)).result, null);
+  assert.deepEqual(api.calls.dispatch, []);
 });
 
 test("main reads the trusted people from the base's trusted-actor list", async (t) => {

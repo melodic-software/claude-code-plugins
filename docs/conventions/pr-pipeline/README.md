@@ -120,7 +120,8 @@ on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-host
 the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
 `activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
 this repository, exactly one open non-draft PR into `main` has its head, the lanes App opened that
-PR, it carries neither `do-not-merge` nor `needs-human`, both lanes' newest reviewed-head markers
+PR, it carries no `do-not-merge` (`needs-human` does not stop it: a trusted person's answers on a
+PR handed to them are what it applies, and `pr-merge` still refuses that PR), both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
 reviewer bot, or answered by a trusted human after the lane escalated it), the head has no
 `pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled

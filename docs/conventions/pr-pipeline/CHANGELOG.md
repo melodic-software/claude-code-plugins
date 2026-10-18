@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.7 - 2026-10-18
+
+`pr-unblock` `address-feedback` runs on a pull request labeled `needs-human`, so the answers a
+trusted person leaves on the threads of a pull request handed to them get applied: its
+`labels-absent` is `[do-not-merge]`, `pr-feedback-dispatch.yml` holds only on `do-not-merge`, and
+the write runner adds the human-gated role label to a `prepare: review-threads` activity's hold
+list only when its `labels-absent` lists it ([pr-run-activity.md](pr-run-activity.md#skill-activities)).
+`do-not-merge` still stops it, every other activity still waits on `needs-human`, and `pr-merge`
+still refuses a `needs-human` pull request. `version` stays 2.
+
 ## 2.11.4 - 2026-10-18
 
 A write skill that commits through `commit_files` also gets `Bash(chmod +x *)`, and its commit

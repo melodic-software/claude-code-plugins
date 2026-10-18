@@ -110,6 +110,10 @@ r = await run({ labels: ["needs-human"], holdLabels: '["do-not-merge","status: b
 say(r.updated.length === 0 && r.outputs["skip-reason"] === "awaiting-human",
   "a label from the activity's labels-absent list is a hold beside a custom human-gated label");
 
+r = await run({ labels: ["needs-human"], holdLabels: '["do-not-merge"]' });
+say(r.updated.length === 1 && r.failed.length === 0 && r.outputs["skip-reason"] === "",
+  "a needs-human label outside the hold list (address-feedback's) does not stop the move");
+
 r = await run({ labels: ["do-not-merge"], holdLabels: "[]" });
 say(r.updated.length === 0 && r.outputs["skip-reason"] === "awaiting-human",
   "do-not-merge is a hold even when the list omits it");
@@ -138,6 +142,42 @@ say(r.updated.length === 0 && r.failed.length === 1, "no hold labels from the ba
 
 r = await run({ holdLabels: "not json" });
 say(r.updated.length === 0 && (r.threw !== null || r.failed.length > 0), "a malformed hold list moves nothing and fails the step");
+
+// The hold-label step: its bash run with a resolved config naming the
+// activity's labels-absent, from a directory with no .base tracker file, so
+// the human-gated label is the needs-human default.
+const { execFileSync } = await import("node:child_process");
+const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+const { tmpdir } = await import("node:os");
+const { join } = await import("node:path");
+const holdStep = wf.jobs.run.steps.find((s) => s.id === "hold-label");
+const holdLabelsFor = (prepare, labelsAbsent) => {
+  const dir = mkdtempSync(join(tmpdir(), "hold-label-"));
+  try {
+    const resolved = join(dir, "resolved.json");
+    const out = join(dir, "out");
+    writeFileSync(resolved, JSON.stringify({ selected: { "applies-when": { "labels-absent": labelsAbsent } } }));
+    writeFileSync(out, "");
+    execFileSync("bash", ["-e", "-c", holdStep.run], { cwd: dir, env: { PATH: process.env.PATH, RESOLVED: resolved, PREPARE: prepare, GITHUB_OUTPUT: out } });
+    return JSON.parse(readFileSync(out, "utf8").replace(/^labels=/, ""));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+say(String(holdStep?.env?.PREPARE) === "${{ steps.config.outputs.prepare }}", "the hold-label step reads the activity's prepare mode");
+let holds = holdLabelsFor("review-threads", ["do-not-merge"]);
+say(JSON.stringify(holds) === '["do-not-merge"]',
+  `a review-threads activity whose labels-absent omits needs-human does not hold on it (${JSON.stringify(holds)})`);
+holds = holdLabelsFor("review-threads", ["do-not-merge", "needs-human"]);
+say(holds.includes("needs-human") && holds.includes("do-not-merge"),
+  "a review-threads activity that lists needs-human holds on it");
+holds = holdLabelsFor("review-threads", ["needs-human"]);
+say(holds.includes("do-not-merge"), "do-not-merge stays a hold for a review-threads activity");
+for (const prepare of ["merge-base", "dependency-review", ""]) {
+  holds = holdLabelsFor(prepare, ["do-not-merge"]);
+  say(holds.includes("needs-human") && holds.includes("do-not-merge"),
+    `a ${prepare || "plain"} skill activity still holds on the human-gated label (${JSON.stringify(holds)})`);
+}
 EOF
 )
 if [[ -z "$results" ]]; then

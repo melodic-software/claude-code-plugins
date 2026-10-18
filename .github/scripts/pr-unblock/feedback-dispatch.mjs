@@ -15,7 +15,8 @@
 //   by exact path, in this repository and on a head of this repository;
 // - exactly one open, non-draft PR into main has that run's head SHA as its
 //   current head, and the lanes App opened it;
-// - it carries no do-not-merge or needs-human label;
+// - it carries no do-not-merge label (needs-human does not stop it: the
+//   trusted answers on a PR handed to a person are what it applies);
 // - both review lanes' newest reviewed-head markers, written by
 //   github-actions[bot], name that head;
 // - an unresolved review thread exists that address-feedback would work:
@@ -50,7 +51,7 @@ export const DEFAULTS = Object.freeze({
   // The lanes each review workflow names in its reviewed-head marker
   // (melodic-software/ci-workflows pr-review.yml and pr-review-security.yml).
   markerLanes: Object.freeze(["claude-review", "claude-security-review"]),
-  holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
+  holdLabels: Object.freeze(["do-not-merge"]),
   // claude[bot], the reviewer (.github/standards/trusted-actors/trusted-actors.json).
   reviewerId: 209825114,
   // github-actions[bot], which writes the reviewed-head markers.

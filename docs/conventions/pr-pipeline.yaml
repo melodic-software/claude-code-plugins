@@ -56,8 +56,10 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      # A person's hold stops it.
-      labels-absent: [do-not-merge, needs-human]
+      # do-not-merge stops it. needs-human does not: it applies the answers a
+      # trusted person leaves on the threads of a PR handed to them, and
+      # pr-merge still refuses to merge that PR.
+      labels-absent: [do-not-merge]
       # A draft pull request is skipped.
       draft: [false]
   publish-feedback:

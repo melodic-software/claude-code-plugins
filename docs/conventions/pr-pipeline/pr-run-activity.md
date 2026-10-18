@@ -427,7 +427,8 @@ still at the gated SHA, and deletes the lane branch either way. When the PR bran
 lane's commits are dropped and the activity fails; the push that moved it starts its own
 `synchronize` run, which gates the new head and redoes the activity. Right before the move it
 re-reads the PR's labels and draft flag with the job's `GITHUB_TOKEN`, then reads the PR branch's
-tip last: `do-not-merge`, the base's human-gated role label, a label in the activity's
+tip last: `do-not-merge`, the base's human-gated role label (for a `prepare: review-threads`
+activity, only when its `labels-absent` lists it), a label in the activity's
 `labels-absent` list (both read from the base before the head checkout) or a draft drops the lane's
 commits and skips `awaiting-human`, and a read that fails or a second page of labels moves nothing
 and fails the step. A raw `git push` from the
