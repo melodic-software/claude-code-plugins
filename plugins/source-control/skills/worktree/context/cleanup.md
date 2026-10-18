@@ -84,7 +84,7 @@ rm -rf <path>
 git worktree remove <path>
 ```
 
-**Two guards, the file-lock release, the workspace `down` and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → file-lock release → `down` → reap → removal.** The guards only read state, so a row any guard keeps has no side effects: no process is stopped, no `down` runs and nothing is reaped. The file-lock release and `down` come after the guards so a worktree they keep keeps its processes and services. The stranded-work guard first, because it can abort the removal outright. Running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last before the removal for the same reason inverted: the process stop and the reap are the steps that are *not* undoable, so neither may fire for a worktree the guards are about to save.
+**Two guards, the file-lock release, the workspace `down` and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → file-lock release → `down` → reap → removal.** For a locked candidate, the `worktree-claim.sh stale` proof (exit 0) is part of guard 2: it is a read-only check, and a row where it fails is kept before the release, `down` and the reap. The guards only read state, so a row any guard keeps has no side effects: no process is stopped, no `down` runs and nothing is reaped. The file-lock release and `down` come after the guards so a worktree they keep keeps its processes and services. The stranded-work guard first, because it can abort the removal outright. Running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last before the removal for the same reason inverted: the process stop and the reap are the steps that are *not* undoable, so neither may fire for a worktree the guards are about to save.
 
 **1. Stranded-work guard:** removal itself is recoverable, since `git worktree remove` unregisters the directory and leaves the branch ref intact, but a detached-HEAD worktree has no branch ref holding its commits, and for every other candidate the `git branch -D` emitted in Step 4b finishes the job one step later. Both are covered here, at the point where the candidate is still on disk.
 
@@ -121,7 +121,7 @@ An orphaned-directory candidate (`empty` or `husk`) takes this release after its
 **Workspace environment `down`.** When origin's default branch declares a "Workspace environment"
 entry with a `down` command (contract: `docs/conventions/workspace-environment/README.md` in this
 plugin's marketplace repository), run it for a git-tracked candidate once both guards above have
-cleared and the file-lock release has run. Read the entry and derive `WORKSPACE_ID` and `WORKSPACE_ROOT` exactly as
+cleared (for a locked candidate, including the `stale` proof) and the file-lock release has run. Read the entry and derive `WORKSPACE_ID` and `WORKSPACE_ROOT` exactly as
 [create.md § Workspace environment setup](create.md#workspace-environment-setup) steps 2 and 3 do,
 then run `down` once through the Bash tool from the candidate's root:
 `cd '<WORKSPACE_ROOT>' && env WORKSPACE_ID='<WORKSPACE_ID>' WORKSPACE_ROOT='<WORKSPACE_ROOT>' <down command>`.
@@ -137,7 +137,8 @@ installed plugin behind, permanently. Removing the directory is the last moment 
 records are both identifiable and provably dead, so removal is where they are removed too:
 
 ```bash
-# Run FROM INSIDE the candidate, after both guards above have cleared.
+# Run FROM INSIDE the candidate, after both guards above have cleared (for a locked
+# candidate, including the `stale` proof exiting 0) and the file-lock release has run.
 cd <path> && bash "<scripts-dir>/reap-project-plugin-records.sh" --worktree-path <path>
 ```
 
@@ -292,7 +293,7 @@ A **locked** worktree never takes the second `--force`. The lock is an owning la
 at creation by `worktree-create.sh`, not a stronger kind of dirt, and `--force --force` answers
 both questions with one flag. Only a **Stale lock** or a locked **Reap age** row (Step 2) is removable at all, and both need `bash "<scripts-dir>/worktree-claim.sh" stale <path>` exiting 0. Any other locked worktree stays.
 
-On explicit confirmation that the owner is done, first re-run `bash "<scripts-dir>/worktree-claim.sh" stale <path>` (the owning session may have resumed while the confirmation was pending). This is the same proof the file-lock release requires, so run it after the confirmation and before the release stops anything. If it no longer exits 0, stop and leave the tree locked with nothing stopped. Only when it still exits 0, release the file locks as above, then run
+On explicit confirmation that the owner is done, first re-run `bash "<scripts-dir>/worktree-claim.sh" stale <path>` (the owning session may have resumed while the confirmation was pending). This is the same proof guard 2 requires in the order above, so run it after the confirmation and before the release, `down` or the reap run. If it no longer exits 0, stop and leave the tree locked with nothing stopped, released or reaped. Only when it still exits 0, run the file-lock release, `down` and the reap once, in that order (never a second release), then run
 `git worktree unlock <path>`, then remove (plain, or a single `--force` only for a
 confirmed-dirty tree). The unlock is a separate deliberate act naming the lock, so no flag ever
 silently answers a question it was not asked.
