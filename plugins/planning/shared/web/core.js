@@ -564,6 +564,8 @@
     clearReview: qid => act("/api/review/clear", { qid }),
     markReady: on => act("/api/round/ready", { on }),
     cancelRound: () => act("/api/round/cancel", {}),
+    /** Owner: a round stuck with Claude working goes back to open; Claude's late preparation is refused. */
+    resetRound: () => act("/api/round/reset", {}),
     rename: name => act("/api/rename", { name }).then(j => { Core.me.name = j.name; put("name", j.name); emit(); return j; }),
     removePerson: (pid, on) => act("/api/person/remove", { pid, on }),
     newGuestLink: () => act("/api/link/guest", {}),

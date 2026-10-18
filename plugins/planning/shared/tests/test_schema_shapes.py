@@ -64,6 +64,7 @@ class TestValidSamples(unittest.TestCase):
             {
                 "round-sent",
                 "round-cancelled",
+                "round-reset",
                 "request-run",
                 "request-cancelled",
                 "session-ended",

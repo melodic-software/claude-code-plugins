@@ -6,6 +6,7 @@
   "oneOf": [
     {"$ref": "#/$defs/round-sent"},
     {"$ref": "#/$defs/round-cancelled"},
+    {"$ref": "#/$defs/round-reset"},
     {"$ref": "#/$defs/request-run"},
     {"$ref": "#/$defs/request-cancelled"},
     {"$ref": "#/$defs/session-ended"},
@@ -38,6 +39,19 @@
         "at": {"$ref": "#/$defs/at"},
         "deliveredAt": {"$ref": "#/$defs/at"},
         "kind": {"enum": ["round-cancelled"]},
+        "round": {"type": "integer", "minimum": 1},
+        "sentSeq": {"$ref": "#/$defs/seq"}
+      }
+    },
+    "round-reset": {
+      "type": "object",
+      "required": ["seq", "at", "kind", "round", "sentSeq"],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {"$ref": "#/$defs/seq"},
+        "at": {"$ref": "#/$defs/at"},
+        "deliveredAt": {"$ref": "#/$defs/at"},
+        "kind": {"enum": ["round-reset"]},
         "round": {"type": "integer", "minimum": 1},
         "sentSeq": {"$ref": "#/$defs/seq"}
       }

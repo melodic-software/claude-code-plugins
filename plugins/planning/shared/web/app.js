@@ -1172,7 +1172,8 @@
     const hRoundName = E("p", "vf-hround-name"), hSteps = makeStepper(), hRoundNote = E("p", "vf-pop-note vf-hround-note");
     const hRoundRow = E("div", "vf-crow vf-hround-row");
     const hSend = btn("vf-btn vf-btn-primary vf-btn-sm", "Send round to Claude"), hCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel sending");
-    hRoundRow.append(hCancel, hSend);
+    const hReset = btn("vf-btn vf-btn-ghost vf-btn-sm vf-reset-round", "Reset round");
+    hRoundRow.append(hCancel, hReset, hSend);
     const hGoalLabel = E("h3", "vf-pop-sub", "Goal"), hGoal = E("p", "vf-hgoal"), hGoalEdit = btn("vf-btn vf-btn-ghost vf-btn-sm", "Edit goal");
     const hGoalRow = E("div", "vf-hgoal-row"); hGoalRow.append(hGoal, hGoalEdit);
     // Phase 4c: the owner edits "Why you're here" here; Claude drafts the first one in the terminal.
@@ -3267,6 +3268,8 @@
     elseBtn.onclick = () => { if (ta.disabled) return; if (phone.matches) setTab("answer"); ta.focus(); };
     hSend.onclick = () => roundAction(hSend);
     hCancel.onclick = () => cancelSend.click();
+    hReset.onclick = guarded(() => ({ title: `Reset round ${curRound().current}?`, body: "Use this only if Claude stopped responding. The round reopens for answers and votes, and whatever Claude is still preparing for it will be refused. Send it again when it is ready.", ok: "Reset round", safe: "Keep waiting" }),
+      () => Core.resetRound().then(() => flash("Round reopened. Send it again when it is ready.")).catch(fail));
     hShare.onclick = () => openPop(sharePop, hShare);
     hSettings.onclick = () => openPop(settingsPop, hSettings);
     hNewGuest.onclick = () => newGuestBtn.click();
@@ -5117,12 +5120,13 @@
       hRoundName.textContent = `Round ${n}: ${sent ? (R.status === "working" ? "Claude is working on it" : "waiting for Claude") : `${decided} of ${rq.length} decided`}`;
       hSteps.hidden = !sent; if (sent) fillStepper(hSteps, R);
       const props = S.ideas.filter(i => i.status === "new").length;
-      hRoundNote.textContent = sent ? (R.status === "working" ? "No cancelling now. To change course, message Claude in the terminal." : "You can still cancel sending until Claude picks it up.")
+      hRoundNote.textContent = sent ? (R.status === "working" ? "If Claude stopped responding, you can reset the round. Otherwise message Claude in the terminal." : "You can still cancel sending until Claude picks it up.")
         : `${props} proposal${props === 1 ? "" : "s"} go${props === 1 ? "es" : ""} with it. ${R.ready ? `${disp(R.ready.by)} marked it ready.` : ""}`.trim();
       hSend.hidden = !mod || sent || !!S.ended;
       hSend.textContent = owner ? "Send round to Claude" : R.ready ? "Marked ready: undo" : "Mark round ready";
       hCancel.hidden = !(owner && (R.status === "sent" || R.status === "preparing"));
-      hRoundRow.hidden = hSend.hidden && hCancel.hidden;
+      hReset.hidden = !(owner && R.status === "working");
+      hRoundRow.hidden = hSend.hidden && hCancel.hidden && hReset.hidden;
       hGoal.textContent = S.goal || "No goal yet. One goal keeps the session small: one ticket or one slice.";
       hGoal.classList.toggle("vf-hgoal-empty", !S.goal);
       hGoalEdit.hidden = !owner || !v8(); hGoalEdit.textContent = S.goal ? "Edit goal" : "Set a goal";
@@ -5285,6 +5289,7 @@
           const was = ui.rstat; ui.rstat = R.status;
           if (R.status === "sent" || R.status === "preparing") flash(`Round ${cur} went to Claude. It is read-only now; waiting for Claude to pick it up.`);
           else if (R.status === "working") flash(`Claude is working on round ${cur + 1}.`);
+          else if (was === "working" && R.status === "open") flash(`The host reset round ${cur}. It is open again.`);
           else if (isSentStatus(was) && R.status === "open") flash(`Sending round ${cur} was cancelled. It is open again.`);
         }
       }
@@ -5456,7 +5461,7 @@
       railSteps.hidden = !preparing;
       if (preparing) fillStepper(railSteps, R);
       stepNote.hidden = !preparing;
-      stepNote.textContent = R.status === "working" ? "No cancelling now. The host can message Claude in the terminal."
+      stepNote.textContent = R.status === "working" ? (me.isOwner ? "If Claude stopped responding, reset the round from the Host view." : "The host can message Claude in the terminal.")
         : `Sent${sentAgo && sentAgo !== "now" ? ` ${sentAgo} ago` : " just now"}.${me.isOwner ? " You can cancel until Claude picks it up." : ""}`;
       cancelSend.hidden = !((R.status === "sent" || R.status === "preparing") && me.isOwner);
 

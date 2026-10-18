@@ -1761,10 +1761,14 @@ class Session:
             return {"round": r["n"]}
 
     def reset_round(self, pid, body):
-        """POST /api/round/reset: `working` back to `open`, the only exit when Claude's session died."""
+        """POST /api/round/reset: `working` back to `open`, the only exit when Claude's session died.
+
+        Writes `round-reset`, so a session that is still alive learns why its `open-round` is refused.
+        """
         _body(body)
         with self._tx():
             r = self._step("reset", pid)
+            self._event("round-reset", round=r["n"], sentSeq=r["status"]["eventSeq"])
             r["status"] = {"kind": "open"}
             return {"round": r["n"]}
 

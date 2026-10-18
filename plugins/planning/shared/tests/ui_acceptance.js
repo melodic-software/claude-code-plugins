@@ -11,7 +11,8 @@
 // and opens in a reader, and chat shows a character count; the owner and leaders get a Host view (people, queue, round
 // status, links, goal, Later) and a guest does not; IF the server drops, pages show "Reconnecting…", keep unsent text
 // and recover; IF the tunnel restarts with a new address, the owner view shows "New guest link, share again"; after
-// Send a round shows Waiting for Claude (Cancel works, and guests see it reopen), then Claude is working (no cancel),
+// Send a round shows Waiting for Claude (Cancel works, and guests see it reopen), then Claude is working (no cancel; the
+// owner alone can reset it from the Host view behind a confirm, and guests see it reopen),
 // then a "Round N is here" toast on the owner's and a guest's page, moving nobody unless Follow is on; a proposal Claude marks "Not placed" shows its
 // author the reason; WHILE a session is ended guests see a read-only Tree and new joins are refused; Focus, Compare and
 // Tree show the same live data and Compare marks off-screen columns; new answers are announced; answers stay visible at
@@ -297,6 +298,33 @@ async function main() {
     ok("round lifecycle: once Claude picks it up, the page shows Claude is working", await until(bo, () => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent === "Claude is working"), await curStep(bo));
     ok("round lifecycle: while Claude is working the owner has no Cancel", await until(host, () => window.Core.snapshot().round.status === "working"
       && ![...document.querySelectorAll("button")].some(b => b.offsetParent && /^Cancel sending$/.test(b.textContent.trim()))));
+    // A stalled preparation: the owner resets it from the Host view behind a confirm step; guests never get the control.
+    const toView = async (page, label) => {
+      const b = page.locator(".vf-bar .vf-seg-btn", { hasText: label }), more = page.locator(".vf-viewopts");
+      if (!(await b.isVisible()) && (await more.isVisible())) await more.click();
+      await b.click();
+      return until(page, m => document.querySelector(".vf-center")?.dataset.mode === m, label.toLowerCase(), 5000);
+    };
+    const resetBtn = host.locator(".vf-reset-round");
+    ok("round reset: while Claude is working the owner's Host view offers Reset round", (await toView(host, "Host")) && await until(host, () => !!document.querySelector(".vf-reset-round")?.offsetParent));
+    ok("round reset: a guest never has the control", await bo.evaluate(() => ![...document.querySelectorAll("button")].some(b => b.offsetParent && /Reset round/.test(b.textContent))));
+    await resetBtn.click();
+    ok("round reset: the confirm step says the round reopens and Claude's preparation is refused", await until(host, () => /reopens for answers.*refused/s.test(document.querySelector("dialog[open]")?.textContent || "")),
+      await host.evaluate(() => document.querySelector("dialog[open]")?.textContent || ""));
+    await host.locator("dialog[open] button", { hasText: "Keep waiting" }).click();
+    ok("round reset: Keep waiting leaves Claude working", await until(host, () => !document.querySelector("dialog[open]")) && (await host.evaluate(() => window.Core.snapshot().round.status)) === "working");
+    await resetBtn.click();
+    await host.locator("dialog[open] button", { hasText: "Reset round" }).click();
+    ok("round reset: the round is open again for the owner and guests, with no stale Claude is working", await until(host, () => window.Core.snapshot().round.status === "open")
+      && await toastHas(bo, /reset round 1\. It is open again/)
+      && await until(bo, () => !document.getElementById("vf-answer").disabled && !document.querySelector(".vf-next .vf-steps")?.offsetParent),
+      await curStep(bo));
+    await toView(host, "Focus");
+    await host.locator(".vf-round-cur .vf-send").click();
+    if (await sendAnyway.isVisible().catch(() => false)) await sendAnyway.click();
+    await until(host, () => window.Core.snapshot().round.status === "sent");
+    s.apply(B.dir, [{ op: "ack-round", round: 1 }]);
+    await until(host, () => window.Core.snapshot().round.status === "working");
     const propId = await host.evaluate(() => window.Core.snapshot().proposals.find(p => p.text === "Should we bring partners?").id);
     const REASON = "Not about the venue";
     s.apply(B.dir, [{ op: "open-round", questions: [tq("Q3", Q3T)], placements: [{ proposal: propId, as: "not-placed", reason: REASON }] }]);

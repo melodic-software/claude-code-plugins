@@ -903,6 +903,25 @@ class TestRounds(SessionCase):
         self.act("reset_round", HOST, {})
         self.assertEqual(self.round_status(), "open")
 
+    def test_reset_writes_round_reset_naming_the_round_sent_it_undoes(self):
+        self.open_round(text_q("Q1"))
+        self.send()
+        self.ack(1)
+        self.act("reset_round", HOST, {})
+        (ev,) = self.events("round-reset")
+        self.assertEqual(ev["round"], 1)
+        self.assertEqual(ev["sentSeq"], self.events("round-sent")[0]["seq"])
+        self.assertEqual(self.events("round-cancelled"), [])
+
+    def test_after_a_reset_guests_answer_again_and_claudes_late_open_round_is_refused(self):
+        self.open_round(text_q("Q1"))
+        self.send()
+        self.ack(1)
+        self.act("reset_round", HOST, {})
+        self.refused_ops("wrong-status", {"op": "open-round", "questions": [text_q("Q2")]})
+        self.assertEqual(self.s.snapshot(self.bo)["round"]["status"], "open")
+        self.act("answer", self.bo, {"qid": "Q1", "text": "Now", "view": "focus"})
+
     def test_reset_is_refused_outside_working(self):
         self.open_round(text_q("Q1"))
         self.refused("wrong-status", "reset_round", HOST, {})
