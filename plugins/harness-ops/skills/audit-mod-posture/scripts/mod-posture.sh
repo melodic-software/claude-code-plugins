@@ -162,7 +162,7 @@ declare -A CAN_DISABLE=()
 if [[ -n "$overview_file" ]]; then
   while IFS=$'\t' read -r name how; do
     [[ "$name" =~ ^cc-plugin-[a-z0-9-]+$ ]] || continue
-    case "$how" in "You can't"* | "You cannot"*) CAN_DISABLE[$name]=no ;; ?*) CAN_DISABLE[$name]=yes ;; esac
+    case "$how" in "You can't"* | "You cannot"*) CAN_DISABLE[$name]=no ;; ?*) CAN_DISABLE[$name]=yes ;; *) ;; esac
   done < <(awk -F'|' '/^\| *`cc-plugin-/ {
       n = $2; gsub(/[ `]/, "", n); h = $(NF - 1); sub(/^ +/, "", h); sub(/ +$/, "", h)
       print n "\t" h }' "$overview_file")
