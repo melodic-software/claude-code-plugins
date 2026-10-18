@@ -1425,7 +1425,7 @@ def lane_eligibility(
     touching no `merge.diff-check.denied-paths`. Such a pull request is
     class `LANE_CLASS`; no `work-class:` label is read.
     `pr` is the REST record, whose `changed_files` the file listing must
-    reach. Holds (a `MERGE_HOLD_LABELS` label, a `Hold:` line) are the gate's.
+    reach. Holds (an `UNATTENDED_HOLD_LABELS` label, a `Hold:` line) are the gate's.
     `self_logins` and `permission` are unused: no human read remains."""
     owner, name = _split_repo(repo)
     issue_number = None
@@ -2089,7 +2089,8 @@ def entry_hold(
         events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
         if labels is None or not events:
             return "unreadable"
-        if held_by := merge_hold_label(labels):
+        # Only unattended runs judge queued entries.
+        if held_by := merge_hold_label(labels, unattended=True):
             return held_by
         if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
             return "body-hold"

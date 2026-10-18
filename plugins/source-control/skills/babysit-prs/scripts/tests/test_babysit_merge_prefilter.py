@@ -102,13 +102,14 @@ class HeldCandidatesNeverReachTheGate(unittest.TestCase):
 
 
 class PrefilterDropsOnlyWhatTheGateRefuses(fixtures.TierEvaluateHarness):
-    """The gate refuses each dropped input on its own, and passes each kept one."""
+    """The gate refuses each dropped input on its own, and passes each kept one.
+    `needs-human` holds only an unattended gate, so its agreement is asserted
+    in test_babysit_merge_unattended.NeedsHumanHoldsOnlyUnattended."""
 
     def test_agrees_with_the_gate(self) -> None:
         cases = [
             *({"body": b} for b in HELD_BODIES + FREE_BODIES),
             {"labels": ["do-not-merge"]},
-            {"labels": ["needs-human"]},
             {"labels": ["needs-review"]},
         ]
         for case in cases:

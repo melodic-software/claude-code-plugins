@@ -710,16 +710,11 @@ class PullRequestBodyHold(TierEvaluateHarness):
                         result["blockers"],
                     )
 
-    def test_needs_human_label_blocks_with_and_without_the_tier(self) -> None:
-        for name in ("needs-human", "Needs-Human"):
-            for tier in (TIER, None):
-                with self.subTest(label=name, tier=tier is not None):
-                    result = self._evaluate(_pr(labels=[{"name": name}]), tier=tier)
-                    self.assertFalse(result["ready"])
-                    self.assertTrue(
-                        any("'needs-human' label" in b for b in result["blockers"]),
-                        result["blockers"],
-                    )
+    def test_needs_human_label_does_not_block_an_attended_merge(self) -> None:
+        # The person the label asks for may merge; unattended runs hold on it
+        # (test_babysit_merge_unattended.NeedsHumanHoldsOnlyUnattended).
+        result = self._evaluate(_pr(labels=[{"name": "needs-human"}]), tier=None)
+        self.assertTrue(result["ready"], result["blockers"])
 
     def test_other_labels_do_not_block_without_the_tier(self) -> None:
         result = self._evaluate(_pr(labels=[{"name": "needs-review"}]), tier=None)

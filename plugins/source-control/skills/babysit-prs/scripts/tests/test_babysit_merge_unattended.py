@@ -33,6 +33,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_dependabot as dependabot
 import babysit_gh as gh
 import babysit_merge as merge
+import babysit_merge_prefilter as prefilter
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
 import test_babysit_merge as fixtures
@@ -170,6 +171,33 @@ def _evaluate(
             tier,
             **kwargs,
         )
+
+
+class NeedsHumanHoldsOnlyUnattended(unittest.TestCase):
+    """`needs-human` holds an unattended merge; the person it asks for may
+    still merge attended. `do-not-merge` holds both."""
+
+    def test_needs_human_holds_only_the_unattended_gate(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        pr = fixtures._pr(labels=[{"name": "Needs-Human"}])
+        attended = _evaluate(pr, HEAD, None)
+        unattended = _evaluate(pr, HEAD, None, unattended=permits)
+        self.assertEqual(attended["blockers"], [])
+        self.assertTrue(attended["ready"])
+        self.assertFalse(unattended["ready"])
+        self.assertTrue(
+            any("'needs-human' label" in b for b in unattended["blockers"]),
+            unattended["blockers"],
+        )
+        # The pr-merge prefilter drops what the unattended gate refuses.
+        self.assertEqual(prefilter.hold({"labels": ["Needs-Human"]}), "needs-human")
+
+    def test_do_not_merge_holds_both(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        pr = fixtures._pr(labels=[{"name": "do-not-merge"}])
+        for run in (None, permits):
+            with self.subTest(unattended=run is not None):
+                self.assertFalse(_evaluate(pr, HEAD, None, unattended=run)["ready"])
 
 
 class EvaluateWithoutPolicyIsUnchanged(unittest.TestCase):

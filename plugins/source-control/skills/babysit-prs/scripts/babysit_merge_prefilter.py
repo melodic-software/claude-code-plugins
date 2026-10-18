@@ -4,7 +4,7 @@
 pr-merge.yml lists candidates with their labels and body, then runs the gate
 once per candidate; each gate run spends tens of lane-token calls before it
 refuses a held pull request. A hold the gate reads from the same fields (the
-hold label (`MERGE_HOLD_LABELS`) or a body hold, `babysit_merge.evaluate`) refuses
+hold label (`UNATTENDED_HOLD_LABELS`) or a body hold, `babysit_merge.evaluate`) refuses
 whatever else the gate finds, so this drops such a candidate before the gate
 starts. It makes no API call. The gate still checks every hold itself.
 
@@ -31,7 +31,7 @@ FIELDS = ("number", "head", "updatedAt")
 def hold(candidate: dict[str, Any]) -> str | None:
     """The hold the gate refuses this candidate on, named as `entry_hold`
     names it, or None."""
-    if held_by := merge_hold_label(candidate.get("labels") or []):
+    if held_by := merge_hold_label(candidate.get("labels") or [], unattended=True):
         return held_by
     if BODY_MERGE_HOLD_RE.search(str(candidate.get("body") or "")):
         return "body-hold"

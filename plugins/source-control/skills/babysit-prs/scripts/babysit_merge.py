@@ -219,15 +219,19 @@ BODY_MERGE_HOLD_RE = re.compile(
 )
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
-# `needs-human` is the tracker's human-gated label, which the verifier
-# escalation also adds: autonomous sessions must not resolve what carries it.
-MERGE_HOLD_LABELS = ("do-not-merge", "needs-human")
+MERGE_HOLD_LABELS = ("do-not-merge",)
+# An unattended merge also holds on `needs-human`, the tracker's human-gated
+# label, which the verifier escalation adds: autonomous sessions must not
+# resolve what carries it, while the person it asks for may merge attended.
+UNATTENDED_HOLD_LABELS = (*MERGE_HOLD_LABELS, "needs-human")
 
 
-def merge_hold_label(labels: Iterable[Any]) -> str | None:
-    """The first hold label among `labels`, matched case-insensitively."""
+def merge_hold_label(labels: Iterable[Any], *, unattended: bool) -> str | None:
+    """The first hold label among `labels` for an attended or unattended
+    merge, matched case-insensitively."""
     names = {str(name).casefold() for name in labels}
-    return next((label for label in MERGE_HOLD_LABELS if label in names), None)
+    holds = UNATTENDED_HOLD_LABELS if unattended else MERGE_HOLD_LABELS
+    return next((label for label in holds if label in names), None)
 
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
@@ -1521,7 +1525,7 @@ def evaluate(
             "PR body holds the merge (do not merge, or a Hold: line) -- a human "
             "hold, report it and leave it"
         )
-    if held_by := merge_hold_label(labels):
+    if held_by := merge_hold_label(labels, unattended=unattended is not None):
         blockers.append(
             f"PR carries the {held_by!r} label -- a human hold, report it and leave it"
         )
@@ -1826,7 +1830,7 @@ def evaluate(
         "mergeStateStatus": pr.get("mergeStateStatus"),
         "reviewDecision": review_decision,
         "headRefOid": head,
-        "labels": labels,  # surfaced for agent reasoning; only MERGE_HOLD_LABELS are hardcoded
+        "labels": labels,  # surfaced for agent reasoning; only the hold labels are hardcoded
         "expectedHead": expected_head,
         "headMatches": head_matches,
         "effectiveRules": rules,
