@@ -49,6 +49,8 @@ OPERATOR_LOGIN = "operator"
 IDENTITY = "agent-lanes[bot]"
 INERT = policy.UnattendedPolicy(reason="authority-unconfigured")
 INERT_BLOCKER = "unattended merge refused: authority-unconfigured"
+# Captured before setUpModule stubs `_role_label` for the rest of the module.
+REAL_ROLE_LABEL = postmerge._role_label
 
 # The report keys `evaluate()` returned before the unattended path existed,
 # copied from its return statement. A run without a policy must return exactly
@@ -273,6 +275,35 @@ class UnreadableHumanGatedLabel(unittest.TestCase):
             a for c in capture.call_args_list for a in c.args[0] if "labels[]=" in a
         ]
         self.assertEqual(added, ["labels[]=needs-human"])
+        self.assertIsNone(run_cache.get(merge.HUMAN_GATED_SECTION, "owner/repo", None))
+
+
+class HumanGatedLabelReadIsStrict(unittest.TestCase):
+    """The gate reads the tracker config through the real `_role_label`: a
+    502 must refuse, not fall back to `needs-human`, which would let a PR
+    carrying a remapped label merge."""
+
+    def test_a_server_error_refuses_and_caches_nothing(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {run_cache.ENV: str(pathlib.Path(tmp.name, "run.json"))}
+        failed = subprocess.CompletedProcess([], 1, "", "gh: Server Error (HTTP 502)")
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        with (
+            mock.patch.dict("os.environ", env),
+            mock.patch.object(postmerge, "_role_label", REAL_ROLE_LABEL),
+            mock.patch.object(postmerge, "gh_capture", return_value=failed),
+        ):
+            result = _evaluate(
+                fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
+            )
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any(
+                "human-gated role label is unreadable" in b for b in result["blockers"]
+            ),
+            result["blockers"],
+        )
         self.assertIsNone(run_cache.get(merge.HUMAN_GATED_SECTION, "owner/repo", None))
 
 
