@@ -284,7 +284,9 @@ proven.
    (33), `rate-limit-guard` (27) and `animation` (22). The carrier fragments
    (`new-changelog-fragment.sh --carriers-of`), the ADR 0019 amendment, `docs/migration-playbook.md`
    and `AGENTS.md` already key on the list, so they needed no change; phase 5 rewords them for
-   "all plugins".
+   "all plugins". On 2026-10-18 `developer-experience`, `display-redaction` and `user-experience`
+   joined, because they were added after the bulk move (the first and last carry synced shared-lib
+   copies), so a shared-lib change still bumped their `plugin.json` and `CHANGELOG.md` directly.
 5. **Retire the per-PR path in this repository.** Replace the opt-in list with "all plugins", drop
    the version-moved branch of the shared predicate, and reword the resolver references. Rollback:
    revert this phase's commit, which restores phase 4.
