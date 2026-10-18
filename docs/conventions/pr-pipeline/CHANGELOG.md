@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.13.0 - 2026-10-18
+## 2.14.0 - 2026-10-18
 
 `merge.diff-check.floor-paths` (a list of globs) adds paths to the risk scorer's HIGH path floor
 while `high-path-floor` applies; a pull request touching one waits for a human, where a denied path
@@ -16,6 +16,22 @@ such a pull request for a human. The switch governs both lanes: in the local bab
 `floor-paths`, `floor-script-scopes`, the capability check and the new fixed floor entries
 (`plugins/*/monitors/**`, `plugins/*/workflows/**`), so a local-lane pull request scores as it did
 before this release. `version` stays 2.
+
+## 2.13.0 - 2026-10-18
+
+`pr-run-activity-read.yml` gains an `output-mode` input. The default, `clean-tree`, keeps failing a
+run that leaves the tree changed. `patch` instead uploads what the activity changed against the
+gated head as the artifact `patch-<lane>-<activity>-<run attempt>` (one `patch.diff`) and sets the
+new `patch-state`, `patch-sha256` and `patch-attempt` outputs, beside a new `head-sha` output. An
+empty change is `patch-state` `empty` and a success check titled `Passed: no changes`
+([pr-run-activity.md](pr-run-activity.md#patch-output-mode)). `version` stays 2.
+
+## 2.12.5 - 2026-10-18
+
+The unattended merge gate reads `merge.max-in-flight` at the default branch head instead of at each
+pull request's base, once per cache window; when the head's config cannot be read, the base's value
+applies, and the post-enqueue room check keeps the lower of that and the cap the assessment applied. Every other `merge.` key is still read at the base.
+`version` stays 2.
 
 ## 2.12.4 - 2026-10-18
 

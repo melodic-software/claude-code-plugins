@@ -454,10 +454,12 @@ that fails counts as a refusal.
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.
 - **Merges in flight.** `merge.max-in-flight` (default 1) caps the identity's merge-queue entries
-  plus its merged pull requests that have not passed the post-merge check. The wrapper refuses at
-  the cap, and an entry enqueued past it (another host's came first) dequeues itself. A red full
-  run or canary run charges every unverified merge whose commit it contains, so a breakage found
-  with several in flight demotes the rung and fails the post-merge check for all of them.
+  plus its merged pull requests that have not passed the post-merge check. It is read at the default
+  branch head once per cache window, not at the pull request's base (the base's value when that
+  read fails), and read again uncached after an enqueue. The wrapper
+  refuses at the cap, and an entry enqueued past it (another host's came first) dequeues itself. A
+  red full run or canary run charges every unverified merge whose commit it contains, so a breakage
+  found with several in flight demotes the rung and fails the post-merge check for all of them.
 - **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
   pr-merge lane owns Dependabot pull requests (below).
 
