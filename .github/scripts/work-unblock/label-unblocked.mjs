@@ -39,8 +39,8 @@
 //   closed unmerged       re-fired the same way, once per close, under the
 //                         same marker bound;
 //   open                  when the newest successful pr-merge run's gate
-//                         refused it at its current head as
-//                         `ineligible:linked-issues:0` (read from that run's
+//                         refused it at its current head for having no linked
+//                         issue (the LINKED_NONE reason, read from that run's
 //                         log), the lane never merges it, so the App adds
 //                         needs-human to the issue.
 // Each of these also counts against RESTARTS_PER_RUN.
@@ -577,6 +577,13 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
   // A re-fire record ends no run, so only outcome markers count here.
   const marker = markers.filter((item) => item.outcome !== "refired").at(-1);
   const events = await paginate(github, `${base}/events`);
+  // The listing can be older than a removal: agent-ready taken off since, by
+  // anyone but the App restarting the lane, ends all unblock actions here.
+  const labelEvents = events.filter((event) => isLabel(event, "labeled") || isLabel(event, "unlabeled"));
+  const newestLabel = labelEvents.at(-1);
+  if (newestLabel !== undefined && isLabel(newestLabel, "unlabeled") && !isRestart(events, events.lastIndexOf(newestLabel), markers, bot)) {
+    return { reason: `${LABEL} was removed` };
+  }
   // A lane run starts on agent-ready being added, and its outcome marker ends
   // it, so a label added after the newest marker is a run since: still going,
   // one that left no marker (a PR opened, or the run failed), or none yet.

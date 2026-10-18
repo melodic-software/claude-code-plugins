@@ -1096,9 +1096,9 @@ test("a re-fire record and the App's re-add in the same second, on unchanged wor
 });
 
 // A lane PR the newest agent-ready label's run opened ends the run without a
-// marker. The cases come from #7878: a PR merged with `Refs:` (#7805), one
-// closed unmerged by the owner (#7493), and one pr-merge refuses every run as
-// `ineligible:linked-issues:0` (#7793). Only a PR the lanes App opened from
+// marker. The cases: a PR merged with `Refs:`, one closed unmerged by the
+// owner, and one pr-merge refuses every run for having no linked issue (the
+// LINKED_NONE reason). Only a PR the lanes App opened from
 // the issue's lane branch (report-outcome's `work-resolve-issue/issue-<n>-
 // <run>-<attempt>`), with head and base in this repository, counts.
 const PR_HEAD = "7f2a5812a65a663ce0b3381312e1cb94b063fd4e";
@@ -1321,6 +1321,55 @@ test("an open lane PR whose body no longer starts with Refs: for this issue gets
     const { github, actions, logs, calls } = lanePr({ pulls: [lanePull({ pr: 7793, state: "open", body })] });
     assert.equal(await sweep({ github, actions, logs }), 0, body);
     assert.deepEqual(writes(calls), [], body);
+  }
+});
+
+// The three lane-PR actions share one rule: a hold label on the issue, or a
+// person's removal of agent-ready, prevents all three. The control run of each
+// case does write, so a refusal below is the hold or the removal, not the case.
+const LANE_PR_CASES = [
+  ["merged with Refs:", () => lanePull(), triaged(30, 7805)],
+  [
+    "closed unmerged",
+    () => lanePull({ pr: 7493, merged: false, body: "Closes #30\n" }),
+    [
+      `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: closedRefireComment(`pr-7493-${Date.parse("2026-10-16T11:00:00Z")}`, 7493) })}`,
+      ...restarted(30),
+    ],
+  ],
+  [
+    "open and refused by pr-merge",
+    () => lanePull({ pr: 7793, state: "open" }),
+    [
+      `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refsRefusedComment(7793) })}`,
+      `POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`,
+    ],
+  ],
+];
+
+test("a hold label on the issue prevents the hand-off to triage, the re-fire and the hand-off to a person", async () => {
+  for (const [name, pull, expected] of LANE_PR_CASES) {
+    const control = lanePr({ pulls: [pull()] });
+    assert.equal(await sweep({ github: control.github, actions: control.actions, logs: control.logs }), 0, name);
+    assert.deepEqual(writes(control.calls), expected, name);
+    for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
+      const held = lanePr({ pulls: [pull()], labels: [hold] });
+      assert.equal(await sweep({ github: held.github, actions: held.actions, logs: held.logs }), 0, `${name}: ${hold}`);
+      assert.deepEqual(writes(held.calls), [], `${name}: ${hold}`);
+    }
+  }
+});
+
+test("a person removing agent-ready after the lane PR prevents the hand-off to triage, the re-fire and the hand-off to a person", async () => {
+  const removed = { event: "unlabeled", label: { name: "agent-ready" }, actor: OWNER, created_at: "2026-10-16T11:30:00Z" };
+  for (const [name, pull, expected] of LANE_PR_CASES) {
+    const control = lanePr({ pulls: [pull()] });
+    assert.equal(await sweep({ github: control.github, actions: control.actions, logs: control.logs }), 0, name);
+    assert.deepEqual(writes(control.calls), expected, name);
+    // The listing can be older than the removal, so the events decide.
+    const fake = lanePr({ pulls: [pull()], events: [added(LABELED_AT, OWNER), removed] });
+    assert.equal(await sweep({ github: fake.github, actions: fake.actions, logs: fake.logs }), 0, name);
+    assert.deepEqual(writes(fake.calls), [], name);
   }
 });
 
