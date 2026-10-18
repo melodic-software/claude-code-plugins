@@ -26,7 +26,7 @@ independent review of the prototype video, which set the acceptance rules this q
 
 Checks that depend on the camera report `SKIP` in the plain style.
 
-Outputs in the quality control directory: `quality-control.json` (every check, its detail, and the measured zoom per frame),
+Outputs in the quality-control directory: `quality-control.json` (every check, its detail, and the measured zoom per frame),
 `sheet-key-moments.png` (cuts, zoom peaks, the longest still) and, for each failing check,
 `sheet-fail-<check>.png` with up to six frames it failed on. Hand the sheets and the video to the
 independent reviewer.

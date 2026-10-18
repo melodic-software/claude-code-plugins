@@ -253,7 +253,7 @@ def main(argv=None):
                       'caption': infos[s].get('caption', s), 'outcome': infos[s].get('outcome'),
                       'target_box': ck['box'], 'block': ck.get('block')})
 
-    # A click that opens a modal changes most of the page a few captures later. quality control fails any such
+    # A click that opens a modal changes most of the page a few captures later. Quality control fails any such
     # change while the camera moves, so the typing shot's move waits for the modal's first settled
     # capture: from it to the first key the page holds still.
     change_min = cfg['quality_control']['nav_change_min']

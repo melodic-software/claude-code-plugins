@@ -84,7 +84,7 @@ removes its layer in either style. Pass them to `build_edl.py` as
    threshold comes from: [reference/quality-control.md](reference/quality-control.md). A FAIL goes back to step 2 or 5.
 8. **Independent frame review.** Dispatch a fresh-context subagent that did not produce the video,
    with the brief in [reference/independent-review.md](reference/independent-review.md): the video,
-   the quality control sheets and the acceptance rules, and none of your reasoning about why it is fine. Fix what
+   the quality-control sheets and the acceptance rules, and none of your reasoning about why it is fine. Fix what
    it finds and repeat 6-8. Nothing is posted on the producer's word.
 9. **Post.** [reference/posting.md](reference/posting.md): locally, `gh pr comment --attach` with a
    `gh` that has `--attach`; in CI, a non-zipped Actions artifact plus a comment linking it.
@@ -114,5 +114,5 @@ Return to it to re-run the flow when the review asks for a change to the app or 
 - **Hide partial states in the replay.** Results that re-render per keystroke flash "No results"
   states; hide them with `demo.style(css)` while typing and reveal them after, as the reference
   shows.
-- **`ffmpeg -ss` in the quality control sheets is approximate.** The sheets are for looking; the checks read
+- **`ffmpeg -ss` in the quality-control sheets is approximate.** The sheets are for looking; the checks read
   every decoded frame.
