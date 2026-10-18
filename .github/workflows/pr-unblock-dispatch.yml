@@ -7,13 +7,18 @@ name: pr-unblock-dispatch
 # PRs raises one push, so the listing reads main as it is now, not the push.
 # The same run dispatches review-dependency for each open Dependabot PR the
 # classifier sorts `review` whose head has no review-dependency check run yet
-# (.github/scripts/pr-unblock/dependency-dispatch.mjs). No schedule: the
-# broker accepts a dispatcher run started by a push or a listed human only.
+# (.github/scripts/pr-unblock/dependency-dispatch.mjs), and fix-ci for each
+# open lanes App PR whose head's ci-status failed and has no fix-ci run yet,
+# at most limits.fix-ci-per-run per run, from one GraphQL query whose
+# rateLimit.cost it logs (.github/scripts/pr-unblock/fix-ci-dispatch.mjs). No
+# schedule: the broker accepts a dispatcher run started by a push or a listed
+# human only.
 #
 # No model and no App token: the job's GITHUB_TOKEN can only read and start
 # workflow runs. A run started by hand, or a re-run of a push run, must come
 # from a listed trusted human. The dispatched lane runs its own trigger gate,
-# kill switch and config, so this job adds no label or author filter.
+# kill switch and config. Only the fix-ci listing filters by author and hold
+# label, to spend no model run on a PR the lane would skip.
 
 on:
   push:
@@ -22,21 +27,23 @@ on:
 
 permissions: {}
 
-# A newer push replaces a waiting listing: the newest listing supersedes it.
-concurrency:
-  group: pr-unblock-dispatch
-  cancel-in-progress: false
-
 jobs:
   dispatch:
     # A dispatch on another branch would run that branch's copy of this file.
     if: github.ref == 'refs/heads/main'
+    # A burst of pushes collapses into one listing: a newer run cancels the
+    # one waiting or going, since the newest listing reads main as it is
+    # now. The record steps run on cancel too (always()), so a run cancelled
+    # after a dispatch still records it.
+    concurrency:
+      group: pr-unblock-dispatch
+      cancel-in-progress: true
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read # check out main
       pull-requests: read # list open PRs and their mergeable state
-      checks: read # skip a PR whose head already has a pr-unblock check run
+      checks: read # skip a PR whose head already has a pr-unblock check run; read ci-status
       actions: write # list and dispatch pr-unblock.yml runs
     steps:
       - name: Check out the default branch tip
@@ -104,13 +111,15 @@ jobs:
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
-      - name: Dispatch pr-unblock for conflicting PRs and review-tier Dependabot PRs
+      - name: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs
         id: dispatch
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # fix-ci starts only on PRs the lanes App opened, matched by this id.
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: node .base/.github/scripts/pr-unblock/dispatch.mjs
 
       # The record of which runs this run dispatched: an artifact only steps of

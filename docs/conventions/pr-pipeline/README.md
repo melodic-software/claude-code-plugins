@@ -166,7 +166,16 @@ skill in [patch output mode](pr-run-activity.md#patch-output-mode)) runs
 without force, refusing `.github/**`, symbolic links and gitlinks
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
-unappliable patch, or a check the model escalated, goes to `report-escalation`.
+unappliable patch, or a check the model escalated, goes to `report-escalation`. The same
+`pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
+GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
+same-repository ones into `main` that the lanes App opened (by bot id), with no `do-not-merge`
+or `needs-human` label, whose head's `ci-status` check run from the GitHub Actions app ended
+`failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
+untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
+and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
+lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
+concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).

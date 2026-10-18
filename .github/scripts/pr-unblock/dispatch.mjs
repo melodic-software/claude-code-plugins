@@ -14,7 +14,8 @@
 // config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
 // The same run then starts review-dependency for review-tier Dependabot PRs
-// (dependency-dispatch.mjs), and its run ids join the same record.
+// (dependency-dispatch.mjs) and fix-ci for lanes App PRs whose ci-status
+// failed (fix-ci-dispatch.mjs), and their run ids join the same record.
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -22,6 +23,7 @@ import { pathToFileURL } from "node:url";
 import { POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
+import { dispatchCiFixes, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { anyHandles } from "./limit-stop.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
@@ -241,6 +243,11 @@ export function createGitHubApi({
       const data = await graphql(LIST_QUERY, { owner, name, base, after: after ?? null });
       return data.repository.pullRequests;
     },
+    // fix-ci-dispatch.mjs's listing: one query per page, with its cost.
+    async listCiFixCandidates({ base, after }) {
+      const data = await graphql(CI_FIX_QUERY, { owner, name, base, after: after ?? null });
+      return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests };
+    },
     async getPulls(numbers) {
       const fields = numbers
         .map((number) => {
@@ -320,7 +327,7 @@ export async function main(
     now,
   } = {},
 ) {
-  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT"]) {
+  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
@@ -343,8 +350,16 @@ export async function main(
     policy: readPolicy(env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`, log),
     repository: env.GITHUB_REPOSITORY,
   });
-  const dispatched = [...conflicts.dispatched, ...reviews.dispatched];
-  const failed = conflicts.failed + reviews.failed;
+  const fixes = await dispatchCiFixes({
+    api: client,
+    runId: env.GITHUB_RUN_ID,
+    log,
+    appSenderId: Number(env.APP_SENDER_ID),
+    maxDispatch: limits["fix-ci-per-run"] ?? 2,
+    restarts: limits["fix-ci-restarts"] ?? 1,
+  });
+  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched];
+  const failed = conflicts.failed + reviews.failed + fixes.failed;
   if (dispatched.length > 0) {
     const ids = dispatched.map((run) => run.workflowRunId).join(" ");
     appendFileSync(env.GITHUB_OUTPUT, `run-ids=${ids}\n`);

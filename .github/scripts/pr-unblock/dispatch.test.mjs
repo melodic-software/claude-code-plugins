@@ -8,6 +8,8 @@ import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
+// The lanes App bot's user id (.github/standards/trusted-actors/trusted-actors.json).
+const LANES_APP = 337595936;
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
 // its top-level run-name scalar as YAML reads it (a double-quoted string, or a
 // plain one cut at " #", which starts a comment), with the inputs filled in.
@@ -68,11 +70,15 @@ function fakeApi({
   failChecks = new Set(),
   runIds = new Map(),
   workflowRuns = [],
+  ciFixPulls = [],
 } = {}) {
   const calls = { list: [], get: [], checks: [], dispatch: [], runs: [] };
   let round = 0;
   return {
     calls,
+    async listCiFixCandidates() {
+      return { rateLimit: { cost: 1, remaining: 4999 }, pullRequests: { nodes: ciFixPulls, pageInfo: { hasNextPage: false, endCursor: null } } };
+    },
     async listOpenPulls({ base, after }) {
       calls.list.push({ base, after });
       const index = after === undefined ? 0 : Number(after);
@@ -472,7 +478,7 @@ test("a 15-digit workflow_run_id is accepted", async () => {
 });
 
 // main against a fake API, with GITHUB_OUTPUT a real file it appends to.
-async function runMain(apiOptions) {
+async function runMain(apiOptions, limits = LIMIT_DEFAULTS) {
   const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
   const output = join(dir, "output");
   writeFileSync(output, "");
@@ -483,8 +489,9 @@ async function runMain(apiOptions) {
         GITHUB_REPOSITORY: "octo/repo",
         GITHUB_RUN_ID: "4242",
         GITHUB_OUTPUT: output,
+        APP_SENDER_ID: String(LANES_APP),
       },
-      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS },
+      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits },
     );
     return { code, output: readFileSync(output, "utf8") };
   } finally {
@@ -531,6 +538,49 @@ test("main records a review-dependency dispatch beside the conflict dispatches",
   const { code, output } = await runMain({ pages: [[pr(130), dependabot]] });
   assert.equal(code, 0);
   assert.equal(output, "run-ids=9130 9131\n");
+});
+
+// A lanes App PR whose head's ci-status failed, as fix-ci-dispatch.mjs lists it.
+const ciFixPull = (number) => {
+  const head = String(number).padStart(40, "c");
+  return {
+    number,
+    isDraft: false,
+    isCrossRepository: false,
+    baseRefName: "main",
+    headRefOid: head,
+    author: { login: "melodic-automation-lanes", databaseId: LANES_APP },
+    labels: { nodes: [] },
+    commits: {
+      nodes: [
+        {
+          commit: {
+            oid: head,
+            statusCheckRollup: {
+              contexts: {
+                nodes: [{ __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } }],
+              },
+            },
+          },
+        },
+      ],
+    },
+  };
+};
+
+test("main records fix-ci dispatches beside the others, capped by limits.fix-ci-per-run", async () => {
+  const pulls = [ciFixPull(141), ciFixPull(142), ciFixPull(143)];
+  const capped = await runMain({ pages: [[pr(140)]], ciFixPulls: pulls }, { ...LIMIT_DEFAULTS, "fix-ci-per-run": 1, "fix-ci-restarts": 1 });
+  assert.deepEqual(capped, { code: 0, output: "run-ids=9140 9141\n" });
+  const fallback = await runMain({ pages: [[]], ciFixPulls: pulls });
+  assert.deepEqual(fallback, { code: 0, output: "run-ids=9141 9142\n" }, "with no fix-ci limit the default of 2 holds");
+});
+
+test("main refuses to run without the lanes App sender id", async () => {
+  await assert.rejects(
+    main({ GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: "/dev/null" }, { api: fakeApi(), loadLimits: async () => LIMIT_DEFAULTS }),
+    /APP_SENDER_ID/,
+  );
 });
 
 test("main writes nothing to GITHUB_OUTPUT when no run was dispatched", async () => {
