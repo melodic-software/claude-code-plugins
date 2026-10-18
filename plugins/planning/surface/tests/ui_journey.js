@@ -195,6 +195,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     const aside = await page.$eval('.qbtn[data-q="Q5"] .chip.aside', el => { const s = getComputedStyle(el); return {t: el.textContent, b: s.borderTopWidth, bg: s.backgroundColor, c: s.cursor}; }).catch(() => null);
     ok("the rail's Set aside chip reads as a status, not a button", !!aside && aside.t === "Set aside" && aside.b === "0px" && aside.bg === "rgba(0, 0, 0, 0)" && aside.c === "default", JSON.stringify(aside));
     await tap("#cur [data-again]", 150);
+    await until(() => document.activeElement.matches('#choices input[type="radio"]'), 5000);
     ok("Answer again moves focus to the first choice", await page.evaluate(() => document.activeElement.matches('#choices input[type="radio"]')));
 
     // set up the notice checks: a note for Claude to answer, then the summary with a hiding filter and a hidden rail
@@ -576,8 +577,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("hiding the tab with the Activity panel open adds no badge", await page.title() === base && await page.$eval("#fly", el => el.classList.contains("open")), await page.title());
   }
   if (PHASE === 11) { // the shell added activity while the tab was hidden and the panel open
-    await page.waitForTimeout(4000);
     const base = await text("#title");
+    await page.waitForFunction(b => document.title === "(1) " + b, base, {timeout: 15000}).catch(() => {});
     ok("an open Activity panel marking entries seen does not hide the title count", await page.title() === "(1) " + base, await page.title());
     await setHidden(false); await page.waitForTimeout(200);
   }
@@ -587,8 +588,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("a page loaded hidden shows no badge for activity already waiting", await page.title() === await text("#title"), await page.title());
   }
   if (PHASE === 13) { // the shell added one activity entry after the page loaded hidden
-    await page.waitForTimeout(4000);
     const base = await text("#title");
+    await page.waitForFunction(b => document.title === "(1) " + b, base, {timeout: 15000}).catch(() => {});
     ok("activity landing on a page loaded hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
     await setHidden(false); await page.waitForTimeout(200);
     const sent = await post({kind: "note", text: "first note"});
