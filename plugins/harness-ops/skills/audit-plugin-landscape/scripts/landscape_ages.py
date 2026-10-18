@@ -50,7 +50,7 @@ def gh_api(endpoint: str) -> tuple[int, object]:
         try:
             return 200, json.loads(proc.stdout or "null")
         except json.JSONDecodeError:
-            return 0, "unparseable response"
+            return 0, "unparsable response"
     match = re.search(r"HTTP (\d{3})", proc.stderr)
     return (int(match.group(1)) if match else 0), proc.stderr.strip()
 

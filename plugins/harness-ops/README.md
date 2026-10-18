@@ -10,7 +10,7 @@
 - [Configuration](#configuration)
 - [License](#license)
 
-A Claude Code plugin for running Claude Code well over time. It ships seventeen
+A Claude Code plugin for running Claude Code well over time. It ships eighteen
 skills and a family of telemetry-emitter hooks, including a skill that diagnoses why
 most of an installed skill fleet never gets used.
 audit-native-overlap maps native Claude Code surfaces against the current

@@ -4,9 +4,8 @@ argument-hint: "[--plugins-dir <path>]"
 user-invocable: true
 disable-model-invocation: true
 metadata:
-  workflow-stage: operator
+  workflow-stage: anytime
   summary: Report plugin and marketplace staleness, overlaps and alternatives; recommend only
-  cadence: ad-hoc
 ---
 
 **Arguments.** `[--plugins-dir <path>]`. `--plugins-dir` is the directory holding `installed_plugins.json` and `known_marketplaces.json`; it defaults to `~/.claude/plugins`.
