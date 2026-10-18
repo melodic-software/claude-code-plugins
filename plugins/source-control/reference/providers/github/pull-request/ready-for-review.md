@@ -153,7 +153,11 @@ Or the GitHub MCP `update_pull_request` call with `draft: false`.
 
 ## Confirm a ready run
 
-A new run id for the head after the flip is the `ready_for_review` run. 24 polls x 5 s = 120 s:
+A new run id for the head after the flip shows a run started, not that it carries the ready
+payload: a draft-payload run that registers late is also a new id, and it cancels the ready run
+through the per-PR concurrency group. So when the wait above timed out (`FOUND=0`), the push's run
+had not registered when `RUNS_BEFORE` was taken and a new id proves nothing: skip to the toggle
+below, which starts a run after the draft one has registered. Otherwise 24 polls x 5 s = 120 s:
 
 ```bash
 ready_run_seen() {
@@ -176,5 +180,6 @@ RUNS_BEFORE=$(gh run list --workflow "$CI_WORKFLOW" --commit "$HEAD_SHA" --event
 gh pr ready "$PR_NUMBER" --undo && gh pr ready "$PR_NUMBER" && ready_run_seen
 ```
 
-Exit 0 after the toggle means the run appeared; report the toggle either way. In a cloud session
+Exit 0 after the toggle means a new run appeared; report it as "a new run appeared", never as a
+confirmed ready run, and report the toggle either way. In a cloud session
 the toggle goes through the same routes as the flip.
