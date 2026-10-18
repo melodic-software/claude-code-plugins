@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## 2.13.0 - 2026-10-18
+
+`pr-run-activity-read.yml` gains an `output-mode` input. The default, `clean-tree`, keeps failing a
+run that leaves the tree changed. `patch` instead uploads what the activity changed against the
+gated head as the artifact `patch-<lane>-<activity>-<run attempt>` (one `patch.diff`) and sets the
+new `patch-state`, `patch-sha256` and `patch-attempt` outputs, beside a new `head-sha` output. An
+empty change is `patch-state` `empty` and a success check titled `Passed: no changes`
+([pr-run-activity.md](pr-run-activity.md#patch-output-mode)). `version` stays 2.
+
 ## 2.12.5 - 2026-10-18
 
 The unattended merge gate reads `merge.max-in-flight` at the default branch head instead of at each
