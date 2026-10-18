@@ -2437,6 +2437,7 @@ class DependabotMajorEscalation(unittest.TestCase):
         self.assertTrue(body.startswith(merge.MAJOR_ESCALATION_MARKER + "\n"))
         self.assertIn("`x`", body)
         self.assertIn(self.HEAD, body)
+        self.assertIn("`(disagree)`", body)
         self.assertEqual(
             label[-4:],
             ["POST", f"repos/{self.REPO}/issues/{self.PR}/labels"]

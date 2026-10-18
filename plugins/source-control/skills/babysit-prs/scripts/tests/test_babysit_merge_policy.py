@@ -4293,6 +4293,17 @@ class DependabotEligibility(unittest.TestCase):
         self.assertEqual(result.reason, "dependabot-major-held:x(disagree)")
         self.assertIn("sources-disagree", result.dependabot.reasons)
 
+    def test_no_readable_update_is_held_despite_a_merge_verdict(self) -> None:
+        # Fail closed: neither the title nor the commit names an update.
+        self.fake(
+            commits=[dependabot_commit(message="build(deps): update dependencies")],
+            comments=[self.marker()],
+        )
+        result = self.eligibility(title="build(deps): update dependencies")
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:updates(unreadable)")
+        self.assertIsNone(result.dependabot.approved)
+
     def test_with_majors_review_the_verdict_path_is_unchanged(self) -> None:
         for commit, why in (
             (dependabot_commit("semver-major"), "major:x"),

@@ -86,7 +86,9 @@ Contract enforced here (encoded as code, not convention):
   queue, an eligible MED or HIGH pull request gets one upserted
   `<!-- babysit-merge-risk -->` comment, a verifier refusal that needs a
   human gets the tracker's human-gated role label and one upserted
-  `<!-- babysit-merge-verify-escalation -->` comment, and a ready LOW pull request is
+  `<!-- babysit-merge-verify-escalation -->` comment, a Dependabot update held
+  under `merge.dependabot.majors: hold` gets the same label and one upserted
+  `<!-- babysit-merge-dependabot-major -->` comment, and a ready LOW pull request is
   enqueued at its pinned head after a second kill-switch read, an armed
   auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment; a
   later run that reads the queued entry back as merged at that head
@@ -3121,8 +3123,10 @@ def major_escalation_body(majors: str, head: str) -> str:
     return "\n".join(
         [
             MAJOR_ESCALATION_MARKER,
-            f"Unattended merge: `{majors}` is a major version update, or one "
-            f"whose version cannot be read, at head `{head}`. This repository "
+            f"Unattended merge: `{majors}` is a major version update, one whose "
+            "version cannot be read (`(unreadable)`), or one whose title and "
+            f"commit metadata disagree (`(disagree)`), at head `{head}`. This "
+            "repository "
             "holds those Dependabot updates for a human "
             "(`merge.dependabot.majors: hold`), whatever the review verdict "
             "says; the pr-merge lane will not merge this pull request.",
@@ -3222,7 +3226,9 @@ def unattended_writes(
     this run refused it for itself (`own_refusal`) or scored it above LOW
     (`risk:<score>`). Then the reasons comment for an eligible
     MED or HIGH pull request on a path not stopped, and the escalation
-    (`escalate_verify`) for a verifier refusal that needs a human. Nothing is written before
+    (`escalate_verify`) for a verifier refusal that needs a human, or for a
+    Dependabot update held under `merge.dependabot.majors: hold`, keyed on the
+    eligibility reason. Nothing is written before
     the identity and the credential chokepoint passed (`inputs["identity"]`)."""
     inputs = policy.inputs or {}
     identity, branch = inputs.get("identity"), inputs.get("branch")
