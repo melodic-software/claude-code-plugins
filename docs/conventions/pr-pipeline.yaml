@@ -298,10 +298,11 @@ loop:
   dependency-review-rounds: 2
 
 limits:
-  # Open lanes-App PRs at which work-resolve-issue starts no new run, and
-  # work-unblock re-fires none, until the merge lane brings the count down.
-  # Judgment, Little's law; revisit after a day of data.
-  wip-cap: 60
+  # Open lane PRs at which the issue lane stops starting runs. Sized as
+  # measured lane merges per hour (about 1.5) times an 8-hour open-to-merge
+  # target. Revisit after merge.max-in-flight (#8251) lands and merges per hour
+  # are re-measured.
+  wip-cap: 12
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
