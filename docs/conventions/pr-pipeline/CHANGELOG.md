@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.12.1 - 2026-10-18
+## 2.12.2 - 2026-10-18
 
 On a pull request labeled `needs-human` (the human-gated role label), `pr-unblock`
 `address-feedback` works a thread when a person on the trusted-actor list with write or admin
@@ -11,6 +11,16 @@ held; with one the write runner lifts only the human-gated hold for that run
 ([pr-run-activity.md](pr-run-activity.md#prepare-review-threads)). Its `labels-absent` is
 `[do-not-merge]`, `do-not-merge` still stops it, every other activity still waits on
 `needs-human`, and `pr-merge` still refuses a `needs-human` pull request. `version` stays 2.
+
+## 2.12.1 - 2026-10-18
+
+A write-runner skill run that claude-code-action fails only because its `success` result went over
+`--max-turns` now counts as a success: `act-outcome`, the verdict, the lane record and the job
+result report success, so `pipeline/resolve-issue` posts `success` and report-outcome proceeds as on
+any finished run. The run job reads this from the execution file's last result message (subtype
+`success`, `is_error` false, `num_turns` over the cap); any other failure, or a missing or
+unreadable execution file, still fails
+([pr-run-activity.md](pr-run-activity.md#the-run-job)). `version` stays 2.
 
 ## 2.12.0 - 2026-10-18
 
