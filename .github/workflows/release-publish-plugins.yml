@@ -16,7 +16,8 @@ name: release-publish-plugins
 # A scheduled run, and a push of a fragment to main, run `merge`: it queues a
 # release pull request that is current and green, rebuilds one that is stale,
 # conflicted, or failing ci-status on a base behind main, and builds one when
-# none is open (ADR 0048, Rollout 3 and Resolved decisions 1 and 2). workflow_dispatch runs either action by hand.
+# none is open (ADR 0048, Rollout 3, Resolved decisions 1 and 2, and the
+# 2026-10-17 amendment). workflow_dispatch runs either action by hand.
 on:
   schedule:
     - cron: '41 */3 * * *'

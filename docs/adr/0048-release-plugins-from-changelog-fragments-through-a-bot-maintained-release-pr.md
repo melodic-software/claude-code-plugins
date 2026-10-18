@@ -1,6 +1,7 @@
 # Release plugins from changelog fragments through a bot-maintained release PR
 
-- Status: accepted
+- Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild, see
+  the amendment below)
 - Date: 2026-10-03
 
 ## Context
@@ -303,3 +304,14 @@ proven.
    relative-path plugins and no `version` anywhere; install both, commit a change to one, run
    `claude plugin update` for each, and see which reports a new version. If only the changed
    plugin updates, revisit this ADR before continuing.
+
+## Amendment (2026-10-17): a failed check on a stale base starts a rebuild
+
+The open release pull request is also rebuilt from main when its head's base is behind main's tip
+and its latest `ci-status` concluded `failure`. A re-run of the check runs on the same stale base,
+so without a rebuild such a failure never clears. A `ci-status` failure on a current base still
+only warns.
+
+The statement under Trigger and cadence that rebuilds happen only as often as fragments for the
+plugins in the open release land no longer holds: while main keeps moving, a failing release pull
+request, from a flake or from its own content, is rebuilt on every run.
