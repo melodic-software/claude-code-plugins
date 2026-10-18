@@ -23,7 +23,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -335,6 +335,9 @@ class Unattended(unittest.TestCase):
         self.entries = [entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
         self.queued: list[int] = []
         self.holds: dict[int, str] = {}
+        # Every queued entry the sweep judged, in order.
+        self.hold_reads: list[int] = []
+        self.dequeue_error: Exception | None = None
         self.prior: dict[str, Any] | None = None
         self.log: list[str] = []
         self.rules = QUEUE_RULES
@@ -506,7 +509,9 @@ class Unattended(unittest.TestCase):
             mock.patch.object(
                 policy,
                 "entry_hold",
-                side_effect=lambda r, n, i, **_: self.holds.get(n),
+                side_effect=lambda r, n, i, **_: (
+                    self.hold_reads.append(n) or self.holds.get(n)
+                ),
             ),
             mock.patch.object(merge, "_lane_evidence", side_effect=self._lane_evidence),
             mock.patch.object(
@@ -573,6 +578,8 @@ class Unattended(unittest.TestCase):
     def _dequeue(self, repo: str, branch: str, identity: str, **kwargs: Any) -> int:
         numbers = kwargs.get("numbers")
         self.log.append(f"dequeue:{sorted(numbers) if numbers is not None else 'all'}")
+        if self.dequeue_error is not None:
+            raise self.dequeue_error
         return 0
 
     def assert_no_merge(self, code: int) -> None:
@@ -1311,6 +1318,64 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "base-not-default:main")
         self.assertEqual(self.log, ["dequeue:[5]"])
+
+
+class TheQueueSweepIsSharedPerRun(Unattended):
+    """pr-merge.yml runs one gate process per candidate and names a file in
+    `BABYSIT_RUN_CACHE`: another queued entry one process judged and kept is
+    not judged again by the next within the bound, and nothing else is
+    shared. Each `run_main` here is one candidate's gate process."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.flight = policy.InFlight(False, "identity-entry-queued:#5")
+        self.queued = [PR, 5]
+
+    def candidates(self, count: int) -> None:
+        for _ in range(count):
+            code, _ = self.run_main()
+            self.assert_no_merge(code)
+
+    def test_a_kept_entry_is_judged_once_across_candidates(self) -> None:
+        self.candidates(3)
+        self.assertEqual(self.hold_reads.count(5), 1)
+        # A gate always judges its own entry.
+        self.assertEqual(self.hold_reads.count(PR), 3)
+        self.assertEqual(self.log, [])
+
+    def test_a_kept_entry_is_judged_again_past_the_bound(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        with mock.patch("babysit_run_cache.now", side_effect=lambda: clock[0]):
+            self.candidates(1)
+            clock[0] += merge.run_cache.MAX_AGE
+            self.candidates(1)
+            clock[0] += timedelta(seconds=1)
+            self.candidates(1)
+        self.assertEqual(self.hold_reads.count(5), 2)
+
+    def test_a_held_entry_is_judged_by_every_candidate(self) -> None:
+        self.holds = {5: "do-not-merge"}
+        self.candidates(2)
+        self.assertEqual(self.hold_reads.count(5), 2)
+        self.assertEqual(self.log, ["dequeue:[5]", "dequeue:[5]"])
+
+    def test_a_failed_dequeue_keeps_nothing(self) -> None:
+        self.queued = [PR, 5, 6]
+        self.holds = {6: "do-not-merge"}
+        self.dequeue_error = postmerge.PostMergeWriteError("dequeue #6: boom")
+        self.candidates(2)
+        self.assertEqual(self.hold_reads.count(5), 2)
+
+    def test_without_the_file_every_candidate_judges_every_entry(self) -> None:
+        with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": ""}):
+            self.candidates(2)
+        self.assertEqual(self.hold_reads.count(5), 2)
 
 
 class GateReviewFixes(Unattended):

@@ -41,6 +41,7 @@ from urllib.parse import quote
 
 import babysit_dependabot as dependabot
 import babysit_repo_config as repo_config
+import babysit_run_cache as run_cache
 from babysit_classify import (
     actor_kind,
     has_blocking_severity,
@@ -750,12 +751,19 @@ Permission = Callable[[str], str | None]
 
 
 def permission_reader(repo: str) -> Permission:
-    """A cached reader of a login's repository permission (`admin`, `write`, ...)."""
+    """A cached reader of a login's repository permission (`admin`, `write`, ...).
+    A permission read in the last `run_cache.MAX_AGE` by another gate process
+    of the run is reused; a failed read is never shared."""
     owner, name = _split_repo(repo)
     cache: dict[str, str | None] = {}
 
     def read(login: str) -> str | None:
         if login not in cache:
+            key = f"{owner}/{name}|{login.casefold()}"
+            shared = run_cache.get("permission", key, run_cache.MAX_AGE)
+            if isinstance(shared, str):
+                cache[login] = shared
+                return shared
             status, payload = _get(
                 f"repos/{owner}/{name}/collaborators/{login}/permission"
             )
@@ -765,6 +773,8 @@ def permission_reader(repo: str) -> Permission:
                 else None
             )
             cache[login] = value if isinstance(value, str) else None
+            if isinstance(value, str):
+                run_cache.put("permission", key, value)
         return cache[login]
 
     return read
@@ -2768,16 +2778,30 @@ def assess(
     )
     if enabled_authority(config) != authority:
         return stopped
+    # The acting login and the credential chokepoint depend on the
+    # credentials alone: a gate process of the same run with the same ones
+    # reuses a login read and a pass (`run_cache.credentials`).
+    held = run_cache.credentials()
     if acting_login is None:
-        try:
-            acting_login = read_acting_login()
-        except PolicyReadError:
-            acting_login = None
+        acting_login = run_cache.get("acting-login", held, None)
+        if not isinstance(acting_login, str):
+            try:
+                acting_login = read_acting_login()
+                run_cache.put("acting-login", held, acting_login)
+            except PolicyReadError:
+                acting_login = None
     resolved = resolve_identity(identity, acting_login, self_logins)
     details["identity"] = resolved.login
     if resolved.reason or resolved.login is None:
         return replace(stopped, reason=resolved.reason)
-    credentials = credential_refusal(resolved.login)
+    passed = f"{held}|{resolved.login.casefold()}"
+    credentials = (
+        None
+        if run_cache.get("identity-only", passed, None) is True
+        else credential_refusal(resolved.login)
+    )
+    if credentials is None:
+        run_cache.put("identity-only", passed, True)
     details["credentials"] = credentials or "identity-only"
     if credentials:
         return replace(stopped, reason=f"credentials:{credentials}")

@@ -72,6 +72,7 @@ from typing import Any
 
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
+import babysit_run_cache as run_cache
 from babysit_classify import is_dependency_author
 from babysit_gh import flatten_paginated_items, gh_http_status, gh_timeout_seconds
 from babysit_util import is_json_array, is_json_object, json_array, json_object
@@ -90,10 +91,8 @@ TOO_OLD_DAYS = 80
 COMMITS_CAP = 250
 # The waits before the second and third listing reads (judgment).
 LISTING_WAITS = (2.0, 4.0)
-# The oldest listing any judgment uses, saved or in memory. pr-verify is not a
-# required check, so a queued entry whose FAIL lands mid-run must be held
-# before the merge queue can land it (judgment).
-LISTING_MAX_AGE = timedelta(minutes=2)
+# The oldest listing any judgment uses, saved or in memory (see the bound).
+LISTING_MAX_AGE = run_cache.MAX_AGE
 # How gh reports a request that never got an HTTP response: its own
 # "error connecting to <host>" for a failed lookup, else Go's net/http error.
 NETWORK_ERRORS = (
@@ -225,7 +224,7 @@ class Reader:
     branch: str
     now: datetime | None = None
     # The token for the Actions reads (artifact listing, run records,
-    # download): pr-merge.yml passes the job's GITHUB_TOKEN, which holds
+    # download) and the run heads' compares: pr-merge.yml passes the job's GITHUB_TOKEN, which holds
     # `actions: read`, while the lane token it runs gh with holds none.
     actions_token: str | None = field(
         default_factory=lambda: os.environ.get(TOKEN_ENV) or None
@@ -271,6 +270,11 @@ class Reader:
         self._saved = self._own = False
         self._save(listing, fetched_at)
         return listing
+
+    @property
+    def listed_at(self) -> datetime | None:
+        """When the listing last judged on began to be read."""
+        return self._fetched_at
 
     @property
     def saved(self) -> bool:
@@ -366,14 +370,24 @@ class Reader:
             raise _Unreadable(f"{label}: {exc}") from exc
 
     def _contains(self, sha: str) -> bool:
+        """Whether the branch holds `sha`, read under the Actions token (a
+        contents read). A yes stays true while the branch only moves forward
+        (main's ruleset forbids force pushes), so the run shares it; a no is
+        read again by each gate process."""
         if sha not in self._on_branch:
+            key = f"{self.repo}|{sha}...{self.branch}"
+            if run_cache.get("on-branch", key, None) is True:
+                self._on_branch[sha] = True
+                return True
             compare = json_object(
-                _read(
+                self._actions(
                     ["api", f"repos/{self.repo}/compare/{sha}...{self.branch}"],
                     f"compare {sha[:12]}...{self.branch}",
                 )
             )
             self._on_branch[sha] = compare.get("status") in ("ahead", "identical")
+            if self._on_branch[sha]:
+                run_cache.put("on-branch", key, True)
         return self._on_branch[sha]
 
     def _run_state(self, run_id: int) -> str:
@@ -436,6 +450,13 @@ class Reader:
         return self._records[key]
 
     def _trusted_humans(self) -> frozenset[int]:
+        """The trusted list's human ids at the branch, shared by the run's
+        gate processes for `run_cache.MAX_AGE`."""
+        key = f"{self.repo}@{self.branch}"
+        if self._humans is None:
+            shared = run_cache.get("trusted-humans", key, run_cache.MAX_AGE)
+            if is_json_array(shared):
+                self._humans = frozenset(i for i in shared if type(i) is int)
         humans = self._humans
         if humans is None:
             listing = json_object(
@@ -458,6 +479,7 @@ class Reader:
                 if a.get("kind") == "human" and isinstance(a.get("id"), int)
             )
             self._humans = humans
+            run_cache.put("trusted-humans", key, sorted(humans))
         return humans
 
     def _trusted_actor(self, kind: Any, actor_id: Any, login: Any, author: str) -> bool:

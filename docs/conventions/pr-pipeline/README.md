@@ -723,8 +723,18 @@ saved, and is kept for that candidate's gate run: the pull request and every que
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
-records and the download alone, and every other call keeps the lane token. That job checks out only
-main and runs no pull request code.
+records, the download and the compare of a run's head to main (a `contents: read` call) alone, and
+every other call keeps the lane token. That job checks out only main and runs no pull request code.
+
+pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
+that are the same for every candidate. The acting login and a credential pass are reused only under
+the same credentials (`gh`'s token variables and `hosts.yml`); a credential refusal is read again. A
+collaborator permission and the trusted-actor list are reused for two minutes, and a failed read is
+never shared. A run head found on main is shared for the run, since main's ruleset forbids force
+pushes; one not found is compared again. In the merge-queue sweep, a queued entry another candidate
+judged and kept is skipped only while the reads behind that judgment, its verdict listing included,
+began at most two minutes ago; a gate always judges its own entry, a held entry is judged by every
+candidate, and a failed dequeue keeps nothing. Without the variable nothing is shared.
 
 ## Trust-root paths
 

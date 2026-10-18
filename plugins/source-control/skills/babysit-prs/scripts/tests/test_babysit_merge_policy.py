@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -3854,6 +3855,95 @@ class DependabotAssess(unittest.TestCase):
         ):
             result = self.assess_mode("enforce")
         self.assertEqual(result.reason, "rung-off:rungCap")
+
+
+class OneRunSharesItsCredentialReads(unittest.TestCase):
+    """pr-merge.yml runs one gate process per candidate and names a file in
+    `BABYSIT_RUN_CACHE`: the acting login, a credential pass and permissions
+    are read once for the run, never across other credentials, and a refusal
+    or failed read is never shared."""
+
+    fake = Assess.fake
+    readable = Assess.readable
+    all_clear = Assess.all_clear
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {"BABYSIT_RUN_CACHE": str(pathlib.Path(tmp.name, "run.json"))}
+        patcher = mock.patch.dict("os.environ", {**env, "GH_TOKEN": "lane"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def gh(self) -> GhFake:
+        gh = self.readable()
+        gh.graphql["PolicyViewer"] = {"viewer": {"login": IDENTITY}}
+        self.all_clear()
+        return gh
+
+    def candidate(self) -> policy.UnattendedPolicy:
+        """One candidate's gate process, with nothing passed in."""
+        return policy.assess(
+            REPO, 1, post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
+        )
+
+    def reads(self, gh: GhFake) -> tuple[int, int]:
+        viewer = sum("query PolicyViewer" in " ".join(c) for c in gh.calls)
+        return viewer, gh.calls.count(["auth", "status", "--json", "hosts"])
+
+    def test_candidates_of_one_run_read_them_once(self) -> None:
+        gh = self.gh()
+        for _ in range(3):
+            self.assertIsNone(self.candidate().reason)
+        self.assertEqual(self.reads(gh), (1, 1))
+
+    def test_other_credentials_read_them_again(self) -> None:
+        gh = self.gh()
+        self.candidate()
+        with mock.patch.dict("os.environ", {"GH_TOKEN": "another"}):
+            self.candidate()
+        self.assertEqual(self.reads(gh), (2, 2))
+
+    def test_a_credential_refusal_is_read_again(self) -> None:
+        gh = self.gh()
+        gh.rest["status"] = {
+            "hosts": {
+                "github.com": [
+                    *IDENTITY_ONLY["hosts"]["github.com"],
+                    {"login": OPERATOR, "active": False, "host": "github.com"},
+                ]
+            }
+        }
+        for _ in range(2):
+            self.assertEqual(
+                self.candidate().reason, "credentials:other-account-listed"
+            )
+        self.assertEqual(self.reads(gh)[1], 2)
+
+    def permission_reads(self, answer: Any, readers: int = 2) -> int:
+        gh = GhFake().install(self)
+        endpoint = f"repos/{REPO}/collaborators/{OPERATOR}/permission"
+        gh.rest[endpoint] = answer
+        for _ in range(readers):
+            policy.permission_reader(REPO)(OPERATOR)
+        return gh.calls.count(["api", endpoint])
+
+    def test_a_permission_is_read_once_per_run(self) -> None:
+        self.assertEqual(self.permission_reads({"permission": "admin"}, 3), 1)
+
+    def test_a_failed_permission_read_is_not_shared(self) -> None:
+        self.assertEqual(self.permission_reads(404), 2)
+
+    def test_a_permission_past_the_bound_is_read_again(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        with mock.patch.object(policy.run_cache, "now", side_effect=lambda: clock[0]):
+            gh = GhFake().install(self)
+            endpoint = f"repos/{REPO}/collaborators/{OPERATOR}/permission"
+            gh.rest[endpoint] = {"permission": "admin"}
+            policy.permission_reader(REPO)(OPERATOR)
+            clock[0] += policy.run_cache.MAX_AGE + timedelta(seconds=1)
+            policy.permission_reader(REPO)(OPERATOR)
+        self.assertEqual(gh.calls.count(["api", endpoint]), 2)
 
 
 if __name__ == "__main__":
