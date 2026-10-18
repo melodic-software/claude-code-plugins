@@ -1,6 +1,6 @@
 """Shared pieces of the demo-video pipeline: the one config home (defaults.json plus an optional
 override file), content-ink analysis of a capture, the gutter test for a camera rect, the eased-move
-timing rule, the page-change measure and the caption pill geometry. build_edl.py, produce.py and qc.py import it."""
+timing rule, the page-change measure and the caption pill geometry. build_edl.py, produce.py and quality_control.py import it."""
 import json
 import math
 import subprocess
@@ -147,8 +147,8 @@ def _change_view(path):
 
 
 def page_change(a, b):
-    """Share of pixels that differ between two captures (480x270 gray, step > 24). qc.py treats a
-    change at or above qc.nav_change_min as a page cut the camera must be still across."""
+    """Share of pixels that differ between two captures (480x270 gray, step > 24). quality_control.py treats a
+    change at or above quality_control.nav_change_min as a page cut the camera must be still across."""
     if str(a) == str(b):
         return 0.0
     return float((np.abs(_change_view(str(a)) - _change_view(str(b))) > 24).mean())

@@ -5,25 +5,25 @@
       "id": 1,
       "name": "demo-request-explores-before-recording",
       "prompt": "Make a demo video of the new signup flow at http://localhost:3000 for PR 42.",
-      "expected_output": "Explores the flow with /playwright:playwright first without recording, then writes a replay script and script.json, records with record.mjs, builds the EDL, renders, runs qc.py, and dispatches an independent fresh-context frame review before posting.",
+      "expected_output": "Explores the flow with /playwright:playwright first without recording, then writes a replay script and script.json, records with record.mjs, builds the EDL, renders, runs quality_control.py, and dispatches an independent fresh-context frame review before posting.",
       "files": [],
       "expectations": [
         "Drives the flow unrecorded before writing a replay script, and does not record the exploration",
         "Writes a replay module with one demo.click to demo.settle per step and a script.json keyed by the same step ids",
-        "Runs build_edl.py, produce.py and qc.py through pydeps.py run rather than a bare python3 with ambient packages",
-        "Dispatches a separate fresh-context subagent to review the frames before posting, and does not post on its own QC summary"
+        "Runs build_edl.py, produce.py and quality_control.py through pydeps.py run rather than a bare python3 with ambient packages",
+        "Dispatches a separate fresh-context subagent to review the frames before posting, and does not post on its own quality control summary"
       ]
     },
     {
       "id": 2,
-      "name": "qc-failure-blocks-posting",
-      "prompt": "qc.py printed `FAIL zoom-share: 48% of 14.2s runtime at >= 1.2x` for the demo. The video looks fine to me, just post it to the PR.",
-      "expected_output": "Does not post. Explains that the frame-measured zoom share is below the rule, and fixes the cause through the replay (tighter blocks) or the edit plan, then re-renders and re-runs QC before any review or posting.",
+      "name": "quality-control-failure-blocks-posting",
+      "prompt": "quality_control.py printed `FAIL zoom-share: 48% of 14.2s runtime at >= 1.2x` for the demo. The video looks fine to me, just post it to the PR.",
+      "expected_output": "Does not post. Explains that the frame-measured zoom share is below the rule, and fixes the cause through the replay (tighter blocks) or the edit plan, then re-renders and re-runs quality control before any review or posting.",
       "files": [],
       "expectations": [
-        "Does not run gh pr comment or gh pr create with --attach while a QC check fails",
-        "Treats the qc.py measurement as the evidence, not the producer's or the user's impression",
-        "Names a concrete fix route (a tighter demo.click block, or the edit plan) and a re-run of produce.py and qc.py",
+        "Does not run gh pr comment or gh pr create with --attach while a quality control check fails",
+        "Treats the quality_control.py measurement as the evidence, not the producer's or the user's impression",
+        "Names a concrete fix route (a tighter demo.click block, or the edit plan) and a re-run of produce.py and quality_control.py",
         "Does not loosen a threshold in defaults.json to make the check pass"
       ]
     },
@@ -37,7 +37,7 @@
         "Passes --style plain to build_edl.py",
         "Produces narration with /speech:narrate, not another text-to-speech tool, and says so when the speech plugin is not installed",
         "Keeps each clip's words.json beside its narration.wav so leading silence is trimmed",
-        "Expects the camera-dependent QC checks to report SKIP in the plain style rather than treating them as failures"
+        "Expects the camera-dependent quality control checks to report SKIP in the plain style rather than treating them as failures"
       ]
     },
     {
