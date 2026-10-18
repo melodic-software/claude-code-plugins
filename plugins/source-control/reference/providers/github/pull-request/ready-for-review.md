@@ -106,7 +106,8 @@ parameters of the list-workflow-runs endpoint, `head_sha` returning only runs as
 commit, and a run's `status` and `conclusion` take the values the endpoint's `status` parameter
 lists, `skipped` among them (read 2026-10-18 at
 <https://docs.github.com/en/rest/actions/workflow-runs>, "List workflow runs for a repository").
-`$HEAD_SHA` is the PR's head commit from "Refresh the base with a merge".
+`$HEAD_SHA` is the PR's head commit read again after the last push (2.5.2's value predates
+2.5.3's review fixes), with the `headRefOid` read from "Refresh the base with a merge".
 
 ```bash
 gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
@@ -134,7 +135,9 @@ done
 
 ## Check the head's lanes after the flip
 
-Take `FLIP_TIME` (UTC, `date -u +%Y-%m-%dT%H:%M:%SZ`) right before the flip. After it, poll the
+Take `FLIP_TIME` (UTC, `date -u +%Y-%m-%dT%H:%M:%SZ`) right before the flip, and subtract 60
+seconds from it to absorb clock skew between this host and GitHub's `created_at`; an older run of
+the same head cannot match, since the wait above already let it register. After the flip, poll the
 listing for up to 180 seconds for a run created at or after `FLIP_TIME`, the `ready_for_review`
 run. Once every such run has completed, a `skipped` conclusion among them means the lanes skipped
 on a stale draft payload; no run created at or after `FLIP_TIME` by the end of the wait is also a
@@ -147,7 +150,10 @@ RUNS=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA"
 
 Re-fire the ready event once with `gh pr ready "$PR_NUMBER" --undo && gh pr ready "$PR_NUMBER"`,
 then run this check one more time against a new `FLIP_TIME`. A second skip is reported, never
-re-fired.
+re-fired. In a cloud session `--undo` is a GraphQL mutation like the flip and fails, and the routes
+below cover the flip only: skip the re-fire there and report the skip. If the undo succeeds and the
+second `ready` fails, flip again by the route that works and report it; the PR must not stay a
+draft.
 
 ## Flip to ready
 

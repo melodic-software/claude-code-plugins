@@ -193,7 +193,7 @@ the checkout to push (loop-lane convention, "Lane write identity"). For a fork h
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
 ```
 
-After the last push, wait until the head commit's `pull_request` workflow runs have registered
+After the last push, read the PR's head commit again and wait until the head commit's `pull_request` workflow runs have registered
 before anything else here, for at most 120 seconds
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#wait-for-the-heads-runs-to-register)).
 A flip that lands seconds after a push races that push's runs, which still read the PR as a draft
@@ -213,7 +213,7 @@ there: the proxy's REST route, or the GitHub MCP `update_pull_request` call with
 Completion criterion: the PR's draft flag reads `false`
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-draft-flag)).
 
-Then check the lanes on that head did not skip, waiting at most 180 seconds
+Note the time right before the flip. Then check the lanes on that head did not skip, waiting at most 180 seconds
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-the-heads-lanes-after-the-flip)):
 a `skipped` run created at or after the flip, or no such run at all, means the flip lost the race.
 Re-fire the ready event once (undo the flip, then flip again) and check again. A second skip stops
