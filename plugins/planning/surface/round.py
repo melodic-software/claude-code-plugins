@@ -1334,7 +1334,7 @@ def log_activity(doc, text, ids, **marks):
 
 def summarize(doc, logged):
     """One feed entry for the (op name, message, touched) of one write's logged ops; none when
-    there are none. `notes`, `added`, `finished` and `restate` (the new rev) mark what the page links to."""
+    there are none. `notes`, `added`, `revised`, `waits`, `finished` and `restate` (the new rev) mark what the page links to."""
     if not logged:
         return
     names = {name for name, _, _ in logged}
@@ -1348,6 +1348,8 @@ def summarize(doc, logged):
         ids,
         notes="note-reply" in names,
         added=bool(names & {"add", "add-round"}),
+        revised="revise" in names,
+        waits=bool(names & {"reply", "wait"}),  # a write that also replies or holds leaves the question waiting on the user
         restate=doc["restatement"]["rev"] if "restate" in names else None,
         finished="finish" in names,
     )
