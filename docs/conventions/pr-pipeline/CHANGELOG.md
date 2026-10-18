@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## 2.12.1 - 2026-10-18
+
+`pr-run-activity-read.yml` takes a `dispatcher-run-id` input and passes it to its trigger gate with
+`dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml` and
+`dispatched-workflow: .github/workflows/pr-unblock.yml`, so a read activity that
+`pr-unblock-dispatch.yml` sent to `pr-unblock.yml` runs; any other `github-actions[bot]` dispatch
+still stops with `untrusted-actor`. With the id set, the skill step also admits `github-actions` in
+`allowed_bots`. No caller passes it yet. `version` stays 2.
+
 ## 2.12.0 - 2026-10-18
 
 `merge.max-in-flight` (an integer of at least 1, default 1) caps the lane merges in flight: the
