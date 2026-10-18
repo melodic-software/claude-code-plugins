@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Session-scoped PreToolUse guard registered via SKILL.md frontmatter hooks,
-# which last the rest of the session; a run-open marker scopes it to a clean run.
+# Session-scoped PreToolUse guard registered via SKILL.md frontmatter hooks;
+# a run-open marker scopes it to a clean run.
 # Blocks destructive Bash and PowerShell commands unless the invocation is
 # acknowledged with a CLEAN_GUARD_ACK=1 assignment at the very start of the
 # command, which the skill body adds ONLY after the dry-run -> user-confirmation
@@ -26,20 +26,21 @@
 # of clean-session state. Coverage is whatever is_destructive() and
 # argv_destructive() list.
 #
-# Lifetime. Claim: as of 2026-10-18 a hook registered in a skill's frontmatter
-# stays active for the rest of the session once the skill has been invoked, so
-# the hook registration alone cannot scope the guard to a clean run. The scope
-# is a per-session run-open marker, <CLAUDE_PLUGIN_DATA>/clean-run/<session_id>.open,
-# which clean-run-marker.sh writes when a mutating tier starts (never for scan or
+# Lifetime. Decision: a run-open marker scopes the guard, so the guard does not
+# depend on when the host ends skill hooks. The marker is per session,
+# <CLAUDE_PLUGIN_DATA>/clean-run/<session_id>.open, which clean-run-marker.sh
+# writes when a mutating tier starts (never for scan or
 # scan-batch) and removes when the run reaches its final outcome. With no marker
 # for the hook input's session_id the guard allows the command. A marker idle for
 # RUN_MARKER_IDLE_SECONDS (lib/run-marker.sh) is deleted and the command allowed;
 # every gated call refreshes a live marker. An unresolved CLAUDE_PLUGIN_DATA or a
 # missing or unusable session_id keeps the guard armed (fail closed), and so does
-# the no-jq mode, which cannot read the session_id. Basis: the skill-frontmatter hook
-# notes in https://code.claude.com/docs/en/hooks (the owner's decision on #7333
-# cites them) and the marker cases in destructive-guard.test.sh. Not verified in
-# this change: that CLAUDE_PLUGIN_DATA reaches a skill-frontmatter hook process.
+# the no-jq mode, which cannot read the session_id. The marker cases are in
+# destructive-guard.test.sh. Not verified in this change: that CLAUDE_PLUGIN_DATA
+# reaches a skill-frontmatter hook process.
+# Upstream lifetime of skill-frontmatter hooks: read it live at
+# https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents (anchor not
+# fetched in this change; confirm it at the next recheck). As of 2026-10-18.
 # Recheck: the hooks page changes how skill hooks end, or the first live run
 # shows the guard armed with no marker.
 #
