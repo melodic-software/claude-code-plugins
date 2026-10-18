@@ -222,9 +222,14 @@ if [[ $? -eq 0 && "$out" =~ ^\.changes/alpha/sync-esc-[0-9a-f]{8}\.md$ && -f "$f
 else
   fail "expected .changes/alpha/sync-esc-<hex>.md in the checkout, got: $out"
 fi
-# Whether the copy's own sync-shared-copies.sh can read the checkout's registry
-# is that script's concern; this asserts only that the checkout's never runs.
-ext "$f" --carriers-of lib/esc.mjs patch >/dev/null 2>&1
+# The copy holds only scripts/, so its sync-shared-copies.sh must read the
+# checkout's registry and canonicals; the checkout's own copy must never run.
+out="$(ext "$f" --carriers-of lib/esc.mjs patch 2>/dev/null)"
+if [[ $? -eq 0 && "$(grep -c '^\.changes/alpha/' <<<"$out")" == 1 && "$(grep -c '^\.changes/gamma/' <<<"$out")" == 1 ]]; then
+  ok "an outside copy's --carriers-of reads the checkout's registry"
+else
+  fail "expected one alpha and one gamma fragment from the outside copy, got: $out"
+fi
 if [[ ! -e "$f/ran-checkout-code" ]]; then
   ok "an outside copy runs its own sync-shared-copies.sh for --carriers-of, never the checkout's"
 else

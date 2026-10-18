@@ -132,6 +132,12 @@ activities:
     # (pytest, bash, node --test or the package's vitest), so the run can
     # show a test it changed passing and failing when broken on purpose.
     # git-mv-rm.sh renames and removes paths inside the checkout.
+    # sync-shared-copies.sh regenerates registered shared-library copies
+    # inside the checkout: it reads the registry and canonicals there and
+    # writes only registered plugins/<name>/... copies, running no checkout
+    # code; it refuses a registry path that is absolute, has a . or .. segment
+    # or crosses a symbolic link, and from this copy refuses --check-bump,
+    # which can reach the GitHub API.
     # check-evals-quality.sh reads evals.json files with bash and jq.
     # check-skill.sh runs checkout code: each checked skill's
     # scripts/*.test.sh and the checkout's markdownlint, with the network
@@ -147,6 +153,7 @@ activities:
       - scripts/git-mv-rm.sh
       - plugins/skill-quality/scripts/check-skill.sh
       - plugins/skill-quality/scripts/check-evals-quality.sh
+      - scripts/sync-shared-copies.sh
       - scripts/new-changelog-fragment.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (for example a documented default on a vendor docs page) instead of

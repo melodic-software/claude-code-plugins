@@ -1,16 +1,32 @@
 # Changelog for the PR pipeline convention
 
-## 2.9.0 - 2026-10-17
+## 2.10.0 - 2026-10-18
 
 `resolve-issue` lists `scripts/new-changelog-fragment.sh` as a `verify-script`, so the issue lane
 can write a changelog fragment. The script now writes into the git work tree its caller stands
 in (exit 2 outside one), not its own parent, refuses a plugin name with a path in it and a linked
-`.changes` directory, and runs its own `sync-shared-copies.sh` for `--carriers-of` (which exits 2
-from the lane's copy, so the run names plugins). The
-verify-script prompt now says Bash runs only the named wrappers, each as its own command, that the
+`.changes` directory, and runs its own copy's `sync-shared-copies.sh` for `--carriers-of`, which
+reads the checkout's registry. The verify-script prompt now says Bash runs only the named wrappers, each as its own command, that the
 run inspects and changes files with Read, Grep, Glob, Edit and Write instead of `cd`, `;`, `&&`,
 pipes or interpreter one-liners, and names the `git-mv-rm` wrapper for a rename or removal when
 it is listed ([pr-run-activity.md](pr-run-activity.md#skill-activities)). `version` stays 2.
+
+## 2.9.0 - 2026-10-17
+
+`work-resolve-issue.yml` runs at most three `resolve-issue` jobs at once. A `pick-slot` job takes
+the issue number modulo `SLOTS` (3, set in that job), and `resolve-issue` waits in the
+`work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of `agent-ready`
+admissions queues instead of exhausting the lanes App's hourly API quota
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). The per-issue run group is
+unchanged. `version` stays 2.
+
+## 2.8.1 - 2026-10-17
+
+`request-lane-token` retries a broker 503 whose reason is `github-unavailable`, with a fresh OIDC
+token, after 60, 120 and 240 seconds plus up to 20 seconds of jitter, honoring a longer
+`Retry-After` header and starting no retry more than 8 minutes after the first request. Every
+other answer stays final ([pr-run-activity.md](pr-run-activity.md#the-lane-token-broker)).
+`version` stays 2.
 
 ## 2.8.0 - 2026-10-17
 
