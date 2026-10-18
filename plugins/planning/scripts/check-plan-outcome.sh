@@ -10,7 +10,15 @@
 #                   (a note after " - " inside the brackets, as in [DOING - standing], is kept)
 #   sanity-checks   every phase section carries at least one `Sanity Check`
 #   decisions       when the plan tags a decision [EXEC-SHAPE] or [FALLBACK], a
-#                   `| Decision | What it changes ...` table has at least one row
+#                   `| Decision | What it changes ...` table has at least one row.
+#                   A tag may carry an id, `[EXEC-SHAPE D4]`, and the row for that
+#                   decision starts its first column with the same id (`| D4 Ignore
+#                   file first | ...`). An id is a capital letter, up to two more
+#                   letters, then letters or digits (D4, DX12, D4a); one id per tag. The criterion fails on a tag
+#                   id with no row (`id-without-row=`) and on a row id no tag cites
+#                   (`row-without-tag=`); several tags may cite one row. Pass prints
+#                   `mapped=<n>`, the distinct tag ids that have a row. A bare tag
+#                   with no id still passes, with a `warning=bare-tag` line naming it
 #   blast-radius    a Blast radius heading or line names LOW, MEDIUM, HIGH or CRITICAL
 #   portable-paths  no drive-letter path (C:\ or C:/) and no /Users/<name> or
 #                   /home/<name> path, unless the line carries <!-- path-example -->.
@@ -128,6 +136,7 @@ fi
 # saved on Windows grades the same as one saved elsewhere.
 structural="$(
   awk '
+    BEGIN { ID_RE = "^[A-Z][A-Za-z]?[A-Za-z]?[0-9]+[A-Za-z0-9]*" }
     function flush_phase() {
       if (in_phase && !phase_sanity) missing_sanity = missing_sanity " " phase_name
     }
@@ -179,8 +188,29 @@ structural="$(
       if (in_phase && $0 ~ /Sanity Check/) phase_sanity = 1
       if ($0 ~ /^[ \t]*\|[ \t]*Decision[ \t]*\|[ \t]*What it changes/) { in_table = 1; decisions_table = 1; next }
       if (in_table && $0 !~ /^[ \t]*\|/) in_table = 0
-      if (in_table) { if ($0 !~ /^[ \t]*\|[ \t:|-]*$/) decision_rows++; next }
-      if ($0 ~ /\[(EXEC-SHAPE|FALLBACK)([^]A-Za-z][^]]*)?\]/) tagged++
+      if (in_table) {
+        if ($0 !~ /^[ \t]*\|[ \t:|-]*$/) {
+          decision_rows++
+          cell = $0
+          sub(/^[ \t]*\|[ \t]*/, "", cell)
+          sub(/[ \t]*\|.*/, "", cell)
+          sub(/^[*_`\[ \t]+/, "", cell)
+          if (match(cell, ID_RE)) row_id[substr(cell, RSTART, RLENGTH)] = 1
+        }
+        next
+      }
+      rest = $0
+      while (match(rest, /\[(EXEC-SHAPE|FALLBACK)([^]A-Za-z][^]]*)?\]/)) {
+        tag = substr(rest, RSTART, RLENGTH)
+        rest = substr(rest, RSTART + RLENGTH)
+        tagged++
+        inner = tag
+        sub(/^\[(EXEC-SHAPE|FALLBACK)/, "", inner)
+        sub(/\]$/, "", inner)
+        sub(/^[ \t]+/, "", inner)
+        if (match(inner, ID_RE)) tag_id[substr(inner, RSTART, RLENGTH)] = 1
+        else { bare_n++; bare_tag[bare_n] = NR ":" tag }
+      }
       if (tolower($0) ~ /^[ \t*_-]*blast[- ]radius[ \t*_]*:/) { blast_open = 1; if ($0 ~ /(LOW|MEDIUM|HIGH|CRITICAL)/) blast_level = 1 }
       else if (blast_open > 0 && $0 ~ /[^ \t]/) { if ($0 ~ /(LOW|MEDIUM|HIGH|CRITICAL)/) blast_level = 1; blast_open-- }
     }
@@ -214,6 +244,17 @@ structural="$(
       printf "decisions_table=%d\n", decisions_table
       printf "decision_rows=%d\n", decision_rows
       printf "blast_level=%d\n", blast_level
+      for (id in tag_id) {
+        if (id in row_id) mapped++
+        else no_row = no_row " " id
+      }
+      # A plan with only bare tags passes: a row that merely starts like an id (S3, UTF8) is not one.
+      for (id in tag_id) have_tag_id = 1
+      if (have_tag_id) for (id in row_id) if (!(id in tag_id)) no_tag = no_tag " " id
+      printf "mapped=%d\n", mapped
+      printf "id_without_row=%s\n", no_row
+      printf "row_without_tag=%s\n", no_tag
+      for (i = 1; i <= bare_n; i++) printf "bare_tag=%s\n", bare_tag[i]
     }
   ' "$plan"
 )" || die "could not parse: $plan"
@@ -227,6 +268,9 @@ tagged="$(field tagged)"
 decisions_table="$(field decisions_table)"
 decision_rows="$(field decision_rows)"
 blast_level="$(field blast_level)"
+mapped="$(field mapped)"
+id_without_row="$(field id_without_row)"
+row_without_tag="$(field row_without_tag)"
 breakages="$(field breakages)"
 breakage_invalid="$(field breakage_invalid)"
 
@@ -264,12 +308,21 @@ fi
 if [[ "$tagged" -eq 0 ]]; then
   report decisions pass "tagged=0"
 elif [[ "$decisions_table" -eq 1 && "$decision_rows" -ge 1 ]]; then
-  report decisions pass "tagged=$tagged rows=$decision_rows"
+  detail="tagged=$tagged rows=$decision_rows mapped=$mapped"
+  [[ -z "${id_without_row// /}" ]] || detail+=" id-without-row=$(sed 's/^ //; s/ /,/g' <<<"$id_without_row")"
+  [[ -z "${row_without_tag// /}" ]] || detail+=" row-without-tag=$(sed 's/^ //; s/ /,/g' <<<"$row_without_tag")"
+  if [[ "$detail" == *-without-* ]]; then
+    report decisions fail "$detail"
+  else
+    report decisions pass "$detail"
+  fi
 elif [[ "$decisions_table" -eq 1 ]]; then
   report decisions fail "tagged=$tagged rows=0 (the Decision table has no row)"
 else
   report decisions fail "tagged=$tagged (no '| Decision | What it changes' table)"
 fi
+
+printf '%s\n' "$structural" | sed -n 's/^bare_tag=\(.*\)$/warning=bare-tag line \1 (no id, so it maps to no row)/p'
 
 if [[ "$blast_level" -eq 1 ]]; then
   report blast-radius pass "level=named"

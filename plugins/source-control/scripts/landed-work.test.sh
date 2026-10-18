@@ -611,6 +611,73 @@ assert_eq "fixture sanity: the unpushed commit is landed" "yes" "$(col "$R" $C_L
 assert_eq "fixture sanity: a merge is mid-flight" "merge" "$(col "$R" $C_INPROGRESS)"
 assert_eq "in-progress outranks landed" "in-progress" "$(col "$R" $C_RISK)"
 
+# --------------------------------------------------------------------------
+# Merged-PR proof (--merged-pr-proof), with a stubbed gh
+# --------------------------------------------------------------------------
+
+# The stub prints the file named by GH_STUB_OUT in the format the engine's --jq
+# produces (`head <oid>` / `commit <oid>` lines), or fails when GH_STUB_FAIL is set.
+PR_BIN="$TEST_TMPDIR/pr-bin"
+mkdir -p "$PR_BIN"
+cat >"$PR_BIN/gh" <<'STUB'
+#!/usr/bin/env bash
+[[ -n "${GH_STUB_FAIL:-}" ]] && { echo "gh stub: forced failure" >&2; exit 1; }
+cat "${GH_STUB_OUT:-/dev/null}"
+STUB
+chmod +x "$PR_BIN/gh"
+
+# A branch whose two commits were never squashed onto the base by content the
+# engine can see: the base holds an unrelated later commit and the PR is the only
+# record of the merge.
+W="$(mkfixture)"
+WT_PR="$TEST_TMPDIR/wt-pr"
+git -C "$W" worktree add -q -b feat-pr "$WT_PR" main >/dev/null 2>&1
+commit_in "$WT_PR" p1.txt "one" "pr commit one"
+commit_in "$WT_PR" p2.txt "two" "pr commit two"
+PR_C1="$(git -C "$WT_PR" rev-parse HEAD~1)"
+PR_C2="$(git -C "$WT_PR" rev-parse HEAD)"
+commit_in "$W" other.txt "other" "unrelated on main"
+git -C "$W" push -q origin main >/dev/null 2>&1
+
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+R="$(row "$OUT" "wt-pr")"
+assert_eq "pr proof: without the flag the row is not landed" "no" "$(col "$R" $C_LANDED)"
+
+run_pr() {
+  PATH="$PR_BIN:$PATH" GH_STUB_OUT="$1" GH_STUB_FAIL="${2:-}" \
+    bash "$ENGINE" --repo-dir "$W" --no-peers --merged-pr-proof
+}
+
+printf 'pr main\nhead %s\ncommit %s\ncommit %s\n' "$PR_C2" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-head-equal"
+printf 'pr feat-stack-base\nhead %s\ncommit %s\ncommit %s\n' "$PR_C2" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-stacked"
+R="$(row "$(run_pr "$TEST_TMPDIR/pr-head-equal")" "wt-pr")"
+assert_eq "pr proof: HEAD equal to the merged PR head is landed" "yes" "$(col "$R" $C_LANDED)"
+assert_eq "pr proof: method names the PR head" "merged-pr-head" "$(col "$R" $C_METHOD)"
+assert_eq "pr proof: risk is landed" "landed" "$(col "$R" $C_RISK)"
+assert_not_contains "pr proof: the reason carries no stale not-landed text" "$(col "$R" $C_REASON)" "head-differs"
+
+# A PR merged into another feature branch never reached the base.
+R="$(row "$(run_pr "$TEST_TMPDIR/pr-stacked")" "wt-pr")"
+assert_eq "pr proof: a PR merged into a non-base branch is not landed" "no" "$(col "$R" $C_LANDED)"
+
+printf 'pr main\nhead %s\ncommit %s\ncommit %s\n' "0000000000000000000000000000000000000001" "$PR_C1" "$PR_C2" >"$TEST_TMPDIR/pr-commits-only"
+R="$(row "$(run_pr "$TEST_TMPDIR/pr-commits-only")" "wt-pr")"
+assert_eq "pr proof: every local commit in the PR commit list is landed" "yes" "$(col "$R" $C_LANDED)"
+assert_eq "pr proof: method names the commit list" "merged-pr-commits" "$(col "$R" $C_METHOD)"
+
+# A later local commit that is not in the PR stays unproven, so a reused branch
+# name does not read as landed.
+commit_in "$WT_PR" p3.txt "three" "later commit not in the PR"
+R="$(row "$(run_pr "$TEST_TMPDIR/pr-commits-only")" "wt-pr")"
+assert_eq "pr proof: a later commit not in the PR is not landed" "no" "$(col "$R" $C_LANDED)"
+assert_contains "pr proof: the reason says why" "$(col "$R" $C_REASON)" "local-commits-not-all-in-merged-pr"
+
+# A failed PR read keeps the prior verdict and names the failed read.
+R="$(row "$(run_pr "$TEST_TMPDIR/pr-commits-only" 1)" "wt-pr")"
+assert_eq "pr proof: a failed read keeps the prior verdict" "no" "$(col "$R" $C_LANDED)"
+assert_contains "pr proof: the failed read is named" "$(col "$R" $C_REASON)" "merged-pr-read-failed:gh-pr-list"
+OUT="$(bash "$ENGINE" --repo-dir "$W" --no-peers)"
+
 # Bare-name invocation from the scripts directory still loads the library.
 BARE_OUT="$(cd "${ENGINE%/*}" && bash "${ENGINE##*/}" --repo-dir "$W" --no-peers)"
 assert_eq "bare-name invocation emits the same rows" "$OUT" "$BARE_OUT"

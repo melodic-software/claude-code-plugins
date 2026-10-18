@@ -230,6 +230,12 @@ Full template: [reference/scope-budget.md](reference/scope-budget.md). Every ite
 
 Bundled surfaces are gated by settings, environment, plan, and host; this section states what to do when one resolves, never that it is present. The four-part records live in [reference/bundled-simplify.md](reference/bundled-simplify.md).
 
+## Next
+
+/source-control:babysit-prs
+
+It carries the opened tidy PR through CI and review findings; the merge stays with a human.
+
 ## Gotchas
 
 - **Beck's New Interface, Old Implementation is context-dependent.** Safe ONLY when the new interface has zero existing consumers. If consumers exist, treat it as behavioral and skip. Do not trust the "structural" label blindly.

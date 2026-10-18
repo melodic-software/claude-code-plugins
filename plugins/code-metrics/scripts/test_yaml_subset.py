@@ -137,6 +137,22 @@ class ParseTests(unittest.TestCase):
         self.assert_error("a: 'unterminated\n", 1, "unterminated")
         self.assert_error("a:\n  b: 1\n c: 2\n", 3, "unexpected indent")
 
+    def test_quotes_and_comments_in_plain_values(self) -> None:
+        self.assertEqual(
+            parse("title: it's fine # comment\n"), {"title": "it's fine"}
+        )
+        self.assertEqual(parse('say: a"b # c\n'), {"say": 'a"b'})
+        self.assertEqual(
+            parse("name: 'quoted # kept' # dropped\n"), {"name": "quoted # kept"}
+        )
+        self.assertEqual(parse("- it's # c\n"), ["it's"])
+        self.assertEqual(parse("k:\n  - 'a # b'\n"), {"k": ["a # b"]})
+
+    def test_a_duplicate_key_in_a_sequence_item_is_reported_on_its_own_line(
+        self,
+    ) -> None:
+        self.assert_error("- job: a\n  id: x\n  job: b\n", 3, "duplicate key")
+
 
 class CommandLineTests(unittest.TestCase):
     def test_prints_json_and_exit_codes(self) -> None:
