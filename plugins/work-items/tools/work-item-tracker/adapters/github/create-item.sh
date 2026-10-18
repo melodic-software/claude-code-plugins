@@ -114,7 +114,12 @@ if ((native)); then
   if (($? == 10)); then
     # The proxy refused GraphQL before creating anything: retry over REST below.
     native=0
-    [[ -z "$type" ]] || degrade_type
+    if [[ -n "$type" ]]; then
+      degrade_type
+      # degrade_type may append the type label; rebuild the list the REST branch reads.
+      label_list=()
+      [[ -z "$labels" ]] || IFS=',' read -ra label_list <<<"$labels"
+    fi
   else
     created_url="${WIT_GH_OUT##*$'\n'}" # last line — gh prints the created URL last
     number="${created_url##*/}"
