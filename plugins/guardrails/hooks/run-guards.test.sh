@@ -661,11 +661,26 @@ stub shallow0.sh 'exit 0'
 run "$PAYLOAD" "$TEST_TMPDIR/shallow0.sh" "$TEST_TMPDIR/depth1.sh"
 assert_eq "shallow exit: the next guard runs on the dispatcher's own stack" "depth=3" "$(cat "$SEEN")"
 run "$PAYLOAD" "$TEST_TMPDIR/deep2.sh" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/ctx1.sh"
-assert_exit "deep exit 2: the block wins over the fresh process's documents" 2 "$RC"
-assert_absent "deep exit 2: the ask from the fresh process is dropped" "$OUT" '"ask"'
-assert_contains "deep exit 2: the fresh process's context is kept" "$(hsd additionalContext)" "ctx one"
+assert_exit "deep exit 2: the block wins over the forked rest's documents" 2 "$RC"
+assert_absent "deep exit 2: the ask from the forked rest is dropped" "$OUT" '"ask"'
+assert_contains "deep exit 2: the forked rest's context is kept" "$(hsd additionalContext)" "ctx one"
+# A guard that dies of a hard error more than 64 frames down hands the rest to
+# a fresh dispatcher: the only caller of run_rest's deep branch. That needs a
+# payload the fresh process reads back the same; any other is denied.
+stub harddeep.sh 'source "'"$HOOK_DIR"'/abort-boundary.sh"
+guard::abort_boundary harddeep PreToolUse open 0 2
+d() { if (($1)); then d $(($1 - 1)); else : "${RUN_GUARDS_TEST_UNBOUND?forced abort}"; fi; }
+d 100'
+run "$PAYLOAD" "$TEST_TMPDIR/harddeep.sh" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/block.sh"
+assert_exit "deep hard error: the fresh dispatcher's block comes back" 2 "$RC"
+run "$PAYLOAD" "$TEST_TMPDIR/harddeep.sh" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "deep hard error: the fresh dispatcher's status comes back" 0 "$RC"
+assert_contains "deep hard error: the fresh dispatcher's documents come back" "$(hsd additionalContext)" "ctx one"
+run "not json" "$TEST_TMPDIR/harddeep.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "deep hard error, unprimed payload: denied" 2 "$RC"
+assert_contains "deep hard error, unprimed payload: the reason names it" "$ERR" "reported no verdict"
 # A rest of the chain that dies before reporting has an unknown verdict, so
-# the call is denied, on the fresh-process path and on the hard-error subshell.
+# the call is denied, on the forked-subshell path and on the hard-error subshell.
 run "$PAYLOAD" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/die.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "deep exit, then the rest dies unreported: denied" 2 "$RC"
 assert_contains "deep exit, then the rest dies unreported: the reason names it" "$ERR" "reported no verdict"
