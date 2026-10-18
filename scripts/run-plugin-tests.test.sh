@@ -9,6 +9,8 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNNER="$ROOT/scripts/run-plugin-tests.sh"
+# The test-bash lane exports this on main; each case below sets it itself.
+unset PLUGIN_TEST_ADVISORY
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
 
@@ -67,6 +69,9 @@ assert_output_lacks() {
 
 empty_list="$scratch/empty-serial.txt"
 : >"$empty_list"
+# The shipped advisory list names repository suites a fixture root lacks, and
+# the runner's stale guard would reject it; the advisory cases below pass their own.
+export PLUGIN_TEST_ADVISORY_LIST="$empty_list"
 
 # --- exit contract -----------------------------------------------------------
 
@@ -434,23 +439,60 @@ PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "an empty selection exits 0 h
   --root "$r" --suites-from "$empty_selection"
 assert_output_lacks "the empty selection runs nothing" "=== plugins/"
 
-# --- the shipped allowlist against the shipped corpus --------------------------
+# --- advisory suites ------------------------------------------------------------
 #
-# Every entry in scripts/run-plugin-tests-serial.txt must name a suite that
-# exists today; the runner's own stale guard is what enforces it, so exercise
-# the same reader the runner uses rather than re-implementing it here.
-shipped_list="$ROOT/scripts/run-plugin-tests-serial.txt"
-stale=0
-while IFS= read -r line || [[ -n "$line" ]]; do
-  line="${line%%#*}"
-  line="${line#"${line%%[![:space:]]*}"}"
-  line="${line%"${line##*[![:space:]]}"}"
-  [[ -n "$line" ]] || continue
-  if [[ ! -f "$ROOT/$line" ]]; then
-    fail "shipped allowlist names a suite that does not exist: $line"
-    stale=1
-  fi
-done <"$shipped_list"
-((stale)) || ok "every shipped serial-allowlist entry names an existing suite"
+# A suite on the advisory list warns instead of failing, but only under
+# PLUGIN_TEST_ADVISORY=1, which CI sets for runs on main alone. A pull request
+# run leaves it unset, so the same failure fails the leg there.
+r="$(make_root advisory)"
+write_suite "$r" plugins/planning/shared/tests/ui.test.sh 'echo "FAIL: ui timing" >&2; exit 1'
+write_suite "$r" plugins/b/b.test.sh 'echo "ok: b"'
+advisory_list="$scratch/advisory.txt"
+printf '# fixture\nplugins/planning/shared/tests/ui.test.sh\n' >"$advisory_list"
+
+PLUGIN_TEST_ADVISORY=1 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 0 "on main, a failing advisory suite does not fail the run" --root "$r"
+assert_output_has "on main, the advisory failure is a warning" \
+  "::warning::plugins/planning/shared/tests/ui.test.sh failed (exit 1)"
+assert_output_has "on main, the suite's FAIL block still prints" "FAIL: plugins/planning/shared/tests/ui.test.sh"
+assert_output_has "on main, the summary names the advisory failure" "1 advisory suite(s) FAILED"
+assert_output_lacks "on main, the run does not claim all green" "All plugin tests passed."
+
+PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 1 "on a pull request, the same advisory-listed failure fails the run" --root "$r"
+assert_output_lacks "on a pull request, no advisory warning is printed" "::warning::"
+assert_output_has "on a pull request, the failure summary line" "One or more plugin tests failed."
+
+r="$(make_root advisory-other)"
+write_suite "$r" plugins/planning/shared/tests/ui.test.sh 'echo "ok: ui"'
+write_suite "$r" plugins/b/b.test.sh 'echo "FAIL: b broke" >&2; exit 1'
+PLUGIN_TEST_ADVISORY=1 PLUGIN_TEST_ADVISORY_LIST="$advisory_list" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 1 "on main, a failing suite not on the advisory list still fails the run" --root "$r"
+assert_output_lacks "on main, a non-advisory failure gets no warning" "::warning::"
+
+stale_advisory="$scratch/advisory-stale.txt"
+printf 'plugins/gone/gone.test.sh\n' >"$stale_advisory"
+PLUGIN_TEST_ADVISORY_LIST="$stale_advisory" PLUGIN_TEST_SERIAL_LIST="$empty_list" \
+  run_runner 2 "an advisory entry that matches no suite is rejected" --root "$r"
+assert_output_has "the stale advisory entry is named" "plugins/gone/gone.test.sh"
+
+# --- the shipped lists against the shipped corpus -------------------------------
+#
+# Every entry in scripts/run-plugin-tests-serial.txt and
+# scripts/run-plugin-tests-advisory.txt must name a suite that exists today.
+for shipped_list in "$ROOT/scripts/run-plugin-tests-serial.txt" "$ROOT/scripts/run-plugin-tests-advisory.txt"; do
+  stale=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%%#*}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -n "$line" ]] || continue
+    if [[ ! -f "$ROOT/$line" ]]; then
+      fail "${shipped_list##*/} names a suite that does not exist: $line"
+      stale=1
+    fi
+  done <"$shipped_list"
+  ((stale)) || ok "every ${shipped_list##*/} entry names an existing suite"
+done
 
 test_harness::report
