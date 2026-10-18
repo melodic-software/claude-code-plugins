@@ -72,12 +72,13 @@ class HeldCandidatesNeverReachTheGate(unittest.TestCase):
             _candidate(2, body=HELD_BODIES[0]),
             _candidate(3, labels=["Do-Not-Merge"]),
             _candidate(4, labels=["needs-review"], body=FREE_BODIES[1]),
+            _candidate(7, labels=["Needs-Human"]),
         ]
         kept, held = self._run(candidates)
         self.assertEqual([c["number"] for c in kept], [1, 4])
         self.assertEqual(
             [(h["number"], h["reason"]) for h in held],
-            [(2, "body-hold"), (3, "do-not-merge")],
+            [(2, "body-hold"), (3, "do-not-merge"), (7, "needs-human")],
         )
         # The gate loop reads exactly the fields it read before.
         self.assertEqual(set(kept[0]), {"number", "head", "updatedAt"})
@@ -107,6 +108,7 @@ class PrefilterDropsOnlyWhatTheGateRefuses(fixtures.TierEvaluateHarness):
         cases = [
             *({"body": b} for b in HELD_BODIES + FREE_BODIES),
             {"labels": ["do-not-merge"]},
+            {"labels": ["needs-human"]},
             {"labels": ["needs-review"]},
         ]
         for case in cases:

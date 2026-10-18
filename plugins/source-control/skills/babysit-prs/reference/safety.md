@@ -1009,7 +1009,7 @@ any refusal is the blocker `unattended merge refused: <reason>`:
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
 `--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung
 refusal dequeues every entry the identity enqueued; a queued identity entry that gained a hold
-(`do-not-merge`, a body hold, a blocking comment from an owner, member or collaborator, the opt-in
+(`do-not-merge` or `needs-human`, a body hold, a blocking comment from an owner, member or collaborator, the opt-in
 label removed, or put back after the enqueue by anyone but a human in person) leaves the queue, as
 does the assessed pull request's own entry when this run finds it ineligible, above the rung,
 unpromoted for its class, on a base that is not the default branch, or scored MED or HIGH

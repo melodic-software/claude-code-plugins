@@ -1536,6 +1536,11 @@ class EntryHold(unittest.TestCase):
         self.fake(labels={"totalCount": 1, "nodes": [{"name": "Do-Not-Merge"}]})
         self.assertEqual(self.hold(), "do-not-merge")
 
+    def test_the_needs_human_label(self) -> None:
+        # A queued entry that gains the human-gated label leaves the queue.
+        self.fake(labels={"totalCount": 1, "nodes": [{"name": "Needs-Human"}]})
+        self.assertEqual(self.hold(), "needs-human")
+
     def test_a_body_hold(self) -> None:
         self.fake(body="Please do not merge until the release")
         self.assertEqual(self.hold(), "body-hold")

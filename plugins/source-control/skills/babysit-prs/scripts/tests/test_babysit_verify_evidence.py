@@ -1474,6 +1474,9 @@ class LaneRequiresAVerdict(unattended.Unattended):
             out["unattended"]["writes"]["escalation"],
             {"label": "present", "comment": "unchanged"},
         )
+        # The escalation's own label is a merge hold too; the reason still
+        # names the verifier refusal.
+        self.assertEqual(out["unattended"]["reason"], "verify:spec-changed")
 
     def test_report_only_reports_a_needs_human_refusal_and_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, report_only=True)
