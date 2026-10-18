@@ -880,10 +880,10 @@ class GuestHandler(BaseHTTPRequestHandler):
         At most CLIENT_PER_MINUTE faults and SUMMARY_PER_MINUTE summaries a minute per person; it changes no state."""
         try:
             pid = self.authorize("person")
-            fields = client_fields(body)
-            usage = fields["kind"] in USAGE_KINDS
+            usage = body.get("kind") in USAGE_KINDS
             if usage:
-                self.pid = None
+                self.pid = None  # before any refusal, so a refused summary's request entry names no one either
+            fields = client_fields(body)
             if not (self.app.summary_bucket if usage else self.app.client_bucket).take(pid):
                 n, what = (SUMMARY_PER_MINUTE, "summaries") if usage else (CLIENT_PER_MINUTE, "error reports")
                 raise DomainError(429, "slow-down", f"At most {n} {what} a minute.")

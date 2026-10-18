@@ -1193,6 +1193,20 @@ class TestClientLog(LogCase):
         self.assertTrue(self.entry_for(" kind=error ").endswith(f'client pid={pid} kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d'))
         self.assertIn(f"pid={pid}", self.entry_for(" request method=POST route=/api/client-log "))
 
+    def test_a_refused_summary_logs_no_pid(self):
+        """A summary refused for its fields or its rate keeps its request entry, with no pid on it."""
+        pid, guest = self.join("Ann")
+        for body, code in (({**self.SUMMARY, "text": "x"}, 400), ({**self.SUMMARY, "message": "x" * 501}, 400), ({**self.SUMMARY, "ua": 7}, 400)):
+            with self.subTest(body=sorted(body)):
+                self.assertEqual(self.post("/api/client-log", body, guest)[0], code)
+                line = self.entry_for(" request method=POST route=/api/client-log ")
+                self.assertIn(f" status={code} ", line)
+                self.assertNotIn("pid=", line)
+        self.assertEqual([self.post("/api/client-log", self.SUMMARY, guest)[0] for _ in range(7)], [200] * 6 + [429])
+        line = self.entry_for(" request method=POST route=/api/client-log ")
+        self.assertIn(" status=429 ", line)
+        self.assertNotIn(f"pid={pid}", line)
+
     def test_a_batch_holds_many_summaries_sorted_and_counts_those_past_its_size(self):
         """Arrival order is gone: Bo's summary, sent second, sorts first."""
         _, ann = self.join("Ann")
