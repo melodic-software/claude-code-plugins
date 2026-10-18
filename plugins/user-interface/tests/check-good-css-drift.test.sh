@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Exit-code contract of scripts/check-good-css-drift.sh, network-free: the
 # script is sourced and fetch_blob_sha is replaced by a stub. The expected
-# SHAs are the upstream blob SHAs at pin b645ab15 recorded in
+# SHAs are the upstream blob SHAs at pin 92d436ba recorded in
 # docs/upstream/good-css.md, not values read from the script.
 set -uo pipefail
 
@@ -40,7 +40,7 @@ source "$SCRIPT"
 
 SHA_CHECK_CSS=6fa72714ba18cf02f698fa8015f63df043b3af85
 SHA_LICENSE=66a325d82e56f2f41ebd14812517d6c50f5b66da
-SHA_PRACTICES=7d746e65d56ee4910572b75738051482f4735f38
+SHA_PRACTICES=b8a6cb6e6a30331d852e151504d2c7b5567dfc20
 CHANGED_SHA=0123456789abcdef0123456789abcdef01234567
 
 stub_practices="$SHA_PRACTICES"
@@ -75,7 +75,7 @@ assert_contains "changed PRACTICES.md: names the file" "$out" "CHANGED    PRACTI
 assert_contains "changed PRACTICES.md: shows the new SHA" "$out" "$CHANGED_SHA"
 assert_not_contains "changed PRACTICES.md: LICENSE not flagged" "$out" "CHANGED    LICENSE"
 assert_contains "changed PRACTICES.md: compare URL" "$out" \
-  "https://github.com/vojtaholik/good-css/compare/b645ab15b9fcd059c0227c21b6a144bb70639f1a...main"
+  "https://github.com/vojtaholik/good-css/compare/92d436ba1937d1b1407c47e35abb3e199eaace2e...main"
 stub_practices="$SHA_PRACTICES"
 
 # 3. The fetch fails.

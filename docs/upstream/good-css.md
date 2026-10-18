@@ -6,13 +6,13 @@ techniques for agents. The `user-interface` plugin's `/user-interface:write-css`
 47 techniques and vendors its CSS linter. Provenance lives here and in the plugin CHANGELOG, never
 in skill files, where it is agent-facing noise.
 
-**Pinned upstream state:** `main@b645ab15b9fcd059c0227c21b6a144bb70639f1a` (committed
-2026-10-09T10:25:23Z). The repository has no tags or releases, so the pin is a commit. Files read,
-by `git hash-object` blob SHA at the pin:
+**Pinned upstream state:** `main@92d436ba1937d1b1407c47e35abb3e199eaace2e` (committed 2026-10-10,
+the latest commit to `PRACTICES.md`; the repository has no tags or releases, so the pin is a
+commit). Files read, by `git hash-object` blob SHA at the pin:
 
 | Upstream path | Blob SHA at the pin | Ours |
 |---|---|---|
-| `PRACTICES.md` | `7d746e65d56ee4910572b75738051482f4735f38` | Absorbed: restructured into the eight topic files under [`skills/write-css/reference/`](../../plugins/user-interface/skills/write-css/reference/) |
+| `PRACTICES.md` | `b8a6cb6e6a30331d852e151504d2c7b5567dfc20` | Absorbed: restructured into the eight topic files under [`skills/write-css/reference/`](../../plugins/user-interface/skills/write-css/reference/) |
 | `scripts/check-css.mjs` | `6fa72714ba18cf02f698fa8015f63df043b3af85` | Vendored unmodified: [`skills/write-css/vendor/check-css.mjs`](../../plugins/user-interface/skills/write-css/vendor/check-css.mjs) |
 | `LICENSE` | `66a325d82e56f2f41ebd14812517d6c50f5b66da` | Vendored unmodified: [`skills/write-css/vendor/LICENSE`](../../plugins/user-interface/skills/write-css/vendor/LICENSE) |
 
@@ -21,15 +21,18 @@ not ship, wrap or depend on them.
 
 - **Pointer**: when re-auditing the techniques, fetch
   <https://github.com/vojtaholik/good-css/blob/main/PRACTICES.md> live and diff it against the pin
-  (<https://github.com/vojtaholik/good-css/compare/b645ab15b9fcd059c0227c21b6a144bb70639f1a...main>).
-- **As of**: 2026-10-10
+  (<https://github.com/vojtaholik/good-css/compare/92d436ba1937d1b1407c47e35abb3e199eaace2e...main>).
+- **As of**: 2026-10-18
 - **Recheck trigger**: a new upstream commit to `PRACTICES.md`, `scripts/check-css.mjs` or
-  `LICENSE` after `b645ab15b9fc`, or a Baseline status change for a technique the skill uses. Re-audit
+  `LICENSE` after `92d436ba1937`, or a Baseline status change for a technique the skill uses. Re-audit
   the affected rows below; a changed `check-css.mjs` or `LICENSE` means re-vendoring the copy and
   updating its pin in the drift script and this table.
 
-The drift check on 2026-10-11 found `PRACTICES.md` at blob `b8a6cb6e6a30331d852e151504d2c7b5567dfc20`
-on `main`: the trigger has fired and the re-audit is pending.
+The 2026-10-18 re-audit moved the pin from `b645ab15b9fc` (`PRACTICES.md` blob `7d746e65`) to
+`92d436ba1937` (blob `b8a6cb6e`). The only change was to technique 7, `content-grid-with-breakouts`:
+upstream now says to use the grid as the container of every page, whether or not anything goes wider
+than the content, and adds a rule to replace each centered `max-width` wrapper with it. The
+reference `layout.md` carries both; no credit changed.
 
 ## Drift check
 
