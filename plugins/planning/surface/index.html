@@ -49,6 +49,7 @@ header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-botto
 .eyebrow{font:500 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 #roundLbl:not(:empty)+#eyebrow:not(:empty)::before{content:" \00b7  "}
 .mlink{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.qcount::before{content:"\00b7  ";color:var(--faint)}
 .mlink.sep::before{content:"\00b7  ";color:var(--faint)}
 #pendBtn{color:var(--res)}
 .cline{flex:1 1 12em;min-width:0;text-align:left;border:0;background:none;padding:2px 0;cursor:pointer;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -399,6 +400,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       </div>
       <div class="hright">
         <div class="meter"><button class="mlink" id="meterText" title="Next item needing you (n)">0 of 0 answered</button><span class="bar"><i id="meterBar" style="width:0%"></i></span>
+          <span class="qcount" id="qCounts"></span>
           <button class="mlink sep" id="pendBtn" title="Show the questions pending Claude's research" hidden></button>
           <button class="mlink sep" id="revBtn" title="Show the answered questions to review" hidden></button>
           <button class="mlink sep assume" id="assumeCount" hidden></button>
@@ -894,7 +896,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("title").textContent = m.title || "Interview";
     const l = S.doc.questions.filter(live), done = l.filter(settled).length, wn = l.filter(q => stateOf(q) === "wait").length;
     $("meterText").textContent = done + " of " + l.length + " answered";
-    $("meterText").title = "Next item needing you (n). " + S.doc.questions.filter(q => stateOf(q) === "arch").length + " archived, not counted."; $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
+    const na0 = S.doc.questions.filter(q => stateOf(q) === "arch").length;
+    $("qCounts").textContent = l.length + " live, " + na0 + " archived"; $("qCounts").title = "Question ids run on one session counter, so the highest id is not the number of questions.";
+    $("meterText").title = "Next item needing you (n). " + na0 + " archived, not counted."; $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
     const pb = $("pendBtn"); pb.hidden = !wn; pb.textContent = wn + " pending research";
     const rn = l.filter(q => isAnswered(stateOf(q)) && needsYou(q)).length, rb = $("revBtn"); rb.hidden = !rn; rb.textContent = rn + " to review"; // the Review filter's predicate
     const [cls, word] = conn(), pill = $("pill");
