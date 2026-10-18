@@ -87,7 +87,7 @@ cd "$(git rev-parse --show-toplevel)" || exit 2
 
 if ((uncommitted)); then
   if [[ -z "$base" ]]; then
-    base="$(git rev-parse --verify HEAD)" || exit 2
+    base="$(git rev-parse HEAD)" || exit 2
   fi
   snap="$(mktemp -d)" || exit 2
   trap 'git worktree remove --force "$snap/tree" >/dev/null 2>&1; rm -rf "$snap"' EXIT
