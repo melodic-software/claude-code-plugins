@@ -177,7 +177,8 @@ model in `context/watch-pipeline.md`)
 - **Phase 8. Synthesis**. `recommendations/**` against one resolved `--target`; no auto-implement;
   item 8.4 is the interview handoff, `recommendations/interview.md`, offering `/planning:interview`
 - **Phase 9. Outcome verification**. `check-watch-outcomes.js "<slice-dir>" --write-report` must
-  exit 0, then `watch/watch-state.js close <slice-dir>` closes the slice
+  exit 0, then (with a corpus target configured) `watch/relayout-slice.js` before `close`, which
+  removes the media it copies, then `watch/watch-state.js close <slice-dir>` closes the slice
 
 **Phase markers.** `run-watch.js` marks `acquire`, `transcript`, `watching` and `harvest`. Mark
 the rest with `watch/watch-state.js mark-phase <slice-dir> <marker>` (idempotent): `companion`
