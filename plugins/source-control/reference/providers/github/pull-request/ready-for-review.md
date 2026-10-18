@@ -56,6 +56,16 @@ printf '%s' "$PRE_READY_RESPONSE" |
 
 On a 404, gh also prints `gh: Not Found (HTTP 404)` to stderr; that line is expected.
 
+## Record the head before the refresh
+
+Run the wait, flip and confirm blocks below in the same shell as this one, since they share
+`HEAD_BEFORE`, `HEAD_SHA`, `CI_WORKFLOW`, `RUNS_BEFORE` and `ready_run_seen`. When 2.5.2 is skipped,
+still run this line, before the push.
+
+```bash
+HEAD_BEFORE=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exit 1
+```
+
 ## Refresh the base with a merge
 
 ```bash
@@ -99,9 +109,36 @@ printf '%s\n' "$COMMENT" | gh pr comment "$PR_NUMBER" --body-file -
 `check-ready-holds.sh` reads the title, body, labels and closing issue references, never
 comments, so the comment cannot set or lift a hold there.
 
-## Flip to ready
+## Wait for the push's CI run
+
+`CI_WORKFLOW` is the repository's CI workflow file (`ci.yml` here). Skip the wait when the head is
+unchanged, but still run the first two assignments, which the flip block reads. A run listed for the head SHA means the push's event reached the workflow; the wait
+does not look at the run's result.
 
 ```bash
+CI_WORKFLOW=ci.yml
+HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exit 1
+if [ "$HEAD_SHA" != "$HEAD_BEFORE" ]; then
+  FOUND=0
+  for _ in $(seq 18); do   # 18 polls x 5 s = 90 s
+    N=$(gh run list --workflow "$CI_WORKFLOW" --commit "$HEAD_SHA" --event pull_request \
+      --json databaseId -q 'length') || N=0
+    [ "${N:-0}" -gt 0 ] && { FOUND=1; break; }
+    sleep 5
+  done
+fi
+```
+
+`FOUND=0` after the loop is a timeout: report it and flip anyway.
+
+## Flip to ready
+
+Snapshot the head's run ids first, so the confirmation can tell a run the flip started from an
+earlier draft one:
+
+```bash
+RUNS_BEFORE=$(gh run list --workflow "$CI_WORKFLOW" --commit "$HEAD_SHA" --event pull_request \
+  --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
 gh pr ready "$PR_NUMBER"
 ```
 
@@ -113,3 +150,43 @@ gh api --method POST "repos/{owner}/{repo}/pulls/$PR_NUMBER/ccr/ready_for_review
 ```
 
 Or the GitHub MCP `update_pull_request` call with `draft: false`.
+
+## Confirm a ready run
+
+A new run id for the head after the flip shows a run started, not that it carries the ready
+payload: a draft-payload run that registers late is also a new id, and it cancels the ready run
+through the per-PR concurrency group. Define `ready_run_seen` first, always, since the toggle below
+calls it (24 polls x 5 s = 120 s):
+
+```bash
+ready_run_seen() {
+  for _ in $(seq 24); do
+    N=$(gh run list --workflow "$CI_WORKFLOW" --commit "$HEAD_SHA" --event pull_request \
+      --json databaseId -q "map(select(.databaseId as \$id | $RUNS_BEFORE | index(\$id) | not)) | length") || N=0
+    [ "${N:-0}" -gt 0 ] && return 0
+    sleep 5
+  done
+  return 1
+}
+```
+
+When the wait above timed out (`FOUND=0`), the push's run had not registered when `RUNS_BEFORE` was
+taken and a new id proves nothing: do not call `ready_run_seen` here, go straight to the toggle,
+which starts a run after the draft one has registered. Otherwise call it right after the flip:
+
+```bash
+ready_run_seen
+```
+
+When it returns 1, toggle once and wait again. A rerun replays the draft payload, so it does not
+help:
+
+```bash
+RUNS_BEFORE=$(gh run list --workflow "$CI_WORKFLOW" --commit "$HEAD_SHA" --event pull_request \
+  --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
+gh pr ready "$PR_NUMBER" --undo && gh pr ready "$PR_NUMBER" && ready_run_seen
+```
+
+Exit 0 after the toggle means a new run appeared; report it as "a new run appeared", never as a
+confirmed ready run, and report the toggle either way. In a cloud session
+the toggle goes through the same routes as the flip.

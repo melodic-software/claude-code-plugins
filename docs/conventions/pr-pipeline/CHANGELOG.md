@@ -1,14 +1,33 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.6 - 2026-10-18
+
+`pr-unblock` `address-feedback` widens a kept thread's scope from its path alone to also a file in
+the `plugins/<p>/` directory that path sits in, and a test file (`test_*.py`, `*_test.py`,
+`*.test.*`, `*.spec.*`) in that path's directory
+([#8109](https://github.com/melodic-software/claude-code-plugins/issues/8109)). The plugin-wide
+part leaves out files the harness or a shell runs or loads as instructions: anything under
+`hooks/`, `.claude-plugin/` or a `.claude/` directory, a `CLAUDE.md` or `AGENTS.md`, and any
+`.sh`, `.py`, `.mjs`, `.js` or `.ts` file. The review-thread tool, the promote step and the reply
+job apply the same rule; the promote step imports the base's `thread-scope.mjs` from a copy taken
+before the head checkout, checked against its SHA-256. `.github/` stays refused. `version` stays 2.
+
 ## 2.11.4 - 2026-10-18
 
-`pr-unblock` `address-feedback` widens a kept thread's scope from its path alone to also any file
-in the `plugins/<p>/` directory that path sits in, and a test file (`test_*.py`,
-`*_test.py`, `*.test.*`, `*.spec.*`) in that path's directory
-([#8109](https://github.com/melodic-software/claude-code-plugins/issues/8109)). The review-thread
-tool, the promote step and the reply job apply the same rule; the promote step imports the base's
-`thread-scope.mjs` from a copy taken before the head checkout, checked against its SHA-256.
-`.github/` stays refused. `version` stays 2.
+A write skill that commits through `commit_files` also gets `Bash(chmod +x *)`, and its commit
+instruction says to run `chmod +x` on every new or changed file that starts with `#!` or ends in
+`.sh` first: `commit_files` takes each file's mode from disk, and `Write` creates a file without
+the executable bit, so lane PRs landed new scripts as `100644`
+([pr-run-activity.md](pr-run-activity.md#skill-activities)). `prepare: merge-base` is unchanged:
+the runner commits the staged index, whose modes the merge set. `version` stays 2.
+
+## 2.11.3 - 2026-10-18
+
+The verify-script wrapper for skill-quality's `check-skill.sh` runs it with `HOME` set to a fresh
+`mktemp -d` directory and `CLAUDE_CONFIG_DIR` to that directory's `.claude`, so a skill test that
+writes under `~/.claude` no longer fails on the runner's read-only one
+([#8027](https://github.com/melodic-software/claude-code-plugins/issues/8027)). Other
+verify-scripts keep the runner's `HOME`. `version` stays 2.
 
 ## 2.11.2 - 2026-10-18
 
