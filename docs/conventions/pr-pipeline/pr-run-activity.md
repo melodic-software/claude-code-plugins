@@ -594,8 +594,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    kept threads, checks paths, and records a reply: it refuses a disposition file outside the
    scratch directory or off the template, and a `VALID` reply whose fix is not on the lane branch
    or whose lane branch changes a file outside every kept thread's scope or any `.github/` path.
-   A thread's scope is its path, any file in the `plugins/<p>/evals/<case>/` directory its path
-   sits in, and a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
+   A thread's scope is its path, any file in the `plugins/<p>/` directory its path sits in, and
+   a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
    directory. It posts nothing. The promote step then moves the PR branch only when every path the
    lane branch changes is in a kept thread's scope, none under `.github/`, in fewer than 300
    files, judged by a copy of the base's `thread-scope.mjs` taken before the head checkout and

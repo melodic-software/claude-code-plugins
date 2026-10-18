@@ -87,19 +87,20 @@ assert_exit "check-paths refuses .github/ in any letter case" 1 "$?"
 run check-paths .github/workflows/ci.test.yml >/dev/null 2>&1
 assert_exit "check-paths refuses a test file beside a .github/ thread path" 1 "$?"
 
-# check-paths: the kept thread's eval case, and test files beside a thread path
+# check-paths: any file in a kept thread's plugins/<p>/ directory, and test files beside a thread path
 setup
 jq '.threads += [{"id":"PRRT_e","path":"plugins/p/evals/c/case.yaml","root_comment_id":400,"comments":[]},
   {"id":"PRRT_s","path":"plugins/planning/surface/round.py","root_comment_id":401,"comments":[]}]' \
   "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
 for path in plugins/p/evals/c/samples/y.json plugins/p/evals/c/samples/deep/z.json \
+  plugins/p/evals/other/samples/y.json plugins/p/skills/s/SKILL.md plugins/p/evals/x.json \
+  plugins/planning/README.md plugins/planning/surface/helper.py plugins/planning/test_round.py \
   plugins/planning/surface/test_round.py plugins/planning/surface/round_test.py src/a.test.js src/a.spec.ts; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths allows $path" 0 "$?"
 done
-for path in plugins/p/evals/other/samples/y.json plugins/p/skills/s/SKILL.md plugins/p/evals/x.json \
-  plugins/planning/surface/tests/test_round.py plugins/planning/test_round.py src/lib/a.test.js \
-  plugins/planning/surface/helper.py plugins/planning/surface/test_round.sh test_root.py \
+for path in plugins/q/evals/c/samples/y.json plugins/pp/README.md plugins/README.md \
+  src/lib/a.test.js src/helper.js src/test_a.sh test_root.py \
   plugins/p/evals/c/../../../../.github/workflows/x.yml plugins/p/evals/c/./y.json plugins/p/evals/c//y.json \
   /src/a.js ./src/a.js; do
   run check-paths "$path" >/dev/null 2>&1

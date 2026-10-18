@@ -6,17 +6,17 @@ export function isProtectedPath(path) {
   return /^\.github(\/|$)/i.test(String(path));
 }
 
-const EVAL_CASE = /^plugins\/[^/]+\/evals\/[^/]+\//;
+const PLUGIN_DIR = /^plugins\/[^/]+\//;
 const TEST_FILE = /^(test_[^/]*\.py|[^/]*_test\.py|[^/]*\.(test|spec)\.[^/]+)$/;
 const dirOf = (path) => path.slice(0, path.lastIndexOf("/") + 1);
 
 // An empty, . or .. segment, so a leading or doubled / too.
 const BAD_SEGMENT = /(^|\/)\.{0,2}(\/|$)/;
 
-// A kept thread's own path, any file in the plugins/<p>/evals/<case>/
-// directory a kept thread's path sits in, or a test file in the same
-// directory as a kept thread's path; never anything under .github/, and
-// never a path that is not in normal form.
+// A kept thread's own path, any file in the plugins/<p>/ directory a kept
+// thread's path sits in, or a test file in the same directory as a kept
+// thread's path; never anything under .github/, and never a path that is
+// not in normal form.
 export function inThreadScope(path, threadPaths) {
   if (isProtectedPath(path) || BAD_SEGMENT.test(path)) {
     return false;
@@ -25,8 +25,8 @@ export function inThreadScope(path, threadPaths) {
     return true;
   }
   const kept = [...threadPaths];
-  const evalCase = EVAL_CASE.exec(path)?.[0];
-  if (evalCase !== undefined && kept.some((p) => p.startsWith(evalCase))) {
+  const plugin = PLUGIN_DIR.exec(path)?.[0];
+  if (plugin !== undefined && kept.some((p) => p.startsWith(plugin))) {
     return true;
   }
   const dir = dirOf(path);

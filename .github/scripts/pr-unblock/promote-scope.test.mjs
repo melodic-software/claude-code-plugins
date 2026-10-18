@@ -78,10 +78,12 @@ async function promote(files, { scope = readFileSync(SCOPE), sha256 } = {}) {
 const HOLD = /^No hold labels were read/;
 const OUT = /^The lane branch changes a path outside the kept threads' scope or under \.github\//;
 
-test("in-scope changes pass the path check: the thread's path, its eval case, a sibling test", async () => {
+test("in-scope changes pass the path check: the thread's path, its plugin's files, a sibling test", async () => {
   const failed = await promote([
     { filename: "plugins/p/evals/c/case.yaml" },
     { filename: "plugins/p/evals/c/samples/deep/new.json" },
+    { filename: "plugins/p/evals/other/samples/new.json" },
+    { filename: "plugins/p/README.md" },
     { filename: "src/test_round.py" },
   ]);
   assert.equal(failed.length, 1);
@@ -89,7 +91,7 @@ test("in-scope changes pass the path check: the thread's path, its eval case, a 
 });
 
 for (const file of [
-  { filename: "plugins/p/evals/other/samples/new.json" },
+  { filename: "plugins/q/evals/c/samples/new.json" },
   { filename: "src/lib/test_round.py" },
   { filename: ".github/workflows/x.yml" },
   { filename: "plugins/p/evals/c/x.json", previous_filename: ".github/x.yml" },

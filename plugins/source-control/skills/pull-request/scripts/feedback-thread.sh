@@ -45,18 +45,18 @@ repo=$(jq -er '.repository | select(test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))' 
   die 2 "the thread file names no repository"
 
 # Not under .github/ in any letter case, with no empty, . or .. segment, and
-# in a kept thread's scope: its path, any file in the
-# plugins/<p>/evals/<case>/ directory it sits in, or a test file in its
-# directory. The same rule as .github/scripts/pr-unblock/thread-scope.mjs,
-# which the promote step and the reply job apply.
+# in a kept thread's scope: its path, any file in the plugins/<p>/
+# directory it sits in, or a test file in its directory. The same rule as
+# .github/scripts/pr-unblock/thread-scope.mjs, which the promote step and
+# the reply job apply.
 allowed() {
   [[ ! ${1,,} =~ ^\.github(/|$) && ! $1 =~ (^|/)\.{0,2}(/|$) ]] &&
     jq -e --arg p "$1" '
       def dir: sub("[^/]*$"; "");
-      (first($p | capture("^(?<c>plugins/[^/]+/evals/[^/]+/)").c) // null) as $case
+      (first($p | capture("^(?<c>plugins/[^/]+/)").c) // null) as $plugin
       | ($p | sub("^.*/"; "") | test("^(test_[^/]*\\.py|[^/]*_test\\.py|[^/]*\\.(test|spec)\\.[^/]+)$")) as $test
       | any(.threads[].path; . == $p
-          or ($case != null and startswith($case))
+          or ($plugin != null and startswith($plugin))
           or ($test and dir == ($p | dir)))' "$threads_file" >/dev/null
 }
 

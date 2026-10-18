@@ -3,7 +3,7 @@
 ## 2.11.4 - 2026-10-18
 
 `pr-unblock` `address-feedback` widens a kept thread's scope from its path alone to also any file
-in the `plugins/<p>/evals/<case>/` directory that path sits in, and a test file (`test_*.py`,
+in the `plugins/<p>/` directory that path sits in, and a test file (`test_*.py`,
 `*_test.py`, `*.test.*`, `*.spec.*`) in that path's directory
 ([#8109](https://github.com/melodic-software/claude-code-plugins/issues/8109)). The review-thread
 tool, the promote step and the reply job apply the same rule; the promote step imports the base's

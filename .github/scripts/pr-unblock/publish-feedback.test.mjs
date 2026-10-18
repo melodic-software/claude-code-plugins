@@ -422,11 +422,12 @@ for (const [label, compare] of [
   });
 }
 
-test("a VALID fix that also adds a sample in its thread's eval case lands; a sibling case's sample does not", async () => {
+test("a VALID fix that also adds a file in its thread's plugin lands; another plugin's file does not", async () => {
   const caseRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: "plugins/p/evals/c/case.yaml" }] });
   for (const [sample, landed] of [
     ["plugins/p/evals/c/samples/new.json", true],
-    ["plugins/p/evals/other/samples/new.json", false],
+    ["plugins/p/evals/other/samples/new.json", true],
+    ["plugins/q/evals/c/samples/new.json", false],
   ]) {
     const api = fakeApi({
       compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: "plugins/p/evals/c/case.yaml" }, { filename: sample }] },

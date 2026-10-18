@@ -11,25 +11,28 @@ test("a kept thread's own path is in scope", () => {
   assert.equal(inThreadScope("plugins/p/evals/c/graders/x.md", kept), true);
 });
 
-test("a file in the same eval case as a kept thread's path is in scope, at any depth", () => {
-  assert.equal(inThreadScope("plugins/p/evals/c/samples/y.json", kept), true);
-  assert.equal(inThreadScope("plugins/p/evals/c/samples/deep/z.json", kept), true);
+// plugins/planning/README.md is the file #8178's run 39117146913 refused.
+test("any file in the same plugins/<p>/ directory as a kept thread's path is in scope, at any depth", () => {
+  for (const path of [
+    "plugins/p/evals/c/samples/y.json",
+    "plugins/p/evals/other/samples/deep/z.json",
+    "plugins/p/evals/evals.json",
+    "plugins/p/skills/s/SKILL.md",
+    "plugins/p/README.md",
+  ]) {
+    assert.equal(inThreadScope(path, kept), true, path);
+  }
+  assert.equal(inThreadScope("plugins/planning/README.md", new Set(["plugins/planning/surface/round.py"])), true);
 });
 
-test("a sibling eval case, a skill file and an unnamed file stay out of scope", () => {
-  assert.equal(inThreadScope("plugins/p/evals/other/samples/y.json", kept), false);
-  assert.equal(inThreadScope("plugins/p/skills/s/SKILL.md", kept), false);
-  assert.equal(inThreadScope("src/b.js", kept), false);
+test("another plugin's file and an unnamed file outside plugins/ stay out of scope", () => {
   assert.equal(inThreadScope("plugins/q/evals/c/samples/y.json", kept), false);
+  assert.equal(inThreadScope("plugins/pp/README.md", kept), false);
+  assert.equal(inThreadScope("src/b.js", kept), false);
+  assert.equal(inThreadScope("plugins/README.md", kept), false);
 });
 
-test("a file directly under evals/ is no case directory", () => {
-  const evalsFile = new Set(["plugins/p/evals/evals.json"]);
-  assert.equal(inThreadScope("plugins/p/evals/other.json", evalsFile), false);
-  assert.equal(inThreadScope("plugins/p/evals/c/case.yaml", evalsFile), false);
-});
-
-test("with no kept thread under evals/, an eval case file is refused", () => {
+test("with no kept thread under the plugin, its files are refused", () => {
   assert.equal(inThreadScope("plugins/p/evals/c/samples/y.json", new Set(["src/a.js"])), false);
 });
 
@@ -48,18 +51,9 @@ test("a test file in the same directory as a kept thread's path is in scope", ()
   }
 });
 
-test("a test file in another directory, or a same-directory file that is no test, stays out of scope", () => {
-  const surface = new Set(["plugins/planning/surface/round.py", "src/a.js"]);
-  for (const path of [
-    "plugins/planning/surface/tests/test_round.py",
-    "plugins/planning/test_round.py",
-    "plugins/planning/other/test_round.py",
-    "src/lib/a.test.js",
-    "plugins/planning/surface/helper.py",
-    "plugins/planning/surface/testing.py",
-    "plugins/planning/surface/test_round.sh",
-    "test_root.py",
-  ]) {
+test("outside plugins/, a test file in another directory, or a same-directory file that is no test, stays out of scope", () => {
+  const surface = new Set(["src/a.js"]);
+  for (const path of ["src/lib/a.test.js", "src/helper.js", "src/testing.js", "src/test_a.sh", "test_root.py"]) {
     assert.equal(inThreadScope(path, surface), false, path);
   }
 });
