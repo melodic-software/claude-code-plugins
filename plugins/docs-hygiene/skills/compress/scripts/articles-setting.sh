@@ -49,6 +49,11 @@ count="$(grep -cE "$key_re" "$file")"
 
 value="$(bash "$READER" --strict "$file" "$KEY" 2>/dev/null)"
 status=$?
+# The strict reader also rejects a duplicate key; name the duplicate first.
+if [[ "$count" =~ ^[0-9]+$ ]] && ((count > 1)); then
+  printf 'invalid\tset %s times\n' "$count"
+  exit 0
+fi
 if ((status == 3)); then
   printf 'invalid\tdoes not parse\n'
   exit 0
