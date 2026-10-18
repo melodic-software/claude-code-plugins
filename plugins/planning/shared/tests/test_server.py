@@ -748,28 +748,32 @@ class TestSnapshot(ServerCase):
 
     def test_an_unchanged_snapshot_answers_304(self):
         _, guest = self.join("Ann")
-        _, h, _ = self.get("/api/state", guest)
-        code, h2, body = self.get("/api/state", {**guest, "If-None-Match": h["ETag"]})
-        self.assertEqual((code, h2["ETag"], body), (304, h["ETag"], None))
-        self.post("/api/rename", {"name": "Annie"}, guest)
-        code, _, out = self.get("/api/state", {**guest, "If-None-Match": h["ETag"]})
+        now = server.time.time()  # one PRESENCE_TICK for every read: the tick turning over is its own test below
+        with mock.patch.object(server.time, "time", lambda: now):
+            _, h, _ = self.get("/api/state", guest)
+            code, h2, body = self.get("/api/state", {**guest, "If-None-Match": h["ETag"]})
+            self.assertEqual((code, h2["ETag"], body), (304, h["ETag"], None))
+            self.post("/api/rename", {"name": "Annie"}, guest)
+            code, _, out = self.get("/api/state", {**guest, "If-None-Match": h["ETag"]})
         self.assertEqual((code, out["me"]["name"]), (200, "Annie"))
 
     def test_a_presence_change_alone_answers_only_the_presence_part(self):
         ann_pid, ann = self.join("Ann")
         bo_pid, bo = self.join("Bo")
-        _, h, snap = self.get("/api/state?since=0", ann)
-        self.post("/api/heartbeat", {"q": "Q1", "tab": "t1"}, bo)
-        code, h2, out = self.get(f"/api/state?since={snap['rev']}", {**ann, "If-None-Match": h["ETag"]})
-        self.assertEqual((code, sorted(out)), (200, ["lastSeen", "presence", "presenceOnly", "rev", "serverTime"]))
-        self.assertEqual((out["rev"], out["presenceOnly"], session.wire_error(out, "presenceOnly")), (snap["rev"], True, None))
-        self.assertIn({"pid": bo_pid, "q": "Q1", "typing": False, "chatTyping": False, "state": "active"}, out["presence"])
-        code, _, _ = self.get(f"/api/state?since={snap['rev']}", {**ann, "If-None-Match": h2["ETag"]})
-        self.assertEqual(code, 304)
-        self.post("/api/chat", {"text": "Hello"}, bo)
-        code, _, out = self.get(f"/api/state?since={snap['rev']}", {**ann, "If-None-Match": h2["ETag"]})
-        self.assertEqual((code, "presenceOnly" in out, [m["text"] for m in out["chat"]]), (200, False, ["Hello"]))
-        self.assertEqual(out["me"]["pid"], ann_pid)
+        now = server.time.time()  # one PRESENCE_TICK for every read: the tick turning over is test_the_clock_tick_answers_presence_so_an_offline_person_drops_out
+        with mock.patch.object(server.time, "time", lambda: now):
+            _, h, snap = self.get("/api/state?since=0", ann)
+            self.post("/api/heartbeat", {"q": "Q1", "tab": "t1"}, bo)
+            code, h2, out = self.get(f"/api/state?since={snap['rev']}", {**ann, "If-None-Match": h["ETag"]})
+            self.assertEqual((code, sorted(out)), (200, ["lastSeen", "presence", "presenceOnly", "rev", "serverTime"]))
+            self.assertEqual((out["rev"], out["presenceOnly"], session.wire_error(out, "presenceOnly")), (snap["rev"], True, None))
+            self.assertIn({"pid": bo_pid, "q": "Q1", "typing": False, "chatTyping": False, "state": "active"}, out["presence"])
+            code, _, _ = self.get(f"/api/state?since={snap['rev']}", {**ann, "If-None-Match": h2["ETag"]})
+            self.assertEqual(code, 304)
+            self.post("/api/chat", {"text": "Hello"}, bo)
+            code, _, out = self.get(f"/api/state?since={snap['rev']}", {**ann, "If-None-Match": h2["ETag"]})
+            self.assertEqual((code, "presenceOnly" in out, [m["text"] for m in out["chat"]]), (200, False, ["Hello"]))
+            self.assertEqual(out["me"]["pid"], ann_pid)
 
     def test_the_clock_tick_answers_presence_so_an_offline_person_drops_out(self):
         _, ann = self.join("Ann")

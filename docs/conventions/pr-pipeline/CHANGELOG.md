@@ -1,5 +1,48 @@
 # Changelog for the PR pipeline convention
 
+## 2.12.4 - 2026-10-18
+
+`pr-run-activity-read.yml` takes a `dispatcher-run-id` input and passes it to its trigger gate with
+`dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml` and
+`dispatched-workflow: .github/workflows/pr-unblock.yml`, so a read activity that
+`pr-unblock-dispatch.yml` sent to `pr-unblock.yml` runs; any other `github-actions[bot]` dispatch
+still stops with `untrusted-actor`. With the id set, the skill step also admits `github-actions` in
+`allowed_bots`. No caller passes it yet. `version` stays 2.
+
+## 2.12.3 - 2026-10-18
+
+`pr-unblock` `address-feedback` widens a kept thread's scope from its path alone to also a file in
+the `plugins/<p>/` directory that path sits in, and a test file (`test_*.py`, `*_test.py`,
+`*.test.*`, `*.spec.*`) in that path's directory
+([#8109](https://github.com/melodic-software/claude-code-plugins/issues/8109)). The plugin-wide
+part leaves out files the harness or a shell runs or loads as instructions: anything under
+`hooks/`, `.claude-plugin/` or a `.claude/` directory, a `CLAUDE.md` or `AGENTS.md`, and any
+`.sh`, `.py`, `.mjs`, `.js` or `.ts` file. The review-thread tool, the promote step and the reply
+job apply the same rule; the promote step imports the base's `thread-scope.mjs` from a copy taken
+before the head checkout, checked against its SHA-256. `.github/` stays refused. `version` stays 2.
+
+## 2.12.2 - 2026-10-18
+
+On a pull request labeled `needs-human` (the human-gated role label), `pr-unblock`
+`address-feedback` works a thread when a person on the trusted-actor list with write or admin
+permission asks for the fix: a line of their reply after the lane's escalation starts with
+`PR-fix lane: please fix this finding`, in any case, outside a fenced block. Without one the
+dispatcher starts nothing and the select step skips `awaiting-human`, so the pull request stays
+held; with one the write runner lifts only the human-gated hold for that run
+([pr-run-activity.md](pr-run-activity.md#prepare-review-threads)). Its `labels-absent` is
+`[do-not-merge]`, `do-not-merge` still stops it, every other activity still waits on
+`needs-human`, and `pr-merge` still refuses a `needs-human` pull request. `version` stays 2.
+
+## 2.12.1 - 2026-10-18
+
+A write-runner skill run that claude-code-action fails only because its `success` result went over
+`--max-turns` now counts as a success: `act-outcome`, the verdict, the lane record and the job
+result report success, so `pipeline/resolve-issue` posts `success` and report-outcome proceeds as on
+any finished run. The run job reads this from the execution file's last result message (subtype
+`success`, `is_error` false, `num_turns` over the cap); any other failure, or a missing or
+unreadable execution file, still fails
+([pr-run-activity.md](pr-run-activity.md#the-run-job)). `version` stays 2.
+
 ## 2.12.0 - 2026-10-18
 
 `merge.max-in-flight` (an integer of at least 1, default 1) caps the lane merges in flight: the

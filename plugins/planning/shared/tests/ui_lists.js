@@ -37,12 +37,12 @@ async function main() {
       guests.push({ pid: out.pid, h: { ...ip, "X-Session-Secret": out.secret } });
     }
     const { id: hello } = await api("/api/chat", { text: "Hello all" }, owner);
-    await Promise.all(guests.map(async (g, i) => {
-      await api("/api/answer", { qid: "Q1", text: `Answer from Guest ${i + 1}`, device: "computer", view: "focus" }, g.h);
-      await wait(20 * i);
+    await Promise.all(guests.map((g, i) => api("/api/answer", { qid: "Q1", text: `Answer from Guest ${i + 1}`, device: "computer", view: "focus" }, g.h)));
+    // In order, one at a time: the checks below read proposals and replies oldest first.
+    for (const [i, g] of guests.entries()) {
       await api("/api/propose", { text: `Proposal from Guest ${i + 1}` }, g.h);
       if (i < 25) await api("/api/chat", { text: `Reply ${i + 1}`, replyTo: hello }, g.h);
-    }));
+    }
     const gone = await api("/api/join", { name: "Gone", device: "computer" }, { "CF-Connecting-IP": "198.51.100.99" });
     await api("/api/person/remove", { pid: gone.pid, on: true }, owner);
     // Presence lives in memory: a restart leaves everyone offline until they beat. Guests 1-10 are here and active,

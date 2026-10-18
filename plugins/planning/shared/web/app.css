@@ -396,6 +396,7 @@
 .app .vf-qtext { font-size: clamp(22px, 2.3vw, 29px); line-height: 1.22; font-weight: 650; letter-spacing: -0.022em; text-wrap: balance; overflow-wrap: anywhere; }
 .app .vf-qtext:focus { outline: none; }
 .app .vf-onit { display: flex; align-items: center; gap: 8px; margin-block: 12px 24px; color: var(--muted); font-size: 12px; min-block-size: 20px; }
+.app .vf-qonit { display: none; }
 
 /* locked block: the one loud element */
 .app .vf-lock {
@@ -968,7 +969,6 @@
 .app .vf-keys { inline-size: 320px; }
 .app .vf-help-rec .core-rec-line { color: var(--faint); font-size: 12px; }
 .app .vf-help-rec .core-rec-link { color: var(--accent-text, var(--accent)); }
-.app .vf-help-rec .core-rec-switch { color: var(--text); font-size: 13px; }
 .app .vf-keylist { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 14px; margin: 10px 0 0; align-items: center; }
 .app .vf-keylist dt { display: flex; gap: 4px; }
 .app .vf-keylist dd { margin: 0; color: var(--muted); }
@@ -1943,10 +1943,13 @@
   .app .vf-center[data-mode="focus"] :is(.vf-bar, .vf-toolbar) { display: none; }
   .app .vf-scroll { padding-block-start: 10px; }
   .app .vf-qmeta { gap: 8px; margin-block-end: 6px; }
-  .app .vf-qmeta > span:first-child { min-width: 0; }
+  .app .vf-qmeta > span:first-child { flex: 1 1 0; min-width: 7.5em; } /* the position takes two lines before a chip wraps */
   .app .vf-qmeta :is(.vf-purpose, .vf-purposesel, .vf-chip) { order: 1; } /* chips wrap to their own row under the position and the arrows */
   .app .vf-qmeta { flex-wrap: wrap; row-gap: 6px; }
   .app .vf-qnav { display: flex; gap: 0; margin-inline-start: auto; flex: none; }
+  /* who else is on the question: up to 3 avatars in a slot this row keeps empty or not, so presence never moves the page */
+  .app .vf-onit { display: none; }
+  .app .vf-qonit { display: inline-flex; align-items: center; justify-content: flex-end; flex: none; inline-size: 72px; overflow: hidden; }
 
   /* the composer is one rounded line: paperclip inside its start, a round send button inside its end */
   .app .vf-composer { position: relative; padding: 8px 10px; }

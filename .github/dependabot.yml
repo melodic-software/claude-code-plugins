@@ -20,15 +20,19 @@ updates:
     # group on `dependencies`; auto-merge keys on fetch-metadata outputs).
     labels:
       - dependencies
+    # Daily so claude-code-action tracks the latest release like the CLI below.
     schedule:
-      interval: weekly
+      interval: daily
     open-pull-requests-limit: 5
     commit-message:
       prefix: build
     # Let a brand-new release settle before proposing it (supply-chain caution); security-advisory
-    # updates bypass cooldown and still surface immediately.
+    # updates bypass cooldown and still surface immediately. claude-code-action is excluded so it
+    # lands as soon as it is released.
     cooldown:
       default-days: 3
+      exclude:
+        - "anthropics/claude-code-action"
     groups:
       vendor-actions:
         patterns:
