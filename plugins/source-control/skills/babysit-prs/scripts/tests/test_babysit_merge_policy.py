@@ -3555,6 +3555,71 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
                 self.assertEqual(result.details["postMergeShared"], f"unused:{reason}")
                 share.assert_not_called()
 
+    def test_another_floor_on_a_stale_answer_leaves_the_runs_answer(self) -> None:
+        # The binding is checked before the age: a candidate on another floor
+        # is refused as bound elsewhere and writes nothing back, so the next
+        # main-floor candidate refreshes the run's answer and the one after
+        # reuses it. Every verdict is a from-scratch run's.
+        other_floor = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
+        path = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path /= "post-merge.json"
+        late = policy.datetime.now(policy.UTC) - policy.timedelta(minutes=31)
+        self.bound()
+        babysit_postmerge.write_shared(
+            str(path), self.shared(lane_gate(True), computed_at=late)
+        )
+        share = lambda answer: babysit_postmerge.write_shared(str(path), answer)  # noqa: E731
+
+        def candidate(floor: Any, expected: str) -> None:
+            """One candidate, from scratch and then on the run's file."""
+            with contextlib.ExitStack() as stack:
+                if floor is not None:
+                    stack.enter_context(
+                        mock.patch.object(
+                            policy, "merged_since_floor", return_value=floor
+                        )
+                    )
+                for shared in (None, babysit_postmerge.read_shared(str(path))):
+                    gh = self.bound()
+                    if floor is not None:
+                        gh.rest[NEWEST_CONFIG] = [{"sha": "f" * 40}]
+                    if shared is not None:
+                        self.computed_at = shared.computed_at
+                        gh.rest[self.issues_since()] = []
+                    self.judged_flight()
+                    result = self.lane_assess(
+                        post_merge=lambda floor, who: lane_gate(True),
+                        shared=shared,
+                        share=share if shared is not None else None,
+                    )
+                    if shared is None:
+                        scratch = result
+                self.assertEqual(result.details["postMergeShared"], expected)
+                self.assertEqual(self.decided(result), self.decided(scratch))
+
+        before = path.read_bytes()
+        candidate(other_floor, "unused:floor-differs")
+        self.assertEqual(path.read_bytes(), before)
+        candidate(None, "unused:stale")
+        candidate(None, "used")
+
+    def test_the_age_is_the_recorded_computed_at_not_the_files_mtime(self) -> None:
+        # Written just now, but its answer was computed 3 minutes ago with
+        # #8040 unverified: read again.
+        path = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path /= "post-merge.json"
+        self.aged(3)
+        babysit_postmerge.write_shared(str(path), self.shared(lane_gate(False)))
+        reread = babysit_postmerge.read_shared(str(path))
+        assert reread is not None
+        self.judged_flight()
+        result = self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True),
+            shared=reread,
+            share=mock.Mock(),
+        )
+        self.assertEqual(result.details["postMergeShared"], "unused:unverified-stale")
+
     def test_an_unreadable_shared_answer_is_recomputed_and_handed_back(self) -> None:
         self.bound()
         self.judged_flight()
