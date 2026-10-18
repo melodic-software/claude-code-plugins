@@ -56,6 +56,16 @@ printf '%s' "$PRE_READY_RESPONSE" |
 
 On a 404, gh also prints `gh: Not Found (HTTP 404)` to stderr; that line is expected.
 
+## Record the head before the refresh
+
+Run the wait, flip and confirm blocks below in the same shell as this one, since they share
+`HEAD_BEFORE`, `HEAD_SHA`, `RUNS_BEFORE`, `ready_run_seen` and `runs_skipped`. When 2.5.2 is skipped,
+still run this line, before the push.
+
+```bash
+HEAD_BEFORE=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exit 1
+```
+
 ## Refresh the base with a merge
 
 ```bash
@@ -99,81 +109,46 @@ printf '%s\n' "$COMMENT" | gh pr comment "$PR_NUMBER" --body-file -
 `check-ready-holds.sh` reads the title, body, labels and closing issue references, never
 comments, so the comment cannot set or lift a hold there.
 
-## List the workflow runs for the head
+## Wait for the push's CI run
 
-Both steps below read the runs registered for one head commit. `head_sha` and `event` are query
-parameters of the list-workflow-runs endpoint, `head_sha` returning only runs associated with that
-commit, and a run's `status` and `conclusion` take the values the endpoint's `status` parameter
-lists, `skipped` among them (read 2026-10-18 at
-<https://docs.github.com/en/rest/actions/workflow-runs>, "List workflow runs for a repository").
-`$HEAD_SHA` is the PR's head commit read again after the last push (2.5.2's value predates
-2.5.3's review fixes), with the `headRefOid` read from "Refresh the base with a merge".
-
-```bash
-gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
-  -f per_page=100 --jq '.workflow_runs[] | [.id, .created_at, .status, .conclusion // ""] | @tsv'
-```
-
-Each row is `id`, `created_at`, `status` and `conclusion`, the conclusion empty until the run
-completes. A `{owner}/{repo}` placeholder resolves from the checkout's remote, so in a fork checkout
-substitute the base repository from the PR's URL, as "Read the pre-ready steps at the base" does.
-
-## Wait for the head's runs to register
-
-Run it after the last push and before the flip. It polls the listing above every 10 seconds for up
-to 120 seconds and stops at the first row; no row by then is not an error, only a note in the
-report:
+The run lists here and below name no workflow: they count every `pull_request` run for the head
+SHA, so they work in any repository without knowing its CI file name. A run listed for the head
+SHA means the push's event reached the workflows; the wait does not look at any run's result. The
+push starts one run per workflow, and they may register a few seconds apart, so the wait ends only
+when the count is above zero and unchanged across two polls, which keeps a late sibling out of the
+flip's snapshot. Skip the wait when the head is unchanged, but still run the `HEAD_SHA`
+assignment, which the flip block reads.
 
 ```bash
-for _ in $(seq 1 12); do
-  ROWS=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" \
-    -f event=pull_request --jq '.workflow_runs | length') || ROWS=0
-  [ "${ROWS:-0}" -gt 0 ] && break
-  sleep 10
-done
+HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exit 1
+if [ "$HEAD_SHA" != "$HEAD_BEFORE" ]; then
+  FOUND=0 PREV=0
+  for _ in $(seq 18); do   # 18 polls x 5 s = 90 s
+    N=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
+      --json databaseId -q 'length') || N=0
+    [ "${N:-0}" -gt 0 ] && [ "$N" = "$PREV" ] && { FOUND=1; break; }
+    PREV=${N:-0}
+    sleep 5
+  done
+fi
 ```
 
-## Check the head's lanes after the flip
+`FOUND=0` after the loop is a timeout: report it and flip anyway.
 
-Anchor the window to the flip by run id, not by clock: run ids only grow, so no clock skew between
-this host and GitHub enters, and a run the wait above let register before the flip can never match.
-Right before the flip, take `BASE_ID`, the highest run id the listing returns for the head (`0` when
-it returns none). After the flip, poll the listing for 180 seconds for a run with an id above
-`BASE_ID`, the `ready_for_review` run. A run can register seconds after the flip, and that late run
-is what the check exists to catch, so a fast run that has already completed is no reason to stop:
-the poll ends early only once every run above `BASE_ID` has completed and one of them is `skipped`,
-and otherwise it runs the whole window. A `skipped` conclusion among the runs means the lanes
-skipped on a stale draft payload; no run above `BASE_ID` by the end of the window is also a skip,
-since the flip's run never registered. A run that skips for its own reason (a label, actor or path
-filter) reads the same, so it costs one undo and ready cycle and a second skip report, never a loop.
-A failed `gh` call is not a verdict: `BASE_ID` defaults to `0` when its read fails, a failed poll
-leaves the previous `RUNS`, and a `SKIPPED` that ends up neither `true` nor `false` is reported as a
-failed check, never read as clean:
-
-```bash
-BASE_ID=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
-  -f per_page=100 --jq '[.workflow_runs[].id] | max // 0') || BASE_ID=0
-# ... flip ...
-RUNS='[]'
-for _ in $(seq 1 18); do
-  OUT=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
-    -f per_page=100) && RUNS=$(jq -c --argjson b "${BASE_ID:-0}" '[.workflow_runs[] | select(.id > $b)]' <<<"$OUT")
-  [ "$(jq 'length > 0 and all(.status == "completed") and any(.conclusion == "skipped")' <<<"$RUNS")" = true ] && break
-  sleep 10
-done
-SKIPPED=$(jq 'length == 0 or any(.conclusion == "skipped")' <<<"$RUNS")
-```
-
-Re-fire the ready event once with `gh pr ready "$PR_NUMBER" --undo && gh pr ready "$PR_NUMBER"`,
-then run this check one more time with a new `BASE_ID` taken right before the re-fire. A second skip is reported, never
-re-fired. In a cloud session `--undo` is a GraphQL mutation like the flip and fails, and the routes
-below cover the flip only: skip the re-fire there and report the skip. If the undo succeeds and the
-second `ready` fails, flip again by the route that works and report it; the PR must not stay a
-draft.
+`--commit` and `--event` filter the list server side, and `-L 100` lifts the default page so a
+repository with many workflows is counted in full. Pointer:
+[gh run list](https://cli.github.com/manual/gh_run_list) for the flags and the default limit. As
+of: 2026-10-18. Recheck trigger: a gh release that changes `run list` filtering or its default
+limit.
 
 ## Flip to ready
 
+Snapshot the head's run ids first, so the confirmation can tell a run the flip started from an
+earlier draft one:
+
 ```bash
+RUNS_BEFORE=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
+  --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
 gh pr ready "$PR_NUMBER"
 ```
 
@@ -185,3 +160,84 @@ gh api --method POST "repos/{owner}/{repo}/pulls/$PR_NUMBER/ccr/ready_for_review
 ```
 
 Or the GitHub MCP `update_pull_request` call with `draft: false`.
+
+## Confirm a ready run
+
+A new run id for the head after the flip shows a run started, not that it carries the ready
+payload: a draft-payload run that registers late is also a new id, and it cancels the ready run
+through the per-PR concurrency group. Define `ready_run_seen` first, always, since the toggle below
+calls it (24 polls x 5 s = 120 s):
+
+```bash
+ready_run_seen() {
+  for _ in $(seq 24); do
+    N=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
+      --json databaseId -q "map(select(.databaseId as \$id | $RUNS_BEFORE | index(\$id) | not)) | length") || N=0
+    [ "${N:-0}" -gt 0 ] && return 0
+    sleep 5
+  done
+  return 1
+}
+```
+
+When the wait above timed out (`FOUND=0`), the push's run had not registered when `RUNS_BEFORE` was
+taken and a new id proves nothing: do not call `ready_run_seen` here, go straight to the toggle,
+which starts a run after the draft one has registered. Otherwise call it right after the flip:
+
+```bash
+ready_run_seen
+```
+
+When it returns 1, toggle once and wait again. A rerun replays the draft payload, so it does not
+help:
+
+```bash
+RUNS_BEFORE=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
+  --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
+gh pr ready "$PR_NUMBER" --undo && gh pr ready "$PR_NUMBER" && ready_run_seen
+```
+
+Exit 0 after the toggle means a new run appeared; report it as "a new run appeared", never as a
+confirmed ready run, and report the toggle either way. In a cloud session
+the toggle goes through the same routes as the flip.
+
+## Check the new runs did not skip
+
+A new run id is not a ready run: a draft-payload run that registers after `RUNS_BEFORE` was taken
+is a new id too, and its lanes read the PR as a draft and skip. Once `ready_run_seen` returns 0,
+read the conclusions of the runs not in `RUNS_BEFORE` for up to 180 seconds (36 polls x 5 s),
+ending early on the first `skipped` one. A skipped run completes within seconds, while a ready run
+takes minutes, so the window catches the skip without waiting for the ready run to finish:
+
+```bash
+runs_skipped() {
+  SKIPPED=unknown
+  for _ in $(seq 36); do
+    S=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 --json databaseId,conclusion \
+      -q "map(select(.databaseId as \$id | $RUNS_BEFORE | index(\$id) | not)) | any(.conclusion == \"skipped\")") || S=""
+    [ "$S" = true ] && { SKIPPED=true; return 0; }
+    [ "$S" = false ] && SKIPPED=false
+    sleep 5
+  done
+  return 1
+}
+runs_skipped
+```
+
+`SKIPPED=true` means the flip lost the race. `false` is clean. `unknown` means every read failed:
+report it as a failed check, never as clean. A run that skips for its own reason (a label, actor or
+path filter) reads the same, so it costs one re-fire and a second skip report, never a loop.
+
+On `true`, re-fire once, unless the toggle above already ran: that toggle was the one re-fire, and a
+skip after it is reported, never re-fired:
+
+```bash
+RUNS_BEFORE=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
+  --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
+gh pr ready "$PR_NUMBER" --undo && gh pr ready "$PR_NUMBER" && ready_run_seen && runs_skipped
+```
+
+After the toggle above, run `runs_skipped` once on its runs as well. A second `true` is reported
+and the PR stays ready. If the undo succeeds and the second `ready` fails, flip again by the route
+that works and report it; the PR must not stay a draft. In a cloud session the re-fire goes through
+the same routes as the flip.

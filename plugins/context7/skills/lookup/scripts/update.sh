@@ -8,18 +8,27 @@
 #                         and upstream-version (the master commit both files came from)
 #                         (maintainer-only: run in a working clone, never the installed cache)
 #
-# Exit codes:
-#   0 — verified: no drift detected (or drift reported in report mode)
-#   1 — prerequisites missing (npm, curl, diff, git not on PATH)
-#   2 — state unverifiable OR requested fix/refresh failed
-#       (npm registry unreachable, upstream commit or fetch failed, post-install PATH issue,
-#        baseline write failure; missing baseline in report mode surfaces as drift, exit 0)
+# Exit codes (the shared drift-check contract):
+#   0 — no drift, or the requested fix/refresh completed with nothing left to report
+#   1 — drift: the installed CLI is behind latest, or upstream skill content differs
+#       from its baseline (a missing baseline counts as drift)
+#   2 — unverifiable: a prerequisite (npm, curl, diff, git) missing, npm registry or
+#       upstream unreachable, a requested fix/refresh failed, or usage
+# Drift outranks unverifiable: a run that finds drift exits 1 even if another check
+# could not run. A ctx7 CLI that is not installed is reported but is not drift.
 
 # No -e: check_skill_drift captures non-zero return codes via $? as drift signals,
 # not failures.
 set -uo pipefail
 
 MODE="${1:-report}"
+case "$MODE" in
+report | --fix | --refresh-baseline) ;;
+*)
+  echo "✖ Unknown mode: $MODE (expected report, --fix or --refresh-baseline)" >&2
+  exit 2
+  ;;
+esac
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SNAPSHOT_DIR="$SKILL_DIR/vendor"
@@ -34,7 +43,7 @@ UPSTREAM_RAW="https://raw.githubusercontent.com/upstash/context7"
 for cmd in npm curl diff git; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "✖ Required command not found: $cmd" >&2
-    exit 1
+    exit 2
   fi
 done
 
@@ -83,8 +92,7 @@ if [[ "$INSTALLED" == "not-installed" ]]; then
   if [[ "$MODE" == "--fix" ]]; then
     install_and_verify || exit 2
   else
-    echo "  ↳ ctx7 is not installed. Run with --fix, or manually: npm install -g ctx7@latest"
-    CLI_DRIFT=1
+    echo "  ↳ ctx7 is not installed (not counted as drift). Run with --fix, or manually: npm install -g ctx7@latest"
   fi
 elif [[ -z "$LATEST" ]]; then
   echo "  ✖ Cannot verify latest version (npm view ctx7 failed)" >&2
@@ -108,19 +116,11 @@ echo ""
 # Resolve master once and fetch both files at that commit, so both baselines and the
 # stamped upstream-version name the same revision.
 UPSTREAM_SHA=$(git ls-remote "$UPSTREAM_REPO" refs/heads/master 2>/dev/null | cut -f1)
-if [[ ! "$UPSTREAM_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "✖ Cannot resolve upstash/context7 master (git ls-remote failed)" >&2
-  exit 2
-fi
-echo "=== Upstream commit: $UPSTREAM_SHA ==="
-echo ""
-UPSTREAM_FIND_DOCS="$UPSTREAM_RAW/$UPSTREAM_SHA/skills/find-docs/SKILL.md"
-UPSTREAM_CLI_SKILL="$UPSTREAM_RAW/$UPSTREAM_SHA/skills/context7-cli/SKILL.md"
 
 # Return codes:
 #   0 — upstream unchanged (or baseline seeded/refreshed successfully in --refresh-baseline mode)
-#   1 — fetch failed or baseline write failed; state unverifiable
-#   2 — drift detected (content differs, OR baseline missing in non-refresh mode)
+#   1 — drift detected (content differs, OR baseline missing in non-refresh mode)
+#   2 — fetch failed or baseline write failed; state unverifiable
 check_skill_drift() {
   local name="$1"
   local url="$2"
@@ -133,7 +133,7 @@ check_skill_drift() {
 
   if ! curl -fsSL "$url" -o "$tmpfile" 2>/dev/null; then
     echo "  ✖ Failed to fetch $url" >&2
-    return 1
+    return 2
   fi
 
   echo "=== Upstream skill: $name ==="
@@ -142,13 +142,13 @@ check_skill_drift() {
     if [[ "$MODE" == "--refresh-baseline" ]]; then
       if ! cp "$tmpfile" "$baseline"; then
         echo "  ✖ Failed to seed baseline (check permissions/disk)" >&2
-        return 1
+        return 2
       fi
       echo "  ✓ Baseline seeded ($(wc -c <"$baseline") bytes)"
       return 0
     fi
-    echo "  ↳ Run with --refresh-baseline to seed (until seeded, state is unverified)"
-    return 2
+    echo "  ↳ Drift: run with --refresh-baseline to seed the baseline"
+    return 1
   fi
 
   # Baseline may be CRLF on a Windows checkout and upstream is always LF;
@@ -176,7 +176,7 @@ check_skill_drift() {
   if [[ "$MODE" == "--refresh-baseline" ]]; then
     if ! cp "$tmpfile" "$baseline"; then
       echo "  ✖ Failed to refresh baseline (check permissions/disk)" >&2
-      return 1
+      return 2
     fi
     echo "  ✓ Baseline refreshed to match current upstream"
     return 0
@@ -188,15 +188,23 @@ check_skill_drift() {
   echo "           $SKILL_DIR/context/{cli,mcp,lookup,update}.md"
   echo "      2. Preserve the plugin's customizations (see context/update.md)"
   echo "      3. After integration, re-run this script with --refresh-baseline"
-  return 2
+  return 1
 }
 
-check_skill_drift "find-docs" "$UPSTREAM_FIND_DOCS" "$BASELINE_FIND_DOCS"
-FIND_DOCS_RC=$?
+if [[ "$UPSTREAM_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "=== Upstream commit: $UPSTREAM_SHA ==="
+  echo ""
+  check_skill_drift "find-docs" "$UPSTREAM_RAW/$UPSTREAM_SHA/skills/find-docs/SKILL.md" "$BASELINE_FIND_DOCS"
+  FIND_DOCS_RC=$?
 
-echo ""
-check_skill_drift "context7-cli" "$UPSTREAM_CLI_SKILL" "$BASELINE_CLI_SKILL"
-CLI_SKILL_RC=$?
+  echo ""
+  check_skill_drift "context7-cli" "$UPSTREAM_RAW/$UPSTREAM_SHA/skills/context7-cli/SKILL.md" "$BASELINE_CLI_SKILL"
+  CLI_SKILL_RC=$?
+else
+  echo "✖ Cannot resolve upstash/context7 master (git ls-remote failed)" >&2
+  FIND_DOCS_RC=2
+  CLI_SKILL_RC=2
+fi
 
 if [[ "$MODE" == "--refresh-baseline" ]] && [[ $FIND_DOCS_RC == 0 ]] && [[ $CLI_SKILL_RC == 0 ]]; then
   TODAY=$(date -u +%Y-%m-%d)
@@ -208,35 +216,29 @@ fi
 
 echo ""
 echo "=== Summary ==="
-EXIT_CODE=0
-if [[ "${CLI_DRIFT:-0}" == "0" ]] && [[ $FIND_DOCS_RC == 0 ]] && [[ $CLI_SKILL_RC == 0 ]]; then
+CLI_DRIFT="${CLI_DRIFT:-0}"
+if [[ "$CLI_DRIFT" == 0 && $FIND_DOCS_RC == 0 && $CLI_SKILL_RC == 0 ]]; then
   echo "✓ No drift detected. Context7 is in sync with upstream."
-else
-  echo "↳ Drift or unverifiable state present. See sections above."
-  case "${CLI_DRIFT:-0}" in
-  1) echo "  - CLI version behind" ;;
-  2)
-    echo "  - CLI state unverifiable (npm registry unreachable)"
-    EXIT_CODE=2
-    ;;
-  *) ;; # 0 = no CLI drift; non-CLI drift handled below
+  exit 0
+fi
+echo "↳ Drift or unverifiable state present. See sections above."
+case "$CLI_DRIFT" in
+1) echo "  - CLI version behind" ;;
+2) echo "  - CLI state unverifiable (npm registry unreachable)" ;;
+*) ;; # 0 = no CLI drift
+esac
+for entry in "find-docs:$FIND_DOCS_RC" "context7-cli:$CLI_SKILL_RC"; do
+  case "${entry#*:}" in
+  1) echo "  - ${entry%%:*} SKILL.md changed upstream (or baseline missing)" ;;
+  2) echo "  - ${entry%%:*} upstream unreachable or baseline write failed (state unverifiable)" ;;
+  *) ;; # 0 = unchanged
   esac
-  if [[ $FIND_DOCS_RC == 1 ]]; then
-    echo "  - find-docs upstream fetch/write failed (state unverifiable)"
-    EXIT_CODE=2
-  elif [[ $FIND_DOCS_RC == 2 ]]; then
-    echo "  - find-docs SKILL.md changed upstream (or baseline missing)"
-  fi
-  if [[ $CLI_SKILL_RC == 1 ]]; then
-    echo "  - context7-cli upstream fetch/write failed (state unverifiable)"
-    EXIT_CODE=2
-  elif [[ $CLI_SKILL_RC == 2 ]]; then
-    echo "  - context7-cli SKILL.md changed upstream (or baseline missing)"
-  fi
+done
+if [[ "$CLI_DRIFT" == 1 || $FIND_DOCS_RC == 1 || $CLI_SKILL_RC == 1 ]]; then
   if [[ "$MODE" == "report" ]]; then
     echo ""
     echo "Next: review diffs, port relevant changes, then --refresh-baseline."
   fi
+  exit 1
 fi
-
-exit $EXIT_CODE
+exit 2

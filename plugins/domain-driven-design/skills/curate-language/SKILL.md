@@ -109,6 +109,10 @@ of the caller's Brief or design artifacts.
 - **No speculative scaffolding.** An empty glossary or map is worse than no file; create lazily.
 - **No autonomous consensus.** Ambiguous language is a question, not a write.
 
+## Next
+
+/planning:plan. The plan uses the curated terms as its canonical vocabulary.
+
 ## Gotchas
 
 - The nearest glossary is not automatically the right one in a multi-context repo; route through the

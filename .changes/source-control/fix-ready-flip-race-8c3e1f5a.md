@@ -4,4 +4,4 @@ bump: patch
 
 ### Fixed
 
-- `pull-request ready`: after the last push the flip waits up to 120 seconds for the head commit's `pull_request` workflow runs to register, so a push seconds before the flip no longer leaves its runs skipping every lane on a stale draft payload. After the flip it checks the head's runs for a skipped run, or none, within 180 seconds; it re-fires the ready event once (undo, then ready) and reports a second skip rather than looping.
+- `pull-request ready`: after the flip, the runs created for the head are checked for a `skipped` conclusion for up to 180 seconds, so a late draft-payload run whose lanes skipped is no longer taken for a ready run. A skip re-fires the ready event once (undo, then ready), sharing that one re-fire with the missing-run toggle, and a second skip is reported rather than re-fired.
