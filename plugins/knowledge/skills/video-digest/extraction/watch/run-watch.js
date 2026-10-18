@@ -49,6 +49,7 @@ import {
 import { orchestrateWatching } from "../watching/orchestrate-watching.js";
 import { writeWatchingManifest } from "../watching/write-watching-manifest.js";
 import { detectRecoverableBootstrap } from "./detect-recoverable-bootstrap.js";
+import { recordDurationMismatch } from "./duration-mismatch.js";
 import { postBootstrapSlice } from "./post-bootstrap-slice.js";
 import { recoverWatchBootstrapCli } from "./recover-watch-bootstrap.js";
 import {
@@ -360,6 +361,11 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     overCap: false,
     candidateCount: watching.candidateCount,
   };
+
+  state = await recordDurationMismatch(state, sliceDir, {
+    metadataDurationSec: metadata.durationSec,
+    probedDurationSec: watching.probedDurationSec,
+  });
 
   const manifest = await writeWatchingManifest(sliceDir, watching, tempSession);
   state.artifactPaths = {
