@@ -944,6 +944,48 @@ class TestStaticValues(unittest.TestCase):
         self.assertIsNone(_cmd(src, "c")["argument_hint"])
         self.assertEqual(_cmd(src, "c")["argument_hint_source"], "absent")
 
+    TABLE = (
+        'var Kt="Pick a type";'
+        'var vs={types:{description:()=>"Choose a type",menu:()=>"Types"},'
+        'hub:{description:()=>"Open the hub",menu:Kt},'
+        'consent:{description:()=>"Review consent",menu:()=>"Consent"}};'
+        'var s=()=>vs[n()??"consent"];'
+    )
+
+    def test_a_description_read_through_a_mode_table_resolves(self) -> None:
+        rec = _cmd(
+            self.TABLE
+            + 'x={type:"local",name:"d",description:()=>s().description(),'
+            + "menuDescription:()=>s().menu()};",
+            "d",
+        )
+        self.assertEqual(rec["description"], "Review consent")
+        self.assertEqual(rec["description_source"], "arrow")
+        self.assertEqual(
+            rec["description_variants"],
+            ["Choose a type", "Open the hub", "Review consent"],
+        )
+
+    def test_a_table_row_that_is_not_a_string_is_dropped(self) -> None:
+        src = self.TABLE.replace('()=>"Open the hub"', "()=>void 0")
+        rec = _cmd(
+            src + 'x={type:"local",name:"d",description:()=>s().description()};', "d"
+        )
+        self.assertEqual(rec["description"], "Review consent")
+        self.assertEqual(
+            rec["description_variants"], ["Choose a type", "Review consent"]
+        )
+
+    def test_a_table_with_no_string_member_stays_unresolved(self) -> None:
+        src = (
+            "var vs={a:{description:()=>void 0},consent:{description:()=>null}};"
+            'var s=()=>vs[n()??"consent"];'
+            'x={type:"local",name:"d",description:()=>s().description()};'
+        )
+        rec = _cmd(src, "d")
+        self.assertEqual(rec["description"], "")
+        self.assertEqual(rec["description_source"], "unresolved")
+
     def test_an_unresolvable_description_is_empty_and_labeled(self) -> None:
         rec = _cmd('x={type:"local",name:"d",description:()=>n().description()};', "d")
         self.assertEqual(rec["description"], "")
