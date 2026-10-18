@@ -608,8 +608,144 @@ class TestManagedPolicy(unittest.TestCase):
         (self.system / "managed-settings.d").mkdir(parents=True)
         self.config.mkdir()
 
-    def policy(self):
-        return sb.managed_policy(self.config, self.system)
+    def policy(self, plist=None, hklm=None, env=None):
+        """managed_policy with both MDM readers stubbed; `hives` records each registry hive asked."""
+        self.hives = []
+
+        def registry(hive):
+            self.hives.append(hive)
+            return hklm
+
+        return sb.managed_policy(
+            self.config, self.system, plist=lambda: plist, registry=registry, env=env or {}
+        )
+
+    def test_drop_ins_combine_lists_and_merge_nested_blocks(self):
+        (self.system / "managed-settings.json").write_text(
+            json.dumps(
+                {
+                    "channelsEnabled": True,
+                    "allowedChannelPlugins": [{"plugin": "a", "marketplace": "m"}],
+                    "env": {"X": "1"},
+                    "fallbackModel": ["one"],
+                }
+            )
+        )
+        (self.system / "managed-settings.d" / "10-more.json").write_text(
+            json.dumps(
+                {
+                    "allowedChannelPlugins": [
+                        {"plugin": "a", "marketplace": "m"},
+                        {"plugin": "b", "marketplace": "m"},
+                    ],
+                    "env": {"Y": "2"},
+                    "fallbackModel": ["two"],
+                }
+            )
+        )
+        (self.system / "managed-settings.d" / "20-more.json").write_text(
+            '{"allowedChannelPlugins": [{"plugin": "c", "marketplace": "m"}]}'
+        )
+        source, settings = self.policy()
+        self.assertEqual(source, "managed settings files")
+        self.assertEqual(
+            [p["plugin"] for p in settings["allowedChannelPlugins"]], ["a", "b", "c"]
+        )
+        self.assertEqual(settings["env"], {"X": "1", "Y": "2"})
+        self.assertEqual(settings["fallbackModel"], ["two"])
+
+    def test_a_higher_ranked_source_list_replaces_the_file_tier_list(self):
+        (self.system / "managed-settings.json").write_text(
+            '{"channelsEnabled": true, "allowedChannelPlugins": '
+            '[{"plugin": "file", "marketplace": "m"}]}'
+        )
+        mdm = {
+            "channelsEnabled": True,
+            "allowedChannelPlugins": [{"plugin": "mdm", "marketplace": "m"}],
+        }
+        source, settings = self.policy(plist=mdm)
+        self.assertEqual(source, "macOS managed preferences")
+        self.assertEqual(
+            settings["allowedChannelPlugins"], [{"plugin": "mdm", "marketplace": "m"}]
+        )
+        (self.config / "remote-settings.json").write_text(
+            '{"allowedChannelPlugins": []}'
+        )
+        source, settings = self.policy(plist=mdm)
+        self.assertEqual((source, settings["allowedChannelPlugins"]), ("server-managed settings", []))
+
+    def test_mdm_ranks_above_the_files_and_below_server_managed(self):
+        (self.system / "managed-settings.json").write_text('{"channelsEnabled": true}')
+        on = {"channelsEnabled": False}
+        self.assertEqual(self.policy(plist=on), ("macOS managed preferences", on))
+        self.assertEqual(self.policy(hklm=on), ("Windows HKLM registry", on))
+        both = self.policy(plist={"model": "a"}, hklm=on)
+        self.assertEqual(both[0], "macOS managed preferences")
+        (self.config / "remote-settings.json").write_text('{"model": "opus"}')
+        self.assertEqual(self.policy(plist=on)[0], "server-managed settings")
+
+    def test_an_mdm_source_with_only_control_keys_falls_through(self):
+        control = {"managedSourcesBehavior": "merge"}
+        self.assertEqual(self.policy(plist=control, hklm=control), (None, None))
+
+    def test_an_unreadable_mdm_source_is_present_and_selects_loopback(self):
+        (self.system / "managed-settings.json").write_text('{"channelsEnabled": true}')
+        self.assertEqual(
+            self.policy(plist=sb.UNREADABLE),
+            ("macOS managed preferences (unreadable)", None),
+        )
+        self.assertEqual(
+            self.policy(hklm=sb.UNREADABLE),
+            ("Windows HKLM registry (unreadable)", None),
+        )
+        r = sb.select_transport(
+            [ENTRY],
+            flags=DEV,
+            auth=MAX,
+            policy=self.policy(hklm=sb.UNREADABLE),
+            env={},
+        )
+        self.assertEqual(r["transport"], "loopback", r)
+        self.assertIn("cannot be read", r["reason"])
+
+    def test_mdm_present_allowing_and_not_allowing_drive_the_transport(self):
+        allow = {"channelsEnabled": True}
+        deny = {"channelsEnabled": False}
+        for stub, want in (
+            ({"plist": allow}, "channels"),
+            ({"plist": deny}, "loopback"),
+            ({"hklm": allow}, "channels"),
+            ({"hklm": deny}, "loopback"),
+        ):
+            r = sb.select_transport(
+                [ENTRY], flags=DEV, auth=TEAM, policy=self.policy(**stub), env={}
+            )
+            self.assertEqual(r["transport"], want, (stub, r))
+        r = sb.select_transport(
+            [ENTRY], flags=DEV, auth=TEAM, policy=self.policy(), env={}
+        )
+        self.assertEqual(r["transport"], "loopback", r)
+
+    def test_hkcu_is_never_consulted(self):
+        self.policy(hklm={"channelsEnabled": True})
+        self.policy()
+        self.assertEqual(set(self.hives), {"HKLM"})
+
+    def test_hklm_counts_on_wsl_only_with_wsl_inherits_windows_settings(self):
+        wsl = {"WSL_DISTRO_NAME": "Ubuntu"}
+        hklm = {"channelsEnabled": True}
+        self.assertEqual(self.policy(hklm=hklm, env=wsl), (None, None))
+        inherits = {**hklm, "wslInheritsWindowsSettings": True}
+        self.assertEqual(
+            self.policy(hklm=inherits, env=wsl), ("Windows HKLM registry", inherits)
+        )
+        self.assertEqual(self.policy(hklm=hklm)[0], "Windows HKLM registry")
+
+    def test_cloud_sessions_skip_mdm(self):
+        cloud = {"CLAUDE_CODE_REMOTE": "true"}
+        mdm = {"channelsEnabled": True}
+        self.assertEqual(self.policy(plist=mdm, hklm=mdm, env=cloud), (None, None))
+        self.assertEqual(self.policy(plist=mdm)[0], "macOS managed preferences")
 
     def test_none_when_no_source_sets_a_policy_key(self):
         self.assertEqual(self.policy(), (None, None))
