@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.10 - 2026-10-18
+
+A write-runner skill run that claude-code-action fails only because its `success` result went over
+`--max-turns` now counts as a success: `act-outcome`, the verdict, the lane record and the job
+result report success, so `pipeline/resolve-issue` posts `success` and report-outcome proceeds as on
+any finished run. The run job reads this from the execution file's last result message (subtype
+`success`, `is_error` false, `num_turns` over the cap); any other failure, or a missing or
+unreadable execution file, still fails
+([pr-run-activity.md](pr-run-activity.md#the-run-job)). `version` stays 2.
+
 ## 2.11.8 - 2026-10-18
 
 `pr-refine` no longer starts on `synchronize`: it runs when a PR opens, reopens or turns ready, or
