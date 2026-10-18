@@ -289,7 +289,7 @@ jobs:
             + (if .resources.graphql then " graphql remaining=\(.resources.graphql.remaining)" else "" end)' <<<"$r")
           echo "::notice title=lane-app-rate::$line"
           echo "lane-app-rate: $line" >>"$GITHUB_STEP_SUMMARY"
-          echo "used=$(jq .resources.core.used <<<"$r")" >>"$GITHUB_OUTPUT"
+          jq -r '"used=\(.resources.core.used)\nreset=\(.resources.core.reset)"' <<<"$r" >>"$GITHUB_OUTPUT"
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) opened, plus Dependabot's unless
@@ -491,11 +491,14 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           START_USED: ${{ steps.rate-start.outputs.used }}
+          START_RESET: ${{ steps.rate-start.outputs.reset }}
         run: |
           r=$(gh api rate_limit)
-          line=$(jq -r --arg s "$START_USED" '"end core remaining=\(.resources.core.remaining) used=\(.resources.core.used) limit=\(.resources.core.limit) reset=\(.resources.core.reset | todate)"
+          line=$(jq -r --arg s "$START_USED" --arg sr "$START_RESET" '"end core remaining=\(.resources.core.remaining) used=\(.resources.core.used) limit=\(.resources.core.limit) reset=\(.resources.core.reset | todate)"
             + (if .resources.graphql then " graphql remaining=\(.resources.graphql.remaining)" else "" end)
-            + (if $s != "" then " used-since-mint=\(.resources.core.used - ($s | tonumber))" else "" end)' <<<"$r")
+            + (if $s == "" then ""
+               elif ($sr | tostring) != (.resources.core.reset | tostring) then " used-since-mint=window-rolled"
+               else " used-since-mint=\(.resources.core.used - ($s | tonumber))" end)' <<<"$r")
           echo "::notice title=lane-app-rate::$line"
           echo "lane-app-rate: $line" >>"$GITHUB_STEP_SUMMARY"
 
