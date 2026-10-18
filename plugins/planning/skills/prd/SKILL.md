@@ -72,7 +72,7 @@ Read `$ARGUMENTS` whole. If its first word is one of the tier words in the table
 | `synthesize <task>` | **Synthesis-only PRD** | Skip Q&A. Produce PRD from existing conversation context when it already holds rich product context. Still runs skip-condition check (Step 1) and survey (Step 2). |
 | `review` | **PRD review** | Critique an existing PRD.md against template + skip-conditions. |
 
-Tier choice rationale: [`context/templates.md`](context/templates.md). When the tier is unclear from the task description, present the three tiers with one-line descriptions: via `AskUserQuestion` when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on, numbered inline prose otherwise.
+Tier choice rationale: [`context/templates.md`](context/templates.md). When the tier is unclear from the task description, present the three tiers with one-line descriptions: via `AskUserQuestion` when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`; unexpanded or empty means off) is on, numbered inline prose otherwise.
 
 ## The PRD process
 
@@ -126,7 +126,7 @@ If after the survey a required section has NO answerable content in the conversa
 
 **Skipped when `synthesize` was invoked**. Go directly to Step 5.
 
-Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is independent questions that fit one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11; recheck when that section changes the per-call question limit). Inline prose otherwise.
+Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config is on and the round is independent questions that fit one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11; recheck when that section changes the per-call question limit). Inline prose otherwise.
 
 Each recommendation carries a `Basis:` line: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented, in the affected code plus its consumers and in external research that reads official docs first; route that work to the exploration or research capability rather than doing it here. One research cannot settle is withheld: ask the question open and name the evidence that would settle it, or record it under **Open questions**. A changed recommendation is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md).
 

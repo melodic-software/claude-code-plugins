@@ -90,7 +90,7 @@ reader applies.
 
 | Lane | Starts on |
 |---|---|
-| `pr-refine` | ready |
+| `pr-refine` | a PR opened, reopened or marked ready, or a `workflow_dispatch`; not each push, so a docs change pushed after its first run waits for a reopen or a dispatch |
 | `pr-run-checks` | dispatch from `pr-refine` |
 | `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
 | `pr-verify` | dispatch from `pr-refine` |
@@ -114,6 +114,16 @@ that runs on a push to `main` and on a trusted human's `workflow_dispatch`:
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
   `require-pr: false` and `require-kind: human`).
 - With the kill switch on, the run ends green with a notice and dispatches nothing.
+
+GitHub starts no `pull_request` workflow on a PR with a merge conflict, so a conflicted head gets
+no CI. When `resolve-conflicts` escalates with `unresolved-conflict`, `pr-unblock.yml`'s
+`report-conflict-status` job (a script job with no model, the lane's only `statuses: write`, on its
+own `GITHUB_TOKEN`) posts a `failure` commit status with context `pr-unblock/conflict` on that
+head, saying CI does not run until the conflicts are resolved. A push that resolves them is a new
+head, which the status does not reach. A conflict that clears with the head unchanged (main moved
+again) leaves the failing status on it until a push or a person replaces it. The other
+`resolve-conflicts` escalations post no status; they hand the PR to a person through the comment
+and label alone.
 
 `pr-unblock`'s `address-feedback` dispatches come from `pr-feedback-dispatch.yml`, also scripted,
 on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
@@ -771,7 +781,10 @@ trust-root change are:
   or re-runner, and the lanes bot never starts a write run;
 - the broker's workflow-path rule: it mints only for a lane caller listed in the default-branch
   config, calling a `pr-run-activity-write.yml` byte-equal to the tip, and the App token never
-  holds `workflows`, so no lane can push `.github/workflows/`;
+  holds `workflows`, so no lane can push `.github/workflows/`. The one exception is a lane's
+  post-run report job, which may still mint after a signed GitHub-made commit changed a lane
+  workflow on main during the run
+  ([azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39));
 - the merge queue and the required `ci-status` check, which no lane can write;
 - required review-thread resolution;
 - the kill switch;
@@ -845,6 +858,17 @@ The file job writes with the job's own `GITHUB_TOKEN`, not a lanes App token, so
 from `github-actions[bot]` and start no workflow, intake triage included. The kill switch stops
 every job.
 
+A fourth job, **triage-sweep**, runs alone every hour and with the daily run, with no model
+([`triage-sweep.mjs`](../../../.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs)). It
+selects open issues, not pull requests, over an hour old, written by a human on the trusted-actors
+list or by the lanes App, that have no intake comment, no born-triaged marker and no triage, status,
+priority or work-class label. Issues from `github-actions[bot]`, the lane sweep's own included, are
+left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
+one comment on the issue; after 2 dispatches leave it untriaged it labels the original
+`needs-triage`, then files one `needs-triage` issue naming the runs. It holds the job's own `GITHUB_TOKEN`
+(`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
+REST calls.
+
 ## Models
 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
@@ -888,7 +912,7 @@ escalates.
 
 The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
 are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
-typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all six
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all seven
 with defaults.
 
 | Key | Default | What it sets |
@@ -899,10 +923,12 @@ with defaults.
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
 | `limit-stops-per-issue` | 3 | Limit stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
+| `wip-cap` | 60 | Open lanes-App pull requests at or above which work-resolve-issue starts no run and work-unblock re-fires none; at most 500. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
-pr-feedback-dispatch and pr-unblock-dispatch resolve the base config themselves, and a config the
-resolver refuses fails their run before any dispatch. This repository sets no `limits` block.
+pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
+config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
+the WIP cap check fails open and starts the run. This repository sets `wip-cap` only.
 
 ## Planning lane work
 
@@ -920,6 +946,13 @@ Size the process to the change:
 The config file is a lane-power file: a human merges every change to it, and no lane does. The
 same holds for the trusted-actor list and any change to a lane's permissions, tokens or triggers.
 Everything downstream of that human merge may propagate on its own.
+
+A pull request that changes a lane and lists a not-verified item that could stop the lane from
+running checks that item live before it merges. An item only a merged run can exercise, such as
+a changed workflow that runs from the base branch, merges only once a tracked issue names the
+check and its owner; a line in the pull request body does not count. Evidence: melodic-software/ci-workflows#755 listed its
+intake author gate as "unverified, fails closed", merged, and skipped every intake run here
+(melodic-software/ci-workflows#772).
 
 ## Outside this repository
 

@@ -63,6 +63,19 @@ const decidedThread = (reply = { author: KYLE }) => ({
   },
 });
 
+// A workflow_run event's run object, in the REST workflow run schema
+// (https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run).
+const upstreamRun = (overrides = {}) => ({
+  id: Number(UPSTREAM_RUN_ID),
+  path: ".github/workflows/pr-review-hosted.yml",
+  event: "pull_request",
+  status: "completed",
+  head_sha: HEAD,
+  repository: { full_name: REPOSITORY },
+  head_repository: { full_name: REPOSITORY },
+  ...overrides,
+});
+
 function fakeApi({
   run = {},
   pulls,
@@ -75,18 +88,8 @@ function fakeApi({
   const calls = { dispatch: [] };
   return {
     calls,
-    async getRun(id) {
-      return {
-        id: Number(id),
-        path: ".github/workflows/pr-review-hosted.yml",
-        event: "pull_request",
-        status: "completed",
-        head_sha: HEAD,
-        repository: { full_name: REPOSITORY },
-        head_repository: { full_name: REPOSITORY },
-        ...run,
-      };
-    },
+    // The event's workflow_run, which the script takes in place of a read.
+    upstream: upstreamRun(run),
     async pullsForCommit() {
       return (
         pulls ?? [
@@ -137,7 +140,7 @@ async function decide(api, resolved = resolvedLane()) {
     api,
     repository: REPOSITORY,
     runId: RUN_ID,
-    upstreamRunId: UPSTREAM_RUN_ID,
+    upstream: api.upstream,
     appSenderId: APP_ID,
     trustedHumans: new Set([KYLE.databaseId]),
     resolveSlot: async (request) => {
@@ -203,7 +206,7 @@ test("a slot that cannot be resolved fails the run", async () => {
       api: fakeApi(),
       repository: REPOSITORY,
       runId: RUN_ID,
-      upstreamRunId: UPSTREAM_RUN_ID,
+      upstream: upstreamRun(),
       appSenderId: APP_ID,
       resolveSlot: async () => {
         throw new Error("resolve-config could not resolve");
@@ -228,7 +231,8 @@ for (const [label, options] of [
   ["the upstream ran on pull_request_target", { run: { event: "pull_request_target" } }],
   ["the upstream has not completed", { run: { status: "in_progress" } }],
   ["the upstream ran on a fork's head", { run: { head_repository: { full_name: "stranger/x" } } }],
-  ["the upstream is another run than the event named", { run: { id: 1 } }],
+  ["the upstream ran in another repository", { run: { repository: { full_name: "stranger/x" } } }],
+  ["the upstream names no head SHA", { run: { head_sha: "main" } }],
   ["the head has moved past the reviewed SHA", { pulls: pull({ head: { sha: OLD_HEAD, repo: { full_name: REPOSITORY } } }) }],
   ["no open PR has the head", { pulls: [] }],
   ["the PR is closed", { pulls: pull({ state: "closed" }) }],
@@ -294,7 +298,7 @@ test("a limit-stopped check on the head blocks a dispatch only until its reset",
       api,
       repository: REPOSITORY,
       runId: RUN_ID,
-      upstreamRunId: UPSTREAM_RUN_ID,
+      upstream: api.upstream,
       appSenderId: APP_ID,
       resolveSlot: async () => resolvedLane(),
       log: () => {},
@@ -318,7 +322,7 @@ test("a reset limit stop does not dispatch once no reviewer-bot thread is open, 
       api,
       repository: REPOSITORY,
       runId: RUN_ID,
-      upstreamRunId: UPSTREAM_RUN_ID,
+      upstream: api.upstream,
       appSenderId: APP_ID,
       resolveSlot: async () => resolvedLane(),
       log: () => {},
@@ -342,12 +346,24 @@ test("a dispatch with no usable run id throws", async () => {
 
 test("a malformed upstream run id throws before any read", async () => {
   await assert.rejects(
-    dispatchFeedback({ api: {}, repository: REPOSITORY, runId: RUN_ID, upstreamRunId: "1/../2", appSenderId: APP_ID, log: () => {} }),
+    dispatchFeedback({ api: {}, repository: REPOSITORY, runId: RUN_ID, upstream: upstreamRun({ id: "1/../2" }), appSenderId: APP_ID, log: () => {} }),
     /not a run id/,
   );
 });
 
-test("main writes run-id and reads the upstream id from UPSTREAM_RUN_ID only", async () => {
+// What the runner writes at GITHUB_EVENT_PATH for a workflow_run event.
+const eventFile = (dir, run = upstreamRun()) => {
+  const path = join(dir, "event.json");
+  writeFileSync(path, JSON.stringify({ action: "completed", workflow_run: run }));
+  return path;
+};
+const noActors = (dir) => {
+  const path = join(dir, "actors.json");
+  writeFileSync(path, JSON.stringify({ actors: [] }));
+  return path;
+};
+
+test("main writes run-id and takes the upstream run from the event file", async () => {
   const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
   try {
     const output = join(dir, "output");
@@ -361,7 +377,7 @@ test("main writes run-id and reads the upstream id from UPSTREAM_RUN_ID only", a
         GITHUB_REPOSITORY: REPOSITORY,
         GITHUB_RUN_ID: RUN_ID,
         GITHUB_OUTPUT: output,
-        UPSTREAM_RUN_ID,
+        GITHUB_EVENT_PATH: eventFile(dir),
         APP_SENDER_ID: String(APP_ID),
         TRUSTED_ACTORS: actors,
       },
@@ -372,6 +388,48 @@ test("main writes run-id and reads the upstream id from UPSTREAM_RUN_ID only", a
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("an event file that holds no workflow run fails the run", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, "event.json");
+  writeFileSync(path, JSON.stringify({ action: "completed" }));
+  await assert.rejects(
+    main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPOSITORY, GITHUB_RUN_ID: RUN_ID, GITHUB_OUTPUT: "x", GITHUB_EVENT_PATH: path, APP_SENDER_ID: String(APP_ID), TRUSTED_ACTORS: noActors(dir) },
+      { api: fakeApi(), resolveSlot: async () => resolvedLane(), log: () => {} },
+    ),
+    /not a run id/,
+  );
+});
+
+// The repository's GITHUB_TOKEN budget: a review of a PR the lanes App did not
+// open is the common case, and it needs only the PR list for the head.
+test("a review of a PR the lanes App did not open costs one API request", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const urls = [];
+  const fetch = async (url) => {
+    urls.push(url);
+    return new Response(JSON.stringify(pull({ user: { id: KYLE.databaseId } })));
+  };
+  const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  const lines = [];
+  await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: join(dir, "out"),
+      GITHUB_EVENT_PATH: eventFile(dir),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: noActors(dir),
+    },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+  );
+  assert.deepEqual(urls, [`https://api.example/repos/${REPOSITORY}/commits/${HEAD}/pulls`]);
+  assert.match(lines.at(-1), /not opened by the lanes App/);
 });
 
 test("a second dispatcher for one head skips while the first one's run is queued or going", async () => {
@@ -427,7 +485,7 @@ test("main reads the trusted people from the base's trusted-actor list", async (
     GITHUB_REPOSITORY: REPOSITORY,
     GITHUB_RUN_ID: RUN_ID,
     GITHUB_OUTPUT: join(dir, "out"),
-    UPSTREAM_RUN_ID,
+    GITHUB_EVENT_PATH: eventFile(dir),
     APP_SENDER_ID: String(APP_ID),
     TRUSTED_ACTORS: actors,
   };
@@ -438,7 +496,7 @@ test("main reads the trusted people from the base's trusted-actor list", async (
 
 test("main requires the lanes App id", async () => {
   await assert.rejects(
-    main({ GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPOSITORY, GITHUB_RUN_ID: RUN_ID, GITHUB_OUTPUT: "x", UPSTREAM_RUN_ID }, { api: fakeApi() }),
+    main({ GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPOSITORY, GITHUB_RUN_ID: RUN_ID, GITHUB_OUTPUT: "x", GITHUB_EVENT_PATH: "x" }, { api: fakeApi() }),
     /APP_SENDER_ID is not set/,
   );
 });

@@ -6,7 +6,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { BORN_TRIAGED_MARKER, checkBornTriaged, run } from "./check-born-triaged.mjs";
+import { BORN_TRIAGED_MARKER, checkBornTriaged, humanIds, run } from "./check-born-triaged.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./check-born-triaged.mjs", import.meta.url));
 
@@ -160,7 +160,7 @@ function runCli(env) {
       encoding: "utf8",
     });
     const outputs = Object.fromEntries(
-      [...readFileSync(outputPath, "utf8").matchAll(/^(\w+)<<(\S+)\n([^\n]*)\n\2$/gm)].map((m) => [m[1], m[3]]),
+      [...readFileSync(outputPath, "utf8").matchAll(/^([\w-]+)<<(\S+)\n([^\n]*)\n\2$/gm)].map((m) => [m[1], m[3]]),
     );
     return { status: result.status, outputs };
   } finally {
@@ -171,7 +171,7 @@ function runCli(env) {
 test("CLI triages a non-numeric issue number and exits 0", () => {
   const { status, outputs } = runCli({ ISSUE_NUMBER: "7; echo", TRUSTED_ACTORS_PATH: "/nonexistent" });
   assert.equal(status, 0);
-  assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable" });
+  assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", "human-ids": "" });
 });
 
 test("CLI triages an unreadable trusted-actor list and exits 0", () => {
@@ -181,5 +181,31 @@ test("CLI triages an unreadable trusted-actor list and exits 0", () => {
     GITHUB_API_URL: "http://127.0.0.1:9",
   });
   assert.equal(status, 0);
-  assert.deepEqual(outputs, { skip: "false", reason: "list-unreadable" });
+  assert.deepEqual(outputs, { skip: "false", reason: "list-unreadable", "human-ids": "" });
+});
+
+test("CLI emits the listed human ids even when the issue is unreadable", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "born-triaged-list-"));
+  try {
+    const listPath = path.join(dir, "trusted-actors.json");
+    writeFileSync(listPath, JSON.stringify(LIST));
+    const { status, outputs } = runCli({
+      ISSUE_NUMBER: "7",
+      TRUSTED_ACTORS_PATH: listPath,
+      GITHUB_API_URL: "http://127.0.0.1:9",
+    });
+    assert.equal(status, 0);
+    assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", "human-ids": "153232337" });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("humanIds lists only the human actors' ids", () => {
+  const second = { id: 42, login: "other", kind: "human" };
+  assert.equal(humanIds({ version: 1, actors: [HUMAN, LISTED_BOT, LANES_APP, second] }), "153232337,42");
+  assert.equal(humanIds({ version: 1, actors: [LISTED_BOT] }), "");
+  assert.equal(humanIds({ version: 1, actors: [{ id: "153232337", login: "x", kind: "human" }, { id: 0, login: "y", kind: "human" }] }), "");
+  assert.equal(humanIds(null), "");
+  assert.equal(humanIds({ version: 2, actors: [HUMAN] }), "", "a wrong-version list yields no ids");
 });

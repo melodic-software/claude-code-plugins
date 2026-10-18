@@ -415,6 +415,19 @@
         "Output says the change can be built directly and aligned on after the diff is reviewed",
         "Output does not treat the behavior change alone as a reason to interview"
       ]
+    },
+    {
+      "id": 30,
+      "name": "shared-session-starts-share-before-first-round",
+      "prompt": "/planning:interview share checkout redesign: our designer and our product owner should both answer the open questions on the new checkout flow from their own laptops this afternoon. Python, curl and cloudflared are all installed on this machine.",
+      "expected_output": "The `share` action routes to the shared-session lane. Before any question is asked, the run resolves the shared-session settings, writes `defaults.json` into a data dir under the topic's memory slice, and starts the session with `share.sh ... ensure-running`. The first round reaches the page through an `ops.json` written with the Write tool and run with `share.sh ... apply`, its questions numbered from the ledger's next `Q<N>` and registered `open`, and the watcher is armed in the background. The run gives the owner the guest link, never prints the owner link, and asks no round inline in the terminal.",
+      "files": [],
+      "expectations": [
+        "The first question-surface action is a `share.sh ... ensure-running` call, made before any round question is shown",
+        "The first round is sent to the session through an `ops.json` file and `share.sh ... apply`, not printed as a numbered prose round in the terminal: the terminal shows no question's alternatives or per-question basis, and no question text appears on a command line",
+        "The run gives the owner the guest link and does not print the owner link",
+        "The run arms the session's watcher as a background task after the round is applied"
+      ]
     }
   ]
 }

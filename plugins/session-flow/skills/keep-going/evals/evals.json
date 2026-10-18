@@ -128,6 +128,19 @@
         "Names a single verdict, with its reason, from the four: ratify, ship the finished recommendation, continue, restart",
         "The report lists work carried over from the trail apart from work done again"
       ]
+    },
+    {
+      "id": 11,
+      "name": "inventories-nested-subagent",
+      "prompt": "keep going — we got cut off. Before the disconnect you had a research subagent running, and I think it had spawned its own helper subagent to read the test logs.",
+      "expected_output": "The inventory descends below the top level: it lists the research subagent and the helper subagent it spawned, as two separate items, and reads each one's real state from its own transcript or output rather than assuming the helper followed the parent. A level that cannot be enumerated from the resumed session is named in the report, not omitted.",
+      "files": [],
+      "expectations": [
+        "Inventories both the research subagent and the subagent it spawned, not only the top-level one",
+        "Reads the nested subagent's real state from its own artifact rather than inferring it from the parent's",
+        "Reports each in the recovered / restarted / still-running / lost list",
+        "Says so in the report if a nested level cannot be enumerated, rather than omitting it"
+      ]
     }
   ]
 }
