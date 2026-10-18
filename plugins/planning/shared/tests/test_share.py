@@ -245,15 +245,21 @@ class TestLogsSummary(unittest.TestCase):
 
     def setUp(self):
         self.d = tmpdir(self)
-        stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S,000")
-        (self.d / "server.log").write_text("".join(f"{stamp} {line}\n" for line in self.LINES), encoding="utf-8")
+        self.base = datetime.datetime.now().replace(microsecond=0) - datetime.timedelta(minutes=5)
+        (self.d / "server.log").write_text("".join(f"{self.at(i)},000 {line}\n" for i, line in enumerate(self.LINES)), encoding="utf-8")
+
+    def at(self, i):
+        """The time of LINES[i]: one second after the line before it."""
+        return (self.base + datetime.timedelta(seconds=i)).strftime("%Y-%m-%d %H:%M:%S")
 
     def test_json_gives_every_aggregate(self):
         code, out, err = share(self.d, "logs", "--summary", "--json")
         self.assertEqual(code, 0, err)
         self.assertEqual(out["errors"], [
-            {"fp": "aaaa1111", "kind": "error", "message": "TypeError: x is undefined", "source": "/app.js:12", "count": 3, "devices": {"phone": 1}},
-            {"fp": "bbbb2222", "kind": "error", "message": "boom", "source": "", "count": 1, "devices": {"computer": 1}},
+            # aaaa1111: its entry is LINES[6] and its last repeats come in LINES[11]'s summary.
+            {"fp": "aaaa1111", "kind": "error", "message": "TypeError: x is undefined", "source": "/app.js:12", "count": 3,
+             "firstSeen": self.at(6), "lastSeen": self.at(11), "devices": {"phone": 1}, "browsers": {"chrome": 1}},
+            {"fp": "bbbb2222", "kind": "error", "message": "boom", "source": "", "count": 1, "firstSeen": self.at(7), "lastSeen": self.at(7), "devices": {"computer": 1}, "browsers": {"safari": 1}},
         ])
         self.assertEqual(out["refusals"], [{"route": "/api/answer", "code": "locked", "count": 2}, {"route": "/api/vote", "code": "slow-down", "count": 1}])
         self.assertEqual(out["network"], [{"route": "/api/vote", "code": "network", "count": 2}])
@@ -274,7 +280,7 @@ class TestLogsSummary(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         for want in (
             "Summaries: 5 from 4 page views (1 of them the owner's, left out of the timings). A page with recording turned off sends none.",
-            "  3x error: TypeError: x is undefined /app.js:12 (phone 1)",
+            f"  3x error: TypeError: x is undefined /app.js:12 (phone 1; chrome 1), first {self.at(6)}, last {self.at(11)}",
             "  /api/answer locked: 2",
             "  /api/vote network: 2",
             "  /api/vote: 5 actions, p50 up to 200 ms, p95 up to 300 ms; server p50 3.0 ms, p95 5.0 ms; rollbacks 1 (20.0%)",

@@ -539,14 +539,21 @@ def bucket_rank(counts, q):
 
 
 def device(ua):
+    """The device class of a page's `ua` ("<browser> <device>", web/core.js ua())."""
     return (ua or "").split(" ")[-1] or "unknown"
+
+
+def browser(ua):
+    """The browser class of a page's `ua`."""
+    words = (ua or "").split(" ")
+    return words[0] if len(words) > 1 and words[0] else "unknown"
 
 
 def summarize(lines):
     """Counts from server.log lines: error fingerprints, refusals, network failures and unanswered actions, action
     latency and rollbacks, reconnect gaps, layout anomalies, INP and LCP, and how many summaries there were. The
     owner's own pages are left out of the timings, which a page on the owner's machine would skew."""
-    faults, refusals, server_ms, repeats = {}, collections.Counter(), collections.defaultdict(list), collections.Counter()
+    faults, refusals, server_ms, repeats, repeat_at = {}, collections.Counter(), collections.defaultdict(list), collections.Counter(), {}
     lat, rollbacks, gaps, vitals = collections.defaultdict(lambda: [0] * (len(LAT_EDGES) + 1)), collections.Counter(), [], {}
     lines_n = pages_owner = 0
     pages = set()
@@ -565,6 +572,7 @@ def summarize(lines):
             for k, v in t.items():
                 if k.startswith("rep:") and v.isdigit():
                     repeats[k[4:]] += int(v)
+                    repeat_at[k[4:]] = max(repeat_at.get(k[4:], ""), line[:19])
             if t.get("owner") == "1":
                 pages_owner += pv not in vitals
                 vitals.setdefault(pv, {"owner": True})
@@ -584,12 +592,16 @@ def summarize(lines):
             if f["kind"] == "layout" and not f.get("message", "").startswith("anomaly="):
                 continue  # a keyboard readout, not an anomaly
             fp = f.get("fp") or "|".join((f["kind"], f.get("message", ""), f.get("source", ""), f.get("route", "") if f["kind"] == "api" else ""))
-            g = faults.setdefault(fp, {"fp": f.get("fp", ""), "kind": f["kind"], "message": f.get("message", ""), "source": f.get("source", ""), "route": f.get("route", ""), "code": f.get("code", ""), "count": 0, "devices": collections.Counter()})
+            g = faults.setdefault(fp, {"fp": f.get("fp", ""), "kind": f["kind"], "message": f.get("message", ""), "source": f.get("source", ""), "route": f.get("route", ""), "code": f.get("code", ""),
+                                       "count": 0, "firstSeen": line[:19], "lastSeen": line[:19], "devices": collections.Counter(), "browsers": collections.Counter()})
             g["count"] += 1
+            g["firstSeen"], g["lastSeen"] = min(g["firstSeen"], line[:19]), max(g["lastSeen"], line[:19])
             g["devices"][device(f.get("ua"))] += 1
+            g["browsers"][browser(f.get("ua"))] += 1
     for g in faults.values():
         g["count"] += repeats.pop(g["fp"], 0) if g["fp"] else 0
-        g["devices"] = dict(g["devices"])
+        g["lastSeen"] = max(g["lastSeen"], repeat_at.get(g["fp"], "")) if g["fp"] else g["lastSeen"]
+        g["devices"], g["browsers"] = dict(g["devices"]), dict(g["browsers"])
     group = lambda kinds: sorted((g for g in faults.values() if g["kind"] in kinds), key=lambda g: -g["count"])  # noqa: E731
     routes = {}
     for route, counts in sorted(lat.items()):
@@ -613,7 +625,7 @@ def summarize(lines):
         if g["count"] > sum(g["devices"].values()):  # repeats: on the device of the first entry
             anomalies[(t.get("anomaly", ""), t.get("at", ""), next(iter(g["devices"])))] += g["count"] - sum(g["devices"].values())
     return {
-        "errors": [{k: g[k] for k in ("fp", "kind", "message", "source", "count", "devices")} for g in group(("error", "rejection"))][:TOP],
+        "errors": [{k: g[k] for k in ("fp", "kind", "message", "source", "count", "firstSeen", "lastSeen", "devices", "browsers")} for g in group(("error", "rejection"))][:TOP],
         "refusals": [{"route": r, "code": c, "count": n} for (r, c), n in refusals.most_common()],
         "network": [{"route": g["route"], "code": g["code"], "count": g["count"]} for g in group(("api",))],
         "latency": routes,
@@ -636,7 +648,8 @@ def summary_text(s):
     sm = s["summaries"]
     out = [f"Summaries: {sm['lines']} from {sm['pages']} page views ({sm['ownerPages']} of them the owner's, left out of the timings). "
            "A page with recording turned off sends none.", "", "Top errors:"]
-    out += [f"  {g['count']}x {g['kind']}: {g['message'][:120]} {g['source']} ({devs(g['devices'])})" for g in s["errors"]] or ["  none"]
+    out += [f"  {g['count']}x {g['kind']}: {g['message'][:120]} {g['source']} ({devs(g['devices'])}; {devs(g['browsers'])}), first {g['firstSeen']}, last {g['lastSeen']}"
+            for g in s["errors"]] or ["  none"]
     out += ["", "Refusals by route and code (the server's own entries):"]
     out += [f"  {r['route']} {r['code']}: {r['count']}" for r in s["refusals"]] or ["  none"]
     out += ["", "Network failures and unanswered actions:"]

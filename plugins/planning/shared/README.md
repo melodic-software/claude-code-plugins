@@ -468,7 +468,8 @@ wrong type, 400 `too-long`, and 429 `slow-down` past 20 faults or 6 summaries a 
 person (two buckets, so neither starves the other). A summary's own `request` entry carries no pid.
 
 `share.sh logs --summary` (add `--json` for one JSON line, `--since MINUTES` to narrow) adds the
-log up: the top 10 error fingerprints with counts and devices, refusals by route and code (from the
+log up: the top 10 error fingerprints with counts, first and last seen (`firstSeen`, `lastSeen`,
+to the second) and device and browser classes, refusals by route and code (from the
 server's entries), network failures and unanswered actions by route, tap-to-answer p50 and p95 by
 route (the upper edge of the bucket) beside the server's own `ms`, rollbacks and their rate,
 reconnect gaps (over 10 s, worst, by device), layout anomalies by device kind, INP and LCP p75 by
