@@ -45,11 +45,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -60,7 +62,13 @@ from babysit_gh import (
     gh_http_status,
     is_owner_repo_pair,
 )
-from babysit_util import is_json_array, is_json_object, json_array, json_object
+from babysit_util import (
+    is_json_array,
+    is_json_object,
+    json_array,
+    json_object,
+    run_command,
+)
 
 FULL_RUN_WORKFLOW = "pr-require-checks.yml"
 CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml"
@@ -476,6 +484,24 @@ def _attempt(owner: str, name: str, run_id: int, attempt: int) -> Run | None:
 
 # --- Judging runs -------------------------------------------------------------------
 
+_FULL_SHA = re.compile(r"[0-9a-f]{40}")
+
+
+def _full_history_clones() -> list[Path]:
+    """The distinct non-shallow clones among the merge gate's history
+    checkouts (`babysit_merge_policy._history_checkouts`)."""
+    roots: list[Path] = []
+    for checkout in policy._history_checkouts():
+        top = policy._git(checkout, "rev-parse", "--show-toplevel")
+        if not top or not top.strip():
+            continue
+        root = Path(top.strip())
+        if root not in roots and (
+            policy._git(root, "rev-parse", "--is-shallow-repository") == "false\n"
+        ):
+            roots.append(root)
+    return roots
+
 
 @dataclass
 class _Context:
@@ -489,6 +515,8 @@ class _Context:
     branch: str = ""
     lane_cache: dict[int, bool] = field(default_factory=dict)
     checks_cache: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
+    # Full-history clones `contains` asks first; None until first resolved.
+    local_clones: list[Path] | None = None
     baseline_cache: dict[tuple[str, datetime], frozenset[str] | None] = field(
         default_factory=dict
     )
@@ -641,11 +669,16 @@ class _Context:
         return self.lane_cache[run.id]
 
     def contains(self, ancestor: str, sha: str) -> bool:
-        """Whether `sha` is `ancestor` or has it in its history."""
+        """Whether `sha` is `ancestor` or has it in its history: from a local
+        full-history clone when one holds both commits, else from the compare
+        API, whose `ahead` or `identical` status means `ancestor` is reachable
+        from `sha`, which is what `git merge-base --is-ancestor` tests."""
         key = (ancestor, sha)
         if key not in self.contains_cache:
             if ancestor == sha:
                 self.contains_cache[key] = True
+            elif (local := self._local_contains(ancestor, sha)) is not None:
+                self.contains_cache[key] = local
             else:
                 compare = _read(
                     [
@@ -659,6 +692,44 @@ class _Context:
                     "identical",
                 )
         return self.contains_cache[key]
+
+    def _local_contains(self, ancestor: str, sha: str) -> bool | None:
+        """`git merge-base --is-ancestor` in the first local clone that can
+        decide (exit 0 or 1), or None. Only full SHA-1 ids are asked: a ref
+        name can point elsewhere locally than on GitHub. A shallow clone is
+        never asked, and graft files and replace refs are ignored, as any of
+        them would cut history and answer False for an ancestor. A partial
+        clone never lazy-fetches a missing commit: it exits non-zero and the
+        compare API answers."""
+        if not (_FULL_SHA.fullmatch(ancestor) and _FULL_SHA.fullmatch(sha)):
+            return None
+        if self.local_clones is None:
+            self.local_clones = _full_history_clones()
+        for root in self.local_clones:
+            try:
+                proc = run_command(
+                    [
+                        "git",
+                        "--no-replace-objects",
+                        "-C",
+                        str(root),
+                        "merge-base",
+                        "--is-ancestor",
+                        ancestor,
+                        sha,
+                    ],
+                    allowed_executables=("git",),
+                    check=False,
+                    env_overrides={
+                        "GIT_GRAFT_FILE": os.devnull,
+                        "GIT_NO_LAZY_FETCH": "1",
+                    },
+                )
+            except (RuntimeError, ValueError, OSError):
+                return None
+            if proc.returncode in (0, 1):
+                return proc.returncode == 0
+        return None
 
     def outcome(self, run: Run, *, attributable: bool) -> tuple[str, str]:
         """(state, detail). Attempt 1 decides; for a full run (`attributable`)
