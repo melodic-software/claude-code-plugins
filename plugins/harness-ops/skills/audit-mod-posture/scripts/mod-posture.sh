@@ -131,7 +131,8 @@ if ! "$CLAUDE" plugin list --json >"$TMP/list.json" 2>/dev/null || ! jq -e 'type
 else
   # One line per installPath: path, id, tier, enabled. An entry counts toward `enabled` when it
   # applies to this project: user or managed scope, or a project or local entry for --project.
-  # A path no such entry names is `elsewhere`: skipped, and counted in a footer.
+  # A path no such entry names is `elsewhere`: skipped, and counted in a footer. `tier` is the
+  # first scope among those entries in the order managed, local, project, user.
   jq -r --arg proj "$project_real" '
     [.[] | select((.installPath | type) == "string")]
     | group_by(.installPath)[]
@@ -139,7 +140,8 @@ else
     | [ $g[] | select(.scope == "user" or .scope == "managed" or (.projectPath // "") == $proj) ] as $here
     | [ $g[0].installPath,
         ($g[0].id // ""),
-        (if any($g[]; .scope == "managed") then "managed" else "user" end),
+        (first([ "managed", "local", "project", "user" ][] as $t
+         | select(any($here[]; .scope == $t)) | $t) // "unknown"),
         (if ($here | length) == 0 then "elsewhere"
          elif any($here[]; .enabled == true) then "on"
          elif all($here[]; .enabled == false) then "off"
@@ -207,21 +209,34 @@ elif ! jq -e '(.builtin_plugins | type) == "object"' "$BUILTIN_JSON" >/dev/null 
   NOT_READ+=("built-in tier: --builtin-json has no builtin_plugins section")
 else
   NOT_READ+=("built-in enabled: managed settings and --settings are not read, so on/off is partial")
+  # enabled: the setting (else default_enabled) AND the gate. A gate flag's value is its cached
+  # value, or its default when the cache lacks the key; a cache not read leaves it unknown. Any
+  # false flag closes the gate; a gate or flag not read never reads on.
   while IFS=$'\t' read -r name id enabled hooks; do
     [[ "$name" =~ ^cc-plugin-[a-z0-9-]+$ ]] || continue
     if [[ "$hooks" != "unknown" && "$hooks" != "-" ]]; then
       hooks="$(printf '%s' "$hooks" | filter_list "$HOOK_RE")"
     fi
     row "$(safe_id "${id:-$name@builtin}")" builtin "$enabled" "${CAN_DISABLE[$name]:-unknown}" "$hooks" unknown builtin-lane
-  done < <(jq -r '(.builtin_plugin_state.plugins // {}) as $st
+  done < <(jq -r 'def flag: if .cached_present == true then .cached
+                            elif .cached_present == false then .default else null end;
+    (.builtin_plugin_state.plugins // {}) as $st
     | .builtin_plugins | to_entries[]
     | ($st[.key] // {}) as $s
+    | ((if (.value.default_enabled | type) == "boolean" then .value.default_enabled
+        else $s.default_enabled end) as $default
+       | if ($s.enabled_setting | type) == "boolean" then $s.enabled_setting
+         elif ($default | type) == "boolean" then $default else null end) as $base
+    | (($s.gate_flags // .value.gate_flags) as $flags
+       | if .value.gated == false then "open"
+         elif .value.gated == true and ($flags | type) == "array" then
+           ([$flags[] | flag]) as $v
+           | if any($v[]; . == false) then "closed" elif all($v[]; . == true) then "open" else "unknown" end
+         else "unknown" end) as $gate
     | [ .key, (.value.id // ""),
-        ((if (.value.default_enabled | type) == "boolean" then .value.default_enabled
-          else $s.default_enabled end) as $default
-         | if ($s.enabled_setting | type) == "boolean" then (if $s.enabled_setting then "on" else "off" end)
-           elif ($default | type) == "boolean" then (if $default then "on" else "off" end)
-           else "unknown" end),
+        (if $base == false or $gate == "closed" then "off"
+         elif $base == true and $gate == "open" then "on"
+         else "unknown" end),
         (if (.value.hook_events | type) != "array" then "unknown"
          elif (.value.hook_events | length) == 0 then "-"
          else (.value.hook_events | join(",")) end) ]

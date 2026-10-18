@@ -59,6 +59,8 @@ plugin "$P/elsewhere" elsewhere '{"modules":["./register.js"]}'
 plugin "$P/broken" broken '{"modules":["./register.js"]}'
 plugin "$P/spaced" spaced '{"modules":["./a b.js"]}'
 plugin "$P/silent" silent '{"modules":["./register.js"]}'
+plugin "$P/localmod" localmod '{"modules":["./register.js"]}'
+plugin "$P/twoscope" twoscope '{"modules":["./register.js"]}'
 
 proj_real="$(cd "$FIX/proj" && pwd -P)"
 other_real="$(cd "$FIX/other proj" && pwd -P)"
@@ -71,7 +73,10 @@ jq -n --arg p "$P" --arg proj "$proj_real" --arg other "$other_real" '[
   {id:"elsewhere@mk", scope:"local", enabled:true, installPath:"\($p)/elsewhere", projectPath:$other},
   {id:"broken@mk", scope:"user", enabled:true, installPath:"\($p)/broken"},
   {id:"spaced@mk", scope:"user", enabled:true, installPath:"\($p)/spaced"},
-  {id:"silent@mk", scope:"user", enabled:true, installPath:"\($p)/silent"}
+  {id:"silent@mk", scope:"user", enabled:true, installPath:"\($p)/silent"},
+  {id:"localmod@mk", scope:"local", enabled:true, installPath:"\($p)/localmod", projectPath:$proj},
+  {id:"twoscope@mk", scope:"user", enabled:true, installPath:"\($p)/twoscope"},
+  {id:"twoscope@mk", scope:"project", enabled:true, installPath:"\($p)/twoscope", projectPath:$proj}
 ]' >"$FIX/list.json"
 
 # validate fixtures, keyed by plugin directory name.
@@ -95,6 +100,8 @@ validate_json spaced true \
   './a b.js hooks: tool.call{tool=mcp__plugin_context-guard_context-guard__status}, prompt.submit' \
   './a b.js calls: $.process.run'
 validate_json silent false
+validate_json localmod true './register.js hooks: session.start'
+validate_json twoscope true './register.js hooks: session.start'
 
 cat >"$FIX/bin/claude" <<'EOF'
 #!/usr/bin/env bash
@@ -128,17 +135,29 @@ EOF
 cat >"$FIX/inventory.json" <<'EOF'
 {
   "builtin_plugins": {
-    "cc-plugin-diff": {"id": "cc-plugin-diff@builtin", "default_enabled": true, "hook_events": ["ui.render", "tool.call"], "description": "SECRETBUILTIN1"},
-    "cc-plugin-sec-default": {"id": "cc-plugin-sec-default@builtin", "default_enabled": true, "hook_events": ["tool.check", "session.append"]},
-    "cc-plugin-you-should-know": {"id": "cc-plugin-you-should-know@builtin", "default_enabled": false, "hook_events": []},
-    "cc-plugin-mystery": {"id": "cc-plugin-mystery@builtin", "default_enabled": null, "hook_events": null},
-    "cc-plugin-off-by-default": {"id": "cc-plugin-off-by-default@builtin", "default_enabled": false, "hook_events": ["ui.render"]}
+    "cc-plugin-diff": {"id": "cc-plugin-diff@builtin", "default_enabled": true, "gated": true, "gate_flags": [{"flag": "tengu_quiet_dolphin", "default": false}], "hook_events": ["ui.render", "tool.call"], "description": "SECRETBUILTIN1"},
+    "cc-plugin-sec-default": {"id": "cc-plugin-sec-default@builtin", "default_enabled": true, "gated": false, "gate_flags": [], "hook_events": ["tool.check", "session.append"]},
+    "cc-plugin-you-should-know": {"id": "cc-plugin-you-should-know@builtin", "default_enabled": false, "gated": false, "gate_flags": [], "hook_events": []},
+    "cc-plugin-mystery": {"id": "cc-plugin-mystery@builtin", "default_enabled": null, "gated": null, "gate_flags": null, "hook_events": null},
+    "cc-plugin-off-by-default": {"id": "cc-plugin-off-by-default@builtin", "default_enabled": false, "gated": false, "gate_flags": [], "hook_events": ["ui.render"]},
+    "cc-plugin-flag-off": {"id": "cc-plugin-flag-off@builtin", "default_enabled": true, "gated": true, "gate_flags": [{"flag": "tengu_flag_off", "default": true}], "hook_events": ["tool.call"]},
+    "cc-plugin-flag-default-off": {"id": "cc-plugin-flag-default-off@builtin", "default_enabled": true, "gated": true, "gate_flags": [{"flag": "tengu_flag_default_off", "default": false}], "hook_events": []},
+    "cc-plugin-flag-on": {"id": "cc-plugin-flag-on@builtin", "default_enabled": true, "gated": true, "gate_flags": [{"flag": "tengu_flag_on", "default": false}], "hook_events": []},
+    "cc-plugin-flag-uncached": {"id": "cc-plugin-flag-uncached@builtin", "default_enabled": true, "gated": true, "gate_flags": [{"flag": "tengu_flag_uncached", "default": true}], "hook_events": []},
+    "cc-plugin-gate-unread": {"id": "cc-plugin-gate-unread@builtin", "default_enabled": true, "gated": true, "gate_flags": null, "hook_events": []},
+    "cc-plugin-gate-missing": {"id": "cc-plugin-gate-missing@builtin", "default_enabled": true, "hook_events": []}
   },
   "builtin_plugin_state": {
     "global_config": "/SECRETGLOBALPATH1/.claude.json",
+    "flag_cache_read": true,
+    "mods_flag": {"flag": "tengu_plugin_hooks_modules", "in_bundle": true, "cached": true, "cached_present": true},
     "plugins": {
-      "cc-plugin-you-should-know": {"id": "cc-plugin-you-should-know@builtin", "default_enabled": false, "enabled_setting": true},
-      "cc-plugin-diff": {"id": "cc-plugin-diff@builtin", "default_enabled": true, "enabled_setting": false}
+      "cc-plugin-you-should-know": {"id": "cc-plugin-you-should-know@builtin", "default_enabled": false, "gate_flags": [], "enabled_setting": true},
+      "cc-plugin-diff": {"id": "cc-plugin-diff@builtin", "default_enabled": true, "gate_flags": [{"flag": "tengu_quiet_dolphin", "default": false, "cached": true, "cached_present": true}], "enabled_setting": false},
+      "cc-plugin-flag-off": {"id": "cc-plugin-flag-off@builtin", "default_enabled": true, "gate_flags": [{"flag": "tengu_flag_off", "default": true, "cached": false, "cached_present": true}], "enabled_setting": true},
+      "cc-plugin-flag-default-off": {"id": "cc-plugin-flag-default-off@builtin", "default_enabled": true, "gate_flags": [{"flag": "tengu_flag_default_off", "default": false, "cached": null, "cached_present": false}], "enabled_setting": null},
+      "cc-plugin-flag-on": {"id": "cc-plugin-flag-on@builtin", "default_enabled": true, "gate_flags": [{"flag": "tengu_flag_on", "default": false, "cached": true, "cached_present": true}], "enabled_setting": null},
+      "cc-plugin-flag-uncached": {"id": "cc-plugin-flag-uncached@builtin", "default_enabled": true, "gate_flags": [{"flag": "tengu_flag_uncached", "default": true, "cached": null, "cached_present": null}], "enabled_setting": null}
     }
   }
 }
@@ -171,6 +190,11 @@ assert_eq "user-scope mod is user tier, on" "user on validate" "$(field mod-a@mk
 assert_eq "plugin without modules is not listed" 0 "$(count_rows plain@mk)"
 assert_eq "inline plugin.json hooks modules counts as a mod" "prompt.submit,session.append" "$(field inline@mk 5)"
 assert_eq "project entry for this project decides enabled" "off" "$(field inline@mk 3)"
+assert_eq "project-scope install for this project is the project tier" project "$(field inline@mk 2)"
+assert_eq "local-scope install for this project is the local tier" local "$(field localmod@mk 2)"
+assert_eq "user and project entries on one path: the narrower scope names the tier" "project on" \
+  "$(field twoscope@mk 2) $(field twoscope@mk 3)"
+assert_eq "another project's entry on a user path does not change the tier" user "$(field mod-a@mk 2)"
 assert_eq "path only another project enables is skipped" 0 "$(count_rows elsewhere@mk)"
 assert_contains "skipped path is counted in a footer" "$OUT" "# not read: installed tier: 1 install path(s) only other projects enable, skipped"
 assert_eq "validate failure reads unknown" "unknown unknown validate-failed" \
@@ -203,6 +227,15 @@ assert_eq "unresolved default and hooks read unknown; absent from the table read
   "unknown unknown unknown" \
   "$(field cc-plugin-mystery@builtin 3) $(field cc-plugin-mystery@builtin 4) $(field cc-plugin-mystery@builtin 5)"
 assert_contains "built-in enabled is marked partial" "$OUT" "# not read: built-in enabled: managed settings and --settings are not read"
+# Gate flags: the inventory skill says a built-in gated off by its flag can still read
+# default_enabled true, so a false flag, or a gate whose value is unknown, never reads on.
+assert_eq "cached gate flag false reads off, even with the setting on" off "$(field cc-plugin-flag-off@builtin 3)"
+assert_eq "absent cache key falls back to the flag default: false reads off" off "$(field cc-plugin-flag-default-off@builtin 3)"
+assert_eq "cached gate flag true leaves the setting or default deciding" on "$(field cc-plugin-flag-on@builtin 3)"
+assert_eq "flag cache not read reads unknown, never on" unknown "$(field cc-plugin-flag-uncached@builtin 3)"
+assert_eq "gate that did not read reads unknown" unknown "$(field cc-plugin-gate-unread@builtin 3)"
+assert_eq "no gated field reads unknown" unknown "$(field cc-plugin-gate-missing@builtin 3)"
+assert_eq "ungated built-in on by default reads on" on "$(field cc-plugin-sec-default@builtin 3)"
 
 run_mp --no-fetch
 assert_contains "no --builtin-json is named in a footer" "$OUT" "# not read: built-in tier: built-in mods were not read (no --builtin-json inventory report)"
