@@ -122,9 +122,15 @@ class Renders(unittest.TestCase):
                                 '--narration', str(folder))
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(report['defects'], [])
-        self.assertEqual(report['narration']['beats'], [0.0, 1.5, 3.5, 7.0, 10.0])
+        self.assertEqual(report['narration']['beats'], [0.2, 1.5, 3.5, 7.0, 10.0])
         self.assertIn('Take a right triangle.', (self.out / 'captions.srt').read_text(encoding='utf-8'))
         self.assertFalse((self.out / 'Pythagoras.silent.mp4').exists())
+        self.assertFalse((self.out / 'narration.normalized.wav').exists())
+        loud = report['narration']['loudness']
+        self.assertLessEqual(abs(loud['delivered']['integrated_lufs'] - render.LOUDNESS['integrated_lufs']),
+                             render.LOUDNESS['tolerance_lu'])
+        self.assertLessEqual(loud['delivered']['true_peak_dbtp'], render.LOUDNESS['true_peak_max_dbtp'])
+        self.assertIsInstance(report['stills'], list)
 
     def test_a_beat_that_overruns_its_narration_fails(self):
         folder = self.narration([0.2, 0.5, 3.5, 7.0], 10.0)

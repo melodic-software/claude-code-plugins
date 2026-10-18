@@ -44,6 +44,13 @@ on:
         required: false
         type: number
         default: 30
+      dispatcher-run-id:
+        description: >-
+          On a workflow_dispatch sent by github-actions[bot], the
+          pr-unblock-dispatch.yml run that sent it; empty otherwise.
+        required: false
+        type: string
+        default: ""
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
@@ -222,6 +229,13 @@ jobs:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           pr-number: ${{ inputs.pr-number }}
           triggering-actor: ${{ github.triggering_actor }}
+          # A dispatch from github-actions[bot] proceeds only when it names a
+          # pr-unblock-dispatch.yml run on the default branch that sent it to
+          # pr-unblock.yml; any other run passes no id and the bot stays
+          # unlisted.
+          dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+          dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
+          dispatched-workflow: .github/workflows/pr-unblock.yml
 
       - name: Assert the base is on the default branch
         id: trusted-base
@@ -350,7 +364,7 @@ jobs:
       - name: Run the skill activity
         id: act-skill
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
-        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
+        uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967 # v1.0.252
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -376,6 +390,13 @@ jobs:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           github_token: ${{ github.token }}
           use_commit_signing: true
+          # A workflow_run after a lanes App push runs as the App, and a
+          # dispatcher-sent run as github-actions; the trigger gate has
+          # already admitted both, so the action's own bot check only needs
+          # them listed (the App as in pr-verify.yml).
+          allowed_bots: >-
+            ${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions'
+            || 'melodic-automation-lanes[bot]' }}
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}
@@ -485,7 +506,7 @@ jobs:
           path: |
             ${{ runner.temp }}/skill-reply/reply.txt
             ${{ runner.temp }}/skill-reply/act-turns.json
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: error
 
       # The verdict comes from the action's structured_output, read through env
@@ -640,6 +661,7 @@ jobs:
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict/verdict.json
+          retention-days: 1
           if-no-files-found: error
 
   report:

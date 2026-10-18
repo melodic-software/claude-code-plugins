@@ -1,0 +1,18 @@
+{
+  "loudness": {
+    "integrated_lufs": -16.0,
+    "tolerance_lu": 1.0,
+    "true_peak_max_dbtp": -1.0,
+    "limiter_true_peak_dbtp": -2.0,
+    "loudness_range_lu": 11.0
+  },
+  "captions": {
+    "max_words": 8,
+    "min_seconds": 0.834,
+    "seconds_per_word": 0.3
+  },
+  "stills": {
+    "min_seconds": 3.0,
+    "noise": 0.003
+  }
+}

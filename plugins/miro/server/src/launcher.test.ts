@@ -85,7 +85,8 @@ describe("first launch that cannot install", () => {
     expect(run.status).toBe(1);
     expect(run.stderr.length).toBeGreaterThan(65_536);
     expect(run.stderr.startsWith("miro MCP server cannot start: cannot create ")).toBe(true);
-    expect(run.stderr.endsWith("--no-audit --no-fund\n")).toBe(true);
+    // The repair command ends differently per platform, so take its tail from the launcher.
+    expect(run.stderr.endsWith(`${installCommand(installDir(longData))}\n`)).toBe(true);
   });
 });
 

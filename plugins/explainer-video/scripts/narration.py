@@ -8,14 +8,17 @@ narration it holds `hold` seconds, so the same scene renders silent.
 The beats are the narration script's paragraphs: script.txt split on blank lines, in order. narrate.py makes one
 words.json entry per whitespace-separated token of the script, so paragraph k owns the next len(paragraph.split())
 entries.
+
+Caption limits (most words per cue, shortest cue, reading time per word) are defaults.json "captions".
 """
 import json
+import math
 import os
 import re
 from pathlib import Path
 
 ENV = 'EXPLAINER_TIMING'
-CAPTION_WORDS = 8           # most words in one caption
+CAPTIONS = json.loads(Path(__file__).with_name('defaults.json').read_text(encoding='utf-8'))['captions']
 SENTENCE_END = set('.!?…')
 CLOSERS = '"\'’”)]}»'            # may follow a sentence end: "Done." or finished.)
 
@@ -73,20 +76,77 @@ def beat_defects(marks, starts, fps):
     return defects
 
 
-def captions(record, beats, limit=CAPTION_WORDS):
-    """[(start, end, text)]: each beat's words in runs of at most `limit`, broken after a sentence end."""
+def _sentences(run):
+    out, current = [], []
+    for w in run:
+        current.append(w)
+        if set(w['word'].rstrip(CLOSERS)[-1:]) & SENTENCE_END:
+            out.append(current)
+            current = []
+    return out + [current] if current else out
+
+
+def _balanced(sentence, limit):
+    """The fewest runs of at most limit words, their lengths as even as possible, so no run is a short orphan."""
+    k = math.ceil(len(sentence) / limit)
+    size, extra = divmod(len(sentence), k)
+    runs, at = [], 0
+    for i in range(k):
+        n = size + (i < extra)
+        runs.append(sentence[at:at + n])
+        at += n
+    return runs
+
+
+def captions(record, beats, limit=None, min_seconds=None, per_word=None):
+    """[(start, end, text)]: each beat's sentences split into the fewest balanced runs of at most `limit` words.
+    A run whose time before the next run starts is under min_seconds joins a neighbor in its beat when the two fit
+    in `limit` words. Each cue then stays up for min_seconds and per_word seconds a word, as far as the next cue's
+    start (the narration's end for the last) allows."""
+    limit = limit or CAPTIONS['max_words']
+    min_seconds = CAPTIONS['min_seconds'] if min_seconds is None else min_seconds
+    per_word = CAPTIONS['seconds_per_word'] if per_word is None else per_word
     words = record['words']
+    beat_runs = [[r for s in _sentences(words[first:first + count]) for r in _balanced(s, limit)]
+                 for first, count in beats]
+    starts = [b[0][0]['start'] for b in beat_runs if b] + [record['duration']]
+    for j, runs in enumerate(beat_runs):
+        i = 0
+        while i < len(runs):
+            window = (runs[i + 1][0]['start'] if i + 1 < len(runs) else starts[j + 1]) - runs[i][0]['start']
+            if window < min_seconds:
+                if i > 0 and len(runs[i - 1]) + len(runs[i]) <= limit:
+                    runs[i - 1:i + 1] = [runs[i - 1] + runs[i]]
+                    i -= 1
+                    continue
+                if i + 1 < len(runs) and len(runs[i]) + len(runs[i + 1]) <= limit:
+                    runs[i:i + 2] = [runs[i] + runs[i + 1]]
+                    continue
+            i += 1
+    runs = [r for b in beat_runs for r in b]
     cues = []
-    for first, count in beats:
-        run = []
-        for w in words[first:first + count]:
-            run.append(w)
-            if len(run) == limit or set(w['word'].rstrip(CLOSERS)[-1:]) & SENTENCE_END:
-                cues.append(run)
-                run = []
-        if run:
-            cues.append(run)
-    return [(r[0]['start'], r[-1]['end'], ' '.join(w['word'] for w in r)) for r in cues]
+    for i, r in enumerate(runs):
+        next_start = runs[i + 1][0]['start'] if i + 1 < len(runs) else record['duration']
+        end = min(max(r[-1]['end'], r[0]['start'] + max(min_seconds, per_word * len(r))), next_start)
+        cues.append((r[0]['start'], round(end, 3), ' '.join(w['word'] for w in r)))
+    return cues
+
+
+def caption_findings(cues, min_seconds=None, per_word=None):
+    """(defects, flags): a cue shorter than min_seconds is a defect; one under per_word seconds a word is flagged,
+    since narration spoken faster than that cannot be captioned slower."""
+    min_seconds = CAPTIONS['min_seconds'] if min_seconds is None else min_seconds
+    per_word = CAPTIONS['seconds_per_word'] if per_word is None else per_word
+    defects, flags = [], []
+    for i, (a, b, text) in enumerate(cues, 1):
+        n = len(text.split())
+        if b - a < min_seconds - 1e-6:
+            defects.append(f'caption {i} {text!r} is on screen {b - a:.2f} s, under the {min_seconds} s minimum: '
+                           'give it a longer pause after it in script.txt, or join it to the sentence beside it')
+        elif b - a < per_word * n - 1e-6:
+            flags.append(f'caption {i} {text!r}: {n} words in {b - a:.2f} s, {(b - a) / n:.2f} s a word, under '
+                         f'{per_word} s a word')
+    return defects, flags
 
 
 def srt(cues):

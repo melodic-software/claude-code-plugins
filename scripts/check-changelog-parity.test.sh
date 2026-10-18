@@ -674,6 +674,31 @@ git -C "$repo" merge -q --no-ff -m 'synthetic PR merge' pr >/dev/null 2>&1
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"VERSION COLLISION"*"alpha"* ]]; then ok "collision detected from a synthetic PR merge-commit checkout (fork from HEAD^2)"; else fail "synthetic-merge collision not caught: rc=$rc out='$out'"; fi
+# #7871: the pull_request lane sets CHANGELOG_PARITY_COLLISIONS=advisory, so a
+# branch only behind a main that took the same number is reported, not failed.
+out="$(cd "$repo" && CHANGELOG_PARITY_COLLISIONS=advisory bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 && "$out" == *"ADVISORY"*"VERSION COLLISION"*"alpha"* ]]; then ok "advisory mode reports the merge-commit collision without failing"; else fail "advisory collision: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# MERGE QUEUE SHAPE: the queue commits the pull request's change as one commit
+# on top of main and checks it against HEAD^1, with no advisory mode. A pull
+# request that claimed main's 1.1.0 lands there as shipped changes with no new
+# version, and the gate still fails it.
+mk_repo repo
+git_init_test_repo "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+ship_change "$repo"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main merges its own 1.1.0'
+ship_change "$repo"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'queued squash: pr change, its 1.1.0 bump already on main'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump 'HEAD^1' 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"PUBLISHED VERSION REUSE"*"alpha"* ]]; then ok "the merge-queue check still fails a pull request that collided on main's version"; else fail "merge-queue collision not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
 # NON-SEMVER MANIFEST VERSION: a malformed version must refuse loudly, never

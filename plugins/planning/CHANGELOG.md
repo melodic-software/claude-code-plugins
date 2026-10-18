@@ -3,6 +3,24 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.76.0] - 2026-10-18
+
+### Added
+
+- `round.sh export-ledger --recap --out F` writes the interview confirmation gate's compact recap: one `Q<N> <status>: <question> (<answer>)` line per live question, every withdrawn row collapsed into one `Withdrawn (N): ...` line, and long answers cut until the recap fits the 20,000-character restate cap, so a long interview's recap no longer needs hand-trimming before `restate`. `context/surface.md` Confirmation gate names this form.
+
+- `round.sh lease --takeover` hands an interview over after `/clear`: one command releases the old session's lease and arms `watch.sh` for the new one. `surface.md` documents it for the after-`/clear` case.
+
+### Changed
+
+- A watcher whose lease was released while it waited exits 3 with a message starting `handed over, not a failure`, so a displaced watcher reads as a handover.
+
+### Fixed
+
+- The interview page's header keeps "Claude is working on Q99, Q1" visible while a `set-status` text is set. The working text is its own polite live region beside the status and lists every pending id instead of "(+N)". A status set before the newest unhandled user event shows dimmed, with its age still visible.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.75.1] - 2026-10-16
 
 ### Changed
