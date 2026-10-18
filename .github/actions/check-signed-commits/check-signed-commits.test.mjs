@@ -22,6 +22,7 @@ const load = () => JSON.parse(readFileSync(path.join(HERE, "fixtures", "api-pr-4
 function routesFrom(api, since = B) {
   return {
     [`GET /repos/${REPOSITORY}/pulls/42`]: api.pull,
+    [`GET /repos/${REPOSITORY}/git/ref/heads/feat/lane-probe`]: api.headRef,
     [`GET /repos/${REPOSITORY}/pulls/42/commits?${page1}`]: api.commits,
     [`GET /repos/${REPOSITORY}/compare/${since}...${D}`]: api.compare,
     [`GET /repos/${REPOSITORY}/labels?${page1}`]: api.labels,
@@ -65,13 +66,13 @@ async function check({ api = load(), since = B, routes = routesFrom(api, since),
     GITHUB_OUTPUT: outputPath,
     ...(label === undefined ? {} : { ESCALATION_LABEL: label }),
   };
-  const code = await main({ env, github, log: () => {} });
+  const code = await main({ env, github, log: () => {}, sleep: async () => {} });
   return { code, outputs: readOutputs(readFileSync(outputPath, "utf8")), github };
 }
 
 const COMMENT_FOR_D = [
-  "Lane commit check: these commits on this pull request are not GitHub-verified, so no lane " +
-    "continues on it until a human reviews them.",
+  "Lane commit check: these commits are not GitHub-verified, so no lane continues on this " +
+    "pull request until a human reviews them.",
   "",
   `- \`${D}\``,
 ].join("\n");
@@ -167,7 +168,6 @@ test("a PR over 250 commits checks every comparison commit, merged-in base commi
 
 test("a lane that made no commits passes on a PR over 250 commits", async () => {
   const api = overCap(load());
-  api.commits[3].commit.verification.verified = false;
   api.compare = { status: "identical", ahead_by: 0, behind_by: 0, total_commits: 0, commits: [] };
   const { code, outputs, github } = await check({ api, since: D });
   assert.equal(code, 0);
@@ -188,7 +188,9 @@ test("a truncated comparison on a PR over 250 commits fails closed", async () =>
   const { outputs, github } = await check({ api });
   assert.equal(outputs["all-verified"], "false");
   assert.equal(outputs.unverified, "");
+  assert.equal(outputs["since-is-ancestor"], "true");
   assert.match(github.writes.at(-1).body.body, CAP_SENTENCE);
+  assert.doesNotMatch(github.writes.at(-1).body.body, /not an ancestor/);
   assert.equal(github.writes[0].body.labels[0], "needs-human");
 });
 
@@ -211,7 +213,9 @@ test("a recorded head that is not an ancestor fails closed on a PR over 250 comm
   const { outputs, github } = await check({ api });
   assert.equal(outputs["all-verified"], "false");
   assert.equal(outputs["since-is-ancestor"], "false");
-  assert.match(github.writes.at(-1).body.body, CAP_SENTENCE);
+  const comment = github.writes.at(-1).body.body;
+  assert.match(comment, CAP_SENTENCE);
+  assert.match(comment, /so every listed commit on the pull request was checked/);
 });
 
 test("a malformed recorded head fails closed on a PR over 250 commits", async () => {
@@ -228,8 +232,23 @@ test("a PR whose commit count is missing is not verifiable without a comparison"
   const api = load();
   delete api.pull.commits;
   api.commits[3].commit.verification.verified = true;
-  const { outputs } = await check({ api, since: "not-a-sha" });
+  const { outputs, github } = await check({ api, since: "not-a-sha" });
   assert.equal(outputs["all-verified"], "false");
+  const comment = github.writes.at(-1).body.body;
+  assert.match(comment, /GitHub did not report how many commits this pull request has/);
+  assert.doesNotMatch(comment, CAP_SENTENCE);
+});
+
+test("a recorded head GitHub does not know fails closed on a PR over 250 commits", async () => {
+  const api = overCap(load());
+  for (const commit of [...api.commits, ...api.compare.commits]) {
+    commit.commit.verification.verified = true;
+  }
+  const routes = routesFrom(api);
+  delete routes[`GET /repos/${REPOSITORY}/compare/${B}...${D}`];
+  const { outputs } = await check({ api, routes });
+  assert.equal(outputs["all-verified"], "false");
+  assert.equal(outputs["since-is-ancestor"], "false");
 });
 
 test("the outputs are written before the escalation, so a failed label write keeps all-verified=false", async () => {
@@ -308,43 +327,52 @@ test("a truncated comparison falls back to every PR commit", async () => {
 });
 
 // Each top-level job of a workflow file with its job-level permissions map and
-// whether it runs claude-code-action. Reads only the block layout these files
-// use: two-space job keys, a four-space `permissions:` key, six-space entries.
+// whether it runs claude-code-action. Reads the block layout these files use
+// (two-space job keys, a four-space `permissions:` key, six-space entries) and
+// throws on any line inside a permissions map it cannot read, so a new layout
+// fails the test instead of passing it unread.
 function workflowJobs(name) {
   const lines = readFileSync(path.join(HERE, "../../workflows", name), "utf8").split("\n");
   const jobs = new Map();
   let job;
   let inJobs = false;
   let inPermissions = false;
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
+    if (/^\s*(?:#.*)?$/.test(line)) {
+      continue;
+    }
     if (/^\S/.test(line)) {
       inJobs = line === "jobs:";
       job = undefined;
+      inPermissions = false;
       continue;
     }
     const key = inJobs && /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line);
     if (key) {
       job = { permissions: undefined, model: false };
       jobs.set(key[1], job);
+      inPermissions = false;
       continue;
     }
     if (!job) {
       continue;
     }
-    if (/^ {4}permissions:\s*$/.test(line)) {
+    if (inPermissions && !/^ {5}/.test(line)) {
+      inPermissions = false;
+    }
+    if (inPermissions) {
+      const entry = /^ {6}([a-z-]+):\s*(["']?)([a-z]+)\2\s*(?:#.*)?$/.exec(line);
+      assert.ok(entry, `${name}:${index + 1}: unreadable permissions line`);
+      job.permissions[entry[1]] = entry[3];
+      continue;
+    }
+    if (/^ {4}permissions:/.test(line)) {
+      assert.match(line, /^ {4}permissions:\s*(?:#.*)?$/, `${name}:${index + 1}: inline permissions`);
       job.permissions = {};
       inPermissions = true;
       continue;
     }
-    const entry = inPermissions && /^ {6}([a-z-]+):\s*([a-z]+)\s*(?:#.*)?$/.exec(line);
-    if (entry) {
-      job.permissions[entry[1]] = entry[2];
-      continue;
-    }
-    if (!line.startsWith("      ")) {
-      inPermissions = false;
-    }
-    if (/^\s+(?:-\s+)?uses:\s+anthropics\/claude-code-action@/.test(line)) {
+    if (/^\s+(?:-\s+)?uses:\s+["']?anthropics\/claude-code-action@/.test(line)) {
       job.model = true;
     }
   }
@@ -367,6 +395,46 @@ for (const file of ["pr-run-activity-write.yml", "pr-run-activity-read.yml"]) {
     }
   });
 }
+
+test("a PR head that never matches its branch fails closed, even for a lane with no commits", async () => {
+  const api = overCap(load());
+  api.headRef.object.sha = "f".repeat(40);
+  api.compare = { status: "identical", ahead_by: 0, behind_by: 0, total_commits: 0, commits: [] };
+  for (const commit of api.commits) {
+    commit.commit.verification.verified = true;
+  }
+  const { outputs, github } = await check({ api, since: D });
+  assert.equal(outputs["all-verified"], "false");
+  assert.equal(github.reads.filter((read) => read.endsWith("/pulls/42")).length, 5);
+  assert.ok(!github.reads.some((read) => read.includes("/compare/")));
+  assert.match(github.writes.at(-1).body.body, /head did not match its branch/);
+});
+
+test("a PR read that lags the branch is re-read until its head matches", async () => {
+  const api = load();
+  for (const commit of api.compare.commits) {
+    commit.commit.verification.verified = true;
+  }
+  const routes = routesFrom(api);
+  const stale = { ...api.pull, head: { ...api.pull.head, sha: B } };
+  const pullKey = `GET /repos/${REPOSITORY}/pulls/42`;
+  const reads = [stale, stale, api.pull];
+  const github = fakeGitHub(routes);
+  const fresh = async (method, apiPath, body) => {
+    if (`${method} ${apiPath}` === pullKey) {
+      github.reads.push(pullKey);
+      return structuredClone(reads.shift());
+    }
+    return github(method, apiPath, body);
+  };
+  const outputPath = path.join(dir, "output");
+  writeFileSync(outputPath, "");
+  const env = { PR_NUMBER: "42", SINCE_SHA: B, REPOSITORY, GITHUB_OUTPUT: outputPath };
+  const code = await main({ env, github: fresh, log: () => {}, sleep: async () => {} });
+  assert.equal(code, 0);
+  assert.equal(readOutputs(readFileSync(outputPath, "utf8"))["all-verified"], "true");
+  assert.equal(github.reads.filter((read) => read === pullKey).length, 3);
+});
 
 test("an API failure exits non-zero and writes no outputs", async () => {
   const api = load();

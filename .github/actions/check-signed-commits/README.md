@@ -13,11 +13,14 @@ or force-pushes.
 | `pr-number` | required | The PR |
 | `since-sha` | required | The PR head recorded before the model step ran |
 | `repository` | `${{ github.repository }}` | owner/name of the PR's repository |
-| `github-token` | required | The lane's App token: reads the PR, adds a label, comments |
+| `github-token` | required | Reads the PR and its commits; adds the label and comment, which needs `issues: write` |
 | `escalation-label` | `needs-human` | Label added on an unverified commit |
 
 ## Rules
 
+- The PR is re-read, at most 5 times 2 s apart, until its head SHA equals the SHA its head branch
+  ref points at, since `GET /pulls` can lag a push. When they never agree, the lane's commits
+  cannot be checked: `all-verified` and `since-is-ancestor` are `false` and the escalation runs.
 - The lane's commits are the commits the comparison `since-sha...head` lists, when `since-sha` is
   an ancestor of the head and the comparison lists every commit it counts. Their verification is
   read from the comparison's commit objects. A comparison with no commits passes.
@@ -61,6 +64,10 @@ A lane job that uses this check:
 - Runs both gates with no `continue-on-error`, and gives the model step
   `if: steps.kill.outputs.proceed == 'true' && steps.gate.outputs.proceed == 'true'`.
 - Mints the App token only after both gates.
+
+The check itself runs in the scripted `report` job, with that job's `GITHUB_TOKEN`. The label
+and comment writes need `issues: write` on that job and never on the model job; until the report
+job holds it, an escalation fails with 403 and the step exits 1 with its outputs written.
 
 ## Tests
 
