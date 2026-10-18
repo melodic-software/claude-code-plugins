@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Page alignment check: seeds a varied session and an empty one through `share.sh ensure-running` (fake cloudflared,
-// spare ports), then opens every view below at each size and theme and checks the geometry in the page: no page scroll,
+// spare ports), then opens every view below at each size and theme and checks the page: no mention token (<@pid>) in
+// its text, attributes or fields, and the geometry: no page scroll,
 // no horizontal overflow, no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
 // place, the phone tab bar, choice and confirm controls above the fold, and icon-only buttons with the icon centered
 // on the button within 0.5 px (icon-center).
@@ -36,7 +37,7 @@ function png(w, h, [r1, g1, b1], [r2, g2, b2]) {
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80"><rect x="4" y="4" width="90" height="72" fill="none" stroke="black"/><text x="20" y="45">Cart</text><rect x="120" y="4" width="90" height="72" fill="none" stroke="black"/><text x="130" y="45">Pay</text></svg>';
 const q = (id, text, format = { kind: "text" }, extra = {}) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format, ...extra });
 
-/** Seed the varied session over the API: questions in two rounds, people, answers, votes, a lock, chat, a mention,
+/** Seed the varied session over the API: questions in two rounds, people, answers, votes, a lock, chat, mentions,
  *  a proposal, a request and a published result. Attachments have no route yet (core.js uploadOffer), so none. */
 async function seed(s, A) {
   const base = A.localUrl.replace(/\/$/, ""), owner = new URL(A.ownerUrl).hash.replace(/^#owner=/, "");
@@ -96,7 +97,7 @@ async function seed(s, A) {
   await post("/api/vote", { qid: "Q4", card: "p:" + eli.pid, on: true }, bea);
   await post("/api/lock", { qid: "Q4", card: "p:" + eli.pid }, host);
   for (const [who, text] of [[bea, "Hi all, starting on Q1."], [chen, "@Bea the sidebar one is mine 🙂"], [dana, "Long message: " + "the summary should never hide the total. ".repeat(6)], [eli, "مرحبا! Hebrew and Arabic both read fine here."], [bea, longWord]]) await post("/api/chat", { text }, who);
-  await post("/api/request", { qid: "Q1", kind: "research", text: "How do the five biggest shops place the order summary?" }, bea);
+  await post("/api/request", { qid: "Q1", kind: "research", text: "How do the five biggest shops place the order summary? @Chen asked too." }, bea);
   await post("/api/request", { qid: "Q2", kind: "ask", text: "Which pages share the header component today?" }, eli);
   const res = s.apply(A.dir, [{ op: "result", qid: "Q1", kind: "research", used: [{ name: "discovery:research", type: "skill" }], why: "Outside comparison.",
     summary: "Four of five big shops keep the summary in a right column on desktop and collapse it on phones.", sources: [{ title: "Patterns", url: "https://example.com/p" }],
@@ -118,7 +119,7 @@ async function seed(s, A) {
   await ans(eli, "Q9", "Nothing from me.");
   // proposals after round 1 went out: a proposal in a sent round's digest needs a placement when the next round opens
   await post("/api/propose", { text: "Ask about express checkout buttons (Apple Pay, Google Pay) above the fold." }, chen);
-  await post("/api/propose", { text: "Should we test the new layout with five customers first?" }, dana);
+  await post("/api/propose", { text: "Should we test the new layout with five customers first? @Eli could run it." }, dana);
   await post("/api/report", { text: "The Send button does nothing on my phone after I pick a layout.", ctx: { view: "focus", tab: "answer", qid: "Q11", round: 2,
     device: "phone", browser: "safari", viewport: { w: 390, h: 844 }, visualViewport: { w: 390, h: 508, scale: 1 }, errors: ["api slow-down: HTTP 429: Wait a moment"] } }, eli);
 }
@@ -319,6 +320,10 @@ const check = (page, theme) => page.evaluate(theme => {
     return [...rg.getClientRects()].find(r => r.width > 0) || null;
   };
   if (!app) return [{ rule: "setup", msg: "no #app on the page" }];
+  // 0. No mention token (<@pid>, as the server stores a mention) anywhere: in text, an attribute, a field or the title.
+  const raw = [document.title, document.documentElement.textContent, ...[...document.querySelectorAll("*")].flatMap(e => [...e.attributes].map(a => a.value)),
+    ...[...document.querySelectorAll("input, textarea")].map(e => e.value)].join("\n").match(/<@[A-Za-z0-9_-]{1,32}>/);
+  if (raw) fail("raw-token", `${raw[0]} shows on the page`);
   // the theme the page shows follows the emulated color scheme (the default theme mode is System)
   const shown = app.dataset.theme || document.documentElement.dataset.theme || app.closest("[data-theme]")?.dataset.theme;
   if (shown && shown !== theme) fail("theme", `page shows theme ${shown}, expected ${theme}`);

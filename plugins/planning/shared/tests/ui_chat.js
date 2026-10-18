@@ -237,6 +237,24 @@ async function main() {
     ok("touch phones: opening the chat leaves the message box unfocused, so the keyboard waits for a tap", autoFocus.length === 0, autoFocus.join("; "));
     ok("phones: the document never scrolls, in the default view, with the chat open, and with the keyboard up", shell.length === 0, shell.join("; "));
 
+    // ---------- triage 46: a mention points at the person, so a rename shows in it, and Copy gives "@Name" ----------
+    const mau = await rec.open(A.localUrl);
+    await joinAs(mau, "Maude");
+    await until(gus, () => Object.values(window.Core.state.people).some(p => p.name === "Maude"));
+    await gus.evaluate(() => window.Core.chat("@Maude can you check the card field?"));
+    const chipIs = want => until(owner, w => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("can you check the card field?"));
+      return !!li && li.querySelector(".vf-mention")?.textContent === w; }, want);
+    ok("a mention shows as a chip with the person's name", await chipIs("@Maude"));
+    await mau.evaluate(() => window.Core.rename("Courtney"));
+    ok("after Maude renames herself Courtney, the chip in the message she was mentioned in shows @Courtney", await chipIs("@Courtney"));
+    await owner.evaluate(() => { window.__copied = null; navigator.clipboard.writeText = t => { window.__copied = t; return Promise.resolve(); }; });
+    await owner.locator(".vf-msg", { hasText: "can you check the card field?" }).locator(".vf-msgmore").click();
+    await owner.locator(".vf-msgmenu [role=menuitem]", { hasText: "Copy" }).click();
+    const copied = await until(owner, () => window.__copied) && await owner.evaluate(() => window.__copied);
+    ok("Copy gives the message as \"@Courtney can you check the card field?\"", copied === "@Courtney can you check the card field?", JSON.stringify(copied));
+    const raw = await owner.evaluate(() => { const t = [document.documentElement.textContent, ...[...document.querySelectorAll("*")].flatMap(e => [...e.attributes].map(a => a.value)), ...[...document.querySelectorAll("input, textarea")].map(e => e.value)].join("\n"); return (t.match(/<@[A-Za-z0-9_-]+>/) || [""])[0]; });
+    ok("no raw mention token anywhere on the page, its attributes or its fields", raw === "", raw);
+
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     ok("no page error", rec.errors.filter(m => !/Failed to load resource/.test(m)).length === 0, rec.errors.slice(0, 3).join(" | "));
   } catch (e) {
