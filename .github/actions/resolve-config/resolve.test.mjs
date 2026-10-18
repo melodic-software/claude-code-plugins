@@ -340,9 +340,10 @@ const LIMITS = {
   "restarts-per-run": 5,
   "limit-stops-per-head": 3,
   "limit-stops-per-issue": 3,
+  "wip-cap": 60,
 };
 
-test("limits: a config with no limits leaf resolves today's six values", () => {
+test("limits: a config with no limits leaf resolves today's seven values", () => {
   assert.deepEqual(run(fixture("valid.yaml")).limits, LIMITS);
 });
 
@@ -354,7 +355,7 @@ test("limits: a set leaf overrides its default and leaves the others", () => {
 });
 
 test("limits: an unknown key, a value that is not an integer, or one out of its range is rejected", () => {
-  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }]) {
+  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }]) {
     const config = edited((doc) => {
       doc.limits = limits;
     });

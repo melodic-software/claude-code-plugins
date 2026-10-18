@@ -33,8 +33,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_dependabot as dependabot
 import babysit_gh as gh
 import babysit_merge as merge
+import babysit_merge_prefilter as prefilter
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
+import babysit_run_cache as run_cache
 import test_babysit_merge as fixtures
 import test_babysit_merge_async as async_fixtures
 from babysit_risk import ChangedFile, LaneEvidence
@@ -47,6 +49,8 @@ OPERATOR_LOGIN = "operator"
 IDENTITY = "agent-lanes[bot]"
 INERT = policy.UnattendedPolicy(reason="authority-unconfigured")
 INERT_BLOCKER = "unattended merge refused: authority-unconfigured"
+# Captured before setUpModule stubs `_role_label` for the rest of the module.
+REAL_ROLE_LABEL = postmerge._role_label
 
 # The report keys `evaluate()` returned before the unattended path existed,
 # copied from its return statement. A run without a policy must return exactly
@@ -170,6 +174,180 @@ def _evaluate(
             tier,
             **kwargs,
         )
+
+
+class RemappedHumanGatedLabel(unittest.TestCase):
+    """A tracker that maps `human-gated` to another label: the label the
+    verifier escalation adds is the one every autonomous hold reads."""
+
+    LABEL = "human-review"
+
+    def setUp(self) -> None:
+        patcher = mock.patch.object(postmerge, "_role_label", return_value=self.LABEL)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_the_escalation_label_is_the_hold_label(self) -> None:
+        capture = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "", ""))
+        with (
+            mock.patch.object(merge, "gh_capture", capture),
+            mock.patch.object(merge, "upsert_marker_comment", return_value="created"),
+        ):
+            merge.escalate_verify(
+                "owner/repo",
+                fixtures.PR_NUMBER,
+                IDENTITY,
+                "verify:spec-changed",
+                {"pr": {"head": {"sha": HEAD}, "labels": []}},
+            )
+        added = [
+            a for c in capture.call_args_list for a in c.args[0] if "labels[]=" in a
+        ]
+        self.assertEqual(added, [f"labels[]={self.LABEL}"])
+
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        held = _evaluate(
+            fixtures._pr(labels=[{"name": "Human-Review"}]), HEAD, None, permits
+        )
+        self.assertTrue(
+            any(f"'{self.LABEL}' label" in b for b in held["blockers"]),
+            held["blockers"],
+        )
+        self.assertEqual(
+            prefilter.hold({"labels": ["Human-Review"]}, self.LABEL), self.LABEL
+        )
+        # The unmapped default no longer holds.
+        free = _evaluate(
+            fixtures._pr(labels=[{"name": "needs-human"}]), HEAD, None, permits
+        )
+        self.assertEqual(free["blockers"], [])
+        self.assertIsNone(prefilter.hold({"labels": ["needs-human"]}, self.LABEL))
+
+
+class UnreadableHumanGatedLabel(unittest.TestCase):
+    """A tracker config read that fails for any reason but a 404 refuses an
+    autonomous merge instead of holding on `needs-human`, and no fallback is
+    shared with the run's later gate processes."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {run_cache.ENV: str(pathlib.Path(tmp.name, "run.json"))}
+        for patcher in (
+            mock.patch.dict("os.environ", env),
+            mock.patch.object(
+                postmerge,
+                "_role_label",
+                side_effect=postmerge.PostMergeReadError("tracker: HTTP 502"),
+            ),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_the_gate_refuses_and_caches_nothing(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        result = _evaluate(
+            fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
+        )
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any(
+                "human-gated role label is unreadable" in b for b in result["blockers"]
+            ),
+            result["blockers"],
+        )
+        self.assertIsNone(run_cache.get(merge.HUMAN_GATED_SECTION, "owner/repo", None))
+
+    def test_the_escalation_falls_back_to_the_default(self) -> None:
+        capture = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "", ""))
+        with (
+            mock.patch.object(merge, "gh_capture", capture),
+            mock.patch.object(merge, "upsert_marker_comment", return_value="created"),
+        ):
+            merge.escalate_verify(
+                "owner/repo",
+                fixtures.PR_NUMBER,
+                IDENTITY,
+                "verify:spec-changed",
+                {"pr": {"head": {"sha": HEAD}, "labels": []}},
+            )
+        added = [
+            a for c in capture.call_args_list for a in c.args[0] if "labels[]=" in a
+        ]
+        self.assertEqual(added, ["labels[]=needs-human"])
+        self.assertIsNone(run_cache.get(merge.HUMAN_GATED_SECTION, "owner/repo", None))
+
+
+class HumanGatedLabelReadIsStrict(unittest.TestCase):
+    """The gate reads the tracker config through the real `_role_label`: a
+    502 must refuse, not fall back to `needs-human`, which would let a PR
+    carrying a remapped label merge."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {run_cache.ENV: str(pathlib.Path(tmp.name, "run.json"))}
+        failed = subprocess.CompletedProcess([], 1, "", "gh: Server Error (HTTP 502)")
+        for patcher in (
+            mock.patch.dict("os.environ", env),
+            mock.patch.object(postmerge, "_role_label", REAL_ROLE_LABEL),
+            mock.patch.object(postmerge, "gh_capture", return_value=failed),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_a_server_error_refuses_and_caches_nothing(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        result = _evaluate(
+            fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
+        )
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any(
+                "human-gated role label is unreadable" in b for b in result["blockers"]
+            ),
+            result["blockers"],
+        )
+        self.assertIsNone(run_cache.get(merge.HUMAN_GATED_SECTION, "owner/repo", None))
+
+
+class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
+    """`needs-human` holds an autonomous merge (unattended or the autopilot
+    tier); the person it asks for may still merge attended. `do-not-merge`
+    holds both."""
+
+    def test_needs_human_holds_the_unattended_gate_not_an_attended_one(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        pr = fixtures._pr(labels=[{"name": "Needs-Human"}])
+        attended = _evaluate(pr, HEAD, None)
+        unattended = _evaluate(pr, HEAD, None, unattended=permits)
+        self.assertEqual(attended["blockers"], [])
+        self.assertTrue(attended["ready"])
+        self.assertFalse(unattended["ready"])
+        self.assertTrue(
+            any("'needs-human' label" in b for b in unattended["blockers"]),
+            unattended["blockers"],
+        )
+        # The pr-merge prefilter drops what the unattended gate refuses.
+        self.assertEqual(prefilter.hold({"labels": ["Needs-Human"]}), "needs-human")
+
+    def test_needs_human_holds_the_autopilot_merge_tier(self) -> None:
+        # The tier merges with no person present, like --unattended.
+        result = _evaluate(
+            fixtures._pr(labels=[{"name": "needs-human"}]), HEAD, fixtures.TIER
+        )
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any("'needs-human' label" in b for b in result["blockers"]),
+            result["blockers"],
+        )
+
+    def test_do_not_merge_holds_both(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        pr = fixtures._pr(labels=[{"name": "do-not-merge"}])
+        for run in (None, permits):
+            with self.subTest(unattended=run is not None):
+                self.assertFalse(_evaluate(pr, HEAD, None, unattended=run)["ready"])
 
 
 class EvaluateWithoutPolicyIsUnchanged(unittest.TestCase):
@@ -640,6 +818,37 @@ class LaneMode(Unattended):
             out["unattended"]["rungCap"], {"value": None, "reason": "no-cap"}
         )
 
+    def test_an_in_flight_refusal_skips_the_risk_and_verifier_reads(self) -> None:
+        # Another pull request's lane entry is queued; this one is not.
+        self.flight = policy.InFlight(False, "identity-entry-queued:#9", frozenset({9}))
+        self.queued = [9]
+        self.lane_error = AssertionError("risk evidence read")
+        later = mock.Mock(side_effect=AssertionError("read after the refusal"))
+        passing = merge.verify_evidence.Reader.evidence
+        verdicts: list[int] = []
+
+        def evidence(reader: Any, number: int, *args: Any) -> Any:
+            verdicts.append(number)
+            return passing(reader, number, *args)
+
+        with (
+            mock.patch.object(merge.verify_evidence.Reader, "evidence", evidence),
+            mock.patch.object(policy, "changed_files", later),
+        ):
+            code, out = self.lane("--merge")
+        self.assert_no_merge(code)
+        later.assert_not_called()
+        # Only the sweep's read of the queued entry, never this pull request's.
+        self.assertEqual(verdicts, [9])
+        self.assertIn(
+            merge.UNATTENDED_REFUSED + "in-flight:identity-entry-queued:#9",
+            out["blockers"],
+        )
+        self.assertNotIn("risk", out["unattended"])
+        self.assertNotIn("riskComment", out["unattended"]["writes"])
+        # The queue sweep still judges the queued entry.
+        self.assertIn(9, self.hold_reads)
+
     def shared_rules(self) -> None:
         """A run cache holding the base's rules as an earlier candidate read
         them (QUEUE_RULES)."""
@@ -905,6 +1114,20 @@ class DependabotLane(Unattended):
         self.assertEqual(out["unattended"]["risk"]["reason"], "not-scored:dependabot")
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
         self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
+
+    def test_an_in_flight_refusal_still_reads_the_dependabot_class(self) -> None:
+        # Off the queue and refused in flight: the class is still read, so
+        # the gate keeps no dependency-manager hold it would not keep anyway.
+        self.flight = policy.InFlight(False, "identity-entry-queued:#9", frozenset({9}))
+        self.queued = [9]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            merge.UNATTENDED_REFUSED + "in-flight:identity-entry-queued:#9",
+            out["blockers"],
+        )
+        self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
+        self.assertEqual(out["unattended"]["dependabot"]["mode"], "enforce")
 
     def test_report_mode_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, dependabot_mode="report")
@@ -1799,9 +2022,21 @@ class UnattendedCheckOnly(MainHarness):
         unattended = self.evaluate.call_args.kwargs["unattended"]
         self.assertEqual(unattended.details["postMergeShared"], "unused:unreadable")
 
+    def test_a_recompute_is_written_back_to_the_postmerge_result(self) -> None:
+        lane = ("--unattended", "--authority", "pr-merge")
+        with (
+            mock.patch.object(merge.postmerge, "read_shared", return_value=None),
+            mock.patch.object(merge.postmerge, "write_shared") as write,
+        ):
+            self._main(*lane, "--postmerge-result", "/tmp/post-merge.json")
+            share = self.assess.call_args.kwargs["share"]
+            share(mock.sentinel.answer)
+        write.assert_called_once_with("/tmp/post-merge.json", mock.sentinel.answer)
+
     def test_without_a_postmerge_result_the_policy_reads_its_own(self) -> None:
         self._main("--unattended", "--authority", "pr-merge")
         self.assertIsNone(self.assess.call_args.kwargs["shared"])
+        self.assertIsNone(self.assess.call_args.kwargs["share"])
         unattended = self.evaluate.call_args.kwargs["unattended"]
         self.assertNotIn("postMergeShared", unattended.details or {})
 
@@ -1984,6 +2219,19 @@ class LandedRequestUnderARefusingCheck(async_fixtures.AsyncMergeHarness):
         self.assertIs(self.output["merged"], True)
         self.assertIs(self.output["ready"], True)
         self.assertEqual(self.output["blockers"], [])
+
+
+# The tracker's human-gated label read an autonomous gate makes: stubbed so
+# no test reads GitHub.
+_role_label = fixtures.role_label_stub()
+
+
+def setUpModule() -> None:
+    _role_label.start()
+
+
+def tearDownModule() -> None:
+    _role_label.stop()
 
 
 if __name__ == "__main__":

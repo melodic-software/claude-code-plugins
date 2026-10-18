@@ -105,7 +105,9 @@
 #     RELEASE) and skips the per-PR rules above, PUBLISHED VERSION REUSE
 #     included: such a change set changes shipped files and leaves the version
 #     alone, and check-changelog-fragments.sh --check-required asks it for a
-#     fragment instead.
+#     fragment instead. This repository lists every plugin, so the per-PR rules
+#     run only on the release pull request; an unlisted plugin falls back to
+#     them.
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
 # scripts/changelog-parity-baseline.txt (same stale-guarded idiom as

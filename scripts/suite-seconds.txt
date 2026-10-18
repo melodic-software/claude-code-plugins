@@ -404,6 +404,15 @@ plugins/planning/scripts/check-open-questions.test.sh 2
 plugins/planning/scripts/check-plan-outcome.test.sh 1
 plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
+plugins/planning/shared/tests/test_load.py 11
+plugins/planning/shared/tests/test_migrate.py 2
+plugins/planning/shared/tests/test_schema_shapes.py 1
+plugins/planning/shared/tests/test_server.py 15
+plugins/planning/shared/tests/test_session.py 2
+plugins/planning/shared/tests/test_share.py 56
+plugins/planning/shared/tests/test_tunnel.py 15
+plugins/planning/shared/tests/tracer-live.test.sh 1
+plugins/planning/shared/tests/tracer.test.sh 10
 plugins/planning/surface/surface.test.sh 390
 plugins/planning/surface/test_exporters.py 92
 plugins/planning/surface/test_round.py 49
@@ -690,7 +699,6 @@ scripts/check-standards-contract-bump.test.sh 2
 scripts/check-summary-reader-parity.test.sh 3
 scripts/check-test-tmp-cleanup.test.sh 1
 scripts/check-vendor-version-bump.test.sh 2
-scripts/dependabot-plugin-bump.test.sh 1
 scripts/emit-windows-path.test.sh 1
 scripts/gen-hook-event-registry.test.sh 1
 scripts/generate-cheatsheet.test.sh 2
