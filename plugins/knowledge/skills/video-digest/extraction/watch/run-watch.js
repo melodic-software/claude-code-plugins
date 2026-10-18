@@ -139,12 +139,31 @@ export async function runWatchCli(argv) {
   // failure removes the ones this run made. Once recorded, --recover needs them.
   /** @type {TempDirs} */
   const temp = { dirs: {}, recorded: false };
+  // The signal handlers and the finally block share one cleanup, so it runs once.
+  let cleanup = null;
+  const cleanUpOnce = () => {
+    cleanup ??= temp.recorded
+      ? Promise.resolve()
+      : removeRecordedTempSessionDirs(temp.dirs, "watch");
+    return cleanup;
+  };
+  const signalHandlers = Object.entries(SIGNAL_EXIT_CODES).map(([signal, code]) => {
+    const handler = () => {
+      cleanUpOnce().finally(() => process.exit(code));
+    };
+    process.on(signal, handler);
+    return /** @type {const} */ ([signal, handler]);
+  });
   try {
     return await watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFrameGapSec, temp });
   } finally {
-    if (!temp.recorded) await removeRecordedTempSessionDirs(temp.dirs, "watch");
+    for (const [signal, handler] of signalHandlers) process.off(signal, handler);
+    await cleanUpOnce();
   }
 }
+
+/** Conventional exit code (128 + signal number) for each signal the watch cleans up on. */
+const SIGNAL_EXIT_CODES = { SIGINT: 130, SIGTERM: 143 };
 
 /**
  * @typedef {Object} TempDirs

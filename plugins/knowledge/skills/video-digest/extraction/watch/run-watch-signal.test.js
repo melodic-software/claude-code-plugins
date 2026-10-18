@@ -1,0 +1,83 @@
+/**
+ * A watch killed by SIGINT or SIGTERM during acquisition removes the temp dirs it
+ * made and exits with the conventional signal code. A real child run is used: a
+ * fake `yt-dlp` on PATH blocks the acquisition so the signal lands mid-download.
+ * POSIX only (the fake yt-dlp is a shell script).
+ */
+
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+const RUN_WATCH = fileURLToPath(new URL("./run-watch.js", import.meta.url));
+const URL_UNDER_TEST = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+const TEMP_PREFIXES = ["video-extraction-", "video-frames-", "video-sheets-"];
+
+/** @type {string} */
+let sandbox;
+/** @type {string} */
+let fakeTmp;
+/** @type {string} */
+let started;
+
+async function watchTempDirs() {
+  const names = await fs.readdir(fakeTmp);
+  return names.filter((name) => TEMP_PREFIXES.some((prefix) => name.startsWith(prefix)));
+}
+
+async function waitFor(predicate, timeoutMs = 20_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("timed out waiting for the child to reach acquisition");
+}
+
+describe.skipIf(process.platform === "win32")("run-watch interrupted by a signal", () => {
+  beforeEach(async () => {
+    sandbox = await fs.mkdtemp(path.join(os.tmpdir(), "watch-signal-"));
+    fakeTmp = path.join(sandbox, "tmp");
+    const bin = path.join(sandbox, "bin");
+    started = path.join(sandbox, "yt-dlp-started");
+    await fs.mkdir(fakeTmp);
+    await fs.mkdir(bin);
+    await fs.writeFile(
+      path.join(bin, "yt-dlp"),
+      `#!/bin/sh\ntouch "${started}"\nexec sleep 60\n`,
+      { mode: 0o755 },
+    );
+  });
+
+  afterEach(async () => {
+    await fs.rm(sandbox, { recursive: true, force: true });
+  });
+
+  it.each([
+    ["SIGTERM", 143],
+    ["SIGINT", 130],
+  ])("%s removes the temp dirs and exits %i", async (signal, exitCode) => {
+    const child = spawn(process.execPath, [RUN_WATCH, URL_UNDER_TEST], {
+      env: {
+        ...process.env,
+        PATH: `${path.join(sandbox, "bin")}${path.delimiter}${process.env.PATH}`,
+        TMPDIR: fakeTmp,
+        VIDEO_DIGEST_WORK_ROOT: path.join(sandbox, "work"),
+      },
+      stdio: "ignore",
+    });
+    const exited = new Promise((resolve) => child.on("exit", (code, sig) => resolve({ code, sig })));
+
+    await waitFor(() => existsSync(started));
+    expect(await watchTempDirs()).toHaveLength(3);
+
+    child.kill(signal);
+    expect(await exited).toEqual({ code: exitCode, sig: null });
+    expect(await watchTempDirs()).toEqual([]);
+  });
+});
