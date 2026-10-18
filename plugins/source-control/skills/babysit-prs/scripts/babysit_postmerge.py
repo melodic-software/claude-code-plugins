@@ -1641,15 +1641,17 @@ def write_shared(path: str, shared: policy.SharedPostMerge) -> bool:
             "computedAt": shared.computed_at.isoformat(),
         },
     }
-    target = Path(path)
-    tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+    tmp: Path | None = None
     try:
+        target = Path(path)
+        tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
         tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         os.replace(tmp, target)
     except (OSError, TypeError, ValueError) as exc:
         print(f"post-merge answer not written to {path}: {exc}", file=sys.stderr)
-        with contextlib.suppress(OSError):
-            tmp.unlink(missing_ok=True)
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
         return False
     return True
 

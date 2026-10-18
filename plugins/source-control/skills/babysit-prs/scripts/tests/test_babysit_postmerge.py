@@ -2222,6 +2222,9 @@ class SharedAnswer(CheckCase):
         self.assertIn("disk full", err.getvalue())
         self.assertEqual(path.read_text(encoding="utf-8"), before)
         self.assertEqual(list(path.parent.iterdir()), [path])
+        # A path with no file name is a failed write, never a raise.
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertFalse(pm.write_shared(".", shared))
 
     def test_the_default_floor_names_what_it_was_read_from(self) -> None:
         demotion = pm.policy.Demotion(False, None, (9,), None, None)

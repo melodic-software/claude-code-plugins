@@ -3508,6 +3508,53 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
         self.assertEqual(result.details["postMergeShared"], "unused:new-merge:#7")
         self.assertEqual([answer.main_sha for answer in shared], ["f" * 40])
 
+    def test_the_binding_is_read_before_the_check(self) -> None:
+        # A lane merge landing during the check moves the head after the
+        # binding read, so the next candidate lists merges rather than taking
+        # the unchanged-head shortcut on an answer that never judged it.
+        gh = self.aged(3)
+        self.judged_flight()
+        called: list[Any] = []
+
+        def check(floor: Any, who: str) -> policy.PostMergeGate:
+            called.append(policy.datetime.now(policy.UTC))
+            gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": "e" * 40}
+            return lane_gate(True)
+
+        shared: list[policy.SharedPostMerge] = []
+        self.lane_assess(
+            post_merge=check, shared=self.shared(lane_gate(False)), share=shared.append
+        )
+        (answer,) = shared
+        self.assertEqual(answer.main_sha, MAIN_SHA)
+        self.assertLessEqual(answer.computed_at, called[0])
+
+    def test_an_answer_bound_to_another_candidate_is_not_overwritten(self) -> None:
+        # Not a fresher answer, only a different one: writing it back would
+        # send the candidates that match the run's answer to their own reads.
+        other_floor = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
+        for overrides, rest, reason in (
+            (
+                {"floor": other_floor},
+                {NEWEST_CONFIG: [{"sha": "f" * 40}]},
+                "floor-differs",
+            ),
+            ({"identity": "other[bot]"}, {}, "identity-differs"),
+            ({"self_logins": frozenset({"x[bot]"})}, {}, "self-logins-differ"),
+            ({"lane_merges_only": False}, {}, "lane-differs"),
+        ):
+            with self.subTest(reason=reason):
+                self.bound().rest.update(rest)
+                self.judged_flight()
+                share = mock.Mock()
+                result = self.lane_assess(
+                    post_merge=lambda floor, who: lane_gate(True),
+                    shared=self.shared(lane_gate(True), **overrides),
+                    share=share,
+                )
+                self.assertEqual(result.details["postMergeShared"], f"unused:{reason}")
+                share.assert_not_called()
+
     def test_an_unreadable_shared_answer_is_recomputed_and_handed_back(self) -> None:
         self.bound()
         self.judged_flight()

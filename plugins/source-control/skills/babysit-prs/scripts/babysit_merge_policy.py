@@ -2590,7 +2590,12 @@ class PostMergeGate:
 SHARED_MAX_AGE = timedelta(minutes=30)
 # How old a shared answer still waiting on a lane merge's verifying run may
 # be: that run may have passed since. The verify-evidence listing's bound.
-SHARED_UNVERIFIED_MAX_AGE = timedelta(minutes=2)
+SHARED_UNVERIFIED_MAX_AGE = run_cache.MAX_AGE
+# Refusals that bind the answer to another candidate, not to an older state:
+# a recompute under one is not written over the run's answer.
+SHARED_BINDING_REFUSALS = frozenset(
+    {"identity-differs", "self-logins-differ", "lane-differs", "floor-differs"}
+)
 # Runner clocks may run ahead of GitHub's; `since` starts this much earlier.
 SINCE_CLOCK_MARGIN = timedelta(minutes=5)
 
@@ -2803,7 +2808,8 @@ def assess(
     `shared`, the run's one answer for every candidate, replaces the
     demotion, floor and post-merge reads when `shared_refusal` passes it.
     `share(answer)` receives those reads, when made and readable, bound as a
-    `SharedPostMerge` for the next candidate; it must not raise.
+    `SharedPostMerge` for the next candidate, unless `shared` was refused as
+    bound to another candidate (`SHARED_BINDING_REFUSALS`); it must not raise.
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
     promoted. `self_logins` names only lane or bot self identities (see
@@ -2907,6 +2913,8 @@ def assess(
         )
         details["postMergeShared"] = f"unused:{unusable}" if unusable else "used"
         reuse = None if unusable else shared
+        if unusable in SHARED_BINDING_REFUSALS:
+            share = None
     # Bound before the reads it covers: a merge after this head read moves
     # the head, and a record changed after `computed_at` is re-read.
     computed_at = datetime.now(UTC)
