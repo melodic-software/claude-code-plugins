@@ -1918,6 +1918,28 @@ class InFlight(unittest.TestCase):
         gh.graphql["PolicyRecentMerges"] = merge_pages([[human]], endless=True)
         self.assertEqual(self.flight().reason, "merged-history-truncated")
 
+    def test_an_unreadable_queue_or_truncated_history_refuses_under_a_cap_of_five(
+        self,
+    ) -> None:
+        def capped_flight() -> Any:
+            return policy.in_flight(
+                REPO,
+                agent_identity=IDENTITY,
+                permission=HUMANS,
+                merged_since=FLOOR,
+                max_in_flight=5,
+            )
+
+        gh = queue_fake(self, [], [])
+        gh.graphql["PolicyMergeQueue"] = {
+            "repository": {"mergeQueue": {"entries": {"totalCount": 2, "nodes": []}}}
+        }
+        self.assertEqual(capped_flight().reason, "merge-queue-unreadable")
+        gh = queue_fake(self, [], [])
+        human = merged(2, user(OPERATOR), user(OPERATOR))
+        gh.graphql["PolicyRecentMerges"] = merge_pages([[human]], endless=True)
+        self.assertEqual(capped_flight().reason, "merged-history-truncated")
+
     def test_the_read_stops_at_the_merged_since_floor(self) -> None:
         gh = queue_fake(self, [], [])
         human = merged(2, user(OPERATOR), user(OPERATOR))

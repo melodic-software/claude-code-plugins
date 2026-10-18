@@ -3052,8 +3052,8 @@ def assess(
     inputs.update(rung=rung.rung, flight=flight)
     # Past an on rung, the in-flight refusal outranks every read below. With
     # no queue entry of its own, nothing below writes for this pull request
-    # either (its risk comment and verifier escalation wait for a run with
-    # none in flight), so it skips them. A Dependabot pull request is read in
+    # either (its risk comment and verifier escalation wait for a run below
+    # the merge.max-in-flight cap), so it skips them. A Dependabot pull request is read in
     # full: its class decides the gate's dependency-manager hold.
     if (
         rung.rung != "off"

@@ -1024,7 +1024,7 @@ unpromoted for its class, on a base that is not the default branch, or scored ME
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
 head change. A pull request whose reads stopped at the in-flight refusal (step 3) gets neither
 that comment nor the verifier escalation in that run: it is not queued, so no entry of its own
-waits on them, and the first run that reads it in full with nothing in flight writes both. A
+waits on them, and the first run that reads it in full below the cap writes both. A
 ready LOW pull request on a merge-queue base is enqueued at the pinned head, only
 when that full SHA is the head the policy scored, after a
 second kill-switch read and a second read of the opt-in label (presence and provenance), after an
@@ -1034,8 +1034,9 @@ identity's earlier queue entries and its unverified merges already reach `merge.
 (default 1), the new entry dequeues itself. The enqueue returns before
 the queue lands the pull request, so a later run with
 `--state-dir` that reads the entry back merged at its pin dispatches the full `pr-require-checks`
-run and still exits `10` with `merged: true`, since the merge it just read back is the in-flight
-unverified auto-merge; a failed dispatch is reported as `dispatchError`, and the next cycle's
+run with `merged: true`. It exits `10` while a refusal stands, such as the merge it just read
+back filling the in-flight cap (always so at the default of 1), and `0` when the cap still has
+room; a failed dispatch is reported as `dispatchError`, and the next cycle's
 `babysit-postmerge.sh --remediate` dispatches it.
 
 Named residuals:
@@ -1054,6 +1055,14 @@ Named residuals:
   only that a human with write permission applied them in person, within write-access trust.
   Label provenance also cannot tell the operator from an agent driving the operator's own `gh`
   token.
+- The post-enqueue room check reuses the unverified count the gate read. An identity entry that
+  lands between that read and the queue re-read counts as neither queued nor unverified, so
+  concurrent hosts can exceed `merge.max-in-flight` by the entries that landed in that window. The
+  `pr-merge` workflow's concurrency group serializes CI runs, so only several local hosts race.
+- `merge.max-in-flight` is read at each candidate's base commit, so after the cap is lowered, a
+  pull request whose base predates the change is still gated at the old cap. To lower it at once,
+  set the kill switch (`CLAUDE_LANES_REPO_DISABLED`, read live) until those pull requests are
+  re-based.
 
 Operator runbook: the refusal `in-flight:merged-history-truncated` (or an unreadable post-merge
 verdict naming the read limit) means more merges landed since the floor than the history read

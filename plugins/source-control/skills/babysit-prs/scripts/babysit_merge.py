@@ -2204,7 +2204,7 @@ def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
     ]
     if is_json_object(entry):
         # An entry is a live enqueue even beside errors: reported enqueued so
-        # it is recorded and checked against the one-in-flight rule.
+        # it is recorded and checked against the merge.max-in-flight cap.
         record["status"] = "enqueued"
         record["success"] = True
         record["mergeQueue"] = {
@@ -3461,9 +3461,7 @@ def unattended_enqueue(
     step["identityEntries"] = numbers
     # Room for queued entries: `merge.max-in-flight` less the unverified lane
     # merges the policy counted.
-    room = getattr(inputs.get("config"), "max_in_flight", 1) - getattr(
-        inputs.get("flight"), "unverified", 0
-    )
+    room = inputs["config"].max_in_flight - inputs["flight"].unverified
     if entries is None or number not in numbers[: max(room, 0)]:
         # Earlier entries (another host's) fill the room, or the order cannot
         # be read: this entry leaves so no more than `merge.max-in-flight`
@@ -3485,7 +3483,7 @@ def unattended_enqueue(
             postmerge.DEQUEUE_MUTATION, node_id
         )
         why = (
-            "another unattended merge is in flight"
+            "the merge.max-in-flight cap is full"
             if entries is not None
             else "the queue could not be re-read whole"
         )

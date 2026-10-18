@@ -1251,6 +1251,24 @@ class AllInputsGood(Unattended):
         self.assertIs(out["unattended"]["dispatched"], True)
         self.assertEqual(code, 10)
 
+    def test_a_landed_entry_read_back_under_a_cap_with_room_exits_zero(self) -> None:
+        # At a cap of 5 the landed merge leaves room, so no refusal stands.
+        self.config = dataclasses.replace(self.config, max_in_flight=5)
+        self.flight = policy.InFlight(True, None, frozenset(), 1)
+        self.pr_view = fixtures._pr(state="MERGED")
+        self.prior = {
+            "queued": True,
+            "head": HEAD,
+            "status": "merged",
+            "verification": {"verified": True, "mismatches": []},
+            "requestedAt": "2026-10-12T10:00:00Z",
+        }
+        with tempfile.TemporaryDirectory() as state:
+            code, out = self.run_main("--state-dir", state)
+        self.assertIs(out["merged"], True)
+        self.assertIs(out["unattended"]["dispatched"], True)
+        self.assertEqual(code, 0)
+
     def test_a_failed_dispatch_is_reported_and_left_to_the_remediate_check(
         self,
     ) -> None:
