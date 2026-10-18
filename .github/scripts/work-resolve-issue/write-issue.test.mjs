@@ -308,6 +308,15 @@ test("an App re-fire whose payload update time predates its label event admits, 
   assert.equal(stranger.issue, null);
 });
 
+// Security review on #8037: the label a re-fire restarts is what admitted the
+// text, so it must come from the App or a listed human.
+test("an App re-fire that restarts an unlisted account's label writes no file", async () => {
+  const restart = [labeled(OWNER, 10), unlabeled(STRANGER, 12), labeled(STRANGER, 13), unlabeled(LANES_BOT, 20), labeled(LANES_BOT, 20)];
+  const { code, issue } = await run(fakeGitHub({ comments: [], events: restart }), { sender: String(LANES_BOT.id) });
+  assert.equal(code, 1);
+  assert.equal(issue, null);
+});
+
 test("a change in the same second as the label counts as after it", async () => {
   const { code } = await run(fakeGitHub({ comments: [], issueEdits: { lastEditedAt: "2026-10-13T12:00:00Z" }, events: [labeled(OWNER, 13)] }));
   assert.equal(code, 1);

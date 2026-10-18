@@ -10,9 +10,9 @@
 // pushback quotes the issue body. On any failure no file is left, so the
 // skill never reads a partial issue.
 //
-// The label admitted the issue as it stood when LABEL_SENDER_ID last added
-// LABEL_NAME (the issue's labeled events), so a comment created or edited
-// after that is left out, and a title or body changed since fails the run.
+// The label admitted the issue as it stood at the label event readAdmittedAt
+// anchors on, so a comment created or edited after that is left out, and a
+// title or body changed since fails the run.
 //
 // Environment:
 //   GITHUB_TOKEN          the lane token, which can read the issue
@@ -70,8 +70,9 @@ async function readIssueEdits(github, repository, number) {
 // its own label event (the App's re-add lands a second after its removal);
 // with no such event at or before it, the run's is the first one after it.
 // The lanes App's remove-and-re-add after a limit stop (work-unblock's
-// restart) admits nothing new, so it anchors at the label it restarted.
-async function readAdmittedAt(github, repository, number, label, senderId, lanesAppId, eventAt) {
+// restart) admits nothing new, so it anchors at the label it restarted,
+// which must be the App's or a listed human's.
+async function readAdmittedAt(github, repository, number, label, senderId, lanesAppId, humans, eventAt) {
   const events = (await paginate(github, `/repos/${repository}/issues/${number}/events`))
     .filter((event) => (event?.event === "labeled" || event?.event === "unlabeled") && event.label?.name === label)
     // Times are whole seconds; the event id breaks a tie in the order GitHub recorded them.
@@ -83,6 +84,9 @@ async function readAdmittedAt(github, repository, number, label, senderId, lanes
   }
   while (index > 0 && events[index].actor?.id === lanesAppId && events[index - 1].event === "unlabeled" && events[index - 1].actor?.id === lanesAppId) {
     index = events.slice(0, index - 1).findLastIndex((event) => event.event === "labeled");
+    if (index >= 0 && events[index].actor?.id !== lanesAppId && !humans.has(events[index].actor?.id)) {
+      index = -1;
+    }
   }
   const at = index < 0 ? Number.NaN : timeOf(events[index].created_at);
   if (!Number.isFinite(at)) {
@@ -126,7 +130,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
     dropped["after-admission"] = 0;
     dropped["over-cap"] = 0;
 
-    const frozenAt = await readAdmittedAt(client, repository, env.ISSUE_NUMBER, env.LABEL_NAME, Number(env.LABEL_SENDER_ID), lanesAppId, eventAt);
+    const frozenAt = await readAdmittedAt(client, repository, env.ISSUE_NUMBER, env.LABEL_NAME, Number(env.LABEL_SENDER_ID), lanesAppId, humans, eventAt);
     // Timestamps are whole seconds, so a change in the label's own second counts as after it.
     // NaN compares false, so an unparseable time is a change.
     const edits = await readIssueEdits(client, repository, env.ISSUE_NUMBER);
