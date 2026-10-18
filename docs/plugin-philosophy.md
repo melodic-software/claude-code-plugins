@@ -1676,7 +1676,7 @@ reach an agent's `effort` field. We record this as a gap against
 - **Recheck trigger:** Claude Code adds a per-agent effort setting, or a docs page or a probe shows
   a `userConfig` value reaching a subagent's `effort`.
 
-**Effort is one dial of two, and the other is not an effort value.** We keep the `thinking` mode and
+**Thinking mode and effort level are separate settings.** We keep the `thinking` mode and
 the `effort` level apart: `adaptive` is a thinking mode, never an `effort` value, and a frontmatter
 `effort` field is where that mix-up is reachable, because the two share vocabulary. A pin also
 promises less than a spend ceiling. We treat effort as guidance and the request's `max_tokens` as
