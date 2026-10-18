@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { DEFAULT_LIMITS } from "../work-resolve-issue/limits.mjs";
 import { anyHandles, limitResetsAt } from "./limit-stop.mjs";
 
 const HOUR = 3_600_000;
@@ -68,6 +69,18 @@ test("reset limit stops stop handling a head until three of them stand on it", (
   const stops = [1, 2, 3].map((id) => posted(LIMIT, { id }));
   assert.equal(anyHandles(stops.slice(0, 2), { now }), false);
   assert.equal(anyHandles(stops, { now }), true);
+});
+
+test("the resolved limits set the fallback reset, the clamp and the stops per head", () => {
+  const limits = (values) => ({ ...DEFAULT_LIMITS, ...values });
+  assert.equal(limitResetsAt(posted(LIMIT), limits({ "fallback-reset": 2 })), ended + 2 * HOUR);
+  assert.equal(limitResetsAt(posted(`${LIMIT} resets=2026-10-01T00:00:00Z`), limits({ "reset-clamp-min": 3 })), ended + 3 * HOUR);
+  assert.equal(limitResetsAt(posted(`${LIMIT} resets=2027-01-01T00:00:00Z`), limits({ "reset-clamp-max": 24 })), ended + 24 * HOUR);
+  const now = ended + 6 * HOUR;
+  const stops = [1, 2, 3].map((id) => posted(LIMIT, { id }));
+  assert.equal(anyHandles(stops.slice(0, 2), { now, limits: limits({ "limit-stops-per-head": 2 }) }), true);
+  assert.equal(anyHandles(stops, { now, limits: limits({ "limit-stops-per-head": 4 }) }), false);
+  assert.equal(anyHandles(stops.slice(0, 1), { now: ended + 3 * HOUR, limits: limits({ "fallback-reset": 2 }) }), false);
 });
 
 test("a limit stop handles the head until its reset", () => {

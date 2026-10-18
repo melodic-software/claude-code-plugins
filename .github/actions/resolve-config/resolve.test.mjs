@@ -330,6 +330,49 @@ test("the denied config path is the one the run read", () => {
 
 // Defaults
 
+test("limits default to today's six values and a configured leaf overrides its own default", () => {
+  const defaults = {
+    "fallback-reset": 5,
+    "reset-clamp-min": 1,
+    "reset-clamp-max": 168,
+    "restarts-per-run": 5,
+    "limit-stops-per-head": 3,
+    "limit-stops-per-issue": 3,
+  };
+  assert.deepEqual(run(fixture("valid.yaml"), { activity: "run-tests" }).limits, defaults);
+  const configured = edited((doc) => {
+    doc.limits = { "fallback-reset": 2, "restarts-per-run": 1 };
+  });
+  assert.deepEqual(run(configured, { activity: "run-tests" }).limits, {
+    ...defaults,
+    "fallback-reset": 2,
+    "restarts-per-run": 1,
+  });
+});
+
+test("rejection 1: an unknown limits key, a non-positive or non-integer value, or an inverted clamp is rejected", () => {
+  for (const limits of [{ "max-turns": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": 1.5 }, { "limit-stops-per-head": "3" }]) {
+    assertRejected(
+      () =>
+        run(
+          edited((doc) => {
+            doc.limits = limits;
+          }),
+        ),
+      "invalid-config",
+    );
+  }
+  assertRejected(
+    () =>
+      run(
+        edited((doc) => {
+          doc.limits = { "reset-clamp-min": 10, "reset-clamp-max": 2 };
+        }),
+      ),
+    "invalid-config",
+  );
+});
+
 test("defaults are materialized: loop 2/3/2, merge off and manual, slot scope diff and enabled", () => {
   const resolved = run(fixture("valid.yaml"), { activity: "run-tests" });
   assert.deepEqual(resolved.loop, { "review-rounds": 2, "no-progress": 3, "dependency-review-rounds": 2 });

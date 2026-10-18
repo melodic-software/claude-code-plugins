@@ -29,6 +29,7 @@
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { DEFAULT_LIMITS } from "../work-resolve-issue/limits.mjs";
 import { threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { anyHandles } from "./limit-stop.mjs";
 
@@ -100,6 +101,8 @@ export async function dispatchFeedback({
   log,
   settings = DEFAULTS,
   trustedHumans = new Set(),
+  limits = DEFAULT_LIMITS,
+  resolveLimits,
   now = Date.now(),
 }) {
   const skip = (why) => {
@@ -157,7 +160,7 @@ export async function dispatchFeedback({
     return skip(`#${number} has no unresolved thread left by the reviewer bot alone or answered by a trusted person`);
   }
   const existing = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
-  if (anyHandles(existing, { now })) {
+  if (anyHandles(existing, { now, limits: resolveLimits ? await resolveLimits() : limits })) {
     return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
   }
   // Both review lanes finish on one head, and their dispatchers queue in one
@@ -334,9 +337,18 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
   });
 }
 
+// The base config's resolved `limits`; every refusal, a malformed config
+// included, throws. The workflow installs resolve-config's dependencies first.
+export async function readLimitsFromBase(env) {
+  const { limitsFromBase } = await import(
+    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
+  );
+  return limitsFromBase({ env: { BASE_PATH: env.BASE_PATH || ".base" } });
+}
+
 // Writes run-id, the dispatched run, as a step output; the workflow records
 // it with the upstream run id as an artifact on this run.
-export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line) } = {}) {
+export async function main(env, { api, github, resolveSlot, limits, log = (line) => console.log(line) } = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "UPSTREAM_RUN_ID", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
@@ -358,6 +370,9 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     // The base checkout's list, the one resolve-config reads beside it.
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
+    // Read when the head's check runs are, so a run that skips earlier needs
+    // no readable config.
+    resolveLimits: limits ? async () => limits : () => readLimitsFromBase(env),
     log,
   });
   if (dispatched !== null) {

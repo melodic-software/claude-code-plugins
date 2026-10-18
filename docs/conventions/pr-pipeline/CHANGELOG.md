@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## 2.7.0 - 2026-10-18
+
+An optional `limits` object ([README.md, Limit stops](README.md#limit-stops)) sets the lane
+usage-limit settings: `fallback-reset`, `reset-clamp-min`, `reset-clamp-max`, `restarts-per-run`,
+`limit-stops-per-head` and `limit-stops-per-issue`. Each is a positive integer (durations in
+hours), defaults to the value the lanes hard-coded before (5, 1, 168, 5, 3, 3), and resolve-config
+emits the resolved object as `limits`. A `reset-clamp-min` above `reset-clamp-max` is rejected.
+`version` stays 2.
+
 ## 2.6.1 - 2026-10-17
 
 `address-feedback.mjs select` now also keeps a thread the lane escalated (the lanes App's last

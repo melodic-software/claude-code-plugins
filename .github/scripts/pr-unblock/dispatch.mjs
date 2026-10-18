@@ -19,9 +19,10 @@
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { DEFAULT_LIMITS } from "../work-resolve-issue/limits.mjs";
 import { POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
-import { runTitle } from "./feedback-dispatch.mjs";
+import { readLimitsFromBase, runTitle } from "./feedback-dispatch.mjs";
 import { anyHandles } from "./limit-stop.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
@@ -88,6 +89,7 @@ export async function dispatchConflicting({
   maxDispatch = DEFAULTS.maxDispatch,
   unknownRetries = DEFAULTS.unknownRetries,
   unknownDelayMs = DEFAULTS.unknownDelayMs,
+  limits = DEFAULT_LIMITS,
   now = Date.now(),
 }) {
   const listed = await listAll(api, base);
@@ -137,7 +139,7 @@ export async function dispatchConflicting({
     let handled;
     try {
       const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      handled = anyHandles(existing, { now });
+      handled = anyHandles(existing, { now, limits });
     } catch (error) {
       failed += 1;
       log(
@@ -305,6 +307,7 @@ export async function main(
     api,
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     log = (line) => console.log(line),
+    readLimits = readLimitsFromBase,
   } = {},
 ) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT"]) {
@@ -320,7 +323,13 @@ export async function main(
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
     });
-  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log });
+  let limits = DEFAULT_LIMITS;
+  try {
+    limits = await readLimits(env);
+  } catch (error) {
+    log(`::warning::cannot resolve the config's limits (${error.message}); the default limits apply`);
+  }
+  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits });
   const reviews = await dispatchDependencyReviews({
     api: client,
     runId: env.GITHUB_RUN_ID,

@@ -1050,3 +1050,51 @@ test("a re-fire record and the App's re-add in the same second, on unchanged wor
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), []);
 });
+
+// The sweep reads its limits from the resolved config the workflow wrote.
+function limitedSweep(limits, args) {
+  const dir = mkdtempSync(join(tmpdir(), "work-unblock-limits-"));
+  const path = join(dir, "resolved-config.json");
+  writeFileSync(path, JSON.stringify({ limits }));
+  return sweep(args, { RESOLVED_CONFIG: path });
+}
+
+test("limits.restarts-per-run caps the restarts of one sweep", async () => {
+  const numbers = [31, 32, 33];
+  const { github, calls } = world({
+    openReady: numbers.map((n) => ready(n)),
+    comments: Object.fromEntries(numbers.map((n) => [n, [note(), limitedNote(`2026-10-16T0${n - 30}:00:00Z`, "2026-10-16T00:30:00Z")]])),
+    events: Object.fromEntries(numbers.map((n) => [n, [added("2026-10-16T00:00:00Z")]])),
+  });
+  assert.equal(await limitedSweep({ "restarts-per-run": 2 }, { github }), 0);
+  assert.deepEqual(writes(calls), [31, 32].flatMap(restarted));
+});
+
+test("limits.limit-stops-per-issue sets how many limit stops hand the issue to a person", async () => {
+  const { github, calls } = stopped();
+  assert.equal(await limitedSweep({ "limit-stops-per-issue": 1 }, { github }), 0);
+  assert.equal(writes(calls).length, 2);
+  assert.ok(writes(calls)[0].includes("<!-- work-unblock escalated -->"));
+  const two = stopped({
+    comments: [note(), limitedNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z"), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")],
+  });
+  assert.equal(await limitedSweep({ "limit-stops-per-issue": 5 }, { github: two.github }), 0);
+  assert.deepEqual(writes(two.calls), restarted(30));
+});
+
+test("limits.fallback-reset, reset-clamp-min and reset-clamp-max move when a limit stop may restart", async () => {
+  const run = async (limits, options) => {
+    const { github, calls } = stopped(options);
+    assert.equal(await limitedSweep(limits, { github }), 0);
+    return writes(calls);
+  };
+  // No stated reset, stopped at 08:00: the default five hours waits until 13:00.
+  assert.deepEqual(await run({}, { resets: "", at: "2026-10-16T08:00:00Z" }), []);
+  assert.deepEqual(await run({ "fallback-reset": 2 }, { resets: "", at: "2026-10-16T08:00:00Z" }), restarted(30));
+  // A stated reset in the past still waits the minimum.
+  assert.deepEqual(await run({}, { resets: "2026-10-16T09:00:00Z", at: "2026-10-16T10:30:00Z" }), restarted(30));
+  assert.deepEqual(await run({ "reset-clamp-min": 4 }, { resets: "2026-10-16T09:00:00Z", at: "2026-10-16T10:30:00Z" }), []);
+  // A far-off reset is held to the maximum.
+  assert.deepEqual(await run({}, { resets: "2026-10-16T20:00:00Z", at: "2026-10-16T06:00:00Z" }), []);
+  assert.deepEqual(await run({ "reset-clamp-max": 2 }, { resets: "2026-10-16T20:00:00Z", at: "2026-10-16T06:00:00Z" }), restarted(30));
+});

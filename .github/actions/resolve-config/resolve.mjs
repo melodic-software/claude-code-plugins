@@ -7,6 +7,7 @@ import { posix } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseDocument } from "yaml";
 
+import { withLimitDefaults } from "./limits.mjs";
 import { MissingFact, appliesAll, factsFor } from "./predicate.mjs";
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
@@ -256,6 +257,18 @@ function checkModels(models, activities) {
   }
 }
 
+// A reset clamp whose minimum exceeds its maximum would hold every reset
+// above its own ceiling.
+function checkLimits(limits, configPath) {
+  const { "reset-clamp-min": min, "reset-clamp-max": max } = withLimitDefaults(limits);
+  if (min > max) {
+    throw new Rejection(
+      "invalid-config",
+      `${configPath}: limits.reset-clamp-min (${min}) exceeds limits.reset-clamp-max (${max})`,
+    );
+  }
+}
+
 // Rejections 1, 2, 4-9 and 3 over the whole file, whichever lane the run asked for.
 export function loadConfig(files, { configPath }) {
   checkConfigPath(configPath);
@@ -291,6 +304,7 @@ export function loadConfig(files, { configPath }) {
   }
   checkComposites(doc.activities);
   checkModels(doc.models, doc.activities);
+  checkLimits(doc.limits, configPath);
   checkLeaves(
     doc.activities,
     checkActivityRules(files.activityRules, files.effectGrants),
@@ -735,6 +749,7 @@ export function resolve(
       "no-progress": doc.loop?.["no-progress"] ?? 3,
       "dependency-review-rounds": doc.loop?.["dependency-review-rounds"] ?? 2,
     },
+    limits: withLimitDefaults(doc.limits),
     merge: resolveMerge(doc.merge, configPath),
   };
 }

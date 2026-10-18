@@ -22,6 +22,7 @@ import {
   readOutcome,
   reusePlan,
 } from "./report-outcome.mjs";
+import { DEFAULT_LIMITS, limitsFrom, readLimits } from "./limits.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 
@@ -667,6 +668,46 @@ test("a limit stop's stated reset is held between one hour and seven days out", 
     });
     assert.equal(plan.resets, expected, resets);
   }
+});
+
+test("the resolved limits set the fallback reset and the reset clamp", () => {
+  const resetsFor = (resets, limits) =>
+    decide({
+      outcome: { exit: "stopped", reason: "", title: "", summary: "", unread: true },
+      issueNumber: 77,
+      issueLabels: ["agent-ready"],
+      branch: "",
+      changedFiles: [],
+      limit: { resets: resets === null ? null : Date.parse(resets) },
+      limits: { ...DEFAULT_LIMITS, ...limits },
+      now: Date.parse("2026-10-17T12:00:00Z"),
+      runId: "555",
+    }).resets;
+  assert.equal(resetsFor(null, { "fallback-reset": 2 }), "2026-10-17T14:00:00Z");
+  assert.equal(resetsFor("2026-10-01T00:00:00Z", { "reset-clamp-min": 3 }), "2026-10-17T15:00:00Z");
+  assert.equal(resetsFor("2027-01-01T00:00:00Z", { "reset-clamp-max": 24 }), "2026-10-18T12:00:00Z");
+});
+
+test("readLimits reads the resolved config file and falls back to the defaults", () => {
+  const dir = mkdtempSync(join(tmpdir(), "report-outcome-limits-"));
+  try {
+    const path = join(dir, "resolved-config.json");
+    writeFileSync(path, JSON.stringify({ limits: { "fallback-reset": 2 } }));
+    assert.equal(readLimits(path)["fallback-reset"], 2);
+    assert.equal(readLimits(path)["restarts-per-run"], 5);
+    assert.deepEqual(readLimits(join(dir, "absent.json")), DEFAULT_LIMITS);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("limitsFrom keeps the default for a value that is not a positive integer or a clamp that inverts", () => {
+  assert.deepEqual(limitsFrom({}), DEFAULT_LIMITS);
+  assert.deepEqual(limitsFrom({ limits: { "fallback-reset": 0, "restarts-per-run": 1.5, "limit-stops-per-head": "3" } }), DEFAULT_LIMITS);
+  const inverted = limitsFrom({ limits: { "reset-clamp-min": 10, "reset-clamp-max": 2, "fallback-reset": 9 } });
+  assert.equal(inverted["reset-clamp-min"], 1);
+  assert.equal(inverted["reset-clamp-max"], 168);
+  assert.equal(inverted["fallback-reset"], 9);
 });
 
 // The lane record can be forged by any code the run executed, so it never

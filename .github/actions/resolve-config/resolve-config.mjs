@@ -12,10 +12,12 @@ import {
   createGitHub,
   paginate,
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { withLimitDefaults } from "./limits.mjs";
 import { pipelineEvent } from "./predicate.mjs";
 import {
   checkConfigPath,
   laneHasActivity,
+  loadConfig,
   modelArgs,
   modelSettings,
   neededFacts,
@@ -262,6 +264,14 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
     );
   }
   return resolved;
+}
+
+// The resolved `limits` of the base's config, for a script that needs no lane
+// or activity. Throws what loadConfig throws for a config the resolver refuses.
+export function limitsFromBase({ env }) {
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  const files = filesUnderBase(env.BASE_PATH || DEFAULT_BASE_PATH, configPath);
+  return withLimitDefaults(loadConfig(files, { configPath }).limits);
 }
 
 // A run that is no lane activity resolves only its model route.

@@ -54,6 +54,49 @@
         }
       }
     },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Usage-limit stop handling for the lanes. Durations are whole hours.",
+      "properties": {
+        "fallback-reset": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5,
+          "description": "Hours after a limit stop that states no reset time before the lane may restart."
+        },
+        "reset-clamp-min": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Hours after a limit stop before which no restart happens, whatever reset it states."
+        },
+        "reset-clamp-max": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 168,
+          "description": "Hours after a limit stop after which a stated reset no longer delays the restart. At least reset-clamp-min."
+        },
+        "restarts-per-run": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5,
+          "description": "Issues one hourly work-unblock sweep restarts after a limit stop."
+        },
+        "limit-stops-per-head": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3,
+          "description": "Limit stops on one PR head after which the pr-unblock dispatchers stop dispatching it."
+        },
+        "limit-stops-per-issue": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3,
+          "description": "Limit stops on one issue since a person last added agent-ready before the sweep hands it to a person."
+        }
+      }
+    },
     "merge": { "$ref": "#/$defs/merge" },
     "models": { "$ref": "#/$defs/models" }
   },

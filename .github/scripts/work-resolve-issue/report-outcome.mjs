@@ -64,6 +64,8 @@ import { join, posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { DEFAULT_LIMITS, HOUR_MS, readLimits } from "./limits.mjs";
+
 export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
@@ -118,20 +120,18 @@ const MAX_ITEM = 300;
 // hide a hold path.
 const COMPARE_FILES_CAP = 300;
 
-// When a limit stop names no reset time, it is taken to reset this long after
-// the run: the shortest plan limit is a five-hour session window
-// (https://support.claude.com/en/articles/11145838).
-// Hard-coded until pr-pipeline.yaml has a limits.fallback-reset leaf:
-// https://github.com/melodic-software/claude-code-plugins/issues/7764
-export const FALLBACK_RESET_MS = 5 * 3_600_000;
-const HOUR_MS = 3_600_000;
-
-// When a limit stop at `from` may restart: its stated reset (else the
-// fallback), held between one hour and seven days after the stop, so a reset
-// in the past cannot start a tight restart loop and one far off cannot park
-// the issue.
-export const clampReset = (resets, from) =>
-  Math.min(Math.max(resets ?? from + FALLBACK_RESET_MS, from + HOUR_MS), from + 7 * 24 * HOUR_MS);
+// When a limit stop at `from` may restart: its stated reset (else
+// limits.fallback-reset hours after the stop; the default, five hours, is the
+// shortest plan limit's session window,
+// https://support.claude.com/en/articles/11145838), held between
+// limits.reset-clamp-min and limits.reset-clamp-max hours after the stop, so a
+// reset in the past cannot start a tight restart loop and one far off cannot
+// park the issue. `limits` is the resolved config's.
+export const clampReset = (resets, from, limits = DEFAULT_LIMITS) =>
+  Math.min(
+    Math.max(resets ?? from + limits["fallback-reset"] * HOUR_MS, from + limits["reset-clamp-min"] * HOUR_MS),
+    from + limits["reset-clamp-max"] * HOUR_MS,
+  );
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
 const MARKER = /^<!-- work-resolve-issue outcome=([a-z]+)(?: resets=(\S+))?(?: run=(\d+))? -->/;
 
@@ -442,6 +442,7 @@ export function decide({
   humanLabel = "needs-human",
   runUrl = "",
   limit = null,
+  limits = DEFAULT_LIMITS,
   now = Date.now(),
   runId = "",
 }) {
@@ -450,7 +451,7 @@ export function decide({
   // code the run executed can forge the record, so it must not hide a stop
   // or pushback the skill reported from the person it goes to.
   if (limit && outcome.unread) {
-    const resets = new Date(clampReset(limit.resets, now)).toISOString().replace(/\.\d+Z$/, "Z");
+    const resets = new Date(clampReset(limit.resets, now, limits)).toISOString().replace(/\.\d+Z$/, "Z");
     return limitedPlan({ issueNumber, branch, resets, runId, runUrl });
   }
   if (outcome.exit === "done" && !branch) {
@@ -841,7 +842,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       );
     };
     const changedFiles = outcome?.exit === "done" && branch ? await compare() : [];
-    const holdPaths = readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json"));
+    const configPath = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
+    const holdPaths = readHoldPaths(configPath);
     // A reuse whose outcome cannot be read never takes the limit record: the
     // skipped run hit no limit, and a limited marker would loop restarts. Its
     // file list is only text, so a failed compare never blocks the PR.
@@ -868,6 +870,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
           runUrl,
           limit,
+          limits: readLimits(configPath),
           now,
           runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
         });

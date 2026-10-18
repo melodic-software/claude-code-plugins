@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { DEFAULT_LIMITS } from "../work-resolve-issue/limits.mjs";
 import { createGitHubApi, dispatchFeedback, main } from "./feedback-dispatch.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
@@ -304,6 +305,28 @@ test("a limit-stopped check on the head blocks a dispatch only until its reset",
   }
 });
 
+test("the resolved limits set the fallback reset and the stops per head", async () => {
+  const stopped = failedRun("lane=pr-unblock activity=address-feedback class=rate-limit");
+  const run = (limits, checkRuns) =>
+    dispatchFeedback({
+      api: fakeApi({ checkRuns }),
+      repository: REPOSITORY,
+      runId: RUN_ID,
+      upstreamRunId: UPSTREAM_RUN_ID,
+      appSenderId: APP_ID,
+      resolveSlot: async () => resolvedLane(),
+      log: () => {},
+      limits: { ...DEFAULT_LIMITS, ...limits },
+      now: Date.parse("2026-10-17T12:00:00Z"),
+    });
+  // Ended 10:00, no stated reset: the default 5 hours holds it until 15:00.
+  assert.equal(await run({}, [stopped]), null);
+  assert.equal((await run({ "fallback-reset": 1 }, [stopped]))?.number, 42);
+  const reset = failedRun("lane=pr-unblock activity=address-feedback class=rate-limit resets=2026-10-17T11:00:00Z");
+  assert.equal((await run({}, [reset, reset]))?.number, 42);
+  assert.equal(await run({ "limit-stops-per-head": 2 }, [reset, reset]), null);
+});
+
 // The restart keys on the current threads and head, never on an earlier run's
 // branch: once the reviewer-bot threads are resolved there is nothing to redo,
 // and a head that moved past the stopped run's review is not dispatched for it.
@@ -365,7 +388,7 @@ test("main writes run-id and reads the upstream id from UPSTREAM_RUN_ID only", a
         APP_SENDER_ID: String(APP_ID),
         TRUSTED_ACTORS: actors,
       },
-      { api, resolveSlot: async () => resolvedLane(), log: () => {} },
+      { api, resolveSlot: async () => resolvedLane(), limits: DEFAULT_LIMITS, log: () => {} },
     );
     assert.equal(code, 0);
     assert.equal(readFileSync(output, "utf8"), "run-id=38779200001\n");
@@ -432,7 +455,7 @@ test("main reads the trusted people from the base's trusted-actor list", async (
     TRUSTED_ACTORS: actors,
   };
   const api = fakeApi({ threads: [decidedThread()] });
-  await main(env, { api, resolveSlot: async () => resolvedLane(), log: () => {} });
+  await main(env, { api, resolveSlot: async () => resolvedLane(), limits: DEFAULT_LIMITS, log: () => {} });
   assert.equal(api.calls.dispatch.length, 1);
 });
 
