@@ -36,11 +36,11 @@
 # every gated call refreshes a live marker. An unresolved CLAUDE_PLUGIN_DATA or a
 # missing or unusable session_id keeps the guard armed (fail closed), and so does
 # the no-jq mode, which cannot read the session_id. The marker cases are in
-# destructive-guard.test.sh. Not verified in this change: that CLAUDE_PLUGIN_DATA
-# reaches a skill-frontmatter hook process.
-# Upstream lifetime of skill-frontmatter hooks: read it live at
-# https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents (anchor not
-# fetched in this change; confirm it at the next recheck). As of 2026-10-18.
+# destructive-guard.test.sh.
+# Upstream hook lifetime and environment for skill-frontmatter hooks: read them
+# live at https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents
+# (section anchor unverified: this lane cannot fetch the page; confirm it at
+# the next recheck). As of 2026-10-18.
 # Recheck: the hooks page changes how skill hooks end, or the first live run
 # shows the guard armed with no marker.
 #
@@ -152,6 +152,7 @@ argv_destructive() {
   for ((i = 0; i < n; i++)); do
     word="${w[i]}"
     base="${word##*/}"
+    base="${base##*\\}"
     [[ "$word" == "--apply" ]] && apply=1
     case "$base" in
     clean-caches.sh | clean-build.sh | git-prune.sh | git-tree-reset-batch.sh | git-tree-reset.sh | remove-path.sh | clean-batch.sh)
