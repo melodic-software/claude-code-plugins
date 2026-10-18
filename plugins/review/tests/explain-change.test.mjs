@@ -447,14 +447,14 @@ describe("publish gate: the default artifact medium publishes only a public, cre
     assert.equal(result.medium, "artifact");
     assert.equal(result.destination, "a private Artifact on claude.ai");
   });
-  test("the CLI takes no visibility from its arguments, only a --repo it looks up", () => {
+  test("the CLI takes no visibility from its arguments, only a --facts it reads the repository from", () => {
     const gate = (args, input) => spawnSync(process.execPath, [POLICY, "--publish-gate", ...args], { input, encoding: "utf8" });
-    for (const args of [["public"], ["PUBLIC"], ["PUBLIC", "--explicit"], ["--facts", "x.json"], ["--repo"], ["--repo", "acme"], ["--repo", "10.0.0.1/acme/app"], ["--explicit"], []]) {
+    for (const args of [["public"], ["PUBLIC"], ["PUBLIC", "--explicit"], ["--facts"], ["--facts", "x.json", "--facts", "y.json"], ["--repo", "acme/app"], ["--facts", "x.json", "--repo"], ["--facts", "x.json", "--repo", "acme"], ["--facts", "x.json", "--repo", "10.0.0.1/acme/app"], ["--explicit"], []]) {
       const run = gate(args, clean);
       assert.equal(run.status, 2, `${JSON.stringify(args)} is refused`);
       assert.equal(run.stdout, "");
     }
-    assert.equal(gate(["--repo", "acme/app", "--force"], clean).status, 2);
+    assert.equal(gate(["--facts", "x.json", "--force"], clean).status, 2);
   });
   const fakeGh = join(scratch, "gate-bin");
   const ghCalls = join(scratch, "gate-gh.log");
@@ -465,43 +465,87 @@ describe("publish gate: the default artifact medium publishes only a public, cre
 const argv = process.argv.slice(2);
 require("node:fs").appendFileSync(process.env.FAKE_GH_LOG, JSON.stringify(argv) + "\\n");
 if (argv[0] === "auth") process.exit((process.env.FAKE_GH_AUTHED || "").split(",").includes(argv[3]) ? 0 : 1);
-process.stdout.write(process.env.FAKE_GH_OUT + "\\n");
+const repo = argv.find((a) => a.startsWith("repos/"));
+const mapped = repo && process.env.FAKE_GH_MAP ? JSON.parse(process.env.FAKE_GH_MAP)[repo.slice(6)] : undefined;
+process.stdout.write((mapped ?? process.env.FAKE_GH_OUT) + "\\n");
 process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
 `,
   );
   chmodSync(join(fakeGh, "gh"), 0o755);
   const fakeRuns = { skip: process.platform === "win32" && "the fake gh is a script, which a shell-less spawn on Windows cannot run" };
-  const lookedUp = (repo, { out = "public", exit = 0, authed = "", extra = [] } = {}) => {
+  const factsFile = (url) => {
+    const file = join(scratch, `gate-facts-${Math.random().toString(36).slice(2)}.json`);
+    writeFileSync(file, JSON.stringify({ url, visibility: "PUBLIC" }));
+    return file;
+  };
+  // `url` is the pull request URL the facts file names, `facts` a path to use instead, `repo` a typed --repo.
+  const gated = ({ url, facts, repo, out = "public", exit = 0, authed = "", map, extra = [] } = {}) => {
     rmSync(ghCalls, { force: true });
-    const run = spawnSync(process.execPath, [POLICY, "--publish-gate", "--repo", repo, ...extra], {
+    const file = facts ?? factsFile(url);
+    const run = spawnSync(process.execPath, [POLICY, "--publish-gate", "--facts", file, ...(repo ? ["--repo", repo] : []), ...extra], {
       input: clean,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${fakeGh}${delimiter}${process.env.PATH}`, FAKE_GH_LOG: ghCalls, FAKE_GH_OUT: out, FAKE_GH_EXIT: String(exit), FAKE_GH_AUTHED: authed },
+      env: { ...process.env, PATH: `${fakeGh}${delimiter}${process.env.PATH}`, FAKE_GH_LOG: ghCalls, FAKE_GH_OUT: out, FAKE_GH_EXIT: String(exit), FAKE_GH_AUTHED: authed, FAKE_GH_MAP: map ? JSON.stringify(map) : "" },
     });
     const calls = existsSync(ghCalls) ? readFileSync(ghCalls, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : [];
-    return { medium: JSON.parse(run.stdout).medium, calls };
+    return { status: run.status, medium: run.stdout ? JSON.parse(run.stdout).medium : null, calls };
   };
-  test("--repo is looked up through the REST API and only a public answer publishes", fakeRuns, () => {
-    const found = lookedUp("acme/app");
+  test("the facts' pull request URL is looked up through the REST API and only a public answer publishes", fakeRuns, () => {
+    const url = "https://github.com/acme/app/pull/7";
+    const found = gated({ url });
     assert.equal(found.medium, "artifact");
     assert.deepEqual(found.calls, [["api", "repos/acme/app", "--jq", ".visibility"]]);
-    for (const out of ["private", "internal", "", "garbage"]) assert.equal(lookedUp("acme/app", { out }).medium, "file", `answer ${JSON.stringify(out)}`);
-    assert.equal(lookedUp("acme/app", { exit: 1 }).medium, "file", "a failed lookup gates as UNKNOWN");
-    assert.equal(lookedUp("acme/app", { out: "private", extra: ["--explicit"] }).medium, "artifact");
+    for (const out of ["private", "internal", "", "garbage"]) assert.equal(gated({ url, out }).medium, "file", `answer ${JSON.stringify(out)}`);
+    assert.equal(gated({ url, exit: 1 }).medium, "file", "a failed lookup gates as UNKNOWN");
+    assert.equal(gated({ url, out: "private", extra: ["--explicit"] }).medium, "artifact");
+  });
+  test("a mistyped public --repo cannot make a private pull request's diff publishable", fakeRuns, () => {
+    const map = { "acme/app": "private", "other/public": "public" };
+    const url = "https://github.com/acme/app/pull/7";
+    const mistyped = gated({ url, repo: "other/public", map });
+    assert.equal(mistyped.status, 2, "a --repo that is not the facts' repository refuses");
+    assert.equal(mistyped.medium, null, "nothing is gated for publishing");
+    assert.deepEqual(mistyped.calls, [], "the typed repository is never looked up");
+    const agreeing = gated({ url, repo: "Acme/App", map });
+    assert.equal(agreeing.status, 0);
+    assert.equal(agreeing.medium, "file", "the facts' private repository gates the diff");
+    assert.deepEqual(agreeing.calls, [["api", "repos/acme/app", "--jq", ".visibility"]]);
+    assert.equal(gated({ url, map }).medium, "file", "the looked-up repository is the facts', with no --repo at all");
+  });
+  test("missing facts, unreadable facts, or a URL that is not a pull request's gate as UNKNOWN without a lookup", fakeRuns, () => {
+    const junk = join(scratch, "gate-facts-junk.json");
+    writeFileSync(junk, "not json");
+    const cases = [
+      { facts: join(scratch, "gate-facts-absent.json") },
+      { facts: junk },
+      { url: "https://github.com/acme/app" },
+      { url: "https://github.com/acme/app/issues/7" },
+      { url: "http://github.com/acme/app/pull/7" },
+      { url: "https://10.0.0.1/acme/app/pull/7" },
+      { url: "not a url" },
+    ];
+    for (const input of cases) {
+      const run = gated({ ...input, repo: "other/public" });
+      assert.equal(run.medium, "file", JSON.stringify(input));
+      assert.deepEqual(run.calls, [], JSON.stringify(input));
+    }
   });
   test("a host gh is not logged in to is never asked, and a logged-in host is", fakeRuns, () => {
-    const cold = lookedUp("ghe.example.com/acme/app");
+    const url = "https://ghe.example.com/acme/app/pull/7";
+    const cold = gated({ url });
     assert.equal(cold.medium, "file");
     assert.deepEqual(cold.calls, [["auth", "status", "--hostname", "ghe.example.com"]]);
-    const warm = lookedUp("ghe.example.com/acme/app", { authed: "ghe.example.com" });
+    const warm = gated({ url, authed: "ghe.example.com" });
     assert.equal(warm.medium, "artifact");
     assert.deepEqual(warm.calls[1], ["api", "--hostname", "ghe.example.com", "repos/acme/app", "--jq", ".visibility"]);
+    assert.equal(gated({ url, repo: "acme/app", authed: "ghe.example.com" }).status, 2, "github.com's acme/app is not that host's");
   });
   test("SKILL.md runs the gate before publishing and names the destination", () => {
     const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
     assert.match(skill, /`\/source-control:pull-request view <n> \[--repo <owner\/repo>\] --out <dir>\/facts\.json`/);
     assert.match(skill, /`\/source-control:pull-request view <n> --diff --out <dir>\/pr\.diff`/);
-    assert.match(skill, /--publish-gate --repo <owner\/repo> \[--explicit\] < <dir>\/pr\.diff/);
+    assert.match(skill, /--publish-gate --facts <dir>\/facts\.json \[--explicit\] < <dir>\/pr\.diff/);
+    assert.doesNotMatch(skill, /--publish-gate --repo/);
     assert.match(skill, /publishing as a private Artifact on claude\.ai/);
     assert.match(skill, /`offer`:.*a private Artifact on claude\.ai/);
     assert.match(skill, /`medium: artifact` in `~\/\.claude\/rendered-views\.md`/);

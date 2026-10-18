@@ -3,6 +3,7 @@
 // gate on the same value. No caller passes a visibility.
 
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const NAME = /^[A-Za-z0-9_.-]+$/;
 const HOST = /^(?=.{1,253}$)(?![\d.]+$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
@@ -29,4 +30,28 @@ export function lookupVisibility(host, repo) {
   const run = spawnSync("gh", ["api", ...(host ? ["--hostname", host] : []), `repos/${repo}`, "--jq", ".visibility"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 30000 });
   const answer = run.status === 0 && !run.error ? run.stdout.trim() : "";
   return ["public", "private", "internal"].includes(answer) ? answer.toUpperCase() : "UNKNOWN";
+}
+
+/**
+ * The repository a pull request's own facts name, from the `url` field
+ * (`https://<host>/<owner>/<repo>/pull/<n>`): `{host, repo}` in `parseRepo`'s shape
+ * (`host` undefined for github.com), or null when the file is missing, unreadable,
+ * or its URL is not a pull request URL. The facts' `visibility` is never read.
+ */
+export function repoFromFacts(path) {
+  try {
+    const url = new URL(JSON.parse(readFileSync(path, "utf8")).url);
+    const [owner, name, kind, number] = url.pathname.split("/").slice(1);
+    if (url.protocol !== "https:" || url.port || url.username || url.password || kind !== "pull" || !/^\d+$/.test(number ?? "")) return null;
+    const host = url.hostname.toLowerCase();
+    return parseRepo(host === "github.com" ? `${owner}/${name}` : `${host}/${owner}/${name}`);
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a typed `--repo` names the same repository as the facts do (host and names are case-insensitive). */
+export function sameRepo(typed, fromFacts) {
+  const key = (t) => `${(t.host ?? "github.com").toLowerCase()}/${t.repo.toLowerCase()}`;
+  return key(typed) === key(fromFacts);
 }
