@@ -1425,7 +1425,7 @@ def lane_eligibility(
     touching no `merge.diff-check.denied-paths`. Such a pull request is
     class `LANE_CLASS`; no `work-class:` label is read.
     `pr` is the REST record, whose `changed_files` the file listing must
-    reach. Holds (the `do-not-merge` label, a `Hold:` line) are the gate's.
+    reach. Holds (a hold label, a `Hold:` line) are the gate's.
     `self_logins` and `permission` are unused: no human read remains."""
     owner, name = _split_repo(repo)
     issue_number = None
@@ -1622,7 +1622,7 @@ def dependabot_eligibility(
     the head; and no human blocking comment. A running `ci-status` waits. The
     class is C2 (mechanical), so the rung and its cap still bind it. No
     closing issue and no denied-path rule: `ci-status` is the gate. The
-    `do-not-merge` label and a body hold are the gate's, as for every pull
+    hold labels and a body hold are the gate's, as for every pull
     request."""
     owner, name = _split_repo(repo)
     head = str(json_object(pr.get("head")).get("sha") or "")
@@ -2075,10 +2075,15 @@ def entry_hold(
     permission: Permission | None = None,
 ) -> str | None:
     """Why a queued entry of the agent identity must leave the queue (D3): the
-    `do-not-merge` label, a body hold, a human blocking comment, or the opt-in
+    `do-not-merge` or human-gated label, a body hold, a human blocking comment, or the opt-in
     label removed since the enqueue or put back by a non-human. An unreadable
     entry is a hold."""
-    from babysit_merge import BODY_MERGE_HOLD_RE, MERGE_HOLD_LABEL  # noqa: PLC0415
+    from babysit_merge import (  # noqa: PLC0415
+        BODY_MERGE_HOLD_RE,
+        human_gated_label,
+        merge_hold_label,
+    )
+    from babysit_postmerge import PostMergeReadError  # noqa: PLC0415
 
     owner, name = _split_repo(repo)
     permission = permission or permission_reader(repo)
@@ -2096,8 +2101,9 @@ def entry_hold(
         events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
         if labels is None or not events:
             return "unreadable"
-        if any(label.casefold() == MERGE_HOLD_LABEL for label in labels):
-            return MERGE_HOLD_LABEL
+        # Only unattended runs judge queued entries.
+        if held_by := merge_hold_label(labels, human_gated=human_gated_label(repo)):
+            return held_by
         if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
             return "body-hold"
         blockers = _human_blockers(owner, name, number, identity)
@@ -2108,7 +2114,7 @@ def entry_hold(
         )
         if opt_in:
             return opt_in
-    except PolicyReadError as exc:
+    except (PolicyReadError, PostMergeReadError) as exc:
         return f"unreadable: {exc}"
     return None
 
@@ -2190,6 +2196,13 @@ def _history_checkouts() -> list[Path]:
     return [Path(__file__).resolve().parent, Path.cwd()]
 
 
+# How a history read sees a clone's real commits, beside the
+# `--no-replace-objects` each caller passes: a graft file is ignored, and a
+# missing object fails the read rather than being lazily fetched. A graft or
+# replace ref would cut or rewrite the history a clone reports.
+HISTORY_GIT_ENV = {"GIT_GRAFT_FILE": os.devnull, "GIT_NO_LAZY_FETCH": "1"}
+
+
 def _git(root: Path, *args: str) -> str | None:
     """The stdout of `git` run in `root`, or None when it fails."""
     try:
@@ -2197,6 +2210,7 @@ def _git(root: Path, *args: str) -> str | None:
             ["git", "--no-replace-objects", "-C", str(root), *args],
             allowed_executables=("git",),
             check=False,
+            env_overrides=HISTORY_GIT_ENV,
         )
     except (RuntimeError, ValueError, OSError):
         return None
@@ -2223,7 +2237,8 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
 def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
     """The pipeline file's commits from `base_sha`, newest first, as (SHA,
     committer date), from the first clone in `_history_checkouts` that holds
-    `base_sha` with its whole history (not shallow); None when none does.
+    `base_sha` with its whole history (not shallow or partial); None when
+    none does.
     A commit id names its whole ancestry, so any clone holding it answers
     for the repository."""
     for checkout in _history_checkouts():
@@ -2233,6 +2248,10 @@ def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
             continue
         root = Path(top.strip())
         if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
+            continue
+        # A partial clone lacks older blobs, which the read never fetches.
+        promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
+        if _git(root, "config", "--get-regexp", promisor) is not None:
             continue
         if _git(root, "cat-file", "-e", f"{base_sha}^{{commit}}") is None:
             continue
@@ -2582,6 +2601,21 @@ class PostMergeGate:
 
 # How old a shared post-merge answer may be: the pr-merge job's timeout.
 SHARED_MAX_AGE = timedelta(minutes=30)
+# How old a shared answer still waiting on a lane merge's verifying run may
+# be: that run may have passed since. The verify-evidence listing's bound.
+SHARED_UNVERIFIED_MAX_AGE = run_cache.MAX_AGE
+# Refusals that bind the answer to another candidate, not to an older state,
+# or leave the binding unknown: a recompute under one is not written over
+# the run's answer.
+SHARED_BINDING_REFUSALS = frozenset(
+    {
+        "identity-differs",
+        "self-logins-differ",
+        "lane-differs",
+        "floor-differs",
+        "config-unreadable",
+    }
+)
 # Runner clocks may run ahead of GitHub's; `since` starts this much earlier.
 SINCE_CLOCK_MARGIN = timedelta(minutes=5)
 
@@ -2672,11 +2706,16 @@ def shared_refusal(
     now: datetime | None = None,
 ) -> str | None:
     """Why `shared` may not stand in for this pull request's own reads, or
-    None: it must name the same identity, self logins and lane, be no older
-    than `SHARED_MAX_AGE`, have no demotion record filed or changed since
-    (`_demotion_changed`), give this base the floor its own read would
-    (`merged_since_floor` with the shared demotion), and judge every merge
-    the post-merge check would judge now.
+    None: it must name the same identity, self logins and lane, give this
+    base the floor its own read would (`merged_since_floor` with the shared
+    demotion), be no older than `SHARED_MAX_AGE` (`SHARED_UNVERIFIED_MAX_AGE`
+    while it passes with a merge unverified), have no demotion record filed
+    or changed since (`_demotion_changed`), and judge every merge the
+    post-merge check would judge now. The binding comes before the age, so a
+    candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and does not
+    replace the run's answer. The floor is compared under the shared answer's
+    demotion, which may be out of date; that changes only the reason and the
+    write-back, since any refusal reads afresh.
 
     The check judges `branch` from the floor, never the base, so the answer
     holds for any base with that floor. A newer default-branch head changes
@@ -2687,7 +2726,7 @@ def shared_refusal(
     created after it verified."""
     age = (now or datetime.now(UTC)) - shared.computed_at
     owner, name = _split_repo(repo)
-    checks = (
+    binding = (
         (_login_key(shared.identity) != _login_key(identity), "identity-differs"),
         (
             {_login_key(s) for s in shared.self_logins}
@@ -2695,13 +2734,10 @@ def shared_refusal(
             "self-logins-differ",
         ),
         (shared.lane_merges_only != lane, "lane-differs"),
-        (not timedelta(0) <= age <= SHARED_MAX_AGE, "stale"),
     )
-    refusal = next((text for refused, text in checks if refused), None)
+    refusal = next((text for refused, text in binding if refused), None)
     if refusal:
         return refusal
-    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
-        return "demotion-changed"
     try:
         # The same newest config commit is the same floor; any other base
         # walks its own config history to the floor it would read.
@@ -2713,6 +2749,25 @@ def shared_refusal(
             return "floor-differs"
     except PolicyReadError:
         return "config-unreadable"
+    checks = (
+        (not timedelta(0) <= age <= SHARED_MAX_AGE, "stale"),
+        # A refusing answer refuses whatever was verified since, so only a
+        # passing one with a merge still unverified is read again.
+        (
+            age > SHARED_UNVERIFIED_MAX_AGE
+            and shared.gate.refusal is None
+            and any(
+                json_object(m).get("verified") is not True
+                for m in json_array(shared.gate.report.get("autoMerges"))
+            ),
+            "unverified-stale",
+        ),
+    )
+    refusal = next((text for refused, text in checks if refused), None)
+    if refusal:
+        return refusal
+    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
+        return "demotion-changed"
     status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
     head = payload.get("sha") if status == 200 and is_json_object(payload) else None
     if head == shared.main_sha:
@@ -2753,6 +2808,7 @@ def assess(
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
     shared: SharedPostMerge | None = None,
+    share: Callable[[SharedPostMerge], object] | None = None,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
@@ -2780,6 +2836,9 @@ def assess(
     (`merged_since_floor`) and must be given: without it the path refuses.
     `shared`, the run's one answer for every candidate, replaces the
     demotion, floor and post-merge reads when `shared_refusal` passes it.
+    `share(answer)` receives those reads, when made and readable, bound as a
+    `SharedPostMerge` for the next candidate, unless `shared` was refused as
+    bound to another candidate (`SHARED_BINDING_REFUSALS`); it must not raise.
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
     promoted. `self_logins` names only lane or bot self identities (see
@@ -2883,6 +2942,18 @@ def assess(
         )
         details["postMergeShared"] = f"unused:{unusable}" if unusable else "used"
         reuse = None if unusable else shared
+        if unusable in SHARED_BINDING_REFUSALS:
+            share = None
+    # Bound before the reads it covers: a merge after this head read moves
+    # the head, and a record changed after `computed_at` is re-read.
+    computed_at = datetime.now(UTC)
+    owner, name = _split_repo(repo)
+    head = None
+    if share is not None and reuse is None:
+        status, payload = _get(
+            f"repos/{owner}/{name}/commits/{quote(default, safe='')}"
+        )
+        head = payload.get("sha") if status == 200 and is_json_object(payload) else None
     demotion = reuse.demotion if reuse else read_demotion(repo, **readers)
     details["demotion"] = {
         "active": demotion.active,
@@ -2905,6 +2976,30 @@ def assess(
         else PostMergeGate("unchecked", {}, None)
     )
     details["postMerge"] = dict(gate.report)
+    if (
+        share is not None
+        and isinstance(head, str)
+        and SHA_RE.fullmatch(head)
+        and gate.report.get("readable") is True
+    ):
+        try:
+            config_sha = newest_config_commit(repo, base_sha)
+        except PolicyReadError:
+            config_sha = None
+        if config_sha:
+            share(
+                SharedPostMerge(
+                    main_sha=head,
+                    config_sha=config_sha,
+                    identity=resolved.login,
+                    self_logins=frozenset(self_logins),
+                    lane_merges_only=lane,
+                    computed_at=computed_at,
+                    demotion=demotion,
+                    floor=floor,
+                    gate=gate,
+                )
+            )
     if gate.refusal:
         return replace(stopped, reason=f"post-merge:{gate.refusal}")
 

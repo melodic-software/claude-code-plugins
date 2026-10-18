@@ -321,8 +321,11 @@ scratch directory, `$RUNNER_TEMP/lane-scratch`, passed as `--add-dir` with an `E
 its state files and its `Bash` redirects land there. `--append-system-prompt` names that
 directory, says no one can answer a question, and, when the grant can commit, tells it to commit
 every file it changed, and delete every committed path it renamed or removed, with those tools: the prompt is the slash command alone, so without this the
-skill leaves its edits uncommitted and the lane moves nothing. A `prepare: merge-base` skill
-gets neither tool nor that sentence: it stages its resolution and the runner commits
+skill leaves its edits uncommitted and the lane moves nothing. `commit_files` takes each file's
+mode from disk, and `Write` creates a file without the executable bit, so that grant also allows
+`Bash(chmod +x *)` and the sentence says to run `chmod +x` first on every new or changed file that
+starts with `#!` or ends in `.sh`. A `prepare: merge-base` skill
+gets neither tool nor those sentences: it stages its resolution and the runner commits
 ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
 `checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
@@ -517,7 +520,9 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
    claude-code-action reset, and escalates `unresolved-conflict` (an unmerged entry, or conflict
    markers in a staged resolution) or `workflow-staged` (a `.github/workflows/` index entry changed
    since the snapshot, or differs from the gated head, as a workflow change merged in from the base
-   does: the lane token cannot push one); otherwise it writes the index as a tree.
+   does: the lane token cannot push one) or `unexpected-path-staged` (an index entry added,
+   changed or removed at a path the merge did not leave conflicted, as `git add -A` would stage);
+   otherwise it writes the index as a tree.
 4. With no escalation reason and a tree, a pinned `github-script` step commits through the Git
    Data API: it fails unless the lane branch is still at the gated head, uploads only the blobs
    `tree-entries.sh` flags (logging `created <k> blobs`), builds the tree on the gated head's tree
@@ -539,7 +544,8 @@ stops for a hold only at the commit step's label re-read and the promote step's 
 re-read.
 
 The run's `escalation-reason` output is prepare's or `post.sh`'s reason, one of
-`protected-path-conflict`, `workflow-staged`, `repeat-cap` or `unresolved-conflict`; a caller
+`protected-path-conflict`, `workflow-staged`, `unexpected-path-staged`, `repeat-cap` or
+`unresolved-conflict`; a caller
 passes it to its `report-escalation` job as that job's `escalation-reason` input. Every path and
 its check:
 
@@ -554,6 +560,7 @@ its check:
 | Hold label or draft set during the run, found before the promote | success | `awaiting-human` | empty | neutral |
 | Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
 | Model staged, or the merge brought in, a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
+| Model staged a change to a path that did not conflict | success | `awaiting-human` | `unexpected-path-staged` | neutral |
 | Resolved, committed, promoted | success | none | empty | success |
 | Commit step fails or lane branch moved | failure | none | empty | failure |
 | PR branch moved during run (promote) | failure | none | empty | failure |
@@ -709,9 +716,8 @@ warns of a [classifier gap](README.md#classifier-gaps).
    hosts. The skill runs no head code; `ci-status` runs the tests on the pushed head.
 3. The promote step moves the PR branch only when the skill's structured verdict is `fix`, the
    lane branch changes nothing under `.github/` in fewer than 300 files, and every commit's
-   message carries `[dependabot skip]`, so Dependabot may still rebase over the fix
-   (pr-bump-plugin-version.yml states the convention). Commits made beside any other verdict are
-   discarded with the lane branch.
+   message carries `[dependabot skip]`, so Dependabot may still rebase over the fix. Commits made
+   beside any other verdict are discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
    step's `security`, `config_unreadable` and `files_truncated` flags, its `started-at` as
@@ -1019,7 +1025,12 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
 a `pick-slot` job takes the issue number modulo `SLOTS` (3), and `resolve-issue` joins the
 `work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of admissions waits
 in line, holding no runner, instead of spending the lanes App's hourly API quota at once.
-`report-outcome` takes no slot. What changes from the PR flow:
+`report-outcome` takes no slot. A waiting run keeps the workflow files of its label event, so when
+a change to either lane workflow file merges while it waits, the broker would refuse its mint as
+`workflow-modified`. Before the mint, the `workflow-current` step compares both files' blobs at
+`github.workflow_sha` with the default branch checkout, the broker's rule, and on a difference
+fails red `workflow-stale` with no token request and no outcome marker; work-unblock's hourly sweep
+re-fires such a failed run on main's files. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty, and unless a
