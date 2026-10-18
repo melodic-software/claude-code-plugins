@@ -150,14 +150,17 @@ test("with superseded-ok, any other denial reason still fails red", () => {
   const run = request({ ...MERGE, SUPERSEDED_OK: "true" }, { status: "403", body: { reason: "already-minted" } });
   assert.equal(run.status, 1);
   assert.match(run.stdout, /::error::lane-token-denied: the broker answered 403 with reason already-minted/);
-  assert.equal(run.output, "");
+  assert.equal(run.output, "failure-reason=lane-token-denied: the broker answered 403 with reason already-minted\n");
 });
 
 test("without superseded-ok, a 403 workflow-modified still fails red", () => {
   const run = request(MERGE, SUPERSEDED);
   assert.equal(run.status, 1);
   assert.match(run.stdout, /::error::lane-token-denied: the broker answered 403 with reason workflow-modified: \.github\/workflows\/pr-merge\.yml differs/);
-  assert.equal(run.output, "");
+  assert.equal(
+    run.output,
+    "failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-merge.yml differs from refs/heads/main\n",
+  );
 });
 
 test("a superseded-ok other than true or false fails before the broker request", () => {
@@ -199,6 +202,21 @@ test("an expected upstream head without a dispatcher run id, or not a SHA, fails
     assert.match(run.stdout, /::error::the expected upstream head must be a commit SHA and ride with a dispatcher run id/);
     assert.equal(run.body, null);
   }
+});
+
+// The run job maps this output, and report-check-run appends it to a failed
+// run job's check summary.
+test("a broker denial fails red and writes its reason as the failure-reason output", () => {
+  const run = request(
+    {},
+    { status: "403", body: { reason: "workflow-modified", detail: "the workflow file changed" } },
+  );
+  assert.equal(run.status, 1);
+  assert.match(
+    run.output,
+    /^failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified: the workflow file changed$/m,
+  );
+  assert.doesNotMatch(run.output, /^token=/m);
 });
 
 test("an empty dispatcher run id leaves the body as it was", () => {

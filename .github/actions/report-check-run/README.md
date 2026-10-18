@@ -13,6 +13,8 @@ conclusion is `success`, `failure`, or `neutral` with one skip reason.
 | `run-result` | required | `needs.run.result`; in the read file, the `broker-check` job's result when that is not `success` |
 | `pr-head-sha` | `''` | The PR's current head SHA, read from the API by the report job at report time |
 | `act-outcome` | `''` | The run job's `act-outcome` output (`steps.act.outcome`) |
+| `run-failure` | `''` | The run job's `run-failure` output: the reason a step before the act step failed with |
+| `not-run-reason` | `''` | A skip reason the caller's own workflow gives for an activity job that never ran |
 | `gate-reason` | `''` | The run job's gate stop reason output; empty when every gate proceeded |
 | `head-sha` | `''` | The run job's `head-sha` output; the check is posted on it |
 | `can-commit` | `''` | The run job's `can-commit` output; only `false` skips the signed-commit requirement |
@@ -26,7 +28,7 @@ conclusion is `success`, `failure`, or `neutral` with one skip reason.
 
 The report job trusts only its own inputs and the run job's runner-computed outputs: lane and
 activity from its `workflow_call` inputs, `needs.run.result`, and the run job's `act-outcome`,
-`can-commit`, gate reason and `head-sha` outputs. The gate reason and head SHA come from the gate
+`run-failure`, `can-commit`, gate reason and `head-sha` outputs. The gate reason and head SHA come from the gate
 steps, which run before any head-influenced step. The verdict file is written later in that job, so
 it is untrusted: it is checked against its contract, and its `lane`, `activity`, gate stop reason
 and `head-sha` are cross-checks only. Any disagreement with the inputs is a failure. The verdict's
@@ -41,20 +43,24 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
   1. `run-result` `cancelled`: neutral `superseded-sha` when `pr-head-sha` is a 40-hex SHA other
      than the posted head SHA; failure otherwise. A job timeout or a manual cancel also reads
      `cancelled`, so only a newer head shows the run was superseded.
-  2. No verdict, a malformed verdict, or one whose lane, activity, gate stop reason or `head-sha`
+  2. `run-result` `skipped` with a `not-run-reason`: neutral with that reason, and no verdict is
+     read. A caller posts this for an activity job its own workflow did not run, such as
+     `publish-feedback` after an `address-feedback` run with no feedback round.
+  3. No verdict, a malformed verdict, or one whose lane, activity, gate stop reason or `head-sha`
      differs from the inputs: failure.
-  3. `config: invalid`: failure.
-  4. A `gate-reason`: neutral with the reason mapped through
+  4. `config: invalid`: failure.
+  5. A `gate-reason`: neutral with the reason mapped through
      [`gate-skip-reasons.json`](gate-skip-reasons.json); an unmapped reason fails. A gate stop
      carries no `head-sha`, so the check goes on `head-sha-fallback`.
-  5. An unverified or missing signed-commit result when `can-commit` is not `false`,
+  6. An unverified or missing signed-commit result when `can-commit` is not `false`,
      `act-outcome` `failure`, or `dirty-tree: true`: failure. No skip reason overrides these.
-  6. A verdict `skip-reason`: neutral with that reason when `run-result` is `success` and
+  7. A verdict `skip-reason`: neutral with that reason when `run-result` is `success` and
      `act-outcome` is `success` (a script that exited 0 with a reason) or `skipped` (the act step
      never ran, so no head code wrote the verdict); failure otherwise.
-  7. `act-outcome` other than `success`: failure, since nothing explains the skip.
-  8. `run-result` other than `success`: failure.
-  9. Otherwise success.
+  8. `run-result` other than `success`: failure, with `run-failure` appended when set. A run job
+     that failed before the act step leaves `act-outcome` `skipped`, so this comes first.
+  9. `act-outcome` other than `success`: failure, since nothing explains the skip.
+  10. Otherwise success.
 - Every neutral reason must be in `$defs/skip-reason` of `<base-path>/docs/conventions/pr-pipeline/pr-pipeline.schema.json`.
   A reason outside it, or an unreadable schema, turns the neutral into a failure.
 - `details_url` is this workflow run's page, built from the runner's own environment.
