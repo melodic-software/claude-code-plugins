@@ -1012,8 +1012,8 @@ Step 14 revokes the token as soon as the activity is done. Residuals:
 The write file's `issue-number` input runs a lane on an issue instead of a PR. Its one caller is
 [`work-resolve-issue.yml`](../../../.github/workflows/work-resolve-issue.yml): the `agent-ready`
 label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), then
-`report-outcome` (a script) in a second run job. At most three `resolve-issue` jobs run at once:
-a `pick-slot` job takes the issue number modulo `SLOTS` (3), and `resolve-issue` joins the
+`report-outcome` (a script) in a second run job. At most six `resolve-issue` jobs run at once:
+a `pick-slot` job takes the issue number modulo `SLOTS` (6), and `resolve-issue` joins the
 `work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of admissions waits
 in line, holding no runner, instead of spending the lanes App's hourly API quota at once.
 `report-outcome` takes no slot. What changes from the PR flow:

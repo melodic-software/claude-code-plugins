@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.1 - 2026-10-18
+
+The issue lane runs six `resolve-issue` jobs at once, up from three: `SLOTS` in `pick-slot` is 6,
+so issues queue in six `work-resolve-issue-slot-<n>` groups
+([pr-run-activity.md](pr-run-activity.md#skill-activities)). `version` stays 2.
+
 ## 2.11.0 - 2026-10-18
 
 [Changing this config](README.md#changing-this-config): a pull request that changes a lane and
