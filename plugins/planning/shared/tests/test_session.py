@@ -3586,6 +3586,28 @@ class HideEditCase(SessionCase):
         return self.s.card_history(HOST, {"qid": qid, "card": ref or self.bo_ref})["history"]
 
 
+class TestHiddenPick(SessionCase):
+    """A pick is its picker's answer: hiding the answer takes the pick out of every count, as Phase 4c's "the tally
+    (its picks too)" says, and showing it again puts it back."""
+
+    def option_votes(self, viewer):
+        return {c["ref"]: c["votes"] for c in self.s.snapshot(viewer)["cards"]["Q1"] if c["ref"].startswith("o:")}
+
+    def test_hiding_a_pick_drops_its_count_and_voter_and_showing_it_restores_both(self):
+        ann, bo = self.people("Ann", "Bo")
+        self.open_round(choice_q("Q1"))
+        self.act("pick", ann, {"qid": "Q1", "option": "opt-1", "view": "focus"})
+        self.act("pick", bo, {"qid": "Q1", "option": "opt-2", "view": "focus"})
+        self.act("hide_card", HOST, {"qid": "Q1", "card": f"p:{ann}", "on": True})
+        for viewer in (bo, HOST):
+            self.assertEqual(self.option_votes(viewer)["o:opt-1"], [])
+        self.act("hide_card", HOST, {"qid": "Q1", "card": f"p:{ann}", "on": False})
+        self.assertEqual(self.option_votes(bo)["o:opt-1"], [ann])
+        self.act("hide_card", HOST, {"qid": "Q1", "card": f"p:{ann}", "on": True})
+        counts = digest_of(self)["questions"][0]["outcome"]["counts"]
+        self.assertEqual(counts, [{"option": "Card", "votes": 0}, {"option": "Saved method", "votes": 1}, {"option": "None", "votes": 0}])
+
+
 class TestHideAndEdit(HideEditCase):
     def test_hidden_card_absent_for_guests_and_digest(self):
         self.act("hide_card", HOST, {"qid": "Q1", "card": self.bo_ref, "on": True, "reason": "Off topic"})

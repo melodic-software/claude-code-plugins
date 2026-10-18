@@ -2227,9 +2227,14 @@ class Session:
         return None
 
     def _votes_on(self, qid, ref):
-        """Active people who vote for card `ref` on qid, or back it as one of several (`backs`, multi)."""
+        """Active people who vote for card `ref` on qid, or back it as one of several (`backs`, multi). A pick of
+        an option (`o:`) whose picker's own answer the owner hid is left out, as the hidden answer is; the vote
+        stays in state, so showing the answer again counts it."""
         voters = [v for v, r in self.state["votes"].get(qid, {}).items() if r == ref]
         voters += [v for v, refs in self.state.get("backs", {}).get(qid, {}).items() if ref in refs and v not in voters]
+        if ref.startswith("o:"):
+            hidden = {c["pid"] for c in self.state["cards"].get(qid, []) if c["kind"] == "person" and "hidden" in c}
+            voters = [v for v in voters if v not in hidden]
         return [v for v in voters if self._active(v)]
 
     def _acts(self, qid, pid):
