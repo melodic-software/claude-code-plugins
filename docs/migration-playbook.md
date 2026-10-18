@@ -510,7 +510,8 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
 - **Consumers update deliberately** with `/plugin marketplace update <marketplace>`, which refetches
   the marketplace. Auto-update is off by default for a third-party marketplace such as this one, so
   a consumer gets no change they did not ask for unless they turned `autoUpdate` on
-  ([When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)).
+  ([When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs),
+  as of 2026-10-18; recheck when that section changes which marketplaces auto-update by default).
 - **Breaking-change / changelog note per plugin.** A change to behavior a consumer depends on, such
   as a renamed option, a moved config path, or a removed action, is described in the fragment (or,
   for a plugin not yet in fragment mode, the `CHANGELOG.md` entry), and the release writes it into
@@ -546,7 +547,8 @@ fetched 2026-10-04; recheck when that section changes which sources load in plac
   and loads the copy. The manifest `version` comes first when it computes the version, so a later
   commit under the same version does not replace the copy, and
   `claude plugin update <name>@<marketplace>` reports "already at the latest version" and copies
-  nothing ([How Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version)).
+  nothing ([How Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version),
+  as of 2026-10-18; recheck when that section changes which version source comes first).
   A fragment merged to main is such a commit: it changes the plugin's files and not its version
   until the release pull request merges.
 
@@ -790,7 +792,8 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
     `CLAUDE_CODE_PLUGIN_SEED_DIR` ([Manage plugins for your organization, "Seed containers and CI"](https://code.claude.com/docs/en/plugins/org#seed-containers-and-ci),
     as of 2026-10-07; recheck when that section drops the seed variable).
   - **`directory` / `file` source with a relative path in checked-in project `.claude/settings.json`:**
-    the path [resolves against the repository checkout](https://code.claude.com/docs/en/plugins/org#require-plugins-per-repository),
+    the path [resolves against the repository checkout](https://code.claude.com/docs/en/plugins/org#require-plugins-per-repository)
+    (as of 2026-10-18; recheck when that section changes how a relative path resolves),
     including cloud sessions that install from the clone at session start, with no separate
     `marketplace add` step. Local collaborators still see the interactive trust prompt once they
     trust the folder. See [`docs/cloud-sessions.md`](cloud-sessions.md) "Plugins in sessions on this repo".
@@ -1477,7 +1480,7 @@ authority.
 | `command` plugin source | reject | None in this catalog. Bulk install and suggestion flows refuse a command-source plugin until the user accepts it alone. Source: [command plugin source](https://code.claude.com/docs/en/plugins/marketplace-reference#command-plugin-source). |
 | `headersHelper` | reject | Requires `strict: false` and an `archive` source. Background auto-update skips it. This catalog is relative-path, not archive. Source: [add a headersHelper to a plugin entry](https://code.claude.com/docs/en/plugins/host-marketplace#add-a-headershelper-to-a-plugin-entry). |
 | Version computation | adopt as constraint | Rung order: `plugin.json` `version`, then the entry `version`, then source-type (git SHA, archive digest, or unknown). This catalog pins `version` in every `plugin.json` so updates are explicit. Do not omit it to track SHA. Source: [how Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version). |
-| `bin/` under org-managed distribution | adopt as constraint: no plugin ships a top-level `bin/` | Documented constraint ([host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings), fetched 2026-09-29; repeated on [sync your organization's plugins](https://claude.com/docs/plugins/org-sync#keep-executables-out-of-the-top-level-bin-directory)): "**Top-level `bin/` directory**: claude.ai rejects a plugin that has one and syncs the rest of the marketplace. The error message starts with `Plugin contains a top-level bin/ directory`. Keep executables in another directory, such as `scripts/`, and reference them as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>` from your hooks or MCP server configs". The `source-control` wrappers live under `plugins/source-control/scripts/` and `babysit-prs` invokes them by their `${CLAUDE_PLUGIN_ROOT}/scripts/` paths, so no divergence remains, and `scripts/check-plugin-manifest-presence.sh` fails any plugin that adds a `bin/`. |
+| `bin/` under org-managed distribution | adopt as constraint: no plugin ships a top-level `bin/` | Documented constraint ([host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings), as of 2026-10-18; also covered on [sync your organization's plugins](https://claude.com/docs/plugins/org-sync#keep-executables-out-of-the-top-level-bin-directory); recheck when either page changes how organization sync treats a top-level `bin/`). The `source-control` wrappers live under `plugins/source-control/scripts/` and `babysit-prs` invokes them by their `${CLAUDE_PLUGIN_ROOT}/scripts/` paths, so no divergence remains, and `scripts/check-plugin-manifest-presence.sh` fails any plugin that adds a `bin/`. |
 | Submit plugins to `claude-community` | reject | This repository is the distribution channel. `claude-community` is Anthropic's third-party catalog with a separate submission bar. Forks may list there; this fleet does not. This is a decision, not a permanent ban: revisit it if a specific plugin gets outside demand. Source: [Anthropic's marketplaces](https://code.claude.com/docs/en/plugins/anthropic-marketplaces#anthropic%E2%80%99s-marketplaces). |
 
 - **Claim:** the table records the marketplace's stance on each named schema feature and gotcha.

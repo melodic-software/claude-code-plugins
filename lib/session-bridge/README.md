@@ -190,13 +190,18 @@ The checks and their order are ours. Where the upstream facts they test live, as
 - Which auth channels need and which providers lack them: the opening note of the
   [channels page](https://code.claude.com/docs/en/channels), which has no section anchor. The
   provider variable names in the table are ours, not taken from that note.
+- Which credential wins when several are set, which decides what `claude auth status --json`
+  reports for the Auth check: when changing that check, fetch
+  [authentication precedence](https://code.claude.com/docs/en/authentication#authentication-precedence)
+  live.
 - Which plans block channels until enabled, and the two policy keys:
   [enterprise controls](https://code.claude.com/docs/en/channels#enterprise-controls).
 - What a session sees when a policy blocks a channel:
   [enable channels for your organization](https://code.claude.com/docs/en/channels#enable-channels-for-your-organization)
   and [restrict which channel plugins can run](https://code.claude.com/docs/en/channels#restrict-which-channel-plugins-can-run).
 
-Recheck when the opening note changes the auth or provider list, the enterprise controls section
+Recheck when the authentication precedence section changes the order or the credentials it ranks,
+the opening note changes the auth or provider list, the enterprise controls section
 changes a plan default or a policy key, the enable channels section changes its startup warning,
 or the restrict channel plugins section changes the allowlist key or its startup notice.
 

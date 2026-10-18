@@ -99,6 +99,15 @@ an environment like the one its hooks run in. A test file imports its kit
 from 'claude-code/testing'. Exits 1 when a test fails.
 ```
 
+**Superseded since the pin.** The gate and hidden-command observations below describe 2.1.278 and
+no longer hold: the test page now documents `claude plugin test` as a normal command, and
+`scripts/test-plugin-mods.sh` runs it unconditionally once the version floor is met.
+- **Pointer**: when deciding how `claude plugin test` is registered or documented, fetch
+  [Test a mod](https://code.claude.com/docs/en/plugins/mods/test#write-a-test) live.
+- **As of**: 2026-10-18
+- **Recheck trigger**: that page stops documenting `claude plugin test`, or a Claude Code release
+  note changes how the command is registered.
+
 `OBSERVED` · HIGH. It is **not registered** without the gate
 (`error: unknown command 'test'`) and **stays hidden from `claude plugin --help`
 even with the flag set**. `OBSERVED` · HIGH.

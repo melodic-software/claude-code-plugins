@@ -432,6 +432,9 @@ The `skip-actors` revisit trigger below still applies to the inline list while i
 - Agent actors begin authoring substantive changes under security-sensitive paths → the skip
   stops being cheap; widen `allowed_bots` in the ci-workflows reusable so those PRs are
   reviewed rather than skipped, instead of narrowing `skip-actors` alone (which fails closed).
+  Pointer: when widening `allowed_bots`, fetch
+  [GitHub Actions: Who can trigger runs](https://code.claude.com/docs/en/github-actions#who-can-trigger-runs)
+  live. As of 2026-10-18. Recheck when that section stops naming `allowed_bots`.
 - ci-workflows maps an action-side workflow-validation skip to a non-run (ci-workflows#345) →
   the caller-tamper gap recorded in the 2026-08-03 addendum closes, and the required check
   begins certifying

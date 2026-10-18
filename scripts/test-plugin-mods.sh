@@ -5,7 +5,11 @@
 # `claude` is not on PATH, or when the CLI predates `claude plugin test` (mods
 # need 2.1.287). Exits 1 when any mod's tests fail, and 2 when node, which
 # reads hooks.json, is not on PATH.
-# Basis: https://code.claude.com/docs/en/plugins/mods/test.md
+# Pointer: when changing how mod tests run, fetch
+#   https://code.claude.com/docs/en/plugins/mods/test#write-a-test live.
+# As of: 2026-10-18
+# Recheck trigger: that section changes how `claude plugin test` finds or runs test files, or the
+#   minimum version in MIN_VERSION below moves.
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
