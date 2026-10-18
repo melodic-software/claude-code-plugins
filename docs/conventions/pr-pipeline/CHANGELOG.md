@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## 2.9.0 - 2026-10-17
+
+`work-resolve-issue.yml` runs at most three `resolve-issue` jobs at once. A `pick-slot` job takes
+the issue number modulo `SLOTS` (3, set in that job), and `resolve-issue` waits in the
+`work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of `agent-ready`
+admissions queues instead of exhausting the lanes App's hourly API quota
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). The per-issue run group is
+unchanged. `version` stays 2.
+
 ## 2.8.0 - 2026-10-17
 
 An optional `limits` block sets the limit-stop restart values: `fallback-reset`,

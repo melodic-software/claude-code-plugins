@@ -5,10 +5,12 @@
 // leaves the review on the reusable's defaults; intake never runs without
 // resolved arguments; and each sparse checkout holds what this action loads.
 // Also: pr-unblock.yml leaves a publish-feedback check on the head whether or
-// not its reply job runs.
+// not its reply job runs, and work-resolve-issue.yml caps its concurrent runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -201,4 +203,50 @@ test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback
   assert.equal(calls[0].head_sha, head);
   assert.equal(calls[0].conclusion, "neutral");
   assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
+});
+
+// GitHub runs at most one job per concurrency group, and `queue: max` keeps
+// the rest waiting instead of cancelling them (workflow-syntax#concurrency),
+// so the number of distinct slot groups is the cap: 3.
+test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest queued", () => {
+  const { concurrency, jobs } = workflow("work-resolve-issue.yml");
+  const pick = jobs["pick-slot"];
+  const resolve = jobs["resolve-issue"];
+  const step = pick.steps.find((s) => s.id === "slot");
+  const slotOf = (issue) => {
+    const output = join(mkdtempSync(join(tmpdir(), "slot-")), "output");
+    writeFileSync(output, "");
+    const run = spawnSync("bash", ["-c", step.run], {
+      env: { ...process.env, SLOTS: String(pick.env.SLOTS), ISSUE_NUMBER: issue, GITHUB_OUTPUT: output },
+    });
+    return run.status === 0 ? readFileSync(output, "utf8").trim().replace(/^slot=/, "") : null;
+  };
+  assert.equal(slotOf("7"), "1");
+  assert.equal(slotOf("9"), "0");
+  assert.equal(slotOf("3001"), "1");
+  assert.equal(slotOf("7 + 1"), null, "an issue number that is not digits picks no slot");
+
+  assert.equal(pick.outputs.slot, `\${{ steps.${step.id}.outputs.slot }}`);
+  assert.equal(resolve.needs, "pick-slot");
+  assert.equal(resolve.concurrency.queue, "max");
+  assert.notEqual(resolve.concurrency["cancel-in-progress"], true, "GitHub rejects queue: max with cancel-in-progress");
+  const groups = new Set(
+    Array.from({ length: 60 }, (_, i) =>
+      resolve.concurrency.group.replace("${{ needs.pick-slot.outputs.slot }}", slotOf(String(i + 1))),
+    ),
+  );
+  assert.deepEqual([...groups].sort(), [0, 1, 2].map((n) => `work-resolve-issue-slot-${n}`));
+
+  // A label other than agent-ready starts neither job, so it holds no runner.
+  for (const [label, runs] of [["agent-ready", true], ["bug", false]]) {
+    const context = { "github.event.label.name": label };
+    assert.equal(evaluate(pick.if, context), runs, label);
+    assert.equal(evaluate(resolve.if, context), runs, label);
+  }
+  // The per-issue run group still dedupes: one agent-ready run per issue.
+  assert.equal(
+    concurrency.group,
+    "work-resolve-issue-${{ github.event.issue.number }}-${{ github.event.label.name == 'agent-ready' }}",
+  );
+  assert.equal(concurrency["cancel-in-progress"], false);
 });
