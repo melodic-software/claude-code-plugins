@@ -364,6 +364,8 @@ tc_enable=()
 tc_exclude_re=()
 tc_include_re=()
 tc_uncovered=()
+tc_pk_re=()
+tc_pk_kind=()
 declare -A tc_on=() tc_off=() rule_level=()
 if ((tc_layers)); then
   RESOLVER="$SCRIPT_DIR/../../../scripts/resolve-config.sh"
@@ -398,6 +400,12 @@ if ((tc_layers)); then
       ;;
     rules.*) rule_level[${key#rules.}]="$val" ;;
     hook.uncovered) tc_uncovered+=("$val") ;;
+    project_kinds)
+      tcfg_norm "${val%=*}"
+      tcfg_glob_re "$TCFG_NORM"
+      tc_pk_re+=("$TCFG_RE")
+      tc_pk_kind+=("${val##*=}")
+      ;;
     *) ;;
     esac
   done <<<"$tc_out"
@@ -1258,6 +1266,236 @@ advisory_note() {
   fi
 }
 
+# --- Project context ----------------------------------------------------------
+# Each C# finding names its owning test project (the nearest .csproj above the
+# file), whether a repository workflow's `dotnet test` or `dotnet build` targets
+# it, and a project kind. All of it is read from files; no project is ever built
+# or run. Anything the evidence does not settle is `unknown`, never a guess.
+PJ_BASE="${TOP:-$ROOT}"
+f_proj=()
+f_ci=()
+f_kind=()
+f_order=()
+f_ctx_done=0
+wf_loaded=0
+wf_files=0
+wf_cmds=0
+wf_unsure=0
+wf_targets=()
+declare -A pj_ci=() pj_kind=()
+
+# norm_path <path>: set NP to it with / separators and no ., .. or empty segment.
+norm_path() {
+  local p="${1//\\//}" seg segs out=() IFS=/
+  read -r -a segs <<<"$p"
+  for seg in ${segs[@]+"${segs[@]}"}; do
+    case "$seg" in
+    '' | .) ;;
+    ..) ((${#out[@]})) && unset 'out[${#out[@]}-1]' ;;
+    *) out+=("$seg") ;;
+    esac
+  done
+  NP="${out[*]-}"
+}
+
+# load_workflows: collect the targets of every `dotnet test` and `dotnet build`
+# in .github/workflows. A file that does not look like a workflow (no jobs: key,
+# a tab indent), a variable or a continued command leaves the answer unknown.
+load_workflows() {
+  ((wf_loaded)) && return 0
+  wf_loaded=1
+  local wf seg tok rest found whole
+  for wf in "$PJ_BASE"/.github/workflows/*.yml "$PJ_BASE"/.github/workflows/*.yaml; do
+    [[ -f "$wf" ]] || continue
+    wf_files=$((wf_files + 1))
+    if [[ ! -r "$wf" ]] || ! LC_ALL=C grep -q '^jobs:' "$wf" 2>/dev/null || LC_ALL=C grep -q $'^[ ]*\t' "$wf" 2>/dev/null; then
+      wf_unsure=1
+      continue
+    fi
+    whole=0
+    if LC_ALL=C grep -q 'working-directory:' "$wf" 2>/dev/null; then whole=1; fi
+    while IFS= read -r seg; do
+      wf_cmds=$((wf_cmds + 1))
+      found=0
+      [[ "$seg" == *'\' ]] && wf_unsure=1
+      rest="$(LC_ALL=C sed -E 's/^.*dotnet[[:space:]]+(test|build)//' <<<"$seg")"
+      for tok in $rest; do
+        tok="${tok//[\"\']/}"
+        case "$tok" in
+        '' | -*) continue ;;
+        *'$'* | *'{{'* | *'*'* | *'%'* | *.slnf)
+          wf_unsure=1
+          found=1
+          ;;
+        *.sln | *.slnx | *.csproj)
+          norm_path "$tok"
+          wf_targets+=("file|$NP")
+          found=1
+          ;;
+        *)
+          if [[ -d "$PJ_BASE/$tok" ]]; then
+            norm_path "$tok"
+            wf_targets+=("dir|$NP")
+            found=1
+          fi
+          ;;
+        esac
+      done
+      if ((!found)); then
+        wf_targets+=("dir|")
+        if ((whole)); then wf_unsure=1; fi
+      fi
+    done < <(LC_ALL=C sed -E -e 's/\r$//' -e '/^[[:space:]]*#/d' -e 's/[[:space:]]#.*$//' -e 's/(&&|\|\||;|\|)/\n/g' "$wf" |
+      LC_ALL=C grep -E '(^|[^[:alnum:]_.-])dotnet[[:space:]]+(test|build)([[:space:]]|$)')
+  done
+}
+
+# sln_has <solution> <project>: true when the solution lists the project.
+sln_has() {
+  local f="$1" proj="$2" d="" m pat='"[^"]+\.csproj"'
+  if [[ "$f" == */* ]]; then d="${f%/*}"; fi
+  if [[ "$f" == *.slnx ]]; then pat='Path="[^"]+\.csproj"'; fi
+  while IFS= read -r m; do
+    m="${m#Path=}"
+    m="${m//\"/}"
+    norm_path "${d:+$d/}$m"
+    [[ "$NP" == "$proj" ]] && return 0
+  done < <(LC_ALL=C grep -oiE "$pat" "$PJ_BASE/$f" 2>/dev/null | tr -d '\r')
+  return 1
+}
+
+# ci_of <project>: set CI_R to yes, no or unknown.
+ci_of() {
+  local proj="$1" t kind path f any
+  load_workflows
+  CI_R=yes
+  if ((wf_files == 0)); then
+    CI_R=unknown
+    return 0
+  fi
+  for t in ${wf_targets[@]+"${wf_targets[@]}"}; do
+    kind="${t%%|*}" path="${t#*|}"
+    if [[ "$kind" == file ]]; then
+      case "$path" in
+      *.csproj) [[ "$path" == "$proj" ]] && return 0 ;;
+      *) sln_has "$path" "$proj" && return 0 ;;
+      esac
+      continue
+    fi
+    any=0
+    for f in "$PJ_BASE${path:+/$path}"/*.sln "$PJ_BASE${path:+/$path}"/*.slnx; do
+      [[ -f "$f" ]] || continue
+      any=1
+      sln_has "${f#"$PJ_BASE/"}" "$proj" && return 0
+    done
+    if ((!any)); then
+      for f in "$PJ_BASE${path:+/$path}"/*.csproj; do
+        [[ -f "$f" && "${f#"$PJ_BASE/"}" == "$proj" ]] && return 0
+      done
+    fi
+  done
+  if ((wf_unsure)); then
+    CI_R=unknown
+  elif ((wf_cmds > 0)); then
+    CI_R=no
+  else
+    CI_R=unknown
+  fi
+}
+
+# kind_of_project <project>: set KIND_R. A project_kinds override wins; else the
+# kinds named by the project's name tokens and package references must agree,
+# except that operational, then live, win a disagreement so a warning is not lost.
+kind_of_project() {
+  local proj="$1" i toks ks=() k pf="$PJ_BASE/$1"
+  for i in ${tc_pk_re[@]+"${!tc_pk_re[@]}"}; do
+    if [[ "$proj" =~ ${tc_pk_re[$i]} ]]; then
+      KIND_R="${tc_pk_kind[$i]}"
+      return 0
+    fi
+  done
+  toks=" $(sed -E 's/([a-z0-9])([A-Z])/\1.\2/g' <<<"${proj%.csproj}" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9\n' ' ') "
+  case "$toks" in *' unit '*) ks+=(unit) ;; *) ;; esac
+  case "$toks" in *' integration '*) ks+=(integration) ;; *) ;; esac
+  case "$toks" in *' smoke '*) ks+=(live) ;; *) ;; esac
+  case "$toks" in *' functional '*) ks+=(functional) ;; *) ;; esac
+  case "$toks" in *' architecture '*) ks+=(architecture) ;; *) ;; esac
+  case "$toks" in *' provisioning '*) ks+=(operational) ;; *) ;; esac
+  if [[ -r "$pf" ]]; then
+    if LC_ALL=C grep -qiE 'PackageReference[^>]*Include="(Reqnroll|Microsoft\.Playwright)' "$pf"; then ks+=(functional); fi
+    if LC_ALL=C grep -qiE 'PackageReference[^>]*Include="ArchUnitNET' "$pf"; then ks+=(architecture); fi
+    if LC_ALL=C grep -qiE 'PackageReference[^>]*Include="Testcontainers' "$pf"; then ks+=(integration); fi
+  fi
+  KIND_R=unknown
+  ((${#ks[@]})) || return 0
+  for k in operational live; do
+    for i in "${ks[@]}"; do
+      if [[ "$i" == "$k" ]]; then
+        KIND_R="$k"
+        return 0
+      fi
+    done
+  done
+  for i in "${ks[@]}"; do
+    [[ "$i" == "${ks[0]}" ]] || return 0
+  done
+  KIND_R="${ks[0]}"
+}
+
+# resolve_contexts: fill f_proj, f_ci and f_kind per finding, and f_order, the
+# emission order: findings in CI-run unit projects first, the rest as found.
+resolve_contexts() {
+  ((f_ctx_done)) && return 0
+  f_ctx_done=1
+  local i file d f proj first=() rest=()
+  for i in ${f_rule[@]+"${!f_rule[@]}"}; do
+    proj=""
+    if [[ "${f_lang[$i]}" == cs ]]; then
+      file="${f_loc[$i]%:*}"
+      d=""
+      if [[ "$file" == */* ]]; then d="${file%/*}"; fi
+      while :; do
+        for f in "$PJ_BASE${d:+/$d}"/*.csproj; do
+          if [[ -f "$f" ]]; then
+            proj="${f#"$PJ_BASE/"}"
+            break
+          fi
+        done
+        [[ -z "$proj" && -n "$d" ]] || break
+        if [[ "$d" == */* ]]; then d="${d%/*}"; else d=""; fi
+      done
+    fi
+    if [[ -z "$proj" ]]; then
+      f_proj[i]=unknown
+      f_ci[i]=unknown
+      f_kind[i]=unknown
+    else
+      if [[ -z "${pj_ci[$proj]:-}" ]]; then
+        ci_of "$proj"
+        pj_ci[$proj]="$CI_R"
+        kind_of_project "$proj"
+        pj_kind[$proj]="$KIND_R"
+      fi
+      f_proj[i]="$proj"
+      f_ci[i]="${pj_ci[$proj]}"
+      f_kind[i]="${pj_kind[$proj]}"
+    fi
+    if [[ "${f_ci[$i]}" == yes && "${f_kind[$i]}" == unit ]]; then first+=("$i"); else rest+=("$i"); fi
+  done
+  f_order=(${first[@]+"${first[@]}"} ${rest[@]+"${rest[@]}"})
+}
+
+# ctx_text <i>: the project, CI and kind of finding <i>, with a warning for a
+# project of kind operational or live.
+ctx_text() {
+  local i="$1"
+  printf '[project: %s; ci: %s; kind: %s]' "${f_proj[$i]}" "${f_ci[$i]}" "${f_kind[$i]}"
+  case "${f_kind[$i]}" in
+  operational | live) printf ' WARNING: kind %s touches live or shared environments, do not run these tests' "${f_kind[$i]}" ;;
+  *) ;;
+  esac
+}
+
 esc_cell() {
   # detector-findings cell-escaping rule: literal | becomes \| ; the engine
   # already flattened tabs/newlines out of details.
@@ -1341,13 +1579,15 @@ emit_findings_file() {
   printf -- '---\ntype: review-findings\ndate: %s\nbranch: %s\n---\n\n## Findings\n\n' "$ts" "$(yaml_scalar "$branch")"
   printf '| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n'
   printf '|------|------|------------|----------|------------|---------|--------|\n'
+  resolve_contexts
   rank=0
-  for i in ${f_rule[@]+"${!f_rule[@]}"}; do
+  for i in ${f_order[@]+"${f_order[@]}"}; do
     rank=$((rank + 1))
     conf="$(confidence_of "${f_rule[$i]}")"
-    printf '| %d | %s | %s | %s | testing:audit | %s: %s (%s) | %s |\n' \
+    printf '| %d | %s | %s | %s | testing:audit | %s: %s (%s) %s | %s |\n' \
       "$rank" "$(tier_of "${f_rule[$i]}")" "$conf" "${f_loc[$i]}" \
       "$(rule_id "${f_rule[$i]}")" "$(esc_cell "${f_detail[$i]}")" "$(threshold_of "${f_rule[$i]}" "${f_lang[$i]}")" \
+      "$(esc_cell "$(ctx_text "$i")")" \
       "$(esc_cell "$(action_of "${f_rule[$i]}" "${f_lang[$i]}")")"
   done
   printf '\n## Surfaces\n\n'
@@ -1356,13 +1596,15 @@ emit_findings_file() {
 
 print_findings_lines() {
   local i a
+  resolve_contexts
   if ((brief)); then
     # One Action per distinct rule and text: inert-assertion's differs by language.
     local -A seen=()
-    for i in ${f_rule[@]+"${!f_rule[@]}"}; do
-      printf 'finding [rule-%s] %s: %s\n' "${f_rule[$i]}" "${f_loc[$i]}" "${f_detail[$i]}"
+    for i in ${f_order[@]+"${f_order[@]}"}; do
+      printf 'finding [rule-%s] %s: %s%s\n' "${f_rule[$i]}" "${f_loc[$i]}" "${f_detail[$i]}" \
+        "$([[ "${f_proj[$i]}" == unknown ]] || printf ' %s' "$(ctx_text "$i")")"
     done
-    for i in ${f_rule[@]+"${!f_rule[@]}"}; do
+    for i in ${f_order[@]+"${f_order[@]}"}; do
       a="$(action_of "${f_rule[$i]}" "${f_lang[$i]}")"
       [[ -n "$a" && -z "${seen["${f_rule[$i]}|$a"]:-}" ]] || continue
       seen["${f_rule[$i]}|$a"]=1
@@ -1370,10 +1612,10 @@ print_findings_lines() {
     done
     return 0
   fi
-  for i in ${f_rule[@]+"${!f_rule[@]}"}; do
-    printf 'finding [%s] %s: %s (%s). Action: %s\n' \
+  for i in ${f_order[@]+"${f_order[@]}"}; do
+    printf 'finding [%s] %s: %s (%s) %s. Action: %s\n' \
       "$(rule_id "${f_rule[$i]}")" "${f_loc[$i]}" "${f_detail[$i]}" \
-      "$(threshold_of "${f_rule[$i]}" "${f_lang[$i]}")" "$(action_of "${f_rule[$i]}" "${f_lang[$i]}")"
+      "$(threshold_of "${f_rule[$i]}" "${f_lang[$i]}")" "$(ctx_text "$i")" "$(action_of "${f_rule[$i]}" "${f_lang[$i]}")"
   done
 }
 

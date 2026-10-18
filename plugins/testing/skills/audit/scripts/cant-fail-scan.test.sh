@@ -2283,6 +2283,86 @@ assert_finding_count "and its scan keys apply" 2
 assert_not_contains "and the map draws no warning" "$out" "adapter-load"
 rm -rf "$CFG/docs"
 
+# --- project context: owning project, CI membership and kind (C#) -------------
+PJX="$TMP_ROOT/pjx"
+mkdir -p "$PJX/.github/workflows"
+git -C "$TMP_ROOT" init -q -b pjx-branch pjx
+cs_bad='public class T
+{
+    [Fact]
+    public void Runs()
+    {
+        var g = new Gateway();
+        g.Charge(100);
+    }
+}
+'
+pj_add() {
+  # pj_add <name> [csproj body]: a test project holding one zero-assertion test.
+  mkdir -p "$PJX/tests/$1"
+  printf '<Project Sdk="Microsoft.NET.Sdk">\n%s</Project>\n' "${2:-}" >"$PJX/tests/$1/$1.csproj"
+  printf '%s' "$cs_bad" >"$PJX/tests/$1/Sample${1//./}Tests.cs"
+}
+pj_add Alpha.Tests
+pj_add Zeta.Unit.Tests
+pj_add Env.Provisioning.Tests
+pj_add Smoke.Checks.Tests
+pj_add Mixed.Unit.Tests '  <ItemGroup><PackageReference Include="Testcontainers" Version="3" /></ItemGroup>
+'
+pj_add Gamma.Tests '  <ItemGroup><PackageReference Include="Reqnroll" Version="2" /></ItemGroup>
+'
+pj_add Ops.Runner
+printf 'Microsoft Visual Studio Solution File\nProject("{FAE04EC0}") = "Zeta.Unit.Tests", "tests\\Zeta.Unit.Tests\\Zeta.Unit.Tests.csproj", "{1}"\nEndProject\n' >"$PJX/App.sln"
+printf 'name: ci\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: dotnet test App.sln\n      # - run: dotnet test tests/Alpha.Tests\n' >"$PJX/.github/workflows/ci.yml"
+pj_scan() {
+  rc=0
+  out="$(env -u CLAUDE_PROJECT_DIR HOME="$TMP_ROOT/no-home" CANT_FAIL_SCAN_ROOT="$PJX" bash "$SCAN" "$@" 2>&1)" || rc=$?
+}
+pj_scan
+assert_exit "project context: a report completes" 0 "$rc"
+assert_matches "a project in a workflow's solution carries ci: yes, its project and kind" "$out" \
+  'SampleZetaUnitTestsTests\.cs:.*\[project: tests/Zeta\.Unit\.Tests/Zeta\.Unit\.Tests\.csproj; ci: yes; kind: unit\]'
+assert_matches "a project no workflow targets is ci: no, not guessed from a commented-out line" "$out" \
+  'SampleAlphaTestsTests\.cs:.*\[project: tests/Alpha\.Tests/Alpha\.Tests\.csproj; ci: no; kind: unknown\]'
+assert_matches "an unclassifiable project reports kind: unknown" "$out" 'Alpha\.Tests\.csproj; ci: no; kind: unknown\]\. Action: '
+assert_matches "a Provisioning project is kind operational with the do-not-run warning" "$out" \
+  'Env\.Provisioning\.Tests\.csproj; ci: no; kind: operational\] WARNING: kind operational .*do not run these tests'
+assert_matches "a Smoke project is kind live with the warning" "$out" \
+  'Smoke\.Checks\.Tests\.csproj; ci: no; kind: live\] WARNING: kind live '
+assert_matches "a Reqnroll package makes a project functional" "$out" 'Gamma\.Tests\.csproj; ci: no; kind: functional\]'
+assert_matches "evidence that disagrees (Unit name, Testcontainers package) is unknown" "$out" 'Mixed\.Unit\.Tests\.csproj; ci: no; kind: unknown\]'
+assert_not_contains "a plain project carries no warning" "$(grep 'Alpha.Tests' <<<"$out")" "WARNING"
+first="$(grep -m1 '^finding \[' <<<"$out")"
+assert_contains "findings in CI-run unit projects rank first" "$first" "tests/Zeta.Unit.Tests/"
+pj_scan --findings
+assert_exit "--findings completes with project context" 0 "$rc"
+assert_matches "the table keeps seven columns; the context sits in the Finding cell" "$out" \
+  '^\| 1 \| IMPORTANT \| high \| tests/Zeta\.Unit\.Tests/[^|]*\| testing:audit \| testing/audit/rule-zero-assertion: .*\[project: [^]]*; ci: yes; kind: unit\] \| .* \|$'
+# a config override changes the kind
+mkdir -p "$PJX/.claude"
+printf 'project_kinds:\n  - %s\n' "'**/Ops.Runner/*.csproj=operational'" >"$PJX/.claude/testing.yaml"
+pj_scan
+assert_matches "a project_kinds override sets the kind" "$out" 'Ops\.Runner\.csproj; ci: no; kind: operational\] WARNING'
+printf 'project_kinds:\n  - %s\n' "'**/Zeta.Unit.Tests/*.csproj=integration'" >"$PJX/.claude/testing.yaml"
+pj_scan
+assert_matches "an override wins over the name evidence" "$out" 'Zeta\.Unit\.Tests\.csproj; ci: yes; kind: integration\]'
+printf 'project_kinds:\n  - %s\n' "'**/X.csproj=bogus'" >"$PJX/.claude/testing.yaml"
+pj_scan
+assert_exit "an unknown kind in project_kinds is refused (exit 2)" 2 "$rc"
+rm -rf "$PJX/.claude"
+# a malformed workflow, and no workflow, fail soft to unknown
+printf '\tjobs\n  - [unclosed\n\x00\x01garbage' >"$PJX/.github/workflows/ci.yml"
+pj_scan
+assert_exit "a malformed workflow file does not fail the scan" 0 "$rc"
+assert_matches "and yields ci: unknown" "$out" 'Zeta\.Unit\.Tests\.csproj; ci: unknown; kind: unit\]'
+assert_not_contains "and no project reports ci: yes or no" "$out" "ci: no"
+rm -rf "$PJX/.github"
+pj_scan
+assert_matches "no workflow at all yields ci: unknown" "$out" 'Zeta\.Unit\.Tests\.csproj; ci: unknown; kind: unit\]'
+# non-C# findings show the fields as unknown
+pj_scan --file "$FIX/positive/cant-fail-js.test.js"
+assert_contains "a non-C# finding reports project, ci and kind as unknown" "$out" "[project: unknown; ci: unknown; kind: unknown]"
+
 # --- the whole suite again under mawk -----------------------------------------
 # A gawk-only pass does not count: the engine must hold under mawk as well.
 if [[ -z "${CANT_FAIL_TEST_MAWK_LEG:-}" ]] && command -v mawk >/dev/null 2>&1; then
