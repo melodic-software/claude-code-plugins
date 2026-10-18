@@ -25,6 +25,7 @@ import json
 import pathlib
 import subprocess
 import sys
+import tempfile
 import unittest
 from datetime import UTC, datetime
 from typing import Any
@@ -883,6 +884,74 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
         self.assertEqual(len(listings), len(ve.LISTING_WAITS) + 1)
 
 
+def listings(fake: FakeGitHub) -> int:
+    return sum(any("actions/artifacts" in a for a in c) for c in fake.calls)
+
+
+class TheListingIsReadOncePerRun(unittest.TestCase):
+    """pr-merge.yml runs one gate, so one `Reader`, per candidate and names a
+    file in `BABYSIT_VERIFY_LISTING`: the run pages the artifact listing once,
+    and a saved listing never allows on its own."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.path = str(pathlib.Path(tmp.name, "verify-listing.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_VERIFY_LISTING": self.path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def gate(self, fake: FakeGitHub) -> tuple[ve.Reader, ve.Evidence]:
+        """One candidate's gate run: a fresh Reader."""
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            return reader, reader.evidence(PR, HEAD, pull())
+
+    def test_candidates_of_one_run_share_one_listing(self) -> None:
+        fake = FakeGitHub([artifact(named(HEAD, "fail"), 1)], {1: run(1)})
+        for _ in range(3):
+            _, evidence = self.gate(fake)
+            self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(listings(fake), 1)
+
+    def test_an_allow_on_the_saved_listing_sees_a_later_fail(self) -> None:
+        first, _ = self.gate(passing())
+        self.assertFalse(first.saved)
+        fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            self.assertIsNone(reader.evidence(PR, HEAD, pull()).refusal)
+            self.assertTrue(reader.saved)
+            reader.refresh()
+            self.assertEqual(reader.evidence(PR, HEAD, pull()).refusal, "verify:fail")
+        self.assertFalse(reader.saved)
+        self.assertEqual(listings(fake), 1)
+        # The fresher listing is saved for the rest of the run.
+        _, evidence = self.gate(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(listings(fake), 1)
+
+    def test_a_failed_listing_is_not_saved(self) -> None:
+        fake = passing()
+        fake.fail = {"actions/artifacts"}
+        _, evidence = self.gate(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertFalse(pathlib.Path(self.path).exists())
+        fake.fail = set()
+        _, evidence = self.gate(fake)
+        self.assertIsNone(evidence.refusal)
+
+    def test_a_malformed_saved_listing_is_read_from_the_api(self) -> None:
+        for text in ("not json", '{"artifacts": []}', "[1]"):
+            with self.subTest(text):
+                pathlib.Path(self.path).write_text(text)
+                fake = passing()
+                reader, evidence = self.gate(fake)
+                self.assertIsNone(evidence.refusal)
+                self.assertFalse(reader.saved)
+                self.assertEqual(listings(fake), 1)
+
+
 # --- A transient listing failure is read again --------------------------------
 
 # Every test runs without the backoff sleep; `judge` reads the waits off it.
@@ -1226,6 +1295,35 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertEqual(code, 0, out["blockers"])
         self.read.assert_called_once_with(unattended.PR, unattended.HEAD)
         self.assertIn("verify", out["unattended"])
+
+    def saved_listing(self) -> mock.Mock:
+        """The reader judged on the run's saved listing; returns `refresh`."""
+        patcher = mock.patch.object(ve.Reader, "saved", new=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(ve.Reader, "refresh")
+        refresh = patcher.start()
+        self.addCleanup(patcher.stop)
+        return refresh
+
+    def test_an_allow_on_the_saved_listing_is_judged_again_on_its_own(self) -> None:
+        # A FAIL uploaded after the run saved its listing still refuses.
+        refresh = self.saved_listing()
+        self.read.side_effect = [evidence(None), evidence("verify:fail")]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "verify:fail")
+        refresh.assert_called_once_with()
+        self.assertEqual(self.read.call_count, 2)
+
+    def test_a_refusal_on_the_saved_listing_stands_without_a_listing(self) -> None:
+        refresh = self.saved_listing()
+        self.verdicts[unattended.PR] = evidence("verify:missing")
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "verify:missing")
+        refresh.assert_not_called()
+        self.read.assert_called_once_with(unattended.PR, unattended.HEAD)
 
     def test_a_fail_refuses_and_dequeues_its_own_entry(self) -> None:
         self.verdicts[unattended.PR] = evidence("verify:fail")

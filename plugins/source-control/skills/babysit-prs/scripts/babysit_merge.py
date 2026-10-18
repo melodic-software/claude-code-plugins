@@ -2892,6 +2892,11 @@ def score_unattended(
     ):
         reader = verify_evidence.Reader(repo, str(inputs["branch"]))
         verdict = reader.evidence(number, str(details["headSha"]), pr)
+        if verdict.refusal is None and reader.saved:
+            # The run's saved listing lacks anything uploaded since; allow
+            # only on a listing of this gate run's own.
+            reader.refresh()
+            verdict = reader.evidence(number, str(details["headSha"]), pr)
         details["verify"] = verdict.report()
         inputs["verify_reader"] = reader
         if verdict.refusal:

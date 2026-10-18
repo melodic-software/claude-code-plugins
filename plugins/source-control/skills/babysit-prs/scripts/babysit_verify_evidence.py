@@ -40,17 +40,24 @@ from a completed, successful one. Any other artifact is ignored.
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and
 `verify:untrusted-spec` need a human, who merges in person. Any read that fails refuses
 (`verify:unreadable`). The repository's artifacts are listed once per
-`Reader`, which pr-merge.yml builds once per candidate gate run, every page,
-and filtered on the name here: the API's name filter matches whole names only.
-A listing that got a 5xx or a fast network error is read again after each of
-`LISTING_WAITS`, every read inside one gh timeout in all; any other failure, a
-timeout, a 429 or a rate-limit 403 included, is not. A failed listing is kept
-as well, so one outage refuses every entry of the run without paging again:
-it holds the whole queue rather than merging blind.
+`Reader`, every page, and filtered on the name here: the API's name filter
+matches whole names only, and a FAIL counts under any number and head.
+pr-merge.yml builds one `Reader` per candidate gate run and names a file in
+`LISTING_ENV`: a successful listing is saved there, and later candidates of
+the run read it instead of paging again. A listing taken earlier in the run
+can only lack later uploads, so a refusal on it stands; before the gate's own
+candidate is allowed on it, babysit_merge.py calls `refresh()` and judges it
+again on a listing of its own. A listing that got a 5xx or a fast network
+error is read again after each of `LISTING_WAITS`, every read inside one gh
+timeout in all; any other failure, a timeout, a 429 or a rate-limit 403
+included, is not. A failed listing is never saved, and is kept as well, so one
+outage refuses every entry of the gate run without paging again: it holds the
+whole queue rather than merging blind.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -70,6 +77,7 @@ from babysit_util import is_json_array, is_json_object, json_array, json_object
 WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
+LISTING_ENV = "BABYSIT_VERIFY_LISTING"
 NAME_RE = re.compile(r"pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)")
 PASSES = ("pass", "pass-notes")
 # Artifacts last at most 90 days in this repository (the retention maximum,
@@ -204,7 +212,13 @@ class Reader:
     actions_token: str | None = field(
         default_factory=lambda: os.environ.get(TOKEN_ENV) or None
     )
+    # The run's saved listing (`LISTING_ENV`), when pr-merge.yml names one.
+    listing_path: str | None = field(
+        default_factory=lambda: os.environ.get(LISTING_ENV) or None
+    )
     _artifacts: list[dict[str, Any]] | None = None
+    _saved: bool = False  # `_artifacts` came from `listing_path`
+    _own: bool = False  # `refresh()` asked for a listing of this Reader's own
     _listing_error: str | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
@@ -213,11 +227,15 @@ class Reader:
     _humans: frozenset[int] | None = None
 
     def _listing(self) -> list[dict[str, Any]]:
-        """Every repository artifact, read once: a failed read is kept too,
-        so one outage refuses each later entry without paging again."""
+        """Every repository artifact, read once (from the run's saved listing
+        when there is one): a failed read is kept too, so one outage refuses
+        each later entry without paging again."""
         if self._listing_error is not None:
             raise _Unreadable(self._listing_error)
         listing = self._artifacts
+        if listing is None:
+            listing = None if self._own else self._load_saved()
+            self._saved = listing is not None
         if listing is None:
             try:
                 listing = flatten_paginated_items(
@@ -226,8 +244,43 @@ class Reader:
             except (_Unreadable, RuntimeError) as exc:
                 self._listing_error = str(exc)
                 raise _Unreadable(self._listing_error) from exc
-            self._artifacts = listing
+            self._save(listing)
+        self._artifacts = listing
         return listing
+
+    @property
+    def saved(self) -> bool:
+        """Whether the listing judged on was read from `listing_path`."""
+        return self._saved
+
+    def refresh(self) -> None:
+        """Drop a saved listing: the next judgment pages the API itself (and
+        saves that listing for the rest of the run)."""
+        if self._saved:
+            self._artifacts, self._saved, self._own = None, False, True
+
+    def _load_saved(self) -> list[dict[str, Any]] | None:
+        """The run's saved listing; a missing or malformed file is none, so
+        the listing is read from the API instead."""
+        if not self.listing_path:
+            return None
+        try:
+            listing = json.loads(Path(self.listing_path).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not is_json_array(listing) or not all(map(is_json_object, listing)):
+            return None
+        return listing
+
+    def _save(self, listing: list[dict[str, Any]]) -> None:
+        """Best effort: a failed write leaves the next candidate to list."""
+        if not self.listing_path:
+            return
+        path = Path(self.listing_path)
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        with contextlib.suppress(OSError):
+            tmp.write_text(json.dumps(listing), encoding="utf-8")
+            os.replace(tmp, path)
 
     def _read_listing(self) -> Any:
         """The listing payload, read again after a 5xx or a fast network
