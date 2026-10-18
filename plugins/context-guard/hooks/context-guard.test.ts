@@ -594,16 +594,41 @@ test('switch: context_guard_hooks_enabled false sends no line',{ options: { cont
 const restated = (zone: Verdict, tail = '') => `context-guard: ${VERDICT[zone]}.${tail}`
 const compact = ($: any, trigger: string, extra: object = {}) => $.session.compact({ trigger, messages: MESSAGES, ...extra } as any)
 
-test('compaction: the verdict is restated once as the evidence-degraded dumb zone', async ($, on) => {
+const UNAVAILABLE = 'context-guard: the context reading is unavailable after the compaction, until the next API response.'
+
+test('compaction: with no figures the line says the reading is unavailable, once, and names no zone', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30, 60])
   await compact($, 'manual')
   w.percent = undefined
-  expect(own((await prompt($)).context)).toEqual([restated('degraded')])
+  const first = (await prompt($)).context
+  expect(own(first)).toEqual([UNAVAILABLE])
+  expect(options(first)).toEqual([])
   expect(own((await prompt($)).context)).toEqual([])
   expect(own((await bash($)).context)).toEqual([])
   await compact($, 'auto')
-  expect(own((await bash($)).context)).toEqual([restated('degraded')])
+  expect(own((await bash($)).context)).toEqual([UNAVAILABLE])
+})
+
+test('compaction: once figures arrive the compacted dumb zone line is sent', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30, 60])
+  await compact($, 'manual')
+  w.percent = undefined
+  expect(own((await prompt($)).context)).toEqual([UNAVAILABLE])
+  w.percent = 20
+  const after = (await bash($)).context
+  expect(own(after)).toEqual([restated('degraded')])
+  expect(options(after)).toEqual([OPTIONS])
+  expect(own((await bash($)).context)).toEqual([])
+})
+
+test('compaction: figures at the first reading restate the compacted dumb zone', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30, 60])
+  await compact($, 'manual')
+  w.percent = 20
+  expect(own((await prompt($)).context)).toEqual([restated('degraded')])
 })
 
 test('compaction: a precompute dispatch restates nothing and degrades nothing', async ($, on) => {

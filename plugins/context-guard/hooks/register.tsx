@@ -55,7 +55,7 @@ type Reading = { zone: Zone | undefined; degraded: boolean; percent?: number; to
 type Crossing = { kind: 'crossing'; from: string; zone: Zone; degraded: boolean; handedOff?: boolean; shown?: boolean; armedBefore: number }
 type Event =
   | Crossing
-  | { kind: 'restate'; zone: Zone; degraded: boolean }
+  | { kind: 'restate'; zone: Zone; degraded: boolean; unavailable?: boolean }
   | { kind: 'approach'; zone: Zone; toward: string }
   | { kind: 'threshold'; zone: Zone; degraded: boolean; rule: Threshold }
 type Session = {
@@ -66,6 +66,8 @@ type Session = {
   compacted: boolean
   pending: Event[]
   restate: boolean
+  // The unavailable line went out for a compaction and no figures have arrived since.
+  awaiting: boolean
   reading: Reading | undefined
   written: { sig: string; at: number } | undefined
   body: Snapshot | undefined
@@ -182,6 +184,7 @@ const newSession = (restate: Session['restate']): Session => ({
   compacted: false,
   pending: [],
   restate,
+  awaiting: false,
   reading: undefined,
   written: undefined,
   body: undefined,
@@ -196,6 +199,14 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
   const { zone, percent } = reading
   if (zone === undefined) return
   if (s.restate) {
+    // A compacted session has no figures until the next API response, so its dumb zone is forced:
+    // the line says the reading is unavailable, and the restatement waits for the figures.
+    if (reading.degraded && percent === undefined && reading.tokens === undefined) {
+      if (!s.awaiting) s.pending.push({ kind: 'restate', zone, degraded: true, unavailable: true })
+      s.awaiting = true
+      return
+    }
+    s.awaiting = false
     if (zone !== 'smart') s.pending.push({ kind: 'restate', zone, degraded: reading.degraded })
     s.restate = false
     s.armed = Math.max(s.armed, RANK[zone])
@@ -280,8 +291,9 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
     return toward !== undefined && s.approached.has(toward) ? `, nearing ${toward}` : ''
   }
   switch (e.kind) {
-    case 'crossing':
     case 'restate':
+    case 'crossing':
+      if (e.kind === 'restate' && e.unavailable) return 'context-guard: the context reading is unavailable after the compaction, until the next API response.'
       return `${line(e.zone, e.degraded, near(e.zone))}${action(e.zone)}`
     case 'approach':
       return line(e.zone, false, `, nearing ${e.toward}`)
@@ -300,7 +312,7 @@ const OPTIONS =
 const renderAll = (events: Event[], s: Session, cfg: Config, settings: Settings) => {
   const lines = [...new Set(events.map(e => renderEvent(e, s, cfg, settings)))]
   const verdicts = lines.filter(l => !lines.some(o => o !== l && o.startsWith(l)))
-  return events.some(e => e.zone !== 'smart') ? [...verdicts, OPTIONS] : verdicts
+  return events.some(e => e.zone !== 'smart' && !(e.kind === 'restate' && e.unavailable)) ? [...verdicts, OPTIONS] : verdicts
 }
 
 // Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
@@ -747,6 +759,7 @@ export const register: Register = (on, options) => {
       const s = await current($, st)
       s.compacted = true
       s.restate = true
+      s.awaiting = false
     }
     return result
   }).catch(($, e, next) => next(e))
