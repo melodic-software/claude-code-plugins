@@ -4,12 +4,17 @@
 // (the caller workflow itself stays editable in a same-repo PR); a failed resolution
 // leaves the review on the reusable's defaults; intake never runs without
 // resolved arguments; and each sparse checkout holds what this action loads.
+// Also: pr-unblock.yml leaves a publish-feedback check on the head whether or
+// not its reply job runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
+
+import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
 const workflow = (name) => parse(read(`../../workflows/${name}`));
@@ -146,4 +151,54 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.equal(runs("", ""), false, "intake never runs without resolved claude-args");
   assert.equal(runs("false", ""), false);
   assert.equal(intake.with["claude-args"], "${{ needs.born-triaged.outputs.claude-args }}");
+});
+
+// address-feedback's head-sha output is empty after a gate stop.
+test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback ran no feedback round", async () => {
+  const head = "c".repeat(40);
+  const { jobs } = workflow("pr-unblock.yml");
+  const publish = jobs["publish-feedback"];
+  const notRun = jobs["publish-feedback-not-run"];
+  const context = (round, headSha, activity = "address-feedback") => ({
+    "inputs.activity": activity,
+    "needs.address-feedback.outputs.feedback-round": round,
+    "needs.address-feedback.outputs.head-sha": headSha,
+  });
+  assert.equal(evaluate(publish.if, context("true", head)), true);
+  assert.equal(evaluate(notRun.if, context("true", head)), false);
+  assert.equal(evaluate(publish.if, context("false", head)), false);
+  assert.equal(evaluate(notRun.if, context("false", head)), true);
+  assert.equal(evaluate(notRun.if, context("false", "")), false, "a gate stop gated no head to post on");
+  assert.equal(evaluate(notRun.if, context("", "", "resolve-conflicts")), false);
+
+  // The step's inputs reach report-check-run.mjs through the action's env map.
+  const action = parse(read("../report-check-run/action.yml"));
+  const step = notRun.steps.find((s) => s.uses === "./.base/.github/actions/report-check-run");
+  const values = { ...context("false", head), "github.token": "test-token" };
+  const env = {};
+  for (const [name, value] of Object.entries(action.runs.steps[0].env)) {
+    const input = value.match(/^\$\{\{ inputs\.([\w-]+) \}\}$/)[1];
+    const given = step.with[input] ?? action.inputs[input].default ?? "";
+    env[name] = /^\$\{\{/.test(given) ? evaluate(given, values) : String(given);
+  }
+  const calls = [];
+  const code = await reportCheckRun({
+    env: {
+      ...env,
+      BASE_PATH: fileURLToPath(new URL("../../../", import.meta.url)),
+      GITHUB_REPOSITORY: "melodic-software/claude-code-plugins",
+      GITHUB_API_URL: "https://api.example.test",
+    },
+    fetchImpl: async (url, init) => {
+      calls.push(JSON.parse(init.body));
+      return { ok: true, status: 201, json: async () => ({ id: 1 }) };
+    },
+    log: () => {},
+  });
+  assert.equal(code, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, "pr-unblock / publish-feedback");
+  assert.equal(calls[0].head_sha, head);
+  assert.equal(calls[0].conclusion, "neutral");
+  assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
 });

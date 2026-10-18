@@ -248,7 +248,8 @@ A stacked PR, one whose base is not the default branch, gets a failure check fro
 it to the default branch to run its lanes.
 
 Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit` and
-`act-outcome`, plus, in the write file, `head-ref`, `merge-state` and `escalation-reason`. Every
+`act-outcome`, plus, in the write file, `head-ref`, `merge-state`, `escalation-reason` and
+`run-failure`, the reason the lane-token step failed with, from the base's `request-lane-token`. Every
 one is computed by a runner step, never read from model text. All but `act-outcome`,
 `merge-state` and `escalation-reason` are outputs of steps that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
@@ -345,8 +346,14 @@ itself. `resolve-issue` lists two that do, each refusing (exit 2) an argument th
 has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
 a path that does not exist yet (`scripts/lib/checkout-path.sh`). `scripts/run-test-file.sh` takes
 one test file and runs it by name, `test_*.py` under `python3 -m pytest`, `*.test.sh` under
-`bash`, `*.test.mjs` under `node --test`, each after `--`, without `GH_TOKEN` or `GITHUB_TOKEN`;
-it refuses any other file and any name outside `[A-Za-z0-9._/-]`, so pytest reads no node id. Its tests are checkout code with the network open. When the stage grants its wrapper,
+`bash`, `*.test.mjs` under `node --test`, each after `--`, and a `*.test.js` or `*.test.ts` file
+that imports `vitest` under `npx --no-install vitest run <absolute path>` from the nearest
+directory inside the checkout holding a `package.json`, so the package's locked vitest runs, first
+running `npm ci --ignore-scripts` there once when it has a `package-lock.json` and no
+`node_modules`; all
+without `GH_TOKEN` or `GITHUB_TOKEN`. It refuses any other file and any name outside
+`[A-Za-z0-9._/-]`, so pytest reads no node id. When it is listed, the system prompt names its
+wrapper as the way to run a test file and says a compound `cd <dir>; <command>` is refused. Its tests are checkout code with the network open. When the stage grants its wrapper,
 the write runner sets up Python from the base `.python-version` and installs the base's
 hash-pinned `.github/requirements-ci.txt` before the head checkout. `scripts/git-mv-rm.sh` runs
 `git mv <source> <destination>` or `git rm -r -f <path>...`, first recording an untracked path as
@@ -578,7 +585,10 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    attempt in the artifact's name.
 4. The caller runs the reply job when `feedback-round` is `true`, passing `feedback-run-sha256` as
    `review-run-sha256` and `feedback-run-attempt` as `review-run-attempt` (a re-run of the reply
-   job alone runs as a later attempt but keeps the model job's outputs). Before the head checkout it downloads that artifact and copies the base's
+   job alone runs as a later attempt but keeps the model job's outputs). Otherwise, when the model
+   job gated a head, a scripted job posts the reply job's check neutral `not-applicable` on that
+   head with `report-check-run`'s `not-run-reason`, so a red one from an earlier run does not stay.
+   Before the head checkout the reply job downloads that artifact and copies the base's
    trusted-actors list. `publish-feedback.mjs` then:
    - validates the whole artifact: `run.json` with exactly that SHA-256; each file a regular file
      read only when within the size limit; `replies.jsonl` at most
@@ -777,8 +787,8 @@ apart, since it can lag the promote step's push), and posts the check with
 What it trusts:
 
 - Lane and activity from the reusable workflow's own inputs.
-- `needs.run.result`, and the run job's `act-outcome`, `can-commit`, `gate-reason`, `head-sha` and
-  `base-sha` outputs, computed by the runner. All but a gate skill's `act-outcome` come from steps
+- `needs.run.result`, and the run job's `act-outcome`, `can-commit`, `gate-reason`, `head-sha`,
+  `base-sha` and, in the write file, `run-failure` outputs, computed by the runner. All but a gate skill's `act-outcome` come from steps
   that ran before any head code; that one rests on the rule that a gate skill runs no head code.
 - Its own signed-commit result. On an unverified commit, `check-signed-commits` fails closed: the
   check is a failure, and the report job adds no label and posts no comment, because its

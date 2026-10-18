@@ -17,8 +17,8 @@ name: pr-unblock
 # trusts the default branch tip, since a conflicting PR's base SHA is stale and
 # the dispatchers run from the tip.
 
-# pr-feedback-dispatch.mjs reads this title to skip a second dispatch while
-# one for the same activity and PR is still queued or going.
+# feedback-dispatch.mjs and dispatch.mjs read this title to skip a second
+# dispatch while one for the same activity and PR is still queued or going.
 # Quoted: unquoted, " #" would start a YAML comment and drop the PR number.
 run-name: "pr-unblock ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
@@ -131,6 +131,48 @@ jobs:
       # dispatcher and passes none.
       expected-upstream-head: >-
         ${{ inputs.dispatcher-run-id != '' && needs.address-feedback.outputs.head-sha || '' }}
+
+  # A skipped publish-feedback posts no check, so a red one from an earlier
+  # run would stay on the head. When address-feedback ran no feedback round,
+  # this job posts publish-feedback neutral on the head that job gated; a gate
+  # stop leaves that head empty, and nothing is posted.
+  publish-feedback-not-run:
+    needs: address-feedback
+    if: >-
+      ${{ !cancelled() && inputs.activity == 'address-feedback'
+      && needs.address-feedback.outputs.feedback-round != 'true'
+      && needs.address-feedback.outputs.head-sha != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      checks: write
+      contents: read
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Post the check run
+        uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: publish-feedback
+          run-result: skipped
+          not-run-reason: not-applicable
+          head-sha: ${{ needs.address-feedback.outputs.head-sha }}
+          can-commit: "false"
+          base-path: .base
+          head-sha-fallback: ${{ needs.address-feedback.outputs.head-sha }}
+          github-token: ${{ github.token }}
 
   # review-dependency's model job holds contents: write, posts nothing, and
   # returns its verdict as structured output that the runner uploads; it

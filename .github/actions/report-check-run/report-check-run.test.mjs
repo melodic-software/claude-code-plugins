@@ -225,6 +225,19 @@ test("a verdict claiming a no-pr gate while the env reason is empty POSTs failur
   assert.equal(calls[0].body.head_sha, FALLBACK);
 });
 
+test("a run job that failed before the act step POSTs failure carrying RUN_FAILURE", async () => {
+  const { calls } = await run({
+    RUN_RESULT: "failure",
+    ACT_OUTCOME: "skipped",
+    RUN_FAILURE: "lane-token-denied: the broker answered 403 with reason workflow-modified",
+  });
+  assert.equal(calls[0].body.conclusion, "failure");
+  assert.equal(
+    calls[0].body.output.summary,
+    "The run job did not succeed: lane-token-denied: the broker answered 403 with reason workflow-modified",
+  );
+});
+
 test("a malformed env head SHA exits non-zero with no API call", async () => {
   const { code, calls } = await run({ HEAD_SHA: "abc" });
   assert.equal(code, 1);

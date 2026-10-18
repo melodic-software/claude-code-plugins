@@ -385,6 +385,75 @@ test("a run job that did not succeed posts failure even when the act step succee
   assert.equal(report.conclusion, "failure");
 });
 
+// A run job that fails before its act step, for example on a broker denial at
+// the lane-token step, leaves the act outcome skipped.
+const NOT_RUN = verdict({ config: "not-read", outcome: "not-run" });
+
+test("a run job that failed before the act step names the run-job failure, not the act step", () => {
+  const report = posted(
+    decide(NOT_RUN, inputs({ runResult: "failure", actOutcome: "skipped" })),
+  );
+  assert.equal(report.conclusion, "failure");
+  assert.equal(report.output.summary, "The run job did not succeed.");
+});
+
+test("a run job failure carries the failed step's reason into the summary", () => {
+  const runFailure =
+    "lane-token-denied: the broker answered 403 with reason workflow-modified";
+  const report = posted(
+    decide(
+      NOT_RUN,
+      inputs({ runResult: "failure", actOutcome: "skipped", runFailure }),
+    ),
+  );
+  assert.equal(report.conclusion, "failure");
+  assert.equal(
+    report.output.summary,
+    `The run job did not succeed: ${runFailure}`,
+  );
+});
+
+// A job that never ran its activity (publish-feedback after an
+// address-feedback run with no feedback round) reports with no verdict.
+test("a not-run reason on a skipped run posts neutral with that reason and needs no verdict", () => {
+  const report = posted(
+    decide(
+      null,
+      inputs({
+        runResult: "skipped",
+        actOutcome: "",
+        signedCommits: null,
+        notRunReason: "not-applicable",
+      }),
+    ),
+  );
+  assert.equal(report.conclusion, "neutral");
+  assert.equal(report.head_sha, HEAD);
+  assert.equal(report.output.summary, "Skip reason: not-applicable");
+});
+
+test("a not-run reason outside the skip-reason enum posts failure", () => {
+  const report = posted(
+    decide(
+      null,
+      inputs({ runResult: "skipped", notRunReason: "looks-fine" }),
+    ),
+  );
+  assert.equal(report.conclusion, "failure");
+});
+
+test("a not-run reason never neutralizes a run job that ran", () => {
+  for (const runResult of ["success", "failure"]) {
+    const report = posted(
+      decide(
+        verdict(),
+        inputs({ runResult, actOutcome: "failure", notRunReason: "not-applicable" }),
+      ),
+    );
+    assert.equal(report.conclusion, "failure", runResult);
+  }
+});
+
 test("every key of the shipped gate-skip-reasons.json posts neutral with its mapped reason", () => {
   const shipped = JSON.parse(
     readFileSync(

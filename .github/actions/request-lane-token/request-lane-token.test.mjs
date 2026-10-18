@@ -45,7 +45,7 @@ done
 if [ -n "$data" ]; then
   printf '%s' "$data" >"$BODY_LOG"
   cat "$FAKE_RESPONSE" >"$out"
-  printf 200
+  printf '%s' "\${FAKE_STATUS:-200}"
 elif [ -n "$write" ]; then
   printf 204
 else
@@ -66,7 +66,8 @@ before(() => {
 
 after(() => rmSync(root, { recursive: true, force: true }));
 
-function request(inputs) {
+// `denial` makes the broker answer that HTTP status with that JSON body.
+function request(inputs, denial) {
   const dir = mkdtempSync(path.join(root, "run-"));
   const files = Object.fromEntries(
     ["output", "summary", "response.json"].map((name) => [name, path.join(dir, name)]),
@@ -87,11 +88,12 @@ function request(inputs) {
     CONTENTS: "write",
     PULL_REQUESTS: "read",
     ISSUES: "read",
+    SUPERSEDED_OK: "false",
     ...inputs,
   };
   writeFileSync(
     files["response.json"],
-    JSON.stringify({
+    JSON.stringify(denial?.body ?? {
       token: "ghs_lane",
       expires_at: "2026-10-11T13:00:00Z",
       mint_id: "5550001-1",
@@ -117,6 +119,7 @@ function request(inputs) {
       RUNNER_TEMP: dir,
       BODY_LOG: bodyLog,
       FAKE_RESPONSE: files["response.json"],
+      FAKE_STATUS: denial?.status ?? "200",
     },
   });
   return {
@@ -126,6 +129,46 @@ function request(inputs) {
     output: readFileSync(files.output, "utf8"),
   };
 }
+
+// The 403 shape pr-merge run 39074050115 logged when pr-merge.yml changed on
+// main while it was queued.
+const SUPERSEDED = {
+  status: "403",
+  body: { reason: "workflow-modified", detail: ".github/workflows/pr-merge.yml differs from refs/heads/main" },
+};
+const MERGE = { LANE: "pr-merge", ACTIVITY: "merge-pr", PR_NUMBER: "", EFFECT: "merge-pr", CONTENTS: "write", PULL_REQUESTS: "write" };
+
+test("with superseded-ok, a 403 workflow-modified ends green with a warning and no token", () => {
+  const run = request({ ...MERGE, SUPERSEDED_OK: "true" }, SUPERSEDED);
+  assert.equal(run.status, 0, run.stdout);
+  assert.match(run.stdout, /^::warning::lane-token-superseded: pr-merge\.yml changed on the default branch/m);
+  assert.doesNotMatch(run.stdout, /::error::/);
+  assert.equal(run.output, "");
+});
+
+test("with superseded-ok, any other denial reason still fails red", () => {
+  const run = request({ ...MERGE, SUPERSEDED_OK: "true" }, { status: "403", body: { reason: "already-minted" } });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::lane-token-denied: the broker answered 403 with reason already-minted/);
+  assert.equal(run.output, "failure-reason=lane-token-denied: the broker answered 403 with reason already-minted\n");
+});
+
+test("without superseded-ok, a 403 workflow-modified still fails red", () => {
+  const run = request(MERGE, SUPERSEDED);
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::lane-token-denied: the broker answered 403 with reason workflow-modified: \.github\/workflows\/pr-merge\.yml differs/);
+  assert.equal(
+    run.output,
+    "failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-merge.yml differs from refs/heads/main\n",
+  );
+});
+
+test("a superseded-ok other than true or false fails before the broker request", () => {
+  const run = request({ SUPERSEDED_OK: "yes" });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::superseded-ok must be true or false/);
+  assert.equal(run.body, null);
+});
 
 test("a dispatcher run id is sent as dispatcher_run_id, an integer", () => {
   const run = request({ DISPATCHER_RUN_ID: "38155572048" });
@@ -159,6 +202,21 @@ test("an expected upstream head without a dispatcher run id, or not a SHA, fails
     assert.match(run.stdout, /::error::the expected upstream head must be a commit SHA and ride with a dispatcher run id/);
     assert.equal(run.body, null);
   }
+});
+
+// The run job maps this output, and report-check-run appends it to a failed
+// run job's check summary.
+test("a broker denial fails red and writes its reason as the failure-reason output", () => {
+  const run = request(
+    {},
+    { status: "403", body: { reason: "workflow-modified", detail: "the workflow file changed" } },
+  );
+  assert.equal(run.status, 1);
+  assert.match(
+    run.output,
+    /^failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified: the workflow file changed$/m,
+  );
+  assert.doesNotMatch(run.output, /^token=/m);
 });
 
 test("an empty dispatcher run id leaves the body as it was", () => {

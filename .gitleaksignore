@@ -68,3 +68,4 @@ f9f01a3ed7d459eb698cb5de035b4f127559edde:plugins/planning/shared/tests/fixtures/
 429f41259294aa09a543326984f950167291b273:plugins/planning/shared/tests/fixtures/state-v0-prototype.json:generic-api-key:73
 ab2def117acf8a6b4024624d34962cd314c9abd7:plugins/planning/shared/tests/fixtures/invalid-state-duplicate-flag.json:generic-api-key:33
 21abba1caca8265c97da29da3befcd5d9e7c18b7:plugins/planning/shared/tests/fixtures/state-v1.json:generic-api-key:33
+eda0c081edc6e01a57ced6e7b5bdee058b40178b:plugins/planning/shared/tests/fixtures/state-v2.json:generic-api-key:33
