@@ -278,8 +278,10 @@ jobs:
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       # The lane record, from steps that read the execution file after the
       # skill. A forged limit stop can only restart the lane after a reset
-      # limit-stop.mjs and report-outcome clamp to at least an hour away, at
-      # most MAX_LIMIT_STOPS times.
+      # limit-stop.mjs and report-outcome clamp to at least
+      # `limits.reset-clamp-min` hours away, at
+      # most `limits.limit-stops-per-head` (a PR) or
+      # `limits.limit-stops-per-issue` (an issue) times.
       lane-class: ${{ steps.lane-record.outputs.failure-class }}
       lane-resets: ${{ steps.lane-record.outputs.resets-at }}
       lane-turns: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.turns || '' }}
