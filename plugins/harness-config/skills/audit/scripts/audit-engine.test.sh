@@ -378,6 +378,8 @@ assert_eq "case 4f: the user scope is read too" "1" \
   "$(jq -r '[.findings[] | select(.identity.claim=="function-hooks-flag-dead" and .identity.sites[0].surface=="user:settings.json")] | length' <<<"$out")"
 assert_contains "case 4f: the detail points at the section that says why" \
   "$(jq -r '.findings[] | select(.identity.claim=="function-hooks-flag-dead") | .detail' <<<"$out" | head -n1)" "mods/overview#turn-mods-on-or-off"
+assert_contains "case 4f: the detail states Claude Code ignores the variable" \
+  "$(jq -r '.findings[] | select(.identity.claim=="function-hooks-flag-dead") | .detail' <<<"$out" | head -n1)" "Claude Code ignores it"
 m="$(make_machine fnhooks-absent)"
 printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {env:{"CLAUDE_CODE_DISABLE_AUTO_MEMORY":"1"}}' >"$m/project/.claude/settings.json"
 out=$(run "$m" --json 2>&1)
@@ -394,6 +396,9 @@ bm="$(jq -r '.findings[] | select(.identity.claim=="builtin-mods-survive-levers"
 assert_contains "case 4g: disableAllHooks set yields an info finding" "$bm" "info "
 assert_contains "case 4g: the text names --bare" "$bm" "--bare"
 assert_contains "case 4g: the text names --safe-mode" "$bm" "--safe-mode"
+assert_contains "case 4g: the text names disableAllHooks" "$bm" "disableAllHooks"
+assert_contains "case 4g: the text states the levers do not stop built-in mods" "$bm" "do not stop Claude Code's built-in mods"
+assert_contains "case 4g: the text points at the built-in mods section" "$bm" "mods/overview#mods-built-into-claude-code"
 m="$(make_machine builtin-levers-unset)"
 printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
 out=$(run "$m" --json 2>&1)
