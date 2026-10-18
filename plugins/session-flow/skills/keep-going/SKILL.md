@@ -238,13 +238,10 @@ For any "is it stuck / check the monitor / poke it":
   headroom, as in the exit `2` path. Never invent a window and never conclude
   still-blocked.
 - **Name both accounts before reading the message against the live reading.**
-  The active account's identity comes from `claude auth status` (JSON by
-  default, `--text` for prose; exit `0` logged in, `1` not), read at resume.
-  The CLI reference documents its `authMethod` and `configDirectory` fields and
-  no email or account-id field, so use whichever field in the output
-  identifies the account (an email, an organization, an account id); a
-  match or difference in `authMethod` or `configDirectory` alone never makes
-  an identity known: with no identifying field the state is unknown. The account at the time of the stop is the one the stop entry, the
+  Read the active account's identity from `claude auth status` at resume,
+  using whichever field in its output identifies the account. A field that
+  only describes how the CLI is configured never makes an identity known:
+  with no identifying field the state is unknown. The account at the time of the stop is the one the stop entry, the
   handoff or the operator recorded. Report both, each with its source, and one
   of three states:
   - **unchanged**: both identities are known and equal, so the captured
@@ -255,7 +252,7 @@ For any "is it stuck / check the monitor / poke it":
     account's own live reading (or the operator's answer when none is
     obtainable, as above) and say the account changed.
   - **unknown**: either side is missing, unreadable (`claude auth status`
-    fails, exits `1`, or shows no identifying field) or ambiguous. Ask the
+    fails or shows no identifying field) or ambiguous. Ask the
     operator which account is active and which one hit the limit; never infer
     a state, and say why the reading failed.
 
@@ -263,7 +260,7 @@ For any "is it stuck / check the monitor / poke it":
 
   | Decision | Pointer | As of | Recheck trigger |
   |---|---|---|---|
-  | A captured usage-limit message is account-bound. Still-blocked requires a live re-check of the current account, or the operator's answer when none is obtainable. The date-bearing `Sep 8, 6pm` form is unparsed (exit 2). | For the reset time a limit message carries, see [costs: When a developer asks about a limit](https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit). For what `/usage` shows a subscriber, see [costs: Using the `/usage` command](https://code.claude.com/docs/en/costs#using-the-/usage-command). For the `rate_limits` field, who receives it and when, see [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data). For the parsed forms, see `check-usage-limit-reset.py` `RESET_RE` (no month token). For the account-identity reading, see [CLI reference](https://code.claude.com/docs/en/cli-reference) `claude auth status`. | 2026-10-18 | That costs section stops covering the reset time; `/usage` stops showing plan usage bars; the statusline page drops `rate_limits` or starts passing it to the model; `claude auth status` stops reporting an identifying field or changes its output; or `RESET_RE` starts matching a date-bearing form. |
+  | A captured usage-limit message is account-bound. Still-blocked requires a live re-check of the current account, or the operator's answer when none is obtainable. The date-bearing `Sep 8, 6pm` form is unparsed (exit 2). | For the reset time a limit message carries, see [costs: When a developer asks about a limit](https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit). For what `/usage` shows a subscriber, see [costs: Using the `/usage` command](https://code.claude.com/docs/en/costs#using-the-/usage-command). For the `rate_limits` field, who receives it and when, see [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data). For the parsed forms, see `check-usage-limit-reset.py` `RESET_RE` (no month token). For the account-identity reading, see [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) `claude auth status`. | 2026-10-18 | That costs section stops covering the reset time; `/usage` stops showing plan usage bars; the statusline page drops `rate_limits` or starts passing it to the model; `claude auth status` stops reporting an identifying field or changes its output; or `RESET_RE` starts matching a date-bearing form. |
 
 ## Still blocked (limit not yet reset). Hand back, don't busy-wait
 
