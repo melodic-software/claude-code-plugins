@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.11.10 - 2026-10-18
+## 2.11.11 - 2026-10-18
 
 A write-runner skill run that claude-code-action fails only because its `success` result went over
 `--max-turns` now counts as a success: `act-outcome`, the verdict, the lane record and the job
@@ -9,6 +9,13 @@ any finished run. The run job reads this from the execution file's last result m
 `success`, `is_error` false, `num_turns` over the cap); any other failure, or a missing or
 unreadable execution file, still fails
 ([pr-run-activity.md](pr-run-activity.md#the-run-job)). `version` stays 2.
+
+## 2.11.10 - 2026-10-18
+
+This repository's `limits.wip-cap` drops from 60 to 12, so `work-resolve-issue` starts no run, and
+work-unblock re-fires none, while 12 or more lanes-App pull requests are open. The value is the
+measured lane merge rate (about 1.5 per hour) times an 8-hour open-to-merge target. The schema
+default (60) and its range (1 to 500) are unchanged. `version` stays 2.
 
 ## 2.11.8 - 2026-10-18
 
