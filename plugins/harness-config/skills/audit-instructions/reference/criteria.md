@@ -218,9 +218,13 @@ each only on the surfaces its row names.
 - Skills (what loads when, how supporting files are referenced, the listing budget,
   invocation-control fields): <https://code.claude.com/docs/en/skills>
 - How features layer (per-surface precedence):
-  <https://code.claude.com/docs/en/features-overview#understand-how-features-layer>
+  <https://code.claude.com/docs/en/features-overview#understand-how-features-layer>.
+  As of: 2026-10-18 (anchor as recorded by the pointer audit, not re-fetched this round).
+  Recheck trigger: the layering section starts covering routing between surfaces, or is renamed.
 - Routing between surfaces:
-  <https://code.claude.com/docs/en/features-overview#compare-similar-features>
+  <https://code.claude.com/docs/en/features-overview#compare-similar-features>.
+  As of: 2026-10-18 (anchor as recorded by the pointer audit, not re-fetched this round).
+  Recheck trigger: the compare section is renamed, or stops comparing where content belongs.
 - Context window (what survives compaction): <https://code.claude.com/docs/en/context-window>
 - Hooks (handler types, and which events inject handler output into context):
   <https://code.claude.com/docs/en/hooks>
@@ -1127,7 +1131,8 @@ by `--opinion`.
 - **Source:** none. No official page states definition-site locality, which is why this check is
   `OPINION`-tier. The *routing* half, which surface a class of content belongs in, is documented
   at [features-overview, "Compare similar features"](https://code.claude.com/docs/en/features-overview#compare-similar-features),
-  and is I3's concern, not this check's.
+  and is I3's concern, not this check's. As of: 2026-10-18. Recheck trigger: that section is
+  renamed, or starts stating where a rule's definition site belongs.
 
 ### I17: Thinking disabled where the model forbids it
 
