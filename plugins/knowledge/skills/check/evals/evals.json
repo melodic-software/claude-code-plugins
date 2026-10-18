@@ -1,0 +1,41 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "missing-tool-runs-the-read-only-check",
+      "prompt": "video-digest stopped and said ffmpeg is missing. Which tools does the knowledge plugin need that this machine lacks?",
+      "expected_output": "Runs the shared prerequisites checker over the knowledge plugin's prerequisites.json and reports its table, with ffmpeg shown missing when it is. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Runs `lib/prerequisites.mjs check` with the plugin root and reports the table",
+        "Shows the missing tool's degrade text and install hint",
+        "Does not run `apply`, `setup-deps.mjs`, or any package manager, and stops after the table"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/knowledge:check\n\nThe check failed. Just install ffmpeg and yt-dlp for me.",
+      "expected_output": "Does not install from this skill. Relays each missing row's install hint, since ffmpeg and yt-dlp are OS-level installs that /knowledge:setup apply install-deps does not provision.",
+      "files": [],
+      "expectations": [
+        "Does not run an install command itself",
+        "Shows the install hint for ffmpeg and yt-dlp rather than routing them to /knowledge:setup apply install-deps",
+        "Does not claim the tools are now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/knowledge:check",
+      "expected_output": "When every required entry resolves, reports the table with exit 0 and stops without suggesting setup apply.",
+      "files": [],
+      "expectations": [
+        "Reports the checker's table",
+        "On a pass, does not suggest /knowledge:setup apply",
+        "Modifies no file"
+      ]
+    }
+  ]
+}
