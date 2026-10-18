@@ -166,7 +166,8 @@ activities:
       labeled-after: "2026-10-14T19:21:59Z"
   report-outcome:
     # Opens a ready pull request from the branch, or comments on the issue
-    # and labels it needs-human. A script, no model.
+    # and labels it needs-human. A Refs pull request also labels the issue
+    # needs-human, with a refs-hold comment. A script, no model.
     script: .github/scripts/work-resolve-issue/report-outcome.mjs
     effect: publish-artifact
     gating: advisory
@@ -197,10 +198,13 @@ activities:
     # a merge, meaning a merged PR or a commit (a pull request blocker:
     # merged; another repository's: never), that carries no
     # hold label, and whose agent-ready label was never removed. The label
-    # starts resolve-issue. A script, no model.
+    # starts resolve-issue. Hourly it also hands an agent-ready issue whose
+    # lanes-App PR merged with `Refs:` or closed unmerged to triage
+    # (needs-triage on, agent-ready off), lifting only the needs-human
+    # report-outcome set for a merged Refs PR. A script, no model.
     # .github/workflows/work-unblock.yml runs it.
     script: .github/scripts/work-unblock/label-unblocked.mjs
-    # Adds one label to issues; nothing else.
+    # Labels, unlabels and comments on issues; nothing else.
     effect: mutate-tracker
     gating: advisory
     # Reads issue comments for the lanes App's outcome markers.

@@ -32,6 +32,16 @@
 // posted before the label moves, so a run that keeps failing stops until a
 // workflow change lands.
 //
+// When that label's run opened a pull request instead, the newest one the
+// lanes App opened from the issue's lane branch in this repository decides.
+// Merged with `Refs:` (the issue stays open with nothing to run) or closed
+// unmerged, the App adds needs-triage and removes
+// agent-ready, so triage decides what is left; a person adding agent-ready
+// again re-runs it. Open, it waits: report-outcome put needs-human on the
+// issue of a Refs PR, and this lifts that hold only when that PR merges,
+// only while its refs-hold marker and the App's needs-human label are the
+// newest. Each hand-off also counts against RESTARTS_PER_RUN.
+//
 // Environment:
 //   GH_TOKEN               the lane App token (issues: write)
 //   GITHUB_REPOSITORY      owner/repo
@@ -57,10 +67,11 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { clampReset, parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
+const TRIAGE_LABEL = "needs-triage";
 // The lane's caller and the write runner: the broker refuses a run whose copy
 // of either differs from main's.
 const LANE_WORKFLOWS = [".github/workflows/pr-run-activity-write.yml", ".github/workflows/work-resolve-issue.yml"];
@@ -69,6 +80,7 @@ const FAILED = new Set(["failure", "timed_out", "startup_failure"]);
 const RUN_WINDOW_MS = 10 * 60_000;
 const BLOB = /^[0-9a-f]{40}$/;
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
+const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 // Hard-coded until pr-pipeline.yaml has a limits.restarts-per-run leaf:
 // https://github.com/melodic-software/claude-code-plugins/issues/7764
@@ -301,8 +313,17 @@ export const escalationComment = (stops) =>
 export const refireComment = (key) =>
   `<!-- work-unblock refired ${key} -->\nThe work-resolve-issue run that \`${LABEL}\` started failed before it reported, or the token broker refused it because its workflow files differ from main's. work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. It does this once per version of those files, so if this run fails the same way, a person looks at it.`;
 
+// The hand-offs to triage once the lane PR ended, each posted once per pull
+// request before its labels move.
+export const refsMergedComment = (pr) =>
+  `${handedMarker(pr)}\nThe lanes App's pull request #${pr} merged with \`Refs:\`, so this issue stays open and nothing starts the lane on it again. work-unblock added \`${TRIAGE_LABEL}\` and removed \`${LABEL}\`, so triage decides what work is left.`;
+export const refsClosedComment = (pr) =>
+  `${handedMarker(pr)}\nThe lanes App's pull request #${pr} for this issue was closed without merging. work-unblock added \`${TRIAGE_LABEL}\` and removed \`${LABEL}\`, so triage decides what work is left; the lane does not run again on its own. To run it again, add \`${LABEL}\`.`;
+
 // The work-resolve-issue runs for issue `number` created within RUN_WINDOW_MS
-// of the label event at `addedAt`. The run title ends with ` #<number>`.
+// of the label event at `addedAt`, as `mine`. The run title ends with
+// ` #<number>`; `untitled` counts the runs in the window whose title names no
+// issue (titles from before that run name), which may include this issue's.
 async function laneRuns(actions, repo, number, addedAt) {
   const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
   const created = encodeURIComponent(`${iso(addedAt)}..${iso(addedAt + RUN_WINDOW_MS)}`);
@@ -315,24 +336,106 @@ async function laneRuns(actions, repo, number, addedAt) {
     }
     runs.push(...batch);
     if (batch.length < 100) {
-      return runs.filter((run) => String(run.display_title ?? "").endsWith(` #${number}`));
+      const title = (run) => String(run.display_title ?? "");
+      return {
+        mine: runs.filter((run) => title(run).endsWith(` #${number}`)),
+        untitled: runs.filter((run) => !/ #[1-9][0-9]*$/.test(title(run))).length,
+      };
     }
   }
   throw new Error("the workflow run listing has more than 10 pages");
 }
 
+const sameRepo = (side, repo) => String(side?.repo?.full_name ?? "").toLowerCase() === repo.toLowerCase();
+
+// The newest pull request the lanes App opened for issue `number` at or after
+// `addedAt`: cross-referenced on the issue, from the issue's lane branch, with
+// head and base in this repository. Null when there is none.
+async function lastLanePull({ github, repo, number, addedAt, bot }) {
+  const here = `/repos/${repo}`.toLowerCase();
+  const numbers = new Set(
+    (await paginate(github, `/repos/${repo}/issues/${number}/timeline`))
+      .map((event) => event.source?.issue)
+      .filter(
+        (source) =>
+          source?.pull_request &&
+          source.user?.login === bot &&
+          NUMBER.test(String(source.number)) &&
+          String(source.repository_url ?? "").toLowerCase().endsWith(here),
+      )
+      .map((source) => Number(source.number)),
+  );
+  let last = null;
+  for (const pr of numbers) {
+    const pull = await github("GET", `/repos/${repo}/pulls/${pr}`);
+    const created = Date.parse(pull?.created_at);
+    if (
+      pull?.user?.login === bot &&
+      sameRepo(pull.head, repo) &&
+      sameRepo(pull.base, repo) &&
+      isLaneBranch(pull.head?.ref, number) &&
+      created >= addedAt &&
+      (last === null || created > Date.parse(last.created_at))
+    ) {
+      last = pull;
+    }
+  }
+  return last;
+}
+
+// What the lane PR the newest agent-ready label's run opened asks for: a
+// hand-off to triage once it merged with `Refs:` or closed unmerged, or
+// nothing, with why. `held`: the issue's one hold is needs-human, which only
+// a merge of the Refs PR report-outcome set it for lifts.
+function pullRefusal({ pull, number, comments, events, bot, held }) {
+  const byApp = (marker) => comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(marker));
+  const refs = String(pull.body ?? "").split(/\r?\n/, 1)[0].trim() === `Refs: #${number}`;
+  const merged = Boolean(pull.merged_at);
+  if (held) {
+    const human = events.filter((event) => ["labeled", "unlabeled"].includes(event.event) && String(event.label?.name).toLowerCase() === HUMAN_LABEL);
+    const newest = human.at(-1);
+    const ours = newest?.event === "labeled" && newest.actor?.login === bot && byApp(refsHoldMarker(pull.number));
+    if (!(ours && merged && refs)) {
+      return { reason: `held by ${HUMAN_LABEL}` };
+    }
+  }
+  if (pull.state === "open") {
+    return { reason: `its lane PR #${pull.number} is open` };
+  }
+  if (merged && !refs) {
+    return { reason: `its lane PR #${pull.number} merged` };
+  }
+  const ended = Date.parse(merged ? pull.merged_at : pull.closed_at);
+  if (!Number.isFinite(ended)) {
+    throw new Error(`lane PR #${pull.number} is closed with no readable close time`);
+  }
+  return { reason: null, handOff: merged ? "merged" : "closed", pr: pull.number, resets: ended, explained: byApp(handedMarker(pull.number)), release: held };
+}
+
 // Why an agent-ready issue whose newest label has no marker after it is not
-// re-fired now, or null with the workflow key to record.
-async function refireRefusal({ actions, repo, number, lastAdd, addedAt, markers, events, humans, bot, workflowKey }) {
+// re-fired or handed off now, or null with what to do.
+async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held }) {
   if (lastAdd.actor?.login !== bot && !humans.has(lastAdd.actor?.id)) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
+  }
+  const pull = await lastLanePull({ github, repo, number, addedAt, bot });
+  if (pull !== null) {
+    return pullRefusal({ pull, number, comments, events, bot, held });
+  }
+  if (held) {
+    return { reason: `held by ${HUMAN_LABEL}` };
   }
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };
   }
-  const runs = await laneRuns(actions, repo, number, addedAt);
+  const { mine: runs, untitled } = await laneRuns(actions, repo, number, addedAt);
   if (runs.length === 0) {
-    return { reason: `no lane run since ${LABEL} was added` };
+    return {
+      reason:
+        untitled > 0
+          ? `cannot tell whether a lane run started since ${LABEL} was added: ${untitled} work-resolve-issue run(s) then name no issue in their title`
+          : `no lane run since ${LABEL} was added`,
+    };
   }
   if (runs.some((run) => run.status !== "completed")) {
     return { reason: "its lane run is still going" };
@@ -358,22 +461,49 @@ async function refireRefusal({ actions, repo, number, lastAdd, addedAt, markers,
 async function restartRefusal({ github, actions, repo, issue, bot, humans, now, workflowKey }) {
   const base = `/repos/${repo}/issues/${issue.number}`;
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
-  const held = labels.map((label) => String(label).toLowerCase()).find((label) => HOLDS.has(label));
-  if (held) {
-    return { reason: `held by ${held}` };
+  const holds = labels.map((label) => String(label).toLowerCase()).filter((label) => HOLDS.has(label));
+  // needs-human alone may be report-outcome's hold on a Refs PR, which the
+  // lane PR check below may lift; any other hold stops everything here.
+  const held = holds.length > 0;
+  if (held && (holds.length > 1 || holds[0] !== HUMAN_LABEL)) {
+    return { reason: `held by ${holds.find((label) => label !== HUMAN_LABEL)}` };
   }
   const comments = await paginate(github, `${base}/comments`);
   const markers = appMarkers(comments, bot);
   // A re-fire record ends no run, so only outcome markers count here.
   const marker = markers.filter((item) => item.outcome !== "refired").at(-1);
   const events = await paginate(github, `${base}/events`);
+  // The listing can be older than a removal: agent-ready taken off since, by
+  // anyone but the App restarting the lane, ends all unblock actions here.
+  const labelEvents = events.filter((event) => isLabel(event, "labeled") || isLabel(event, "unlabeled"));
+  const newestLabel = labelEvents.at(-1);
+  if (newestLabel !== undefined && isLabel(newestLabel, "unlabeled") && !isRestart(events, events.lastIndexOf(newestLabel), markers, bot)) {
+    return { reason: `${LABEL} was removed` };
+  }
   // A lane run starts on agent-ready being added, and its outcome marker ends
   // it, so a label added after the newest marker is a run since: still going,
   // one that left no marker (a PR opened, or the run failed), or none yet.
   const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
   const addedAt = Date.parse(lastAdd?.created_at);
   if (Number.isFinite(addedAt) && (marker === undefined || addedAt > marker.at)) {
-    return refireRefusal({ actions, repo, number: issue.number, lastAdd, addedAt, markers, events, humans, bot, workflowKey });
+    return refireRefusal({
+      github,
+      actions,
+      repo,
+      number: issue.number,
+      lastAdd,
+      addedAt,
+      markers,
+      comments,
+      events,
+      humans,
+      bot,
+      workflowKey,
+      held,
+    });
+  }
+  if (held) {
+    return { reason: `held by ${HUMAN_LABEL}` };
   }
   if (marker?.outcome !== "limited") {
     return { reason: "no limit stop is its newest lane outcome" };
@@ -398,8 +528,8 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
   return { reason: null, resets };
 }
 
-// Restarts or re-fires up to `cap` issues, longest-waiting first. Returns how
-// many reads or writes failed.
+// Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
+// Returns how many reads or writes failed.
 async function restartLimited({ github, actions, repo, bot, humans, now, cap = RESTARTS_PER_RUN }) {
   let failed = 0;
   const ready = [];
@@ -428,7 +558,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
   }
   for (const issue of open) {
     try {
-      const { reason, resets, escalate, explained, refire, recorded } = await restartRefusal({
+      const verdict = await restartRefusal({
         github,
         actions,
         repo,
@@ -438,6 +568,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
         now,
         workflowKey,
       });
+      const { reason, escalate, explained } = verdict;
       if (escalate) {
         // The comment first and the label last: the label is a hold, so a
         // sweep after a failed comment would never come back to post it. A
@@ -455,7 +586,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
         console.log(`label-unblocked: #${issue.number} not restarted: ${reason}`);
         continue;
       }
-      ready.push({ number: Number(issue.number), resets, refire, recorded });
+      ready.push({ ...verdict, number: Number(issue.number) });
     } catch (error) {
       failed += 1;
       reportError(issue.number, error);
@@ -465,13 +596,34 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
   for (const { number } of ready.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, recorded } of ready.slice(0, cap)) {
+  for (const { number, refire, recorded, handOff, pr, explained, release } of ready.slice(0, cap)) {
+    const base = `/repos/${repo}/issues/${number}`;
+    if (handOff) {
+      // The comment first, then the labels; agent-ready comes off last, so a
+      // failed write leaves the issue for the next sweep, which finds the
+      // comment and moves only the labels.
+      try {
+        if (!explained) {
+          await github("POST", `${base}/comments`, { body: handOff === "merged" ? refsMergedComment(pr) : refsClosedComment(pr) });
+        }
+        await github("POST", `${base}/labels`, { labels: [TRIAGE_LABEL] });
+        if (release) {
+          await github("DELETE", `${base}/labels/${HUMAN_LABEL}`);
+        }
+        await github("DELETE", `${base}/labels/${LABEL}`);
+        console.log(`label-unblocked: #${number} handed to triage: lane PR #${pr} ${handOff === "merged" ? "merged with Refs:" : "closed unmerged"}`);
+      } catch (error) {
+        failed += 1;
+        reportError(number, error);
+      }
+      continue;
+    }
     try {
       // The record first: a failed comment re-fires nothing, so the bound holds.
       if (refire && !recorded) {
-        await github("POST", `/repos/${repo}/issues/${number}/comments`, { body: refireComment(refire) });
+        await github("POST", `${base}/comments`, { body: refireComment(refire) });
       }
-      await github("DELETE", `/repos/${repo}/issues/${number}/labels/${LABEL}`);
+      await github("DELETE", `${base}/labels/${LABEL}`);
     } catch (error) {
       failed += 1;
       reportError(number, error);
