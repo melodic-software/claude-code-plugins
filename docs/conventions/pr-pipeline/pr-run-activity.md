@@ -1016,7 +1016,12 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
 a `pick-slot` job takes the issue number modulo `SLOTS` (3), and `resolve-issue` joins the
 `work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of admissions waits
 in line, holding no runner, instead of spending the lanes App's hourly API quota at once.
-`report-outcome` takes no slot. What changes from the PR flow:
+`report-outcome` takes no slot. A waiting run keeps the workflow files of its label event, so when
+a change to either lane workflow file merges while it waits, the broker would refuse its mint as
+`workflow-modified`. Before the mint, the `workflow-current` step compares both files' blobs at
+`github.workflow_sha` with the default branch checkout, the broker's rule, and on a difference
+fails red `workflow-stale` with no token request and no outcome marker; work-unblock's hourly sweep
+re-fires such a failed run on main's files. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty, and unless a

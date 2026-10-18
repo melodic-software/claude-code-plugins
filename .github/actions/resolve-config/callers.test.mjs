@@ -252,3 +252,79 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
   );
   assert.equal(concurrency["cancel-in-progress"], false);
 });
+
+// A queued resolve-issue run starts on the workflow files of its label event.
+// The broker refuses its mint as workflow-modified when either file's blob at
+// the run's commit differs from main's tip (azure-iac binding.mjs), so the
+// run job checks the same rule first and fails red with no token request;
+// work-unblock's sweep re-fires a failed run that left no outcome marker.
+test("pr-run-activity-write.yml: an issue run on stale workflow files fails before the token request", () => {
+  const { jobs } = workflow("pr-run-activity-write.yml");
+  const steps = jobs.run.steps;
+  const index = (id) => steps.findIndex((step) => step.id === id);
+  const check = steps[index("workflow-current")];
+  assert.ok(check, "the run job has a workflow-current step");
+  assert.ok(index("base") < index("workflow-current"), "it reads the default branch checkout");
+  assert.ok(index("workflow-current") < index("issue-prior"));
+  assert.ok(index("workflow-current") < index("lane-token"));
+  // Every step from the check to the mint runs only while no step failed.
+  for (const step of steps.slice(index("workflow-current") + 1, index("lane-token") + 1)) {
+    assert.doesNotMatch(String(step.if ?? ""), /always\(\)|failure\(\)|!cancelled\(\)/, step.name);
+  }
+  // A skill run in issue mode only: report-outcome is a script, and the
+  // broker lets a report job's file differ.
+  for (const [issue, kind, runs] of [["7", "skill", true], ["7", "script", false], ["", "skill", false]]) {
+    const context = {
+      "inputs.issue-number": issue,
+      "steps.config.outputs.applies": "true",
+      "steps.config.outputs.kind": kind,
+    };
+    assert.equal(evaluate(check.if, context), runs, `${issue || "no issue"} ${kind}`);
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), "workflow-current-"));
+  after(() => rmSync(dir, { recursive: true, force: true }));
+  const base = join(dir, ".base");
+  const git = (...args) => {
+    const run = spawnSync("git", ["-C", base, ...args], { encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    return run.stdout.trim();
+  };
+  const caller = ".github/workflows/work-resolve-issue.yml";
+  const reusable = ".github/workflows/pr-run-activity-write.yml";
+  const commit = (files) => {
+    for (const [path, text] of Object.entries(files)) {
+      writeFileSync(join(base, path), text);
+    }
+    git("add", "-A");
+    git("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "c");
+    return git("rev-parse", "HEAD");
+  };
+  spawnSync("git", ["init", "-q", "-b", "main", base]);
+  spawnSync("mkdir", ["-p", join(base, ".github/workflows")]);
+  const run = commit({ [caller]: "caller 1\n", [reusable]: "write 1\n", "README.md": "a\n" });
+  const runCheck = (sha = run, ref = `melodic-software/claude-code-plugins/${caller}@refs/heads/main`) =>
+    spawnSync("bash", ["-c", check.run], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, WORKFLOW_REF: ref, WORKFLOW_SHA: sha },
+    });
+
+  assert.equal(runCheck().status, 0, "the run's own commit is main's tip");
+  commit({ "README.md": "b\n" });
+  assert.equal(runCheck().status, 0, "main moved, but neither workflow file changed");
+  commit({ [caller]: "caller 2\n" });
+  const callerStale = runCheck();
+  assert.equal(callerStale.status, 1, "the caller changed on main");
+  assert.match(callerStale.stdout, /::error::workflow-stale: \.github\/workflows\/work-resolve-issue\.yml /);
+  const fresh = git("rev-parse", "HEAD");
+  assert.equal(runCheck(fresh).status, 0, "a run on main's current files proceeds");
+  commit({ [reusable]: "write 2\n" });
+  const reusableStale = runCheck(fresh);
+  assert.equal(reusableStale.status, 1, "the write runner changed on main");
+  assert.match(reusableStale.stdout, /::error::workflow-stale: \.github\/workflows\/pr-run-activity-write\.yml /);
+  // A commit or caller this checkout cannot read is left to the broker.
+  assert.equal(runCheck("0".repeat(40)).status, 0);
+  assert.equal(runCheck("").status, 0);
+  assert.equal(runCheck(run, "").status, 0);
+});
