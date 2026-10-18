@@ -1,0 +1,7 @@
+{
+  "name": "maintenance-audit-lane-runs",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

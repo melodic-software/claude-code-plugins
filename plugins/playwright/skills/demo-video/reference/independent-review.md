@@ -1,8 +1,8 @@
 # Independent frame review
 
-The agent that produced the video does not judge it. After `qc.py` passes, dispatch a fresh
+The agent that produced the video does not judge it. After `quality_control.py` passes, dispatch a fresh
 subagent (the general-purpose agent, with a model at least as capable as the producer's) and hand
-it only the artifacts and the rules. Withhold the producer's reasoning, its own QC summary and any
+it only the artifacts and the rules. Withhold the producer's reasoning, its own quality-control summary and any
 "this is fixed" claim; the reviewer audits the frames, not the story.
 
 Brief to send, filled in:
@@ -11,8 +11,8 @@ Brief to send, filled in:
 Review a demo video for a pull request. You did not make it; judge only what the frames show.
 
 Video: <work>/demo.mp4 (30 fps; frame N is at t = (N - 1) / 30)
-QC sheets: <work>/qc/sheet-key-moments.png, <work>/qc/sheet-fail-*.png if present
-QC report: <work>/qc/qc.json (machine checks; confirm or refute them from frames, do not trust them)
+Quality-control sheets: <work>/quality-control/sheet-key-moments.png, <work>/quality-control/sheet-fail-*.png if present
+Quality-control report: <work>/quality-control/quality-control.json (machine checks; confirm or refute them from frames, do not trust them)
 What the demo should show: <one line per step, from script.json>
 
 Extract frames yourself (ffmpeg -ss T -i VIDEO -frames:v 1 OUT.png, or a dense range around each
@@ -30,4 +30,4 @@ Verdict: SHIP, SHIP AFTER FIXES (list them, severity first) or NOT READY.
 
 The verdict is the fresh-context reviewer's, not the producer's. Open one named frame to confirm a
 finding is located correctly, fix through the replay, the script or the edit plan, and repeat
-render, QC and a new fresh-context review until its verdict is SHIP.
+render, quality control and a new fresh-context review until its verdict is SHIP.

@@ -1,5 +1,32 @@
 # Changelog for the PR pipeline convention
 
+## 2.6.1 - 2026-10-17
+
+`address-feedback.mjs select` now also keeps a thread the lane escalated (the lanes App's last
+comment is an `INCORRECT`, `UNCERTAIN` or `VALID-defer` reply) when every comment after it is by a
+human on the base's trusted-actor list, created after the escalation and edited by no one else.
+Those replies are marked `direction: true` in the thread file. Before, every comment had to be the
+reviewer bot's, so the lane never read a person's answer to its own escalation
+([pr-run-activity.md](pr-run-activity.md)). `pr-feedback-dispatch.yml` judges a thread with the
+same rule, so a review round that ends on a PR with such a thread dispatches address-feedback
+([README.md](README.md)). `version` stays 2.
+
+## 2.6.0 - 2026-10-17
+
+A daily `maintenance` producer, the lane sweep ([README.md, The lane sweep](README.md#the-lane-sweep)):
+a collect script, one read-only model leg per unit, and a file script that checks every quoted line
+against main, de-duplicates by fingerprint, and files at most 5 `needs-triage` issues with the job's
+own token. It labels nothing `agent-ready`. `version` stays 2.
+
+## 2.5.0 - 2026-10-17
+
+`scripts/run-test-file.sh` runs a `*.test.js` or `*.test.ts` file that imports `vitest` with the
+package's locked vitest (`npx --no-install vitest run`, from the nearest `package.json` inside the
+checkout), under the same checkout-path guard, after `npm ci --ignore-scripts` there when the
+package has a `package-lock.json` and no `node_modules`. When it is a verify-script, the system prompt names
+its wrapper as the test entry and says a compound `cd <dir>; <command>` is refused
+([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). `version` stays 2.
+
 ## 2.4.0 - 2026-10-17
 
 `models.routes` and `resolve-config`'s `model-route` take a fifth run route, `summarize-reuse`

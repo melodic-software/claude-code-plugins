@@ -42,8 +42,9 @@ activities:
     # The skill's CI mode for review comments: edits only files a finding
     # names, never under .github/, and writes replies to a file.
     args: comments --ci
-    # Before any model turn the runner keeps only unresolved threads left by
-    # the reviewer bot alone on a reviewed head, hands the pull request to a
+    # Before any model turn the runner keeps only unresolved threads the
+    # reviewer bot opened on a reviewed head, left by it alone or answered by
+    # a trusted person after the lane escalated them, hands the pull request to a
     # person when it changes .github/ or `loop.review-rounds` rounds already
     # ran, and gives the skill the review-thread tool.
     prepare: review-threads
@@ -125,9 +126,9 @@ activities:
     # read-only copy of the base. A script that changes files, runs code from
     # the checkout or reaches the network hands the run that power, so list
     # one only when it limits that itself. run-test-file.sh runs one test
-    # file inside the checkout (pytest, bash or node --test, without the
-    # GitHub token), so the run can show a test it changed passing and
-    # failing when broken on purpose. git-mv-rm.sh renames and removes paths
+    # file inside the checkout (pytest, bash, node --test or the package's
+    # vitest, without the GitHub token), so the run can show a test it
+    # changed passing and failing when broken on purpose. git-mv-rm.sh renames and removes paths
     # inside the checkout. skill-quality's check-skill.sh is left out because
     # it runs every skill's scripts/*.test.sh and a markdownlint from the
     # checkout.
@@ -302,5 +303,7 @@ merge:
   # removed check comes back by setting it here: list denied-paths, set
   # `high-path-floor: true` or `c2-contradictions: true`, or set
   # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
+  # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
+  # provenance work only; scoped lane PRs merge on the verifier verdict.
   diff-check:
     denied-paths: []

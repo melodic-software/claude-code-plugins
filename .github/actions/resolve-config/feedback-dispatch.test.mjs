@@ -66,6 +66,7 @@ function baseWith(text) {
   for (const file of [
     "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
     ".github/standards/github-actions-conventions/vocabulary.json",
+    ".github/standards/trusted-actors/trusted-actors.json",
   ]) {
     mkdirSync(dirname(join(base, file)), { recursive: true });
     cpSync(join(ROOT, file), join(base, file));

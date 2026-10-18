@@ -1,6 +1,7 @@
 // Pure check-run decision for a pipeline activity. Lane, activity, run result,
-// act outcome, gate reason, head SHA and the signed-commit result are the
-// report job's own inputs or the run job's runner-computed outputs. The verdict
+// act outcome, gate reason, run failure, not-run reason, head SHA and the
+// signed-commit result are the report job's own inputs or the run job's
+// runner-computed outputs. The verdict
 // was written after head code ran: it is validated, its lane, activity, gate
 // reason and head SHA must match those inputs, and it is never the source of
 // the name, the head SHA, the outcome or any text in the check.
@@ -43,7 +44,7 @@ function isVerdict(verdict) {
 export function decide(verdict, inputs) {
   const { lane, activity, runResult, actOutcome, signedCommits } = inputs;
   const { gateReason, headSha, headShaFallback, prHeadSha } = inputs;
-  const { gateSkipReasons, skipReasons } = inputs;
+  const { gateSkipReasons, skipReasons, runFailure, notRunReason } = inputs;
   if (
     ![lane, activity].every(
       (part) => NAME.test(part ?? "") && part !== RESERVED_NAME,
@@ -80,6 +81,11 @@ export function decide(verdict, inputs) {
       prHeadSha !== (headSha || headShaFallback)
       ? neutral("superseded-sha")
       : failure("The run was cancelled and no newer head superseded it.");
+  }
+  // A caller whose activity job never ran (its precondition was not met)
+  // names the skip itself; there is no run job and so no verdict.
+  if (runResult === "skipped" && notRunReason) {
+    return neutral(notRunReason);
   }
   if (verdict == null) {
     return failure("The run left no verdict.");
@@ -134,13 +140,19 @@ export function decide(verdict, inputs) {
       ? neutral(verdict["skip-reason"])
       : failure("A skip reason came with an act step that did not finish.");
   }
+  // A run job that failed before the act step leaves the act outcome skipped,
+  // so the run result is checked first and names the failed step's reason.
+  if (runResult !== "success") {
+    return failure(
+      runFailure
+        ? `The run job did not succeed: ${runFailure}`
+        : "The run job did not succeed.",
+    );
+  }
   if (actOutcome !== "success") {
     return failure(
       "The activity step did not run and no skip reason explains it.",
     );
-  }
-  if (runResult !== "success") {
-    return failure("The run job did not succeed.");
   }
   return post("success", "Passed", "The activity ran and passed.");
 }

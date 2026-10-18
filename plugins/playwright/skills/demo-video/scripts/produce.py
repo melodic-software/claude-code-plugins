@@ -8,7 +8,7 @@ Layers (edl["layers"], each switchable with --off NAME[,NAME]):
   captions  step and outcome pills  narration  the EDL's scheduled clips
 
 usage: produce.py EDL.json OUT.mp4 [--off LAYERS] [--jobs N]
-Writes OUT.render.json beside the video: per frame, the capture shown and the overlays drawn. qc.py
+Writes OUT.render.json beside the video: per frame, the capture shown and the overlays drawn. quality_control.py
 uses it only to know which capture a frame samples; it measures everything else from the frames.
 """
 import argparse

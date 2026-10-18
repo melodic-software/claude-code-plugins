@@ -11,6 +11,7 @@
 - [Outputs and skips](#outputs-and-skips)
 - [Merge authority](#merge-authority)
 - [Trust-root paths](#trust-root-paths)
+- [The lane sweep](#the-lane-sweep)
 - [Models](#models)
 - [Loop caps](#loop-caps)
 - [Planning lane work](#planning-lane-work)
@@ -119,7 +120,8 @@ the upstream run id from the event and reads the rest back. It dispatches `pr-un
 `activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
 this repository, exactly one open non-draft PR into `main` has its head, the lanes App opened that
 PR, it carries neither `do-not-merge` nor `needs-human`, both lanes' newest reviewed-head markers
-name the head, an unresolved thread left only by the reviewer bot exists, the head has no
+name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
+reviewer bot, or answered by a trusted human after the lane escalated it), the head has no
 `pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
@@ -771,12 +773,49 @@ before it reaches the default branch. Residuals, accepted by the owner:
   the PR author's local session loads once it checks out the branch.
 
 The paths `.github/CODEOWNERS` lists with no owner are the eight synced data files (the
-vocabulary, pyright and runner-policy data files) and the three synced hosted caller workflows
-(`pr-check-managed-files-hosted.yml`, `pr-review-hosted.yml`, `pr-review-security-hosted.yml`).
-The required `check-managed-files` job in `ci-status` fails any hand edit or deletion of them.
+vocabulary, pyright and runner-policy data files) and the synced caller workflow
+`pr-check-managed-files-hosted.yml`. The required `check-managed-files` job in `ci-status` fails
+any hand edit or deletion of them. The hosted review callers (`pr-review-hosted.yml`,
+`pr-review-security-hosted.yml`) are locally owned, so `/.github/workflows/**` owns them.
 `pr-merge` refuses a PR that touches a path `merge.diff-check.denied-paths` lists and leaves it
 for a human. This repository lists none, so a lane PR touching a trust-root path merges on a
 passing verdict like any other (see the switches above).
+
+## The lane sweep
+
+[`maintenance-audit-lane-runs.yml`](../../../.github/workflows/maintenance-audit-lane-runs.yml) is a
+`maintenance` producer: once a day (and on a manual run from `main`) it audits the last 24 hours of
+this repository's lane runs and open pull requests and files what it finds into `intake`. It never
+labels an issue `agent-ready`, so nothing it files starts work. Its scripts and tests are in
+[`.github/scripts/maintenance-audit-lane-runs/`](../../../.github/scripts/maintenance-audit-lane-runs/).
+
+- **collect**, a script with the job's read-only token, writes one data file per unit, at most 8,
+  in this order: slice A, the failed runs of each of the four workflows with the most failures, with
+  failed jobs, annotations and log tails; slice D, every run of each of the two lane workflows with
+  the most runs, successes included, with sampled green runs' failed steps; slice C, ten open pull
+  requests by listed authors per unit, with labels, ages and head check results. Runs from forks
+  never count. It stops at 350 REST calls and says so.
+- **judge**, one model leg per unit, holds read permissions only, runs with `--setting-sources
+  user` and `--permission-mode dontAsk`, and has Read, Grep and Glob over its data and the main
+  checkout and no shell. It takes the `triage-issue` route's profile. CI logs and titles reach it
+  as data. It returns at most three findings, each citing at least one `path`, `line` and exact
+  `quote` from main.
+- **file**, a script with no model and `issues: write`, drops a finding when any quote is not on its
+  line in the run's main commit, then de-duplicates it by fingerprint: a hash of the slice, workflow,
+  job and the error signature with numbers, SHAs and times removed, kept as the last line of the
+  issue body. An open match gets a "seen again" comment; a match closed as not planned is skipped;
+  a match fixed in the last 14 days is filed again, linked as a possible regression. A finding whose
+  `covered_by` names an open item is skipped. It files at most 5 issues a run, labeled
+  `needs-triage` and `source: lane-sweep` where those labels exist, writes 1 s apart, and stops at 50
+  calls.
+
+CI logs can carry text written to steer the judge, so every model-written field of an issue renders
+inside a code fence and its title has links, mentions and references defused. A person rewrites
+such an issue before marking it `agent-ready`.
+
+The file job writes with the job's own `GITHUB_TOKEN`, not a lanes App token, so its issues come
+from `github-actions[bot]` and start no workflow, intake triage included. The kill switch stops
+every job.
 
 ## Models
 
@@ -806,7 +845,7 @@ run reads.
 This repository's block has five profiles: `standard` (model `default`, 75 turns, no effort),
 every skill activity's; `review` (`opus`, 60 turns, no effort), the verifier's; `pr-review`
 (`sonnet`, effort `high`, 75 turns), both review lanes'; `triage` (`sonnet`, effort `medium`,
-30 turns), intake triage's; and `summary` (`sonnet`, effort `medium`, 10 turns), the reuse
+30 turns), intake triage's and the [lane sweep](#the-lane-sweep)'s; and `summary` (`sonnet`, effort `medium`, 10 turns), the reuse
 summary pass's.
 
 ## Loop caps

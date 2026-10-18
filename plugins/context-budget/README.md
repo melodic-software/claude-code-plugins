@@ -184,7 +184,8 @@ stays unconditioned until upstream matching reaches those paths.
 ## Prerequisites
 
 - `node` (required, the engine's runtime).
-- The Claude Code CLI (`claude` on PATH, or pass the engine an explicit `--binary`).
+- The Claude Code CLI (`claude` on PATH, or pass the engine an explicit `--binary`); the live
+  breakdown mod needs 2.1.287 or later.
 - Optional, for exact mode: `@anthropic-ai/claude-agent-sdk`, installed once into the plugin's
   data directory (the audit skill offers the command; it is the operator's call since it needs
   network access).

@@ -1,7 +1,7 @@
 // Expected values come from the lane's plan: a missing or invalid outcome file
 // means `stopped`; `done` opens a ready PR whose body starts `Closes #<issue>`,
 // with a Conventional Commits title (the run's, else one from the issue title), no
-// label (the class lives on the issue only), and the hold line for scoped, structural and
+// label (the class lives on the issue only), and the hold line for structural and
 // untrusted-provenance work or a trust or lane-power diff; `pushback` and
 // `stopped` comment and add needs-human, and only pushback removes
 // agent-ready.
@@ -158,12 +158,17 @@ test("read-only work on ordinary files carries no hold line", () => {
   assert.ok(!decideDone().body.includes("Hold: a human merges this"));
 });
 
-for (const cls of ["scoped", "structural", "untrusted-provenance"]) {
+for (const cls of ["structural", "untrusted-provenance"]) {
   test(`${cls} work carries the hold line`, () => {
     const plan = decideDone({ issueLabels: [`work-class: ${cls}`] });
     assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
   });
 }
+
+test("scoped work on ordinary files carries no hold line", () => {
+  const plan = decideDone({ issueLabels: ["work-class: scoped"] });
+  assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+});
 
 for (const path of [".github/workflows/ci.yml", "AGENTS.md", "plugins/x/AGENTS.md", ".claude-plugin/marketplace.json", "plugins/x/skills/y/SKILL.md"]) {
   test(`a diff touching ${path}, under a merge-lane denied path, carries the hold line`, () => {
@@ -182,6 +187,39 @@ test("the denied paths come from the resolved config the runner wrote", () => {
     (dir) => assert.deepEqual(readHoldPaths(join(dir, "resolved-config.json")), ["a/**"]),
   );
   withDir({}, (dir) => assert.equal(readHoldPaths(join(dir, "resolved-config.json")), null));
+});
+
+// docs/conventions/pr-pipeline.yaml sets `denied-paths: []` on purpose: no
+// path is denied, so only the other hold reasons hold a PR (#7793, #7795).
+test("an empty denied-path list denies no path, so a PR with no other hold reason carries no hold line", () => {
+  withDir({ "resolved-config.json": JSON.stringify({ merge: { "diff-check": { "denied-paths": [] } } }) }, (dir) => {
+    const holdPaths = readHoldPaths(join(dir, "resolved-config.json"));
+    assert.deepEqual(holdPaths, []);
+    assert.ok(!decideDone({ holdPaths, changedFiles: [".github/workflows/ci.yml"] }).body.includes("Hold: a human merges this"));
+  });
+});
+
+for (const [name, text] of [
+  ["not JSON", "{"],
+  ["no denied-paths key", JSON.stringify({ merge: { "diff-check": {} } })],
+  ["a denied-paths string", JSON.stringify({ merge: { "diff-check": { "denied-paths": "a/**" } } })],
+  ["a non-string denied path", JSON.stringify({ merge: { "diff-check": { "denied-paths": ["a/**", 7] } } })],
+]) {
+  test(`a resolved config holding ${name} reads as no denied-path list and holds the PR`, () => {
+    withDir({ "resolved-config.json": text }, (dir) => {
+      const holdPaths = readHoldPaths(join(dir, "resolved-config.json"));
+      assert.equal(holdPaths, null);
+      assert.ok(decideDone({ holdPaths }).body.split("\n").includes("Hold: a human merges this"));
+    });
+  });
+}
+
+test("an unreadable resolved config reads as no denied-path list and holds the PR", () => {
+  withDir({}, (dir) => {
+    const holdPaths = readHoldPaths(dir);
+    assert.equal(holdPaths, null);
+    assert.ok(decideDone({ holdPaths }).body.split("\n").includes("Hold: a human merges this"));
+  });
 });
 
 // The body's `##` headings, in order.

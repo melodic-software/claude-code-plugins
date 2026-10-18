@@ -1,9 +1,9 @@
-"""Frame-level QC for a rendered demo: decodes the MP4 and measures every acceptance rule from the
+"""Frame-level quality control for a rendered demo: decodes the MP4 and measures every acceptance rule from the
 rendered frames. The camera rect of each frame is estimated by registering the frame against the
 capture it samples (normalized cross-correlation over scale and position), never read from the EDL,
 so a producer's own numbers cannot pass a video the frames contradict.
 
-Checks (thresholds: defaults.json "qc" and "motion", overridable with --config):
+Checks (thresholds: defaults.json "quality_control" and "motion", overridable with --config):
   capture-match   every page frame matches its capture at some zoom (registration is trustworthy)
   zoom-share      share of runtime (title excluded) at >= zoom_threshold, at least zoom_share_min
   edge-clip       a settled zoomed frame cuts no text: every frame edge that is not the page
@@ -18,9 +18,9 @@ Checks (thresholds: defaults.json "qc" and "motion", overridable with --config):
   blank           no white, black or flat frame after the title
 Camera-dependent checks report SKIP when the EDL's camera layer is off (plain style).
 
-usage: qc.py EDL.json VIDEO.mp4 OUT_DIR [--config FILE]
+usage: quality_control.py EDL.json VIDEO.mp4 OUT_DIR [--config FILE]
 exit: 0 every check passed, 1 a check failed, 2 the inputs could not be read
-Writes OUT_DIR/qc.json, sheet-key-moments.png (page cuts, zoom peaks, longest still) and, for each
+Writes OUT_DIR/quality-control.json, sheet-key-moments.png (page cuts, zoom peaks, longest still) and, for each
 failing check, sheet-fail-<check>.png with up to six frames it failed on, for the independent reviewer.
 """
 import argparse
@@ -151,10 +151,10 @@ def main(argv=None):
         log = json.loads(Path(a.video).with_suffix('.render.json').read_text())['frames']
         tl = json.loads((Path(edl['capture']) / 'timeline.json').read_text())
     except (OSError, ValueError, KeyError) as e:
-        print(f'qc: cannot read inputs: {e}', file=sys.stderr)
+        print(f'quality control: cannot read inputs: {e}', file=sys.stderr)
         return 2
     cfg = load_config(a.config) if a.config else edl.get('config') or load_config()
-    Q, MOT, CAM, CAP = cfg['qc'], cfg['motion'], cfg['camera'], cfg['captions']
+    Q, MOT, CAM, CAP = cfg['quality_control'], cfg['motion'], cfg['camera'], cfg['captions']
     W, H, fps = edl['width'], edl['height'], edl['fps']
     cap_dir = Path(edl['capture'])
     by_t = {round(f['t'], 4): str(cap_dir / f['file']) for f in tl['frames']}
@@ -174,7 +174,7 @@ def main(argv=None):
     n = min(len(reg_frames), len(small), len(log))
     runtime = [i for i in range(n) if log[i]['captures'] and not any(isinstance(s, str) for s in log[i]['src'])]
     if not runtime:
-        print('qc: no page frames found', file=sys.stderr)
+        print('quality control: no page frames found', file=sys.stderr)
         return 2
 
     # ---- registration: zoom and rect per runtime frame, measured from the frame ------------------
@@ -185,7 +185,7 @@ def main(argv=None):
     for i in runtime:
         path = by_t.get(round(log[i]['captures'][-1], 4))
         if path is None:
-            print(f'qc: frame {i} names a capture not in the timeline', file=sys.stderr)
+            print(f'quality control: frame {i} names a capture not in the timeline', file=sys.stderr)
             return 2
         if prev is not None and est[prev][3] == path and np.abs(reg_frames[i] - reg_frames[prev]).max() < 2:
             est[i] = est[prev]   # an unchanged frame keeps its measurement
@@ -419,11 +419,11 @@ def main(argv=None):
         sheet(rgb, [(i, f'{name} {i / fps:.2f}s') for i in idx], out / f'sheet-fail-{name}.png')
     report = {'video': str(a.video), 'runtime_s': round(len(runtime) / fps, 3), 'checks': results,
               'zoom_series': [[round(runtime[j] / fps, 3), round(float(zf[j]), 3)] for j in range(len(runtime))]}
-    (out / 'qc.json').write_text(json.dumps(report, indent=1))
+    (out / 'quality-control.json').write_text(json.dumps(report, indent=1))
     for r in results:
         print(f"{r['status']:4} {r['check']}: {r['detail']}")
     failed = [r['check'] for r in results if r['status'] == 'FAIL']
-    print(f"qc: {'FAIL ' + ', '.join(failed) if failed else 'all checks passed'} -> {out / 'qc.json'}")
+    print(f"quality control: {'FAIL ' + ', '.join(failed) if failed else 'all checks passed'} -> {out / 'quality-control.json'}")
     return 1 if failed else 0
 
 

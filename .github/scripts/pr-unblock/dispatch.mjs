@@ -6,9 +6,10 @@
 //
 // It lists open PRs into main, keeps the non-draft, same-repository ones
 // whose mergeable state is CONFLICTING (re-querying UNKNOWN a bounded number
-// of times), skips a PR whose current head already carries a pr-unblock check
-// run (one the usage limit stopped stops counting once its limit resets, see
-// limit-stop.mjs), and dispatches pr-unblock.yml on main for at most maxDispatch of them,
+// of times), skips a PR whose resolve-conflicts run is still queued or going,
+// or whose current head already carries a pr-unblock check run (one the usage
+// limit stopped stops counting once its limit resets, see limit-stop.mjs),
+// and dispatches pr-unblock.yml on main for at most maxDispatch of them,
 // lowest PR number first. Labels and authors are left to the lane's own
 // config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
@@ -20,12 +21,14 @@ import { pathToFileURL } from "node:url";
 
 import { POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
+import { runTitle } from "./feedback-dispatch.mjs";
 import { anyHandles } from "./limit-stop.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
   workflow: "pr-unblock.yml",
+  activity: "resolve-conflicts",
   checkName: "pr-unblock / resolve-conflicts",
   // The GitHub Actions app: only a check run it created counts, so another
   // app cannot suppress a dispatch by posting a run under the same name.
@@ -79,6 +82,7 @@ export async function dispatchConflicting({
   log,
   base = DEFAULTS.base,
   workflow = DEFAULTS.workflow,
+  activity = DEFAULTS.activity,
   checkName = DEFAULTS.checkName,
   appId = DEFAULTS.appId,
   maxDispatch = DEFAULTS.maxDispatch,
@@ -105,12 +109,29 @@ export async function dispatchConflicting({
   candidates.sort((a, b) => a.number - b.number);
   const dispatched = [];
   let failed = 0;
+  // A dispatched run posts its check run only when it ends, so two main
+  // pushes seconds apart would each dispatch one. A run of this activity for
+  // the PR that is not done yet holds the dispatch.
+  let active = [];
+  if (candidates.length > 0) {
+    try {
+      active = (await api.listWorkflowRuns(workflow)).filter((run) => run.status !== "completed");
+    } catch (error) {
+      log(`::error::could not list ${workflow} runs: ${error.message}`);
+      return { dispatched, failed: failed + 1 };
+    }
+  }
   // Every dispatch call counts against the cap: one that failed or returned no
   // usable id may still have started a run.
   let sent = 0;
   for (const node of candidates) {
     if (sent >= maxDispatch) {
       log(`defer #${node.number}: ${maxDispatch} dispatches this run; left for a later run`);
+      continue;
+    }
+    const inFlight = active.find((run) => run.display_title === runTitle(activity, node.number));
+    if (inFlight) {
+      log(`skip #${node.number}: ${workflow} run ${inFlight.id} for ${activity} is not done yet`);
       continue;
     }
     let handled;
@@ -252,6 +273,14 @@ export function createGitHubApi({
         `${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?${query}`,
       );
       return result.check_runs;
+    },
+    // The newest workflow_dispatch runs: a run still queued or going is
+    // among them, since a dispatcher waits at most minutes behind it.
+    async listWorkflowRuns(workflow) {
+      const result = await request(
+        `${apiUrl}/repos/${owner}/${name}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`,
+      );
+      return result.workflow_runs ?? [];
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
       const result = await request(

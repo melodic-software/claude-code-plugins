@@ -31,6 +31,7 @@
 //   GITHUB_RUN_ID, MODEL_RUN_ATTEMPT  the model run the round marker names
 //   APP_SENDER_ID         the lanes App bot's user id, the round marker author
 //   TRUSTED_ACTORS        the base's trusted-actors.json, for the reviewer bot
+//                         and the people whose replies are direction
 //   FEEDBACK_REPLIES_DIR  the downloaded artifact: run.json and replies.jsonl
 //   RUN_SHA256            run.json's SHA-256, from the model job's runner step
 //   GITHUB_WORKSPACE      the PR head checkout evidence paths are checked in
@@ -54,6 +55,7 @@ import {
   reviewerIdFrom,
   ROUND_MARKER,
   SHA,
+  trustedHumansFrom,
 } from "./address-feedback.mjs";
 
 export const LIMITS = { bytes: 262144, note: 2000, evidence: 10, files: 300 };
@@ -272,7 +274,7 @@ export async function publish(args) {
   return result;
 }
 
-async function postReplies({ api, pr, headSha, headRef, reviewerId, readArtifact, fileExists, log }) {
+async function postReplies({ api, pr, headSha, headRef, appId, reviewerId, trustedHumans, readArtifact, fileExists, log }) {
   let escalationReason = "";
   // fixesLanded judged the range up to headSha; a push after it is unjudged.
   const headMoved = async () => (await api.readBranch(headRef)) !== headSha;
@@ -298,7 +300,7 @@ async function postReplies({ api, pr, headSha, headRef, reviewerId, readArtifact
       escalationReason = "feedback-incomplete";
       return { escalationReason, posted: [] };
     }
-    const { kept } = await currentThreads({ api, pr, reviewerId });
+    const { kept } = await currentThreads({ api, pr, reviewerId, appId, trustedHumans });
     const now = new Map(kept.map((thread) => [thread.id, thread]));
     if (!(await fixesLanded({ api, run, headSha, replies }))) {
       log("no reply is posted: a VALID fix did not reach the PR branch, or the branch changed another path");
@@ -313,10 +315,10 @@ async function postReplies({ api, pr, headSha, headRef, reviewerId, readArtifact
     for (const reply of replies) {
       const ids = shown.get(reply.thread).comment_ids;
       const fresh = now.get(reply.thread);
-      // Once a reply posts, the thread is no longer the reviewer bot's alone,
-      // so no later round selects it again: any failure in this loop stops
-      // the posting, and it or a VALID thread left open hands the PR to a
-      // person instead of stranding a thread.
+      // Once a reply posts, no later round selects the thread again until a
+      // trusted person answers a reply that left it open: any failure in this
+      // loop stops the posting, and it or a VALID thread left open hands the
+      // PR to a person instead of stranding a thread.
       try {
         const reread = fresh && (await api.readThread(reply.thread));
         if (
@@ -354,7 +356,7 @@ async function postReplies({ api, pr, headSha, headRef, reviewerId, readArtifact
     }
     // An INCORRECT thread stays open for a person to decide (owner decision):
     // its evidence reply is posted, and the PR goes to a person, since no
-    // later round selects a thread the lanes App has answered.
+    // later round selects it until that person replies in the thread.
     if (escalationReason === "" && posted.some((entry) => entry.disposition === "INCORRECT")) {
       escalationReason = "feedback-disputed";
     }
@@ -427,6 +429,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     modelRun,
     maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
+    trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
     readArtifact: () => ({ runText: readRun(), repliesText: read("replies.jsonl") }),
     fileExists: (path) => existsSync(join(env.GITHUB_WORKSPACE, path)),
     log,

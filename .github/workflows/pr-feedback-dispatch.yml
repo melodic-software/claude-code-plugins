@@ -3,7 +3,8 @@ name: pr-feedback-dispatch
 # Starts pr-unblock's address-feedback activity when a review lane finishes on
 # a lanes App PR: .github/scripts/pr-unblock/feedback-dispatch.mjs dispatches
 # pr-unblock.yml once both lanes have reviewed the PR's current head and an
-# unresolved thread left only by the reviewer bot exists. The write runner
+# unresolved thread exists that the reviewer bot left alone or a trusted
+# person answered after the lane escalated it. The write runner
 # denies the lanes App as a workflow_run actor, so the lane cannot run on this
 # event directly; the gate and the broker accept this dispatcher's runs only
 # through the review run its record names, at the PR's current head.
@@ -28,10 +29,12 @@ concurrency:
 
 jobs:
   dispatch:
+    # A review run GitHub skipped (a draft PR) has reviewed nothing.
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.head_repository.full_name == github.repository
+      && github.event.workflow_run.conclusion != 'skipped'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -82,6 +85,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
 
       # The record of the run this run dispatched and the review run that
