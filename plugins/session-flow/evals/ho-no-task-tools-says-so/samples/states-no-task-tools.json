@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "### Environment to re-establish\n\n- This session has no task tools; the stage state is in .work/retry-backoff/workflow-checklist.md.",
+      "why": "one line, points at the checklist"
+    },
+    {
+      "answer": "Environment: no task tools in this session. See `.work/retry-backoff/workflow-checklist.md` for the stage state.",
+      "why": "wording varies"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Environment to re-establish\n- [ ] Cap the delay\n- [ ] Run ./test.sh",
+      "why": "list rebuilt, no statement"
+    },
+    {
+      "answer": "Environment: branch feat/retry-backoff, no services running.",
+      "why": "silent on task tools"
+    },
+    {
+      "answer": "This session has no task tools.",
+      "why": "no pointer to the checklist"
+    }
+  ]
+}
