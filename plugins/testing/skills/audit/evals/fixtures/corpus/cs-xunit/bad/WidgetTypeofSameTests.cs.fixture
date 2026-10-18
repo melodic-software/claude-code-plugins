@@ -1,5 +1,6 @@
 // expect: rule-inert-assertion
-// Two typeof operands are settled at compile time, so Same cannot fail.
+// expect: rule-recomputed-expectation
+// Two typeof operands are settled at compile time, so Same on the same type twice cannot fail.
 using Xunit;
 
 public class WidgetTypeofSameTests
@@ -7,6 +8,6 @@ public class WidgetTypeofSameTests
     [Fact]
     public void Widget_IsItself()
     {
-        Assert.Same(typeof(Widget), typeof(Gadget));
+        Assert.Same(typeof(Widget), typeof(Widget));
     }
 }

@@ -1,5 +1,5 @@
 // expect: rule-inert-assertion
-// Two typeof operands are settled at compile time, so NotEqual cannot fail.
+// Two typeof operands are settled at compile time, so NotEqual on two different types cannot fail.
 using Xunit;
 
 public class WidgetTypeofNotEqualTests

@@ -1,5 +1,6 @@
 // expect: rule-inert-assertion
-// Two typeof operands are settled at compile time, so the comparison cannot fail.
+// expect: rule-recomputed-expectation
+// Two typeof operands are settled at compile time, so AreEqual on the same type twice cannot fail.
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 [TestClass]
@@ -8,6 +9,6 @@ public class OrderTypeofAreEqualTests
     [TestMethod]
     public void Order_IsItself()
     {
-        Assert.AreEqual(typeof(Order), typeof(Invoice));
+        Assert.AreEqual(typeof(Order), typeof(Order));
     }
 }
