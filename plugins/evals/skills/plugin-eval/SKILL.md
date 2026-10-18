@@ -46,7 +46,17 @@ suite_tools:     <read-only | the gated tools the cases request>
 same_model:      <yes | no | unknown | off> (tested <model>, judge <model>)
 estimate_usd:    roughly <n> (cases x runs x arms, plus judge calls)
 ceiling:         <n> USD | unlimited
+leftover_sandboxes: <n> (<total size> in <temp dir>) | unknown
+tmp_free:        <free space on the temp dir's filesystem> | unknown
 ```
+
+### Leftover sandboxes
+
+Earlier runs leave `claude-eval-*` directories in the temp directory (`$TMPDIR`, else `/tmp`).
+Probe read-only: `find <temp dir> -maxdepth 1 -type d -name 'claude-eval-*'` for the count, `du -sk`
+over them for the size, `df -k <temp dir>` for `tmp_free`; an unreadable path reports `unknown`, never `0`. Preflight removes nothing and does not block the run on either field. Above
+zero, print for the user to run `chmod -R u+w <temp dir>/claude-eval-*`, then `rm -rf <temp
+dir>/claude-eval-*`; subdirectories `chmod` cannot enter are the sandbox user's and need `sudo rm -rf`.
 
 **Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read
 `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
@@ -396,23 +406,15 @@ claude plugin eval <out> --trust-plugin --ablation none --threshold 0 --runs 3 -
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" score --manifest <out>/manifest.json <out>/results.json
 ```
 
-`build` writes one case per sample into an empty plugin: the source case's prompt goes out
-unchanged, and an appended system prompt presents the sample as fixed test material for the agent
-to output byte for byte, even when wrong or incomplete, with no commentary, so the judge grades
-that sample as the answer to that question. No generated file carries the label; a must-pass and a
-must-fail case differ only in the sample text. `build` skips a grader that judges a file or mock
-calls, and prints one line for each empty or whitespace-only sample it skips: Claude Code answers
-an empty reply with an injected user turn, so it cannot be reproduced, and an empty answer is a
-deterministic failure that needs no judge. The appended prompt does not reach a `focus: trace`
-judge. `--threshold 0` keeps the CLI's exit
-code about errors, since must-fail cases are meant to score 0.
+`build` writes one case per sample into an empty plugin; no generated file carries the label.
+`--threshold 0` keeps the CLI's exit code about errors, since must-fail cases score 0. What
+`build` skips and why: [calibrate-build.md](reference/calibrate-build.md).
 
 `score` prints a `FAIL grader` line for each grader under 90% and exits 1; fix that rubric, or move
 the whole suite to a stronger judge, and calibrate again before reading its scores. Its false
-positives and negatives name the samples to read first. Agreement leaves out a run whose reply was
-not the sample, and one with neither a kept trace nor judge evidence (also reported unchecked). A
-sample with no reproduced run is listed `untested`, counts toward no agreement, and shows in the
-verdict line; raise `--runs` or tighten the prompt before reading the grader's score.
+positives and negatives name the samples to read first. A sample listed `untested` counts toward
+no agreement: raise `--runs` or tighten the prompt before reading the grader's score. What
+agreement leaves out: [calibrate-build.md](reference/calibrate-build.md#what-score-leaves-out).
 
 ## CI
 
