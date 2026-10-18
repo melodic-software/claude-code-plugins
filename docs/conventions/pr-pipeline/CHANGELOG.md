@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.3 - 2026-10-18
+
+The verify-script wrapper for skill-quality's `check-skill.sh` runs it with `HOME` set to a fresh
+`mktemp -d` directory and `CLAUDE_CONFIG_DIR` to that directory's `.claude`, so a skill test that
+writes under `~/.claude` no longer fails on the runner's read-only one
+([#8027](https://github.com/melodic-software/claude-code-plugins/issues/8027)). Other
+verify-scripts keep the runner's `HOME`. `version` stays 2.
+
 ## 2.11.2 - 2026-10-18
 
 The broker's `workflow-modified` refusal has one exception, for a lane's post-run report job
