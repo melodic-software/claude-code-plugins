@@ -227,12 +227,14 @@ HUMAN_GATED_SECTION = "human-gated-label"
 def human_gated_label(repo: str) -> str:
     """The tracker's human-gated role label for `repo` (`needs-human` unless
     `.work-item-tracker.json` maps it): the label the verifier escalation adds
-    and an autonomous merge holds on. Shared across a run's gate processes."""
+    and an autonomous merge holds on. Shared across a run's gate processes.
+    A failed read other than a 404 raises `PostMergeReadError` and is never
+    shared."""
     cached = run_cache.get(HUMAN_GATED_SECTION, repo, run_cache.MAX_AGE)
     if isinstance(cached, str) and cached:
         return cached
     owner, name = repo.split("/", 1)
-    label = postmerge._role_label(owner, name)
+    label = postmerge._role_label(owner, name, strict=True)
     run_cache.put(HUMAN_GATED_SECTION, repo, label)
     return label
 
@@ -1542,7 +1544,14 @@ def evaluate(
     # merging with no person present; only an attended merge lifts the
     # human-gated hold.
     autonomous = unattended is not None or tier is not None
-    human_gated = human_gated_label(repo) if autonomous else None
+    try:
+        human_gated = human_gated_label(repo) if autonomous else None
+    except postmerge.PostMergeReadError as exc:
+        human_gated = None
+        blockers.append(
+            f"the human-gated role label is unreadable ({exc}) -- an autonomous "
+            "merge cannot tell which label holds it"
+        )
     if held_by := merge_hold_label(labels, human_gated=human_gated):
         blockers.append(
             f"PR carries the {held_by!r} label -- a human hold, report it and leave it"
@@ -3121,7 +3130,10 @@ def escalate_verify(
         inputs.get("comments"),
         marker=VERIFY_ESCALATION_MARKER,
     )
-    label = human_gated_label(repo)
+    try:
+        label = human_gated_label(repo)
+    except postmerge.PostMergeReadError:
+        label = postmerge.DEFAULT_ROLE_LABEL
     labels = pr.get("labels")
     present = is_json_array(labels) and any(
         str(json_object(item).get("name") or "").casefold() == label.casefold()

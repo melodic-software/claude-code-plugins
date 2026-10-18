@@ -321,8 +321,9 @@ jobs:
           # The gate resolves the same label through babysit_postmerge._role_label.
           human_gated=needs-human
           if [ -f .base/.work-item-tracker.json ]; then
-            human_gated=$(jq -er '.config.role_labels // {}
-              | if has("human-gated") then .["human-gated"] | strings | select(length > 0) else "needs-human" end' \
+            human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
+              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
+              | if . == "" then "needs-human" else . end' \
               .base/.work-item-tracker.json) || {
               echo "::error::cannot read the human-gated role label from the base .work-item-tracker.json"
               exit 1

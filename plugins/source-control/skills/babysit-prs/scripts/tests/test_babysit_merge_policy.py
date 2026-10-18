@@ -1549,6 +1549,12 @@ class EntryHold(unittest.TestCase):
         ):
             self.assertEqual(self.hold(), "human-review")
 
+    def test_an_unreadable_human_gated_label_is_a_hold(self) -> None:
+        self.fake()
+        failed = babysit_postmerge.PostMergeReadError("tracker: HTTP 502")
+        with mock.patch.object(babysit_postmerge, "_role_label", side_effect=failed):
+            self.assertEqual(self.hold(), "unreadable: tracker: HTTP 502")
+
     def test_a_body_hold(self) -> None:
         self.fake(body="Please do not merge until the release")
         self.assertEqual(self.hold(), "body-hold")

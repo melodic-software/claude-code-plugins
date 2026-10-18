@@ -36,6 +36,7 @@ import babysit_merge as merge
 import babysit_merge_prefilter as prefilter
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
+import babysit_run_cache as run_cache
 import test_babysit_merge as fixtures
 import test_babysit_merge_async as async_fixtures
 from babysit_risk import ChangedFile, LaneEvidence
@@ -219,6 +220,60 @@ class RemappedHumanGatedLabel(unittest.TestCase):
         )
         self.assertEqual(free["blockers"], [])
         self.assertIsNone(prefilter.hold({"labels": ["needs-human"]}, self.LABEL))
+
+
+class UnreadableHumanGatedLabel(unittest.TestCase):
+    """A tracker config read that fails for any reason but a 404 refuses an
+    autonomous merge instead of holding on `needs-human`, and no fallback is
+    shared with the run's later gate processes."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {run_cache.ENV: str(pathlib.Path(tmp.name, "run.json"))}
+        for patcher in (
+            mock.patch.dict("os.environ", env),
+            mock.patch.object(
+                postmerge,
+                "_role_label",
+                side_effect=postmerge.PostMergeReadError("tracker: HTTP 502"),
+            ),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_the_gate_refuses_and_caches_nothing(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        result = _evaluate(
+            fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
+        )
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any(
+                "human-gated role label is unreadable" in b for b in result["blockers"]
+            ),
+            result["blockers"],
+        )
+        self.assertIsNone(run_cache.get(merge.HUMAN_GATED_SECTION, "owner/repo", None))
+
+    def test_the_escalation_falls_back_to_the_default(self) -> None:
+        capture = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "", ""))
+        with (
+            mock.patch.object(merge, "gh_capture", capture),
+            mock.patch.object(merge, "upsert_marker_comment", return_value="created"),
+        ):
+            merge.escalate_verify(
+                "owner/repo",
+                fixtures.PR_NUMBER,
+                IDENTITY,
+                "verify:spec-changed",
+                {"pr": {"head": {"sha": HEAD}, "labels": []}},
+            )
+        added = [
+            a for c in capture.call_args_list for a in c.args[0] if "labels[]=" in a
+        ]
+        self.assertEqual(added, ["labels[]=needs-human"])
+        self.assertIsNone(run_cache.get(merge.HUMAN_GATED_SECTION, "owner/repo", None))
 
 
 class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):

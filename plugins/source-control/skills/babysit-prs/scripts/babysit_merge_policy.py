@@ -2076,6 +2076,7 @@ def entry_hold(
         human_gated_label,
         merge_hold_label,
     )
+    from babysit_postmerge import PostMergeReadError  # noqa: PLC0415
 
     owner, name = _split_repo(repo)
     permission = permission or permission_reader(repo)
@@ -2106,7 +2107,7 @@ def entry_hold(
         )
         if opt_in:
             return opt_in
-    except PolicyReadError as exc:
+    except (PolicyReadError, PostMergeReadError) as exc:
         return f"unreadable: {exc}"
     return None
 
