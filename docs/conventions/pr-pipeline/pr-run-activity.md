@@ -342,7 +342,10 @@ own environment (code the script runs can still read the token from the wrapper'
 shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, then runs the copy with
 the arguments and prints `exit status: <n>` to stderr before exiting with that status, since the
-lane denies a chained `; echo "$?"`; the system prompt says to run each wrapper as its own command.
+lane denies a chained `; echo "$?"`. The system prompt says Bash runs only the named wrappers,
+each as its own command, and that the run inspects files with Read, Grep and Glob and changes them
+with Edit or Write, never with `cd`, `;`, `&&`, a pipe or an interpreter one-liner; when
+`git-mv-rm.sh` is listed, it names that wrapper for a rename or a removal.
 Any other arguments match, so a listed script that changes files or runs checkout code must limit
 itself, or hand the run a power it may hold. `resolve-issue` also lists skill-quality's
 `check-evals-quality.sh` (bash and jq over `evals.json` files) and `check-skill.sh`, which runs each
@@ -364,7 +367,12 @@ hash-pinned `.github/requirements-ci.txt` before the head checkout. `scripts/git
 `git mv <source> <destination>` or `git rm -r -f <path>...`, first recording an untracked path as
 intent-to-add so a file the run created can be renamed or removed, with `GIT_LITERAL_PATHSPECS=1`
 so git reads each path literally, never as a glob or pathspec magic. The index is local: the
-change reaches the branch through `commit_files` and `delete_files`.
+change reaches the branch through `commit_files` and `delete_files`. `resolve-issue` also lists
+`scripts/new-changelog-fragment.sh`, which finds the work tree with `git rev-parse
+--show-toplevel` from its working directory (exit 2 outside one), writes only new
+`.changes/<plugin>/<slug>.md` files there, refuses a plugin name outside `[a-z0-9-]` and a linked
+`.changes` or `.changes/<plugin>`, and reads `--carriers-of` through its own copy's
+`sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
@@ -928,11 +936,12 @@ repository, started (and any re-run) by the lanes bot or a listed human, at the 
 or, with `expected_upstream_head` in the body, at that head when every commit from it to the PR's
 current head is one GitHub signed for the lanes bot (committer `web-flow`, signature `valid`) after
 this run was created, and the upstream run lists this pull request. The client
-retries only a 503 `github-unavailable`, with backoff
+retries only a 503 `github-unavailable`, with backoff, or `github-rate-limited`, after its
+`Retry-After`
 ([`request-lane-token`](../../../.github/actions/request-lane-token/README.md#what-it-does), step 3):
 the broker reserves the job's `check_run_id` before it mints, so a request after a mint or a failed
-mint is denied `already-minted`, and a 200 lost in transit leaves a token nobody revokes until it
-expires within the hour.
+mint (`mint-unavailable`) is denied `already-minted`, and a 200 lost in transit leaves a token
+nobody revokes until it expires within the hour.
 
 The broker derives the grant from the default-branch tip's config and `effect-grants.json`, never
 from the request, and mints a token for this repository only, with exactly `contents`,
@@ -952,8 +961,8 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 403 | `wrong-owner`, `repo-not-allowed`, `self-hosted-runner` | Not a melodic-software repository on the broker's allowlist, or not a GitHub-hosted runner |
 | 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml`, or `schedule` on `refs/heads/main` from `pr-merge.yml` or `work-unblock.yml` only |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
-| 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip |
-| 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip |
+| 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip (a report job, `work-resolve-issue` `report-outcome` or `pr-unblock` `report-escalation`, still mints when every main commit that changed the file is signed, GitHub-made, on a linear range and landed after run start, at most 50 minutes ago: [azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39)) |
+| 403 | `workflow-modified` | With `dispatcher_run_id`: the dispatcher workflow at the dispatcher run's head differs from the tip (same report-job exception) |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |
@@ -964,7 +973,9 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 403 | `default-branch-not-main` | The repository's default branch is not `main` |
 | 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, a repository variable of that name exists (it would shadow the org value), or the repository's `CLAUDE_LANES_REPO_DISABLED` is absent or not exactly `false` |
 | 403 | `already-minted` | This job already received its mint |
-| 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted |
+| 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted; the client retries `github-unavailable` |
+| 503 | `github-rate-limited` | GitHub rate-limited the broker before it reserved the mint; `Retry-After` carries GitHub's wait (1-3600 s) and the body adds `limit`, `resource` and `retry_after`; retryable after that wait |
+| 503 | `mint-unavailable` | The mint failed after the broker reserved the job's one mint; final, never retried |
 
 A `kill-switch` denial is red, not neutral: step 3 already stopped the common case, so the denial
 means the job's read and the broker's read of the switch disagreed.
@@ -1056,8 +1067,9 @@ in line, holding no runner, instead of spending the lanes App's hourly API quota
   `Hold: a human merges this` for structural or untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or for one too large for the compare listing to
-  show whole. The run's own summary is quoted with issue references broken, so
-  squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
+  show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
+  event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
+  The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
   removes `agent-ready`. Each comment opens with the marker
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the

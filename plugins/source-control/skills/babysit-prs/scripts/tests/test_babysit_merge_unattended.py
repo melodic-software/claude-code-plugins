@@ -23,7 +23,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -43,6 +43,7 @@ from repo_config_fake import RepoConfigFake
 HEAD = fixtures.HEAD
 BASE = "c" * 40
 PR = fixtures.PR_NUMBER
+OPERATOR_LOGIN = "operator"
 IDENTITY = "agent-lanes[bot]"
 INERT = policy.UnattendedPolicy(reason="authority-unconfigured")
 INERT_BLOCKER = "unattended merge refused: authority-unconfigured"
@@ -335,6 +336,13 @@ class Unattended(unittest.TestCase):
         self.entries = [entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
         self.queued: list[int] = []
         self.holds: dict[int, str] = {}
+        # Every queued entry the sweep judged, in order.
+        self.hold_reads: list[int] = []
+        self.dequeue_error: Exception | None = None
+        # The permission reader the policy builds, and what a queued entry's
+        # hold read does with its keyword arguments first.
+        self.permission_reader: Any = lambda repo: lambda login: "write"
+        self.hold_hook: Any = lambda kwargs: None
         self.prior: dict[str, Any] | None = None
         self.log: list[str] = []
         self.rules = QUEUE_RULES
@@ -378,7 +386,7 @@ class Unattended(unittest.TestCase):
             raise self.lane_error
         return self.lanes, self.comments
 
-    def _default_branch(self, repo: str) -> str:
+    def _default_branch(self, repo: str, *, shared: bool = False) -> str:
         if self.default_branch is None:
             raise policy.PolicyReadError("the default branch could not be read")
         return self.default_branch
@@ -456,7 +464,7 @@ class Unattended(unittest.TestCase):
                 policy, "read_kill_switch", side_effect=lambda repo: kills.pop(0)
             ),
             mock.patch.object(
-                policy, "permission_reader", return_value=lambda login: "write"
+                policy, "permission_reader", side_effect=self.permission_reader
             ),
             mock.patch.object(policy, "read_demotion", return_value=self.demotion),
             mock.patch.object(
@@ -482,7 +490,7 @@ class Unattended(unittest.TestCase):
             mock.patch.object(
                 policy,
                 "_base_refusal",
-                side_effect=lambda *a: self.base_reads.append(a) or self.base_now,
+                side_effect=lambda *a, **k: self.base_reads.append(a) or self.base_now,
             ),
             *(
                 []
@@ -506,7 +514,9 @@ class Unattended(unittest.TestCase):
             mock.patch.object(
                 policy,
                 "entry_hold",
-                side_effect=lambda r, n, i, **_: self.holds.get(n),
+                side_effect=lambda r, n, i, **kw: (
+                    self.hold_reads.append(n) or self.hold_hook(kw) or self.holds.get(n)
+                ),
             ),
             mock.patch.object(merge, "_lane_evidence", side_effect=self._lane_evidence),
             mock.patch.object(
@@ -573,6 +583,8 @@ class Unattended(unittest.TestCase):
     def _dequeue(self, repo: str, branch: str, identity: str, **kwargs: Any) -> int:
         numbers = kwargs.get("numbers")
         self.log.append(f"dequeue:{sorted(numbers) if numbers is not None else 'all'}")
+        if self.dequeue_error is not None:
+            raise self.dequeue_error
         return 0
 
     def assert_no_merge(self, code: int) -> None:
@@ -627,6 +639,71 @@ class LaneMode(Unattended):
         self.assertEqual(
             out["unattended"]["rungCap"], {"value": None, "reason": "no-cap"}
         )
+
+    def shared_rules(self) -> None:
+        """A run cache holding the base's rules as an earlier candidate read
+        them (QUEUE_RULES)."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        merge.run_cache.put(merge.RULES_SECTION, "owner/repo|main", QUEUE_RULES)
+
+    def test_rules_changed_since_the_shared_read_hold_the_enqueue(self) -> None:
+        self.shared_rules()
+        extra = {
+            "type": "required_status_checks",
+            "parameters": {"required_status_checks": [{"context": "new-check"}]},
+        }
+        self.rules = [*QUEUE_RULES, extra]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            merge.UNATTENDED_REFUSED
+            + "the base branch's rules changed since the gate read them",
+            out["blockers"],
+        )
+
+    def test_rules_shared_for_another_landing_base_are_read_again(self) -> None:
+        # The gate read the rules of a landing base other than the pull
+        # request's base (a `rules_base` override): that base is the one
+        # read again before the enqueue.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        merge.run_cache.put(merge.RULES_SECTION, "owner/repo|trunk", QUEUE_RULES)
+        real = merge.branch_rules
+        patcher = mock.patch.object(
+            merge,
+            "branch_rules",
+            side_effect=lambda repo, branch, **kw: real(
+                repo, "trunk" if kw.get("shared", True) else branch, **kw
+            ),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        extra = {
+            "type": "required_status_checks",
+            "parameters": {"required_status_checks": [{"context": "new-check"}]},
+        }
+        self.rules = [*QUEUE_RULES, extra]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            merge.UNATTENDED_REFUSED
+            + "the base branch's rules changed since the gate read them",
+            out["blockers"],
+        )
+
+    def test_unchanged_shared_rules_still_enqueue(self) -> None:
+        self.shared_rules()
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
 
     def test_a_workflow_cap_below_the_rung_refuses(self) -> None:
         code, out = self.run_main(
@@ -1311,6 +1388,85 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "base-not-default:main")
         self.assertEqual(self.log, ["dequeue:[5]"])
+
+
+class TheQueueSweepIsSharedPerRun(Unattended):
+    """pr-merge.yml runs one gate process per candidate and names a file in
+    `BABYSIT_RUN_CACHE`: another queued entry one process judged and kept is
+    not judged again by the next within the bound, and nothing else is
+    shared. Each `run_main` here is one candidate's gate process."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.flight = policy.InFlight(False, "identity-entry-queued:#5")
+        self.queued = [PR, 5]
+
+    def candidates(self, count: int) -> None:
+        for _ in range(count):
+            code, _ = self.run_main()
+            self.assert_no_merge(code)
+
+    def test_a_kept_entry_is_judged_once_across_candidates(self) -> None:
+        self.candidates(3)
+        self.assertEqual(self.hold_reads.count(5), 1)
+        # A gate always judges its own entry.
+        self.assertEqual(self.hold_reads.count(PR), 3)
+        self.assertEqual(self.log, [])
+
+    def test_a_kept_entry_is_judged_again_past_the_bound(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        with mock.patch("babysit_run_cache.now", side_effect=lambda: clock[0]):
+            self.candidates(1)
+            clock[0] += merge.run_cache.MAX_AGE
+            self.candidates(1)
+            clock[0] += timedelta(seconds=1)
+            self.candidates(1)
+        self.assertEqual(self.hold_reads.count(5), 2)
+
+    def test_a_held_entry_is_judged_by_every_candidate(self) -> None:
+        self.holds = {5: "do-not-merge"}
+        self.candidates(2)
+        self.assertEqual(self.hold_reads.count(5), 2)
+        self.assertEqual(self.log, ["dequeue:[5]", "dequeue:[5]"])
+
+    def test_a_failed_dequeue_keeps_nothing(self) -> None:
+        self.queued = [PR, 5, 6]
+        self.holds = {6: "do-not-merge"}
+        self.dequeue_error = postmerge.PostMergeWriteError("dequeue #6: boom")
+        self.candidates(2)
+        self.assertEqual(self.hold_reads.count(5), 2)
+
+    def test_a_kept_entry_is_dated_by_its_oldest_shared_read(self) -> None:
+        # The hold read uses a permission another process shared 90 s before
+        # the judgment, so the entry is kept as of then and judged again by
+        # the candidate 31 s later.
+        self.permission_reader = policy.permission_reader
+        self.hold_hook = lambda kwargs: kwargs["permission"](OPERATOR_LOGIN) and None
+        start = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+        clock = [start - timedelta(seconds=90)]
+        with (
+            mock.patch("babysit_run_cache.now", side_effect=lambda: clock[0]),
+            mock.patch.object(
+                policy, "_get", return_value=(200, {"permission": "write"})
+            ),
+        ):
+            merge.run_cache.put("permission", f"owner/repo|{OPERATOR_LOGIN}", "write")
+            for seconds in (90, 121):
+                clock[0] = start - timedelta(seconds=90) + timedelta(seconds=seconds)
+                self.candidates(1)
+        self.assertEqual(self.hold_reads.count(5), 2)
+        self.assertEqual(self.log, [])  # kept both times, never dequeued
+
+    def test_without_the_file_every_candidate_judges_every_entry(self) -> None:
+        with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": ""}):
+            self.candidates(2)
+        self.assertEqual(self.hold_reads.count(5), 2)
 
 
 class GateReviewFixes(Unattended):

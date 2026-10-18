@@ -1,5 +1,45 @@
 # Changelog for the PR pipeline convention
 
+## 2.11.2 - 2026-10-18
+
+The broker's `workflow-modified` refusal has one exception, for a lane's post-run report job
+(`work-resolve-issue` `report-outcome`, `pr-unblock` `report-escalation`): it still mints when
+every main commit that changed the workflow is signed, GitHub-made, on a linear range and landed
+after run start, at most 50 minutes ago ([azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39)).
+The model step stays strict. `version` stays 2.
+
+## 2.11.1 - 2026-10-18
+
+The `resolve-issue` job passes `timeout-minutes: 25` to the write runner, down from 50, so a stuck
+run frees its concurrency slot sooner. Of the 40 most recent successful runs the job took 3.5
+minutes at the median, 10 at the 90th percentile and 15.4 at the maximum. `version` stays 2.
+
+## 2.11.0 - 2026-10-18
+
+[Changing this config](README.md#changing-this-config): a pull request that changes a lane and
+lists a not-verified item that could stop the lane checks that item live before it merges. An item
+only a merged run can exercise merges only once a tracked issue names the check and its owner; a
+line in the pull request body does not count. `version` stays 2.
+
+## 2.10.0 - 2026-10-18
+
+`resolve-issue` lists `scripts/new-changelog-fragment.sh` as a `verify-script`, so the issue lane
+can write a changelog fragment. The script now writes into the git work tree its caller stands
+in (exit 2 outside one), not its own parent, refuses a plugin name with a path in it and a linked
+`.changes` directory, and runs its own copy's `sync-shared-copies.sh` for `--carriers-of`, which
+reads the checkout's registry. The verify-script prompt now says Bash runs only the named wrappers, each as its own command, that the
+run inspects and changes files with Read, Grep, Glob, Edit and Write instead of `cd`, `;`, `&&`,
+pipes or interpreter one-liners, and names the `git-mv-rm` wrapper for a rename or removal when
+it is listed ([pr-run-activity.md](pr-run-activity.md#skill-activities)). `version` stays 2.
+
+## 2.9.1 - 2026-10-18
+
+`request-lane-token` also retries a broker 503 `github-rate-limited`, waiting exactly its
+`Retry-After` plus up to 20 seconds of jitter, and fails red at once, naming the limit kind and its
+reset time, when that wait would pass the 8-minute budget. A 503 `mint-unavailable` is never
+retried, and its failure says it is final
+([pr-run-activity.md](pr-run-activity.md#the-lane-token-broker)). `version` stays 2.
+
 ## 2.9.0 - 2026-10-17
 
 `work-resolve-issue.yml` runs at most three `resolve-issue` jobs at once. A `pick-slot` job takes

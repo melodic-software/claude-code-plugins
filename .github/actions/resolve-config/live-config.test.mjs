@@ -238,7 +238,8 @@ test("live config: resolve-issue may run the changelog fragment check", () => {
 // #7685 and #7686: one test file at a time, and git mv and git rm, in the checkout.
 // #7840 (owner decision 2026-10-17): skill-quality's two checks; check-skill.sh
 // runs each skill's test scripts, without the GitHub token.
-test("live config: resolve-issue may run the can't-fail scan, one test file, git mv or rm, the shared-copy sync and skill-quality's checks; no other activity lists verify-scripts", () => {
+// Runs 39092789214 and 39092790956: the lane was denied new-changelog-fragment.sh.
+test("live config: resolve-issue may run the can't-fail scan, one test file, git mv or rm, the shared-copy sync, skill-quality's checks and the fragment writer; no other activity lists verify-scripts", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["verify-scripts"], [
     "plugins/testing/skills/audit/scripts/cant-fail-scan.sh",
     "scripts/run-test-file.sh",
@@ -246,6 +247,7 @@ test("live config: resolve-issue may run the can't-fail scan, one test file, git
     "plugins/skill-quality/scripts/check-skill.sh",
     "plugins/skill-quality/scripts/check-evals-quality.sh",
     "scripts/sync-shared-copies.sh",
+    "scripts/new-changelog-fragment.sh",
   ]);
   const doc = parse(FILES.config);
   const others = Object.entries(doc.activities).filter(([name, a]) => name !== "resolve-issue" && a["verify-scripts"]);

@@ -41,6 +41,7 @@ from urllib.parse import quote
 
 import babysit_dependabot as dependabot
 import babysit_repo_config as repo_config
+import babysit_run_cache as run_cache
 from babysit_classify import (
     actor_kind,
     has_blocking_severity,
@@ -750,22 +751,35 @@ Permission = Callable[[str], str | None]
 
 
 def permission_reader(repo: str) -> Permission:
-    """A cached reader of a login's repository permission (`admin`, `write`, ...)."""
+    """A cached reader of a login's repository permission (`admin`, `write`, ...).
+    A permission read in the last `run_cache.MAX_AGE` by another gate process
+    of the run is reused; a failed read is never shared. Each answer notes
+    when it was read (`run_cache.note`)."""
     owner, name = _split_repo(repo)
-    cache: dict[str, str | None] = {}
+    cache: dict[str, tuple[str | None, datetime]] = {}
 
     def read(login: str) -> str | None:
         if login not in cache:
-            status, payload = _get(
-                f"repos/{owner}/{name}/collaborators/{login}/permission"
-            )
-            value = (
-                payload.get("permission")
-                if status == 200 and is_json_object(payload)
-                else None
-            )
-            cache[login] = value if isinstance(value, str) else None
-        return cache[login]
+            key = f"{owner}/{name}|{login.casefold()}"
+            shared = run_cache.get_dated("permission", key, run_cache.MAX_AGE)
+            if shared is not None and isinstance(shared[0], str):
+                cache[login] = shared
+            else:
+                at = run_cache.now()
+                status, payload = _get(
+                    f"repos/{owner}/{name}/collaborators/{login}/permission"
+                )
+                value = (
+                    payload.get("permission")
+                    if status == 200 and is_json_object(payload)
+                    else None
+                )
+                cache[login] = (value if isinstance(value, str) else None, at)
+                if isinstance(value, str):
+                    run_cache.put("permission", key, value, at)
+        value, at = cache[login]
+        run_cache.note(at)
+        return value
 
     return read
 
@@ -1358,10 +1372,13 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 LANE_CLASS = "C2"
 
 
-def _base_refusal(owner: str, name: str, node: Mapping[str, Any]) -> str | None:
+def _base_refusal(
+    owner: str, name: str, node: Mapping[str, Any], *, shared: bool = False
+) -> str | None:
     """`base-not-default:<ref>` when the pull request's base is not the
-    default branch, read fresh. A failed read raises, which refuses."""
-    branch = _default_branch(f"{owner}/{name}")
+    default branch, read fresh unless `shared` (`_default_branch`). A failed
+    read raises, which refuses."""
+    branch = _default_branch(f"{owner}/{name}", shared=shared)
     base = node.get("baseRefName")
     return None if base == branch else f"base-not-default:{base}"
 
@@ -1427,7 +1444,7 @@ def lane_eligibility(
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
-            refusal = _base_refusal(owner, name, node)
+            refusal = _base_refusal(owner, name, node, shared=True)
         if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
@@ -2092,7 +2109,24 @@ def entry_hold(
 # --- Composition ------------------------------------------------------------------------------
 
 
-def _default_branch(repo: str) -> str:
+DEFAULT_BRANCH_SECTION = "default-branch"
+# Repositories whose default branch this process took from the run cache;
+# `unattended_enqueue` reads it again before an enqueue.
+SHARED_DEFAULT_BRANCHES: set[str] = set()
+
+
+def _default_branch(repo: str, *, shared: bool = False) -> str:
+    """The default branch's name. `shared` takes one another gate process of
+    the run read within `run_cache.MAX_AGE`; every read is saved for them, a
+    failed one never."""
+    cached = (
+        run_cache.get(DEFAULT_BRANCH_SECTION, repo, run_cache.MAX_AGE)
+        if shared
+        else None
+    )
+    if isinstance(cached, str) and cached:
+        SHARED_DEFAULT_BRANCHES.add(repo)
+        return cached
     owner, name = _split_repo(repo)
     status, payload = _get(f"repos/{owner}/{name}")
     branch = (
@@ -2102,6 +2136,7 @@ def _default_branch(repo: str) -> str:
     )
     if not isinstance(branch, str) or not branch:
         raise PolicyReadError(f"{repo}: the default branch could not be read")
+    run_cache.put(DEFAULT_BRANCH_SECTION, repo, branch)
     return branch
 
 
@@ -2768,16 +2803,30 @@ def assess(
     )
     if enabled_authority(config) != authority:
         return stopped
+    # The acting login and the credential chokepoint depend on the
+    # credentials alone: a gate process of the same run with the same ones
+    # reuses a login read and a pass (`run_cache.credentials`).
+    held = run_cache.credentials()
     if acting_login is None:
-        try:
-            acting_login = read_acting_login()
-        except PolicyReadError:
-            acting_login = None
+        acting_login = run_cache.get("acting-login", held, None)
+        if not isinstance(acting_login, str):
+            try:
+                acting_login = read_acting_login()
+                run_cache.put("acting-login", held, acting_login)
+            except PolicyReadError:
+                acting_login = None
     resolved = resolve_identity(identity, acting_login, self_logins)
     details["identity"] = resolved.login
     if resolved.reason or resolved.login is None:
         return replace(stopped, reason=resolved.reason)
-    credentials = credential_refusal(resolved.login)
+    passed = f"{held}|{resolved.login.casefold()}"
+    credentials = (
+        None
+        if run_cache.get("identity-only", passed, None) is True
+        else credential_refusal(resolved.login)
+    )
+    if credentials is None:
+        run_cache.put("identity-only", passed, True)
     details["credentials"] = credentials or "identity-only"
     if credentials:
         return replace(stopped, reason=f"credentials:{credentials}")
@@ -2793,7 +2842,7 @@ def assess(
     # default branch only, so a merge into any other base would go unjudged.
     # An unreadable default branch is a stop (the identity's entries leave).
     try:
-        default = _default_branch(repo)
+        default = _default_branch(repo, shared=True)
     except PolicyReadError:
         return replace(stopped, reason=DEFAULT_BRANCH_UNREADABLE)
     if base_ref != default:
