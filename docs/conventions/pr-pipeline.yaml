@@ -118,11 +118,12 @@ activities:
     # branch, or stops and says why. The runner adds `--issue <number>`.
     skill: work-items:work
     args: --ci
-    # Validates the format of every changelog fragment before the skill
-    # reports done. A missing fragment is caught on the PR by ci-status
-    # (--check-required needs committed work, and the lane commits through
-    # the API, not in the checkout).
-    checks: ["scripts/check-changelog-fragments.sh --check"]
+    # Runs the diff-scoped lint checks a push would face (markdown,
+    # shellcheck, exec bits, changelog fragments, plugin validation) before
+    # the skill reports done, so the PR does not open red. --uncommitted
+    # checks the work tree as the commit the API would make, since the lane
+    # commits through the API, not in the checkout, from main's tip.
+    checks: ["scripts/check-affected.sh --uncommitted"]
     # Repository scripts the run may call with any arguments it chooses, to
     # check its work the way an issue's done-when says. Each runs from a
     # read-only copy of the base. A script that changes files, runs code from

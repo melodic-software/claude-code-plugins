@@ -178,7 +178,26 @@ test("a listed check gets a no-argument wrapper that runs the base copy against 
   );
 });
 
-for (const check of ["scripts/check-x.sh; rm -rf /", "../scripts/check-x.sh", "scripts/check-x.sh --x=$(id)", "plugins/a.sh"]) {
+// #8310: check-affected.sh passes shellcheck and markdownlint the configs beside
+// its copy; without them the lane's shellcheck reports what CI's does not.
+test("a listed check's copy carries the base's shellcheck and markdownlint configs", () => {
+  writeFileSync(path.join(base, ".shellcheckrc"), "external-sources=true\n");
+  writeFileSync(path.join(base, ".markdownlint-cli2.jsonc"), '{ "config": { "MD013": false } }\n');
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-x.sh --check"]);
+    assert.equal(status, 0);
+    assert.equal(readFileSync(path.join(checksDir, ".shellcheckrc"), "utf8"), "external-sources=true\n");
+    assert.equal(
+      readFileSync(path.join(checksDir, ".markdownlint-cli2.jsonc"), "utf8"),
+      '{ "config": { "MD013": false } }\n',
+    );
+  } finally {
+    rmSync(path.join(base, ".shellcheckrc"));
+    rmSync(path.join(base, ".markdownlint-cli2.jsonc"));
+  }
+});
+
+for (const check of ["scripts/check-x.sh; rm -rf /","../scripts/check-x.sh", "scripts/check-x.sh --x=$(id)", "plugins/a.sh"]) {
   test(`a check outside the allowed shape fails red: ${check}`, () => {
     const { status, stdout, args } = withChecks([check]);
     assert.notEqual(status, 0);

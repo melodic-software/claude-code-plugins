@@ -242,7 +242,8 @@ Each leaf declares:
   else an applying leaf that sets `prepare` fails red rather than running without it.
 - `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
   flags fixed, that a skill with an effect other than `read` may run. The write runner runs each
-  from the base copy against the checkout, so no head code runs
+  from the base copy against the checkout, so no head code runs, and tells the skill to fix what
+  a check reports before it reports done
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that a skill with an effect other than

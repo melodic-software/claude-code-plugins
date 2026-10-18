@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## 2.13.1 - 2026-10-18
+
+`work-resolve-issue` `resolve-issue` runs `scripts/check-affected.sh --uncommitted` in place of
+`scripts/check-changelog-fragments.sh --check`, so the run sees the lint failures a push would hit
+before its PR opens. `--uncommitted` checks the work tree as the commit the API would make,
+untracked files and file modes included, and leaves the checkout's HEAD and index as they were.
+The checks copy now carries the base's `.shellcheckrc` and `.markdownlint-cli2.jsonc`, which
+`check-affected.sh` lints with. A skill with `checks` is now told to fix what a check reports,
+commit the fix, and name anything it could not fix in its report. `version` stays 2.
+
 ## 2.13.0 - 2026-10-18
 
 `pr-run-activity-read.yml` gains an `output-mode` input. The default, `clean-tree`, keeps failing a

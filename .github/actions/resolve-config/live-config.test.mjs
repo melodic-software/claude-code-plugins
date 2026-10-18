@@ -247,10 +247,10 @@ test("live config: resolve-issue still needs the agent-ready label event after t
   );
 });
 
-// The run must pass the fragment format check before it reports done.
-test("live config: resolve-issue may run the changelog fragment check", () => {
+// #8310: the run checks its uncommitted work with check-affected before it reports done.
+test("live config: resolve-issue may run check-affected on its uncommitted work", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE).checks, [
-    "scripts/check-changelog-fragments.sh --check",
+    "scripts/check-affected.sh --uncommitted",
   ]);
 });
 
