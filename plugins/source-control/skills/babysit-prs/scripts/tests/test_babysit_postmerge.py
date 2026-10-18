@@ -2173,7 +2173,7 @@ class SharedAnswer(CheckCase):
                 self.assertIsNone(pm.read_shared(str(path)))
         path.write_text("not json", encoding="utf-8")
         self.assertIsNone(pm.read_shared(str(path)))
-        # A partial write, an unparseable or missing computedAt: not trusted.
+        # A partial write, an unparsable or missing computedAt: not trusted.
         whole = json.dumps(good)
         broken = {k: v for k, v in good["shared"].items() if k != "computedAt"}
         for text in (
