@@ -24,12 +24,12 @@ not ship, wrap or depend on them.
   (<https://github.com/vojtaholik/good-css/compare/92d436ba1937d1b1407c47e35abb3e199eaace2e...main>).
 - **As of**: 2026-10-18
 - **Recheck trigger**: a new upstream commit to `PRACTICES.md`, `scripts/check-css.mjs` or
-  `LICENSE` after `92d436ba1937`, or a Baseline status change for a technique the skill uses. Re-audit
+  `LICENSE` after <!-- spellchecker:off -->`92d436ba1937`<!-- spellchecker:on -->, or a Baseline status change for a technique the skill uses. Re-audit
   the affected rows below; a changed `check-css.mjs` or `LICENSE` means re-vendoring the copy and
   updating its pin in the drift script and this table.
 
-The 2026-10-18 re-audit moved the pin from `b645ab15b9fc` (`PRACTICES.md` blob `7d746e65`) to
-`92d436ba1937` (blob `b8a6cb6e`). The only change was to technique 7, `content-grid-with-breakouts`:
+The 2026-10-18 re-audit moved the pin from `b645ab15b9fc` (`PRACTICES.md` blob `7d746e65`)
+to <!-- spellchecker:off -->`92d436ba1937`<!-- spellchecker:on --> (blob `b8a6cb6e`). The only change was to technique 7, `content-grid-with-breakouts`:
 upstream now says to use the grid as the container of every page, whether or not anything goes wider
 than the content, and adds a rule to replace each centered `max-width` wrapper with it. The
 reference `layout.md` carries both; no credit changed.

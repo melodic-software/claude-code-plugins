@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Exit-code contract of scripts/check-good-css-drift.sh, network-free: the
 # script is sourced and fetch_blob_sha is replaced by a stub. The expected
-# SHAs are the upstream blob SHAs at pin 92d436ba recorded in
+# SHAs are the upstream blob SHAs at pin 92d436ba recorded in # spellchecker:disable-line
 # docs/upstream/good-css.md, not values read from the script.
 set -uo pipefail
 
