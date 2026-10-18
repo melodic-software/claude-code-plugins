@@ -452,7 +452,8 @@ page's INP counts once; `owner=1` on the owner's page; `lat:<route>` tap-to-answ
 bucket (upper edges 100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000 and 10000 ms, then above),
 measured with `performance.now()`; `rb:<route>` optimistic changes rolled back; `gap`, ms from the
 page showing again to its first good poll; `rep:<fp>` repeats; `inp` (ms, interaction type,
-component) and `lcp` (ms, component) from the vendored web-vitals build, or `inp=missing`,
+component) and `lcp` (ms, component) from the vendored web-vitals build, the component `-` where
+web-vitals names its target by a selector or an id instead (an element gone before it measured), or `inp=missing`,
 `lcp=missing`, `vitals=missing` where the browser API or the file is missing. What does not fit in
 500 characters waits for the next summary. Nothing is sampled.
 

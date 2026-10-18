@@ -803,9 +803,12 @@
       tel.vitals = true;
       tel.hasInp = !!(window.PerformanceEventTiming && "interactionId" in PerformanceEventTiming.prototype);
       tel.hasLcp = !!window.PerformanceObserver?.supportedEntryTypes?.includes("largest-contentful-paint");
-      const opts = { generateTarget: componentOf };
-      wv.onINP(m => { tel.inp = `${Math.round(m.value)}:${m.attribution?.interactionType || "-"}:${m.attribution?.interactionTarget || "-"}`; }, opts);
-      wv.onLCP(m => { tel.lcp = `${Math.round(m.value)}:${m.attribution?.target || "-"}`; }, opts);
+      // A target web-vitals did not get from componentOf (its INP targetSelector, its LCP `#id`) is sent as "-".
+      const named = new Set(), target = el => { const c = componentOf(el); named.add(c); return c; };
+      const only = t => named.has(t) ? t : "-";
+      const opts = { generateTarget: target };
+      wv.onINP(m => { tel.inp = `${Math.round(m.value)}:${m.attribution?.interactionType || "-"}:${only(m.attribution?.interactionTarget)}`; }, opts);
+      wv.onLCP(m => { tel.lcp = `${Math.round(m.value)}:${only(m.attribution?.target)}`; }, opts);
     };
     s.onerror = () => { tel.missing = "vitals=missing"; s.remove(); };
     document.head.append(s);

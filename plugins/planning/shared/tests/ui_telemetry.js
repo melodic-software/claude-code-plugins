@@ -8,7 +8,8 @@
 // where it has no line of its own until the batch that stopping the server writes.
 // No client-log body ever holds the guest's name, typed text, an answer comment or chat. Turning the switch off in
 // Help stops every send, across a reload. A 320 px phone logs a too-wide pane as a layout anomaly naming components
-// only. A page whose web-vitals file is missing still works and says so.
+// only. A page whose web-vitals file is missing still works and says so. A stub web-vitals whose attribution falls
+// back to a selector and an id gets "-" sent for both.
 //   node plugins/planning/shared/tests/ui_telemetry.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved V1 (feedback triage row 49: the signals, no pid on usage entries, the Off
@@ -170,6 +171,40 @@ async function main() {
     for (let i = 0; i < 40 && !bs.length; i++) { bs = parsed(wm.bodies).filter(b => b.kind === "summary"); if (!bs.length) await bare.waitForTimeout(100); }
     ok("without the web-vitals file the page works and its summary says vitals=missing", picked === "ok" && !(await bare.evaluate(() => !!window.webVitals)) && tokens(bs[0]?.message).vitals === "missing", `${picked} ${bs[0]?.message}`);
 
+    // ---------- a stub web-vitals whose attribution falls back to a selector and an id: neither is sent ----------
+    const ws = { bodies: [], foreign: [] };
+    const stub = await rec.open(A.localUrl);
+    await watch(stub, stub.context(), ws);
+    await stub.context().route("**/web-vitals.attribution.iife.js", r => r.fulfill({ status: 200, contentType: "text/javascript",
+      body: "window.webVitals = { onINP(cb, o) { window.stubInp = [cb, o]; }, onLCP(cb, o) { window.stubLcp = [cb, o]; } };" }));
+    await stub.reload();
+    await joinAs(stub, "Cy");
+    ok("the stub web-vitals is loaded", await until(stub, () => !!window.stubInp && !!window.stubLcp));
+    // What web-vitals passes when the element is gone: INP's targetSelector as interactionTarget, LCP's `#id` as target.
+    await stub.evaluate(() => {
+      window.stubInp[0]({ value: 120, attribution: { interactionType: "pointer", interactionTarget: "div#cy-secret-inp>button.answer", targetSelector: "div#cy-secret-inp>button.answer" } });
+      window.stubLcp[0]({ value: 900, attribution: { target: "#cy-secret-lcp", lcpEntry: { id: "cy-secret-lcp", element: null } } });
+    });
+    const stubSummary = async n => { // the page stays hidden, so it has no reconnect gap
+      await setVisibility(stub, "hidden");
+      let got = [];
+      for (let i = 0; i < 40 && got.length < n; i++) { got = parsed(ws.bodies).filter(b => b.kind === "summary"); if (got.length < n) await stub.waitForTimeout(100); }
+      return tokens(got[n - 1]?.message);
+    };
+    const fallback = await stubSummary(1);
+    ok("a selector or an id from web-vitals is sent as \"-\"", fallback.inp === "120:pointer:-" && fallback.lcp === "900:-", JSON.stringify(fallback));
+    // An element web-vitals hands to generateTarget is named by component: the class this test gives it.
+    await stub.evaluate(() => {
+      const host = document.createElement("div"), inner = document.createElement("span");
+      host.className = "vf-stub-probe"; host.id = "cy-secret-host"; host.append(inner); document.getElementById("app").append(host);
+      const t = window.stubInp[1].generateTarget(inner);
+      window.stubInp[0]({ value: 160, attribution: { interactionType: "keyboard", interactionTarget: t } });
+      window.stubLcp[0]({ value: 950, attribution: { target: window.stubLcp[1].generateTarget(host), lcpEntry: { id: "cy-secret-host", element: host } } });
+    });
+    const named = await stubSummary(2);
+    ok("  and an element web-vitals measured is named by its component", named.inp === "160:keyboard:vf-stub-probe" && named.lcp === "950:vf-stub-probe", JSON.stringify(named));
+    ok("  no body from that page holds the selector or an id", ws.bodies.length >= 2 && !ws.bodies.some(b => /cy-secret|#|>/.test(b)), ws.bodies.join(" | "));
+
     const pageErrs = rec.errors.filter(m => !/Failed to load resource/.test(m) && !m.includes(THROWN));
     ok("no other page error", pageErrs.length === 0, pageErrs.slice(0, 3).join(" | "));
     ok("no CSP violation", (await rec.cspViolations()).length === 0);
@@ -182,10 +217,11 @@ async function main() {
     s.share(A.dir, "stop");
     const batches = lines().filter(l => / summary-batch /.test(l));
     ok("  stopping the server writes them in one batch with no pid", batches.length === 1 && !batches[0].includes("pid="), batches.join(" | "));
-    // The guest's two summaries and the page without web-vitals' one; its pick makes three timed picks.
+    // The guest's two summaries, the page without web-vitals' one and the stub page's two; the second page's pick makes
+    // three timed picks; INP from the guest's page and the stub page.
     const sum = s.share(A.dir, "logs", "--summary", "--json");
-    ok("logs --summary counts the error, the latency and the rollback", sum.summaries.count === 3 && sum.errors.some(g => g.message.includes(THROWN) && g.count === 3)
-      && sum.latency["/api/pick"]?.actions === 3 && sum.latency["/api/pick"]?.rollbacks === 1 && sum.reconnect.count === 1 && sum.inp.pages === 1, JSON.stringify(sum));
+    ok("logs --summary counts the error, the latency and the rollback", sum.summaries.count === 5 && sum.errors.some(g => g.message.includes(THROWN) && g.count === 3)
+      && sum.latency["/api/pick"]?.actions === 3 && sum.latency["/api/pick"]?.rollbacks === 1 && sum.reconnect.count === 1 && sum.inp.pages === 2, JSON.stringify(sum));
   } catch (e) {
     ok("the suite ran to the end", false, String(e.stack || e).split("\n").slice(0, 3).join(" "));
   } finally {
