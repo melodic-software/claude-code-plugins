@@ -123,6 +123,7 @@
       "expectations": [
         "Reports the clean tree / absence of uncommitted .md files",
         "Offers a repo-wide sweep with prescribed defaults instead of only dead-ending",
+        "The offered defaults set no skill-imposed concurrency ceiling; backoff only on an actual rate-limit error",
         "Does NOT start the repo-wide sweep without explicit user confirmation",
         "On decline or no answer, falls back to the friendly no-op"
       ]
