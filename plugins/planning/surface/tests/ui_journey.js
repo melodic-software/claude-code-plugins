@@ -213,14 +213,27 @@ async page => { // the user journey in order on one page, no reload after phase 
     await tap("#notice [data-go]", 300);
     ok("Open shows Claude's reply in Notes", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && /Yes, on track/.test(document.getElementById("fbody").innerText)));
     ok("the notice moves on to Round 2 added, and Go names the question it opens", /Round 2 added: Q6, Q7/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go to Q6", await text("#notice"));
+    // #7755: the timestamp and separator dot on Claude's blue note reach 4.5:1 in the light theme
+    await page.emulateMedia({colorScheme: "light"}); await page.waitForTimeout(100);
+    const noteRatios = await page.$$eval(".nmsg.claude .hl time, .nmsg.claude .hl .dot", els => els.map(el => {
+      const rgb = s => s.match(/[\d.]+/g).map(Number), lum = c => { const v = c.slice(0, 3).map(x => { x /= 255; return x <= .03928 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return .2126 * v[0] + .7152 * v[1] + .0722 * v[2]; };
+      let b = el, bg = null;
+      while (b && !bg) { const c = rgb(getComputedStyle(b).backgroundColor); if (c.length < 4 || c[3] > 0) bg = c; else b = b.parentElement; }
+      const l1 = lum(rgb(getComputedStyle(el).color)), l2 = lum(bg);
+      return +((Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05)).toFixed(2);
+    }));
+    ok("Notes timestamps and separator dots on Claude's note have at least 4.5:1 contrast in the light theme", noteRatios.length >= 2 && noteRatios.every(r => r >= 4.5), JSON.stringify(noteRatios));
     await page.click("#flyClose");
     await page.click("#railBtn"); await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
     ok("the new round's group is expanded and highlighted", await page.$eval('.sec[data-key="g:g3"]', el => el.dataset.collapsed === "false" && el.classList.contains("fresh")) && await dot("Q6"));
     const chip = await page.$$eval(".qbtn .chip.hot", els => els.filter(el => !/after your answer/.test(el.textContent)).map(el => ({t: el.textContent, title: el.title}))).catch(() => []);
-    ok("a carried question's chip reads 'carried N round(s)', never 'open open', and explains itself", chip.length > 0 && chip.every(c => /^carried \d+ rounds?$/.test(c.t) && !/open open/.test(c.t) && c.title.length > 0), JSON.stringify(chip));
+    ok("a carried question's chip reads 'asked N round(s) ago, unanswered' without its tooltip, never 'open open', and still explains itself", chip.length > 0 && chip.every(c => /^asked \d+ rounds? ago, unanswered$/.test(c.t) && !/open open/.test(c.t) && c.title.length > 0), JSON.stringify(chip));
     ok("Q3's heads-up reply after its answer puts the after-answer chip on its card", /Replied after your answer/.test(await text('.qbtn[data-q="Q3"]')), await text('.qbtn[data-q="Q3"]'));
     ok("an entry whose text says added highlights no section unless it added questions", await dot("Q1") && !(await page.$eval('.sec[data-key="g:g1"]', el => el.classList.contains("fresh"))));
-    await page.selectOption("#filter", "answered"); await tap("#railBtn", 200);
+    await page.selectOption("#filter", "answered"); await page.waitForTimeout(200);
+    const ansSecs = await page.$$eval(".rail-list .sec", els => els.map(el => ({c: el.dataset.collapsed, n: [...el.querySelectorAll(".qbtn")].filter(b => b.offsetParent).length})));
+    ok("the Answered filter expands every group that holds a match and shows its questions", ansSecs.length > 0 && ansSecs.every(s => s.c === "false" && s.n > 0), JSON.stringify(ansSecs));
+    await tap("#railBtn", 200);
     await tap("#notice [data-go]", 400);
     ok("Go resets the filter, shows the rail and says so", await page.$eval("#filter", el => el.value) === "all" && !(await page.$eval("#layout", el => el.classList.contains("norail"))) && /Showing all to reveal Q6/.test(await text("#toast")), await text("#toast"));
     ok("Go selects Q6 and moves focus to its heading", await sel() === "Q6" && await focused() === "qhead", await sel() + " " + await focused());
@@ -230,7 +243,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the header counts commitments on accepted questions only", (await text("#assumeCount")) === "5 to confirm", await text("#assumeCount"));
     const inView = s => page.$eval(s, el => { const r = el.getBoundingClientRect(), v = document.getElementById("dscroll").getBoundingClientRect(); return r.top >= v.top - 2 && r.top < v.bottom; }).catch(() => false);
     await pick("Q6");
-    ok("an accepted card with unconfirmed commitments links to its To confirm entries", (await text('[data-toconfirm="Q6"]')) === "Open in To confirm");
+    ok("an accepted card with unconfirmed commitments links to its To confirm entries", (await text('[data-toconfirm="Q6"]')) === "Review commitments to confirm");
     await tap('[data-toconfirm="Q6"]', 400);
     ok("the card link opens the summary scrolled to Q6's entries", await sel() === "summary" && await inView("#tc-Q6"));
     await tap("#assumeCount", 400);
