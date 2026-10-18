@@ -134,7 +134,7 @@ to expand it from. Basis: the plugins reference,
 
 - Evidence captured for a pull request: /source-control:pull-request.
 - A UI change driven and checked: /verification:confirm.
-- A flow driven here turned into a produced, QC-checked demo video for a pull request: /playwright:demo-video.
+- A flow driven here turned into a produced, quality-control-checked demo video for a pull request: /playwright:demo-video.
 
 ## Gotchas
 
