@@ -1645,7 +1645,7 @@
     const msTour = msItem("help", "Show me around"); msTour._d.textContent = "A one-minute tour";
     const msIntro = msItem("doc", "Why you're here");
     const msReport = msItem("alert", "Report a problem"); msReport._d.textContent = "Tell the host something is broken";
-    const msRecords = msItem("doc", "What this page records"); msRecords._d.textContent = "And the switch to turn it off";
+    const msRecords = msItem("doc", "What this page records");
     moreSheet.append(msHead, msList);
 
     // ---------- Triage 4: an optional first-visit tour, skippable, re-opened from Help; the `tour` pref remembers it ----------
