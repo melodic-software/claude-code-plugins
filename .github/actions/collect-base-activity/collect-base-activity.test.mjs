@@ -13,6 +13,14 @@ import { after, before, test } from "node:test";
 const ACTION = new URL("./action.yml", import.meta.url);
 const COMMIT_TOOL = "mcp__github_file_ops__commit_files";
 const COMMIT_SENTENCE = "commit every repository file you changed";
+// commit_files takes each file's mode from disk, so a skill that commits
+// through it marks new scripts executable first.
+const CHMOD_RULE = "Bash(chmod +x *)";
+const CHMOD_SENTENCE =
+  "run chmod +x on every new or changed file that starts with #! or ends in .sh, because the commit takes each file's mode from disk, then commit";
+
+// The Bash rules other than the commit grant's chmod rule.
+const wrapperRules = (allowed) => allowed.filter((rule) => rule.startsWith("Bash") && rule !== CHMOD_RULE);
 
 // The `run: |` block of the step with `id: skill`, dedented.
 function skillScript() {
@@ -107,6 +115,15 @@ test("a writing skill that can commit gets the commit tool and the instruction t
   assert.equal(status, 0);
   assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
   assert.ok(args.includes(COMMIT_SENTENCE), args);
+  assert.ok(allowed.includes(CHMOD_RULE), allowed.join(" | "));
+  assert.ok(args.includes(CHMOD_SENTENCE), args);
+});
+
+test("a writing skill that cannot commit gets no chmod rule and no chmod instruction", () => {
+  const { status, args, allowed } = stage({ CAN_COMMIT: "false" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.includes(CHMOD_RULE), allowed.join(" | "));
+  assert.ok(!args.includes("chmod"), args);
 });
 
 test("prepare: merge-base leaves out the commit tool and the instruction to commit", () => {
@@ -115,6 +132,9 @@ test("prepare: merge-base leaves out the commit tool and the instruction to comm
   assert.ok(!allowed.includes(COMMIT_TOOL), allowed.join(" | "));
   assert.ok(!args.includes(COMMIT_TOOL), args);
   assert.ok(!args.includes(COMMIT_SENTENCE), args);
+  // The runner commits the staged index, whose modes the merge set.
+  assert.ok(!allowed.includes(CHMOD_RULE), allowed.join(" | "));
+  assert.ok(!args.includes("chmod"), args);
   // Still a writing skill: it edits and stages its resolution.
   assert.match(args, /--allowedTools "Skill\(source-control:resolve-conflicts\),Read\([^)]*\),Edit,Write,Agent,Edit\(/);
   assert.ok(args.includes("--disallowedTools \"WebFetch,WebSearch\""), args);
@@ -142,7 +162,7 @@ test("a listed check gets a no-argument wrapper that runs the base copy against 
   assert.equal(status, 0);
   const wrapper = path.join(checksDir, "bin", "check-x");
   assert.deepEqual(
-    allowed.filter((rule) => rule.startsWith("Bash")),
+    wrapperRules(allowed),
     [`Bash(${wrapper})`],
   );
   assert.ok(args.includes(wrapper), "the system prompt names the check");
@@ -201,7 +221,7 @@ test("a listed verify-script gets one wrapper rule on a read-only copy that runs
   assert.equal(status, 0);
   const copy = path.join(verifyDir, VERIFY);
   assert.deepEqual(
-    allowed.filter((rule) => rule.startsWith("Bash")),
+    wrapperRules(allowed),
     [`Bash(${wrapper} *)`],
   );
   assert.ok(denied.includes(`Edit(/${verifyDir}/**)`) && denied.includes(`Write(/${verifyDir}/**)`), denied.join(" | "));
@@ -219,8 +239,11 @@ test("a listed verify-script gets one wrapper rule on a read-only copy that runs
 });
 
 // A chained `; echo "$?"` needs approval the dontAsk lane cannot give, so the
-// wrapper reports the script's exit status itself and the prompt says so.
-const RUN_ALONE = "Run each verification wrapper as its own command, not chained to another; it prints the script's exit status.";
+// wrapper reports the script's exit status itself and the prompt says so. The
+// same sentence steers the run off the compound commands, pipes and
+// interpreter one-liners the lane denied in runs 39092789214 and 39092790956.
+const RUN_ALONE =
+  "Bash runs only the wrappers named in these instructions, each as its own command (a verification wrapper prints the script's exit status): use Read, Grep and Glob to inspect files and Edit or Write to change them, never cd, ;, &&, a pipe or an interpreter one-liner.";
 test("the verify-script wrapper prints the script's exit status and exits with it", () => {
   writeFileSync(path.join(base, "plugins", "vtest", "scripts", "fails.sh"), "echo failing\nexit 3\n");
   const { status, args, verifyDir } = withVerify([VERIFY, "plugins/vtest/scripts/fails.sh"]);
@@ -232,6 +255,44 @@ test("the verify-script wrapper prints the script's exit status and exits with i
   assert.equal(run.stderr, "exit status: 3\n");
 });
 
+// check-skill.sh runs each skill's scripts/*.test.sh, and the runner's
+// /home/runner/.claude is read-only (#8027), so its wrapper alone gives the
+// script a fresh, writable HOME and CLAUDE_CONFIG_DIR; another verify-script
+// keeps the caller's HOME.
+test("only the check-skill.sh wrapper runs with a fresh, writable HOME and CLAUDE_CONFIG_DIR", () => {
+  const skillQuality = path.join(base, "plugins", "skill-quality", "scripts");
+  mkdirSync(skillQuality, { recursive: true });
+  writeFileSync(
+    path.join(skillQuality, "check-skill.sh"),
+    'ls -A "$HOME" "$CLAUDE_CONFIG_DIR" && touch "$CLAUDE_CONFIG_DIR/w" "$HOME/w" && echo "home=$HOME config=$CLAUDE_CONFIG_DIR"\n',
+  );
+  mkdirSync(path.join(base, "plugins", "vtest", "scripts"), { recursive: true });
+  writeFileSync(path.join(base, "plugins", "vtest", "scripts", "home.sh"), 'echo "home=$HOME config=$CLAUDE_CONFIG_DIR"\n');
+  const { status, verifyDir } = withVerify([
+    VERIFY,
+    "plugins/vtest/scripts/home.sh",
+    "plugins/skill-quality/scripts/check-skill.sh",
+  ]);
+  assert.equal(status, 0);
+  const callerHome = path.join(root, "caller-home");
+  mkdirSync(callerHome, { recursive: true });
+  const env = { ...process.env, HOME: callerHome, CLAUDE_CONFIG_DIR: path.join(callerHome, ".claude") };
+  const runs = [1, 2].map(() => spawnSync(path.join(verifyDir, "bin", "check-skill"), [], { cwd: root, env, encoding: "utf8" }));
+  const homes = runs.map((run) => {
+    assert.equal(run.status, 0, run.stderr);
+    const [, home, config] = /home=(\S+) config=(\S+)\n$/.exec(run.stdout) ?? [];
+    assert.ok(home && !home.startsWith(callerHome) && !home.startsWith(root), run.stdout);
+    assert.equal(config, path.join(home, ".claude"));
+    // ls -A printed only the .claude entry of a HOME that held nothing else.
+    assert.equal(run.stdout, `${home}:\n.claude\n\n${config}:\nhome=${home} config=${config}\n`);
+    return home;
+  });
+  assert.notEqual(homes[0], homes[1], "each run gets its own directory");
+  const other = spawnSync(path.join(verifyDir, "bin", "home"), [], { cwd: root, env, encoding: "utf8" });
+  assert.equal(other.status, 0, other.stderr);
+  assert.equal(other.stdout, `home=${callerHome} config=${path.join(callerHome, ".claude")}\n`);
+});
+
 test("the verify-script wrapper refuses a path outside the checkout", () => {
   const { status, dir, wrapper } = withVerify([VERIFY]);
   assert.equal(status, 0);
@@ -241,6 +302,25 @@ test("the verify-script wrapper refuses a path outside the checkout", () => {
     assert.equal(run.stdout, "", `${arg} ran the script`);
     assert.match(run.stderr, /refused: .* is outside the checkout/, arg);
   }
+});
+
+// The wrapper unsets the GitHub token in the script's own environment. This
+// does not hide it from an ancestor's /proc/<pid>/environ.
+test("the verify-script wrapper runs the script without GH_TOKEN or GITHUB_TOKEN and keeps the rest of the environment", () => {
+  mkdirSync(path.join(base, "plugins", "vtest", "scripts"), { recursive: true });
+  writeFileSync(
+    path.join(base, "plugins", "vtest", "scripts", "env.sh"),
+    'echo "GH_TOKEN=${GH_TOKEN-unset} GITHUB_TOKEN=${GITHUB_TOKEN-unset} KEPT=${KEPT-unset}"\n',
+  );
+  const { status, verifyDir } = withVerify([VERIFY, "plugins/vtest/scripts/env.sh"]);
+  assert.equal(status, 0);
+  const run = spawnSync(path.join(verifyDir, "bin", "env"), [], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, GH_TOKEN: "fake-gh", GITHUB_TOKEN: "fake-github", KEPT: "yes" },
+  });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, "GH_TOKEN=unset GITHUB_TOKEN=unset KEPT=yes\n");
 });
 
 // pr-run-activity.md, "Skill activities": the issue lane lists the repository's
@@ -280,11 +360,37 @@ test("the lane tools get wrapper rules, and the commit grant gains delete_files"
   const { status, allowed, verifyDir } = withLaneTools();
   assert.equal(status, 0);
   assert.deepEqual(
-    allowed.filter((rule) => rule.startsWith("Bash")),
+    wrapperRules(allowed),
     [`Bash(${path.join(verifyDir, "bin", "run-test-file")} *)`, `Bash(${path.join(verifyDir, "bin", "git-mv-rm")} *)`],
   );
   assert.ok(allowed.includes("mcp__github_file_ops__delete_files"), allowed.join(" | "));
   assert.ok(!allowed.some((rule) => /^Bash\((python3|bash|node|git)[ )]/.test(rule)), allowed.join(" | "));
+});
+
+// The issue lane lists skill-quality's two checks (#7840). check-skill.sh runs
+// each skill's scripts/*.test.sh from the checkout, so a fixture skill whose
+// test prints the tokens and fails shows what that test saw.
+const SKILL_TOOLS = ["plugins/skill-quality/scripts/check-skill.sh", "plugins/skill-quality/scripts/check-evals-quality.sh"];
+test("skill-quality's checks get wrapper rules, and check-skill runs a skill's test scripts without the GitHub token", () => {
+  spawnSync("cp", ["-R", new URL("plugins/skill-quality", REPO).pathname, path.join(base, "plugins")]);
+  const { status, allowed, verifyDir, workspace } = withVerify(SKILL_TOOLS);
+  assert.equal(status, 0);
+  const bin = (name) => path.join(verifyDir, "bin", name);
+  assert.deepEqual(
+    wrapperRules(allowed),
+    [`Bash(${bin("check-skill")} *)`, `Bash(${bin("check-evals-quality")} *)`],
+  );
+  const skill = path.join(workspace, "skills", "demo");
+  mkdirSync(path.join(skill, "scripts"), { recursive: true });
+  writeFileSync(path.join(skill, "SKILL.md"), "---\ndescription: Demo skill. Use when 'demo'.\n---\n\n# Demo\n");
+  writeFileSync(path.join(skill, "scripts", "token.test.sh"), 'echo "seen=${GH_TOKEN-unset},${GITHUB_TOKEN-unset}"\nexit 1\n');
+  const run = spawnSync(bin("check-skill"), ["skills"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, GH_TOKEN: "fake-gh", GITHUB_TOKEN: "fake-github" },
+  });
+  assert.match(run.stdout + run.stderr, /script test failed: scripts\/token\.test\.sh/);
+  assert.match(run.stdout + run.stderr, /seen=unset,unset/);
 });
 
 test("the prompt names run-test-file as the way to run a test and says compound cd commands are refused", () => {
@@ -301,6 +407,37 @@ test("without run-test-file in the list the prompt names no test entry", () => {
   const { status, args } = withVerify([VERIFY]);
   assert.equal(status, 0);
   assert.ok(!args.includes("Run a test file"), args);
+});
+
+test("the prompt names git-mv-rm as the way to rename or delete a file, only when it is listed", () => {
+  const lane = withLaneTools();
+  assert.equal(lane.status, 0);
+  assert.ok(lane.args.includes(`Rename or delete a file with ${path.join(lane.verifyDir, "bin", "git-mv-rm")}.`), lane.args);
+  const bare = withVerify([VERIFY]);
+  assert.equal(bare.status, 0);
+  assert.ok(!bare.args.includes("Rename or delete"), bare.args);
+});
+
+// The issue lane lists new-changelog-fragment.sh: from the read-only copy of
+// scripts/, it must write the fragment into the checkout it runs in.
+test("new-changelog-fragment writes a fragment into the checkout from the read-only copy", () => {
+  const files = ["scripts/new-changelog-fragment.sh", "scripts/lib/changelog-fragments.sh", "scripts/lib/read-list.sh"];
+  for (const file of files) {
+    mkdirSync(path.join(base, path.dirname(file)), { recursive: true });
+    writeFileSync(path.join(base, file), readFileSync(new URL(file, REPO)));
+  }
+  const { status, verifyDir, workspace } = withVerify([files[0]]);
+  assert.equal(status, 0);
+  spawnSync("git", ["-C", workspace, "init", "-q"]);
+  spawnSync("git", ["-C", workspace, "symbolic-ref", "HEAD", "refs/heads/fix/x"]);
+  mkdirSync(path.join(workspace, "plugins", "alpha", ".claude-plugin"), { recursive: true });
+  writeFileSync(path.join(workspace, "plugins", "alpha", ".claude-plugin", "plugin.json"), '{"name":"alpha"}\n');
+  mkdirSync(path.join(workspace, "scripts"), { recursive: true });
+  writeFileSync(path.join(workspace, "scripts", "fragment-plugins.txt"), "alpha\n");
+  const run = spawnSync(path.join(verifyDir, "bin", "new-changelog-fragment"), ["alpha", "patch"], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^\.changes\/alpha\/fix-x-[0-9a-f]{8}\.md\n$/);
+  assert.equal(readFileSync(path.join(workspace, run.stdout.trim()), "utf8"), "---\nbump: patch\n---\n\n");
 });
 
 test("run-test-file runs an in-checkout test file by its runner and prints the exit status", () => {
@@ -528,7 +665,7 @@ test("a script the list does not name gets no rule, even beside a listed one", (
 test("without verify-scripts no copy or rule is made", () => {
   const { status, allowed, verifyDir } = withVerify(undefined);
   assert.equal(status, 0);
-  assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
+  assert.ok(wrapperRules(allowed).length === 0, allowed.join(" | "));
   assert.throws(() => statSync(verifyDir));
 });
 
@@ -613,7 +750,7 @@ test("prepare: review-threads keeps the commit tool and adds only the review-thr
   assert.ok(args.includes(COMMIT_SENTENCE), args);
   const tool = path.join(feedbackDir, "bin", "feedback-thread");
   assert.deepEqual(
-    allowed.filter((rule) => rule.startsWith("Bash")),
+    wrapperRules(allowed),
     [`Bash(${tool} *)`],
   );
   for (const dir of [feedbackDir, feedbackState]) {
@@ -653,7 +790,7 @@ test("prepare: dependency-review reads the context file and returns the verdict 
   assert.equal(status, 0);
   assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
   assert.ok(allowed.includes(`Read(/${dependencyDir}/**)`), allowed.join(" | "));
-  assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
+  assert.ok(wrapperRules(allowed).length === 0, allowed.join(" | "));
   assert.ok(denied.includes(`Edit(/${dependencyDir}/**)`) && denied.includes(`Write(/${dependencyDir}/**)`), denied.join(" | "));
   const schema = JSON.parse(/--json-schema '([^']+)'/.exec(args)[1]);
   assert.deepEqual(schema.properties.verdict.enum, ["merge", "fix", "close", "escalate"]);
@@ -737,7 +874,7 @@ test("web-access with any domain allows the read-docs scripts and points their f
   const { status, allowed, denied, args, jobEnv, env } = withWebAccess({ enabled: true, domains: "any" });
   assert.equal(status, 0);
   // Both the bare and the double-quoted path, since a rule matches the path as written.
-  assert.deepEqual(allowed.filter((rule) => rule.startsWith("Bash(")), readDocsRules(env));
+  assert.deepEqual(wrapperRules(allowed), readDocsRules(env));
   // The skill's bare Edit and Write must not reach the scripts its rules run.
   assert.deepEqual(denied, [`Edit(/${env.DOCS_DIR}/**)`, `Write(/${env.DOCS_DIR}/**)`]);
   for (const name of ["fetch-docs.sh", "docs-cache.sh", "html2md.py"]) {
@@ -761,7 +898,7 @@ for (const [name, webAccess, overrides] of [
       ? withWebAccess(webAccess, overrides)
       : stage({ SKILL: "work-items:work" });
     assert.equal(status, 0);
-    assert.ok(!allowed.some((rule) => rule.startsWith("Bash(")), allowed.join(" | "));
+    assert.ok(wrapperRules(allowed).length === 0, allowed.join(" | "));
     assert.equal(jobEnv, "");
   });
 }
@@ -769,7 +906,7 @@ for (const [name, webAccess, overrides] of [
 test("a docs script copy path a rule cannot carry fails the stage", () => {
   const { status, allowed } = withWebAccess({ enabled: true, domains: "any" }, { DOCS_DIR: path.join(root, "has space") });
   assert.notEqual(status, 0);
-  assert.ok(!allowed.some((rule) => rule.startsWith("Bash(")), allowed.join(" | "));
+  assert.ok(wrapperRules(allowed).length === 0, allowed.join(" | "));
 });
 
 test("web-access with a domain list allows a fetch to those domains only", () => {
