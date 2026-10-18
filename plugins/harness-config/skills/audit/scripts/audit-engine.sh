@@ -17,8 +17,9 @@
 #
 # WHERE ITS CRITERIA COME FROM. The upstream pages, read every run. The engine
 # asks the plugin's shared fetcher (scripts/fetch-docs.sh) to read the docs index
-# (llms.txt) and each page it needs (settings-reference, env-vars, and the pages
-# settings-reference links to that a check reads, such as hooks) from a link in
+# (llms.txt) and each page it needs (settings-reference, env-vars, the mods
+# overview, and the pages settings-reference links to that a check reads, such
+# as hooks) from a link in
 # that index, verbatim, into a temp directory it removes on exit (trap). It reads
 # through the docs cache with --max-age 0, so every page is asked of the server
 # and a failed fetch is unread, never a stale cached copy. The
@@ -28,7 +29,8 @@
 # bullet lists (effortLevel, disableDeepLinkRegistration and every other such
 # key), the fallbackModel chain length, and the version a key requires are taken
 # from settings-reference; env-var documentation status from env-vars; the hook
-# events a settings or plugin hook may name from the hooks page. A row
+# events a settings or plugin hook may name from the hooks page; the sentences
+# the two mod rows quote from the mods overview. A row
 # resting on a page that was not read is not-inspectable, never clean. The
 # engine also runs `claude --version` and records the result, and searches the
 # installed claude binary for the literal names of undocumented keys. The
@@ -642,8 +644,9 @@ unsupplied() {
     [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$s.md" ]] || printf '%s\n' "$s"
   done
 }
+MODS_SLUG="plugins/mods/overview"
 DOCS_WANT=()
-while IFS= read -r slug; do DOCS_WANT+=("$slug"); done < <(unsupplied settings-reference env-vars)
+while IFS= read -r slug; do DOCS_WANT+=("$slug"); done < <(unsupplied settings-reference env-vars "$MODS_SLUG")
 DOCS_INDEX_JSON="$(jq -cn --arg url "$DOCS_INDEX_URL" \
   '{url:$url,source:"",bytes:0,state:"not-needed",reason:"",sha256:null,content_type:null,lines:0,retrieved:null}')"
 progress docs "upstream pages"
@@ -672,6 +675,7 @@ acquire_page() {
     [[ "$(jq -r '.state' <<<"$rec")" == read ]] && raw="$DOCS_TMP/fetch/$slug.md"
   fi
   if [[ -n "$raw" ]]; then
+    mkdir -p "$(dirname "$DOCS_TMP/$slug.md")"
     tr -d "$DOC_CNTRL" <"$raw" >"$DOCS_TMP/$slug.md"
     PAGE_FILE[$slug]="$DOCS_TMP/$slug.md"
   fi
@@ -679,8 +683,27 @@ acquire_page() {
 }
 acquire_page settings-reference
 acquire_page env-vars
+acquire_page "$MODS_SLUG"
 SR="${PAGE_FILE["settings-reference"]:-}"
 EV="${PAGE_FILE["env-vars"]:-}"
+
+# The mod rows quote the mods overview's own sentence on a behavior, read this
+# run, and never state that behavior themselves. MODS_SRC names the page and the
+# date its bytes were fetched (the run date for a --docs-dir page).
+MP="${PAGE_FILE["$MODS_SLUG"]:-}"
+MODS_SRC="$(jq -r --arg s "$MODS_SLUG" --arg today "$(date -u +%Y-%m-%d)" \
+  'first(.[] | select(.slug == $s)) | "\(.url_or_path), fetched \(.retrieved // $today | .[0:10])"' <<<"$DOCS_PAGES_JSON")"
+# mods_quote <needle>...: the first line of the mods overview holding every
+# needle, leading whitespace dropped, quoted with its source; empty when the
+# page was not read or no line holds them all.
+mods_quote() {
+  [[ -n "$MP" ]] || return 0
+  local q
+  q="$(awk 'BEGIN { n = ARGC - 2; ARGC = 2 }
+    FNR == 1 { for (i = 1; i <= n; i++) nd[i] = ARGV[i + 1] }
+    { for (i = 1; i <= n; i++) if (index($0, nd[i]) == 0) next; sub(/^[ \t]+/, ""); print; exit }' "$MP" "$@")"
+  [[ -n "$q" ]] && printf 'the mods overview (%s) says: "%s"' "$MODS_SRC" "$q"
+}
 
 # The CLI. A seam that is set but names nothing is unreadable, never a fall
 # back to the claude on PATH.
@@ -1582,14 +1605,18 @@ for lever in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization
     row D hook-levers ok none "settings" "lever-unset:$lever" "$lever unset in every scope read" -
   fi
 done
-# Built-in mods and the hook levers: the row states the result and points at the
-# section to recheck it. A set disableAllHooks is where an operator may believe
-# every mod is off, so only then is it a finding.
-BUILTIN_MODS_MSG="disableAllHooks, --bare and --safe-mode do not stop Claude Code's built-in mods; each built-in mod is turned off its own way: https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code"
-if [[ "${LEVER_DISABLE_ALL:-0}" != "0" ]]; then
-  row D builtin-mods-survive-levers finding info "settings" "builtin-mods-survive-levers" "disableAllHooks is set, so an operator may believe every mod is off. $BUILTIN_MODS_MSG" "disableAllHooks"
+# Built-in mods and the hook levers: the row quotes the page's sentence naming
+# the three levers and built-in mods, and points at the section. A set
+# disableAllHooks is where an operator may believe every mod is off, so only then
+# is it a finding. With no such sentence read this run, the row is unconfirmed.
+BUILTIN_MODS_PTR="https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code"
+BUILTIN_MODS_Q="$(mods_quote "built-in mods" disableAllHooks --bare --safe-mode)"
+if [[ -z "$BUILTIN_MODS_Q" ]]; then
+  row D builtin-mods-survive-levers not-inspectable none "settings" "builtin-mods-survive-levers" "what disableAllHooks, --bare and --safe-mode do to built-in mods could not be confirmed: the mods overview was not read this run or no longer holds a sentence on it; check $BUILTIN_MODS_PTR" -
+elif [[ "${LEVER_DISABLE_ALL:-0}" != "0" ]]; then
+  row D builtin-mods-survive-levers finding info "settings" "builtin-mods-survive-levers" "disableAllHooks is set, so an operator may believe every mod is off; $BUILTIN_MODS_Q See $BUILTIN_MODS_PTR" "disableAllHooks"
 else
-  row D builtin-mods-survive-levers ok none "settings" "builtin-mods-survive-levers" "$BUILTIN_MODS_MSG" -
+  row D builtin-mods-survive-levers ok none "settings" "builtin-mods-survive-levers" "$BUILTIN_MODS_Q See $BUILTIN_MODS_PTR" -
 fi
 
 # Mod-plane keys are reported, never judged, except where a scope Claude Code
@@ -1899,13 +1926,20 @@ if [[ $PROJECT_OK -eq 1 ]]; then
     fi
   done < <(jqf "$SETTINGS" -r '(.env // {}) | keys_unsorted[] | [.] | @tsv')
 fi
-# CLAUDE_CODE_ENABLE_FUNCTION_HOOKS is a dead mods switch at any value; the row
-# points at the section to recheck it.
+# CLAUDE_CODE_ENABLE_FUNCTION_HOOKS is treated as a dead mods switch at any
+# value. The row quotes the page's sentence on the variable and points at the
+# section; with no such sentence read this run, the row is unconfirmed.
+FUNCTION_HOOKS_PTR="https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off"
+FUNCTION_HOOKS_Q="$(mods_quote CLAUDE_CODE_ENABLE_FUNCTION_HOOKS)"
 # f_function_hooks <ok> <file> <surface>
 f_function_hooks() {
   [[ "$1" -eq 1 ]] || return 0
   [[ "$(jqf "$2" -r '(.env // {}) | if type == "object" and has("CLAUDE_CODE_ENABLE_FUNCTION_HOOKS") then "set" else "" end')" == "set" ]] || return 0
-  row F function-hooks-flag-dead finding warning "$3" "function-hooks-flag-dead" "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS is set in env, and Claude Code ignores it, so setting it to 0 does not keep mods off. Remove it; the levers that turn mods off now: https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off" "/env/CLAUDE_CODE_ENABLE_FUNCTION_HOOKS"
+  if [[ -z "$FUNCTION_HOOKS_Q" ]]; then
+    row F function-hooks-flag-dead not-inspectable none "$3" "function-hooks-flag-dead" "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS is set in env; whether Claude Code still reads it could not be confirmed: the mods overview was not read this run or no longer holds a sentence on it; check $FUNCTION_HOOKS_PTR" -
+  else
+    row F function-hooks-flag-dead finding warning "$3" "function-hooks-flag-dead" "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS is set in env; this audit treats it as a dead mods switch, and $FUNCTION_HOOKS_Q Remove it and check the levers that turn mods off: $FUNCTION_HOOKS_PTR" "/env/CLAUDE_CODE_ENABLE_FUNCTION_HOOKS"
+  fi
 }
 f_function_hooks "$USER_OK" "$USER_SETTINGS" "$SURF_USER"
 f_function_hooks "$PROJECT_OK" "$SETTINGS" "$SURF_SETTINGS"
