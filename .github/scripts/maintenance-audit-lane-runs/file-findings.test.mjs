@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { droppedLine, prepareItems } from "./file-findings.mjs";
+import { droppedLine, prepareItems, writeAll } from "./file-findings.mjs";
 import { parseJudgeOutput } from "./write-findings.mjs";
 
 const finding = (over = {}) => ({
@@ -81,4 +81,27 @@ test("a dropped line renders the title and reason inert on one line", () => {
   assert.equal(line.split("\n").length, 1);
   assert.doesNotMatch(line, /[<`]|(?<!\\)\]\(|https:\/\/|@[A-Za-z]/);
   assert.match(line, /^- dropped \(a1\) fix: x &lt;b>@​octocat&lt;\/b>: /);
+});
+
+test("one failed write is recorded and the rest still file", async () => {
+  const calls = [];
+  const call = async (method, path, body) => {
+    calls.push(path);
+    if (body?.title === "fix: rejected") throw new Error(`${method} ${path}: HTTP 422`);
+    return { number: 100 + calls.length };
+  };
+  const plan = {
+    file: [
+      { fingerprint: "aaaa", finding: finding({ title: "fix: rejected" }), regressionOf: null },
+      { fingerprint: "bbbb", finding: finding(), regressionOf: null },
+    ],
+    comment: [{ number: 7 }],
+  };
+  const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
+  assert.equal(calls.length, 3);
+  assert.deepEqual(result, {
+    filed: [102],
+    commented: [7],
+    failed: [{ target: "aaaa", error: "POST /repos/o/r/issues: HTTP 422" }],
+  });
 });

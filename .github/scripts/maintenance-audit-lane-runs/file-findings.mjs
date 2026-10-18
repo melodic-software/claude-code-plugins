@@ -66,6 +66,39 @@ const inertLine = (text) => inertTitle(String(text ?? "").replace(/[\r\n]+/g, " 
 
 export const droppedLine = (d) => `- dropped (${d.unit}) ${inertLine(d.title)}: ${inertLine(d.reason)}`;
 
+// Each write is its own attempt: a failed one is recorded and the rest still
+// run, so one rejected title cannot stop the findings after it.
+export async function writeAll({ plan, call, repo, labels, runUrl, wait = () => delay(1000) }) {
+  const filed = [];
+  const commented = [];
+  const failed = [];
+  for (const { fingerprint: fp, finding, regressionOf } of plan.file) {
+    await wait();
+    try {
+      const issue = await call("POST", `/repos/${repo}/issues`, {
+        title: inertTitle(finding.title),
+        body: renderBody(finding, fp, runUrl, regressionOf),
+        labels,
+      });
+      filed.push(issue.number);
+    } catch (error) {
+      failed.push({ target: fp, error: error.message });
+    }
+  }
+  for (const { number } of plan.comment) {
+    await wait();
+    try {
+      await call("POST", `/repos/${repo}/issues/${number}/comments`, {
+        body: `Seen again by the lane sweep in [this run](${runUrl}).`,
+      });
+      commented.push(number);
+    } catch (error) {
+      failed.push({ target: `#${number}`, error: error.message });
+    }
+  }
+  return { filed, commented, failed };
+}
+
 async function main() {
   const env = process.env;
   const repo = env.REPOSITORY;
@@ -112,34 +145,24 @@ async function main() {
     if (await call("GET", `/repos/${repo}/labels/${encodeURIComponent(name)}`)) labels.push(name);
   }
   const runUrl = `${env.GITHUB_SERVER_URL}/${repo}/actions/runs/${env.GITHUB_RUN_ID}`;
-  const filed = [];
-  for (const { fingerprint: fp, finding, regressionOf } of plan.file) {
-    await delay(1000);
-    const issue = await call("POST", `/repos/${repo}/issues`, {
-      title: inertTitle(finding.title),
-      body: renderBody(finding, fp, runUrl, regressionOf),
-      labels,
-    });
-    filed.push(issue.number);
-  }
-  for (const { number } of plan.comment) {
-    await delay(1000);
-    await call("POST", `/repos/${repo}/issues/${number}/comments`, {
-      body: `Seen again by the lane sweep in [this run](${runUrl}).`,
-    });
-  }
+  const { filed, commented, failed } = await writeAll({ plan, call, repo, labels, runUrl });
   const lines = [
     "### Lane sweep filing",
     "",
-    `Filed: ${filed.map((n) => `#${n}`).join(", ") || "none"}. Commented: ${plan.comment.map((c) => `#${c.number}`).join(", ") || "none"}. Labels applied: ${labels.join(", ") || "none"}. Calls: ${budget.used}.`,
+    `Filed: ${filed.map((n) => `#${n}`).join(", ") || "none"}. Commented: ${commented.map((n) => `#${n}`).join(", ") || "none"}. Labels applied: ${labels.join(", ") || "none"}. Calls: ${budget.used}.`,
     "",
+    ...failed.map((f) => `- failed ${f.target}: ${f.error}`),
     ...plan.skip.map((s) => `- skipped ${s.fingerprint}: ${s.reason}`),
     ...dropped.map(droppedLine),
   ];
   appendFileSync(env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
   console.log(
-    `file-findings: filed ${filed.length}, commented ${plan.comment.length}, skipped ${plan.skip.length}, dropped ${dropped.length}`,
+    `file-findings: filed ${filed.length}, commented ${commented.length}, failed ${failed.length}, skipped ${plan.skip.length}, dropped ${dropped.length}`,
   );
+  if (failed.length > 0) {
+    console.log(`::error::${failed.length} lane sweep write(s) failed; see the step summary`);
+    process.exitCode = 1;
+  }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
