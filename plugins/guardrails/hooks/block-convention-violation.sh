@@ -319,7 +319,9 @@ ensure_convention_patterns() {
 # conv_failure_notice <check> <checked thing> <diagnostic>: tell both readers,
 # once per session (agent for the model), that a check did not run.
 conv_failure_notice() {
-  if hook::notice_once guardrails-convention-resolver "$INPUT"; then
+  # One latch key per check: a shared key lets whichever check fails first hide
+  # the other's skip for the rest of the session.
+  if hook::notice_once "guardrails-convention-resolver-$1" "$INPUT"; then
     hook::emit_skip_notice PreToolUse "guardrails block-convention-violation: the $1 convention check did not run, so this $2 was not checked. The convention resolver reported \"$3\". This notice does not repeat this session."
   fi
 }
@@ -505,8 +507,7 @@ check_segment() {
   done
   if [[ "${gw[gs]:-}" == "gh" && "${gw[gs + 1]:-}" == "pr" && "${gw[gs + 2]:-}" == "create" ]]; then
     ensure_convention_patterns
-    [[ -z "$TITLE_DIAG" ]] || conv_failure_notice "PR-title" "PR title" "$TITLE_DIAG"
-    if [[ -n "$TITLE_ERE" ]]; then
+    if [[ -n "$TITLE_ERE" || -n "$TITLE_DIAG" ]]; then
       local t="" ti
       for ((ti = gs + 3; ti < gn; ti++)); do
         case "${gw[ti]}" in
@@ -522,7 +523,10 @@ check_segment() {
         *) ;;
         esac
       done
-      if [[ -n "$t" ]] && ! [[ "$t" =~ $TITLE_ERE ]]; then
+      # The skip is reported only once a title was actually left unchecked.
+      if [[ -n "$t" && -n "$TITLE_DIAG" ]]; then
+        conv_failure_notice "PR-title" "PR title" "$TITLE_DIAG"
+      elif [[ -n "$t" ]] && ! [[ "$t" =~ $TITLE_ERE ]]; then
         block_title "$t"
       fi
     fi
