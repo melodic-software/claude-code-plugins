@@ -338,6 +338,26 @@ class TestRefusals(DirCase):
             self.assertEqual(rc, 0, out + err)
             self.assertNotIn("restates", err)
 
+    def test_branch_source_link_warns_on_add_and_revise(self):
+        link = "https://github.com/o/r/blob/main/a.py#L1-L3"
+        q = question("Q4", facts=f"> quote\n\n[a.py]({link})")
+        rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, err)
+        self.assertIn("Q4 facts links a repo file by branch", err)
+        rc, _, err = self.rp("revise", "Q1", "--facts", f"[a.py]({link})")
+        self.assertEqual(rc, 0, err)
+        self.assertIn("Q1 facts links a repo file by branch", err)
+
+    def test_sha_source_link_does_not_warn(self):
+        link = "https://github.com/o/r/blob/" + "a" * 40 + "/a.py#L1-L3"
+        q = question("Q4", facts=f"[a.py]({link})")
+        rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, err)
+        self.assertNotIn("by branch", err)
+        rc, _, err = self.rp("revise", "Q1", "--facts", f"[a.py]({link})")
+        self.assertEqual(rc, 0, err)
+        self.assertNotIn("by branch", err)
+
     def test_bare_issue_ref_warns_without_meta_repo(self):
         q = question("Q4", title="Does #123 block the release?")
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
