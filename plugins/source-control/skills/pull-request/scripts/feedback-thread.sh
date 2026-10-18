@@ -44,12 +44,13 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
 repo=$(jq -er '.repository | select(test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))' "$threads_file") ||
   die 2 "the thread file names no repository"
 
-# Not under .github/ in any letter case, and in a kept thread's scope: its
-# path, any file in the plugins/<p>/evals/<case>/ directory it sits in, or a
-# test file in its directory. The same rule as .github/scripts/pr-unblock/
-# thread-scope.mjs, which the promote step and the reply job apply.
+# Not under .github/ in any letter case, with no empty, . or .. segment, and
+# in a kept thread's scope: its path, any file in the
+# plugins/<p>/evals/<case>/ directory it sits in, or a test file in its
+# directory. The same rule as .github/scripts/pr-unblock/thread-scope.mjs,
+# which the promote step and the reply job apply.
 allowed() {
-  [[ ! ${1,,} =~ ^\.github(/|$) ]] &&
+  [[ ! ${1,,} =~ ^\.github(/|$) && ! $1 =~ (^|/)\.{0,2}(/|$) ]] &&
     jq -e --arg p "$1" '
       def dir: sub("[^/]*$"; "");
       (first($p | capture("^(?<c>plugins/[^/]+/evals/[^/]+/)").c) // null) as $case

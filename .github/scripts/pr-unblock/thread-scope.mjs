@@ -10,11 +10,15 @@ const EVAL_CASE = /^plugins\/[^/]+\/evals\/[^/]+\//;
 const TEST_FILE = /^(test_[^/]*\.py|[^/]*_test\.py|[^/]*\.(test|spec)\.[^/]+)$/;
 const dirOf = (path) => path.slice(0, path.lastIndexOf("/") + 1);
 
+// An empty, . or .. segment, so a leading or doubled / too.
+const BAD_SEGMENT = /(^|\/)\.{0,2}(\/|$)/;
+
 // A kept thread's own path, any file in the plugins/<p>/evals/<case>/
 // directory a kept thread's path sits in, or a test file in the same
-// directory as a kept thread's path; never anything under .github/.
+// directory as a kept thread's path; never anything under .github/, and
+// never a path that is not in normal form.
 export function inThreadScope(path, threadPaths) {
-  if (isProtectedPath(path)) {
+  if (isProtectedPath(path) || BAD_SEGMENT.test(path)) {
     return false;
   }
   if (threadPaths.has(path)) {

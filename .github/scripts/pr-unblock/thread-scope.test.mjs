@@ -68,6 +68,18 @@ test("a test file under .github/ is refused even beside a kept thread's path the
   assert.equal(inThreadScope(".github/scripts/x.test.mjs", new Set([".github/scripts/x.mjs"])), false);
 });
 
+test("a path with an empty, . or .. segment, or a leading /, is refused before any other rule", () => {
+  for (const path of [
+    "plugins/p/evals/c/../../../../.github/workflows/x.yml",
+    "plugins/p/evals/c/./samples/y.json",
+    "plugins/p/evals/c//y.json",
+    "/src/a.js",
+    "./src/a.js",
+  ]) {
+    assert.equal(inThreadScope(path, new Set([...kept, path])), false, path);
+  }
+});
+
 test(".github/ is refused even when a kept thread names a file there", () => {
   const github = new Set([".github/workflows/x.yml", ".GitHub/evals/c/a.md"]);
   assert.equal(inThreadScope(".github/workflows/x.yml", github), false);

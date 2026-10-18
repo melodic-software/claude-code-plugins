@@ -99,7 +99,9 @@ for path in plugins/p/evals/c/samples/y.json plugins/p/evals/c/samples/deep/z.js
 done
 for path in plugins/p/evals/other/samples/y.json plugins/p/skills/s/SKILL.md plugins/p/evals/x.json \
   plugins/planning/surface/tests/test_round.py plugins/planning/test_round.py src/lib/a.test.js \
-  plugins/planning/surface/helper.py plugins/planning/surface/test_round.sh test_root.py; do
+  plugins/planning/surface/helper.py plugins/planning/surface/test_round.sh test_root.py \
+  plugins/p/evals/c/../../../../.github/workflows/x.yml plugins/p/evals/c/./y.json plugins/p/evals/c//y.json \
+  /src/a.js ./src/a.js; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths refuses $path" 1 "$?"
 done

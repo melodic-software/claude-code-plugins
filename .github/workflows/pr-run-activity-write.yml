@@ -1419,6 +1419,7 @@ jobs:
           script: |
             const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA, THREAD_FILE } = process.env;
             const { DEPENDENCY_REVIEW, DEPENDENCY_OUTPUT, PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
+            const { SCOPE_SCRIPT, SCOPE_SHA256 } = process.env;
             core.setOutput('skip-reason', '');
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
