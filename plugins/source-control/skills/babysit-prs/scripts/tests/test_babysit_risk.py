@@ -41,6 +41,7 @@ def _file(
     has_patch=True,
     mode="100644",
     previous_mode=_UNSET,
+    patch="",
 ):
     if previous_mode is _UNSET:
         # A well-formed two-sided change carries its base-side mode.
@@ -55,6 +56,7 @@ def _file(
         has_patch=has_patch,
         mode=mode,
         previous_mode=previous_mode,
+        patch=patch if has_patch else None,
     )
 
 
@@ -1126,6 +1128,190 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
         ).reasons
         self.assertIn("C2", reasons[0].detail)
         self.assertNotIn("<Rung", reasons[0].detail)
+
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[6]
+
+
+def _lane_input(files):
+    """The pr-merge lane's input under this repository's own
+    docs/conventions/pr-pipeline.yaml, wired as babysit_merge.score_unattended
+    wires it."""
+    import babysit_merge_policy
+
+    def file_at(path, _sha):
+        found = REPO_ROOT / path
+        return found.read_text(encoding="utf-8") if found.is_file() else None
+
+    config = babysit_merge_policy.read_config_at(
+        "melodic-software/claude-code-plugins", "0" * 40, file_at
+    )
+    return _input(
+        files=files,
+        max_changed_lines=config.max_changed_lines,
+        high_paths=config.denied_paths,
+        floor_paths=config.floor_paths,
+        high_floor=config.high_path_floor,
+        c2_contradictions=config.c2_contradictions,
+        max_changed_files=config.max_changed_files,
+        lines_optional=True,
+    )
+
+
+class LanePathFloorTests(unittest.TestCase):
+    """Owner decision Q641: the pr-merge lane applies the HIGH path floor, and
+    the config adds bin/, .lsp.json, settings*.json and the scripts of the
+    plugins the CI lanes load, so a lane pull request touching one waits for a
+    human. Paths come from the decision text."""
+
+    LANE_PLUGINS = (
+        "ai-slop",
+        "source-control",
+        "work-items",
+        "discovery",
+        "knowledge",
+        "skill-quality",
+        "testing",
+        "review",
+        "autonomy",
+    )
+
+    def test_each_new_path_class_is_held(self):
+        paths = [
+            "plugins/foo/bin/tool",
+            "plugins/foo/package.json",
+            "plugins/foo/.mcp.json",
+            "plugins/foo/.lsp.json",
+            "plugins/foo/settings.json",
+            ".config/settings.local.json",
+        ]
+        for plugin in self.LANE_PLUGINS:
+            paths.append(f"plugins/{plugin}/scripts/run.py")
+            paths.append(f"plugins/{plugin}/skills/some-skill/scripts/run.sh")
+        for path in paths:
+            with self.subTest(path=path):
+                result = score(_lane_input((_file(path),)))
+                self.assertEqual(result.score, Risk.HIGH, _codes(result))
+                self.assertTrue(
+                    any(
+                        r.code.startswith("high-path:")
+                        and r.code != "high-path:**"
+                        and path in r.detail
+                        for r in result.reasons
+                    ),
+                    _codes(result),
+                )
+
+    def test_a_path_outside_the_floor_stays_low(self):
+        files = (_file("plugins/foo/skills/bar/reference/notes.md"),)
+        result = score(_lane_input(files))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+    def test_a_skill_diff_adding_allowed_tools_is_held(self):
+        patch = (
+            "@@ -1,4 +1,5 @@\n"
+            " ---\n"
+            " name: bar\n"
+            " description: Does bar.\n"
+            "+allowed-tools: Bash\n"
+            " ---\n"
+        )
+        files = (_file("plugins/foo/skills/bar/SKILL.md", patch=patch),)
+        result = score(_lane_input(files))
+        self.assertEqual(result.score, Risk.HIGH, _codes(result))
+        self.assertIn("high-capability", _codes(result))
+
+    def test_a_prose_only_skill_diff_is_not_held(self):
+        patch = (
+            "@@ -12,3 +12,4 @@ description: Does bar.\n"
+            " ## Steps\n"
+            " \n"
+            " Run the check.\n"
+            "+Then read the report it prints.\n"
+        )
+        files = (_file("plugins/foo/skills/bar/SKILL.md", patch=patch),)
+        result = score(_lane_input(files))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+
+class CapabilityTriggerTests(unittest.TestCase):
+    """Owner decision Q641: a SKILL.md, agents/*.md or commands/*.md diff that
+    adds or changes frontmatter hooks, allowed-tools, permissionMode or
+    mcpServers, or adds a `!` backtick command line, scores HIGH with the
+    floor. Each patch is a hand-written unified diff."""
+
+    HELD = [
+        (
+            "agent permissionMode added",
+            "plugins/foo/agents/runner.md",
+            "@@ -1,3 +1,4 @@\n ---\n name: runner\n+permissionMode: acceptEdits\n ---\n",
+        ),
+        (
+            "command adds a shell line",
+            "plugins/foo/commands/go.md",
+            "@@ -8,2 +8,3 @@\n Status:\n \n+Current branch: !`git branch --show-current`\n",
+        ),
+        (
+            "an allowed-tools list item changes mid-list",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -4,4 +4,5 @@ description: x\n allowed-tools:\n"
+            '   - "Bash(git status*)"\n+  - "Bash(git push*)"\n ---\n',
+        ),
+        (
+            "a list item with no key in the hunk",
+            "plugins/foo/skills/bar/SKILL.md",
+            '@@ -9,3 +9,4 @@\n   - "Bash(a*)"\n   - "Bash(b*)"\n   - "Bash(c*)"\n'
+            '+  - "Bash(d*)"\n',
+        ),
+        (
+            "hooks removed",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,5 +1,3 @@\n ---\n name: bar\n-hooks:\n-  Stop: x\n ---\n",
+        ),
+        (
+            "mcpServers changed",
+            "plugins/foo/agents/runner.md",
+            "@@ -2,3 +2,3 @@\n name: runner\n-mcpServers: [a]\n+mcpServers: [a, b]\n ---\n",
+        ),
+    ]
+
+    def test_capability_changes_are_held(self):
+        for name, path, patch in self.HELD:
+            with self.subTest(name):
+                result = score(_input(files=(_file(path, patch=patch),)))
+                self.assertEqual(result.score, Risk.HIGH, _codes(result))
+                self.assertIn("high-capability", _codes(result))
+
+    def test_a_description_edit_is_not_held(self):
+        patch = (
+            "@@ -1,4 +1,4 @@\n ---\n name: bar\n-description: Old.\n"
+            "+description: New.\n ---\n"
+        )
+        files = (_file("plugins/foo/skills/bar/SKILL.md", patch=patch),)
+        self.assertEqual(score(_input(files=files)).score, Risk.LOW)
+
+    def test_a_body_change_below_the_frontmatter_is_not_held(self):
+        patch = (
+            "@@ -1,6 +1,7 @@\n ---\n name: bar\n allowed-tools: Read\n ---\n"
+            " \n # Bar\n+Read the file first.\n"
+        )
+        files = (_file("plugins/foo/skills/bar/SKILL.md", patch=patch),)
+        self.assertEqual(score(_input(files=files)).score, Risk.LOW)
+
+    def test_a_skill_with_no_patch_text_is_held(self):
+        files = (_file("plugins/foo/skills/bar/SKILL.md", has_patch=False),)
+        self.assertIn("high-capability", _codes(score(_input(files=files))))
+
+    def test_a_non_capability_markdown_file_is_not_read(self):
+        patch = "@@ -1,2 +1,3 @@\n # Notes\n+allowed-tools: Bash\n"
+        files = (_file("plugins/foo/skills/bar/reference/notes.md", patch=patch),)
+        self.assertEqual(score(_input(files=files)).score, Risk.LOW)
+
+    def test_the_floor_off_reads_no_capability(self):
+        patch = "@@ -1,3 +1,4 @@\n ---\n name: bar\n+allowed-tools: Bash\n ---\n"
+        files = (_file("plugins/foo/skills/bar/SKILL.md", patch=patch),)
+        result = score(_input(files=files, high_floor=False))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
 
 
 if __name__ == "__main__":

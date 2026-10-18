@@ -427,6 +427,10 @@ class PipelineConfig:
     # cap); a value other than true or false turns a switch on. The local
     # babysit lane ignores them and keeps every check.
     high_path_floor: bool = False
+    # `merge.diff-check.floor-paths`: globs joined to the floor (owner
+    # decision Q641); they hold a pull request for a human, unlike
+    # denied-paths, which makes it ineligible.
+    floor_paths: tuple[str, ...] = ()
     c2_contradictions: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
@@ -545,6 +549,7 @@ def read_config_at(
             ("merge.diff-check.high-path-floor", False),
             ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
+            ("merge.diff-check.floor-paths", True),
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
             ("merge.dependabot.mode", False),
@@ -613,6 +618,7 @@ def read_config_at(
         require_verifier_verdict=verdict not in (None, "false"),
         dependabot_mode=dependabot_mode,
         high_path_floor=high_path_floor,
+        floor_paths=tuple(values["merge.diff-check.floor-paths"]),
         c2_contradictions=c2_contradictions,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
@@ -2424,6 +2430,7 @@ def _changed_files(
                 additions=entry.get("additions"),
                 deletions=entry.get("deletions"),
                 has_patch="patch" in entry,
+                patch=entry.get("patch"),
                 mode=(side or {}).get(path),
                 previous_mode=None
                 if status in ("added", "removed")

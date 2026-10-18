@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## 2.13.0 - 2026-10-18
+
+`merge.diff-check.floor-paths` (a list of globs) adds paths to the risk scorer's HIGH path floor
+while `high-path-floor` applies; a pull request touching one waits for a human, where a denied path
+makes it ineligible. With the floor, a SKILL.md, agents/*.md or commands/*.md change to `hooks`,
+`allowed-tools`, `permissionMode` or `mcpServers` frontmatter, or a new `!` backtick command line,
+also scores HIGH. This repository turns `high-path-floor` back on (owner decision Q641) and lists
+`bin/`, `.lsp.json`, `settings*.json` and the scripts of the plugins the CI lanes load. `version`
+stays 2.
+
 ## 2.12.0 - 2026-10-18
 
 `merge.max-in-flight` (an integer of at least 1, default 1) caps the lane merges in flight: the

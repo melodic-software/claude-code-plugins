@@ -2931,6 +2931,7 @@ def score_unattended(
             files_complete=complete,
             max_changed_lines=config.max_changed_lines,
             high_paths=config.denied_paths,
+            floor_paths=config.floor_paths,
             lanes=lanes,
             blast_radius=None,
             **lane_switches,

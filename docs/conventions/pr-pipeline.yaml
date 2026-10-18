@@ -330,14 +330,37 @@ merge:
   # pull request waits on a human (docs/adr/0073).
   dependabot:
     mode: enforce
-  # Owner decision Q624: the lane denies no path and applies no HIGH path
-  # floor, size cap or C2 contradiction check; the verifier verdict, the kill
-  # switch, the fork and Dependabot refusals, lane-author and single-closing-
-  # issue eligibility and the demotion stop still hold. Each
-  # removed check comes back by setting it here: list denied-paths, set
-  # `high-path-floor: true` or `c2-contradictions: true`, or set
-  # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
+  # Owner decision Q641 (2026-10-18): the HIGH path floor is back on. A lane
+  # PR that touches a floor path, or a SKILL.md, agents/*.md or commands/*.md
+  # change to hooks, allowed-tools, permissionMode or mcpServers frontmatter
+  # or a new `!` backtick command line, scores HIGH and waits for a human to
+  # merge it. floor-paths adds to the floor in the scorer (babysit_risk.py);
+  # package.json, .mcp.json and the work-items and review plugins are in it
+  # already. A denied path would instead make the PR ineligible.
+  # Owner decision Q624 still holds for the rest: no denied path, size cap or
+  # C2 contradiction check. Each comes back by setting it here: list
+  # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
+  # or `max-changed-lines` (the earlier 8 and 400).
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
   # provenance work only; scoped lane PRs merge on the verifier verdict.
   diff-check:
     denied-paths: []
+    high-path-floor: true
+    floor-paths:
+      - "**/bin/**"
+      - "**/.lsp.json"
+      - "**/settings*.json"
+      - "plugins/ai-slop/scripts/**"
+      - "plugins/ai-slop/skills/*/scripts/**"
+      - "plugins/source-control/scripts/**"
+      - "plugins/source-control/skills/*/scripts/**"
+      - "plugins/discovery/scripts/**"
+      - "plugins/discovery/skills/*/scripts/**"
+      - "plugins/knowledge/scripts/**"
+      - "plugins/knowledge/skills/*/scripts/**"
+      - "plugins/skill-quality/scripts/**"
+      - "plugins/skill-quality/skills/*/scripts/**"
+      - "plugins/testing/scripts/**"
+      - "plugins/testing/skills/*/scripts/**"
+      - "plugins/autonomy/scripts/**"
+      - "plugins/autonomy/skills/*/scripts/**"

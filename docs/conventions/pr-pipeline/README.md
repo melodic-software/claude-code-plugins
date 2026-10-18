@@ -477,16 +477,22 @@ except six:
   `verifier-verdict-not-required` unless `merge.require-verifier-verdict` is true, and the schema
   rejects such a config. The lane starts with `merge.report-only: true`; the owner reads its
   reports and sets `false` to let it merge.
-- **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent, and
-  this repository leaves every one off (owner decision, 2026-10-17): `denied-paths` (an empty
-  list denies no path), `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH),
-  `c2-contradictions` (true scores a removed, renamed or copied file, a schema change or more
-  than one plugin MED), `max-changed-files` and `max-changed-lines` (absent is no cap). The local
-  babysit lane ignores these switches and keeps every check. The review evidence and the
-  security lane's findings still count.
+- **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
+  `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
+  `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH, and a SKILL.md,
+  agents/*.md or commands/*.md change to `hooks`, `allowed-tools`, `permissionMode` or
+  `mcpServers` frontmatter or a new `!` backtick command line), `floor-paths` (globs joined to
+  that floor while it applies; a HIGH pull request waits for a human), `c2-contradictions` (true
+  scores a removed, renamed or copied file, a schema change or more than one plugin MED),
+  `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
+  `high-path-floor: true` with `floor-paths` (owner decision Q641, 2026-10-18) and leaves the
+  rest off (owner decision, 2026-10-17). The local babysit lane ignores the switches and keeps
+  every check, with `floor-paths` joined. The review evidence and the security lane's findings
+  still count.
 
-  What is left with them off: a lane pull request may change the merge gate, the workflows and
-  their tokens, these lane rules, skills, hooks, agent instructions and CI checks, at any size.
+  What is left with every switch off: a lane pull request may change the merge gate, the
+  workflows and their tokens, these lane rules, skills, hooks, agent instructions and CI checks,
+  at any size.
   The brakes that remain are the verifier verdict, the kill switch, the fork and Dependabot
   refusals, lane authorship with one closing issue, the review evidence and the demotion stop;
   setting `merge.report-only` back to true stops every merge. A verdict reads the diff only and runs no changed code, and a pull request

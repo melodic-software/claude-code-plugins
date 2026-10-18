@@ -14,8 +14,10 @@ that override their own behavior are out of scope. A count outside
 The HIGH path floor and the lane table are fixed here on purpose. A weaker value
 could only come from a file a pull request can edit, and this module's own path
 is in the floor, so a pull request cannot change the rule it is judged by. The
-configured `merge.diff-check.denied-paths` is joined to the floor, never in
-place of it. Every glob matches case-insensitively, because a lane host on a
+configured `merge.diff-check.denied-paths` and `floor-paths` are joined to the
+floor, never in place of it. With the floor, a SKILL.md, agents/*.md or
+commands/*.md patch that changes capability frontmatter or adds a `!` backtick
+command, or that has no patch text, rates HIGH as `high-capability`. Every glob matches case-insensitively, because a lane host on a
 case-insensitive filesystem treats `Claude.md` as `CLAUDE.md`.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
@@ -78,6 +80,8 @@ class ChangedFile:
     # caller passes None for an absent side; "000000" (git's absent mode) is
     # read as absent and accepted only for an added file.
     previous_mode: str | None = None
+    # The files API's unified patch text, when it sent one (None otherwise).
+    patch: str | None = None
 
 
 @dataclass(frozen=True)
@@ -101,6 +105,8 @@ class RiskInput:
     # The switches the pr-merge lane may turn off (merge.diff-check); the
     # defaults keep every check. An unset line cap is MED unless optional.
     high_floor: bool = True
+    # merge.diff-check.floor-paths: globs joined to HIGH_FLOOR while it applies.
+    floor_paths: tuple[str, ...] = ()
     c2_contradictions: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
@@ -117,7 +123,6 @@ class Reason:
 class RiskResult:
     score: Risk  # max(reason.severity), LOW when no reason
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
-
 
 
 HIGH_FLOOR: tuple[str, ...] = (
@@ -385,23 +390,94 @@ def _mode_problems(changed: Any, raw_path: Any, status: str | None) -> list[str]
     return found
 
 
-def _high_path_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
+def _readable_globs(value: Any, unsafe: list[str]) -> tuple[str, ...]:
+    globs = _sequence(value)
+    if globs is None or not all(isinstance(p, str) and _safe_glob(p) for p in globs):
+        unsafe.append(f"configured HIGH set unreadable: {_show(value)}")
+        return ()  # match only the floor
+    return globs
+
+
+# Files whose frontmatter grants capability, and the keys that grant it.
+_CAPABILITY_FILES = ("**/SKILL.md", "**/agents/*.md", "**/commands/*.md")
+_CAPABILITY_KEYS = frozenset({"hooks", "allowed-tools", "permissionmode", "mcpservers"})
+_HUNK = re.compile(r"@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@")
+_KEY = re.compile(r"([A-Za-z][A-Za-z0-9_-]*)\s*:")
+
+
+def _capability_triggers(patch: str) -> list[str]:
+    """What in a unified patch adds or changes a capability: a `!` backtick
+    command line added anywhere, or a changed frontmatter line under one of
+    `_CAPABILITY_KEYS`. A hunk starting at line 1 shows where the frontmatter
+    ends; any other hunk is frontmatter until a `---` line, and there a changed
+    indented line with no key above it in the hunk counts (fail closed)."""
+    found: list[str] = []
+    region, key = "unknown", None
+    for line in patch.split("\n"):
+        if line.startswith("@@"):
+            hunk = _HUNK.match(line)
+            region = "start" if hunk and hunk.group(1) == "1" else "unknown"
+            key = None
+            continue
+        if not line or line[0] not in " +-":
+            continue  # "\ No newline at end of file"
+        sign, text = line[0], line[1:]
+        if sign == "+" and "!`" in text:
+            found.append("adds a !` command")
+        if text.rstrip() == "---":
+            if sign != "-" or region == "start":
+                region = "front" if region == "start" else "body"
+                key = None
+            continue
+        if region == "start":
+            region = "body"  # no frontmatter in this file
+        if region == "body":
+            continue
+        named = _KEY.match(text)
+        if named:
+            key = named.group(1).casefold()
+        elif text.strip() and text[0] not in " \t":
+            key = ""
+        if sign != " " and (
+            key in _CAPABILITY_KEYS
+            or (key is None and region == "unknown" and text.strip())
+        ):
+            found.append(f"frontmatter {key or 'line with no key in its hunk'}")
+    return found
+
+
+def _capability_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason]:
+    hits = []
+    for f, raw in zip(files, raw_files):
+        if not any(glob_match(g, p) for g in _CAPABILITY_FILES for p in f.paths if p):
+            continue
+        patch = getattr(raw, "patch", None)
+        if f.has_patch is not True or not isinstance(patch, str):
+            triggers = ["no patch text to read"]
+        else:
+            triggers = _capability_triggers(patch)
+        if triggers:
+            hits.append(f"{f.path}: {', '.join(dict.fromkeys(triggers))}")
+    return [Reason("high-capability", Risk.HIGH, "; ".join(hits))] if hits else []
+
+
+def _high_path_reasons(
+    inp: RiskInput, files: list[_File], raw_files: list[Any]
+) -> list[Reason]:
     unsafe = [raw for f in files for raw in f.unsafe]
-    configured = _sequence(inp.high_paths)
-    if configured is None or not all(
-        isinstance(p, str) and _safe_glob(p) for p in configured
-    ):
-        unsafe.append(f"configured HIGH set unreadable: {_show(inp.high_paths)}")
-        configured = ()  # match only the floor
+    configured = _readable_globs(inp.high_paths, unsafe)
+    on = inp.high_floor is not False
+    floor = (*HIGH_FLOOR, *_readable_globs(inp.floor_paths, unsafe)) if on else ()
     reasons = []
     if unsafe:
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
     paths = [path for f in files for path in f.paths if path]
-    floor = HIGH_FLOOR if inp.high_floor is not False else ()
     for pattern in dict.fromkeys((*floor, *configured)):
         hits = [path for path in paths if glob_match(pattern, path)]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
+    if on:
+        reasons.extend(_capability_reasons(files, raw_files))
     return reasons
 
 
@@ -546,7 +622,7 @@ def _score(inp: RiskInput) -> RiskResult:
         *_class_reasons(inp, files or []),
         *_size_reasons(inp, files),
         *_lane_reasons(inp.lanes),
-        *_high_path_reasons(inp, files or []),
+        *_high_path_reasons(inp, files or [], list(raw_files or ())),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
