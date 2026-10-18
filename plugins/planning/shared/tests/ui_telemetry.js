@@ -97,7 +97,8 @@ async function main() {
     const t1 = tokens(sums[0]?.message);
     const lat = (t1["lat:/api/pick"] || "").split(",").reduce((a, n) => a + Number(n), 0);
     ok("hiding sends one summary: both picks timed, one rollback, the two repeats", sums.length === 1 && lat === 2 && t1["rb:/api/pick"] === "1" && t1[`rep:${errorsSent()[0]?.fp}`] === "2", sums[0]?.message);
-    ok("  with INP and LCP named by component, never text", /^\d+:(pointer|keyboard):[a-z][\w-]*$/.test(t1.inp || "") && /^\d+:[a-z][\w-]*$/.test(t1.lcp || ""), `${t1.inp} ${t1.lcp}`);
+    // A target is a component name, or "-" when web-vitals found no element for it (one removed before it measured).
+    ok("  with INP and LCP named by component, never text", /^\d+:(pointer|keyboard):(?:[a-z][\w-]*|-)$/.test(t1.inp || "") && /^\d+:(?:[a-z][\w-]*|-)$/.test(t1.lcp || ""), `${t1.inp} ${t1.lcp}`);
     ok("  and no pid or name in its body", !("pid" in sums[0]) && !JSON.stringify(sums[0]).includes(pid) && !/owner=/.test(sums[0]?.message || ""), JSON.stringify(sums[0]));
 
     await setVisibility(guest, "visible");
