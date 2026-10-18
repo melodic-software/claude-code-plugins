@@ -2269,5 +2269,88 @@ def tearDownModule() -> None:
     _role_label.stop()
 
 
+class DependabotMajorEscalation(unittest.TestCase):
+    """A Dependabot major held under `merge.dependabot.majors: hold` gets the
+    escalation contract: one marked comment, then the tracker's human-gated
+    role label, once."""
+
+    REPO, PR, HEAD = "owner/repo", 7, "e" * 40
+
+    def setUp(self) -> None:
+        self.calls: list[list[str]] = []
+        self.pr_labels: list[dict[str, str]] = []
+        self.comments: list[dict[str, Any]] = []
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(
+            mock.patch.object(postmerge, "identity_queue", return_value=([], 0))
+        )
+        self.role = stack.enter_context(
+            mock.patch.object(
+                merge, "human_gated_label", return_value="status: needs-decision"
+            )
+        )
+
+        def capture(args: list[str]) -> subprocess.CompletedProcess[str]:
+            self.calls.append(args)
+            return subprocess.CompletedProcess(args, 0, "{}", "")
+
+        stack.enter_context(mock.patch.object(merge, "gh_capture", capture))
+
+    def writes(self, reason: str) -> dict[str, Any]:
+        inputs = {
+            "identity": "agent-lanes[bot]",
+            "branch": "main",
+            "pr": {"head": {"sha": self.HEAD}, "labels": self.pr_labels},
+            "comments": self.comments,
+        }
+        return merge.unattended_writes(
+            self.REPO,
+            self.PR,
+            policy.UnattendedPolicy(reason, "agent-lanes[bot]", {}, inputs=inputs),
+        )
+
+    def test_a_held_major_is_labeled_with_the_role_label_once(self) -> None:
+        out = self.writes("ineligible:dependabot-major-held:x")
+        comment, label = self.calls
+        self.assertIn(f"repos/{self.REPO}/issues/{self.PR}/comments", comment)
+        body = comment[-1].removeprefix("body=")
+        self.assertTrue(body.startswith(merge.MAJOR_ESCALATION_MARKER + "\n"))
+        self.assertIn("`x`", body)
+        self.assertIn(self.HEAD, body)
+        self.assertEqual(
+            label[-4:],
+            ["POST", f"repos/{self.REPO}/issues/{self.PR}/labels"]
+            + ["-f", "labels[]=status: needs-decision"],
+        )
+        self.assertNotIn("do-not-merge", " ".join(" ".join(c) for c in self.calls))
+        self.assertEqual(
+            out["majorEscalation"], {"label": "added", "comment": "created"}
+        )
+
+    def test_a_rerun_writes_nothing(self) -> None:
+        self.pr_labels = [{"name": "Status: Needs-Decision"}]
+        self.comments = [
+            {
+                "id": 90,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": merge.major_escalation_body("x", self.HEAD),
+            }
+        ]
+        out = self.writes("ineligible:dependabot-major-held:x")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "unchanged"}
+        )
+
+    def test_other_refusals_are_not_escalated(self) -> None:
+        for reason in ("ineligible:dependabot-review:major:x", "ci-status:pending"):
+            with self.subTest(reason):
+                out = self.writes(reason)
+                self.assertEqual(self.calls, [])
+                self.assertNotIn("majorEscalation", out)
+
+
 if __name__ == "__main__":
     unittest.main()

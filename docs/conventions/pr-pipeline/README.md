@@ -518,7 +518,8 @@ no full CI run either; its summary says whether it would have.
 ### Dependabot pull requests
 
 No Dependabot pull request waits on a human
-([ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)). The pr-merge
+([ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)), except a major
+update under `merge.dependabot.majors: hold` (below). The pr-merge
 lane is the one merge authority for both tiers. It lists Dependabot's open pull requests beside
 its own and judges each as its own class, in place of the eligibility above. Both lanes sort by
 the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-unblock):
@@ -570,6 +571,11 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
 - **Switch.** `merge.dependabot.mode` decides it, not `merge.report-only`: `enforce` merges,
   `report` reports and writes nothing, and `off` (the default) refuses every Dependabot pull
   request and leaves them unlisted.
+- **Majors.** `merge.dependabot.majors` decides a pull request with a major update: `hold` (the
+  default, and any value but `review`) refuses it with the reason
+  `dependabot-major-held:<names>` whatever the review verdict says, and the lane escalates it once
+  (a marked comment, then the tracker's human-gated role label), so a person merges it. `review`
+  leaves it tier `review`, merged on the verdict above.
 
 The class is `babysit_dependabot.py` beside the wrapper. Auto-merge armed with `GITHUB_TOKEN` is not used: GitHub's
 [`GITHUB_TOKEN` page](https://docs.github.com/en/actions/concepts/security/github_token) says

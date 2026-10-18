@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## 2.14.0 - 2026-10-18
+
+`merge.dependabot.majors` (`hold` or `review`, default `hold`) decides a Dependabot pull request
+with a major update. Under `hold` the pr-merge lane refuses it with the reason
+`dependabot-major-held:<names>` whatever the review verdict says, and escalates it once: a marked
+comment, then the tracker's human-gated role label. `review` keeps the earlier behavior, where the
+lanes App's `verdict=merge` marker merges it. This repository sets `hold`. Non-major tiers and the
+publisher rule are unchanged. `version` stays 2.
+
 ## 2.12.4 - 2026-10-18
 
 `pr-run-activity-read.yml` takes a `dispatcher-run-id` input and passes it to its trigger gate with
