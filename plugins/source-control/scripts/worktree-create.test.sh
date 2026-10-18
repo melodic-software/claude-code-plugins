@@ -1363,6 +1363,16 @@ bash "$HELPER" --name 'feat/foo..bar' --fallback-root-file "$inputs/worktree-roo
 assert_exit "--remove-input-files: invalid name still exits 2" 2 "$code"
 assert_eq "--remove-input-files: input dir removed after a refusal" absent "$(dir_state "$inputs")"
 
+# A usage error after the flag still removes the files: the trap is armed when
+# the flag is parsed, not after the whole argument list is.
+inputs="$TEST_TMPDIR/inputs-usage"
+mkinputs "$inputs"
+code=0
+bash "$HELPER" --data-root-file "$inputs/data-root" --fallback-root-file "$inputs/worktree-root" \
+  --remove-input-files --bogus >/dev/null 2>&1 || code=$?
+assert_exit "--remove-input-files: unknown flag still exits 2" 2 "$code"
+assert_eq "--remove-input-files: input dir removed after a later usage error" absent "$(dir_state "$inputs")"
+
 inputs="$TEST_TMPDIR/inputs-shared"
 mkinputs "$inputs"
 printf 'x\n' >"$inputs/unrelated"

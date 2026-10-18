@@ -269,8 +269,10 @@ Options:
                       On exit, whatever the exit code, delete the files handed
                       to --root-file, --fallback-root-file and --data-root-file,
                       then rmdir each one's directory (left in place when it is
-                      not empty). For a caller that wrote those files into a
-                      temp directory and would otherwise need its own rm.
+                      not empty). Armed when the flag is parsed: a usage error
+                      before it, or a missing library, leaves the files. For a
+                      caller that wrote those files into a temp directory and
+                      would otherwise need its own rm.
   -h, --help          Show this help.
 
 Dependencies: when the new worktree has a package-lock.json, the helper runs
@@ -301,7 +303,19 @@ base_ref=""
 existing_branch=0
 repo_dir="."
 session_id=""
-remove_input_files=0
+
+# remove_input_files_on_exit — the EXIT trap behind --remove-input-files, armed
+# when the flag is parsed so a later usage error still cleans up. Reads the path
+# variables at exit time. rm -f
+# and rmdir only: a directory holding anything else is left alone.
+remove_input_files_on_exit() {
+  local file
+  for file in "$root_file" "$fallback_root_file" "$data_root_file"; do
+    [[ -n "$file" ]] || continue
+    rm -f -- "$file"
+    rmdir -- "$(dirname -- "$file")" 2>/dev/null || true
+  done
+}
 
 # need_value <flag> — guard against a value-taking flag given as the last token
 # with no argument. Without this, `shift 2` on a single remaining positional
@@ -370,7 +384,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --remove-input-files)
-    remove_input_files=1
+    trap remove_input_files_on_exit EXIT
     shift
     ;;
   -h | --help)
@@ -384,20 +398,6 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
-
-# remove_input_files_on_exit — the EXIT trap behind --remove-input-files. rm -f
-# and rmdir only: a directory holding anything else is left alone.
-remove_input_files_on_exit() {
-  local file
-  for file in "$root_file" "$fallback_root_file" "$data_root_file"; do
-    [[ -n "$file" ]] || continue
-    rm -f -- "$file"
-    rmdir -- "$(dirname -- "$file")" 2>/dev/null || true
-  done
-}
-if ((remove_input_files)); then
-  trap remove_input_files_on_exit EXIT
-fi
 
 if [[ -z "$name" ]]; then
   printf '%s: --name is required\n' "$PROG" >&2
