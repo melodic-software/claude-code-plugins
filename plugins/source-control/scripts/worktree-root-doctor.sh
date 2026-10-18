@@ -52,6 +52,11 @@
 #     user.signingkey while signing is configured globally leaks the global
 #     key into that identity's commits (and an SSH-signed mismatch verifies
 #     Good locally, so nothing downstream catches it).
+#   * a registered linked worktree whose path lies inside a DIFFERENT repository's work
+#     tree (a different git common dir) — error naming the owning repository,
+#     the containing repository and the remove command. A worktree inside its
+#     own repository's tree or under the resolved root is not flagged; a missing
+#     or unreadable ancestor stops the walk without aborting the audit.
 #   * scoped-read divergence — reported as info: consumers must never pass a
 #     scope flag without --includes, and this names what such a read would
 #     return here.
@@ -68,6 +73,11 @@ PROG=${0##*/}
 
 # shellcheck source=worktree-root-resolve.sh
 source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh"
+# shellcheck source=lib/worktree-facts.sh
+source "${BASH_SOURCE[0]%/*}/lib/worktree-facts.sh" || {
+  printf '%s: cannot load lib/worktree-facts.sh\n' "$PROG" >&2
+  exit 2
+}
 
 repo_dir="."
 while [[ $# -gt 0 ]]; do
@@ -257,6 +267,7 @@ done
 # fallthrough matches create.sh.
 declare -a val_origins=() val_values=()
 winning_key=""
+root_expanded=""
 if worktree_root_resolve "$repo_dir"; then
   winning_key="$WORKTREE_ROOT_KEY_USED"
   while IFS= read -r -d '' origin && IFS= read -r -d '' val; do
@@ -324,6 +335,57 @@ else
     warn "the resolved root $win_val sits INSIDE a git working tree — the one placement the convention exists to prevent; point it at a directory outside every repository"
   fi
 fi
+
+# --- Worktrees nested in another repository ------------------------------------
+# For each registered worktree, walk up from its path. An ancestor that is the
+# work tree of a repository with a different git common dir means the worktree
+# sits inside another repository's tree (a worktree of B created under A's
+# .work/). The walk stops at the first ancestor that is missing or unreadable.
+
+# common_of <dir> — canonical absolute git common dir of the repository at <dir>.
+common_of() {
+  local c
+  c=$(git -C "$1" rev-parse --git-common-dir 2>/dev/null | tr -d '\r') || return 1
+  [[ -n "$c" ]] || return 1
+  if [[ "$c" != /* && ! "$c" =~ ^[A-Za-z]:/ ]]; then
+    c="$1/$c"
+  fi
+  canon "$c"
+}
+
+own_common="$(canon "$common_dir")"
+nested_porcelain="$(mktemp)" || nested_porcelain=""
+if [[ -n "$nested_porcelain" ]] && git -C "$repo_dir" worktree list --porcelain -z >"$nested_porcelain" 2>/dev/null; then
+  worktree_facts_parse_z "$nested_porcelain"
+  owner_main="${WT_FACT_PATH[0]:-$repo_dir}"
+  root_canon=""
+  [[ -n "$root_expanded" ]] && root_canon="$(canon "$root_expanded")"
+  for wt_idx in ${WT_FACT_PATH[@]+"${!WT_FACT_PATH[@]}"}; do
+    # Linked worktrees only: the main checkout may legitimately sit under another
+    # repository (a submodule, a clone under a dotfiles repo), and git refuses
+    # to remove it.
+    [[ "${WT_FACT_LINKED[wt_idx]}" == "yes" ]] || continue
+    wt_path="${WT_FACT_PATH[wt_idx]}"
+    wt_canon="$(canon "$wt_path")"
+    if [[ -n "$root_canon" && "$wt_canon" == "$root_canon"/* ]]; then
+      continue
+    fi
+    anc="$(dirname -- "$wt_canon")"
+    while [[ -d "$anc" && -r "$anc" && -x "$anc" ]]; do
+      if [[ -e "$anc/.git" ]]; then
+        anc_common="$(common_of "$anc")" || anc_common=""
+        if [[ -n "$anc_common" && "$anc_common" != "$own_common" ]]; then
+          err "worktree $wt_path of repository $owner_main sits inside the work tree of a different repository ($anc). Remove it: git -C $owner_main worktree remove $wt_path"
+          break
+        fi
+      fi
+      parent="$(dirname -- "$anc")"
+      [[ "$parent" != "$anc" ]] || break
+      anc="$parent"
+    done
+  done
+fi
+[[ -z "$nested_porcelain" ]] || rm -f "$nested_porcelain"
 
 # --- Identity partials ---------------------------------------------------------
 # An include that flips user.email without the signing/transport keys leaks the
