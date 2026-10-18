@@ -2540,6 +2540,8 @@ class PostMergeGate:
 
 # How old a shared post-merge answer may be: the pr-merge job's timeout.
 SHARED_MAX_AGE = timedelta(minutes=30)
+# Runner clocks may run ahead of GitHub's; `since` starts this much earlier.
+SINCE_CLOCK_MARGIN = timedelta(minutes=5)
 
 
 @dataclass(frozen=True)
@@ -2590,11 +2592,16 @@ def _demotion_changed(
 ) -> bool:
     """Whether anything `read_demotion` reads may differ from the shared
     answer, in one REST call: an issue updated since the answer was computed
-    (which precedes its demotion read) that a record filer opened, or that is
-    a known record. Creating, editing, closing or reopening an issue updates
-    it, so no new or changed record escapes. A full page or an unreadable
+    (which precedes its demotion read), less `SINCE_CLOCK_MARGIN`, that a
+    record filer opened, or that is a known record. Creating, editing,
+    closing or reopening an issue updates it, so no new or changed record
+    escapes. A full page or an unreadable
     one counts as changed."""
-    since = shared.computed_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    since = (
+        (shared.computed_at - SINCE_CLOCK_MARGIN)
+        .astimezone(UTC)
+        .strftime("%Y-%m-%dT%H:%M:%SZ")
+    )
     status, issues = _get(
         f"repos/{owner}/{name}/issues?state=all&since={since}&per_page=100"
     )

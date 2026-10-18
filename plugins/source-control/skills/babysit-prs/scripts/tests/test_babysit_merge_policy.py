@@ -2964,8 +2964,10 @@ class SharedPostMergeAnswer(unittest.TestCase):
 
     def issues_since(self) -> str:
         """The demotion re-read: issues updated since the answer, to the
-        second GitHub's `since` takes."""
-        since = self.computed_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+        second GitHub's `since` takes, less the clock margin."""
+        since = (self.computed_at - policy.SINCE_CLOCK_MARGIN).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
         return f"repos/{REPO}/issues?state=all&since={since}&per_page=100"
 
     def shared(self, gate_: policy.PostMergeGate, **overrides: Any) -> Any:
@@ -3086,8 +3088,8 @@ class SharedPostMergeAnswer(unittest.TestCase):
 
     def test_a_demotion_record_filed_since_the_answer_is_not_missed(self) -> None:
         # The answer says not demoted; a record opened after it, an edit or
-        # close of a known record, or an unreadable re-read sends the pull
-        # request to its own demotion read.
+        # close of a known record, an unreadable re-read, or a full page
+        # sends the pull request to its own demotion read.
         record = {
             "number": 90,
             "user": {"login": "github-actions[bot]"},
@@ -3095,7 +3097,16 @@ class SharedPostMergeAnswer(unittest.TestCase):
             "state": "open",
         }
         known = {"number": 12, "user": {"login": OPERATOR}, "state": "closed"}
-        for issues, records in (([record], ()), ([known], (12,)), (502, ())):
+        full = [
+            {"number": 1000 + n, "user": {"login": OPERATOR}, "state": "open"}
+            for n in range(100)
+        ]
+        for issues, records in (
+            ([record], ()),
+            ([known], (12,)),
+            (502, ()),
+            (full, ()),
+        ):
             with self.subTest(issues=issues):
                 gh = self.bound()
                 gh.rest[self.issues_since()] = issues
