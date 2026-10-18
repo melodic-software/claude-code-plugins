@@ -222,8 +222,8 @@ than that one, and `?around=<id>` the ones with that one in the middle, `limit` 
 default 50), each read as the snapshot reads it: from people still in, others' reactions masked
 where names are; an answer carries `before` while older ones exist, and a message it cannot show
 is 404 `not-found`. While older messages exist, a snapshot also carries `chatTouched`, a count that moves
-when one of them gets a reaction or is forwarded (kept in memory only); a page holding older messages reads them
-again when it moves. The page keeps every message it has read while it is open, loads older ones as
+when one of them gets a reaction or is forwarded (kept in memory only, so it starts again from zero when the
+server restarts); a page holding older messages reads them again when it moves. The page keeps every message it has read while it is open, loads older ones as
 the reader nears the top of the chat or presses "Load earlier messages", and reads around a
 message a notification or a reply quote points at.
 
@@ -461,7 +461,7 @@ Never recorded: what anyone types, answers, chat, names, the address or its frag
 page, or a credential. The join dialog says so in one line, with a "What this page records" link to
 the plain list and a "Record problems on this device" switch; Help (and the phone More sheet)
 carries the same. Off stops every send, faults included, and is kept in `localStorage`
-(`telemetry`).
+(`telemetry`). Another tab of the session open in the same browser keeps sending until it reloads.
 
 `POST /api/client-log` (auth class person) takes `{kind, message, source, route, code, ua, fp}`:
 strings, at most 500 characters for `message`, 200 for `source` and `route`, 60 for `code` and
