@@ -62,6 +62,7 @@ permissions, and passes no App key.
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-sha256` output |
 | `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, that job's `head-sha` output, passed to the gate and the broker (step 3) |
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-attempt` output, which names the replies artifact so a re-run of the reply job alone still finds it |
+| `output-mode` | `clean-tree` | Read file only: `clean-tree` fails a run that leaves the tree changed; `patch` uploads the change instead ([Patch output mode](#patch-output-mode)); any other value fails red before the head checkout |
 
 The write file has six `workflow_call` outputs. `head-sha` is the PR head the gate passed, before
 any push of the run; `issue-run-started` is described below; `feedback-run-sha256` and
@@ -70,6 +71,10 @@ any push of the run; `issue-run-started` is described below; `feedback-run-sha25
 [`prepare: merge-base`](#prepare-merge-base) activity, a `prepare: review-threads` activity before
 any model turn, or its reply script handed the PR to a person. `feedback-round` is `true` once a
 `prepare: review-threads` skill ran, so its reply job must run.
+
+The read file has four `workflow_call` outputs: `head-sha`, as in the write file, and
+`patch-state`, `patch-sha256` and `patch-attempt`, described with
+[Patch output mode](#patch-output-mode).
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
 files) is the only one. Variables: `CLAUDE_LANES_DISABLED` and `CLAUDE_LANES_REPO_DISABLED` (the org
@@ -232,7 +237,8 @@ the broker request, and no other permission; it never holds `checks: write` or `
     `node_modules` trees into the checkout. Both files install from the base copies in
     `$RUNNER_TEMP/setup-env`, so no head code runs before the skill's own Bash; a read skill that
     needs the head's own packages runs `npm ci` there.
-    Then runs the activity (below) and, in the read file, records whether the tree is dirty.
+    Then runs the activity (below) and, in the read file, records whether the tree is dirty, or
+    in [patch output mode](#patch-output-mode) collects the change as a patch.
 13. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
 14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,
@@ -496,6 +502,45 @@ to `$RUNNER_TEMP/base-script` before the head checkout and checked against its r
 (or its recorded absence) before the script runs. It exports `APP_SENDER_ID` and
 `ESCALATION_REASON_FILE`, and with `review-replies` `FEEDBACK_REPLIES_DIR` and `TRUSTED_ACTORS`
 ([prepare: review-threads](#prepare-review-threads)).
+
+### Patch output mode
+
+Read file only, chosen by the caller's `output-mode: patch` input. It lets an activity run head
+code with no write token and hand its change to a separate job that holds one:
+
+1. Before the head checkout, the base's
+   [`collect-patch.sh`](../../../.github/scripts/read-patch/collect-patch.sh) is copied to
+   `$RUNNER_TEMP/read-patch`.
+2. After an act step that succeeded, in place of the clean-tree check, the collector writes
+   everything the activity changed against the gated head (committed, staged, unstaged and
+   untracked, ignored files aside) as one `git diff --binary` patch, through a scratch index, with
+   every diff option that changes the patch's form passed explicitly. A failed, cancelled or
+   turnless act step collects nothing and the check fails as usual.
+3. A non-empty patch is uploaded as the artifact `patch-<lane>-<activity>-<run attempt>`, holding
+   one file, `patch.diff` (7-day retention). The run's `patch-state` output is then `written`,
+   `patch-sha256` is that file's SHA-256 and `patch-attempt` is the attempt in the artifact's name.
+   No change is `patch-state` `empty`, with no artifact and the other two empty. A run that
+   collected no patch leaves all three empty.
+4. The verdict's `patch` field repeats `patch-state` (`null` when empty), and the check is
+   `success` titled `Passed: patch written` or `Passed: no changes`.
+
+Head code ran in the job that writes the patch, its SHA-256 and the verdict, and could have
+replaced the collector copy or the patch, so none of them is trusted: the SHA-256 only binds the
+artifact to this run's output. A job that applies the patch downloads it by `patch-attempt`, so a
+re-run of that job alone still finds it. Before applying it, that job must check that:
+
+- the artifact holds exactly `patch.diff`, a regular file within a size limit the job names, whose
+  SHA-256 is `patch-sha256`;
+- the PR head is still `head-sha`;
+- `git apply --check --index`, with no `--unsafe-paths` or `--directory`, succeeds on a fresh
+  checkout of `head-sha`;
+- no entry has mode `120000` (symlink) or `160000` (gitlink), and no path is under a protected
+  path such as `.github/**`, `.gitattributes`, `.gitmodules` or `.husky`.
+
+It then commits on `head-sha` and moves the PR branch without force, so a head that moved after
+the check refuses the push. A forged `empty` can only hand the PR to a person; a forged `written`
+meets those checks. A `gating: gate` activity fails red in patch mode before the head checkout: a
+gate must judge the head it is posted on, unchanged.
 
 ### prepare: merge-base
 
@@ -860,7 +905,7 @@ off every runner by the broker instead: no workflow holds it.
 
 The verdict is written after head code ran in the same job, so it is never trusted: its lane,
 activity, gate stop reason and `head-sha` must match the values above or the check fails, and its
-`dirty-tree` counts only as `true` (failure). A missing verdict is a failure. A cancelled run job
+`dirty-tree` counts only as `true` (failure); its `patch` field only picks the title of a success. A missing verdict is a failure. A cancelled run job
 posts neutral `superseded-sha` only when the PR's current head SHA is non-empty and differs from
 the gated `head-sha`; a cancel with no newer head, such as a manual cancel or a timeout, is a
 failure. The full decision order is in the report-check-run README.
