@@ -415,6 +415,62 @@
         "Output says the change can be built directly and aligned on after the diff is reviewed",
         "Output does not treat the behavior change alone as a reason to interview"
       ]
+    },
+    {
+      "id": 30,
+      "name": "ship-it-drops-questions-not-gates",
+      "prompt": "/planning:interview me — add a `--dry-run` flag to our `reports export` CLI command.\n\n[Session state: an engineering session, round 2 has just been answered. The register holds Q1 (flag name and short form) `answered`, Q2 (should dry-run print the rows it would write) `answered`, Q3 (exit code when dry-run finds nothing to export) `open`, and Q4 (whether dry-run also skips the audit-log write) `open`. The user's reply to round 2 ends: \"Honestly this is small, ship it. Stop asking.\" The model has not proposed ship-it; the user did.]",
+      "expected_output": "The user's ship-it request drops the remaining questions but no gate. Q3 and Q4 move from open to deferred with the user's reply as their resolution, and the assumption sweep is skipped, with the restatement saying so. Step 3 still runs: the register gate and the procedure check, a restatement with a register recap that shows the deferred rows, and a request for the user's confirmation, which is awaited rather than assumed. Step 4 then writes the Brief with each deferred row under Deferred questions, led by its Q id and tagged arbiter: USER-RESERVED, and the brief cross-check must exit 0 before the handoff. The handoff goes to implementation or design as the work warrants, never to /planning:plan, and lists Q3 and Q4 by id and question.",
+      "files": [],
+      "expectations": [
+        "Q3 and Q4 are moved from open to deferred with the user's reply as the resolution, not left open and not recorded as answered with an invented answer",
+        "The assumption sweep is skipped and the restatement says so",
+        "The run does not skip the Step 3 confirmation gate: it restates with a register recap in which the deferred rows are visible and asks the user to confirm before writing the Brief",
+        "The Brief puts Q3 and Q4 under Deferred questions, each led by its Q id and tagged arbiter: USER-RESERVED",
+        "The run requires the --brief cross-check to exit 0 before it hands off",
+        "The handoff message lists Q3 and Q4 by id and question and does not route to /planning:plan"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "wayfind-trigger-needs-two-rounds-running",
+      "prompt": "/planning:interview me — we need to replace our home-grown job scheduler with something durable.\n\n[Session state: round 1 was answered and recorded. Its answers moved 2 register rows to a terminal status and exposed 4 new questions the next round would add, so more branches opened than closed. The next-round recommendation has not yet been written. Separately, a second session handles round 2 of an otherwise identical interview: there, the previous round also opened more branches than it closed (3 opened, 1 closed), and round 2's answers again opened more than they closed (5 opened, 2 closed). Treat these as two cases: case A is the first session after round 1 only, and case B is the second session after round 2.]",
+      "expected_output": "At the round boundary the skill counts the branches this round's answers opened against the rows it moved to a terminal status. In case A, one round with more opened than closed is noise: the skill recommends nothing, says nothing about wayfind, and asks the next round. In case B, two rounds running with more opened than closed is the trigger: the skill recommends /planning:wayfind chart in one short block that gives the evidence (the counts for both rounds), what the handoff would carry over, and the ledger path. In neither case does the skill start the wayfind chart itself.",
+      "files": [],
+      "expectations": [
+        "In case A the output asks the next round and does not mention or recommend /planning:wayfind",
+        "In case B the output recommends /planning:wayfind chart",
+        "The case B recommendation is one short block that cites the evidence of more branches opened than closed in both rounds, including the counts",
+        "The case B recommendation names what the handoff would carry over and the interview-checklist.md ledger path",
+        "Neither case runs /planning:wayfind or writes a wayfind chart on its own"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "declined-wayfind-not-repeated-until-escalation",
+      "prompt": "/planning:interview me — consolidate our three billing services into one.\n\n[Session state: after round 3 the skill recommended /planning:wayfind chart because rounds 2 and 3 each opened more branches than they closed, and the user replied: \"No, keep interviewing here.\" The context-guard zone reported at entry was green and is still green. Case A: round 4 has just been answered, and it again opened more branches than it closed (4 opened, 1 closed). Case B: round 4 has just been answered, and it again opened more branches than it closed, and the context-guard report the harness surfaced now puts the session in a worse zone than at entry.]",
+      "expected_output": "The user declined the wayfind recommendation, so the skill respects that. In case A the same trigger fires again but has not escalated (the zone has not worsened and no other trigger fired), so the skill does not repeat the recommendation and asks the next round. In case B the zone has worsened, which is an escalation, so the skill may raise a recommendation again in one short block that cites the new evidence; both triggers hold, so the route it recommends is wayfind. In neither case does it switch to wayfind without the user's yes.",
+      "files": [],
+      "expectations": [
+        "In case A the output does not repeat the /planning:wayfind recommendation and asks the next round",
+        "In case A the output does not re-argue or nag about the earlier declined recommendation",
+        "In case B the output raises the recommendation again, citing the worsened context zone as the new evidence",
+        "In case B the recommended route is /planning:wayfind chart, not /session-flow:workflow, because the fog trigger also holds",
+        "Neither case switches to wayfind without the user accepting"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "never-switches-to-wayfind-on-its-own",
+      "prompt": "/planning:interview me — migrate our monolith's auth to a standalone identity service.\n\n[Session state: rounds 2 and 3 each opened more branches than they closed (round 2: 4 opened, 1 closed; round 3: 5 opened, 2 closed). The frontier has been recomputed. The user has not yet replied to anything about routing. The model is about to write the round 4 prompt.]",
+      "expected_output": "The fog trigger has fired, so the skill recommends /planning:wayfind chart in one short block with the evidence and what it would carry over, then waits. It does not invoke /planning:wayfind, does not write a chart, and does not stop interviewing on its own authority: the switch happens only if the user accepts. Until the user answers, the interview stays in place.",
+      "files": [],
+      "expectations": [
+        "Output recommends /planning:wayfind chart and cites the more-opened-than-closed evidence from rounds 2 and 3",
+        "Output does not invoke /planning:wayfind, run a wayfind chart, or write a chart",
+        "Output does not end the interview or abandon the register on its own; it leaves the choice to the user",
+        "Output waits for the user's answer to the recommendation instead of proceeding as if it were accepted"
+      ]
     }
   ]
 }
