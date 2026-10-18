@@ -135,19 +135,19 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `handle` | `seqs` | Mark events handled |
 
 Each question follows [`question-shape.md`](question-shape.md) plus `purpose`, `format`,
-`answerScope`, `references` and an optional `for`.
+`answerScope`, `references` and an optional `for`. Ids are `Q<N>`, one counter for the whole
+topic, shared by every session on it. Pick each new id as the larger of the interview ledger's
+next free `Q<N>` and the highest `Q<N>` already in the session plus one, because the session can
+hold ids that moderators created. A round holds at most 8 questions; the rest go to a later round.
+An asset id exists only after its `apply`, so add assets in one apply and the round that uses them
+in the next.
 
 **Who must answer.** When the owner's intent names who a question is for ("@Levi", "Levi, what
 ...", "ask the designer" with the designer named), give the question `for` with those names as
 the session shows them, in `open-round` or later with `set-for`. Leave it out when anyone may
 answer. A named person's question never turns optional for them, a reaction alone does not
 count as their answer, and their pass needs a reason. The owner can change it from the page; an
-op naming someone not in the session is refused, so ask the owner rather than guess a name. Ids are `Q<N>`, one counter for the whole topic, shared by every
-session on it. Pick each new id as the larger of the interview ledger's next free `Q<N>` and the
-highest `Q<N>` already in the session plus one, because the session can hold ids that moderators
-created. A round holds at most 8 questions; the rest go to a later round. An
-asset id exists only after its `apply`, so add assets in one apply and the round that uses them in
-the next.
+op naming someone not in the session is refused, so ask the owner rather than guess a name.
 
 **In-flight work.** When a lookup or a guest's request is still running, ask the rest of the
 frontier now; hold only the questions that pending async work can change.
