@@ -928,9 +928,11 @@ repository, started (and any re-run) by the lanes bot or a listed human, at the 
 or, with `expected_upstream_head` in the body, at that head when every commit from it to the PR's
 current head is one GitHub signed for the lanes bot (committer `web-flow`, signature `valid`) after
 this run was created, and the upstream run lists this pull request. The client
-sends it once and never retries: the broker
-reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
-and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
+retries only a 503 `github-unavailable`, with backoff
+([`request-lane-token`](../../../.github/actions/request-lane-token/README.md#what-it-does), step 3):
+the broker reserves the job's `check_run_id` before it mints, so a request after a mint or a failed
+mint is denied `already-minted`, and a 200 lost in transit leaves a token nobody revokes until it
+expires within the hour.
 
 The broker derives the grant from the default-branch tip's config and `effect-grants.json`, never
 from the request, and mints a token for this repository only, with exactly `contents`,
