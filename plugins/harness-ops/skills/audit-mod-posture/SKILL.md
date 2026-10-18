@@ -61,9 +61,10 @@ scopes among the install entries that apply to the project, in that order; `unkn
 value) and `builtin` for a built-in. An installed mod's hooks and calls are the `hooks:` and
 `calls:` lines of `claude plugin validate`; `mod-posture.test.sh` checks that the install directory
 is unchanged after it runs. A built-in row's `calls` is always `unknown`. Its `enabled` is `on`
-only when its setting (else `default_enabled`) is on and every gate flag the inventory report lists
-reads true (the cached value, else the flag's default when the cache lacks the key); a false flag
-reads `off`, and a gate or flag value not read reads `unknown`. It stays partial, as its footer
+only when its setting (else `default_enabled`) is on and it is not gated. A gated built-in reads
+`off` when a gate flag the inventory report lists reads false (the cached value, else the flag's
+default when the cache lacks the key), and `unknown` otherwise: the report lists only the gate's
+`tengu_` flags, not its runtime terms. It stays partial, as its footer
 says. `can_disable` for built-ins comes from the live mods overview table, fetched through the
 plugin's docs cache; `unknown` when that fetch fails.
 

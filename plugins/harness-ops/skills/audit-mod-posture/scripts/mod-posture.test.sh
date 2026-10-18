@@ -61,6 +61,7 @@ plugin "$P/spaced" spaced '{"modules":["./a b.js"]}'
 plugin "$P/silent" silent '{"modules":["./register.js"]}'
 plugin "$P/localmod" localmod '{"modules":["./register.js"]}'
 plugin "$P/twoscope" twoscope '{"modules":["./register.js"]}'
+plugin "$P/zz-noid" zz-noid '{"modules":["./register.js"]}'
 
 proj_real="$(cd "$FIX/proj" && pwd -P)"
 other_real="$(cd "$FIX/other proj" && pwd -P)"
@@ -76,7 +77,8 @@ jq -n --arg p "$P" --arg proj "$proj_real" --arg other "$other_real" '[
   {id:"silent@mk", scope:"user", enabled:true, installPath:"\($p)/silent"},
   {id:"localmod@mk", scope:"local", enabled:true, installPath:"\($p)/localmod", projectPath:$proj},
   {id:"twoscope@mk", scope:"user", enabled:true, installPath:"\($p)/twoscope"},
-  {id:"twoscope@mk", scope:"project", enabled:true, installPath:"\($p)/twoscope", projectPath:$proj}
+  {id:"twoscope@mk", scope:"project", enabled:true, installPath:"\($p)/twoscope", projectPath:$proj},
+  {id:null, scope:"user", enabled:true, installPath:"\($p)/zz-noid"}
 ]' >"$FIX/list.json"
 
 # validate fixtures, keyed by plugin directory name.
@@ -102,6 +104,7 @@ validate_json spaced true \
 validate_json silent false
 validate_json localmod true './register.js hooks: session.start'
 validate_json twoscope true './register.js hooks: session.start'
+validate_json zz-noid true './register.js hooks: tool.call'
 
 cat >"$FIX/bin/claude" <<'EOF'
 #!/usr/bin/env bash
@@ -145,7 +148,9 @@ cat >"$FIX/inventory.json" <<'EOF'
     "cc-plugin-flag-on": {"id": "cc-plugin-flag-on@builtin", "default_enabled": true, "gated": true, "gate_flags": [{"flag": "tengu_flag_on", "default": false}], "hook_events": []},
     "cc-plugin-flag-uncached": {"id": "cc-plugin-flag-uncached@builtin", "default_enabled": true, "gated": true, "gate_flags": [{"flag": "tengu_flag_uncached", "default": true}], "hook_events": []},
     "cc-plugin-gate-unread": {"id": "cc-plugin-gate-unread@builtin", "default_enabled": true, "gated": true, "gate_flags": null, "hook_events": []},
-    "cc-plugin-gate-missing": {"id": "cc-plugin-gate-missing@builtin", "default_enabled": true, "hook_events": []}
+    "cc-plugin-gate-missing": {"id": "cc-plugin-gate-missing@builtin", "default_enabled": true, "hook_events": []},
+    "cc-plugin-gate-no-flags": {"id": "cc-plugin-gate-no-flags@builtin", "default_enabled": true, "gated": true, "gate_flags": [], "hook_events": []},
+    "cc-plugin-no-id": {"id": null, "default_enabled": true, "gated": false, "gate_flags": [], "hook_events": ["ui.render", "tool.call"]}
   },
   "builtin_plugin_state": {
     "global_config": "/SECRETGLOBALPATH1/.claude.json",
@@ -201,7 +206,10 @@ assert_eq "validate failure reads unknown" "unknown unknown validate-failed" \
   "$(field broken@mk 5) $(field broken@mk 6) $(field broken@mk 7)"
 
 # --- Grammar filter ------------------------------------------------------------------------
-assert_eq "id outside the grammar prints redacted-id" 1 "$(count_rows redacted-id)"
+assert_eq "id outside the grammar prints redacted-id" 1 \
+  "$(printf '%s\n' "$OUT" | awk -F'\t' '$1 == "redacted-id" && $2 == "managed"' | wc -l | tr -d ' ')"
+assert_eq "installed entry with a null id keeps its columns" "user on yes tool.call" \
+  "$(printf '%s\n' "$OUT" | awk -F'\t' '$1 == "redacted-id" && $2 != "managed" { print $2, $3, $4, $5 }')"
 assert_eq "managed scope is the managed tier" managed "$(field redacted-id 2)"
 assert_eq "hook names outside the grammar print redacted, keeping a valid event" \
   "tool.check,tool.call{redacted},redacted" "$(field redacted-id 5)"
@@ -231,11 +239,16 @@ assert_contains "built-in enabled is marked partial" "$OUT" "# not read: built-i
 # default_enabled true, so a false flag, or a gate whose value is unknown, never reads on.
 assert_eq "cached gate flag false reads off, even with the setting on" off "$(field cc-plugin-flag-off@builtin 3)"
 assert_eq "absent cache key falls back to the flag default: false reads off" off "$(field cc-plugin-flag-default-off@builtin 3)"
-assert_eq "cached gate flag true leaves the setting or default deciding" on "$(field cc-plugin-flag-on@builtin 3)"
+# gate_flags lists only the tengu_ flag terms of the gate (inventory extraction.md), so flags
+# that all read true never prove the gate open.
+assert_eq "gated built-in with every listed flag true reads unknown, never on" unknown "$(field cc-plugin-flag-on@builtin 3)"
+assert_eq "gated built-in with no listed flag reads unknown, never on" unknown "$(field cc-plugin-gate-no-flags@builtin 3)"
 assert_eq "flag cache not read reads unknown, never on" unknown "$(field cc-plugin-flag-uncached@builtin 3)"
 assert_eq "gate that did not read reads unknown" unknown "$(field cc-plugin-gate-unread@builtin 3)"
 assert_eq "no gated field reads unknown" unknown "$(field cc-plugin-gate-missing@builtin 3)"
 assert_eq "ungated built-in on by default reads on" on "$(field cc-plugin-sec-default@builtin 3)"
+assert_eq "built-in with a null id keeps its columns under name@builtin" "builtin on ui.render,tool.call" \
+  "$(field cc-plugin-no-id@builtin 2) $(field cc-plugin-no-id@builtin 3) $(field cc-plugin-no-id@builtin 5)"
 
 run_mp --no-fetch
 assert_contains "no --builtin-json is named in a footer" "$OUT" "# not read: built-in tier: built-in mods were not read (no --builtin-json inventory report)"
@@ -284,8 +297,8 @@ assert_not_contains "a later false leaves no override note" "$OUT" "override den
 rm -rf -- "${FIX:?}/managed/managed-settings.d"
 printf 'not json SECRETMANAGED2\n' >"$M"
 run_mp --no-fetch
-assert_contains "unparseable managed settings leave the guard unknown" "$OUT" "# guard: unknown (managed settings unreadable)"
-cp -- "$M" "$FIX/managed-unparseable.txt"
+assert_contains "unparsable managed settings leave the guard unknown" "$OUT" "# guard: unknown (managed settings unreadable)"
+cp -- "$M" "$FIX/managed-unparsable.txt"
 rm -f -- "$M"
 mv "$FIX/auth.json" "$FIX/auth.off"
 run_mp --no-fetch

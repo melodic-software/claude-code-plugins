@@ -132,14 +132,15 @@ else
   # One line per installPath: path, id, tier, enabled. An entry counts toward `enabled` when it
   # applies to this project: user or managed scope, or a project or local entry for --project.
   # A path no such entry names is `elsewhere`: skipped, and counted in a footer. `tier` is the
-  # first scope among those entries in the order managed, local, project, user.
+  # first scope among those entries in the order managed, local, project, user. A missing id is
+  # `-`, never empty: IFS=$'\t' is whitespace, so read would merge an empty field into the next.
   jq -r --arg proj "$project_real" '
     [.[] | select((.installPath | type) == "string")]
     | group_by(.installPath)[]
     | . as $g
     | [ $g[] | select(.scope == "user" or .scope == "managed" or (.projectPath // "") == $proj) ] as $here
     | [ $g[0].installPath,
-        ($g[0].id // ""),
+        ($g[0].id // "-"),
         (first([ "managed", "local", "project", "user" ][] as $t
          | select(any($here[]; .scope == $t)) | $t) // "unknown"),
         (if ($here | length) == 0 then "elsewhere"
@@ -174,6 +175,7 @@ else
     fi
     can_disable="yes"
     [[ "$tier" == "managed" ]] && can_disable="unknown"
+    [[ "$id" == "-" ]] && id=""
     row "$(safe_id "$id")" "$tier" "$enabled" "$can_disable" "$hooks" "$calls" "$source"
   done <"$TMP/paths.tsv"
   ((elsewhere)) && NOT_READ+=("installed tier: $elsewhere install path(s) only other projects enable, skipped")
@@ -211,13 +213,16 @@ else
   NOT_READ+=("built-in enabled: managed settings and --settings are not read, so on/off is partial")
   # enabled: the setting (else default_enabled) AND the gate. A gate flag's value is its cached
   # value, or its default when the cache lacks the key; a cache not read leaves it unknown. Any
-  # false flag closes the gate; a gate or flag not read never reads on.
+  # false flag closes the gate. gate_flags lists only the gate's tengu_ flag terms, its other
+  # terms are runtime state the report does not list, so a gated built-in never reads on. A
+  # missing id is `-` (see the installed tier) and falls back to name@builtin.
   while IFS=$'\t' read -r name id enabled hooks; do
     [[ "$name" =~ ^cc-plugin-[a-z0-9-]+$ ]] || continue
     if [[ "$hooks" != "unknown" && "$hooks" != "-" ]]; then
       hooks="$(printf '%s' "$hooks" | filter_list "$HOOK_RE")"
     fi
-    row "$(safe_id "${id:-$name@builtin}")" builtin "$enabled" "${CAN_DISABLE[$name]:-unknown}" "$hooks" unknown builtin-lane
+    [[ "$id" == "-" ]] && id="$name@builtin"
+    row "$(safe_id "$id")" builtin "$enabled" "${CAN_DISABLE[$name]:-unknown}" "$hooks" unknown builtin-lane
   done < <(jq -r 'def flag: if .cached_present == true then .cached
                             elif .cached_present == false then .default else null end;
     (.builtin_plugin_state.plugins // {}) as $st
@@ -231,9 +236,9 @@ else
        | if .value.gated == false then "open"
          elif .value.gated == true and ($flags | type) == "array" then
            ([$flags[] | flag]) as $v
-           | if any($v[]; . == false) then "closed" elif all($v[]; . == true) then "open" else "unknown" end
+           | if any($v[]; . == false) then "closed" else "unknown" end
          else "unknown" end) as $gate
-    | [ .key, (.value.id // ""),
+    | [ .key, (.value.id // "-"),
         (if $base == false or $gate == "closed" then "off"
          elif $base == true and $gate == "open" then "on"
          else "unknown" end),
