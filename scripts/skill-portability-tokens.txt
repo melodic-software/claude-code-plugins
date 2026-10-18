@@ -159,8 +159,9 @@ origin/(main|master)
 # Tracker hardcode: bare `gh` tracker calls in a tracker-agnostic skill that
 # should route the work-item seam (#416). Residue at bb0efe61: 358 hits across
 # 78 files — by far the largest class here, and #416 (wayfind re-implements
-# GitHub-direct instead of routing the seam) is still OPEN, so the corpus has no
-# clean landing yet. Enable once the seam-routing members land; `gh` is
+# GitHub-direct instead of routing the seam) was OPEN at that measurement; it is
+# now closed, but the residue below still has no clean landing. Enable once the
+# remaining seam-routing members land; `gh` is
 # legitimate in forge-scope-declared skills, so this class needs the
 # declared-scope escape hatch exercised on those plugins first.
 #
@@ -170,6 +171,24 @@ origin/(main|master)
 #   (^|[^a-zA-Z0-9_.-])gh (issue|pr|api|repo|run|label|release|search|workflow)([^a-zA-Z0-9_-]|$)
 # The leading class excludes `.` and `-` so a filename or hyphenated identifier
 # ending in "gh" is not read as the command.
+#
+# Decision (#6941, recorded 2026-10-13): this class STAYS STAGED, by the owner's
+# decision. The source-control rewording to neutral forge operations and the move
+# of its GitHub commands under reference/providers/github/ merged in #7042, #7163
+# and #7170; that work did not change the corpus enough to enable the rule.
+# Justification: the verified pattern above, run over origin/main
+# plugins/*/skills/**/*.md on 2026-10-13, hit 94 skill markdown files with 222
+# hits in total (36 SKILL.md files, 78 hits among them). Those files are who the
+# rule would block: under changed-file scoping, a PR editing any of them would
+# have to rewrite the `gh` call to the work-item seam or a provider reference,
+# or declare `portability-ok` per site or `portability-scope` for the file, and
+# most of those skills legitimately use `gh` with no seam to route through.
+# Enabling now would add that friction to unrelated edits without a landing place
+# for the fix. Enable when the fix-or-declare path is cheap for those files: the
+# remaining skills still calling `gh` directly route the work-item seam, forge-scope declarations are
+# exercised on the plugins that are genuinely GitHub-locked, and a fresh `--all`
+# run shows the residue is small enough to clear in one pass. Re-measure before
+# acting; the counts above have a shelf life.
 # \bgh (issue|api|pr|label)
 
 # Remote-name hardcode: a bare `origin` as the REMOTE ARGUMENT of a git command
