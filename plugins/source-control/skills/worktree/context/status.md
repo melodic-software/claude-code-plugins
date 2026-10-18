@@ -10,7 +10,7 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
 
    `git worktree list --porcelain` emits correct absolute paths for every layout (standard clone, bare-clone hub, `.claude/worktrees/`), so `status` and `audit` need no layout-specific detection here, unlike Smart Default / `create` / `cleanup`, which resolve the hub root (`git rev-parse --git-common-dir` ending in `.bare`) for path construction.
 
-2. **PR cross-reference**: List every PR with its number, title, state and `headRefName` once ([GitHub](../../../reference/providers/github/README.md#resolve-a-pull-request)) (not per-branch, since batch is more efficient). Match each worktree's branch name against `headRefName`. Graceful degradation: if `gh` fails, skip PR info and note "GitHub API unavailable."
+2. **PR cross-reference**: For each worktree's branch, read its PRs in all states with their number, title, state and `headRefName` ([GitHub](../../../reference/providers/github/README.md#resolve-a-pull-request), "PRs for worktree cross-reference"). Read per branch, never as one list of every PR: a repository-wide list is capped (30 by default) and silently drops the older PRs, so an older worktree would show no PR. A worktree with a detached HEAD has no branch to query. Graceful degradation: if `gh` is unavailable, skip PR info and note "GitHub API unavailable."; if the read for one branch fails, show that row's PR as "PR lookup incomplete" rather than `none`, and leave that branch out of the merged-refs input below.
 
 3. **Last commit date**: For each worktree branch, get date of last commit:
 
@@ -28,7 +28,7 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
    bash "<scripts-dir>/landed-work.sh" --repo-dir <repo-toplevel> --merged-refs-file <file>
    ```
 
-   Write the merged `headRefName` values from step 2 to `<file>`, one per line. That is what marks a row as a likely *superseded draft* (a pull request carrying this branch NAME merged, so the base may already hold a later revision of the same change). Name-only evidence: a branch name reused after that merge still matches, so `superseded` narrows the reading of a row but never authorizes removing it. Omit the flag when `gh` was unavailable.
+   Write the `headRefName` of each merged PR from step 2's per-branch reads to `<file>`, one per line. That is what marks a row as a likely *superseded draft* (a pull request carrying this branch NAME merged, so the base may already hold a later revision of the same change). Name-only evidence: a branch name reused after that merge still matches, so `superseded` narrows the reading of a row but never authorizes removing it. Omit the flag when `gh` was unavailable; when only some branches' reads failed, pass the merged refs from the reads that succeeded.
 
    Join rows to worktrees on the `path` column. The columns this file consumes: `unpushed`, `landed`, `base`, `peers`, `risk`, `reason`.
 
