@@ -122,9 +122,11 @@ the same rules:
   session, as the single writer, may keep many in flight); no per-item PRs, one PR at the end
   carries the journey. This shape is worked on the shared branch directly or by `run`, not
   through `/work-items:work`'s default-branch worktree path.
-- **Line absent**. Reachable only for a container Step 1 took from PLAN.md's `**Spec container:**`
-  line, which names it without the label test (the label checks need the line to tell a spec
-  container from a wayfind map). Apply the `per-item PRs` default loudly and offer to record the
+- **Line absent**. Usually a container Step 1 took from PLAN.md's `**Spec container:**` line, which
+  names it without the label test (the label checks need the line to tell a spec container from a
+  wayfind map). Not the only way in: the `#<number>` parent route re-runs no label or shape-line
+  check, so a parent with no line, or one hand-edited after decompose published it, lands here
+  too. Apply the `per-item PRs` default loudly and offer to record the
   line (an ordinary body edit through the bound adapter, mutation-gated like any tracker write).
   An unrecognized value is reported, not obeyed.
 
