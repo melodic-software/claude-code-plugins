@@ -3111,7 +3111,7 @@ def assess(
             "capSource": cap_source,
         },
     )
-    inputs.update(rung=rung.rung, flight=flight)
+    inputs.update(rung=rung.rung, flight=flight, flight_cap=flight_cap)
     # Past an on rung, the in-flight refusal outranks every read below. With
     # no queue entry of its own, nothing below writes for this pull request
     # either (its risk comment and verifier escalation wait for a run below

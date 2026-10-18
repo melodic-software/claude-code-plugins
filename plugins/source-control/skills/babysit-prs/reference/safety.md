@@ -1064,7 +1064,7 @@ Named residuals:
   (`run_cache.MAX_AGE`), shared by the run's gate processes in that window, so a changed cap
   applies to every candidate, whatever its base, once the window ends. The room check after an
   enqueue reads it again, uncached. When a read fails, the candidate's base commit's value
-  applies.
+  applies; in the room check, the lower of that and the cap the gate applied.
 
 Operator runbook: the refusal `in-flight:merged-history-truncated` (or an unreadable post-merge
 verdict naming the read limit) means more merges landed since the floor than the history read

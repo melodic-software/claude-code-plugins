@@ -3,8 +3,8 @@
 ## 2.12.5 - 2026-10-18
 
 The unattended merge gate reads `merge.max-in-flight` at the default branch head instead of at each
-pull request's base, so every candidate of a `pr-merge` run shares one cap; when the head's config
-cannot be read, the base's value applies. Every other `merge.` key is still read at the base.
+pull request's base, once per cache window; when the head's config cannot be read, the base's value
+applies, and the post-enqueue room check keeps the lower of that and the cap the assessment applied. Every other `merge.` key is still read at the base.
 `version` stays 2.
 
 ## 2.12.4 - 2026-10-18

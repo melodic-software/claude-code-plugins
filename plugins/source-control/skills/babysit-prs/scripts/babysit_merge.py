@@ -3461,10 +3461,13 @@ def unattended_enqueue(
     step["identityEntries"] = numbers
     # Room for queued entries: `merge.max-in-flight`, read again uncached at
     # the default branch head, less the unverified lane merges the policy
-    # counted.
-    cap, _ = merge_policy._run_max_in_flight(
+    # counted. A failed read keeps the lower of the base's cap and the one
+    # the assessment applied, so a cap lowered on main still holds.
+    cap, source = merge_policy._run_max_in_flight(
         repo, branch, None, inputs["config"], shared=False
     )
+    if source == "base":
+        cap = min(cap, inputs.get("flight_cap", cap))
     room = cap - inputs["flight"].unverified
     if entries is None or number not in numbers[: max(room, 0)]:
         # Earlier entries (another host's) fill the room, or the order cannot
