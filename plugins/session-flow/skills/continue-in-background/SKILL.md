@@ -139,7 +139,7 @@ fallback), then:
    drop-in directory, where they exist on this machine), then the project's
    `.claude/settings.local.json` and `.claude/settings.json`, then `~/.claude/settings.json`.
    Within the managed tier, do not assume first match: read the file-versus-drop-in and
-   drop-in-versus-drop-in order, and where each lives, from the settings precedence pointer
+   drop-in-versus-drop-in order, and where each lives, from the managed settings pointers
    below, and apply it. Managed settings delivered another way, or from a location this
    read cannot find, are not covered: say so in the launch report. A `--settings` value cannot be
    read from files either, so whenever a launch report is written, say the read covered the files
@@ -152,9 +152,15 @@ fallback), then:
    variant below ignores this setting. Pointers:
    <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of 2026-10-18;
    recheck trigger: that section changes what `worktree.bgIsolation` does or its accepted values.
-   Settings precedence, including managed drop-ins:
-   <https://code.claude.com/docs/en/settings#settings-precedence>; as of 2026-10-18; recheck
-   trigger: that section changes the tier order, the managed file locations or the drop-in order.
+   Settings precedence (tier order): <https://code.claude.com/docs/en/settings#settings-precedence>;
+   as of 2026-10-18; recheck trigger: that section changes the tier order. Managed file locations:
+   <https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy>; as of
+   2026-10-18; recheck trigger: that section changes where the managed file or drop-in directory
+   lives. Managed file and drop-in merging:
+   <https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources>
+   and <https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams>;
+   as of 2026-10-18; recheck trigger: either section changes how the file and its drop-ins merge
+   or their order.
 2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
    First write the prompt, exactly as emitted between the rails, to a temporary file with the
    Write tool (full path: the between-rails lines of the resume region of the
