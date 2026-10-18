@@ -115,13 +115,42 @@ class Captions(unittest.TestCase):
         rec = record(script, [0.0, 3.0], 4.0)
         cues = narration.captions(rec, narration.timing(script, rec)['beats'], limit=2)
         self.assertEqual([c[2] for c in cues], ['One two.', 'Three four', 'five', 'Six'])
-        self.assertEqual(cues[0][:2], (0.0, 0.45))
+        self.assertEqual(cues[0][:2], (0.0, 0.5))   # held past its last word up to the next cue's start
 
     def test_a_sentence_end_inside_a_closing_quote_or_bracket_still_breaks_the_caption(self):
         script = '"Done." (Yes.) Next one'
         rec = record(script, [0.0], 2.0)
-        cues = narration.captions(rec, narration.timing(script, rec)['beats'])
+        # no minimum, so the 0.25 s words are not joined and only the sentence breaks show
+        cues = narration.captions(rec, narration.timing(script, rec)['beats'], min_seconds=0)
         self.assertEqual([c[2] for c in cues], ['"Done."', '(Yes.)', 'Next one'])
+
+    def test_a_sentence_one_word_over_the_limit_splits_evenly_instead_of_leaving_an_orphan_word(self):
+        script = 'Each claim carries its sources and a confidence label.'
+        rec = record(script, [0.0], 3.0)
+        cues = narration.captions(rec, narration.timing(script, rec)['beats'], limit=8)
+        self.assertEqual([c[2] for c in cues], ['Each claim carries its sources', 'and a confidence label.'])
+
+    def test_a_short_cue_stays_up_for_the_minimum_when_a_pause_follows_it(self):
+        script = 'Done.\n\nNext part'
+        rec = record(script, [0.0, 3.0], 4.0)   # 'Done.' spoken 0.0-0.2 s, then 2.8 s of pause
+        (first, *_) = narration.captions(rec, narration.timing(script, rec)['beats'], min_seconds=0.834)
+        self.assertEqual(first, (0.0, 0.834, 'Done.'))
+
+    def test_a_cue_too_short_to_hold_joins_its_neighbor_in_the_beat(self):
+        script = 'Yes. Then the rest follows'
+        rec = record(script, [0.0], 2.0)   # 'Yes.' has 0.25 s before 'Then' starts
+        cues = narration.captions(rec, narration.timing(script, rec)['beats'], limit=8)
+        self.assertEqual([c[2] for c in cues], ['Yes. Then the rest follows'])
+
+    def test_findings_fail_a_cue_under_the_minimum_and_flag_one_read_too_fast(self):
+        defects, flags = narration.caption_findings(
+            [(0.0, 0.5, 'Done.'), (1.0, 3.0, 'one two three four five six seven eight'), (4.0, 6.0, 'Fine here')],
+            min_seconds=0.834, per_word=0.3)
+        self.assertEqual(len(defects), 1)
+        self.assertIn("caption 1 'Done.' is on screen 0.50 s", defects[0])
+        self.assertEqual(len(flags), 1)
+        self.assertIn('caption 2', flags[0])
+        self.assertIn('8 words in 2.00 s', flags[0])
 
     def test_srt_numbers_cues_and_formats_hours_minutes_seconds_millis(self):
         self.assertEqual(narration.srt([(0.0, 1.25, 'Hi'), (3661.5, 3662.0, 'Later')]),
@@ -158,6 +187,74 @@ class Mux(unittest.TestCase):
             (d / 'c.srt').write_text(narration.srt([(0.0, 1.0, 'Take a right triangle.')]), encoding='utf-8')
             render.mux(d / 'v.mp4', d / 'n.wav', d / 'c.srt', d / 'out.mp4')
             self.assertEqual(render.narrated_defects(render.probe_file(d / 'out.mp4'), 15, 1), [])
+
+    def test_quiet_narration_is_normalized_to_the_target_and_measured_again_after_the_mux(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=duration=6:size=320x240:rate=15',
+                            '-pix_fmt', 'yuv420p', str(d / 'v.mp4')], check=True)
+            # a tone 22 dB under full scale, far under the narrated target
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=6',
+                            '-af', 'volume=-22dB', '-ar', '24000', '-ac', '1', str(d / 'n.wav')], check=True)
+            (d / 'c.srt').write_text(narration.srt([(0.0, 1.0, 'Take a right triangle.')]), encoding='utf-8')
+            source = render.measure_loudness(d / 'n.wav')
+            self.assertTrue(render.loudness_defects(source), source)   # too quiet before normalizing
+            mode = render.normalize(d / 'n.wav', d / 'norm.wav', source)
+            self.assertIn(mode, ('linear', 'dynamic'))
+            render.mux(d / 'v.mp4', d / 'norm.wav', d / 'c.srt', d / 'out.mp4')
+            delivered = render.measure_loudness(d / 'out.mp4')
+            self.assertEqual(render.loudness_defects(delivered), [], delivered)
+            self.assertEqual(render.narrated_defects(render.probe_file(d / 'out.mp4'), 15, 1), [])
+
+
+class LoudnessDefects(unittest.TestCase):
+    TARGET = {'integrated_lufs': -16.0, 'tolerance_lu': 1.0, 'true_peak_max_dbtp': -1.0}
+
+    def test_on_target_under_the_ceiling_passes(self):
+        self.assertEqual(render.loudness_defects({'input_i': '-16.4', 'input_tp': '-1.9'}, self.TARGET), [])
+
+    def test_too_quiet_fails(self):
+        (d,) = render.loudness_defects({'input_i': '-22.2', 'input_tp': '-4.8'}, self.TARGET)
+        self.assertIn('-22.2 LUFS is more than 1.0 LU from the -16.0 LUFS target', d)
+
+    def test_a_peak_over_the_ceiling_fails_even_on_target(self):
+        (d,) = render.loudness_defects({'input_i': '-16.0', 'input_tp': '-0.9'}, self.TARGET)
+        self.assertIn('true peak -0.9 dBTP is over the -1.0 dBTP ceiling', d)
+
+    def test_the_shipped_target_is_narrated_level_with_a_one_dbtp_ceiling(self):
+        self.assertEqual((render.LOUDNESS['integrated_lufs'], render.LOUDNESS['true_peak_max_dbtp']), (-16.0, -1.0))
+        self.assertLess(render.LOUDNESS['limiter_true_peak_dbtp'], render.LOUDNESS['true_peak_max_dbtp'])
+
+
+class Stills(unittest.TestCase):
+    LOG = ('[freezedetect @ 0x1] lavfi.freezedetect.freeze_start: 2.5\n'
+           '[freezedetect @ 0x1] lavfi.freezedetect.freeze_duration: 4.1\n'
+           '[freezedetect @ 0x1] lavfi.freezedetect.freeze_end: 6.6\n'
+           '[freezedetect @ 0x1] lavfi.freezedetect.freeze_start: 9.0\n')
+
+    def test_spans_are_read_from_the_log_and_an_open_one_ends_with_the_file(self):
+        self.assertEqual(render.parse_freezes(self.LOG, 12.0), [(2.5, 6.6), (9.0, 12.0)])
+
+    def test_each_span_counts_the_words_spoken_while_the_picture_holds(self):
+        words = [{'word': w, 'start': t} for w, t in (('a', 1.0), ('b', 3.0), ('c', 6.0), ('d', 7.0))]
+        self.assertEqual(render.stills_report([(2.5, 6.6)], words),
+                         [{'start': 2.5, 'end': 6.6, 'seconds': 4.1, 'words': 2}])
+
+    def test_silent_spans_carry_no_word_count(self):
+        self.assertEqual(render.stills_report([(0.0, 3.0)]), [{'start': 0.0, 'end': 3.0, 'seconds': 3.0}])
+
+
+@unittest.skipUnless(all(shutil.which(t) for t in ('ffmpeg', 'ffprobe')), 'needs ffmpeg and ffprobe')
+class StillSpans(unittest.TestCase):
+    def test_a_held_picture_is_reported_and_moving_picture_is_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            v = Path(tmp) / 'v.mp4'
+            # 2 s of moving test pattern, then its last frame held 4 s
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=duration=2:size=320x240:rate=15',
+                            '-vf', 'tpad=stop_mode=clone:stop_duration=4', '-pix_fmt', 'yuv420p', str(v)], check=True)
+            (span,) = render.still_spans(v, 6.0, {'min_seconds': 3.0, 'noise': 0.003})
+            self.assertAlmostEqual(span[0], 2.0, delta=0.2)
+            self.assertAlmostEqual(span[1], 6.0, delta=0.2)
 
 
 if __name__ == '__main__':

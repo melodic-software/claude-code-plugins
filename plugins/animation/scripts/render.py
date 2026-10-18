@@ -2,17 +2,22 @@
 """Render a scene module to a frame folder (and optionally encode it): the one entry point for every render.
 
 usage: render.py <scene.js> <out dir> (--fps N | --drawings K0-K1|k,k,...) [--query Q] [--root DIR ...]
-                 [--backend native] [--encode none|mp4|webm|gif] [--workers N] [--playwright-core DIR]
+                 [--shots shots.json] [--backend native] [--encode none|mp4|webm|gif] [--workers N]
+                 [--playwright-core DIR]
 Serves, over one loopback server on an OS-chosen port, the scene's directory, then this scripts/ directory
 (render.html, ink.js), then each --root in order; a path resolves to the first root holding it. Opens
 render.html?scene=<scene file>&<query> in headless Chromium through capture.mjs and writes
   --fps N        every frame of the film, fNNNN.png (frame i shows t = i / N)
   --drawings     one dNNN.png per drawing through window.renderDrawing(k)
+Capture starts once the scene module, its top-level awaits included, has finished loading (render.html's
+window.sceneReady). --shots compares the film's render.json with that shot list (fps, size, duration, frame count)
+before anything is encoded.
 plus render.json {scene, adapter, adapter_version, browser_build, fps, size, frames, duration}. --encode writes the
 frame folder to <out dir>.<fmt> beside it. --playwright-core is forwarded to capture.mjs; an empty value or an
 unsubstituted ${...} placeholder counts as unset.
 exit 0  every requested frame written, render.json written
-exit 1  the scene failed: a page error, a missing or non-positive DURATION, a missing renderDrawing
+exit 1  the scene failed: a page error, a missing or non-positive DURATION, a missing renderDrawing, or a film that
+        does not match --shots
 exit 2  a prerequisite is missing (the remedy is printed)
 Backends, the selection rule and the license notice a non-native backend must print: reference/backends.md.
 """
@@ -27,6 +32,7 @@ import threading
 from pathlib import Path
 
 import prereq
+import produce
 import workdir
 
 HERE = Path(__file__).resolve().parent
@@ -138,6 +144,7 @@ def main(argv=None):
     sel.add_argument('--drawings', type=ks)
     ap.add_argument('--query', default='')
     ap.add_argument('--root', type=Path, action='append', default=[])
+    ap.add_argument('--shots', type=Path, help='shots.json the film must match')
     ap.add_argument('--backend', choices=['native'], default='native')
     ap.add_argument('--encode', choices=['none', *FORMATS], default='none')
     ap.add_argument('--workers', type=int, default=WORKERS)
@@ -147,10 +154,24 @@ def main(argv=None):
         ap.error('--encode needs --fps (a film, not drawings)')
     if a.fps is not None and not a.fps > 0:
         ap.error('--fps must be a positive number')
+    if a.shots and not a.fps:
+        ap.error('--shots needs --fps (a film, not drawings)')
+    shots = None
+    if a.shots:
+        shots, err = produce.load_json(a.shots)
+        last = (shots.get('shots') or [None])[-1] if isinstance(shots, dict) else None
+        if err or not isinstance(last, dict) or 't1' not in last or not {'fps', 'size'} <= set(shots):
+            ap.error(f'--shots {a.shots}: {err or "needs fps, size and shots ending in a t1"}; '
+                     'run produce.py shots on it first')
     if a.encode != 'none':   # fail before the render, not after it
         prereq.require(['ffmpeg', 'numpy', 'opencv'] + (['libx264'] if a.encode == 'mp4' else []))
     meta = render(a.scene, a.out, a.fps, a.drawings, a.query, [r.resolve() for r in a.root], a.workers,
                   a.playwright_core)
+    problems = produce.render_problems(meta, shots) if shots else []
+    for p in problems:
+        sys.stderr.write(f'render: {p}\n')
+    if problems:
+        return 1
     if a.encode != 'none':
         out = a.out.resolve()
         dest = out.parent / f'{out.name}.{a.encode}'
