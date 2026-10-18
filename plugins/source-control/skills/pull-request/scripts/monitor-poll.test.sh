@@ -21,6 +21,7 @@ mkdir -p "$STUB_DIR"
 # The first fenced block under the heading, with the placeholders filled in: no sleep between
 # polls, the baseline file taken from the environment, the threads script stubbed.
 POLL="$TEST_TMPDIR/poll.sh"
+# shellcheck disable=SC2016 # the ${TEST_BASELINE:-} expansion is meant for the generated script, not this one
 awk '/^## Poll checks over REST/ { on = 1 } on && /^```bash/ { f = 1; next } f && /^```/ { exit } f' "$REF" |
   sed -e 's/^PR_NUMBER=<N>/PR_NUMBER=5/' \
     -e 's/^INTERVAL=60.*/INTERVAL=0/' \
