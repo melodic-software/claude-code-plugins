@@ -326,6 +326,17 @@ if [[ ! -e "$root/plugins/alpha/lib/secret.sh" ]]; then
 else
   bad "a symbolic-link canonical is not copied into a plugin" "copied it"
 fi
+fixture
+printf 'outside-secret-line\n' >"$outside/registry.txt"
+rm "$root/scripts/shared-copies.txt"
+ln -s "$outside/registry.txt" "$root/scripts/shared-copies.txt"
+out="$(run --check)"
+expect "a registry that is a symbolic link is rejected" 2 $? "$out"
+if [[ "$out" != *outside-secret-line* ]]; then
+  pass "a symbolic-link registry's contents are not printed"
+else
+  bad "a symbolic-link registry's contents are not printed" "$out"
+fi
 rm -rf "$outside"
 
 # --- a copy of scripts/ run from outside the checkout syncs the checkout ---------

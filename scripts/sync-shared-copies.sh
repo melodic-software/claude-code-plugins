@@ -53,6 +53,11 @@ inside_root() {
 
 load_registry() {
   local line src copy extra path
+  # shellcheck disable=SC2310  # the non-zero return IS the answer
+  if ! inside_root "$registry" || [[ ! -f "$registry" ]]; then
+    echo "error: $registry is not a regular file inside the checkout (no symbolic link)." >&2
+    exit 2
+  fi
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%%#*}"
     read -r src copy extra <<<"$line" || true
