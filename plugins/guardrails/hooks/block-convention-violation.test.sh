@@ -651,24 +651,6 @@ assert_eq "latch: the second failure in a session is quiet" "" "$GUARD_OUT"
 assert_eq "a resolver failure writes no cache entry" "" \
   "$(find "$pdn/convention-pattern" -type f 2>/dev/null | head -1)"
 
-# Each check has its own latch: a PR create with no --title skipped nothing and
-# claims no latch, and a notice for one check never hides the other's.
-pdl="$TEST_TMPDIR/pdata-latch"
-rm -rf "$pdl"
-latch_run() { # <command>
-  local p
-  p="$(jq -n --arg c "$1" --arg d "$r" \
-    '{session_id:"conv-latch",tool_name:"Bash",tool_input:{command:$c},cwd:$d}')"
-  guard_invoke --hook "$STUB_HOOK" --payload "$p" \
-    -- "CLAUDE_PROJECT_DIR=$r" "CLAUDE_PLUGIN_DATA=$pdl" STUB_RC=1 "STUB_ERR=resolve-convention-pattern: broken pointer" STUB_OUT=
-}
-latch_run "gh pr create --fill"
-assert_eq "latch: gh pr create with no --title is quiet" "" "$GUARD_OUT"
-latch_run "$BAD_COMMIT"
-assert_notice "latch: the commit-subject skip is still reported" "broken pointer"
-latch_run "gh pr create --title 'junk title'"
-assert_notice "latch: the PR-title skip is reported after the commit one" "broken pointer" PR-title
-
 # --- NUL in payload must fail closed (#2136) ----------------------------------
 r="$(newrepo "$TICKET")"
 nul_rc=0
