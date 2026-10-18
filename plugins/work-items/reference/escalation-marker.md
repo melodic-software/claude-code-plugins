@@ -30,6 +30,12 @@ write identity, never from marker text alone, and only while the item still wear
 an item an operator has answered and returned to the frontier has no standing escalation, so a
 later escalation of it posts a fresh marker.
 
+`kind=ratify-c3` is the exception: it is one per item, ever, and an existing `kind=ratify-c3` marker
+from the write identity suppresses another whatever labels the item wears now. Removing the role
+label does not reopen it. The C3 ratification queue
+([`${CLAUDE_PLUGIN_ROOT}/skills/work-loop/reference/c3-ratification-queue.md`](${CLAUDE_PLUGIN_ROOT}/skills/work-loop/reference/c3-ratification-queue.md))
+owns that rule.
+
 Loop-lane escalation record files (`.claude/lane-escalations/…`) are optional exhaust; the tracker
 item plus marker comment is the escalation of record when the record write fails (see
 [`${CLAUDE_PLUGIN_ROOT}/skills/work-loop/SKILL.md`](${CLAUDE_PLUGIN_ROOT}/skills/work-loop/SKILL.md)

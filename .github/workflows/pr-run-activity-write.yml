@@ -150,8 +150,8 @@ on:
       escalation-reason:
         description: >-
           Why the activity handed the PR to a person: for merge-base
-          protected-path-conflict, workflow-staged, repeat-cap or
-          unresolved-conflict; for review-threads, before any model turn,
+          protected-path-conflict, workflow-staged, unexpected-path-staged,
+          repeat-cap or unresolved-conflict; for review-threads, before any model turn,
           feedback-protected-path or feedback-round-cap; for the
           review-replies script feedback-uncertain, feedback-not-landed or
           feedback-invalid, feedback-partial, feedback-incomplete or
@@ -350,7 +350,7 @@ jobs:
             exit 1
           fi
           case $ESCALATION_REASON in
-            "" | protected-path-conflict | workflow-staged | repeat-cap | unresolved-conflict) ;;
+            "" | protected-path-conflict | workflow-staged | unexpected-path-staged | repeat-cap | unresolved-conflict) ;;
             feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
@@ -448,6 +448,38 @@ jobs:
           # This file performs prepare: merge-base (the prepare, post and
           # commit steps below).
           prepare-supported: "true"
+
+      # Issue mode, skill run: a run that waited in its concurrency slot keeps
+      # the workflow files of its label event. The broker refuses the mint as
+      # workflow-modified when either file's blob at the run's commit differs
+      # from main's tip, so this checks the same rule against the default
+      # branch checkout first and fails red with no token request. The failed
+      # run leaves no outcome marker, so work-unblock's hourly sweep re-fires
+      # the issue on main's files. A commit the checkout cannot read is left to
+      # the broker. report-outcome is a script, exempt as a report job. This
+      # file is called by a local path, so it runs from the caller's commit.
+      - name: Check the run's workflow files against main
+        id: workflow-current
+        if: >-
+          inputs.issue-number != '' && steps.config.outputs.applies == 'true'
+          && steps.config.outputs.kind == 'skill'
+        env:
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          caller=${WORKFLOW_REF%%@*}
+          caller=.github/workflows/${caller##*/.github/workflows/}
+          if [[ $caller != .github/workflows/?* || ! $WORKFLOW_SHA =~ ^[0-9a-f]{40}$ ]] ||
+            ! git -C .base cat-file -e "$WORKFLOW_SHA^{commit}" 2>/dev/null; then
+            echo "::notice::cannot read the run's workflow commit; the token broker decides"
+            exit 0
+          fi
+          for path in "$caller" .github/workflows/pr-run-activity-write.yml; do
+            if [ "$(git -C .base rev-parse -q --verify "$WORKFLOW_SHA:$path")" != "$(git -C .base rev-parse -q --verify "HEAD:$path")" ]; then
+              echo "::error::workflow-stale: $path differs from main's tip, so the broker would refuse this run; nothing was requested, and work-unblock's sweep re-fires the issue on main's files"
+              exit 1
+            fi
+          done
 
       # Issue mode, skill run: before the mint and any model turn, with the
       # job's read-only token, skips the model when an earlier run already
@@ -701,10 +733,13 @@ jobs:
           name: dependency-verdict-${{ inputs.dependency-run-attempt }}
           path: ${{ runner.temp }}/dependency-verdict
 
+      # Also issue mode: report-outcome trusts a merge: human label only from
+      # a listed human or the lanes App.
       - name: Copy the trusted actors for the reply script
         id: reply-actors
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && inputs.review-replies
+          steps.head-recheck.outputs.proceed == 'true'
+          && (inputs.review-replies || inputs.issue-number != '')
           && steps.config.outputs.kind == 'script'
         env:
           COPY: ${{ runner.temp }}/base-script/.trusted-actors.json
@@ -1161,8 +1196,9 @@ jobs:
       # merge-base mode, after the skill (or straight after a clean merge):
       # post.sh checks prepare's saved copies and snapshot against their
       # hashes, repairs the sensitive paths the action reset, and escalates
-      # unresolved-conflict or workflow-staged; otherwise it writes the
-      # validated index as a tree, the only tree the commit step accepts.
+      # unresolved-conflict, workflow-staged or unexpected-path-staged;
+      # otherwise it writes the validated index as a tree, the only tree the
+      # commit step accepts.
       - name: Check the staged merge
         id: post
         if: >-
@@ -1202,7 +1238,7 @@ jobs:
             "")
               [[ $tree =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || { echo "::error::post.sh printed no tree"; exit 1; }
               ;;
-            unresolved-conflict | workflow-staged)
+            unresolved-conflict | workflow-staged | unexpected-path-staged)
               tree="" skip=awaiting-human
               ;;
             *) echo "::error::post.sh printed an unknown escalation reason"; exit 1 ;;
@@ -1746,7 +1782,7 @@ jobs:
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
-          TRUSTED_ACTORS: ${{ inputs.review-replies && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
+          TRUSTED_ACTORS: ${{ (inputs.review-replies || inputs.issue-number != '') && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
           MODEL_RUN_ATTEMPT: ${{ inputs.review-run-attempt }}

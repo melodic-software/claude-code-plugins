@@ -91,7 +91,8 @@ Test D).
 
 - The layer order and file locations: every skill reads settings through one resolver, so no skill
   names a path. [ADR 0061](../../docs/adr/0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md)
-  records the decision.
+  records the decision, and [ADR 0075](../../docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)
+  supersedes its layers and paths.
 - A design system the project already has outranks every configured value: the plugin's job is to
   keep the project's look.
 - `routing` is accepted only in the team file: a personal layer must not change which tool a whole

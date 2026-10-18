@@ -17,6 +17,12 @@ async page => { // answer controls: radios by keyboard, a withheld question, pas
   await page.evaluate(() => localStorage.clear());
   await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
 
+  // #7755: with nothing waiting, the Pending filter says what Pending means
+  await page.selectOption("#filter", "pending"); await page.waitForTimeout(200);
+  const pendingEmpty = await text("#railList");
+  ok("the Pending filter's empty state says what Pending means", /No questions match this filter\. Pending means waiting on research/.test(pendingEmpty), pendingEmpty.replace(/\s+/g, " ").slice(0, 200));
+  await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
+
   // arrow keys move through the Decide radios without dropping focus
   await pick("E1");
   await page.focus('#choices input[value="1"]');
