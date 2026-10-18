@@ -199,8 +199,9 @@ the checkout to push (loop-lane convention, "Lane write identity"). For a fork h
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
 ```
 
-**Wait for the push's CI run.** When the PR's head commit is not the one read in 2.5.1 (the base
-merge, the forge's update or a push of local commits moved it), wait up to 90 seconds, polling every
+**Wait for the push's CI run.** When the PR was already out of draft at 2.5.1, skip the wait. When
+its head commit is not the `HEAD_BEFORE` recorded in 2.5.2 (the base merge, the forge's update or a
+push of local commits moved it), wait up to 90 seconds, polling every
 5, for a CI run to exist for the new head commit
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#wait-for-the-pushs-ci-run)).
 Then flip whether or not one appeared; a timeout is reported, and the backstop below covers it.
@@ -218,7 +219,8 @@ every 5, for a CI run on the head that did not exist before the flip
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#confirm-a-ready-run)).
 When none appears, switch the PR back to draft and mark it ready again, once, then wait the same
 way. A rerun does not help: it replays the draft payload. Never toggle a second time. When the
-second wait also finds none, stop and report it. Skip this confirmation when the PR was already out
+toggle fails or the second wait also finds none, read the draft flag again, report both, and stop;
+a PR left in draft by a failed re-ready is a failure to name, not to retry. Skip this confirmation when the PR was already out
 of draft at 2.5.1.
 
 In a cloud session the CLI flip fails, because the flip is a GraphQL mutation. Two routes work
@@ -227,7 +229,7 @@ there: the proxy's REST route, or the GitHub MCP `update_pull_request` call with
 
 Completion criterion: the PR's draft flag reads `false`
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-draft-flag)),
-and a CI run created after the flip exists for the head.
+and, when this run flipped it, a CI run created after the flip exists for the head.
 
 ## 2.5.5 Hand the pull request to the change digest
 

@@ -58,6 +58,10 @@ On a 404, gh also prints `gh: Not Found (HTTP 404)` to stderr; that line is expe
 
 ## Record the head before the refresh
 
+Run the wait, flip and confirm blocks below in the same shell as this one, since they share
+`HEAD_BEFORE`, `HEAD_SHA`, `CI_WORKFLOW`, `RUNS_BEFORE` and `ready_run_seen`. When 2.5.2 is skipped,
+still run this line, before the push.
+
 ```bash
 HEAD_BEFORE=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exit 1
 ```
@@ -108,7 +112,7 @@ comments, so the comment cannot set or lift a hold there.
 ## Wait for the push's CI run
 
 `CI_WORKFLOW` is the repository's CI workflow file (`ci.yml` here). Skip the wait when the head is
-unchanged. A run listed for the head SHA means the push's event reached the workflow; the wait
+unchanged, but still run the first two assignments, which the flip block reads. A run listed for the head SHA means the push's event reached the workflow; the wait
 does not look at the run's result.
 
 ```bash
