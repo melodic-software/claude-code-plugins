@@ -1131,7 +1131,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q.revised) { // the full banner until the user has opened the question since its latest revision, then a chip
       const rr = recRev(q), prev = q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + md(q.previousRecommendation) + "</details>" : "";
       h += S.revSeen === rr ? '<div class="revchip"><span class="chip plain" title="Recommendation revised">Revised</span>' + prev + "</div>"
-        : '<div class="banner"><b>Recommendation revised.</b> ' + inline(q.revised === true || q.revised === "Recommendation revised." ? "" : q.revised) + prev + "</div>";
+        : '<div class="banner"><b>Recommendation revised.</b> ' + (q.revised === true || q.revised === "Recommendation revised." ? "" : "<b>Claude's reason:</b> " + inline(q.revised)) + prev + "</div>";
       const rs = lsGet("revSeen", {}); if (rs[q.id] !== rr) { rs[q.id] = rr; lsSet("revSeen", rs); }
     }
     if (q.claudeNote) h += '<div class="note"><b>Claude:</b> ' + inline(q.claudeNote) + "</div>";

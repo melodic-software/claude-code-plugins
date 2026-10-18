@@ -110,6 +110,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     const cs = await page.$$eval("#choices .choice", els => els.map(e => e.textContent));
     ok("#5910: no Reconfirm once the recommendation changed since the accept; Rec shows the revised text", !cs.some(t => /Reconfirm/.test(t)) && /pinned by digest/.test(await text("#choices .choice.rec")), JSON.stringify(cs));
     ok("#5910: the banner says Pick an answer and Previous keeps the old recommendation", /Pick an answer\./.test(await text("#dscroll .banner")) && /The default image\./.test(await text("#dscroll")), await text("#dscroll .banner"));
+    ok("the revised banner labels the why as Claude's reason, not the user's note", /Claude's reason:\s*A digest cannot move under a tag\./.test(await text("#dscroll")) && !/Your note:/.test(await text("#dscroll .banner")), await text("#dscroll"));
     await page.click("#qhead"); await page.keyboard.press("a"); await page.waitForTimeout(150);
     ok("#5910: a arms Rec", /pinned by digest/.test(await text("#choices .choice.armed")), await text("#choices .choice.armed"));
   }
