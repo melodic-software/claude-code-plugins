@@ -715,7 +715,7 @@ reset_marketplace_state() {
   MP_ERRORS=()
   IR_UPDATED=() IR_FAILED=() IR_WOULD=()
   US_UPDATED=() US_FAILED=() US_WOULD=()
-  WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=()
+  WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=() RECOVERED_ROWS=()
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
   SELF_UPDATED="false" SELF_UPDATE="null" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
   REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
@@ -1035,6 +1035,8 @@ run_marketplace() {
   jq_to enable_gap_count -r 'length' <<<"$ENABLE_GAP"
   clock_into T_PI_E
 
+  recover_pending "$mp"
+
   if ((REFRESH_FAILED == 1)); then
     # Step 4 derives installations from the catalog and Step 5 consults catalog
     # metadata, so an unrefreshed checkout can install a since-removed plugin or
@@ -1104,6 +1106,76 @@ run_marketplace() {
   emit_marketplace_block "$mp"
 }
 
+# --- pending-enable record ---------------------------------------------------------
+# An `ask` pick is installed and then enabled in two CLI calls, and a run
+# interrupted between them leaves a user-scope `enabledPlugins: false` that reads
+# as the user's own opt-out. So the pick is journaled in the record BEFORE the
+# install and cleared once the enable lands (or once nothing is left to enable);
+# the next run completes what the record names. The record lives beside the run
+# directories, not in one, so pruning old runs never drops it. Only an id sync
+# itself journaled is ever in it, which is why a `false` the user set is never
+# touched.
+PENDING_FILE=""
+pending_path() {
+  local root
+  if [[ "$MODE" == "audit" ]]; then
+    return 0
+  elif ((ONLY_INSTALL_MODE == 1)); then
+    root="${RUN_DIR%/}"
+    root="${root%/*}"
+  else
+    root="${JOURNAL_ROOT%/}"
+  fi
+  PENDING_FILE="${root%/*}/pending-enable.txt"
+}
+
+pending_add() {
+  [[ -n "$PENDING_FILE" ]] || return 0
+  mkdir -p "${PENDING_FILE%/*}" 2>/dev/null
+  grep -qxF -- "$1" "$PENDING_FILE" 2>/dev/null || printf '%s\n' "$1" >>"$PENDING_FILE"
+}
+
+pending_remove() {
+  [[ -n "$PENDING_FILE" && -f "$PENDING_FILE" ]] || return 0
+  grep -vxF -- "$1" "$PENDING_FILE" >"$PENDING_FILE.next" 2>/dev/null
+  mv "$PENDING_FILE.next" "$PENDING_FILE"
+}
+
+# Finishes what an interrupted run left, from the fresh pre-install read. An id the
+# record names that is installed at user scope and effectively `false` is the
+# interrupted pick, so it is enabled; an id that is not installed never finished
+# its install, and one already enabled needs nothing. Each clears its record
+# entry, except a failed enable, which stays for the next run and is reported.
+recover_pending() {
+  local mp="$1" id state
+  [[ -n "$PENDING_FILE" && -f "$PENDING_FILE" && "$MODE" == "sync" ]] || return 0
+  [[ -f "$RUN_DIR/pre-install.$mp.json" ]] || return 0
+  while IFS= read -r id; do
+    id="${id//$'\r'/}"
+    [[ -n "$id" && "$id" == *"@$mp" ]] || continue
+    # This run's own picks are handled by the install loop.
+    case ",${ONLY_INSTALL// /,}," in *",$id,"*) continue ;; esac
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to state -r --arg id "$id" '
+      (any(.installed[]?; .id == $id and .scope == "user")) as $in
+      | .enabled[$id] as $en
+      | if ($in | not) then "absent" elif $en == false then "off" else "on" end' \
+      "$RUN_DIR/pre-install.$mp.json" || continue
+    case "$state" in
+    off)
+      enable_one "$id" user
+      if ((CLI_RC == 0)); then
+        pending_remove "$id"
+        RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enabled"}')")
+      else
+        RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enable_failed"}')")
+      fi
+      ;;
+    *) pending_remove "$id" ;;
+    esac
+  done <"$PENDING_FILE"
+}
+
 # Installs one id at user scope and appends its digest row. `CLI_RC` is the
 # caller's success test, so the row shape lives in one place across both entry
 # paths below.
@@ -1138,10 +1210,19 @@ run_install_step() {
     # is already enabled exits 1, which would report a false failure.
     for id in $wanted; do
       [[ "$id" == *"@$mp" ]] || continue
+      pending_add "$id"
       install_one "$id"
-      ((CLI_RC == 0)) || continue
+      if ((CLI_RC != 0)); then
+        pending_remove "$id"
+        continue
+      fi
       installed_any=1
-      [[ "$INSTALLED_DISABLED" == "true" ]] && enable_one "$id" user
+      if [[ "$INSTALLED_DISABLED" == "true" ]]; then
+        enable_one "$id" user
+        ((CLI_RC == 0)) && pending_remove "$id"
+      else
+        pending_remove "$id"
+      fi
     done
   elif ((gap_count > 0)) && [[ "$INSTALL_NEW" == "all" ]]; then
     while IFS= read -r id; do
@@ -1597,7 +1678,7 @@ monitor_rows() {
 # --- one marketplace block --------------------------------------------------------
 emit_marketplace_block() {
   local mp="$1"
-  local ir_u ir_f ir_w us_u us_f us_w wh dg inst en pr errs unset_cfg installed_disabled monitors
+  local ir_u ir_f ir_w us_u us_f us_w wh dg inst en pr rec errs unset_cfg installed_disabled monitors
   # A marketplace abandoned on a failed read reaches here without finalize_moves.
   [[ -n "$T_FN_S" ]] || clock_into T_FN_S
   # Written on the first pass only. The re-entry reads this sidecar; overwriting
@@ -1618,6 +1699,7 @@ emit_marketplace_block() {
   json_array_of inst ${INSTALLED_ROWS[@]+"${INSTALLED_ROWS[@]}"}
   json_array_of en ${ENABLED_ROWS[@]+"${ENABLED_ROWS[@]}"}
   json_array_of pr ${PROJECT_ROWS[@]+"${PROJECT_ROWS[@]}"}
+  json_array_of rec ${RECOVERED_ROWS[@]+"${RECOVERED_ROWS[@]}"}
   json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
 
   catalog_regression_rows reg_interval reg_rows "$mp"
@@ -1656,7 +1738,7 @@ emit_marketplace_block() {
     --argjson us_u "$us_u" --argjson us_f "$us_f" --argjson us_w "$us_w" \
     --argjson wh "$wh" --argjson dg "$dg" \
     --argjson install_gap "$INSTALL_GAP" --argjson inst "$inst" \
-    --argjson enable_gap "$ENABLE_GAP" --argjson en "$en" --argjson pr "$pr" \
+    --argjson enable_gap "$ENABLE_GAP" --argjson en "$en" --argjson pr "$pr" --argjson rec "$rec" \
     --argjson deferred "$INSTALL_DEFERRED" --argjson stopped "$STOPPED_BEFORE_INSTALL" \
     --argjson normalize "$NORMALIZE_JSON" --argjson cache "$CACHE_JSON" \
     --arg reg_interval "$reg_interval" --argjson reg_rows "$reg_rows" \
@@ -1719,6 +1801,7 @@ emit_marketplace_block() {
      enable_gap: $enable_gap,
      enabled: $en,
      project_enable_rows: $pr,
+     pending_enable: $rec,
      normalize: $normalize,
      cache_content: $cache,
      catalog_regression: (if $reg_interval == "" then null
@@ -1733,6 +1816,7 @@ emit_marketplace_block() {
 
 # --- main --------------------------------------------------------------------------
 setup_run_dir
+pending_path
 
 # `--allow-downgrade` belongs to the RUN, not to one invocation of it. A re-entry
 # that omitted the flag would otherwise rebuild the withheld list from

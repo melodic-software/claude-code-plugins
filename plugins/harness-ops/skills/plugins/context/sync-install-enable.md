@@ -104,7 +104,16 @@ classifies that notice from the untruncated CLI output. Under `ask` it enables t
 scope, and the report lists it under `Enabled:`. Under `all` nobody chose it, so it stays off by
 the publisher's choice: the digest's `installed_disabled[]` names it, and the render says the
 plugin is installed but not enabled and gives `claude plugin enable <id> -s user`. An `ask` pick
-whose enable failed is named there too, beside the failure. The classification keys off the CLI's line, never the catalog's `defaultEnabled`: we
+whose enable failed is named there too, beside the failure.
+
+**An `ask` pick is journaled before it is installed.** `sync-run.sh` appends the id to
+`pending-enable.txt`, one level above the run journals, before `claude plugin install`, and removes
+it once the enable lands (or the install failed, or needed no enable). A run cut off in between
+leaves the record. The next sync, before its own install gap, enables each recorded id that is
+installed at user scope and effectively `false`, lists it in the digest's `pending_enable[]`
+(`{id, outcome}`, `enabled` or `enable_failed`; a failed enable keeps the record), and drops a
+record whose id is not installed or already enabled. Only ids sync itself journaled are touched, so
+a `false` the user set is never re-enabled. The classification keys off the CLI's line, never the catalog's `defaultEnabled`: we
 observed the two disagree for one plugin.
 
 - **Pointer**: when the notice's wording or the `enabledPlugins` entry such an install leaves is in
