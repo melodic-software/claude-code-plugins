@@ -75,6 +75,8 @@ export async function main({
       runResult: env.RUN_RESULT,
       actOutcome: env.ACT_OUTCOME,
       gateReason: env.GATE_REASON ?? "",
+      runFailure: env.RUN_FAILURE ?? "",
+      notRunReason: env.NOT_RUN_REASON ?? "",
       headSha: env.HEAD_SHA ?? "",
       signedCommits: signedCommitsFrom(env),
       headShaFallback: env.HEAD_SHA_FALLBACK,
