@@ -17,6 +17,8 @@
 #
 # No tracked pattern, or one that is not POSIX ERE: no enforcement, exit 0.
 # Fixup, squash and amend subjects pass, as rebase --autosquash consumes them.
+# So do the subjects git writes itself: `Merge ...` from git merge and
+# `Revert "..."` from git revert.
 # A violation prints how to fix the subject and exits 1; this hook never
 # suggests skipping it.
 set -uo pipefail
@@ -62,7 +64,7 @@ done <"$msg_file"
 [[ -n "$subject" ]] || exit 0
 
 case "$subject" in
-"fixup! "* | "squash! "* | "amend! "*) exit 0 ;;
+"fixup! "* | "squash! "* | "amend! "* | "Merge "* | 'Revert "'*) exit 0 ;;
 *) ;;
 esac
 
