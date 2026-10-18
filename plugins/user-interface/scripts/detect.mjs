@@ -7,7 +7,10 @@
 // style_files [kinds]. With --config, a top-level "config" holds the resolved settings
 // (lib/config-cascade.mjs output: values, provenance, prose, layers, legacy) plus "home", the
 // convention home. When the project's pointer line is unusable, "home" is null, "home_error" says
-// why, and the team and local layers are not read.
+// why, and the team and local layers are not read. --config also prints "routes" (the bundled rows
+// with the team routing applied; installed and reachable are computed over them), "skipped" (each
+// route a team disable or deny removed: {concern, id, by, name?, source}) and, when something
+// degraded, "routing_notes" (disclosures to relay).
 // Detection rules live in lib/installed.mjs.
 // Usage: detect.mjs [--project DIR] [--home DIR] [--plugin-list-json FILE] [--mcp-list FILE]
 //                   [--config [--team FILE] [--user-config FILE]]
@@ -337,9 +340,58 @@ function claude(args) {
 }
 const fromFileOr = (file, args) => (file ? readFileSync(file, "utf8") : claude(args));
 
+// A skill or plugin detect names a skill directory or a plugin, never a path: installed() joins a
+// skill detect onto the skills directories, so a team row must not reach outside them.
+const DETECT_NAME = /^(?!\.\.?(?:@|$))[A-Za-z0-9._-]+(?:@[A-Za-z0-9._-]+)?$/;
+const nameOf = (detect) => (detect.includes("@") ? detect.slice(0, detect.lastIndexOf("@")) : detect);
+
+/** The routes with the resolved team `routing` applied, per the routing-as-data Team layer: a row
+ * with a bundled concern plus id overrides it key by key, a new one adds a row, and `disable` and
+ * `deny` skip. checkRouting has already dropped invalid entries. Returns {rows, skipped, notes}:
+ * `skipped` lists each route a team entry removed, with the team file as its source, and `notes` the
+ * disclosures (a degraded team file, a merged row that fails the row schema). */
+function applyRouting(bundled, cfg) {
+  const team = cfg.layers.find((l) => l.name === "team");
+  const notes = [];
+  if (cfg.home_error) notes.push(`${cfg.home_error}; built-in routes used, with no team overrides or deny floor`);
+  const n = team?.errors.length ?? 0;
+  if (n > 0) {
+    notes.push(`${team.path} has ${n} problem${n === 1 ? "" : "s"} (see config.layers); built-in routes are used for any team routing it could not supply, so those overrides and deny entries were not applied. Run /user-interface:setup check`);
+  }
+  const routing = cfg.values.routing;
+  if (!isMapping(routing)) return { rows: bundled, skipped: [], notes };
+
+  const source = team?.path ?? "the team file";
+  const full = JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.json"), "utf8")).properties.rows.items;
+  const key = (r) => `${r.concern}\0${r.id}`;
+  const byKey = new Map(bundled.map((r) => [key(r), r]));
+  (routing.rows ?? []).forEach((row, i) => {
+    const merged = { ...byKey.get(key(row)), ...row };
+    const errors = validate(full, merged, `routing.rows[${i}]`);
+    if (["skill", "plugin"].includes(merged.kind) && typeof merged.detect === "string" && !DETECT_NAME.test(merged.detect)) {
+      errors.push(`routing.rows[${i}].detect: must be a plugin or skill name, not a path`);
+    }
+    if (errors.length) notes.push(`${source}: row ${merged.concern} ${merged.id} not applied: ${errors.join("; ")}`);
+    else byKey.set(key(merged), merged);
+  });
+  const disabled = new Set((routing.disable ?? []).map(key));
+  const deny = new Set(routing.deny ?? []);
+  const rows = [];
+  const skipped = [];
+  for (const r of byKey.values()) {
+    const name = [r.id, r.detect, nameOf(r.detect)].find((n) => deny.has(n));
+    if (disabled.has(key(r))) skipped.push({ concern: r.concern, id: r.id, by: "disable", source });
+    else if (name) skipped.push({ concern: r.concern, id: r.id, by: "deny", name, source });
+    else rows.push(r);
+  }
+  return { rows, skipped, notes };
+}
+
 const project = projectSignals();
-const { rows } = JSON.parse(readFileSync(ROUTING, "utf8"));
-const found = installed(rows, {
+const { rows: bundled } = JSON.parse(readFileSync(ROUTING, "utf8"));
+const resolved = opts.config ? config() : null;
+const routing = resolved ? applyRouting(bundled, resolved) : { rows: bundled };
+const found = installed(routing.rows, {
   pluginRoot: ROOT,
   home: opts.home,
   projectDir: opts.project,
@@ -347,4 +399,5 @@ const found = installed(rows, {
   pluginList: () => fromFileOr(opts["plugin-list-json"], ["plugin", "list", "--json"]),
   mcpList: () => fromFileOr(opts["mcp-list"], ["mcp", "list"]),
 });
-console.log(JSON.stringify({ project, ...found, ...(opts.config && { config: config() }) }));
+const { rows: routes, skipped, notes } = routing;
+console.log(JSON.stringify({ project, ...found, ...(resolved && { config: resolved, routes, skipped, ...(notes.length && { routing_notes: notes }) }) }));

@@ -17,10 +17,22 @@ Design for `$ARGUMENTS`, or for the interface the conversation is about.
 Run from the project root:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --config
 ```
 
 It prints JSON:
+
+- `routes`: the routing rows to use, the plugin's bundled routing rows with the team file's
+  `routing` already applied (an overriding row, an added row, `disable` and `deny`). Step 4 routes
+  from these.
+- `skipped`: each route the team file removed, `{concern, id, by, name?, source}`. When Step 4 would
+  have considered a skipped route, say it was skipped by `deny` (or `disable`) and name its `source`,
+  the team file, in the answer.
+- `routing_notes`: read it whenever present. It says the team file or its routing could not be
+  applied in full (unreadable file, unresolved convention home, a row that fails the row schema);
+  tell the user once that built-in routes were used for that part, and suggest
+  `/user-interface:setup check`.
+- `config`: the resolved settings; this skill reads only the routing from it.
 
 - `project`: the project's design signals (`tokens`, `packages`, `components_json`, `storybook`,
   `docs`, `mcp_servers`).
@@ -56,8 +68,10 @@ alone.
 
 ## Step 4: Route each concern
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/routing.json`. For each concern the request touches, take
-its rows in rank order and use the first one for which all of these hold:
+Use the `routes` from Step 1 (without them, because detect could not run, read
+`${CLAUDE_PLUGIN_ROOT}/reference/routing.json` and say the team routing was not applied). For each
+concern the request touches, take its rows in rank order and use the first one for which all of
+these hold:
 
 - Its `id` is in `installed`, matched exactly. A `kind: tool` row (for example `Artifact`) is
   checked against this session's own tool and skill listing instead.
