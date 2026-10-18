@@ -219,11 +219,11 @@ each only on the surfaces its row names.
   invocation-control fields): <https://code.claude.com/docs/en/skills>
 - How features layer (per-surface precedence):
   <https://code.claude.com/docs/en/features-overview#understand-how-features-layer>.
-  As of: 2026-10-18 (anchor as recorded by the pointer audit, not re-fetched this round).
+  As of: 2026-10-11 (anchor as recorded by the pointer audit of that date, not re-fetched since).
   Recheck trigger: the layering section starts covering routing between surfaces, or is renamed.
 - Routing between surfaces:
   <https://code.claude.com/docs/en/features-overview#compare-similar-features>.
-  As of: 2026-10-18 (anchor as recorded by the pointer audit, not re-fetched this round).
+  As of: 2026-10-11 (anchor as recorded by the pointer audit of that date, not re-fetched since).
   Recheck trigger: the compare section is renamed, or stops comparing where content belongs.
 - Context window (what survives compaction): <https://code.claude.com/docs/en/context-window>
 - Hooks (handler types, and which events inject handler output into context):
