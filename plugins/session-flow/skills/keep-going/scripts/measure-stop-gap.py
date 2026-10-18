@@ -16,9 +16,10 @@ Reads a session transcript (JSONL) and prints one JSON object:
 An entry counts as a limit or error entry when it sets ``isApiErrorMessage``,
 carries a top-level ``error`` key, or is a ``system`` entry whose ``level`` is
 ``error``. The resuming prompt is the latest user entry that is not a tool result
-and has an assistant entry before it; entries at or after it belong to the resumed
-turn and are ignored, so the turn's own work never shortens the gap. Without such a
-prompt every entry counts. Timestamps may carry any offset or ``Z``; a timestamp without an
+(not meta, compaction summary or sidechain), has an assistant entry before it, and
+comes after the last limit or error entry; entries at or after it belong to the
+resumed turn and are ignored, so the turn's own work never shortens the gap. Without
+such a prompt every entry counts, so a stopped transcript's own limit entry survives. Timestamps may carry any offset or ``Z``; a timestamp without an
 offset is read as UTC.
 
 Exit codes:
@@ -55,7 +56,9 @@ def _is_error(entry: dict) -> bool:
 
 
 def _is_prompt(entry: dict) -> bool:
-    if entry.get("type") != "user" or entry.get("isMeta"):
+    if entry.get("type") != "user":
+        return False
+    if entry.get("isMeta") or entry.get("isCompactSummary") or entry.get("isSidechain"):
         return False
     message = entry.get("message")
     content = message.get("content") if isinstance(message, dict) else None
@@ -108,7 +111,10 @@ def measure(path: Path, now: datetime) -> dict:
         elif _is_prompt(entry):
             prompts.append(stamp)
     boundary: datetime | None = None
+    last_stop_entry = max(errors, default=None)
     for prompt in sorted(prompts, reverse=True):
+        if last_stop_entry is not None and prompt <= last_stop_entry:
+            break
         if any(stamp < prompt for stamp in assistants):
             boundary = prompt
             break
