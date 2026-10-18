@@ -83,6 +83,13 @@ async function main() {
     const errorsSent = () => parsed(w.bodies).filter(b => b.kind === "error" && b.message?.includes(THROWN));
     ok("the error thrown three times is sent once, with its fingerprint", errorsSent().length === 1 && /^[0-9a-f]{8}$/.test(errorsSent()[0].fp), JSON.stringify(errorsSent()));
     ok("no refusal is sent as a client copy", !parsed(w.bodies).some(b => b.kind === "api"), w.bodies.join(" | "));
+    // A server refusal left unhandled sends its code, never its message, which can quote typed text; an Error keeps its message.
+    await guest.evaluate(() => { Promise.reject({ status: 409, error: "unknown-name", message: "No one called ZZTYPEDZZ is in this session." }); Promise.reject(new Error("boom")); });
+    const rejections = () => parsed(w.bodies).filter(b => b.kind === "rejection");
+    for (let i = 0; i < 40 && rejections().length < 2; i++) await guest.waitForTimeout(100);
+    const refusal = rejections().filter(b => /unknown-name/.test(JSON.stringify(b)));
+    ok("an unhandled refusal sends its code and not its message", refusal.length === 1 && !w.bodies.some(b => b.includes("ZZTYPEDZZ")), JSON.stringify(rejections()));
+    ok("  and an unhandled Error still sends its message", rejections().some(b => b.message === "boom"), JSON.stringify(rejections()));
 
     await setVisibility(guest, "hidden");
     let sums = [];
@@ -206,7 +213,7 @@ async function main() {
     ok("  and an element web-vitals measured is named by its component", named.inp === "160:keyboard:vf-stub-probe" && named.lcp === "950:vf-stub-probe", JSON.stringify(named));
     ok("  no body from that page holds the selector or an id", ws.bodies.length >= 2 && !ws.bodies.some(b => /cy-secret|#|>/.test(b)), ws.bodies.join(" | "));
 
-    const pageErrs = rec.errors.filter(m => !/Failed to load resource/.test(m) && !m.includes(THROWN));
+    const pageErrs = rec.errors.filter(m => !/Failed to load resource/.test(m) && !m.includes(THROWN) && m !== "Object" && m !== "Error: boom"); // the injected rejections
     ok("no other page error", pageErrs.length === 0, pageErrs.slice(0, 3).join(" | "));
     ok("no CSP violation", (await rec.cspViolations()).length === 0);
 

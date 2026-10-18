@@ -884,7 +884,9 @@
   Core.reportLayout = fields => post({ kind: "layout", message: cut(Object.entries(fields).map(([k, v]) => `${k}=${String(v).replace(/\s+/g, "")}`).join(" "), 500),
     route: cut(location.pathname, 200), ua: ua() }).catch(() => {});
   addEventListener("error", e => fault("error", e.message, e.filename ? { source: cut(`${new URL(e.filename, location.href).pathname}:${e.lineno}`, 200) } : {}));
-  addEventListener("unhandledrejection", e => fault("rejection", e.reason?.message || e.reason?.error || String(e.reason)));
+  // A server refusal ({status, error, message}) sends its code and status only: its message can quote typed text.
+  addEventListener("unhandledrejection", e => { const r = e.reason;
+    fault("rejection", r && !(r instanceof Error) && r.error ? `${r.error} ${r.status ?? ""}`.trim() : r?.message || String(r)); });
 
   // The notice in Help: one line and a "What this page records" link to the plain list.
   const REC_LINE = "This page records errors, slow or failed actions and layout problems on this device, so the host can fix them. It never records what you type.";
