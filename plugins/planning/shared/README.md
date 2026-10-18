@@ -86,6 +86,11 @@ one already. The flags may instead be `defaults.json` keys, `import`, `guestPort
   session instead answers that browser 401 `merged-into-owner`; see [Moderation](#moderation).)
   Uploads do not carry over yet. A round the
   prototype had sent to Claude opens again. The original stays beside it as `state.v0.json`.
+  Each later step keeps the file it read as `state.v<N>.json`. Version 3 stores mentions as
+  `<@pid>` (see Mentions under [Moderation](#moderation)): an "@Name" only one person holds now becomes theirs; then,
+  for a chat message with one "@Word" left and one mention notification about it to someone it
+  does not name already, Word becomes that person wherever Word names only them. Anything still
+  ambiguous keeps its "@Name" text.
   Once the import works, delete the prototype's own state file or `chmod 600` it: it holds every
   guest secret and the owner token in plain text.
 - **Owner link.** The prototype's owner token stays the owner's credential, so its owner link keeps
@@ -201,7 +206,7 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `GET /api/card/history?qid=&card=` | | Once the owner has hidden or edited an answer, every replaced version goes to its `history` (the original kept, then the newest, 50 in all); before that its author's edits keep none. This route returns one answer's `history`; the owner's snapshot carries only `versions`, the count. An answer its author clears after the owner hid or edited it leaves a tombstone in `cleared` (in the owner's snapshot as `{ref, pid, clearedAt, hidden}`); this route returns its last `text` with `cleared: true`, and the author's next answer there takes it up, hidden if it was |
 | `/api/join/act` | `{pid, action: admit\|decline}` | With the `approveJoins` setting on, a join gets a secret but waits (`status: waiting`, 403 `waiting` on every route) in the owner's `joinRequests` (in join order `n`, with the `device` and `browser` the join named) until admitted; declining removes the person. At most 20 wait (503 `waiting-full`), and a full session never evicts a waiting person. People whose secret already resolves are not affected |
 | `/api/session/intro` | `{intro}` | Edits "Why you're here" |
-| `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
+| `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, every mention of `from` names `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
 | `/api/report/act` | `{id, action: seen\|resolved}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot |
 | `GET /api/report/image?id=` | | One report's screenshot as `{id, image}`, a data: URL |
 
@@ -210,6 +215,18 @@ message: only the page's fixed set (`CHAT_EMOJI` in `session.py` and `web/app.js
 distinct per message and 6 per person per message, one reaction a second per person per message.
 Chat and its reactions stay out of the digest; a reaction tells the message's author in one
 rolled-up notification.
+
+**Mentions.** People type "@Name" in chat, answers, comments, suggestions, proposals, notes and
+requests; the server stores each name of a person who is in as `<@pid>` (`migrate.tokenize`, longest
+name first) and notifies that person once. The page sends the "@Name" it shows the same way, so a
+masked name still reaches its person. Every page turns `<@pid>` back into "@Name" as it shows that
+person's name now: masked like every name, a removed person's last name (the snapshot's
+`mentions`), "@someone" for anyone else. Edit, Copy, Reply, Ask Claude and Propose take that
+"@Name" text, never a token. A token counts toward the text limit, and a cut (a reply's excerpt, a
+notification's body) never splits one. A rename shows in every mention of the person; a merge
+points the merged person's mentions at the kept one. Claude never reads a token: every event in
+the log, and a guest's own Claude through `/api/mine/requests`, gets "@Name", or "@someone" where
+`digestNames` is off (for a guest's own Claude, where names are masked to that guest).
 
 There is no device or address blocking (C35): Remove stops a person's secret, and Approve new joins
 or a new guest link stops a removed person rejoining under a new name.
