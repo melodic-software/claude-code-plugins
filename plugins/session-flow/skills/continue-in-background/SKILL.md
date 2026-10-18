@@ -135,15 +135,19 @@ fallback), then:
    runs inside a linked git worktree, where isolation is skipped per the same page.
 
    **`worktree.bgIsolation`.** Read it with `jq` from the settings files in precedence order,
-   first file that sets it wins: managed settings, `.claude/settings.local.json`,
-   `.claude/settings.json` in the project, then `~/.claude/settings.json`. The page documents
-   `"none"` as turning isolation off, so background sessions edit the working copy directly. A
-   `--settings` command-line value outranks the project and user files but cannot be read from
-   files: the read does not cover it, so say so in the launch report. When the value is `none`,
+   first file that sets it wins: the managed settings file when one exists on this machine,
+   `.claude/settings.local.json`, `.claude/settings.json` in the project, then
+   `~/.claude/settings.json`. Managed settings delivered another way cannot be read here. The
+   page documents `"none"` as turning isolation off, so background sessions edit the working copy
+   directly. A `--settings` command-line value sits between managed and local settings but cannot
+   be read from files: the read does not cover it, so whenever a launch report is written, say
+   the read covered the files only. When the value is `none`,
    the "would NOT carry" refusal does not apply, since the launched session sees the uncommitted
    changes: launch, and state in the launch report that the background session edits this
-   checkout in place, alongside the user, so both may touch the same files at once. Any other
-   result, including a file that does not parse, leaves the gate above unchanged. Pointer:
+   checkout in place, alongside the user, so both may touch the same files at once; this holds
+   inside a linked worktree too. Any other
+   result, including a file that does not parse, leaves the gate above unchanged. The `--cloud`
+   variant below ignores this setting. Pointer:
    <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of 2026-10-18;
    recheck trigger: that section changes what `worktree.bgIsolation` does or its accepted values.
 2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
@@ -195,7 +199,7 @@ change, because this skill launches a cloud session only from a clean checkout w
 matches its remote:
 
 1. **Only pushed work reaches it.** Launch only when `git status --porcelain -uall` lists nothing
-   but save-point files (the linked-worktree exception does not apply), `git fetch --quiet` then
+   but save-point files (neither the linked-worktree exception nor `worktree.bgIsolation: none` applies), `git fetch --quiet` then
    succeeds, and `git rev-parse HEAD` equals `git rev-parse @{upstream}`; the fetch keeps a stale
    tracking ref from passing the check. No upstream, a failed command, or any other result → no
    launch; fall back as the dirty case does and name commit-and-push as the fix. Upstream can
@@ -287,7 +291,7 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   launch command. No purpose given → nothing to tick
 - [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
-  location; effective `worktree.bgIsolation` read first, and `none` → launch with the
+  location; effective `worktree.bgIsolation` read before judging other changes, and `none` → launch with the
   edits-this-checkout-in-place warning in the report (`--settings` tier named as not covered);
   otherwise other uncommitted changes without the linked-worktree exception → no launch, reason
   reported, fallback to `/clear`-then-paste. Positively identified as not a git repository AND no
