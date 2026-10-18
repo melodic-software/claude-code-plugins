@@ -3461,8 +3461,7 @@ def unattended_enqueue(
             number,
             pr=inputs["pr"],
             agent_identity=identity,
-            hold_majors=getattr(inputs.get("config"), "dependabot_majors", "hold")
-            == "hold",
+            hold_majors=inputs["config"].dependabot_majors == "hold",
         ).reason
     elif inputs.get("authority") == merge_policy.PR_MERGE:
         opt_in = merge_policy.recheck_lane_issue(

@@ -1731,11 +1731,17 @@ def dependabot_eligibility(
         lane_commits = None
         # Fail closed: an update whose version cannot be read (a SHA pin), or
         # no readable update at all, is held like a major, marked
-        # `(unreadable)`.
+        # `(unreadable)`; so is every update when the title and the commit
+        # metadata disagree, marked `(disagree)`.
+        disagree = "sources-disagree" in tier.reasons
         majors = [
-            u.name if u.major else f"{u.name}(unreadable)"
+            u.name
+            if u.major
+            else f"{u.name}(unreadable)"
+            if u.major is None
+            else f"{u.name}(disagree)"
             for u in tier.updates
-            if u.major is not False
+            if u.major is not False or disagree
         ] or ([] if tier.updates else ["updates(unreadable)"])
         if hold_majors and majors:
             return Eligibility(

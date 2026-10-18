@@ -549,8 +549,10 @@ class Unattended(unittest.TestCase):
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
         self.pr_labels: list[dict[str, Any]] = []
         self.dependabot_reads: list[policy.Eligibility] = []
+        self.dependabot_kwargs: list[dict[str, Any]] = []
 
     def _dependabot_eligibility(self, *args: Any, **kwargs: Any) -> Any:
+        self.dependabot_kwargs.append(kwargs)
         if not self.dependabot_reads:
             raise AssertionError("the Dependabot class was read for this pull request")
         return (
@@ -1197,6 +1199,26 @@ class DependabotLane(Unattended):
             "unattended merge refused: ineligible:human-blocking-comment:maintainer",
             out["blockers"],
         )
+
+    def test_the_enqueue_recheck_holds_a_major_under_the_config(self) -> None:
+        held = "dependabot-major-held:x"
+        tier = dependabot.Classification("review", ("major:x",), approved="55-1")
+        for majors, hold in (("hold", True), ("review", False)):
+            with self.subTest(majors=majors):
+                self.config = dataclasses.replace(self.config, dependabot_majors=majors)
+                self.dependabot_kwargs = []
+                self.dependabot_reads = [
+                    policy.Eligibility(True, None, "C2", dependabot=tier),
+                    policy.Eligibility(False, held, "C2", dependabot=tier),
+                ]
+                code, out = self.lane()
+                self.assert_no_merge(code)
+                self.assertIn(
+                    f"unattended merge refused: ineligible:{held}", out["blockers"]
+                )
+                self.assertEqual(
+                    [k["hold_majors"] for k in self.dependabot_kwargs], [hold, hold]
+                )
 
     def test_a_lane_authored_pr_still_reads_report_only(self) -> None:
         self.pr_user = {"login": IDENTITY, "type": "Bot"}

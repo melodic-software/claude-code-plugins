@@ -4182,6 +4182,14 @@ class DependabotEligibility(unittest.TestCase):
         self.assertEqual(result.reason, "dependabot-major-held:x(unreadable)")
         self.assertEqual(result.dependabot.reasons, ("unparsed-version:x",))
 
+    def test_sources_that_disagree_are_held_despite_a_merge_verdict(self) -> None:
+        # The metadata says minor, the title says major.
+        self.fake(comments=[self.marker()])
+        result = self.eligibility(title="build(deps): bump x from 1.2.0 to 2.0.0")
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:x(disagree)")
+        self.assertIn("sources-disagree", result.dependabot.reasons)
+
     def test_with_majors_review_the_verdict_path_is_unchanged(self) -> None:
         for commit, why in (
             (dependabot_commit("semver-major"), "major:x"),

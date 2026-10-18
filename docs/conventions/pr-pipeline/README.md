@@ -575,7 +575,8 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   update whose version cannot be read (a SHA pin, an unparsed title): `hold` (the default, and any
   value but `review`) refuses it with the reason `dependabot-major-held:<names>`, an unreadable
   entry written `<name>(unreadable)` (`updates(unreadable)` when no update reads), whatever the
-  review verdict says, and the lane escalates it once
+  review verdict says; when the title and the commit metadata disagree, every update is held,
+  written `<name>(disagree)` unless it is already major or unreadable, and the lane escalates it once
   (a marked comment, then the tracker's human-gated role label), so a person merges it. `review`
   leaves it tier `review`, merged on the verdict above.
 
