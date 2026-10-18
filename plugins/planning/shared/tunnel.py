@@ -81,15 +81,13 @@ def _identity(rec):
 def _legacy_start(rec):
     """The start of the process a record written before processStart existed names, or None unless
     it is still that tunnel: not this process, alive by the old marker check, its command line a
-    quick tunnel to the recorded port, and its start readable. On Windows, when the command line
-    cannot be read, the marker check on the image path stands alone."""
+    quick tunnel to the recorded port, and its start readable. A command line that cannot be read
+    refuses it on every OS."""
     pid = rec["pid"]
     if pid == os.getpid() or not detached.alive(pid, rec.get("marker") or "cloudflared"):
         return None
     args = detached.command_line(pid)
-    if args is None and not detached.WINDOWS:
-        return None
-    if args is not None and ("tunnel" not in args or not _points_at(args, rec.get("port"))):
+    if args is None or "tunnel" not in args or not _points_at(args, rec.get("port")):
         return None
     return detached.started(pid)
 

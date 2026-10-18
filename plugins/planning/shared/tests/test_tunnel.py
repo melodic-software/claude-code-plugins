@@ -237,6 +237,28 @@ class TestExit(TunnelCase):
         self.assertFalse(tunnel.stop(self.d))
         self.assertIsNone(other.poll())
 
+    def test_a_record_from_before_process_start_naming_a_tunnel_to_another_port_is_not_ours(self):
+        rec = tunnel.ensure(self.d, 4321)
+        self.addCleanup(detached.stop, rec["pid"], rec["marker"])
+        other, _ = self.fake_process("http://127.0.0.1:9", named=False)
+        self.assertTrue(detached.alive(other.pid, rec["marker"]))  # the name alone would pass it
+        self.legacy(pid=other.pid)
+        self.assertIsNone(tunnel.alive(self.d))
+        self.assertNotIn("processStart", tunnel.read(self.d))
+        self.assertFalse(tunnel.stop(self.d))
+        self.assertIsNone(other.poll())
+
+    def test_a_record_from_before_process_start_whose_command_line_cannot_be_read_is_not_ours(self):
+        tunnel.ensure(self.d, 4321)
+        rec = self.legacy()
+        with mock.patch.object(detached, "command_line", return_value=None):
+            self.assertIsNone(tunnel.alive(self.d))
+            self.assertNotIn("processStart", tunnel.read(self.d))
+            # On Windows too: the image path alone never stands in for the command line.
+            with mock.patch.object(detached, "WINDOWS", True), mock.patch.object(detached, "alive", return_value=True), mock.patch.object(detached, "started", return_value="1"):
+                self.assertIsNone(tunnel._legacy_start(rec))
+        self.assertIsNotNone(tunnel.alive(self.d))  # readable again, the same record is the tunnel
+
     def test_a_record_from_before_process_start_naming_this_process_is_never_ours(self):
         rec = tunnel.ensure(self.d, 4321)
         self.addCleanup(detached.stop, rec["pid"], rec["marker"])
