@@ -102,7 +102,7 @@ rm -rf <path>
 git worktree remove <path>
 ```
 
-**The session's own worktree is deferred.** When the candidate path equals `git rev-parse --show-toplevel`, skip its removal here and leave it for Step 4c, which removes it before deleting its branch.
+**The session's own worktree is deferred.** When the candidate path equals `git rev-parse --show-toplevel`, skip only the `git worktree remove` line here and leave it for Step 4c, which removes it before deleting its branch. Both guards, the workspace `down` and the reap still run in this step, in the order below, while the directory is on disk: the reap does `cd <path>` into the candidate, so it cannot follow the removal, and plain removal loses gitignored files with exit 0.
 
 **Two guards, the workspace `down` and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → `down` → reap → removal.** `down` comes after the guards so a worktree they keep keeps its services. The stranded-work guard first, because it can abort the removal outright. Running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last of the three for the same reason inverted: it is the only one of the three that is *not* undoable, so it must not fire for a worktree the guards are about to save.
 
@@ -321,7 +321,7 @@ git -C '<main-root>' branch -D --end-of-options '<branch-name>'   # second: -D n
 
 Substitute `<branch-name>`, `<main-root>` and `<current-worktree-path>` only when each is safe to quote: a branch name matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and holds no `..`; a path holds no single quote. Keep the single quotes. Any other value reaches no command: report it as data, because untrusted input can shape git ref names and paths.
 
-**Where it runs.** The Step 4 confirmation is the user's go-ahead. With it given and the stranded-work guard passed for the row:
+**Where it runs.** The Step 4 confirmation is the user's go-ahead. With it given and both Step 4b guards (stranded-work and carried-ignored-file) passed for the row, and the workspace `down` and the reap already run there:
 
 - **Linux and macOS (`uname -s` is not `MINGW*`, `MSYS*` or `CYGWIN*`): run both commands yourself.** A process's working directory can be removed on these systems while it runs, so the session's own worktree is removable, and the session carries on from a directory that still exists (run later commands with `git -C` on the main checkout, or by absolute path). Run the worktree removal first and the branch deletion after it, both through `git -C '<main-root>'` as in the block above (the branch stays checked out, and so undeletable, while its worktree exists). The removal is for the session's own worktree, which is the one Step 4b defers to this step; every other candidate was already removed in Step 4b, after 4a and the 4b guards. Unlock first only for a row the Step 4b lock rules allow.
 - **Windows: emit them for the user.** The running Claude Code process holds the session worktree's directory handle there, so the worktree cannot delete itself. Surface the commands to run from a main-repo terminal (or via the `!` prompt prefix) instead of executing them.
