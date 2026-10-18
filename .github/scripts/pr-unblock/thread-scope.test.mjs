@@ -25,6 +25,55 @@ test("any file in the same plugins/<p>/ directory as a kept thread's path is in 
   assert.equal(inThreadScope("plugins/planning/README.md", new Set(["plugins/planning/surface/round.py"])), true);
 });
 
+// Each refused path and the kept thread paths of the four recorded trips.
+test("the four recorded trips are in scope", () => {
+  const trips = [
+    // #8043, run 39100052790: an eval sample beside the thread's case.
+    ["plugins/session-flow/evals/rr-skill-fit-names-owner/samples/names-skill-and-plugin.json", ["plugins/session-flow/evals/rr-skill-fit-names-owner/case.yaml"]],
+    // #8103, run 39107762307: the thread is on case.yaml:18.
+    ["plugins/discipline/evals/ror-second-error-way/samples/second-way-named.json", ["plugins/discipline/evals/ror-second-error-way/case.yaml"]],
+    // #8142, run 39113747960: a .py file, in scope only as a sibling test.
+    ["plugins/planning/surface/test_round.py", ["plugins/planning/surface/round.py"]],
+    // #8178, run 39117146913: the PR's kept thread paths.
+    [
+      "plugins/planning/README.md",
+      ["plugins/session-flow/skills/retro/SKILL.md", "plugins/planning/skills/draft-goal-condition/SKILL.md", "plugins/planning/.claude-plugin/plugin.json"],
+    ],
+  ];
+  for (const [path, threads] of trips) {
+    assert.equal(inThreadScope(path, new Set(threads)), true, path);
+  }
+});
+
+test("hooks, manifests, agent rules and non-test code in the same plugin are refused", () => {
+  const named = new Set(["plugins/p/skills/s/SKILL.md"]);
+  for (const path of [
+    "plugins/p/hooks/hooks.json",
+    "plugins/p/hooks/guard.md",
+    "plugins/p/.claude-plugin/plugin.json",
+    "plugins/p/scripts/run.sh",
+    "plugins/p/skills/s/scripts/helper.py",
+    "plugins/p/lib/x.mjs",
+    "plugins/p/lib/x.js",
+    "plugins/p/lib/x.ts",
+    "plugins/p/lib/X.SH",
+    "plugins/p/AGENTS.md",
+    "plugins/p/skills/s/CLAUDE.md",
+    "plugins/p/.claude/rules/r.md",
+    "plugins/p/.claude/settings.json",
+  ]) {
+    assert.equal(inThreadScope(path, named), false, path);
+  }
+});
+
+test("a thread's own path stays in scope whatever its type, and a sibling test of code stays in scope", () => {
+  for (const path of ["plugins/p/hooks/guard.sh", "plugins/p/.claude-plugin/plugin.json", "plugins/p/AGENTS.md"]) {
+    assert.equal(inThreadScope(path, new Set([path])), true, path);
+  }
+  assert.equal(inThreadScope("plugins/p/hooks/guard.test.mjs", new Set(["plugins/p/hooks/guard.mjs"])), true);
+  assert.equal(inThreadScope("plugins/p/scripts/test_run.py", new Set(["plugins/p/README.md"])), false);
+});
+
 test("another plugin's file and an unnamed file outside plugins/ stay out of scope", () => {
   assert.equal(inThreadScope("plugins/q/evals/c/samples/y.json", kept), false);
   assert.equal(inThreadScope("plugins/pp/README.md", kept), false);

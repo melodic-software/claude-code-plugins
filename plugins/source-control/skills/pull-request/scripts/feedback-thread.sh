@@ -45,15 +45,18 @@ repo=$(jq -er '.repository | select(test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))' 
   die 2 "the thread file names no repository"
 
 # Not under .github/ in any letter case, with no empty, . or .. segment, and
-# in a kept thread's scope: its path, any file in the plugins/<p>/
-# directory it sits in, or a test file in its directory. The same rule as
+# in a kept thread's scope: its path, a file in the plugins/<p>/ directory
+# it sits in (not under hooks/, .claude-plugin/ or a .claude/ directory, not
+# a CLAUDE.md or AGENTS.md, and not a .sh, .py, .mjs, .js or .ts file), or a
+# test file in its directory. The same rule as
 # .github/scripts/pr-unblock/thread-scope.mjs, which the promote step and
 # the reply job apply.
 allowed() {
   [[ ! ${1,,} =~ ^\.github(/|$) && ! $1 =~ (^|/)\.{0,2}(/|$) ]] &&
     jq -e --arg p "$1" '
       def dir: sub("[^/]*$"; "");
-      (first($p | capture("^(?<c>plugins/[^/]+/)").c) // null) as $plugin
+      (if $p | test("^plugins/[^/]+/(hooks|\\.claude-plugin)/|\\.(sh|py|mjs|js|ts)$|(^|/)(claude|agents)\\.md$|(^|/)\\.claude/"; "i")
+       then null else first($p | capture("^(?<c>plugins/[^/]+/)").c) // null end) as $plugin
       | ($p | sub("^.*/"; "") | test("^(test_[^/]*\\.py|[^/]*_test\\.py|[^/]*\\.(test|spec)\\.[^/]+)$")) as $test
       | any(.threads[].path; . == $p
           or ($plugin != null and startswith($plugin))
