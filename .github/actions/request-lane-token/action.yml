@@ -125,9 +125,6 @@ outputs:
     description: >-
       `workflow-modified` when `pr-workflow-change-ok` skipped the activity; empty otherwise.
     value: ${{ steps.request.outputs.skip-reason }}
-  skip-file:
-    description: The workflow file the broker named and the pull request changes, set with `skip-reason`.
-    value: ${{ steps.request.outputs.skip-file }}
 
 runs:
   using: composite
@@ -358,10 +355,7 @@ runs:
               msg="lane-token-skipped: the broker refused the token as workflow-modified because this pull request changes $file; no lane run gets a token while it does, so the activity is skipped"
               echo "::notice::$msg"
               printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
-              {
-                echo "skip-reason=workflow-modified"
-                echo "skip-file=$file"
-              } >>"$GITHUB_OUTPUT"
+              echo "skip-reason=workflow-modified" >>"$GITHUB_OUTPUT"
               exit 0
             fi
             detail="$detail; not skipped: $why"

@@ -200,8 +200,8 @@ the broker request, and no other permission; it never holds `checks: write` or `
    any head checkout. The broker mints once per job, so a second request from this job is denied
    `already-minted`. The
    step fails red unless the grant this job resolved is `read` or `write` for each of `contents`,
-   `pull-requests` and `issues` and the broker's answer equals it. Off issue mode, one refusal
-   skips instead: a 403 `workflow-modified` whose detail names a `.github/workflows/` file the PR
+   `pull-requests` and `issues` and the broker's answer equals it. On a `pull_request` run, one
+   refusal skips instead: a 403 `workflow-modified` whose detail names a `.github/workflows/` file the PR
    itself changes ([below](#a-workflow-file-the-pr-changes)). The read file requests nothing
    and uses the job's read-only `GITHUB_TOKEN` throughout.
 7. [`select-trusted-text`](../../../.github/actions/select-trusted-text/README.md) to
@@ -995,8 +995,10 @@ means the job's read and the broker's read of the switch disagreed.
 ### A workflow file the PR changes
 
 A PR that changes the caller or `pr-run-activity-write.yml` gets `workflow-modified` on every write
-lane run until it merges, and a re-run cannot help. Off issue mode the run job passes
-`pr-workflow-change-ok`, and the step skips instead of failing when all of these hold:
+lane run until it merges, and a re-run cannot help. On a `pull_request` run, which executes the
+PR's copy of the workflow files, the run job passes `pr-workflow-change-ok`, and the step skips
+instead of failing when all of these hold. A dispatched or issue run executes the default
+branch's files, so its refusal means the default branch moved, and it stays red:
 
 - the answer is 403 with reason `workflow-modified`;
 - its detail is exactly `<file> differs from refs/heads/<default branch>`, `<file>` a

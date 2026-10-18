@@ -79,9 +79,9 @@ const keyed = steps.slice(mint + 1).filter((s) => /steps\.head-recheck\.outputs\
 say(keyed.length === 0, `no step after the mint keys on the head re-read instead of the token (${keyed.join(", ") || "none"})`);
 say(String(steps[checkout]?.if ?? "") === "steps.lane-token.outputs.token != ''", "the head checkout runs only with a minted token");
 const mintWith = byId("lane-token").with ?? {};
-say(mintWith["pr-workflow-change-ok"] === "${{ inputs.issue-number == '' }}" && mintWith["github-token"] === "${{ github.token }}"
+say(mintWith["pr-workflow-change-ok"] === "${{ inputs.issue-number == '' && github.event_name == 'pull_request' }}" && mintWith["github-token"] === "${{ github.token }}"
   && mintWith["head-sha"] === "${{ steps.gate.outputs.head-sha }}",
-  "the workflow-modified skip is off in issue mode and compares the gated head with the job's own token");
+  "the workflow-modified skip runs on pull_request only, off issue mode, and compares the gated head with the job's own token");
 const recheck = at((s) => s.id === "head-recheck");
 say(recheck >= 0 && recheck < mint, "the head re-read runs before the mint");
 for (const id of ["merge-bin", "hold-label", "stage"]) {

@@ -417,7 +417,7 @@ test("with pr-workflow-change-ok, a workflow-modified refusal of a file the PR c
     REFINE_MODIFIED,
   );
   assert.equal(run.status, 0, run.stdout);
-  assert.equal(run.output, "skip-reason=workflow-modified\nskip-file=.github/workflows/pr-refine.yml\n");
+  assert.equal(run.output, "skip-reason=workflow-modified\n");
   assert.match(run.summary, /workflow-modified because this pull request changes \.github\/workflows\/pr-refine\.yml/);
   assert.doesNotMatch(run.stdout, /::error::/);
   assert.deepEqual(run.compares, [`${COMPARE_URL} Authorization: Bearer ghs_job`]);

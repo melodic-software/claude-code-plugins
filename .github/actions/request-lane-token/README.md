@@ -35,7 +35,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `expires-at` | The expiry the broker returned |
 | `mint-id` | `<check_run_id>-<run_attempt>`, the broker's audit key for this mint |
 | `failure-reason` | The one-line reason the step failed with (`lane-token-denied: ...`); empty on a success |
-| `skip-reason`, `skip-file` | `workflow-modified` and the workflow file, when `pr-workflow-change-ok` skipped; empty otherwise |
+| `skip-reason` | `workflow-modified` when `pr-workflow-change-ok` skipped; empty otherwise |
 
 ## What it does
 
@@ -115,11 +115,14 @@ changed the file. With `pr-workflow-change-ok: true` the step skips only when:
    300 changed files, so a file past that is not found and the step stays red.
 
 It then writes `lane-token-skipped: ...` with the reason and file to the job summary as a notice,
-sets `skip-reason=workflow-modified` and `skip-file=<file>`, sets no token and exits 0. Every
+sets `skip-reason=workflow-modified`, sets no token and exits 0. Every
 other case fails red as step 4 says, with `; not skipped: <why>` appended for a `workflow-modified`
 refusal: a detail that does not parse, a file the compare does not list, or a compare that cannot
-be read. The compare is GitHub's, at the gated head, so a refusal for a file only the default
-branch changed, or text the PR's code writes, cannot skip.
+be read. The compare is GitHub's, at the gated head, and the caller passes the input only on a
+`pull_request` run, which executes the PR's own workflow files: a dispatched run executes the
+default branch's files, so its refusal means the default branch moved and must stay red. Text the
+PR's code writes never reaches the decision. A PR that changes the workflow running the job already
+controls that job, so this adds nothing it could not already do.
 
 ## Check mode
 

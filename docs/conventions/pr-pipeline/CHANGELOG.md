@@ -2,7 +2,7 @@
 
 ## 2.11.9 - 2026-10-18
 
-A write lane run on a PR that changes a workflow file the token broker compares no longer fails
+A write lane `pull_request` run on a PR that changes a workflow file the token broker compares no longer fails
 red. When the broker refuses the mint as `workflow-modified` and GitHub's compare of the default
 branch with the gated head lists the named file, the run job ends green with no token, its summary
 names the reason and file, and the check is neutral with the new skip reason `workflow-modified`

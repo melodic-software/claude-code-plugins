@@ -601,17 +601,18 @@ jobs:
       # so a second request from this job is denied already-minted. It fails
       # red on an empty LANES_BROKER_URL or LANES_BROKER_AUDIENCE, on any
       # answer but 200, and on a grant other than the one resolved above. One
-      # exception, off issue mode: a workflow-modified refusal of a workflow
-      # file that GitHub's compare of the default branch with the gated head
-      # lists as changed by this PR ends it green with no token and skip
-      # reason workflow-modified, so every later step skips and the check is
-      # neutral. Every later step keys on the token.
+      # exception, on pull_request only (a dispatched run executes main's
+      # files, so its refusal means main moved): a workflow-modified refusal
+      # of a workflow file that GitHub's compare of the default branch with
+      # the gated head lists as changed by this PR ends it green with no token
+      # and skip reason workflow-modified, so every later step skips and the
+      # check is neutral. Every later step keys on the token.
       - name: Request the lane token
         id: lane-token
         if: steps.head-recheck.outputs.proceed == 'true'
         uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
-          pr-workflow-change-ok: ${{ inputs.issue-number == '' }}
+          pr-workflow-change-ok: ${{ inputs.issue-number == '' && github.event_name == 'pull_request' }}
           head-sha: ${{ steps.gate.outputs.head-sha }}
           default-branch: ${{ github.event.repository.default_branch }}
           github-token: ${{ github.token }}
