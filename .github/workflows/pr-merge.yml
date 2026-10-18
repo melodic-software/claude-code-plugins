@@ -340,7 +340,7 @@ jobs:
               | {number, head: .headRefOid, updatedAt, labels: [.labels[].name], body}]
               | unique_by(.number)' |
             python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py \
-              --human-gated "$human_gated" >"$RUNNER_TEMP/prefilter.json"
+              --human-gated="$human_gated" >"$RUNNER_TEMP/prefilter.json"
           jq -c .candidates "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/candidates.json"
           jq -c .held "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/held.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
