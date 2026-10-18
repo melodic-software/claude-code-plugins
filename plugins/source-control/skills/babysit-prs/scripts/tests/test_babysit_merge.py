@@ -28,6 +28,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_gh as gh
 from repo_config_fake import RepoConfigFake
 import babysit_merge as merge
+import babysit_postmerge as postmerge
 import refresh_pr_branch as refresh
 
 HEAD = "a" * 40
@@ -39,6 +40,23 @@ APPROVER = "approver-bot"
 PR_NUMBER = 476
 LINKED_ISSUE = 999  # distinct from the PR so the two comment fetches are separable
 LINKED_REF = f"owner/repo#{LINKED_ISSUE}"
+
+
+def role_label_stub(label: str = "needs-human") -> Any:
+    """A patcher for the tracker's human-gated label read, which an
+    autonomous gate makes; started per module so no test reads GitHub."""
+    return mock.patch.object(postmerge, "_role_label", return_value=label)
+
+
+_role_label = role_label_stub()
+
+
+def setUpModule() -> None:
+    _role_label.start()
+
+
+def tearDownModule() -> None:
+    _role_label.stop()
 
 
 def _queue_read(
@@ -711,8 +729,8 @@ class PullRequestBodyHold(TierEvaluateHarness):
                     )
 
     def test_needs_human_label_does_not_block_an_attended_merge(self) -> None:
-        # The person the label asks for may merge; unattended runs hold on it
-        # (test_babysit_merge_unattended.NeedsHumanHoldsOnlyUnattended).
+        # The person the label asks for may merge; autonomous runs hold on it
+        # (test_babysit_merge_unattended.NeedsHumanHoldsOnlyAutonomous).
         result = self._evaluate(_pr(labels=[{"name": "needs-human"}]), tier=None)
         self.assertTrue(result["ready"], result["blockers"])
 

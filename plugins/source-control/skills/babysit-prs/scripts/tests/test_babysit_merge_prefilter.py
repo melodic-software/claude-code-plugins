@@ -102,28 +102,45 @@ class HeldCandidatesNeverReachTheGate(unittest.TestCase):
 
 
 class PrefilterDropsOnlyWhatTheGateRefuses(fixtures.TierEvaluateHarness):
-    """The gate refuses each dropped input on its own, and passes each kept one.
-    `needs-human` holds only an unattended gate, so its agreement is asserted
-    in test_babysit_merge_unattended.NeedsHumanHoldsOnlyUnattended."""
+    """The gate refuses each dropped input on its own, and passes each kept
+    one. `needs-human` holds only an unattended gate, so the attended gate here
+    lifts it; its unattended agreement is asserted in
+    test_babysit_merge_unattended.NeedsHumanHoldsOnlyAutonomous."""
 
     def test_agrees_with_the_gate(self) -> None:
         cases = [
             *({"body": b} for b in HELD_BODIES + FREE_BODIES),
             {"labels": ["do-not-merge"]},
             {"labels": ["needs-review"]},
+            {"labels": ["needs-human"]},
         ]
         for case in cases:
-            with self.subTest(case=case):
-                labels = case.get("labels", [])
-                body = case.get("body", "")
-                gate = self._evaluate(
-                    fixtures._pr(body=body, labels=[{"name": n} for n in labels]),
-                    tier=None,
-                )
-                dropped = prefilter.hold(_candidate(1, labels=labels, body=body))
-                self.assertEqual(
-                    dropped is not None, not gate["ready"], gate["blockers"]
-                )
+            labels = case.get("labels", [])
+            body = case.get("body", "")
+            dropped = prefilter.hold(_candidate(1, labels=labels, body=body))
+            for tier in (None,):
+                with self.subTest(case=case, tier=tier is not None):
+                    gate = self._evaluate(
+                        fixtures._pr(body=body, labels=[{"name": n} for n in labels]),
+                        tier=tier,
+                    )
+                    expected = dropped is not None and (
+                        tier is not None or labels != ["needs-human"]
+                    )
+                    self.assertEqual(expected, not gate["ready"], gate["blockers"])
+
+
+# The tracker's human-gated label read an autonomous gate makes: stubbed so
+# no test reads GitHub.
+_role_label = fixtures.role_label_stub()
+
+
+def setUpModule() -> None:
+    _role_label.start()
+
+
+def tearDownModule() -> None:
+    _role_label.stop()
 
 
 if __name__ == "__main__":

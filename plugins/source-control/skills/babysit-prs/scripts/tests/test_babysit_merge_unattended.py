@@ -173,11 +173,59 @@ def _evaluate(
         )
 
 
-class NeedsHumanHoldsOnlyUnattended(unittest.TestCase):
+class RemappedHumanGatedLabel(unittest.TestCase):
+    """A tracker that maps `human-gated` to another label: the label the
+    verifier escalation adds is the one every autonomous hold reads."""
+
+    LABEL = "human-review"
+
+    def setUp(self) -> None:
+        patcher = mock.patch.object(postmerge, "_role_label", return_value=self.LABEL)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_the_escalation_label_is_the_hold_label(self) -> None:
+        capture = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "", ""))
+        with (
+            mock.patch.object(merge, "gh_capture", capture),
+            mock.patch.object(merge, "upsert_marker_comment", return_value="created"),
+        ):
+            merge.escalate_verify(
+                "owner/repo",
+                fixtures.PR_NUMBER,
+                IDENTITY,
+                "verify:spec-changed",
+                {"pr": {"head": {"sha": HEAD}, "labels": []}},
+            )
+        added = [
+            a for c in capture.call_args_list for a in c.args[0] if "labels[]=" in a
+        ]
+        self.assertEqual(added, [f"labels[]={self.LABEL}"])
+
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        held = _evaluate(
+            fixtures._pr(labels=[{"name": "Human-Review"}]), HEAD, None, permits
+        )
+        self.assertTrue(
+            any(f"'{self.LABEL}' label" in b for b in held["blockers"]),
+            held["blockers"],
+        )
+        self.assertEqual(
+            prefilter.hold({"labels": ["Human-Review"]}, self.LABEL), self.LABEL
+        )
+        # The unmapped default no longer holds.
+        free = _evaluate(
+            fixtures._pr(labels=[{"name": "needs-human"}]), HEAD, None, permits
+        )
+        self.assertEqual(free["blockers"], [])
+        self.assertIsNone(prefilter.hold({"labels": ["needs-human"]}, self.LABEL))
+
+
+class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
     """`needs-human` holds an unattended merge; the person it asks for may
     still merge attended. `do-not-merge` holds both."""
 
-    def test_needs_human_holds_only_the_unattended_gate(self) -> None:
+    def test_needs_human_holds_the_unattended_gate_not_an_attended_one(self) -> None:
         permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
         pr = fixtures._pr(labels=[{"name": "Needs-Human"}])
         attended = _evaluate(pr, HEAD, None)
@@ -2012,6 +2060,19 @@ class LandedRequestUnderARefusingCheck(async_fixtures.AsyncMergeHarness):
         self.assertIs(self.output["merged"], True)
         self.assertIs(self.output["ready"], True)
         self.assertEqual(self.output["blockers"], [])
+
+
+# The tracker's human-gated label read an autonomous gate makes: stubbed so
+# no test reads GitHub.
+_role_label = fixtures.role_label_stub()
+
+
+def setUpModule() -> None:
+    _role_label.start()
+
+
+def tearDownModule() -> None:
+    _role_label.stop()
 
 
 if __name__ == "__main__":

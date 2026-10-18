@@ -1425,7 +1425,7 @@ def lane_eligibility(
     touching no `merge.diff-check.denied-paths`. Such a pull request is
     class `LANE_CLASS`; no `work-class:` label is read.
     `pr` is the REST record, whose `changed_files` the file listing must
-    reach. Holds (an `UNATTENDED_HOLD_LABELS` label, a `Hold:` line) are the gate's.
+    reach. Holds (a hold label, a `Hold:` line) are the gate's.
     `self_logins` and `permission` are unused: no human read remains."""
     owner, name = _split_repo(repo)
     issue_number = None
@@ -2068,10 +2068,14 @@ def entry_hold(
     permission: Permission | None = None,
 ) -> str | None:
     """Why a queued entry of the agent identity must leave the queue (D3): the
-    `do-not-merge` or `needs-human` label, a body hold, a human blocking comment, or the opt-in
+    `do-not-merge` or human-gated label, a body hold, a human blocking comment, or the opt-in
     label removed since the enqueue or put back by a non-human. An unreadable
     entry is a hold."""
-    from babysit_merge import BODY_MERGE_HOLD_RE, merge_hold_label  # noqa: PLC0415
+    from babysit_merge import (  # noqa: PLC0415
+        BODY_MERGE_HOLD_RE,
+        human_gated_label,
+        merge_hold_label,
+    )
 
     owner, name = _split_repo(repo)
     permission = permission or permission_reader(repo)
@@ -2090,7 +2094,7 @@ def entry_hold(
         if labels is None or not events:
             return "unreadable"
         # Only unattended runs judge queued entries.
-        if held_by := merge_hold_label(labels, unattended=True):
+        if held_by := merge_hold_label(labels, human_gated=human_gated_label(repo)):
             return held_by
         if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
             return "body-hold"

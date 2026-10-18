@@ -220,18 +220,31 @@ BODY_MERGE_HOLD_RE = re.compile(
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
 MERGE_HOLD_LABELS = ("do-not-merge",)
-# An unattended merge also holds on `needs-human`, the tracker's human-gated
-# label, which the verifier escalation adds: autonomous sessions must not
-# resolve what carries it, while the person it asks for may merge attended.
-UNATTENDED_HOLD_LABELS = (*MERGE_HOLD_LABELS, "needs-human")
+# Where this process's gate processes share the resolved human-gated label.
+HUMAN_GATED_SECTION = "human-gated-label"
 
 
-def merge_hold_label(labels: Iterable[Any], *, unattended: bool) -> str | None:
-    """The first hold label among `labels` for an attended or unattended
-    merge, matched case-insensitively."""
+def human_gated_label(repo: str) -> str:
+    """The tracker's human-gated role label for `repo` (`needs-human` unless
+    `.work-item-tracker.json` maps it): the label the verifier escalation adds
+    and an autonomous merge holds on. Shared across a run's gate processes."""
+    cached = run_cache.get(HUMAN_GATED_SECTION, repo, run_cache.MAX_AGE)
+    if isinstance(cached, str) and cached:
+        return cached
+    owner, name = repo.split("/", 1)
+    label = postmerge._role_label(owner, name)
+    run_cache.put(HUMAN_GATED_SECTION, repo, label)
+    return label
+
+
+def merge_hold_label(labels: Iterable[Any], *, human_gated: str | None) -> str | None:
+    """The first hold label among `labels`, matched case-insensitively. An
+    autonomous merge passes the resolved `human_gated` label, which holds it
+    too: autonomous sessions must not resolve what carries it. An attended
+    merge, the person that label asks for, passes None."""
     names = {str(name).casefold() for name in labels}
-    holds = UNATTENDED_HOLD_LABELS if unattended else MERGE_HOLD_LABELS
-    return next((label for label in holds if label in names), None)
+    holds = (*MERGE_HOLD_LABELS, *((human_gated,) if human_gated else ()))
+    return next((label for label in holds if label.casefold() in names), None)
 
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
@@ -1525,7 +1538,11 @@ def evaluate(
             "PR body holds the merge (do not merge, or a Hold: line) -- a human "
             "hold, report it and leave it"
         )
-    if held_by := merge_hold_label(labels, unattended=unattended is not None):
+    # Autonomous: the unattended policy, merging with no person present; only
+    # an attended merge lifts the human-gated hold.
+    autonomous = unattended is not None
+    human_gated = human_gated_label(repo) if autonomous else None
+    if held_by := merge_hold_label(labels, human_gated=human_gated):
         blockers.append(
             f"PR carries the {held_by!r} label -- a human hold, report it and leave it"
         )
@@ -3103,8 +3120,7 @@ def escalate_verify(
         inputs.get("comments"),
         marker=VERIFY_ESCALATION_MARKER,
     )
-    owner, name = repo.split("/", 1)
-    label = postmerge._role_label(owner, name)
+    label = human_gated_label(repo)
     labels = pr.get("labels")
     present = is_json_array(labels) and any(
         str(json_object(item).get("name") or "").casefold() == label.casefold()
