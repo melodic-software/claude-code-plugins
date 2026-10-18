@@ -3920,6 +3920,26 @@ class OneRunSharesItsCredentialReads(unittest.TestCase):
             )
         self.assertEqual(self.reads(gh)[1], 2)
 
+    def test_the_default_branch_is_read_once_per_run(self) -> None:
+        gh = self.gh()
+        for _ in range(3):
+            self.candidate()
+        self.assertEqual(gh.calls.count(["api", f"repos/{REPO}"]), 1)
+
+    def test_the_pre_enqueue_base_check_reads_the_default_branch_fresh(self) -> None:
+        gh = self.gh()
+        self.candidate()
+        policy._base_refusal("owner", "repo", {"baseRefName": "trunk"})
+        self.assertEqual(gh.calls.count(["api", f"repos/{REPO}"]), 2)
+
+    def test_a_failed_default_branch_read_is_not_shared(self) -> None:
+        gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}"] = 502
+        for _ in range(2):
+            with self.assertRaises(policy.PolicyReadError):
+                policy._default_branch(REPO, shared=True)
+        self.assertEqual(gh.calls.count(["api", f"repos/{REPO}"]), 2)
+
     def permission_reads(self, answer: Any, readers: int = 2) -> int:
         gh = GhFake().install(self)
         endpoint = f"repos/{REPO}/collaborators/{OPERATOR}/permission"

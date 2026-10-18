@@ -523,6 +523,10 @@ def repository_default_branch(repo: str) -> str | None:
     self-login exemption in place rather than inventing a hold from missing
     evidence.
     """
+    cached = run_cache.get(merge_policy.DEFAULT_BRANCH_SECTION, repo, run_cache.MAX_AGE)
+    if isinstance(cached, str) and cached:
+        merge_policy.SHARED_DEFAULT_BRANCHES.add(repo)
+        return cached
     try:
         data = gh_json(["api", f"repos/{repo}", "--jq", "{name: .default_branch}"])
     except (RuntimeError, json.JSONDecodeError):
@@ -530,10 +534,19 @@ def repository_default_branch(repo: str) -> str | None:
     if not is_json_object(data):
         return None
     name = data.get("name")
-    return str(name) if name else None
+    if not name:
+        return None
+    run_cache.put(merge_policy.DEFAULT_BRANCH_SECTION, repo, str(name))
+    return str(name)
 
 
-def branch_rules(repo: str, branch: str) -> dict[str, object]:
+RULES_SECTION = "branch-rules"
+# Branches whose rules this process took from the run cache;
+# `unattended_enqueue` reads them again before an enqueue.
+SHARED_RULES: set[str] = set()
+
+
+def branch_rules(repo: str, branch: str, *, shared: bool = True) -> dict[str, object]:
     """Summarize the effective merge-governing rules for the base branch.
 
     Rulesets COMPOSE: `/rules/branches/{branch}` returns one rule of a given
@@ -569,9 +582,16 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         # matches Go's url.PathEscape, which go-github uses for this endpoint
         # (github.com/google/go-github repos_rules.go, ListRulesForBranch).
         # gh 2.99.0 forwards that path unchanged.
-        rules = gh_json(
-            ["api", f"repos/{repo}/rules/branches/{quote(branch, safe='')}"]
-        )
+        key = f"{repo}|{branch}"
+        rules = run_cache.get(RULES_SECTION, key, run_cache.MAX_AGE) if shared else None
+        if is_json_array(rules):
+            SHARED_RULES.add(branch)
+        else:
+            rules = gh_json(
+                ["api", f"repos/{repo}/rules/branches/{quote(branch, safe='')}"]
+            )
+            if is_json_array(rules):
+                run_cache.put(RULES_SECTION, key, rules)
     except (RuntimeError, json.JSONDecodeError) as exc:
         # Rules are advisory context; a read failure must never fail the run.
         summary["error"] = f"could not read branch rules: {exc}"
@@ -3347,6 +3367,20 @@ def unattended_enqueue(
     step["optIn"] = opt_in
     if opt_in:
         return hold(f"ineligible:{opt_in}")
+    # An enqueue never rests on a read shared within the run: a default
+    # branch or base rules the gate took from the run cache are read again,
+    # and any change holds.
+    if repo in merge_policy.SHARED_DEFAULT_BRANCHES:
+        try:
+            default = merge_policy._default_branch(repo)
+        except merge_policy.PolicyReadError:
+            return hold(merge_policy.DEFAULT_BRANCH_UNREADABLE)
+        if default != branch:
+            return hold(f"base-not-default:{branch}")
+    if branch in SHARED_RULES and branch_rules(
+        repo, branch, shared=False
+    ) != result.get("effectiveRules"):
+        return hold("the base branch's rules changed since the gate read them")
     proc = gh_capture(
         ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
         + ["-f", f"body={postmerge.pin_comment(pin)}"]
@@ -3431,6 +3465,9 @@ def build_settle(logins: Iterable[str], minutes: str) -> ReviewSettleConfig | No
 
 def main() -> int:
     configure_stdio()
+    # This gate run's own record of what it took from the run cache.
+    SHARED_RULES.clear()
+    merge_policy.SHARED_DEFAULT_BRANCHES.clear()
     # allow_abbrev=False: the permission grants covering this gate state their
     # conditions as the literal presence or absence of a flag in the command
     # text -- above all "no --merge means check-only". Prefix abbreviation

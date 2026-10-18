@@ -124,6 +124,22 @@ CLOSING_QUERY = (
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
 # verifier origin, not a completed success), or counted (both).
 UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
+# The run cache's section of run records, and the fields `_run_state` reads.
+RUN_SECTION = "run-record"
+RECORD_SECTION = "fail-head-ref"
+RUN_FIELDS = (
+    "id",
+    "path",
+    "event",
+    "head_branch",
+    "head_sha",
+    "repository",
+    "head_repository",
+    "status",
+    "conclusion",
+    "run_attempt",
+    "run_started_at",
+)
 
 
 class _Unreadable(Exception):
@@ -240,6 +256,8 @@ class Reader:
     _listing_error: str | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
+    # Runs whose standing came from the run cache (`_run_state`).
+    _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
     _records: dict[tuple[int, str], dict[str, Any]] = field(default_factory=dict)
     _humans: frozenset[int] | None = None
@@ -394,40 +412,69 @@ class Reader:
                 run_cache.put("on-branch", key, True)
         return self._on_branch[sha]
 
-    def _run_state(self, run_id: int) -> str:
-        if run_id not in self._runs:
-            try:
+    def _run_state(self, run_id: int, *, shared: bool = False) -> str:
+        """The run's standing. A FAIL's run (`shared`) may be judged on a
+        record another gate process of the run read within
+        `run_cache.MAX_AGE`: a FAIL counts whether its run is origin or
+        counted, and origin rests only on fields a re-run keeps (id, path,
+        event, branch, repositories, head), never on status, conclusion or
+        attempt, so a stale record cannot turn a FAIL away. A PASS needs a
+        completed success, which a re-run can undo, so its run is read by
+        this process."""
+        if run_id in self._runs and (shared or run_id not in self._shared_runs):
+            return self._runs[run_id]
+        key = f"{self.repo}|{run_id}"
+        record = run_cache.get(RUN_SECTION, key, run_cache.MAX_AGE) if shared else None
+        cached = is_json_object(record)
+        try:
+            if not cached:
                 record = json_object(
                     self._actions(
                         ["api", f"repos/{self.repo}/actions/runs/{run_id}"],
                         f"run {run_id}",
                     )
                 )
-                head = record.get("head_sha")
-                origin = (
-                    record.get("id") == run_id
-                    and record.get("path") == WORKFLOW_PATH
-                    and record.get("event") == "workflow_run"
-                    and record.get("head_branch") == self.branch
-                    and json_object(record.get("repository")).get("full_name")
-                    == self.repo
-                    and json_object(record.get("head_repository")).get("full_name")
-                    == self.repo
-                    and isinstance(head, str)
-                    and merge_policy.SHA_RE.fullmatch(head) is not None
-                    and self._contains(head)
-                )
-                self._started[run_id] = record.get("run_started_at")
-                done = (
-                    record.get("status") == "completed"
-                    and record.get("conclusion") == "success"
-                )
-                self._runs[run_id] = (
-                    FOREIGN if not origin else COUNTED if done else ORIGIN
-                )
-            except _Unreadable:
-                self._runs[run_id] = UNREAD
+            head = record.get("head_sha")
+            origin = (
+                record.get("id") == run_id
+                and record.get("path") == WORKFLOW_PATH
+                and record.get("event") == "workflow_run"
+                and record.get("head_branch") == self.branch
+                and json_object(record.get("repository")).get("full_name") == self.repo
+                and json_object(record.get("head_repository")).get("full_name")
+                == self.repo
+                and isinstance(head, str)
+                and merge_policy.SHA_RE.fullmatch(head) is not None
+                and self._contains(head)
+            )
+        except _Unreadable:
+            self._shared_runs.discard(run_id)
+            self._runs[run_id] = UNREAD
+            return UNREAD
+        if cached:
+            self._shared_runs.add(run_id)
+        else:
+            self._shared_runs.discard(run_id)
+            self._started[run_id] = record.get("run_started_at")
+            run_cache.put(RUN_SECTION, key, {k: record.get(k) for k in RUN_FIELDS})
+        done = (
+            record.get("status") == "completed"
+            and record.get("conclusion") == "success"
+        )
+        self._runs[run_id] = FOREIGN if not origin else COUNTED if done else ORIGIN
         return self._runs[run_id]
+
+    def _head_ref(self, run_id: int, name: str) -> Any:
+        """The head ref an untied FAIL's verdict.json records, shared by the
+        run's gate processes: an artifact's contents never change, and a
+        FAIL whose artifact has since gone still refuses."""
+        key = f"{self.repo}|{run_id}|{name}"
+        dated = run_cache.get_dated(RECORD_SECTION, key, None)
+        if dated is not None and is_json_object(dated[0]):
+            return dated[0].get("head_ref")
+        record = self._record(run_id, name)
+        run_cache.put(RECORD_SECTION, key, {"head_ref": record.get("head_ref")})
+        return record.get("head_ref")
 
     def _record(self, run_id: int, name: str) -> dict[str, Any]:
         """The artifact's verdict.json, downloaded once."""
@@ -657,7 +704,7 @@ class Reader:
                 else:
                     ignored += 1
                 continue
-            state = self._run_state(run_id)
+            state = self._run_state(run_id, shared=True)
             if state == FOREIGN:
                 ignored += 1
                 continue
@@ -669,7 +716,7 @@ class Reader:
                 continue
             if not tied:
                 try:
-                    recorded = self._record(run_id, name).get("head_ref")
+                    recorded = self._head_ref(run_id, name)
                 except _Unreadable:
                     unreadable = unreadable or f"record of {name}"
                     continue

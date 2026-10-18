@@ -344,9 +344,10 @@ jobs:
           # allowed.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           # Reads that are the same for every candidate (acting login,
-          # credential pass, permissions, trusted list, run heads on main, the
-          # queued entries a candidate kept) are shared here within their
-          # bounds (babysit_run_cache.py).
+          # credential pass, permissions, trusted list, run heads on main,
+          # FAIL run records, default branch, base rules, the queued entries
+          # a candidate kept) are shared here within their bounds
+          # (babysit_run_cache.py).
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}

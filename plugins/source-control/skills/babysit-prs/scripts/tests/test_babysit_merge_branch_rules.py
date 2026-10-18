@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import pathlib
 import sys
+import tempfile
 import unittest
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -36,9 +38,7 @@ SECURITY_GATE = ["security-review / security-review"]
 def _status_checks_rule(contexts: list[str]) -> dict[str, Any]:
     return {
         "type": "required_status_checks",
-        "parameters": {
-            "required_status_checks": [{"context": c} for c in contexts]
-        },
+        "parameters": {"required_status_checks": [{"context": c} for c in contexts]},
     }
 
 
@@ -83,9 +83,7 @@ class BranchRulesUnionsEveryRulesetsContexts(unittest.TestCase):
             _status_checks_rule(CI_GATE),
             _status_checks_rule(SECURITY_GATE),
         )
-        self.assertEqual(
-            summary["requiredContexts"], sorted(CI_GATE + SECURITY_GATE)
-        )
+        self.assertEqual(summary["requiredContexts"], sorted(CI_GATE + SECURITY_GATE))
 
     def test_a_context_required_by_two_rulesets_is_reported_once(self) -> None:
         summary = _branch_rules(
@@ -189,7 +187,13 @@ class AnEmptyLaterRuleCannotUnprotectTheBase(unittest.TestCase):
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
         ):
             return merge.evaluate(
-                "owner/repo", PR_NUMBER, None, {"owner"}, frozenset(), False, False,
+                "owner/repo",
+                PR_NUMBER,
+                None,
+                {"owner"},
+                frozenset(),
+                False,
+                False,
             )
 
     def test_empty_trailing_rule_leaves_the_base_protected(self) -> None:
@@ -199,9 +203,7 @@ class AnEmptyLaterRuleCannotUnprotectTheBase(unittest.TestCase):
             _status_checks_rule([]),
         )
         self.assertFalse(result["baseUnprotected"])
-        self.assertEqual(
-            [b for b in result["blockers"] if "unprotected" in b], []
-        )
+        self.assertEqual([b for b in result["blockers"] if "unprotected" in b], [])
 
     def test_no_context_anywhere_still_reports_an_unprotected_base(self) -> None:
         result = self._evaluate(NO_REQUIRED_REVIEWS, _status_checks_rule([]))
@@ -222,6 +224,59 @@ class SlashedBranchNamesAreOnePathSegment(unittest.TestCase):
         with mock.patch.object(merge, "gh_json", return_value=[]) as gh:
             merge.branch_rules("owner/repo", "main")
         gh.assert_called_once_with(["api", "repos/owner/repo/rules/branches/main"])
+
+
+class OneRunSharesTheBaseReads(unittest.TestCase):
+    """With `BABYSIT_RUN_CACHE` named, the base's rules and the default
+    branch are read once per run within `run_cache.MAX_AGE`; a failed read
+    is never shared, and `shared=False` reads the rules fresh."""
+
+    RULES = [_status_checks_rule(CI_GATE)]
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_the_rules_are_read_once_per_run(self) -> None:
+        with mock.patch.object(merge, "gh_json", return_value=list(self.RULES)) as gh:
+            summaries = [merge.branch_rules("owner/repo", "main") for _ in range(3)]
+            merge.branch_rules("owner/repo", "main", shared=False)
+        self.assertEqual(gh.call_count, 2)
+        self.assertEqual(summaries[0], summaries[2])
+        self.assertEqual(summaries[0]["requiredContexts"], sorted(CI_GATE))
+
+    def test_a_failed_rules_read_is_not_shared(self) -> None:
+        with mock.patch.object(merge, "gh_json", side_effect=RuntimeError("502")) as gh:
+            for _ in range(2):
+                self.assertIn("error", merge.branch_rules("owner/repo", "main"))
+        self.assertEqual(gh.call_count, 2)
+
+    def test_rules_past_the_bound_are_read_again(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        with (
+            mock.patch.object(merge.run_cache, "now", side_effect=lambda: clock[0]),
+            mock.patch.object(merge, "gh_json", return_value=list(self.RULES)) as gh,
+        ):
+            merge.branch_rules("owner/repo", "main")
+            clock[0] += merge.run_cache.MAX_AGE + timedelta(seconds=1)
+            merge.branch_rules("owner/repo", "main")
+        self.assertEqual(gh.call_count, 2)
+
+    def test_the_default_branch_is_read_once_per_run(self) -> None:
+        with mock.patch.object(merge, "gh_json", return_value={"name": "main"}) as gh:
+            names = [merge.repository_default_branch("owner/repo") for _ in range(3)]
+        self.assertEqual(names, ["main"] * 3)
+        self.assertEqual(gh.call_count, 1)
+
+    def test_a_failed_default_branch_read_is_not_shared(self) -> None:
+        with mock.patch.object(merge, "gh_json", side_effect=RuntimeError("502")) as gh:
+            for _ in range(2):
+                self.assertIsNone(merge.repository_default_branch("owner/repo"))
+        self.assertEqual(gh.call_count, 2)
 
 
 if __name__ == "__main__":
