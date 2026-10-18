@@ -1,6 +1,6 @@
 # Home plugin customization in `docs/conventions/<concern>.yaml`, validated by a JSON Schema
 
-- Status: accepted
+- Status: accepted; Decisions 2 and 3 (the fixed root) and Decision 8 (its layer list) are superseded by [ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md); Decisions 4 and 6 stand
 - Date: 2026-10-04
 - Supersedes, for structured configuration: [ADR 0044](0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)
   Decisions 1 and 2 (the fenced config block in `docs/conventions/<concern>.md` as the default team
