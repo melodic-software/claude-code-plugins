@@ -50,7 +50,6 @@ an ancestor process's `/proc/<pid>/environ`. `check-skill.sh` runs each checked 
 `scripts/*.test.sh` and the checkout's markdownlint: checkout code with the network open, the
 power `run-test-file.sh` already gives the run ([pr-run-activity.md](pr-run-activity.md#skill-activities)).
 `version` stays 2.
->>>>>>> origin/main
 
 ## 2.6.1 - 2026-10-17
 
