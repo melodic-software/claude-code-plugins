@@ -1078,7 +1078,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         # branch below, over the command as written.
         written_words = _literal_shell_words(command, allow_backslash=allow_backslash)
         if any(
-            _names_engine(candidate)
+            _samefile(candidate)
             for candidate in dict.fromkeys(
                 [token.strip("'\"") for token in command.split()]
                 + ([] if written_words is None else list(written_words))
