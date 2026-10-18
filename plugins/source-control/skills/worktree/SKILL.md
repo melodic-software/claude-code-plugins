@@ -8,7 +8,7 @@ metadata:
   summary: Create, inspect, and clean git worktrees for parallel sessions
 ---
 
-**Arguments.** `[create|status|cleanup|audit] [args]`. e.g., /worktree create feat/my-feature, /worktree status, /worktree cleanup, /worktree audit
+**Arguments.** `[create|status|cleanup|audit] [args]`. e.g., /worktree create feat/my-feature, /worktree status, /worktree cleanup [<path>...] [--dry-run], /worktree audit
 
 ## Repository context. Gather first
 
@@ -72,7 +72,7 @@ This skill is self-contained, every action runs on plain `git`, plus the forge C
 | *(empty)* | Smart default | Detect current state, suggest appropriate action |
 | `create [name]` | Create worktree | Validate name, explain setup, call EnterWorktree |
 | `status` | Inventory | List all worktrees with PR status and staleness |
-| `cleanup [--dry-run]` | Remove stale | Prune orphans, detect merged PRs and stale locks, remove with confirmation |
+| `cleanup [<path>...] [--dry-run]` | Remove stale | Prune orphans, detect merged PRs and stale locks, remove with confirmation; named paths limit it to exactly those worktrees |
 | `audit` | Health check | Run status + verify configuration health |
 
 ---
@@ -137,9 +137,11 @@ The **Work** axis answers a question age and PR state cannot: whether removing a
 
 ---
 
-## Action: `cleanup [--dry-run]`
+## Action: `cleanup [<path>...] [--dry-run]`
 
-Remove stale worktrees, orphaned metadata, branches from merged PRs, and the project-scope plugin install records the worktree leaves behind. Full 5-step procedure. Prune orphaned metadata → identify candidates (detection reasons: orphaned dir / prunable / PR-merged / stale / stale lock / reap age, the last proposing an already-safe worktree older than `${user_config.worktree_reap_after_hours}` hours, 48 by default) → present → execute (4a release file locks, 4b guards → reap records → remove, 4c emit branch deletion for the user) → verify physical deletion: [context/cleanup.md](context/cleanup.md). `--dry-run` reports candidates and takes no action.
+Remove stale worktrees, orphaned metadata, branches from merged PRs, and the project-scope plugin install records the worktree leaves behind. Full 5-step procedure. Prune orphaned metadata → identify candidates (detection reasons: orphaned dir / prunable / PR-merged / stale / stale lock / reap age, the last proposing an already-safe worktree older than `${user_config.worktree_reap_after_hours}` hours, 48 by default) → present → execute (4a release file locks, 4b guards → reap records → remove, 4c branch deletion and current-worktree removal) → verify physical deletion: [context/cleanup.md](context/cleanup.md). `--dry-run` reports candidates and takes no action.
+
+**Scope.** Paths given after `cleanup` limit the run to exactly those worktrees: the same classification and every Step 4 guard apply to each, and the repository-wide inventory and root scan are skipped. A bare `cleanup` in a session that created, entered or merged a PR from one worktree asks whether to target that worktree or the whole repository before inventorying; the whole-repository sweep behaves as before when chosen. See [context/cleanup.md § Scope](context/cleanup.md#scope-explicit-paths-or-the-whole-repository).
 
 **Safety invariants cleanup MUST honor** (full detail in context/cleanup.md):
 
@@ -150,7 +152,7 @@ Remove stale worktrees, orphaned metadata, branches from merged PRs, and the pro
 - **A reap's non-zero exit is a no-op to report, never an escalation.** The CLI's failure text for an id with no project-scope record here suggests `--scope user`, which would uninstall the plugin fleet-wide. Never run `-s user`, never `--prune`, and never hand-edit `installed_plugins.json` (Claude Code's internal state, not a published contract).
 - **Never swallow removal stderr** (`2>/dev/null`), a failed removal must surface so Step 5 reports husks honestly rather than counting one as removed.
 - **Run the Workspace environment `down` before removing a worktree**, after the guards clear and before the reap, read from the fetched default branch and run through the Bash tool; a failed `down` is reported and the removal continues under the guards. Procedure in [context/cleanup.md](context/cleanup.md) Step 4b.
-- **Emit `git branch -D` + self-worktree removal for the USER to run, never inline** (Step 4c). Deleting a branch is destructive (and the consuming project's hooks may block it mid-session); a worktree can't delete itself (the running Claude Code session holds its handle). `-D` (not `-d`) is needed because squash-merge changes the SHA.
+- **Run `git branch -D` + self-worktree removal inline on Linux and macOS, only after the Step 4 confirmation and a passed stranded-work guard; emit them for the USER to run on Windows or when a hook blocks the command** (Step 4c). On Windows the running Claude Code session holds the directory handle, so a worktree can't delete itself; on POSIX a working directory can be removed while a process runs. A hook block is reported, never worked around. `-D` (not `-d`) is needed because squash-merge changes the SHA.
 
 ---
 
@@ -225,7 +227,7 @@ session, never that it is present. The four-part records live in
 - **Does not push, create, merge, or close PRs**, `/source-control:pull-request` owns the back-half (prep, create, monitor, merge).
 - **Does not commit or stage code**, staging and committing stay user-controlled; `/source-control:commit` owns the commit mechanic.
 - **Does not run CI, build, test, or lint**, use your project's build/test/lint tooling or skills.
-- **Does not manage remote branches**, the forge's delete-branch-on-merge setting handles remote cleanup on merge (when enabled); local `git branch -D` is emitted for the user, never run inline.
+- **Does not manage remote branches**, the forge's delete-branch-on-merge setting handles remote cleanup on merge (when enabled); local `git branch -D` runs only for a confirmed, landed candidate (inline on Linux and macOS, emitted for the user on Windows or on a hook block).
 - **Does not uninstall plugins, and does not touch user or local scope.** `cleanup`'s reap removes only the *project-scope install records keyed to the worktree it is tearing down*, through `claude plugin uninstall -s project`. It never runs `-s user` or `-s local`, never passes `--prune`, and never edits `installed_plugins.json`. Fleet-wide plugin state is a plugin-management concern, not a worktree one.
 - **Does not enforce branch naming**, the consuming project's hooks and CI are the gates. This skill only surfaces the project's convention (read it from the project's `CLAUDE.md` / rules; default suggestion: `<type>/<kebab-description>` with a Conventional Commits type prefix).
 
