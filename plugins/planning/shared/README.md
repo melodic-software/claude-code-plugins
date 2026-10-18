@@ -565,7 +565,10 @@ page keeps the rest of its last snapshot.
   name below it, and only when the bytes are an allowed type. Claude saves captures in
   `<data_dir>/staging/` (0700); the system temp folder is refused.
 - **Name hiding.** When the session shows initials or "someone", a join never answers `was` (the
-  earlier person with the same name), so a join cannot probe for hidden names.
+  earlier person with the same name) and keeps the name as typed, with no " 2" suffix for a taken
+  one, so two people may share a name and a join cannot probe for hidden names. A guest's
+  `@Name` stays plain text rather than pointing at a person, so it never pairs a name with a pid;
+  the owner's and leaders' mentions still point.
 - **Owner-link rotation.** The new token reaches `.shared-secrets.json` before its hash reaches
   `state.json`, both under the session lock. A start whose secrets file holds a token issued before
   the session's last rotation refuses (exit 1) rather than bring the retired link back; deleting

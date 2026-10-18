@@ -1272,7 +1272,16 @@ class Session:
         for key in [k for k, times in self._key_joins.items() if now - times[-1] >= JOIN_KEY_WINDOW]:
             self._key_joins.pop(key)
 
+    def _names_hidden_from(self, pid):
+        """True when the session shows initials or "someone" and `pid` is not the owner or a leader."""
+        role = self.state["people"].get(pid, {}).get("role")
+        return self.state["session"]["settings"]["names"] != "full" and role not in ("owner", "leader")
+
     def _unique_name(self, name, pid):
+        """The name, suffixed " 2", " 3" ... past a taken one; kept as given while names are hidden, since a suffix
+        would tell the joiner the name is taken."""
+        if self.state["session"]["settings"]["names"] != "full":
+            return name
         taken = {v["name"].casefold() for p, v in self.state["people"].items() if p != pid}
         out, n = name, 2
         while out.casefold() in taken:
@@ -2102,7 +2111,7 @@ class Session:
         text = _text(body, "text")
         with self._tx():
             self._owner(pid)
-            text = self._tokenize(text)
+            text = self._tokenize(pid, text)
             q, card = self._person_card(body)
             if text != card["text"]:
                 ref = card_ref(card)
@@ -2296,7 +2305,7 @@ class Session:
         with self._tx() as st:
             self._writer(pid)
             self._throttle(pid, "answer", now)
-            text = self._tokenize(text)
+            text = self._tokenize(pid, text)
             q = self._question(body.get("qid"))
             if q["purpose"] == "poll":
                 raise DomainError(409, "wrong-purpose", "A poll takes a pick, not a written answer.")
@@ -2362,7 +2371,7 @@ class Session:
         with self._tx() as st:
             self._writer(pid)
             self._throttle(pid, "pick", now)
-            comment, other = self._tokenize(comment, "comment"), self._tokenize(other, "other")
+            comment, other = self._tokenize(pid, comment, "comment"), self._tokenize(pid, other, "other")
             q = self._question(body.get("qid"))
             key, fields = self._parse_pick(q, body)
             chose_other = self._is_other({"kind": "person", **fields})
@@ -2827,7 +2836,7 @@ class Session:
         with self._tx() as st:
             self._writer(pid)
             self._throttle(pid, "suggest", now)
-            text, note = self._tokenize(text), self._tokenize(note, "note", MAX_NOTE)
+            text, note = self._tokenize(pid, text), self._tokenize(pid, note, "note", MAX_NOTE)
             q = self._question(body.get("qid"))
             if q["id"] not in st["locks"]:
                 r = self._round(q["round"])
@@ -2880,7 +2889,7 @@ class Session:
         now = self.now()
         with self._tx() as st:
             self._moderator(pid)
-            text = self._tokenize(text)
+            text = self._tokenize(pid, text)
             q = self._question(body.get("qid"))
             if q["id"] not in st["locks"]:
                 raise DomainError(409, "not-locked", "This question is not locked.")
@@ -2921,7 +2930,7 @@ class Session:
         with self._tx():
             self._writer(pid)
             self._throttle(pid, "propose", now)
-            text = self._tokenize(text)
+            text = self._tokenize(pid, text)
             prop = self._new_proposal(pid, text, {"kind": "direct"})
             self._notify_mentions(text, pid, "in a proposal")
         self._wrote(pid, "propose", now)
@@ -2985,7 +2994,7 @@ class Session:
             if not st["session"]["settings"]["chat"]:
                 raise DomainError(403, "chat-off", "Chat is off in this session.")
             self._throttle(pid, "chat", now)
-            text = self._tokenize(text)
+            text = self._tokenize(pid, text)
             msg = {"id": self._next("M"), "pid": pid, "text": text, "at": now}
             skip = ()
             if reply_to is not None:
@@ -3092,7 +3101,7 @@ class Session:
         with self._tx() as st:
             self._writer(pid)
             self._throttle(pid, "annotate", now)
-            text = self._tokenize(text)
+            text = self._tokenize(pid, text)
             q = self._question(body.get("qid"))
             if q["format"]["kind"] != "prototype":
                 raise _bad("qid", "Notes pin to prototype questions only.")
@@ -3129,7 +3138,7 @@ class Session:
         with self._tx() as st:
             self._writer(pid)
             self._throttle(pid, "request", now)
-            text = self._tokenize(text)
+            text = self._tokenize(pid, text)
             q = self._question(body.get("qid"))
             pending = sum(1 for r in st["requests"] if r["pid"] == pid and (r["status"]["kind"] == "pending" or (r["runner"] == "self" and r["status"]["kind"] == "running")))
             if pending >= MAX_PENDING_REQUESTS:
@@ -3167,7 +3176,7 @@ class Session:
             if status not in allowed:
                 raise DomainError(409, "wrong-status", f"Request {r['id']} is {status}.", status=status)
             if action == "edit":
-                text = self._tokenize(_text(body, "text"))
+                text = self._tokenize(pid, _text(body, "text"))
                 if text != r["text"]:
                     r["text"], r["edited"] = text, True
             elif action == "decline":
@@ -3850,12 +3859,14 @@ class Session:
             k = old["rollup"]["n"] + 1 if old else 1
             self._notify(p, "queue", f"{k} new item{'' if k == 1 else 's'} in the queue.", actor=actor, rollup="queue")
 
-    def _tokenize(self, text, field="text", limit=MAX_TEXT):
-        """Written text with each "@Name" of an active person as <@pid> (migrate.tokenize), so a rename or a merge
-        shows in it. A token counts toward the field's limit."""
+    def _tokenize(self, by, text, field="text", limit=MAX_TEXT):
+        """Text `by` wrote with each "@Name" of an active person as <@pid> (migrate.tokenize), so a rename or a merge
+        shows in it. A token counts toward the field's limit. While names are hidden from `by`, "@Name" stays plain
+        text: a token would hand them the pid of the person the name belongs to."""
         if not text:
             return text
-        out = migrate.tokenize(text, [(v["name"], p) for p, v in self.state["people"].items() if self._active(p)])
+        names = [] if self._names_hidden_from(by) else [(v["name"], p) for p, v in self.state["people"].items() if self._active(p)]
+        out = migrate.tokenize(text, names)
         if len(out) > limit:
             raise DomainError(400, "too-long", f"{field} allows at most {limit} characters; each mention takes more of them than its name.", field=field, max=limit)
         return out

@@ -392,6 +392,17 @@ class TestJoin(SessionCase):
                 self.s._presence.clear()
                 self.assertNotIn("was", self.s.join(None, {"name": "ann"}))
 
+    def test_a_join_while_names_are_hidden_keeps_the_name_whether_or_not_it_is_taken(self):
+        """A " 2" suffix would tell the joiner someone already has the name."""
+        self.join("Alice")
+        for names in ("initials", "someone"):
+            with self.subTest(names=names):
+                self.act("update_settings", HOST, {"names": names})
+                self.clock.tick(5)
+                self.assertEqual(self.s.join(None, {"name": "alice"})["name"], "alice")
+                self.clock.tick(5)
+                self.assertEqual(self.s.join(None, {"name": f"Nobody {names}"})["name"], f"Nobody {names}")
+
     def test_rotated_addresses_cannot_pass_the_join_limit_for_one_guest_key(self):
         self.assertGreater(session.JOINS_PER_KEY, session.JOINS_PER_WINDOW)
         for i in range(session.JOINS_PER_KEY):
@@ -5393,13 +5404,25 @@ class TestMentionPointers(SessionCase):
         for names, shown in (("initials", "P"), ("someone", "Someone")):
             with self.subTest(names=names):
                 self.act("update_settings", HOST, {"names": names})
-                self.act("chat", self.bo, {"text": "@Philippa see this"})
+                self.act("chat", HOST, {"text": "@Philippa see this"})
                 self.act("set_removed", HOST, {"pid": self.cy, "on": True})
-                self.act("chat", self.bo, {"text": "@Cy left"})  # Cy is gone: the text stays
+                self.act("chat", HOST, {"text": "@Cy left"})  # Cy is gone: the text stays
                 snap = self.s.snapshot(self.bo)
                 self.assertNotIn("Philippa", json.dumps(snap))
                 self.assertEqual(snap["chat"][-2]["text"], f"{self.tok(self.ann)} see this")
                 self.act("set_removed", HOST, {"pid": self.cy, "on": False})
+
+    def test_a_guest_mention_stays_plain_text_while_names_are_hidden(self):
+        """A token would pair the typed name with a pid, telling the guest who "Philippa" is."""
+        self.act("update_settings", HOST, {"names": "someone"})
+        texts = self.mention_everywhere(self.bo, "Philippa")
+        self.assertTrue(all("@Philippa" in t and "<@" not in t for t in texts), texts)
+        for viewer in (self.bo, self.cy, HOST):
+            with self.subTest(viewer=viewer):
+                self.assertNotIn(f"<@{self.ann}>", json.dumps(self.s.snapshot(viewer)))
+        self.assertEqual(self.notes(self.ann, "mention"), [])
+        self.act("chat", HOST, {"text": "@Philippa see this"})  # a moderator sees names, so theirs still points
+        self.assertEqual(self.s.state["chat"][-1]["text"], f"{self.tok(self.ann)} see this")
 
     def test_a_removed_person_reads_as_their_last_name_masked_like_every_name(self):
         self.act("chat", self.bo, {"text": "@Cy has the numbers"})
