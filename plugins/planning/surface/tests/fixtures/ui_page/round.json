@@ -4,7 +4,7 @@
     {"id": "g2", "title": "Chain"}
   ],
   "questions": [
-    {"id": "Q1", "group": "g1", "stage": "interview", "short": "Ship day", "title": "When should the release ship?", "recommendation": "Ship it on Monday. Watch the error logs for a week after. Roll back on the first new error.", "commits": [], "alternatives": [{"key": "a", "text": "Ship on Friday"}, {"key": "b", "text": "Hold until next month"}]},
+    {"id": "Q1", "group": "g1", "stage": "interview", "short": "Ship day", "title": "When should the release ship?", "recommendation": "Ship it on Monday. Watch the error logs for a week after. Roll back on the first new error.", "facts": "> Releases ship on a weekday.\n\n[Release policy](https://example.com/policy#days)\n\nThe policy bars weekend releases.", "commits": [], "alternatives": [{"key": "a", "text": "Ship on Friday"}, {"key": "b", "text": "Hold until next month"}]},
     {"id": "Q2", "group": "g2", "stage": "interview", "short": "Runner", "title": "Which runner builds the release?", "recommendation": "The hosted runner.", "commits": [], "alternatives": [{"key": "a", "text": "A self-hosted machine"}, {"key": "b", "text": "Both runners"}]},
     {"id": "Q3", "group": "g2", "stage": "interview", "short": "Image", "title": "Which image does the runner use?", "recommendation": "The default image.", "dependsOn": ["Q2"], "commits": [], "alternatives": [{"key": "a", "text": "A pinned image"}, {"key": "b", "text": "A custom image"}]},
     {"id": "Q4", "group": "g2", "stage": "interview", "short": "Cache", "title": "Should the image cache tools?", "recommendation": "Cache the tool folder.", "dependsOn": ["Q3"], "commits": [], "alternatives": [{"key": "a", "text": "Cache nothing"}, {"key": "b", "text": "Cache the whole disk"}]},

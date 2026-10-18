@@ -21,6 +21,19 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
 
+    // #7749: the Source text quote shows open and above the recommendation; a question without one renders as before
+    for (const [w, h] of [[1440, 900], [390, 844]]) {
+      await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(250);
+      await pick("Q1");
+      const src = await page.evaluate(() => { const s = document.querySelector("#dscroll details.src"), r = document.querySelector("#dscroll .recbox"), m = document.querySelector("#dscroll details.more");
+        return {open: !!s && s.open, text: s ? s.textContent.replace(/\s+/g, " ").trim() : "", above: !!s && !!r && !!(s.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING), moreHasQuote: !!m && /weekday/.test(m.textContent), moreKeepsRest: !!m && /bars weekend/.test(m.textContent)}; });
+      ok("Q1's Source text quote is open and above the recommendation at " + w + " px, with the rest of facts under Details", src.open && src.above && /^Source text ?Releases ship on a weekday\.$/.test(src.text) && !src.moreHasQuote && src.moreKeepsRest, JSON.stringify(src));
+      await pick("Q2");
+      const none = await page.evaluate(() => ({src: document.querySelectorAll("#dscroll details.src").length, more: document.querySelectorAll("#dscroll details.more").length}));
+      ok("Q2, with no source text, renders no Source text block at " + w + " px", none.src === 0 && none.more === 1, JSON.stringify(none));
+    }
+    await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
+
     // #5815: the Rec choice carries the whole recommendation, not its first sentence
     await pick("Q1");
     const wide = await recRow();
