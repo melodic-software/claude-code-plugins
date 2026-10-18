@@ -5,7 +5,8 @@
 // untrusted-provenance work or a trust or lane-power diff; `pushback` and
 // `stopped` comment, add needs-human and remove agent-ready.
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -18,6 +19,7 @@ import {
   main,
   parseOutcomeMarker,
   readHoldPaths,
+  readChecks,
   readOutcome,
   refsHoldComment,
   reusePlan,
@@ -25,6 +27,14 @@ import {
 } from "./report-outcome.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
+
+// The run-checks job's checks.json for `branch` at `tip`, and the ref read
+// main compares that tip with.
+const CHECKED_TIP = "c".repeat(40);
+const FRAGMENTS = "scripts/check-changelog-fragments.sh --check";
+const checksFile = ({ branch = BRANCH, tip = CHECKED_TIP, results = [{ check: FRAGMENTS, exit: 0 }] } = {}) =>
+  JSON.stringify({ version: 1, branch, tip, results });
+const branchTip = (branch = BRANCH, sha = CHECKED_TIP) => ["GET", new RegExp(`/git/ref/heads/${branch}$`), 200, { object: { sha } }];
 
 function withDir(files, run) {
   const dir = mkdtempSync(join(tmpdir(), "outcome-"));
@@ -323,7 +333,7 @@ test("changes, verification and not_done fill Fix, Verification and Not verified
   assert.equal(section(plan.body, "Fix"), "- plugins/a/README.md: fixed the install command");
   assert.equal(
     section(plan.body, "Verification"),
-    "The run reports:\n\n- scripts/check-changelog-fragments.sh --check: passed\n- The lane run: https://example/run/1\n\nLeft out: the items under Not verified.",
+    "The runner ran no checks: the activity lists none.\n\nThe run reports:\n\n- scripts/check-changelog-fragments.sh --check: passed\n- The lane run: https://example/run/1\n\nLeft out: the items under Not verified.",
   );
   assert.equal(section(plan.body, "Not verified"), "- Did not render the page");
 });
@@ -336,8 +346,56 @@ test("with no structured fields every section is still filled, with no branch li
   assert.equal(section(plan.body, "Fix"), "The run listed no changes; the diff shows them.");
   assert.equal(
     section(plan.body, "Verification"),
-    "The run listed no checks.\n\n- The lane run: https://example/run/1\n\nLeft out: nothing the run reported.",
+    "The runner ran no checks: the activity lists none.\n\nThe run listed no checks.\n\n- The lane run: https://example/run/1\n\nLeft out: nothing the run reported.",
   );
+});
+
+// #7497: the runner's check results, not the outcome file, decide whether a
+// done run is finished.
+test("the runner's passing checks are listed under Verification with the tip they ran against", () => {
+  const plan = decideDone({ checks: { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 0 }] } });
+  assert.equal(plan.action, "open-pr");
+  assert.ok(
+    section(plan.body, "Verification").startsWith(
+      `The runner ran each check from the base copy against ${CHECKED_TIP}:\n\n- scripts/check-changelog-fragments.sh --check: passed\n`,
+    ),
+    plan.body,
+  );
+});
+
+test("a done outcome with an empty not_done and a failing runner check is stopped", () => {
+  const plan = decideDone({
+    outcome: { ...done, notDone: [], verification: ["every check passed"] },
+    checks: { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 1 }] },
+  });
+  assert.equal(plan.action, "hand-back");
+  assert.equal(plan.exit, "stopped");
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.deepEqual(plan.removeLabels, ["agent-ready"]);
+  assert.ok(plan.comment.includes("- scripts/check-changelog-fragments.sh --check failed (exit 1)"), plan.comment);
+});
+
+test("a done outcome whose runner check results are missing is stopped", () => {
+  const plan = decideDone({ checks: null });
+  assert.equal(plan.exit, "stopped");
+  assert.ok(plan.comment.includes("check results are missing"), plan.comment);
+});
+
+test("checks.json counts only for this branch, with a tip and whole-number exits", () => {
+  const read = (text) => withDir({ "checks.json": text }, (dir) => readChecks(dir, { branch: BRANCH }));
+  assert.deepEqual(read(checksFile()), { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 0 }] });
+  assert.deepEqual(read(checksFile({ results: [] })), { tip: CHECKED_TIP, results: [] });
+  for (const [label, text] of [
+    ["another branch", checksFile({ branch: "work-resolve-issue/issue-77-124-1" })],
+    ["no tip", checksFile({ tip: "" })],
+    ["a string exit", checksFile({ results: [{ check: FRAGMENTS, exit: "0" }] })],
+    ["more results than a body lists", checksFile({ results: Array(21).fill({ check: FRAGMENTS, exit: 0 }) })],
+    ["no version", JSON.stringify({ branch: BRANCH, tip: CHECKED_TIP, results: [] })],
+    ["not JSON", "{"],
+  ]) {
+    assert.equal(read(text), null, label);
+  }
+  assert.equal(withDir({ "checks.json": checksFile({ branch: "" }) }, (dir) => readChecks(dir, { branch: "" })), null);
 });
 
 // .claude/rules/pr-body-contract.md: the closing line first, then Summary,
@@ -572,10 +630,11 @@ test("main refuses a human-gated label that is agent-ready and writes no label",
 
 test("main on done opens a ready PR from the branch and adds no label to it", async () => {
   await withDir(
-    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "checks.json": checksFile() },
     async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(),
         ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
         ["GET", /\/pulls$/, 200, []],
@@ -594,15 +653,64 @@ test("main on done opens a ready PR from the branch and adds no label to it", as
   );
 });
 
+// #7497: an outcome file that says done with nothing left undone opens no PR
+// when the runner's checks failed, are missing, or ran on another tip.
+test("main on done opens no PR and hands the issue back when the runner's checks do not pass", async () => {
+  for (const [label, files, tip] of [
+    ["a failing check", { "checks.json": checksFile({ results: [{ check: FRAGMENTS, exit: 1 }] }) }, CHECKED_TIP],
+    ["no checks.json", {}, CHECKED_TIP],
+    ["a tip the branch moved off", { "checks.json": checksFile() }, "d".repeat(40)],
+  ]) {
+    await withAsyncDir(
+      { "work-outcome.json": JSON.stringify({ ...done, not_done: [] }), "lane.json": JSON.stringify({ branch: BRANCH }), ...files },
+      async (dir) => {
+        const { fetch, calls } = fakeFetch([
+          ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+          branchTip(BRANCH, tip),
+          ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+          ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+          ["POST", /\/issues\/77\/labels$/, 200, []],
+          ["POST", /\/issues\/77\/comments$/, 201, {}],
+        ]);
+        assert.equal(await main({ env: env(dir), fetch }), 0, label);
+        assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")), label);
+        assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/77/labels")).body, { labels: ["needs-human"] }, label);
+        const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
+        assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=stopped run=123 -->"), comment);
+      },
+    );
+  }
+});
+
+test("main on done writes the runner's check results into the PR body", async () => {
+  await withAsyncDir(
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "checks.json": checksFile() },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["GET", /\/pulls$/, 200, []],
+        ["POST", /\/pulls$/, 201, { number: 90 }],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      const body = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body.body;
+      assert.ok(body.includes(`against ${CHECKED_TIP}:\n\n- scripts/check-changelog-fragments.sh --check: passed\n`), body);
+    },
+  );
+});
+
 // pr-merge merges only a PR with exactly one closing issue, so a Refs PR waits
 // for a person: the issue gets the human-gated label, then the marker comment
 // work-unblock reads to lift only this hold once the PR merges.
 test("main on done with Refs opens the PR, then adds needs-human to the issue and the refs-hold comment", async () => {
   await withDir(
-    { "work-outcome.json": JSON.stringify({ ...done, link: "refs" }), "lane.json": JSON.stringify({ branch: BRANCH }) },
+    { "work-outcome.json": JSON.stringify({ ...done, link: "refs" }), "lane.json": JSON.stringify({ branch: BRANCH }), "checks.json": checksFile() },
     async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(),
         ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
         ["GET", /\/pulls$/, 200, []],
@@ -623,10 +731,11 @@ test("main on done with Refs opens the PR, then adds needs-human to the issue an
 
 test("main on a rerun reuses the open PR from the branch", async () => {
   await withDir(
-    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "checks.json": checksFile() },
     async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(),
         ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
         ["GET", /\/pulls$/, 200, [{ number: 90, user: { login: "melodic-automation-lanes[bot]" } }]],
@@ -643,10 +752,11 @@ test("main on a rerun reuses the open PR from the branch", async () => {
 // open PR from the lane branch that the lanes App did not open is not reused.
 test("main does not adopt an open PR from the branch that someone else opened", async () => {
   await withDir(
-    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "checks.json": checksFile() },
     async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(),
         ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
         ["GET", /\/pulls$/, 200, [{ number: 91, user: { login: "stranger" } }]],
@@ -1273,8 +1383,8 @@ const PR_ROUTES = [
 const model = { ...done, summary: "MODEL-SUMMARY-TEXT", title: "docs(work-items): model title" };
 
 test("a reused branch whose own run's outcome is here opens the normal PR from it", async () => {
-  await withAsyncDir({ "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(400) }) }, async (dir) => {
-    const { fetch, calls } = fakeFetch(PR_ROUTES);
+  await withAsyncDir({ "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(400) }), "checks.json": checksFile({ branch: lane(400) }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch([branchTip(lane(400)), ...PR_ROUTES]);
     assert.equal(await main({ env: reuseEnv(dir), fetch }), 0);
     const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
     assert.equal(pull.head, lane(400));
@@ -1452,7 +1562,7 @@ test("main keeps the hold line when the branch tip cannot be read", async () => 
 
 test("a branch's own outcome wins over a summary, so the summary never stands in for a report", async () => {
   await withAsyncDir(
-    { "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(400) }), "reuse-summary.json": summaryFile() },
+    { "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(400) }), "reuse-summary.json": summaryFile(), "checks.json": checksFile({ branch: lane(400), tip: TIP }) },
     async (dir) => {
       const { fetch, calls } = fakeFetch([tipRoute(), ...PR_ROUTES]);
       assert.equal(await main({ env: summaryEnv(dir), fetch }), 0);
@@ -1469,6 +1579,7 @@ async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted 
     {
       "work-outcome.json": JSON.stringify(done),
       "lane.json": JSON.stringify({ branch: BRANCH }),
+      "checks.json": checksFile(),
       "resolved.json": JSON.stringify({ merge: { "diff-check": { "denied-paths": [] } } }),
       ...(trusted === null ? {} : { "trusted.json": trusted }),
     },
@@ -1476,6 +1587,7 @@ async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted 
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, 200, { number: 77, labels: labels.map((name) => ({ name })) }],
         ["GET", /\/issues\/77\/events$/, eventsStatus, events],
+        branchTip(),
         ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
         ["GET", /\/pulls$/, 200, []],
@@ -1531,4 +1643,99 @@ test("the script loads from a copy of its own directory alone", async () => {
   } finally {
     rmSync(copy, { recursive: true, force: true });
   }
+});
+
+// work-resolve-issue.yml's run-checks step, run against a throwaway base and
+// lane branch. Expected values come from #7497: each check runs from the base
+// copy against the lane branch, and reads its scripts/ data from the base.
+function runChecksScript() {
+  const lines = readFileSync(new URL("../../workflows/work-resolve-issue.yml", import.meta.url), "utf8").split("\n");
+  const id = lines.findIndex((line) => /^\s+id: run-checks$/.test(line));
+  assert.notEqual(id, -1, "work-resolve-issue.yml has the run-checks step");
+  const start = lines.findIndex((line, i) => i > id && /^\s+run: \|$/.test(line));
+  const keyIndent = lines[start].search(/\S/);
+  const body = [];
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() !== "" && line.search(/\S/) <= keyIndent) break;
+    body.push(line);
+  }
+  const indent = Math.min(...body.filter((l) => l.trim()).map((l) => l.search(/\S/)));
+  return body.map((l) => l.slice(indent)).join("\n");
+}
+
+// The base's check passes only when its own scripts/list.txt says ok and the
+// branch holds .changes/good.md; the branch's copy of the check always passes
+// and its list says bad, so a check run from, or reading data from, the
+// branch's scripts/ gives the other answer.
+function runChecks({ goodFragment, checks = ["scripts/check-x.sh --check"] }) {
+  const root = mkdtempSync(join(tmpdir(), "run-checks-"));
+  try {
+    const base = join(root, "base");
+    const laneDir = join(root, "lane");
+    const out = join(root, "out");
+    const log = join(root, "log");
+    const write = (path, text) => {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, text);
+    };
+    write(join(base, "scripts", "list.txt"), "ok\n");
+    write(
+      join(base, "scripts", "check-x.sh"),
+      '#!/usr/bin/env bash\necho "base $PWD $CHECK_DATA_ROOT $*" >>"$LOG"\ngrep -qx ok scripts/list.txt && [ -f .changes/good.md ]\n',
+    );
+    write(join(laneDir, "scripts", "list.txt"), "bad\n");
+    write(join(laneDir, "scripts", "check-x.sh"), "#!/usr/bin/env bash\nexit 0\n");
+    if (goodFragment) {
+      write(join(laneDir, ".changes", "good.md"), "x\n");
+    }
+    const git = (...args) => spawnSync("git", ["-C", laneDir, ...args], { encoding: "utf8" });
+    git("init", "-q");
+    git("add", "-A");
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "lane");
+    const tip = git("rev-parse", "HEAD").stdout.trim();
+    write(join(root, "resolved.json"), JSON.stringify({ lane: { slots: [{ name: "resolve-issue", checks }] } }));
+    const run = spawnSync("bash", ["-e", "-o", "pipefail", "-c", runChecksScript()], {
+      encoding: "utf8",
+      env: { ...process.env, BASE: base, LANE: laneDir, BRANCH, RESOLVED: join(root, "resolved.json"), OUT_DIR: out, LOG: log },
+    });
+    return {
+      status: run.status,
+      stdout: run.stdout,
+      tip,
+      laneDir,
+      checks: existsSync(join(out, "checks.json")) ? JSON.parse(readFileSync(join(out, "checks.json"), "utf8")) : null,
+      log: existsSync(log) ? readFileSync(log, "utf8") : "",
+    };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("the runner runs each check from the base copy against the lane branch, with the base's scripts/ data", () => {
+  const passing = runChecks({ goodFragment: true });
+  assert.equal(passing.status, 0, passing.stdout);
+  assert.deepEqual(passing.checks, {
+    version: 1,
+    branch: BRANCH,
+    tip: passing.tip,
+    results: [{ check: "scripts/check-x.sh --check", exit: 0 }],
+  });
+  assert.equal(passing.log, `base ${passing.laneDir} ${passing.laneDir} --check\n`);
+  const failing = runChecks({ goodFragment: false });
+  assert.equal(failing.status, 0, failing.stdout);
+  assert.deepEqual(failing.checks.results, [{ check: "scripts/check-x.sh --check", exit: 1 }]);
+});
+
+test("the runner writes no check results for a check outside scripts/ or with free arguments", () => {
+  for (const check of ["plugins/x/scripts/check.sh", "scripts/check-x.sh ../etc", "scripts/check-x.sh; true"]) {
+    const run = runChecks({ goodFragment: true, checks: [check] });
+    assert.equal(run.status, 1, check);
+    assert.equal(run.checks, null, check);
+  }
+});
+
+test("the runner records an empty result list when the activity lists no checks", () => {
+  const run = runChecks({ goodFragment: true, checks: [] });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.checks.results, []);
 });

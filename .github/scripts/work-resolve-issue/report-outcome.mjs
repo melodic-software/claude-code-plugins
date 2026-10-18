@@ -14,8 +14,11 @@
 //             work class and treats every lane PR as C2, so the hold line
 //             carries the class floor. The body fills the PR body contract's
 //             sections from the outcome's summary, changes, verification and
-//             not_done. A done outcome whose not_done holds a required check
-//             is stopped.
+//             not_done, and its Verification section the runner's check
+//             results (checks.json). A done outcome whose not_done holds a
+//             required check is stopped, and so is one whose runner checks
+//             failed or cannot be read for the branch's current tip, whatever
+//             the outcome file says.
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
 //   stopped   comments why, adds the human-gated label, removes agent-ready,
 //             and names the branch that holds any partial work. A missing or
@@ -48,6 +51,9 @@
 //   WORK_OUTCOME_DIR    holds work-outcome.json (written by the skill, so
 //                       untrusted) and lane.json (written by the runner: the
 //                       lane branch, and the run's limit `class` and `resets`)
+//                       and checks.json (written by work-resolve-issue.yml's
+//                       run-checks job, where no model ran: each activity
+//                       check run from the base copy against the lane branch)
 //   REUSE_BRANCH        the lane branch --find-prior chose, or empty
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
 //                       (runner-written issue, branch and tip; model output)
@@ -355,6 +361,44 @@ export function readSummary(dir, { issueNumber, branch }) {
   return summary.trim() ? { tip: parsed.tip, title: text(output.title), summary, changes: list(output.changes) } : null;
 }
 
+// The run-checks job's checks.json: {tip, results: [{check, exit}]}, or null
+// unless it names this branch, a tip, and at most MAX_ITEMS whole-number
+// results, so no result is cut off. A check passes only on exit 0.
+export function readChecks(dir, { branch }) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(join(dir, "checks.json"), "utf8"));
+  } catch {
+    return null;
+  }
+  const results = parsed?.results;
+  const valid =
+    parsed?.version === 1 &&
+    typeof branch === "string" &&
+    branch !== "" &&
+    parsed.branch === branch &&
+    /^[0-9a-f]{40}$/.test(parsed.tip ?? "") &&
+    Array.isArray(results) &&
+    results.length <= MAX_ITEMS &&
+    results.every((result) => typeof result?.check === "string" && Number.isInteger(result.exit));
+  return valid ? { tip: parsed.tip, results: results.map(({ check, exit }) => ({ check: check.slice(0, MAX_ITEM), exit })) } : null;
+}
+
+const checkFailures = (checks) =>
+  checks === null
+    ? [{ what: "The runner's check results are missing, unreadable or for another tip of the branch.", required: true }]
+    : checks.results.filter(({ exit }) => exit !== 0).map(({ check, exit }) => ({ what: `${check} failed (exit ${exit})`, required: true }));
+
+// The runner's check results as the PR body's Verification section shows them.
+const checkLines = (checks) =>
+  checks === null
+    ? "The runner's check results could not be read."
+    : checks.results.length
+      ? `The runner ran each check from the base copy against ${checks.tip}:\n\n${bullets(
+          checks.results.map(({ check, exit }) => `${check}: ${exit === 0 ? "passed" : `failed (exit ${exit})`}`),
+        )}`
+      : "The runner ran no checks: the activity lists none.";
+
 // The files a reused branch changes, from the runner's GET /compare (null
 // when it failed), with each one the merge lane's denied paths cover marked
 // and listed first. File names come from the branch, so they are data.
@@ -394,9 +438,10 @@ export function reusePlan({
   summary = null,
   changedFiles = null,
   holdPaths = null,
+  checks,
 }) {
   const opened = `Opened by the work-resolve-issue lane from \`${branch}\`, which an earlier run left with commits and no report.`;
-  const [about, fix, checks, leftOut] = summary
+  const [about, fix, earlierChecks, leftOut] = summary
     ? [
         [`${opened} A summary-only model pass read the branch's diff and the issue, changed nothing, and wrote:`, "", quoted(summary.summary)],
         summary.changes.length ? bullets(summary.changes) : "The summary pass listed no changes; the diff shows them.",
@@ -426,7 +471,7 @@ export function reusePlan({
     "",
     "## Verification",
     "",
-    checks,
+    checks === undefined ? earlierChecks : `${earlierChecks}\n\n${checkLines(checks)}`,
     "",
     earlierRunUrl ? `- The earlier lane run: ${earlierRunUrl}` : "- The earlier lane run.",
     runUrl ? `- This lane run: ${runUrl}` : "- This lane run.",
@@ -442,7 +487,8 @@ export function reusePlan({
 
 // What to do on the issue, from the outcome and what the run left. `limit` is
 // the runner's limit record ({resets}, epoch ms or null) when the run hit its
-// usage limit; a missing reset counts from `now`, the run's end.
+// usage limit; a missing reset counts from `now`, the run's end. `checks` is
+// readChecks' record for the branch's current tip; null stops a done run.
 export function decide({
   outcome,
   issueNumber,
@@ -458,6 +504,7 @@ export function decide({
   limits = LIMIT_DEFAULTS,
   now = Date.now(),
   runId = "",
+  checks = { tip: "", results: [] },
 }) {
   outcome = { changes: [], verification: [], notDone: [], ...outcome };
   // A limit record counts only for a run that left no outcome of its own: any
@@ -479,6 +526,23 @@ export function decide({
   }
   if (outcome.exit !== "done") {
     return handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId });
+  }
+  // The outcome file is model output, so its own report never clears this.
+  const failed = checkFailures(checks);
+  if (failed.length) {
+    return handBack({
+      outcome: {
+        ...outcome,
+        exit: "stopped",
+        reason: "The run reported done, but a check the runner ran on the branch failed or could not be read, so it is not finished.",
+        notDone: [...failed, ...outcome.notDone],
+      },
+      issueNumber,
+      branch,
+      humanLabel,
+      runUrl,
+      runId,
+    });
   }
   if (outcome.notDone.some(({ required }) => required)) {
     return handBack({
@@ -521,6 +585,8 @@ export function decide({
     outcome.changes.length ? bullets(outcome.changes) : "The run listed no changes; the diff shows them.",
     "",
     "## Verification",
+    "",
+    checkLines(checks),
     "",
     outcome.verification.length ? `The run reports:\n\n${bullets(outcome.verification)}` : "The run listed no checks.\n",
     runUrl ? `- The lane run: ${runUrl}` : "- The lane run.",
@@ -829,6 +895,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // that branch (a re-run attempt of the run that made it).
     const outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
     const branch = reuse || ran;
+    const checked = readChecks(dir, { branch });
     const limit = readLimit(dir);
     const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
     const runUrl = runUrlOf(env.GITHUB_RUN_ID);
@@ -846,6 +913,17 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       if (tip !== summary.tip) {
         console.log(`report-outcome: ${reuse} is not at the tip the summary read, so the PR keeps the fixed text`);
         summary = null;
+      }
+    }
+    // The runner's check results count only while the branch is still at the
+    // tip they checked; a tip that cannot be read counts as no results.
+    let checks = branch && (unreported || outcome?.exit === "done") ? checked : null;
+    if (checks) {
+      const ref = branch.split("/").map(encodeURIComponent).join("/");
+      const tip = await github("GET", `${repo}/git/ref/heads/${ref}`).then((answer) => answer?.object?.sha, () => "");
+      if (tip !== checks.tip) {
+        console.log(`report-outcome: ${branch} is not at the tip the runner checked, so its check results do not count`);
+        checks = null;
       }
     }
     let base = "";
@@ -882,6 +960,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           summary,
           changedFiles: await compare().catch(() => null),
           holdPaths,
+          checks,
         })
       : decide({
           outcome,
@@ -898,6 +977,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           limits: readLimits(resolvedPath),
           now,
           runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
+          checks,
         });
     if (plan.action === "limited") {
       // Once per run: a rerun of this report, however late, finds its own
