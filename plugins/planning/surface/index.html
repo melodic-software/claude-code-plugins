@@ -758,10 +758,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function railItem(q, sec, carry, fresh){ // inside a button: esc only
     const st = stateOf(q), d = decisionOf(q), chips = [], up = q.state === "upstream-pending" && st !== "arch";
     if (st === "wait" || st === "need") {
-      chips.push('<span class="chip s-' + st + '" title="' + esc(waitText(q)) + '">' + esc(trunc(waitText(q), 60)) + "</span>");
+      chips.push('<span class="chip s-' + esc(st) + '" title="' + esc(waitText(q)) + '">' + esc(trunc(waitText(q), 60)) + "</span>");
       if (d && d.decision) chips.push(d.aside ? '<span class="chip aside">Set aside</span>' : '<span class="chip plain">' + LABEL[d.decision] + "</span>");
     } else if (st === "open" && blocked(q)) chips.push('<span class="chip s-blocked" title="Waits on a question you have not answered">Blocked</span>');
-    else chips.push('<span class="chip s-' + st + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
+    else chips.push('<span class="chip s-' + esc(st) + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
     if (isStale(q)) chips.push('<span class="chip hot">' + ((q.upstreamChanged || []).length ? "Upstream changed" : "Stale") + "</span>");
     if (up) chips.push('<span class="chip plain" title="' + esc("Reconfirm " + waitOn(q).join(", ") + " (under Review), or answer this one anyway") + '">Waiting on ' + esc(waitOn(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled your answer to this question yet.">Answer not handled yet</span>');
@@ -1103,7 +1103,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const marks = (S.doc.meta || {}).emojiMarkers === true;
     let h = checkpointBanner();
     h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + addedChip(q) + (g ? "<span>" + esc(g.title) + "</span>" : "") +
-      '<span class="chip s-' + st + '">' + LABEL[st] + '</span><span class="grow"></span>' +
+      '<span class="chip s-' + esc(st) + '">' + LABEL[st] + '</span><span class="grow"></span>' +
       (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + inline(q.title) + "</h3>" +
       (counted(q) ? '<p class="youans">' + esc(answerLine(q)) + (aa ? ' <span class="chip hot">' + esc(afterText(aa)) + "</span>" : "") + "</p>" : "") + (waitingReply(q) ? '<p class="youans"><span class="chip hot">Waiting for Claude\'s reply</span></p>' : "") + "</div>";
     const kids = S.doc.questions.filter(x => x.followUpOf === q.id).map(x => x.id);
@@ -1172,7 +1172,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       ? '<span class="aside-why">Claude set your earlier answer (' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.text ? ": <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ") aside" +
         (st === "need" ? " because it needs your decision." : ". It no longer counts.") + '</span><button class="act primary" data-again="1">Answer again</button>'
       : d && d.decision
-      ? '<span class="chip s-' + d.decision + '">' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + "</span>" +
+      ? '<span class="chip s-' + esc(d.decision) + '">' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + "</span>" +
         '<span class="when">' + esc(fmt(d.updatedAt)) + (d.src === "terminal" ? ", in the terminal" : "") + "</span>" + (d.src === "page" && d.seq ? receipts(d.seq) : "") +
         (st === "wait" ? '<span class="kbd">Counts once Claude\'s research on ' + esc(q.id) + " returns.</span>" : "")
       : '<span class="kbd">No decision yet.' + (setting("shortcuts") ? " Number keys pick; Ctrl+Enter saves." : " Ctrl+Enter saves.") + "</span>" + (last ? receipts(last) : "");
@@ -1306,7 +1306,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const r = S.doc.restatement, old = confirmedRev(); if (!r || !old) return "";
     const sec = (x, k) => String((x.sections || {})[k] || "").trim() + "\n";
     const rows = USECT.filter(([k]) => sec(old, k) !== sec(r, k)).map(([k, t]) => "<h5>" + t + '</h5><div class="diff">' + wordDiff(sec(old, k), sec(r, k), /^/m) + "</div>");
-    return '<div class="rediff" id="reDiff"><b>Changed since the version you confirmed (rev ' + old.rev + ", " + esc(fmt(old.at)) + ")</b>" + (rows.join("") || "<p>No section text changed.</p>") + "</div>";
+    return '<div class="rediff" id="reDiff"><b>Changed since the version you confirmed (rev ' + esc(old.rev) + ", " + esc(fmt(old.at)) + ")</b>" + (rows.join("") || "<p>No section text changed.</p>") + "</div>";
   }
   function uBoxHtml(){ // the draft is never part of this markup, so typing does not rebuild the box
     const r = S.doc.restatement;
@@ -1500,7 +1500,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const th = body.querySelector(".nthread"); if (th.lastElementChild) th.lastElementChild.scrollIntoView({block: "nearest"});
   }
   function renderSettings(body){
-    const row = (k, label, ctl) => '<div class="setrow" data-key="' + k + '"><label for="set-' + k + '">' + label + "</label>" + ctl + '<div class="src">From ' + settingSrc(k) + (settingSrc(k) === "this browser" ? ' <button class="tbtn small" data-reset="' + k + '">Reset</button>' : "") + "</div></div>";
+    const row = (k, label, ctl) => '<div class="setrow" data-key="' + k + '"><label for="set-' + k + '">' + label + "</label>" + ctl + '<div class="src">From ' + esc(settingSrc(k)) + (settingSrc(k) === "this browser" ? ' <button class="tbtn small" data-reset="' + k + '">Reset</button>' : "") + "</div></div>";
     const sel = (k, opts) => '<select id="set-' + k + '" data-set="' + k + '">' + opts.map(([v, t]) => '<option value="' + v + '"' + (String(setting(k)) === String(v) ? " selected" : "") + ">" + t + "</option>").join("") + "</select>";
     const num = (k, min, max) => '<input type="number" id="set-' + k + '" data-set="' + k + '" min="' + min + '" max="' + max + '" value="' + esc(setting(k)) + '">';
     const ro = k => '<span class="val" id="set-' + k + '">' + esc(setting(k)) + "</span>";

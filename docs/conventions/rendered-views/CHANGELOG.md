@@ -3,6 +3,12 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## Two escape exceptions are named, 2026-10-18
+
+- **Python stdlib `html.escape` emitters and the repo-sweep JSON splice are documented
+  exceptions** to routing through `lib/html-escape.mjs`, each with its reason, under Documented
+  escape exceptions in the security baseline. No shared Python helper is added.
+
 ## A failed hosted replace is retried as a create, 2026-10-11
 
 - **The hosted lane recovers from a page deleted elsewhere.** When `pages-publish --id` fails
