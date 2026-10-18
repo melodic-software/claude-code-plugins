@@ -1,3 +1,7 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -168,9 +172,26 @@ describe("acquireYouTubeMedia", () => {
 });
 
 describe("listWorkDirFiles", () => {
-  it("lists files in the real temp directory for integration smoke", async () => {
-    const files = await listWorkDirFiles("/tmp");
-    expect(Array.isArray(files)).toBe(true);
+  it("lists files recursively in its own temp fixture for integration smoke", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "acquire-list-"));
+    try {
+      await fs.mkdir(path.join(root, "nested"));
+      await fs.writeFile(path.join(root, "a.vtt"), "");
+      await fs.writeFile(path.join(root, "b.info.json"), "{}");
+      await fs.writeFile(path.join(root, "nested", "c.mp4"), "");
+
+      const files = await listWorkDirFiles(root);
+
+      expect([...files].sort()).toEqual(
+        [
+          path.join(root, "a.vtt"),
+          path.join(root, "b.info.json"),
+          path.join(root, "nested", "c.mp4"),
+        ].sort(),
+      );
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 });
 
