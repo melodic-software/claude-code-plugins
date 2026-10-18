@@ -10,7 +10,7 @@
   [ADR 0015](0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md) in full (the
   tracker binding at the repo root).
 - Related: [ADR 0044](0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)
-  (its fixed root, which ADR 0064 Decision 2 carried, is superseded here),
+  (ADR 0064 Decision 2 carried its fixed root),
   [ADR 0018](0018-express-team-shared-conventions-as-consumer-convention-docs.md),
   [#7571](https://github.com/melodic-software/claude-code-plugins/issues/7571) (the thread),
   [#7104](https://github.com/melodic-software/claude-code-plugins/issues/7104) (records its
@@ -74,7 +74,6 @@ consumer repository, so each caller passes its row's directions to the resolver 
 | `team-only` | the team layer wins a direct conflict; a personal layer may add or tighten but never weaken |
 | `lowest-value` | the lowest value across layers wins (a numeric ceiling) |
 | `any-layer-wins` | the tightening value (`true`, or `report`) in any layer wins |
-| `stricter-layer` | the stricter of the layers on an ordered scale wins, or the narrower of two scopes |
 
 A cell holds one value, or several separated by commas when a surface has floor keys with different
 directions. Each surface's keys and their scale stay in that surface's owner doc.

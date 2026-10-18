@@ -783,6 +783,25 @@ test("main on a limit stop comments the marker and touches no label", async () =
   });
 });
 
+test("main takes the fallback reset and clamp from the resolved config's limits", async () => {
+  const resolved = JSON.stringify({ limits: { "fallback-reset": 2, "reset-clamp-min": 1, "reset-clamp-max": 3 } });
+  for (const [lane, expected] of [
+    [JSON.stringify({ branch: "", class: "rate-limit" }), "2026-10-17T14:00:00Z"],
+    [LIMITED_LANE, "2026-10-17T15:00:00Z"],
+  ]) {
+    await withAsyncDir({ "lane.json": lane, "resolved.json": resolved }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["GET", /\/issues\/77\/comments$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved.json") }, fetch, now: LIMIT_NOW }), 0);
+      const posted = calls.filter((c) => c.method === "POST");
+      assert.ok(posted[0].body.body.startsWith(`<!-- work-resolve-issue outcome=limited resets=${expected} run=123 -->`), posted[0].body.body);
+    });
+  }
+});
+
 test("main posts the limited marker once per run", async () => {
   await withDir({ "lane.json": LIMITED_LANE }, async (dir) => {
     const marker = "<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->";

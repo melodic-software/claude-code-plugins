@@ -35,8 +35,8 @@ ADR 0015.
 - **Invalid value.** The reader names the file, key and value and drops that layer: a valid higher
   layer wins, otherwise the default, and a lower layer's value is never used.
 - **`Floor direction` column.** The Implementers table gains it as the one source of each surface's
-  tightening direction, with the closed values `no-floor`, `team-only`, `lowest-value`,
-  `any-layer-wins` and `stricter-layer`.
+  tightening direction, with the closed values `no-floor`, `team-only`, `lowest-value` and
+  `any-layer-wins`.
 - **One overlay rule and ignore line.** The overlay is `<home>/<concern>.local.<ext>`; setup writes
   `<home>/**/*.local.*` to `.gitignore` in the same step that writes the pointer. A prose overlay
   replaces whole team sections by heading.

@@ -96,6 +96,14 @@ jobs:
           echo "::error::${REASON:-untrusted-actor}: this run was not started by a listed trusted human"
           exit 1
 
+      # dispatch.mjs reads the base config's `limits` through the base's
+      # resolve-config, which needs its dependencies.
+      - name: Install resolve-config's dependencies
+        if: >-
+          steps.kill.outputs.proceed == 'true'
+          && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
       - name: Dispatch pr-unblock for conflicting PRs and review-tier Dependabot PRs
         id: dispatch
         if: >-
