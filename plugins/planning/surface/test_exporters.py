@@ -468,7 +468,7 @@ class TestBriefIds(SessionCase):
         self.assertIn("- Q2 Short Q2: alt a:", constraints)
         self.assertNotIn("Q3 Short Q2", constraints)
 
-    def test_without_a_ledger_a_gap_keeps_the_register_number_and_adds_the_id(self):
+    def test_without_a_ledger_a_gap_keeps_the_ids(self):
         self.session(
             [question("Q1"), question("Q3"), question("Q4")],
             [
@@ -478,14 +478,9 @@ class TestBriefIds(SessionCase):
             ],
         )
         text = self.export("brief").read_text(encoding="utf-8")
-        self.assertIn("- Q2 [Q3]: Question Q3?, defer until later;", text)
-        self.assertIn("- Q3 [Q4] Short Q4: accepted:", text)
-        self.assertNotIn("[Q3] [Q3]", text)
-        rc, out = self.check(
-            "--ledger", self.export("ledger"), "--brief", self.export("brief")
-        )
-        self.assertEqual(rc, 0, out)
-        self.assertIn("brief=ok", out)
+        self.assertIn("- Q3: Question Q3?, defer until later;", text)
+        self.assertIn("- Q4 Short Q4: accepted:", text)
+        self.assertNotIn("[Q", text)
 
 
 class TestBriefRestatements(SessionCase):
@@ -3813,6 +3808,38 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
         self.assertEqual(rc, 1, out)
         self.assertEqual(register_rows(ledger), answered)
+
+    def test_sync_ledger_keeps_the_ids_of_a_gapped_ledger(self):
+        seed = [
+            "- Q1 | open | round 1 | One? |",
+            "- Q2 | open | round 1 | Two? |",
+            "- Q500 | open | round 1 | Five hundred? |",
+            "- Q501 | open | round 1 | Five oh one? |",
+        ]
+        ledger = self.ledger(seed)
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        rows = register_rows(ledger)
+        self.assertEqual(
+            [r.split(" | ")[0] for r in rows], ["- Q1", "- Q2", "- Q500", "- Q501"]
+        )
+        self.assertNotIn("[Q", "\n".join(rows))
+
+    def test_sync_ledger_keeps_the_ids_when_the_page_has_a_gap_the_ledger_fills(self):
+        self.session(
+            [question("Q1"), question("Q500")],
+            [event(1, "Q1", "accept"), event(2, "Q500", "accept")],
+        )
+        ledger = self.ledger(["- Q3 | open | round 1 | Only here? |"])
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        rows = register_rows(ledger)
+        self.assertEqual(
+            [r.split(" | ")[0] for r in rows], ["- Q1", "- Q3", "- Q500"]
+        )
+        self.assertNotIn("[Q", "\n".join(rows))
 
     def test_sync_ledger_keeps_crlf_line_endings(self):
         self.decided()

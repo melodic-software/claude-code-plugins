@@ -20,8 +20,8 @@ else 1; import warns, naming the row, when the leading form is missing, and keep
 is not the bare `round <N>` in meta.seededFrom.roundCells, which export writes back while the
 question's round still equals the cell's number, so an imported ledger round-trips byte for byte.
 
-Register ids: surface ids that are already Q1..Qn stay as they are; any other set is renumbered
-Q1..Qn in natural id order (letters, then number) and each row's resolution leads with `[<id>]`,
+Register ids: surface ids that are all Q<N> stay as they are, gaps included; any other set is
+renumbered Q1..Qn in natural id order (letters, then number) and each row's resolution leads with `[<id>]`,
 which import_ledger reads back so a re-export numbers the same way.
 
 Every row export_ledger writes has one resolution grammar: named fields in this fixed order, each
@@ -544,12 +544,12 @@ def settle(q, responses, events, seed_rows):
 
 
 def numbering(ids):
-    """({id: register number}, contiguous): ids that are already Q1..Qn keep their number; any
-    other set is numbered from 1 in natural id order."""
-    contiguous = all(QN.match(i) for i in ids) and sorted(
-        int(i[1:]) for i in ids
-    ) == list(range(1, len(ids) + 1))
-    return {i: n for n, i in enumerate(sorted(ids, key=natural), start=1)}, contiguous
+    """({id: register number}, contiguous): a set made only of Q<N> ids keeps every number, gaps
+    included, so the ids other records cite stay put; any other set is numbered from 1 in
+    natural id order."""
+    if all(QN.match(i) for i in ids):
+        return {i: int(i[1:]) for i in ids}, True
+    return {i: n for n, i in enumerate(sorted(ids, key=natural), start=1)}, False
 
 
 def register(doc, resp, extra=()):

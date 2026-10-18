@@ -2984,6 +2984,35 @@ class TestRoundTooling(DirCase):
         rows = ledger.read_text(encoding="utf-8").splitlines()
         self.assertIn("- Q4 | open | round 2 | Question Q4? |", rows)
 
+    def test_sync_ledger_keeps_the_ids_of_a_gapped_ledger(self):
+        ledger = self.tmp / "gapped.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? |\n"
+            "- Q500 | open | round 1 | Question Q500? |\n",
+            encoding="utf-8",
+        )
+        rc, out, err = self.rp(
+            "add-round",
+            "--file",
+            self.round_file(question("Q523")),
+            "--round",
+            "2",
+            "--sync-ledger",
+            str(ledger),
+        )
+        self.assertEqual(rc, 0, out + err)
+        rows = [
+            r for r in ledger.read_text(encoding="utf-8").splitlines() if r[:3] == "- Q"
+        ]
+        self.assertEqual(
+            [r.split(" | ")[0] for r in rows],
+            ["- Q1", "- Q2", "- Q3", "- Q500", "- Q523"],
+        )
+        self.assertIn("- Q500 | open | round 1 | Question Q500? |", rows)
+        self.assertIn("- Q523 | open | round 2 | Question Q523? |", rows)
+        self.assertNotIn("[Q", "\n".join(rows))
+
     def test_sync_ledger_with_a_missing_ledger_writes_nothing(self):
         self.assert_refused(
             "add-round",
