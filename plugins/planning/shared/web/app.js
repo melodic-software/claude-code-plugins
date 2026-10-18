@@ -1124,7 +1124,7 @@
     const passBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-passbtn", "Pass"); passBtn.setAttribute("aria-expanded", "false");
     const passUndo = btn("vf-btn vf-btn-ghost vf-btn-sm vf-passundo", "Undo pass");
     const passForm = E("form", "vf-passform"); passForm.hidden = true; passForm.id = "vf-passform"; passBtn.setAttribute("aria-controls", passForm.id);
-    const passLbl = E("label", "vf-passlbl"), passIn = E("input", "vf-input vf-passin");
+    const passLbl = E("label", "vf-passlbl"), passIn = E("input", "vf-input vf-pass-input");
     passIn.id = "vf-pass-reason"; passIn.maxLength = 200; passLbl.htmlFor = passIn.id;
     const passSave = E("button", "vf-btn vf-btn-ghost vf-btn-sm", "Pass"); passSave.type = "submit";
     const passCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");

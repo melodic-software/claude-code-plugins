@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-16
-- Related: [ADR 0075](0075-expose-only-a-guest-listener-through-the-shared-interview-tunnel.md)
+- Related: [ADR 0077](0077-expose-only-a-guest-listener-through-the-shared-interview-tunnel.md)
   (how guests reach the session at all). The request rules are in
   `plugins/planning/skills/interview/context/lane-shared.md`, "Request routing".
 
