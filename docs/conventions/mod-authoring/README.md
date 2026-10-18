@@ -54,12 +54,8 @@ mod, one mod per plugin, the 2.1.287 floor, and what is committed.
 - **Recheck trigger**: a linked create section moves, hot reload changes, or
   `claude plugin validate` stops listing hooks and calls.
 
-Read Anthropic's maintained mods for working examples of a pattern before writing your own. The
-`anthropics/claude-code` repository grants no copy license (its
-[LICENSE.md](https://github.com/anthropics/claude-code/blob/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/LICENSE.md)
-says "All rights reserved"), so read both sets for reference and do not copy them into a plugin
-here; the playground repository's own license is a separate question for anyone who wants to reuse
-its code.
+Read Anthropic's maintained mods for working examples before writing your own; licensing and reuse
+terms are recorded in [docs/upstream/claude-code-mods/sources.md](../../upstream/claude-code-mods/sources.md).
 
 - **Pointer**: for sample mods, see the
   [playground `claude-code/mods`](https://github.com/anthropics/claude-code-playground/tree/569c5283d9a0a7ee7938df85bb32e4f48cbb8c86/claude-code/mods)
