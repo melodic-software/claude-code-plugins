@@ -15,8 +15,10 @@ merge queue and dequeues any held entry the identity queued.
 caller as `babysit_postmerge._role_label` resolves it (default `needs-human`).
 Candidates come out CLEAN first (their `mergeStateStatus`), then oldest
 `createdAt` first, so a sweep the job timeout cuts short has tried the ones
-likeliest to merge. A candidate without either field sorts last. The order
-changes nothing the gate decides.
+likeliest to merge. A candidate without `mergeStateStatus` is not CLEAN, and
+one without `createdAt` sorts last in its group, so input without either field
+keeps its order after every dated one. The order changes nothing the gate
+decides.
 
 Reads a JSON array of {number, head, updatedAt, labels, body, createdAt,
 mergeStateStatus} on stdin and prints {"candidates": [...], "held": [...]}:
@@ -51,7 +53,7 @@ def hold(
 
 
 def sweep_order(candidate: dict[str, Any]) -> tuple[bool, bool, str]:
-    """CLEAN first, then oldest `createdAt`; a missing field sorts last."""
+    """CLEAN first, then oldest `createdAt`; no `createdAt` sorts last in its group."""
     created = str(candidate.get("createdAt") or "")
     return candidate.get("mergeStateStatus") != "CLEAN", not created, created
 

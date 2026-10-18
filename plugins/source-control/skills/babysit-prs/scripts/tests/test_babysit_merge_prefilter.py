@@ -126,8 +126,9 @@ class CleanCandidatesSweepFirstOldestFirst(unittest.TestCase):
             self._listed(4, "CLEAN", "2026-10-03T00:00:00Z"),
             self._listed(5, None, None),
             self._listed(6, "UNSTABLE", None),
+            self._listed(7, "CLEAN", None),
         ]
-        self.assertEqual(self._numbers(candidates), [4, 2, 3, 1, 5, 6])
+        self.assertEqual(self._numbers(candidates), [4, 2, 7, 3, 1, 5, 6])
 
     def test_input_without_the_fields_keeps_its_order(self) -> None:
         candidates = [_candidate(9), _candidate(3), _candidate(7)]
