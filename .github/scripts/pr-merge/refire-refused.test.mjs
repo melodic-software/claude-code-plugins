@@ -27,9 +27,8 @@ const sha = (n) => String(n).padStart(40, "0");
 const MAIN_TIP = "a".repeat(40);
 const REFINE = ".github/workflows/pr-refine.yml";
 const WRITER = ".github/workflows/pr-run-activity-write.yml";
-const MERGE = ".github/workflows/pr-merge.yml";
 const ACTIONS_BOT = { id: 41898282, login: "github-actions[bot]" };
-const FILES = [REFINE, WRITER, MERGE, ".github/workflows/pr-unblock.yml", ".github/workflows/pr-unblock-dispatch.yml", ".github/workflows/pr-feedback-dispatch.yml"];
+const FILES = [REFINE, WRITER, ".github/workflows/pr-unblock.yml", ".github/workflows/pr-unblock-dispatch.yml", ".github/workflows/pr-feedback-dispatch.yml"];
 const MAIN_BLOBS = Object.fromEntries(FILES.map((file) => [file, BLOB]));
 
 const pr = (number, { user = OWNER, draft = false, repo = REPO, ref = `fix/${number}` } = {}) => ({
@@ -146,15 +145,6 @@ test("a pr-refine run refused as workflow-modified on the current head gets one 
   assert.deepEqual(pushes(w.calls), [`PATCH /repos/${REPO}/git/refs/heads/fix/7 {"sha":"${NEW_SHA}","force":false}`]);
   // The marker is posted before the branch moves.
   assert.ok(w.calls.indexOf(posts(w.calls)[0]) < w.calls.indexOf(pushes(w.calls)[0]));
-});
-
-test("a pr-merge pull_request_target run refused for pr-merge.yml re-fires too", async () => {
-  const w = world({
-    pulls: [pr(8)],
-    runs: { "pr-merge.yml": [run(80, { head: sha(8), event: "pull_request_target", messages: [denial(MERGE)] })] },
-  });
-  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
-  assert.equal(pushes(w.calls).length, 1);
 });
 
 test("a dispatched pr-unblock run re-fires only when its failed check is on the PR's current head", async () => {

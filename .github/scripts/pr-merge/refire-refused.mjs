@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// refire-refused.mjs: gives a pull request a new head when a pr-merge,
-// pr-refine or pr-unblock run on its current head failed at "Request the lane
-// token" because the token broker refused it as workflow-modified. A rerun
+// refire-refused.mjs: gives a pull request a new head when a pr-refine or
+// pr-unblock run on its current head failed at "Request the lane token"
+// because the token broker refused it as workflow-modified. A rerun
 // keeps its first event's workflow files, so no rerun can pass; a new head
 // starts fresh pull_request events, which run main's files. No model.
 //
@@ -59,7 +59,6 @@ const WRITE_RUNNER = ".github/workflows/pr-run-activity-write.yml";
 // Each lane workflow, the event its runs on a PR head come from, and the files
 // the broker compares for it (the caller, the write runner, a dispatcher).
 const LANES = Object.freeze({
-  "pr-merge.yml": { events: ["pull_request_target"], files: [".github/workflows/pr-merge.yml"] },
   "pr-refine.yml": { events: ["pull_request"], files: [".github/workflows/pr-refine.yml", WRITE_RUNNER] },
   "pr-unblock.yml": {
     events: ["workflow_dispatch"],

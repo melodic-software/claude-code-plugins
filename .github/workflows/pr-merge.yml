@@ -400,7 +400,7 @@ jobs:
             ' "$summary"
           } >>"$GITHUB_STEP_SUMMARY"
 
-      # A pr-merge, pr-refine or pr-unblock run the broker refused as
+      # A pr-refine or pr-unblock run the broker refused as
       # workflow-modified cannot pass on a rerun, which keeps its first
       # event's workflow files. On the schedule, this pushes an empty commit
       # with the lane token to each such PR whose head check-trusted-trigger
