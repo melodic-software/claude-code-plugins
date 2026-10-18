@@ -5712,7 +5712,8 @@
         onIt.hidden = !others.length;
         onItDots.classList.toggle("vf-on", typers.length > 0);
         avStack(qOnItAv, others, 3);
-        qOnIt.setAttribute("aria-label", onItTxt.textContent); qOnIt.toggleAttribute("aria-hidden", !others.length);
+        qOnIt.setAttribute("aria-label", onItTxt.textContent);
+        if (others.length) qOnIt.removeAttribute("aria-hidden"); else qOnIt.setAttribute("aria-hidden", "true");
 
         // format, Claude thread, citations, and the Answers | Claude split
         renderFormat(S, q);
