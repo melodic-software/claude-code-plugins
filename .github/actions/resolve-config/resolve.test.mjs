@@ -341,9 +341,12 @@ const LIMITS = {
   "limit-stops-per-head": 3,
   "limit-stops-per-issue": 3,
   "wip-cap": 60,
+  // The fix-ci defaults the owner chose (2026-10-18 interview).
+  "fix-ci-per-run": 2,
+  "fix-ci-restarts": 1,
 };
 
-test("limits: a config with no limits leaf resolves today's seven values", () => {
+test("limits: a config with no limits leaf resolves today's nine values", () => {
   assert.deepEqual(run(fixture("valid.yaml")).limits, LIMITS);
 });
 
@@ -355,7 +358,7 @@ test("limits: a set leaf overrides its default and leaves the others", () => {
 });
 
 test("limits: an unknown key, a value that is not an integer, or one out of its range is rejected", () => {
-  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }]) {
+  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }, { "fix-ci-per-run": 0 }, { "fix-ci-per-run": 21 }, { "fix-ci-restarts": -1 }, { "fix-ci-restarts": 6 }]) {
     const config = edited((doc) => {
       doc.limits = limits;
     });
@@ -363,9 +366,9 @@ test("limits: an unknown key, a value that is not an integer, or one out of its 
   }
 });
 
-test("defaults are materialized: loop 2/3/2, merge off and manual, slot scope diff and enabled", () => {
+test("defaults are materialized: loop 2/3/2/3, merge off and manual, slot scope diff and enabled", () => {
   const resolved = run(fixture("valid.yaml"), { activity: "run-tests" });
-  assert.deepEqual(resolved.loop, { "review-rounds": 2, "no-progress": 3, "dependency-review-rounds": 2 });
+  assert.deepEqual(resolved.loop, { "review-rounds": 2, "no-progress": 3, "dependency-review-rounds": 2, "fix-ci-rounds": 3 });
   assert.equal(resolved.merge.rung, "off");
   assert.equal(resolved.merge["stack-landing"], "manual");
   assert.equal(resolved.version, 1);
@@ -1237,6 +1240,33 @@ test("prepare on a script leaf, or a value other than merge-base, fails the sche
     doc.activities.simplify.prepare = "rebase";
   });
   assertRejected(() => runRefine(otherMode), "invalid-config");
+});
+
+test("prepare: ci-context is the one mode a read skill may set, and it needs effect read", () => {
+  const read = withPrepare((doc) => {
+    doc.activities.simplify.prepare = "ci-context";
+    doc.activities.simplify.effect = "read";
+  });
+  assert.equal(runRefine(read, { activity: "simplify", facts: LINT_FACTS }).selected.prepare, "ci-context");
+  const write = withPrepare((doc) => {
+    doc.activities.simplify.prepare = "ci-context";
+  });
+  assertRejected(() => runRefine(write), "invalid-prepare");
+});
+
+test("prepare: apply-patch is the one mode a script may set, and it needs effect mutate-branch", () => {
+  const onScript = (effect) =>
+    composite((doc) => {
+      doc.activities["fix-lint"].prepare = "apply-patch";
+      doc.activities["fix-lint"].effect = effect;
+    });
+  assert.equal(runRefine(onScript("mutate-branch"), { activity: "fix-lint", facts: LINT_FACTS }).selected.prepare, "apply-patch");
+  assertRejected(() => runRefine(onScript("read")), "invalid-prepare");
+  assertRejected(() => runRefine(onScript("publish-artifact")), "invalid-prepare");
+  const onSkill = withPrepare((doc) => {
+    doc.activities.simplify.prepare = "apply-patch";
+  });
+  assertRejected(() => runRefine(onSkill), "invalid-config");
 });
 
 // Activity rules (trust root, beside lane-rules.json)

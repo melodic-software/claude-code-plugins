@@ -12,7 +12,9 @@ name: pr-unblock
 # PR with unresolved reviewer-bot threads. review-dependency:
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or
-# a red ci-status) whose head has no review yet. All set dispatcher-run-id; a
+# a red ci-status) whose head has no review yet. fix-ci: pr-unblock-dispatch.yml
+# also sends one per lanes App PR whose ci-status failed. All set
+# dispatcher-run-id; a
 # trusted human may dispatch with pr-number and activity alone. Every job
 # trusts the default branch tip, since a conflicting PR's base SHA is stale and
 # the dispatchers run from the tip.
@@ -33,7 +35,7 @@ on:
         description: What to unblock.
         required: false
         type: choice
-        options: [resolve-conflicts, address-feedback, review-dependency]
+        options: [resolve-conflicts, address-feedback, review-dependency, fix-ci]
         default: resolve-conflicts
       dispatcher-run-id:
         description: The dispatcher run that sent this dispatch; empty for a human dispatch.
@@ -227,6 +229,140 @@ jobs:
       # jobs" on this job alone still downloads it.
       dependency-run-attempt: ${{ needs.review-dependency.outputs.dependency-run-attempt }}
 
+  # fix-ci is three jobs, so no model ever holds a write token. This one runs
+  # only base code with a read-only token and checks out no PR head: it hands
+  # the PR to a person once loop.fix-ci-rounds fixes were pushed, or writes
+  # the failing checks' names, workflows, annotations and log ends to the
+  # context file the model job reads. Logs and annotations are data.
+  fix-ci-context:
+    if: >-
+      inputs.pr-number != '' && inputs.activity == 'fix-ci'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out main
+      pull-requests: read # the PR's head and commits
+      checks: read # the head's check runs and their annotations
+      actions: read # each failing job's workflow file and log
+    outputs:
+      proceed: ${{ steps.context.outputs.proceed }}
+      head-sha: ${{ steps.context.outputs.head-sha }}
+      escalation-reason: ${{ steps.context.outputs.escalation-reason }}
+      context-sha256: ${{ steps.context.outputs.context-sha256 }}
+      # The artifact name's attempt, so a re-run of the model job alone still
+      # finds it.
+      context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # fix-ci-context.mjs reads loop.fix-ci-rounds through the base's
+      # resolve-config, which needs its dependencies.
+      - name: Install resolve-config's dependencies
+        if: steps.kill.outputs.proceed == 'true'
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      - name: Write the failing checks' context
+        id: context
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          CONTEXT_FILE: ${{ runner.temp }}/ci-context/context.json
+          BASE_PATH: .base
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-context"
+          node .base/.github/scripts/pr-unblock/fix-ci-context.mjs
+
+      - name: Upload the context
+        id: upload
+        if: steps.context.outputs.proceed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-context-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-context/context.json
+          retention-days: 3
+          if-no-files-found: error
+
+  # The model job: a read activity with no write token and no OIDC token in
+  # the job that runs head code. The skill reruns the failing checks, fixes
+  # them and reruns them; the runner uploads its uncommitted edits as a patch.
+  fix-ci:
+    needs: fix-ci-context
+    if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: pr-unblock-fix-ci-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      lane: pr-unblock
+      activity: fix-ci
+      pr-number: ${{ inputs.pr-number }}
+      output-mode: patch
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
+      ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      # Reproducing, fixing and rerunning several checks outlasts the default.
+      timeout-minutes: 60
+    secrets:
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # The push job: a script with no model that runs no head code. It checks
+  # the patch against the model job's SHA-256 and head, applies it, refuses
+  # .github/**, symbolic links and gitlinks, and pushes one commit without
+  # force. An empty or refused patch, or an escalated check, hands the PR to
+  # a person.
+  apply-ci-fix:
+    needs: fix-ci
+    if: >-
+      ${{ !cancelled() && (needs.fix-ci.outputs.patch-state == 'written'
+      || needs.fix-ci.outputs.patch-state == 'empty') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: pr-unblock
+      activity: apply-ci-fix
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      patch-state: ${{ needs.fix-ci.outputs.patch-state }}
+      patch-sha256: ${{ needs.fix-ci.outputs.patch-sha256 }}
+      patch-attempt: ${{ needs.fix-ci.outputs.patch-attempt }}
+      patch-activity: fix-ci
+      patch-head-sha: ${{ needs.fix-ci.outputs.head-sha }}
+      reply-attempt: ${{ needs.fix-ci.outputs.reply-attempt }}
+
   # GitHub starts no pull_request workflow on a conflicted PR, so a head the
   # lane could not resolve gets no CI and no sign why. This script job, with
   # no model, posts a failing pr-unblock/conflict commit status on that head.
@@ -260,18 +396,28 @@ jobs:
         run: bash .base/.github/scripts/pr-unblock/report-escalation.sh status
 
   report-escalation:
-    needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict]
-    # escalation-reason is set only by the write runner's own steps and the
-    # base's reply and verdict scripts. A later failure in that run (a failed
-    # verdict upload) still escalates. At most one escalates: one activity
-    # runs per dispatch, a reply or verdict job runs only after a model turn,
-    # and a model job escalates only before one.
+    needs:
+      - resolve-conflicts
+      - address-feedback
+      - publish-feedback
+      - review-dependency
+      - apply-dependency-verdict
+      - fix-ci-context
+      - apply-ci-fix
+    # escalation-reason is set only by the write runner's own steps, the
+    # base's reply, verdict and apply-patch scripts, and fix-ci-context's
+    # base script. A later failure in that run (a failed verdict upload)
+    # still escalates. At most one escalates: one activity runs per dispatch,
+    # a reply, verdict or push job runs only after a model turn, and a model
+    # job, or fix-ci-context, escalates only before one.
     if: >-
       ${{ !cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
       || needs.address-feedback.outputs.escalation-reason != ''
       || needs.publish-feedback.outputs.escalation-reason != ''
       || needs.review-dependency.outputs.escalation-reason != ''
-      || needs.apply-dependency-verdict.outputs.escalation-reason != '') }}
+      || needs.apply-dependency-verdict.outputs.escalation-reason != ''
+      || needs.fix-ci-context.outputs.escalation-reason != ''
+      || needs.apply-ci-fix.outputs.escalation-reason != '') }}
     permissions:
       contents: read
       pull-requests: read
@@ -290,7 +436,9 @@ jobs:
         || needs.address-feedback.outputs.escalation-reason
         || needs.publish-feedback.outputs.escalation-reason
         || needs.review-dependency.outputs.escalation-reason
-        || needs.apply-dependency-verdict.outputs.escalation-reason }}
+        || needs.apply-dependency-verdict.outputs.escalation-reason
+        || needs.fix-ci-context.outputs.escalation-reason
+        || needs.apply-ci-fix.outputs.escalation-reason }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       expected-upstream-head: >-
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''
