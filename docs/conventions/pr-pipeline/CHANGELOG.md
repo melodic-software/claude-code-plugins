@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 2.7.0 - 2026-10-18
+
+[Changing this config](README.md#changing-this-config): a pull request that changes a lane and
+lists a not-verified item that could stop the lane does not merge until the item is checked live,
+and its post-merge live check is a tracked issue. `version` stays 2.
+
 ## 2.6.1 - 2026-10-17
 
 `address-feedback.mjs select` now also keeps a thread the lane escalated (the lanes App's last

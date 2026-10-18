@@ -873,6 +873,12 @@ The config file is a lane-power file: a human merges every change to it, and no 
 same holds for the trusted-actor list and any change to a lane's permissions, tokens or triggers.
 Everything downstream of that human merge may propagate on its own.
 
+A pull request that changes a lane and lists a not-verified item that could stop the lane from
+running does not merge until that item is checked live. Its post-merge live check is a tracked
+issue, not a line in the pull request body. Evidence: melodic-software/ci-workflows#755 listed its
+intake author gate as "unverified, fails closed", merged, and skipped every intake run here
+(melodic-software/ci-workflows#772).
+
 ## Outside this repository
 
 The lanes depend on pieces other repositories own. Each row names where that piece is documented;
