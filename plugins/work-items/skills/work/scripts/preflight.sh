@@ -387,6 +387,7 @@ detect_layout() {
         layout_reason="'$entry' does not exist, so its owner cannot be read"
         continue
       fi
+      # portability-ok: GNU-first rung of a dual-dialect ladder; the BSD -f spelling is the || fallback, and a non-numeric owner falls to "unknown"
       owner="$(stat -c %u "$entry" 2>/dev/null || stat -f %u "$entry" 2>/dev/null)"
       case "$owner" in
       "" | *[!0-9]*) layout_reason="the owner of '$entry' is unreadable" ;;
