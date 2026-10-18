@@ -300,6 +300,12 @@ loop:
   review-rounds: 3
   dependency-review-rounds: 2
 
+limits:
+  # Open lanes-App PRs at which work-resolve-issue starts no new run, and
+  # work-unblock re-fires none, until the merge lane brings the count down.
+  # Judgment, Little's law; revisit after a day of data.
+  wip-cap: 60
+
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
   # class C2 (plugins/autonomy/reference/guardrails/work-classes.md) and reads

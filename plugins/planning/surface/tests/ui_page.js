@@ -28,6 +28,23 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.setViewportSize({width: 390, height: 844}); await page.waitForTimeout(250);
     const narrow = await recRow();
     ok("the Rec choice shows every sentence of the recommendation at 390 px", /Roll back on the first new error/.test(narrow.text) && !narrow.clipped, JSON.stringify(narrow));
+    // #7755: at 390 px the named buttons and each Decide row are touch-sized, and the selected Rec label reads at 4.5:1 in the light theme
+    await page.emulateMedia({colorScheme: "light"}); await page.waitForTimeout(100);
+    const sizes = await page.evaluate(() => {
+      const want = ["Save", "Ask Claude", "Rephrase", "Research this", "Clear"], bs = [...document.querySelectorAll("button.act")];
+      return {buttons: want.map(w => { const b = bs.find(x => x.textContent.trim().replace(/^Save.*/, "Save") === w); return [w, b ? Math.round(b.getBoundingClientRect().height) : 0]; }), rows: [...document.querySelectorAll("#choices .choice")].map(r => Math.round(r.getBoundingClientRect().height))};
+    });
+    ok("at 390 px Save, Ask Claude, Rephrase, Research this and Clear are at least 44 px tall", sizes.buttons.every(b => b[1] >= 44), JSON.stringify(sizes.buttons));
+    ok("at 390 px each Decide row is at least 44 px tall", sizes.rows.length > 0 && sizes.rows.every(h => h >= 44), JSON.stringify(sizes.rows));
+    await page.click("#choices .choice.rec"); await page.waitForTimeout(150);
+    const recRatio = await page.$eval("#choices .choice.rec.armed .t b", el => {
+      const rgb = s => s.match(/[\d.]+/g).map(Number), lum = c => { const v = c.slice(0, 3).map(x => { x /= 255; return x <= .03928 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return .2126 * v[0] + .7152 * v[1] + .0722 * v[2]; };
+      let b = el, bg = null;
+      while (b && !bg) { const c = rgb(getComputedStyle(b).backgroundColor); if (c.length < 4 || c[3] > 0) bg = c; else b = b.parentElement; }
+      const l1 = lum(rgb(getComputedStyle(el).color)), l2 = lum(bg);
+      return (Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05);
+    }).catch(() => 0);
+    ok("the Rec label in the selected Decide row has at least 4.5:1 contrast in the light theme", recRatio >= 4.5, String(recRatio));
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
     await page.click('[data-acceptall="g1"]'); await page.waitForSelector("#dlg[open]");
     const listed = await text("#dlgBody li");
