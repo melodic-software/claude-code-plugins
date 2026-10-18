@@ -340,7 +340,10 @@ the value after an `=`) naming an existing path whose real path lies outside the
 script may print lines of a file it reads, unsets `GH_TOKEN` and `GITHUB_TOKEN` in the script's
 own environment (code the script runs can still read the token from the wrapper's or the Bash
 shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
-and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, then runs the copy with
+and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, for skill-quality's
+`check-skill.sh` alone sets `HOME` to a fresh `mktemp -d` directory and `CLAUDE_CONFIG_DIR` to its
+`.claude`, since the skill tests it runs write there and the runner's `~/.claude` is read-only,
+then runs the copy with
 the arguments and prints `exit status: <n>` to stderr before exiting with that status, since the
 lane denies a chained `; echo "$?"`. The system prompt says Bash runs only the named wrappers,
 each as its own command, and that the run inspects files with Read, Grep and Glob and changes them
