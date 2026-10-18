@@ -32,9 +32,10 @@ name: pr-merge
 # cannot read those variables with its own token, so this workflow hands it
 # the answer; if the answer is missing, the gate stops too.
 #
-# When the merge queue lands a lanes App PR on main, the push starts the full
-# CI run that verifies the merge, so the next lane PR does not wait for a
-# scheduled run to start it.
+# When the merge queue lands any PR on main, whoever merged it, the push starts
+# the full CI run that verifies the merge, so main is never left unverified
+# until a scheduled run. That run is not a lane action: the kill switch and
+# report-only do not stop it.
 #
 # On its schedule it also gives a PR a new head, an empty commit, when a lane
 # run on its current head was refused by the token broker as
@@ -72,10 +73,11 @@ on:
   schedule:
     - cron: "11,26,41,56 * * * *"
 
-  # A merge-queue landing on main. Only the `lane-merge-landed` job runs on
-  # it, and only for a commit the lanes App authored: it starts the full CI
-  # run that verifies the merge at once instead of at the next scheduled run.
-  # The merge job does not run on it, so it never joins the queue below.
+  # A merge-queue landing on main (the merge-queue ruleset has no bypass, so
+  # every push to main is one). Only `dispatch-full-run` runs on it: it starts
+  # the full CI run that verifies the merge at once instead of at the next
+  # scheduled run. The merge job does not run on it, so it never joins the
+  # queue below.
   push:
     branches: [main]
 
@@ -547,79 +549,44 @@ jobs:
             echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
           fi
 
-  # A push to main whose head commit the lanes App authored: the squash commit
-  # of one of its PRs, which the merge queue just landed. The merge gate
-  # counts that merge in flight until it is verified, so the full
-  # CI run that verifies it starts here instead of waiting for a scheduled
-  # run. The author check runs before any runner starts, so other pushes cost
-  # nothing; it only saves work, and the post-merge check still decides what
-  # a merge needs. This job takes no lane token: the token broker mints none
-  # on `push`. A lanes App PR a person merged also matches, which costs one
-  # extra full run.
-  lane-merge-landed:
-    if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/main'
-      && vars.AUTOMATION_LANES_APP_SENDER_ID != ''
-      && startsWith(github.event.head_commit.author.email, format('{0}+', vars.AUTOMATION_LANES_APP_SENDER_ID))
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read # check out main
-    outputs:
-      # `true` when the kill switch lets the lanes run and the lane's own PRs
-      # are not report-only.
-      dispatch: ${{ steps.kill.outputs.proceed == 'true' && steps.mode.outputs.live == 'true' }}
-    steps:
-      - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: refs/heads/main
-          path: .base
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .base/.node-version
-          package-manager-cache: false
-
-      - name: Check the kill switch
-        id: kill
-        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
-        with:
-          value: ${{ vars.CLAUDE_LANES_DISABLED }}
-          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-
-      # Read as the merge job reads it for the lane's own PRs.
-      - name: Read report-only
-        id: mode
-        if: steps.kill.outputs.proceed == 'true'
-        run: |
-          set -euo pipefail
-          case "$(yq '.merge."report-only"' .base/docs/conventions/pr-pipeline.yaml)" in
-            false | null) echo "live=true" >>"$GITHUB_OUTPUT" ;;
-            *) echo "::notice::merge.report-only is set; no full CI run started" ;;
-          esac
-
-  # After a lane merge, the post-merge check wants a full CI run of main.
-  # Starting a workflow needs `actions: write`, which the lane App token does
-  # not have, so this separate job does it with the job's own GitHub token. It
-  # runs when the merge job says a full run is needed, which it never does
-  # while nothing can merge, or when lane-merge-landed saw a lane merge land.
-  # A run woken by pull_request_target
-  # leaves it to the next run: the post-merge check does not trust a dispatch
-  # from that event, which runs the PR base branch's copy of this file.
+  # Starts the full CI run that verifies main. Starting a workflow needs
+  # `actions: write`, which the lane App token does not have, so this job does
+  # it with its own GitHub token, in two cases:
+  #   * The merge job says a full run is needed (a lane PR merged during the
+  #     run, or the post-merge check wants one), which it never does while
+  #     nothing can merge. A run woken by pull_request_target leaves it to the
+  #     next run: the post-merge check does not trust a dispatch from that
+  #     event, which runs the PR base branch's copy of this file.
+  #   * A push to main, whoever merged: a person, a release App or the lanes
+  #     App. The run it starts is a `dispatch` signal for
+  #     post-merge-demotion-alert.yml, and for a lane merge the post-merge
+  #     check credits it through the artifact below.
+  #
+  # BURSTS COLLAPSE HERE, NOT IN pr-require-checks.yml. Push jobs share one
+  # group without `cancel-in-progress`, so one runs while one waits; a newer
+  # push replaces the waiting job, which is cancelled before it dispatches
+  # anything. The running job holds the group until the run it started
+  # finishes, so the waiting one dispatches main's tip then, which contains
+  # every merge it replaced. A pending pr-require-checks run is never
+  # cancelled: babysit_postmerge.py and post-merge-demotion-alert.yml both
+  # count a cancelled full run as red. Every other event takes a group of its
+  # own and does not wait.
   dispatch-full-run:
-    needs: [merge, lane-merge-landed]
+    needs: [merge]
     if: >-
       !cancelled()
       && ((needs.merge.result == 'success' && needs.merge.outputs.dispatch == 'true'
       && github.event_name != 'pull_request_target')
-      || (needs.lane-merge-landed.result == 'success' && needs.lane-merge-landed.outputs.dispatch == 'true'))
+      || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    concurrency:
+      group: ${{ github.event_name == 'push' && 'pr-merge-verify-main' || format('pr-merge-dispatch-{0}', github.run_id) }}
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # A push job waits for the full run, whose longest lane is capped at 16
+    # minutes, plus time in the runner queue.
+    timeout-minutes: 45
     permissions:
-      actions: write # start pr-require-checks.yml on main
+      actions: write # start pr-require-checks.yml on main and read its status
     steps:
       - name: Start the full CI run on main
         id: dispatch
@@ -648,3 +615,24 @@ jobs:
           path: ${{ runner.temp }}/dispatched.json
           retention-days: 90
           if-no-files-found: error
+
+      # Holds the push group until the run finishes, so a burst of merges
+      # waits here as one pending job. One REST read a minute; the run's
+      # result is post-merge-demotion-alert.yml's to judge, not this job's.
+      - name: Wait for the full run to finish
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ steps.dispatch.outputs.run-id }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 40); do
+            sleep 60
+            status=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .status) || continue
+            if [ "$status" = completed ]; then
+              echo "run $RUN_ID completed"
+              exit 0
+            fi
+          done
+          echo "::warning::run $RUN_ID did not finish within 40 minutes; releasing the group"
