@@ -718,8 +718,15 @@ jobs:
       # Stale-base squash merges can silently revert recently-landed fixes when
       # a PR is cut from a base that has since moved, and the squash deletes
       # the tests that would have caught the drop (claude-code-plugins#2691).
-      # This gate covers the stale-BASE class only; a branch stale in content
+      # This check covers the stale-BASE class only; a branch stale in content
       # but current in history belongs to the post-merge silent-revert canary.
+      #
+      # ADVISORY ON pull_request (#7871). `--warn` reports every overlap as a
+      # ::warning listing the overlapping paths and exits 0; only an
+      # inconclusive git state (exit 2) fails the step. The merge queue builds
+      # and tests each change on the current base before it lands, so a PR
+      # that is only behind a fast-moving main is not failed here. merge_group
+      # declines below, as before.
       #
       # THE HEAD COMMIT, NOT THE MERGE COMMIT. On a pull_request event this job
       # checks out the synthetic merge commit, whose merge-base with the target
@@ -728,7 +735,7 @@ jobs:
       # exactly that reason. Running it in a detached worktree of the same
       # clone keeps that head-tip comparison while leaving every other step in
       # this job on the merge commit, where the diff-scoped gates want to be.
-      - name: Fail when behind base on overlapping paths
+      - name: Warn when behind base on overlapping paths
         id: stale_base
         continue-on-error: true
         env:
@@ -757,7 +764,7 @@ jobs:
           }
           trap cleanup EXIT
           cd "$head_tree"
-          "$GITHUB_WORKSPACE/scripts/check-stale-base-overlap.sh" --check "origin/$BASE_REF"
+          "$GITHUB_WORKSPACE/scripts/check-stale-base-overlap.sh" --warn "origin/$BASE_REF"
 
       # The docs-only short-circuit is a fail-open shape by construction:
       # getting it wrong makes a heavy lane report success without running. Its

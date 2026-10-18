@@ -8,15 +8,16 @@
 // copy on the old host is deleted. A replace that fails (the recorded page was
 // deleted elsewhere, for one) is retried once as a create.
 //
-//   publish-hosted.mjs <page> --repo <[host/]owner/repo> --pr <n> --data-dir <dir>
-// The script looks up the --repo repository's visibility itself, on --repo's host
-// (gh's default host when it names none); no caller passes a visibility. The page
-// carries no repository identity, so --repo must name the pull request's
-// repository, host included when that is not github.com. A named host is asked only
-// when this machine's gh is already logged in to it; any other host sends the page
-// private, and an IP address is a usage error.
+//   publish-hosted.mjs <page> --facts <facts.json> --data-dir <dir>
+// The repository, its host and the pull request number come from the pull request
+// URL in the facts file `/source-control:pull-request view` writes, never from an
+// argument a caller types (#7740). The script looks up that repository's
+// visibility itself, on the URL's host (gh's default host for github.com); no caller
+// passes a visibility. Another host is asked only when this machine's gh is already
+// logged in to it, else the page goes private. A facts file with no usable URL, an
+// IP-address host included, publishes nothing.
 // Prints one JSON object. Exit 0 published, 1 upload failed (keep the file),
-// 2 usage or not a builder page, 4 refused: credential-shaped content.
+// 2 usage, unusable facts or not a builder page, 4 refused: credential-shaped content.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -25,7 +26,7 @@ import { fileURLToPath } from "node:url";
 
 import { publishGate } from "../../../lib/publish-gate.mjs";
 import { validateView } from "../../../lib/view-builder.mjs";
-import { lookupVisibility, parseRepo } from "./repo-visibility.mjs";
+import { lookupVisibility, prFromFacts } from "./repo-visibility.mjs";
 
 const ID = /^[A-Za-z0-9_-]{22}$/;
 const VISIBILITIES = ["public", "private"];
@@ -131,23 +132,21 @@ function main(argv) {
   const [page, ...rest] = argv;
   const flags = {};
   for (let i = 0; i < rest.length; i += 2) flags[rest[i]] = rest[i + 1];
-  const target = parseRepo(flags["--repo"]);
-  const ok =
-    page &&
-    !page.startsWith("--") &&
-    rest.length === 6 &&
-    target &&
-    /^\d{1,9}$/.test(flags["--pr"] ?? "") &&
-    isAbsolute(flags["--data-dir"] ?? "");
+  const ok = page && !page.startsWith("--") && rest.length === 4 && flags["--facts"] && isAbsolute(flags["--data-dir"] ?? "");
   if (!ok || !existsSync(page)) {
-    process.stderr.write("usage: publish-hosted.mjs <page> --repo <[host/]owner/repo> --pr <n> --data-dir <absolute dir>\n");
+    process.stderr.write("usage: publish-hosted.mjs <page> --facts <facts.json> --data-dir <absolute dir>\n");
+    return 2;
+  }
+  const target = prFromFacts(flags["--facts"]);
+  if (!target) {
+    process.stdout.write(`${JSON.stringify({ medium: "file", reason: "the facts file names no pull request URL this script can read; nothing was published" }, null, 2)}\n`);
     return 2;
   }
   const { exit, result } = publishHosted({
     page: resolve(page),
     host: target.host,
     repo: target.repo,
-    pr: flags["--pr"],
+    pr: target.pr,
     dataDir: flags["--data-dir"],
   });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

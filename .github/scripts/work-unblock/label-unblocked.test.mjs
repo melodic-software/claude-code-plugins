@@ -871,6 +871,38 @@ test("a third limit stop since a person added agent-ready adds needs-human with 
   assert.deepEqual(writes(reset.calls), restarted(30));
 });
 
+// The sweep reads the resolved config's `limits` (hours and counts) from the
+// file resolve-config wrote.
+const withLimits = (limits) => {
+  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-limits-")), "resolved-config.json");
+  writeFileSync(path, JSON.stringify({ limits }));
+  return { RESOLVED_CONFIG: path };
+};
+
+test("the resolved limits set the sweep's restarts per run, limit stops per issue and fallback reset", async () => {
+  const numbers = [31, 32, 33, 34];
+  const many = world({
+    openReady: numbers.map((n) => ready(n)),
+    comments: Object.fromEntries(numbers.map((n) => [n, [note(), limitedNote(`2026-10-16T0${n - 30}:00:00Z`, "2026-10-16T00:30:00Z")]])),
+    events: Object.fromEntries(numbers.map((n) => [n, [added("2026-10-16T00:00:00Z")]])),
+  });
+  assert.equal(await sweep({ github: many.github }, withLimits({ "restarts-per-run": 2 })), 0);
+  assert.deepEqual(writes(many.calls), [31, 32].flatMap(restarted));
+
+  const stops = [limitedNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z"), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")];
+  const second = stopped({ comments: [note(), ...stops] });
+  assert.equal(await sweep({ github: second.github }, withLimits({ "limit-stops-per-issue": 2 })), 0);
+  assert.deepEqual(writes(second.calls).slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+
+  // No stated reset, stopped at 06:00: five hours has passed at 12:00, seven has not.
+  const bare = stopped({ resets: "" });
+  assert.equal(await sweep({ github: bare.github }), 0);
+  assert.deepEqual(writes(bare.calls), restarted(30));
+  const later = stopped({ resets: "" });
+  assert.equal(await sweep({ github: later.github }, withLimits({ "fallback-reset": 7 })), 0);
+  assert.deepEqual(writes(later.calls), []);
+});
+
 // After the DELETE, a failed re-add is tried once more; a second failure is an
 // ::error naming the issue and fails the run.
 test("a failed re-add after the removal is retried once, then reported", async (t) => {

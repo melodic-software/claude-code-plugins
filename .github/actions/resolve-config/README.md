@@ -85,7 +85,8 @@ an `issues` event cannot be decided and fails the step.
 
 The file at `output-path` holds `version`, `source` (`base-path`, `config-path`), `lane` (name,
 stage, enabled, and every slot resolved), `selected` (the requested activity's slot, or null),
-`loop` and `merge`. Every default is applied: `scope` `diff`, `enabled` true, `loop` 2 and 3,
+`loop`, `limits` and `merge`. Every default is applied: `scope` `diff`, `enabled` true, `loop` 2 and 3,
+the six `limits` (5, 1, 168, 5, 3, 3; [README, Limits](../../../docs/conventions/pr-pipeline/README.md#limits)),
 `merge.rung` `off`, `stack-landing` `manual`. A skill slot carries `models`: its profile name and
 that profile's `model`, `effort` (null when unset), `subagent-model` (`inherit` when unset) and
 `max-turns`, from its activity's route, else `models.default-profile`, else, with no `models`

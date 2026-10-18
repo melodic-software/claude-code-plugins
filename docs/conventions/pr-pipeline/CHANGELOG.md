@@ -1,12 +1,19 @@
 # Changelog for the PR pipeline convention
 
-## 2.7.1 - 2026-10-17
+## 2.8.1 - 2026-10-17
 
 `request-lane-token` retries a broker 503 whose reason is `github-unavailable`, with a fresh OIDC
 token, after 60, 120 and 240 seconds plus up to 20 seconds of jitter, honoring a longer
 `Retry-After` header and starting no retry more than 8 minutes after the first request. Every
 other answer stays final ([pr-run-activity.md](pr-run-activity.md#the-lane-token-broker)).
 `version` stays 2.
+
+## 2.8.0 - 2026-10-17
+
+An optional `limits` block sets the limit-stop restart values: `fallback-reset`,
+`reset-clamp-min` and `reset-clamp-max` (hours), `restarts-per-run`, `limit-stops-per-head` and
+`limit-stops-per-issue` ([README.md, Limits](README.md#limits)). Each defaults to the value the
+lanes used before, and resolve-config emits all six. `version` stays 2.
 
 ## 2.7.0 - 2026-10-17
 
