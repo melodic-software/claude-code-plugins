@@ -32,6 +32,10 @@ name: pr-merge
 # cannot read those variables with its own token, so this workflow hands it
 # the answer; if the answer is missing, the gate stops too.
 #
+# When the merge queue lands a lanes App PR on main, the push starts the full
+# CI run that verifies the merge, so the next lane PR does not wait for a
+# scheduled run to start it.
+#
 # On its schedule it also gives a PR a new head, an empty commit, when a lane
 # run on its current head was refused by the token broker as
 # workflow-modified, once per version of the workflow file the broker named.
@@ -67,6 +71,13 @@ on:
   schedule:
     - cron: "11,26,41,56 * * * *"
 
+  # A merge-queue landing on main. Only the `lane-merge-landed` job runs on
+  # it, and only for a commit the lanes App authored: it starts the full CI
+  # run that verifies the merge at once instead of at the next scheduled run.
+  # The merge job does not run on it, so it never joins the queue below.
+  push:
+    branches: [main]
+
 permissions: {}
 
 defaults:
@@ -82,7 +93,7 @@ jobs:
     # outsider editing a fork PR over and over cannot keep pushing real runs
     # out of the queue.
     if: >-
-      github.ref == 'refs/heads/main'
+      github.ref == 'refs/heads/main' && github.event_name != 'push'
       && (github.event_name != 'pull_request_target'
       || github.event.pull_request.head.repo.full_name == github.repository)
     # One run at a time, and a running one is never cancelled: a cancelled run
@@ -443,16 +454,75 @@ jobs:
             echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
           fi
 
+  # A push to main whose head commit the lanes App authored: the squash commit
+  # of one of its PRs, which the merge queue just landed. The merge gate
+  # enqueues the next lane PR only once that merge is verified, so the full
+  # CI run that verifies it starts here instead of waiting for a scheduled
+  # run. The author check runs before any runner starts, so other pushes cost
+  # nothing; it only saves work, and the post-merge check still decides what
+  # a merge needs. This job takes no lane token: the token broker mints none
+  # on `push`. A lanes App PR a person merged also matches, which costs one
+  # extra full run.
+  lane-merge-landed:
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && vars.AUTOMATION_LANES_APP_SENDER_ID != ''
+      && startsWith(github.event.head_commit.author.email, format('{0}+', vars.AUTOMATION_LANES_APP_SENDER_ID))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out main
+    outputs:
+      # `true` when the kill switch lets the lanes run and the lane's own PRs
+      # are not report-only.
+      dispatch: ${{ steps.kill.outputs.proceed == 'true' && steps.mode.outputs.live == 'true' }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # Read as the merge job reads it for the lane's own PRs.
+      - name: Read report-only
+        id: mode
+        if: steps.kill.outputs.proceed == 'true'
+        run: |
+          set -euo pipefail
+          case "$(yq '.merge."report-only"' .base/docs/conventions/pr-pipeline.yaml)" in
+            false | null) echo "live=true" >>"$GITHUB_OUTPUT" ;;
+            *) echo "::notice::merge.report-only is set; no full CI run started" ;;
+          esac
+
   # After a lane merge, the post-merge check wants a full CI run of main.
   # Starting a workflow needs `actions: write`, which the lane App token does
   # not have, so this separate job does it with the job's own GitHub token. It
   # runs when the merge job says a full run is needed, which it never does
-  # while nothing can merge. A run woken by pull_request_target
+  # while nothing can merge, or when lane-merge-landed saw a lane merge land.
+  # A run woken by pull_request_target
   # leaves it to the next run: the post-merge check does not trust a dispatch
   # from that event, which runs the PR base branch's copy of this file.
   dispatch-full-run:
-    needs: merge
-    if: needs.merge.outputs.dispatch == 'true' && github.event_name != 'pull_request_target'
+    needs: [merge, lane-merge-landed]
+    if: >-
+      !cancelled()
+      && ((needs.merge.result == 'success' && needs.merge.outputs.dispatch == 'true'
+      && github.event_name != 'pull_request_target')
+      || (needs.lane-merge-landed.result == 'success' && needs.lane-merge-landed.outputs.dispatch == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
