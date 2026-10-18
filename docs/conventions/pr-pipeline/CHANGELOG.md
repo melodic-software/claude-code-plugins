@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.13.0 - 2026-10-18
+## 2.14.0 - 2026-10-18
 
 A new optional `wip` block derives the issue lane's WIP cap from the lane merge rate: merged lanes-App
 pull requests per hour over `merge-rate-window-hours` (24) times `target-lead-time-hours` (2),
@@ -11,6 +11,15 @@ this`) no longer count against it and form their own buffer, `held-cap` (60), wi
 those merged. Over a cap the check alerts, and pauses the lane only on or after `pause-from`
 (empty: never). The check publishes its status as the `wip` step output, the step summary and its
 log line ([README, WIP cap](README.md#wip-cap)). `version` stays 2.
+
+## 2.13.0 - 2026-10-18
+
+`pr-run-activity-read.yml` gains an `output-mode` input. The default, `clean-tree`, keeps failing a
+run that leaves the tree changed. `patch` instead uploads what the activity changed against the
+gated head as the artifact `patch-<lane>-<activity>-<run attempt>` (one `patch.diff`) and sets the
+new `patch-state`, `patch-sha256` and `patch-attempt` outputs, beside a new `head-sha` output. An
+empty change is `patch-state` `empty` and a success check titled `Passed: no changes`
+([pr-run-activity.md](pr-run-activity.md#patch-output-mode)). `version` stays 2.
 
 ## 2.12.5 - 2026-10-18
 
