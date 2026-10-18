@@ -271,8 +271,10 @@ runs:
             # so the files a script reads beside itself come along. Each runs
             # through a wrapper that starts in the checkout, refuses an
             # argument naming a path outside it (a script may print what it
-            # reads), and keeps git from loading system, global or hook and
-            # fsmonitor programs.
+            # reads), unsets GH_TOKEN and GITHUB_TOKEN in the script's own
+            # environment (an ancestor's /proc/<pid>/environ still holds
+            # them), and keeps git from loading system, global or
+            # hook and fsmonitor programs.
             mapfile -t verify < <(jq -r '.selected["verify-scripts"] // [] | .[]' "$RESOLVED")
             if ((${#verify[@]})); then
               [[ $VERIFY_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
@@ -310,6 +312,7 @@ runs:
                     '    esac' \
                     '  done' \
                     'done' \
+                    'unset GH_TOKEN GITHUB_TOKEN' \
                     'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
                     'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null' \
                     'bash "$copy" "$@"' \
