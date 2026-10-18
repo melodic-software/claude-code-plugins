@@ -3328,16 +3328,19 @@ def unattended_writes(
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")
     # A held major Dependabot update gets the same signal, so it reaches the
-    # human queue.
-    held = f"ineligible:{merge_policy.MAJOR_HELD}:"
-    if not stopped and (policy.reason or "").startswith(held):
+    # human queue, whatever refusal tops it (an `in-flight:` one included).
+    held = f"{merge_policy.MAJOR_HELD}:"
+    eligibility = str(
+        json_object((policy.details or {}).get("eligibility")).get("reason") or ""
+    )
+    if not stopped and eligibility.startswith(held):
         head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
         try:
             report["majorEscalation"] = escalate(
                 repo,
                 number,
                 identity,
-                major_escalation_body(policy.reason.removeprefix(held), head),
+                major_escalation_body(eligibility.removeprefix(held), head),
                 MAJOR_ESCALATION_MARKER,
                 inputs,
             )

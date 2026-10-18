@@ -2285,6 +2285,9 @@ class DependabotMajorEscalation(unittest.TestCase):
         stack.enter_context(
             mock.patch.object(postmerge, "identity_queue", return_value=([], 0))
         )
+        stack.enter_context(
+            mock.patch.object(postmerge, "dequeue_identity_entries", return_value=0)
+        )
         self.role = stack.enter_context(
             mock.patch.object(
                 merge, "human_gated_label", return_value="status: needs-decision"
@@ -2297,7 +2300,7 @@ class DependabotMajorEscalation(unittest.TestCase):
 
         stack.enter_context(mock.patch.object(merge, "gh_capture", capture))
 
-    def writes(self, reason: str) -> dict[str, Any]:
+    def writes(self, reason: str, eligibility: str | None = None) -> dict[str, Any]:
         inputs = {
             "identity": "agent-lanes[bot]",
             "branch": "main",
@@ -2307,7 +2310,17 @@ class DependabotMajorEscalation(unittest.TestCase):
         return merge.unattended_writes(
             self.REPO,
             self.PR,
-            policy.UnattendedPolicy(reason, "agent-lanes[bot]", {}, inputs=inputs),
+            policy.UnattendedPolicy(
+                reason,
+                "agent-lanes[bot]",
+                {
+                    "eligibility": {
+                        "eligible": False,
+                        "reason": eligibility or reason.removeprefix("ineligible:"),
+                    }
+                },
+                inputs=inputs,
+            ),
         )
 
     def test_a_held_major_is_labeled_with_the_role_label_once(self) -> None:
@@ -2353,10 +2366,42 @@ class DependabotMajorEscalation(unittest.TestCase):
             out["majorEscalation"], {"label": "present", "comment": "unchanged"}
         )
 
+    def test_a_held_major_under_an_earlier_refusal_escalates_once(self) -> None:
+        out = self.writes("in-flight:queue-full", "dependabot-major-held:x")
+        comment, label = self.calls
+        self.assertIn("`x`", comment[-1])
+        self.assertEqual(label[-1], "labels[]=status: needs-decision")
+        self.assertEqual(
+            out["majorEscalation"], {"label": "added", "comment": "created"}
+        )
+        # The next run finds both and writes nothing.
+        self.calls.clear()
+        self.pr_labels = [{"name": "status: needs-decision"}]
+        self.comments = [
+            {
+                "id": 91,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": comment[-1].removeprefix("body="),
+            }
+        ]
+        out = self.writes("in-flight:queue-full", "dependabot-major-held:x")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "unchanged"}
+        )
+
     def test_other_refusals_are_not_escalated(self) -> None:
-        for reason in ("ineligible:dependabot-review:major:x", "ci-status:pending"):
+        for reason in (
+            "ineligible:dependabot-review:major:x",
+            "ci-status:pending",
+            "kill-switch:off",
+        ):
             with self.subTest(reason):
-                out = self.writes(reason)
+                out = self.writes(
+                    reason,
+                    "dependabot-major-held:x" if reason.startswith("kill") else None,
+                )
                 self.assertEqual(self.calls, [])
                 self.assertNotIn("majorEscalation", out)
 
