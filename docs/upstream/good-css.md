@@ -40,7 +40,7 @@ drift, 1 drift (it names each changed file and prints the compare URL), and 2 un
 auth or rate limit). The pinned SHAs live in one array at the top of the script. The
 `user-interface:write-css` row of
 [`.github/workflows/maintenance-check-upstream-drift.yml`](../../.github/workflows/maintenance-check-upstream-drift.yml)
-runs it weekly with `drift: "exit:1"` and `unverifiable: "exit:2"`. Its exit-code contract is
+runs it weekly under the exit-code contract every row shares. Its exit-code contract is
 tested by `plugins/user-interface/tests/check-good-css-drift.test.sh`.
 
 ## Adaptation posture
