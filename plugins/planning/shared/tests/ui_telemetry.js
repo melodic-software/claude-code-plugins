@@ -153,6 +153,24 @@ async function main() {
     await phone.waitForTimeout(3000);
     const anomalies = () => parsed(pw320.bodies).filter(b => b.kind === "layout" && /^anomaly=/.test(b.message || ""));
     ok("the page itself fits 320 px: no layout anomaly", anomalies().length === 0, anomalies().map(b => b.message).join(" | "));
+    // The chat button's bump (a 500 ms spring that scales it to 1.2 at 90 ms) passes the screen's edge mid-way: restarted
+    // every 90 ms for 3 s it stays past it, so the page's own check, due 800 ms to 2 s after a tap, lands in it and
+    // must wait it out.
+    const mid = await phone.evaluate(async () => {
+      const fab = document.querySelector(".vf-fab"), app = document.getElementById("app");
+      document.dispatchEvent(new Event("click", { bubbles: true }));
+      let widest = 0;
+      for (const end = performance.now() + 3000; performance.now() < end;) {
+        fab.classList.remove("vf-bump"); void fab.offsetWidth; fab.classList.add("vf-bump");
+        await new Promise(r => setTimeout(r, 45));
+        widest = Math.max(widest, app.scrollWidth);
+        await new Promise(r => setTimeout(r, 45));
+      }
+      return widest;
+    });
+    await phone.waitForTimeout(3000); // the check the bumps held off runs once they end
+    ok("the chat button's bump, which reaches past 320 px mid-way, logs no layout anomaly", mid > 320 && anomalies().length === 0,
+      `widest ${mid}; ${anomalies().map(b => b.message).join(" | ")}`);
     const pane = await phone.evaluate(() => {
       const c = [...document.querySelectorAll("#app *")].find(e => e.offsetParent && /auto|scroll/.test(getComputedStyle(e).overflowY) && e.clientWidth > 200);
       if (!c) return "";

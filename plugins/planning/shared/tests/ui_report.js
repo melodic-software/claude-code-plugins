@@ -81,7 +81,9 @@ async function main() {
     await pia.locator("#vf-rep-ta").tap();
     await pia.evaluate(() => window.__kb(true));
     ok("the keyboard comes up", await until(pia, () => "kb" in document.documentElement.dataset));
-    await pia.waitForTimeout(150);
+    // Measured settled: finite animations done, then two frames.
+    await pia.evaluate(() => Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => null)))
+      .then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
     const fit = await pia.evaluate(() => {
       const vv = visualViewport, sheet = document.querySelector(".vf-reportpop"), out = [];
       for (const sel of ["#vf-rep-ta", ".vf-reportpop button[type=submit]", ".vf-reportpop .vf-asklabel"]) {
@@ -143,7 +145,7 @@ async function main() {
     await bo.locator("#vf-prop-ta").fill("Ask about delivery");
     await bo.locator(".vf-proposepop button[type=submit]").click();
     ok("a refused action's toast offers Report this", await until(bo, () => document.querySelector(".vf-toast .vf-toast-act:not([hidden])")?.textContent === "Report this"));
-    await bo.waitForTimeout(400); // the page's own error entry for the refusal lands
+    await until(bo, () => window.Core.reportContext().errors.some(e => /HTTP 403/.test(e))); // the page's own error entry for the refusal lands
     await bo.locator(".vf-toast-act").click();
     ok("  which opens the form", await until(bo, () => !!document.querySelector(".vf-reportpop:not([hidden])")));
     const errs = await bo.locator(".vf-reportpop .vf-rep-sent li", { hasText: "Recent errors:" }).textContent();

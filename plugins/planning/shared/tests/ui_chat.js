@@ -43,6 +43,18 @@ const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null } = {})
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   return pan;
 }, [up, kb, stale, setPan]);
+/** Two frames: a scroll set from script has fired its scroll event by then. */
+const frames = page => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+/** The chat list at rest: its scrollTop unchanged through 250 ms of frames (5 s at most). */
+const atRest = page => page.evaluate(() => new Promise(res => {
+  const sc = document.querySelector(".vf-mscroll"), t0 = performance.now();
+  let last = sc.scrollTop, since = t0;
+  const f = now => {
+    if (sc.scrollTop !== last) { last = sc.scrollTop; since = now; }
+    if (now - since >= 250 || now - t0 > 5000) res(); else requestAnimationFrame(f);
+  };
+  requestAnimationFrame(f);
+}));
 
 async function main() {
   const pw = loadPlaywright();
@@ -81,7 +93,7 @@ async function main() {
     for (let i = 0; i < 12; i++) await gus.evaluate(x => window.Core.chat(x), `Filler ${i} ${"so the chat scrolls ".repeat(3)}`);
     await until(owner, () => document.querySelectorAll(".vf-mlist .vf-msg").length >= 16);
     await owner.evaluate(() => { document.querySelector(".vf-mscroll").scrollTop = 0; });
-    await owner.waitForTimeout(300);
+    await frames(owner);
     for (const t of ["New A", "New B", "New C"]) await gus.evaluate(x => window.Core.chat(x), t);
     ok("scrolled up, the chat shows a \"3 new messages\" pill and stays where the reader is", await until(owner, () => {
       const p = document.querySelector(".vf-mnew");
@@ -123,7 +135,8 @@ async function main() {
     const tcdp = await pia.context().newCDPSession(pia);
     const pt = [{ x: Math.round(bb.x + bb.width / 2), y: Math.round(bb.y + bb.height / 2) }];
     await tcdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt });
-    await pia.waitForTimeout(700);
+    // Held until the menu opens, as a person holds: the page opens it 500 ms in, later on a busy machine.
+    await until(pia, () => { const m = document.querySelector(".vf-msgmenu"); return !!m && !m.hidden; });
     await tcdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     const reactItem = pia.locator(".vf-msgmenu [role=menuitem]", { hasText: /React$/ });
     ok("at 390x844 a long-press opens the message menu with React", await until(pia, () => { const m = document.querySelector(".vf-msgmenu"); return !m.hidden && [...m.querySelectorAll("[role=menuitem]")].some(b => !b.hidden && /React$/.test(b.textContent)); }));
@@ -161,7 +174,7 @@ async function main() {
     await gus.evaluate(() => window.Core.chat("Arrived with the keyboard up"));
     ok("390x844, keyboard up: a message that arrives shows whole above the field", await newest("Arrived with the keyboard up"), await where());
     await kia.evaluate(() => { document.querySelector(".vf-mscroll").scrollTop = 0; });
-    await kia.waitForTimeout(300);
+    await frames(kia);
     await gus.evaluate(() => window.Core.chat("Arrived while scrolled up"));
     ok("390x844, keyboard up, scrolled up: a new message shows the \"1 new message\" pill instead of a jump", await until(kia, () => {
       const p = document.querySelector(".vf-mnew");
@@ -200,12 +213,12 @@ async function main() {
       const what = kbUp ? `keyboard up, pan ${pan}` : "keyboard down";
       if (kbUp) { await sia.locator(".vf-minput").tap(); await keyboard(sia, true, { pan }); }
       await sia.evaluate(() => { const sc = document.querySelector(".vf-mscroll"); sc.scrollTop = sc.scrollHeight; });
-      await sia.waitForTimeout(200);
+      await frames(sia);
       const [x, y, st0] = await sia.evaluate(() => { const sc = document.querySelector(".vf-mscroll"), r = sc.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, sc.scrollTop]; });
       await scdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: y - 150 }] });
       for (let i = 1; i <= 15; i++) { await scdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - 150 + i * 20 }] }); await sia.waitForTimeout(16); }
       await scdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-      await sia.waitForTimeout(800); // the fling after the drag comes to rest
+      await atRest(sia); // the fling after the drag comes to rest
       const st1 = await sia.evaluate(() => document.querySelector(".vf-mscroll").scrollTop);
       // iOS keeps firing visualViewport scroll and resize while a page is touched; the list must stay where it was put.
       await sia.evaluate(async () => { for (let i = 0; i < 10; i++) { visualViewport.dispatchEvent(new Event("scroll")); visualViewport.dispatchEvent(new Event("resize")); await new Promise(r => setTimeout(r, 100)); } });
