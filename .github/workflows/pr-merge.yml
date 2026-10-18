@@ -272,6 +272,25 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           superseded-ok: true
 
+      # Measures the lane token's spend: this reading and the one before the
+      # revoke bracket the run. GET /rate_limit does not count against the
+      # REST limit. The installation's bucket is shared by every job using the
+      # lanes App, so the difference includes their calls. Never fails the job.
+      - name: Log the lane token rate limit at mint
+        id: rate-start
+        if: steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: |
+          r=$(gh api rate_limit)
+          line=$(jq -r '"mint core remaining=\(.resources.core.remaining) used=\(.resources.core.used) limit=\(.resources.core.limit) reset=\(.resources.core.reset | todate)"
+            + (if .resources.graphql then " graphql remaining=\(.resources.graphql.remaining)" else "" end)' <<<"$r")
+          echo "::notice title=lane-app-rate::$line"
+          echo "lane-app-rate: $line" >>"$GITHUB_STEP_SUMMARY"
+          jq -r '"used=\(.resources.core.used)\nreset=\(.resources.core.reset)"' <<<"$r" >>"$GITHUB_OUTPUT"
+
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) opened, plus Dependabot's unless
       # merge.dependabot.mode is off. This is only a shortlist; the gate checks
@@ -477,6 +496,24 @@ jobs:
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/refire-refused.mjs
+
+      - name: Log the lane token rate limit at job end
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          START_USED: ${{ steps.rate-start.outputs.used }}
+          START_RESET: ${{ steps.rate-start.outputs.reset }}
+        run: |
+          r=$(gh api rate_limit)
+          line=$(jq -r --arg s "$START_USED" --arg sr "$START_RESET" '"end core remaining=\(.resources.core.remaining) used=\(.resources.core.used) limit=\(.resources.core.limit) reset=\(.resources.core.reset | todate)"
+            + (if .resources.graphql then " graphql remaining=\(.resources.graphql.remaining)" else "" end)
+            + (if $s == "" then ""
+               elif ($sr | tostring) != (.resources.core.reset | tostring) then " used-since-mint=window-rolled"
+               else " used-since-mint=\(.resources.core.used - ($s | tonumber))" end)' <<<"$r")
+          echo "::notice title=lane-app-rate::$line"
+          echo "lane-app-rate: $line" >>"$GITHUB_STEP_SUMMARY"
 
       # The token is cancelled as soon as the job is done; it would otherwise
       # expire within the hour. This never fails the job.
