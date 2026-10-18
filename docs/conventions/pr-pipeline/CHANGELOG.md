@@ -30,7 +30,7 @@ new `patch-state`, `patch-sha256` and `patch-attempt` outputs, beside a new `hea
 empty change is `patch-state` `empty` and a success check titled `Passed: no changes`
 ([pr-run-activity.md](pr-run-activity.md#patch-output-mode)). `version` stays 2.
 
-## 2.12.2 - 2026-10-18
+## 2.12.3 - 2026-10-18
 
 `pr-run-activity-read.yml` takes a `dispatcher-run-id` input and passes it to its trigger gate with
 `dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml` and
@@ -38,6 +38,18 @@ empty change is `patch-state` `empty` and a success check titled `Passed: no cha
 `pr-unblock-dispatch.yml` sent to `pr-unblock.yml` runs; any other `github-actions[bot]` dispatch
 still stops with `untrusted-actor`. With the id set, the skill step also admits `github-actions` in
 `allowed_bots`. No caller passes it yet. `version` stays 2.
+
+## 2.12.2 - 2026-10-18
+
+On a pull request labeled `needs-human` (the human-gated role label), `pr-unblock`
+`address-feedback` works a thread when a person on the trusted-actor list with write or admin
+permission asks for the fix: a line of their reply after the lane's escalation starts with
+`PR-fix lane: please fix this finding`, in any case, outside a fenced block. Without one the
+dispatcher starts nothing and the select step skips `awaiting-human`, so the pull request stays
+held; with one the write runner lifts only the human-gated hold for that run
+([pr-run-activity.md](pr-run-activity.md#prepare-review-threads)). Its `labels-absent` is
+`[do-not-merge]`, `do-not-merge` still stops it, every other activity still waits on
+`needs-human`, and `pr-merge` still refuses a `needs-human` pull request. `version` stays 2.
 
 ## 2.12.1 - 2026-10-18
 

@@ -130,9 +130,10 @@ on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-host
 the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
 `activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
 this repository, exactly one open non-draft PR into `main` has its head, the lanes App opened that
-PR, it carries neither `do-not-merge` nor `needs-human`, both lanes' newest reviewed-head markers
+PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
-reviewer bot, or answered by a trusted human after the lane escalated it), the head has no
+reviewer bot, or answered by a trusted human after the lane escalated it; on a PR carrying the
+human-gated label, only one whose answer is a fix request, below), the head has no
 `pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
@@ -142,6 +143,15 @@ id>`, which the gate and the broker read to tie the run to a review of the PR's 
 In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is followed by
 `publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the
 model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
+
+On a PR carrying the human-gated role label (`needs-human` unless the base's
+`.work-item-tracker.json` names another), `address-feedback` works a thread only when a reply
+after the lane's escalation, by a person on the trusted-actor list who holds write or admin
+permission on the repository, has a line that starts with `PR-fix lane: please fix this finding`,
+in any letter case, outside a fenced code block (a quoted `>` line never matches). Without such a
+thread the dispatcher starts nothing and the select step skips with `awaiting-human`, so the PR
+stays held; with one, the write runner lifts only the human-gated hold for that run, and
+`do-not-merge` still stops it. `pr-merge` refuses the PR either way.
 
 `pr-unblock`'s `review-dependency` dispatches come from the same `pr-unblock-dispatch.yml` run,
 so the gate and the broker check them as they check a conflict dispatch. After the conflict

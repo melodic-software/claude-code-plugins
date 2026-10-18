@@ -441,7 +441,8 @@ still at the gated SHA, and deletes the lane branch either way. When the PR bran
 lane's commits are dropped and the activity fails; a later run (a reopen or a dispatch) gates the
 new head and redoes the activity. Right before the move it
 re-reads the PR's labels and draft flag with the job's `GITHUB_TOKEN`, then reads the PR branch's
-tip last: `do-not-merge`, the base's human-gated role label, a label in the activity's
+tip last: `do-not-merge`, the base's human-gated role label (left out only when the
+[review-threads](#prepare-review-threads) select step reported a write-access fix request), a label in the activity's
 `labels-absent` list (both read from the base before the head checkout) or a draft drops the lane's
 commits and skips `awaiting-human`, and a read that fails or a second page of labels moves nothing
 and fails the step. A raw `git push` from the
@@ -644,7 +645,12 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    comment must be the reviewer bot's, the lanes App's or such a human's, or the thread is left
    alone. The thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and
    marks the replies after the escalation `direction: true`, which the skill follows within the
-   same path rules. No kept thread skips `not-applicable`. A PR diff touching
+   same path rules. On a PR carrying the base's human-gated role label it keeps a thread only when
+   one of those replies is a fix request (a line starting `PR-fix lane: please fix this finding`,
+   any case, outside a fenced block) by a listed human whose permission on the repository reads
+   `write` or `admin` (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), and
+   reports `fix-requested=true`, which lifts only the human-gated hold for the run. No kept thread
+   skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
    `.github/**` escalates `feedback-protected-path`, and two earlier rounds escalate
    `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR commits
    carrying a `github-actions` `pr-unblock / address-feedback` check run that ended `success` or
@@ -841,6 +847,12 @@ holds a write token: a base job, a read model job in this mode, and an
 3. `collect-base-activity` makes it read-only, grants `Read` on it, denies Edit and Write there,
    and grants the skill Bash, Edit, Write and Agent with the web tools denied: the job holds no
    write token, and the skill reruns the failing checks. The system prompt names the file.
+   Residual: the skill runs head code by design, so head code can reach what any step of a read
+   job can (the job's read-only token, the Actions runtime token through a process left running
+   or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
+   leaves is checked only by [`apply-patch`](#prepare-apply-patch), which refuses `.github/**`
+   alone (the owner's 2026-10-18 path-guard decision); a change elsewhere, such as
+   `.gitattributes` or a check's own script, reaches the branch and its review.
 4. The run is in [patch output mode](#patch-output-mode); its `reply-attempt` output names the
    skill's reply, whose `<check>: escalated <reason> <sentence>` lines are the report.
 
