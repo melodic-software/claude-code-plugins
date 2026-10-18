@@ -428,9 +428,9 @@ options tune the skills:
   `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>`. Plugin-owned, update-safe,
   never in any repo tree. `/config` shows the three values as a picker; a value
   set by hand outside it falls back to `repo` with a one-time advisory. The default
-  stays `repo` deliberately: the store stays in the project tree, matching
-  the observability posture that telemetry is project-local, and the exclude
-  entry removes the status noise that motivated the scope knob. (The hook log
+  stays `repo` on purpose. The store stays in the project tree, matching
+  the observability posture that telemetry is project-local, and the exclude entry removes the status noise that
+  motivated the scope knob. (The hook log
   root is a separate tree with its own self-ignoring guard; see "Wiring the
   reference sink".)
 - **`skill_usage_git_exclude`** (boolean, default `true`). Repo scope only:
