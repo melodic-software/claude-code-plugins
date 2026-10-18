@@ -101,7 +101,9 @@ jobs:
     # wait in line (`queue: max`) instead of being dropped. Without it GitHub
     # keeps only one waiting run and cancels the rest, which leaves CANCELLED
     # `merge` checks on PRs and makes the merge hook refuse them. Waiting is
-    # harmless because every run re-reads every PR from the API. GitHub caps
+    # harmless because every run re-reads every PR from the API, and a run
+    # with a pending successor that does its work skips the gate (the
+    # superseded step). GitHub caps
     # the waiting line at 100 runs and rejects the rest, so the triggers above
     # must start runs more slowly than they finish.
     concurrency:
@@ -188,11 +190,27 @@ jobs:
             echo "proceed=false" >>"$GITHUB_OUTPUT"
           fi
 
+      # A run still pending in the concurrency group below starts after this
+      # one. When one is pending that checks every candidate and does every
+      # follow-up this run would, this run ends green here with a notice,
+      # before it takes the lane token, so a backlog costs one sweep and no
+      # run is cancelled. Any error leaves superseded unset and the gate runs.
+      # Rules: .github/scripts/pr-merge/superseded.mjs.
+      - name: Check for a newer run that does this work
+        id: superseded
+        if: steps.who.outputs.proceed == 'true'
+        continue-on-error: true
+        env:
+          # The lane token holds no Actions permission.
+          ACTIONS_TOKEN: ${{ github.token }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: node .base/.github/scripts/pr-merge/superseded.mjs
+
       # Reads the lane's rules from main and works out which token
       # permissions its `merge-pr` activity gets.
       - name: Resolve the config
         id: config
-        if: steps.who.outputs.proceed == 'true'
+        if: steps.who.outputs.proceed == 'true' && steps.superseded.outputs.superseded != 'true'
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: pr-merge
