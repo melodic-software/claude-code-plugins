@@ -6,9 +6,6 @@ allowed-tools:
   - "Bash(sh ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh check:*)"
   - "Bash(sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" check:*)"
   - "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" check:*)"
-metadata:
-  workflow-stage: anytime
-  summary: Report whether the tools the knowledge plugin declares resolve. Never installs.
 ---
 
 ## Purpose
