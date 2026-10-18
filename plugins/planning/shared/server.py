@@ -72,6 +72,7 @@ STATIC = {
     "/core.css": ("core.css", "text/css"),
     "/app.css": ("app.css", "text/css"),
     "/proto.js": ("proto.js", "text/javascript"),
+    "/web-vitals.attribution.iife.js": ("web-vitals.attribution.iife.js", "text/javascript"),  # vendored, unedited (web/web-vitals.LICENSE)
 }
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 ASSET_CSP = "sandbox"

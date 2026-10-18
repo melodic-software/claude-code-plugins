@@ -251,6 +251,15 @@ class TestHeadersAndCaps(ServerCase):
                 code, _, out = self.get(path)
                 self.assertEqual((code, out["error"]), (404, "not-found"))
 
+    def test_web_vitals_is_served_unedited_beside_its_license(self):
+        """The vendored web-vitals 6.2.3 attribution build: the bytes of dist/web-vitals.attribution.iife.js in the npm
+        tarball (sha256 taken from that tarball), served from this origin; its Apache-2.0 license sits beside it."""
+        code, h, body = self.get("/web-vitals.attribution.iife.js")
+        self.assertEqual((code, h["Content-Type"]), (200, "text/javascript; charset=utf-8"))
+        self.assertEqual(hashlib.sha256(body).hexdigest(), "42d0cfd64b5cf19408e19c0393ce59eef6cc09317e94faaca6d3a032d4112e48")
+        self.assertIn("Apache License", (server.WEB / "web-vitals.LICENSE").read_text(encoding="utf-8")[:200])
+        self.assertEqual(self.get("/web-vitals.LICENSE")[0], 404)
+
     def test_assets_are_sandboxed_and_inline(self):
         (self.d / "assets").mkdir()
         (self.d / "assets" / "0123456789abcdef.png").write_bytes(PNG)
