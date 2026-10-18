@@ -135,21 +135,31 @@ done
 
 ## Check the head's lanes after the flip
 
-Take `FLIP_TIME` (UTC, `date -u +%Y-%m-%dT%H:%M:%SZ`) right before the flip, and subtract 60
-seconds from it to absorb clock skew between this host and GitHub's `created_at`; an older run of
-the same head cannot match, since the wait above already let it register. After the flip, poll the
-listing for up to 180 seconds for a run created at or after `FLIP_TIME`, the `ready_for_review`
-run. Once every such run has completed, a `skipped` conclusion among them means the lanes skipped
-on a stale draft payload; no run created at or after `FLIP_TIME` by the end of the wait is also a
-skip, since the flip's run never registered:
+Anchor the window to the flip by run id, not by clock: run ids only grow, so no clock skew between
+this host and GitHub enters, and a run the wait above let register before the flip can never match.
+Right before the flip, take `BASE_ID`, the highest run id the listing returns for the head (`0` when
+it returns none). After the flip, poll the listing for up to 180 seconds for a run with an id above
+`BASE_ID`, the `ready_for_review` run. Once every such run has completed, a `skipped` conclusion
+among them means the lanes skipped on a stale draft payload; no run above `BASE_ID` by the end of
+the wait is also a skip, since the flip's run never registered. A run that skips for its own reason
+(a label, actor or path filter) reads the same, so it costs one undo and ready cycle and a second
+skip report, never a loop:
 
 ```bash
-RUNS=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
-  -f per_page=100 | jq -c --arg t "$FLIP_TIME" '[.workflow_runs[] | select(.created_at >= $t)]')
+BASE_ID=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
+  -f per_page=100 --jq '[.workflow_runs[].id] | max // 0')
+# ... flip ...
+for _ in $(seq 1 18); do
+  RUNS=$(gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$HEAD_SHA" -f event=pull_request \
+    -f per_page=100 | jq -c --argjson b "$BASE_ID" '[.workflow_runs[] | select(.id > $b)]')
+  [ "$(jq 'length > 0 and all(.status == "completed")' <<<"$RUNS")" = true ] && break
+  sleep 10
+done
+SKIPPED=$(jq 'length == 0 or any(.conclusion == "skipped")' <<<"$RUNS")
 ```
 
 Re-fire the ready event once with `gh pr ready "$PR_NUMBER" --undo && gh pr ready "$PR_NUMBER"`,
-then run this check one more time against a new `FLIP_TIME`. A second skip is reported, never
+then run this check one more time with a new `BASE_ID` taken right before the re-fire. A second skip is reported, never
 re-fired. In a cloud session `--undo` is a GraphQL mutation like the flip and fails, and the routes
 below cover the flip only: skip the re-fire there and report the skip. If the undo succeeds and the
 second `ready` fails, flip again by the route that works and report it; the PR must not stay a
