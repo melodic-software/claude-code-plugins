@@ -31,7 +31,8 @@ dispatch, PR or babysit step. It works in place:
    choice, and when the decision says the issue stays open (keep `Refs`), set `"link": "refs"` in
    step 5. When two decisions answer the same question, the later `decided_at` wins. No other
    comment settles a question. Push back only on a question no such decision answers.
-3. Otherwise make the change in the checkout, following the repository's own rules for the files
+3. Otherwise, when the issue's counted brief has a Root cause field reading `unknown`, run the
+   root-cause gate (Step 3b below) first. Make the change in the checkout, following the repository's own rules for the files
    you touch and its release record for each plugin you change. Write an external fact (a
    documented default, limit or behavior) only after reading it in the source you cite during
    this run; the issue's quote of a page is not that source. Read a web source through a research
@@ -237,6 +238,18 @@ executed (a concurrent invoker relies on this to avoid two slots colliding on th
 candidate; the seam claim still arbitrates any true race). Record the auto-confirmation in the
 item's claim comment instead of the transcript prompt. Every later step is unchanged, the seam claim in Step 5
 remains the atomic acquisition point, attended or not.
+
+### Step 3b: Root-cause gate (bugs)
+
+Runs once Step 5's claim is held and before the implementation dispatch, so an unclaimed or stale
+item is never diagnosed. Read the **Root cause** field of the counted Agent Brief
+([`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)
+"Whose brief counts"). When it reads `unknown`, run diagnosis before the item is implemented:
+`/debugging:debug`, or `/testing:diagnose` when the symptom is a failing test. Carry the diagnosed
+cause into the dispatch brief as the cause the fix addresses, quoted as data, then continue to the
+fix. When the diagnosis cannot name a cause, do not implement a guess: in CI mode exit `stopped`
+with the reason, otherwise escalate the item to the human queue (`/work-items:attend-queue`). When the field names the cause, or the brief has no Root cause field (or no counted brief),
+skip this gate and go straight to the fix as before.
 
 ### Step 4: Staleness pre-check
 
