@@ -1425,7 +1425,7 @@ def lane_eligibility(
     touching no `merge.diff-check.denied-paths`. Such a pull request is
     class `LANE_CLASS`; no `work-class:` label is read.
     `pr` is the REST record, whose `changed_files` the file listing must
-    reach. Holds (the `do-not-merge` label, a `Hold:` line) are the gate's.
+    reach. Holds (a hold label, a `Hold:` line) are the gate's.
     `self_logins` and `permission` are unused: no human read remains."""
     owner, name = _split_repo(repo)
     issue_number = None
@@ -1622,7 +1622,7 @@ def dependabot_eligibility(
     the head; and no human blocking comment. A running `ci-status` waits. The
     class is C2 (mechanical), so the rung and its cap still bind it. No
     closing issue and no denied-path rule: `ci-status` is the gate. The
-    `do-not-merge` label and a body hold are the gate's, as for every pull
+    hold labels and a body hold are the gate's, as for every pull
     request."""
     owner, name = _split_repo(repo)
     head = str(json_object(pr.get("head")).get("sha") or "")
@@ -2075,10 +2075,15 @@ def entry_hold(
     permission: Permission | None = None,
 ) -> str | None:
     """Why a queued entry of the agent identity must leave the queue (D3): the
-    `do-not-merge` label, a body hold, a human blocking comment, or the opt-in
+    `do-not-merge` or human-gated label, a body hold, a human blocking comment, or the opt-in
     label removed since the enqueue or put back by a non-human. An unreadable
     entry is a hold."""
-    from babysit_merge import BODY_MERGE_HOLD_RE, MERGE_HOLD_LABEL  # noqa: PLC0415
+    from babysit_merge import (  # noqa: PLC0415
+        BODY_MERGE_HOLD_RE,
+        human_gated_label,
+        merge_hold_label,
+    )
+    from babysit_postmerge import PostMergeReadError  # noqa: PLC0415
 
     owner, name = _split_repo(repo)
     permission = permission or permission_reader(repo)
@@ -2096,8 +2101,9 @@ def entry_hold(
         events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
         if labels is None or not events:
             return "unreadable"
-        if any(label.casefold() == MERGE_HOLD_LABEL for label in labels):
-            return MERGE_HOLD_LABEL
+        # Only unattended runs judge queued entries.
+        if held_by := merge_hold_label(labels, human_gated=human_gated_label(repo)):
+            return held_by
         if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
             return "body-hold"
         blockers = _human_blockers(owner, name, number, identity)
@@ -2108,7 +2114,7 @@ def entry_hold(
         )
         if opt_in:
             return opt_in
-    except PolicyReadError as exc:
+    except (PolicyReadError, PostMergeReadError) as exc:
         return f"unreadable: {exc}"
     return None
 
