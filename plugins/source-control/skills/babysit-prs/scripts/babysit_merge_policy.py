@@ -2693,7 +2693,9 @@ def shared_refusal(
     or changed since (`_demotion_changed`), and judge every merge the
     post-merge check would judge now. The binding comes before the age, so a
     candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and does not
-    replace the run's answer.
+    replace the run's answer. The floor is compared under the shared answer's
+    demotion, which may be out of date; that changes only the reason and the
+    write-back, since any refusal reads afresh.
 
     The check judges `branch` from the floor, never the base, so the answer
     holds for any base with that floor. A newer default-branch head changes
