@@ -2958,7 +2958,15 @@ class SharedPostMergeAnswer(unittest.TestCase):
         gh = self.readable()
         gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
         gh.rest[NEWEST_CONFIG] = [{"sha": CONFIG_SHA}]
+        self.computed_at = policy.datetime.now(policy.UTC)
+        gh.rest[self.issues_since()] = []
         return gh
+
+    def issues_since(self) -> str:
+        """The demotion re-read: issues updated since the answer, to the
+        second GitHub's `since` takes."""
+        since = self.computed_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return f"repos/{REPO}/issues?state=all&since={since}&per_page=100"
 
     def shared(self, gate_: policy.PostMergeGate, **overrides: Any) -> Any:
         fields: dict[str, Any] = {
@@ -2967,7 +2975,7 @@ class SharedPostMergeAnswer(unittest.TestCase):
             "identity": IDENTITY,
             "self_logins": frozenset(),
             "lane_merges_only": True,
-            "computed_at": policy.datetime.now(policy.UTC),
+            "computed_at": self.computed_at,
             "demotion": policy.Demotion(False, None, ()),
             "floor": policy.datetime.fromisoformat(ENABLED_AT),
             "gate": gate_,
@@ -3075,6 +3083,63 @@ class SharedPostMergeAnswer(unittest.TestCase):
             reused = self.lane_assess(post_merge=never, shared=self.shared(answer))
         self.assertEqual(reused.details["postMergeShared"], "used")
         self.assertEqual(self.decided(reused), self.decided(fresh))
+
+    def test_a_demotion_record_filed_since_the_answer_is_not_missed(self) -> None:
+        # The answer says not demoted; a record opened after it, an edit or
+        # close of a known record, or an unreadable re-read sends the pull
+        # request to its own demotion read.
+        record = {
+            "number": 90,
+            "user": {"login": "github-actions[bot]"},
+            "body": DEMOTION_BODY,
+            "state": "open",
+        }
+        known = {"number": 12, "user": {"login": OPERATOR}, "state": "closed"}
+        for issues, records in (([record], ()), ([known], (12,)), (502, ())):
+            with self.subTest(issues=issues):
+                gh = self.bound()
+                gh.rest[self.issues_since()] = issues
+                self.flight()
+                reads = mock.Mock(wraps=policy.read_demotion)
+                seen: list[Any] = []
+                with mock.patch.object(policy, "read_demotion", reads):
+                    result = self.lane_assess(
+                        post_merge=lambda floor, who: seen.append(floor) or gate(),
+                        shared=self.shared(
+                            gate("failure:canary#1"),
+                            demotion=policy.Demotion(False, None, records),
+                        ),
+                    )
+                self.assertEqual(
+                    result.details["postMergeShared"], "unused:demotion-changed"
+                )
+                reads.assert_called_once()
+                self.assertEqual(seen, [policy.datetime.fromisoformat(ENABLED_AT)])
+
+    def test_an_unrelated_issue_or_a_pull_request_leaves_the_answer_bound(
+        self,
+    ) -> None:
+        gh = self.bound()
+        gh.rest[self.issues_since()] = [
+            {"number": 91, "user": {"login": OPERATOR}, "state": "open"},
+            {"number": 92, "user": {"login": IDENTITY}, "pull_request": {}},
+        ]
+        self.flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        result = self.lane_assess(post_merge=never, shared=self.shared(gate()))
+        self.assertEqual(result.details["postMergeShared"], "used")
+
+    def test_a_demoted_answer_needs_no_re_read(self) -> None:
+        # Already demoted, the answer is the conservative one.
+        gh = self.bound()
+        del gh.rest[self.issues_since()]
+        self.flight()
+        demoted = policy.Demotion(True, "#5 open", (5,))
+        result = self.lane_assess(
+            post_merge=mock.Mock(side_effect=AssertionError("read fresh")),
+            shared=self.shared(gate(), demotion=demoted),
+        )
+        self.assertEqual(result.details["postMergeShared"], "used")
 
     def test_an_unbound_answer_is_not_used(self) -> None:
         late = policy.datetime.now(policy.UTC) - policy.timedelta(minutes=31)

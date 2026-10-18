@@ -2585,6 +2585,31 @@ def newest_config_commit(repo: str, sha: str) -> str:
     return newest
 
 
+def _demotion_changed(
+    owner: str, name: str, shared: SharedPostMerge, identity: str
+) -> bool:
+    """Whether anything `read_demotion` reads may differ from the shared
+    answer, in one REST call: an issue updated since the answer was computed
+    (which precedes its demotion read) that a record filer opened, or that is
+    a known record. Creating, editing, closing or reopening an issue updates
+    it, so no new or changed record escapes. A full page or an unreadable
+    one counts as changed."""
+    since = shared.computed_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    status, issues = _get(
+        f"repos/{owner}/{name}/issues?state=all&since={since}&per_page=100"
+    )
+    if status != 200 or not is_json_array(issues) or len(issues) >= 100:
+        return True
+    filers = {_login_key(DEMOTION_FILER), _login_key(identity)}
+    for issue in map(json_object, issues):
+        if "pull_request" in issue:
+            continue
+        author = _login_key(json_object(issue.get("user")).get("login"))
+        if author in filers or issue.get("number") in shared.demotion.records:
+            return True
+    return False
+
+
 def shared_refusal(
     repo: str,
     shared: SharedPostMerge,
@@ -2599,7 +2624,8 @@ def shared_refusal(
 ) -> str | None:
     """Why `shared` may not stand in for this pull request's own reads, or
     None: it must name the same identity, self logins and lane, be no older
-    than `SHARED_MAX_AGE`, give this base the floor its own read would
+    than `SHARED_MAX_AGE`, have no demotion record filed or changed since
+    (`_demotion_changed`), give this base the floor its own read would
     (`merged_since_floor` with the shared demotion), and judge every merge
     the post-merge check would judge now.
 
@@ -2625,6 +2651,8 @@ def shared_refusal(
     refusal = next((text for refused, text in checks if refused), None)
     if refusal:
         return refusal
+    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
+        return "demotion-changed"
     try:
         # The same newest config commit is the same floor; any other base
         # walks its own config history to the floor it would read.
