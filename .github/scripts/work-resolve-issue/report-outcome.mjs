@@ -53,9 +53,12 @@
 //                       (runner-written issue, branch and tip; model output)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
 //   RESOLVED_CONFIG     resolve-config's output for this run (default
-//                       $RUNNER_TEMP/resolved-config.json), for the denied paths
+//                       $RUNNER_TEMP/resolved-config.json), for the denied
+//                       paths and the limits
 //   LANES_BOT_LOGIN     the lanes App bot login, the only author of an open PR
 //                       a rerun reuses (default melodic-automation-lanes[bot])
+//   TRUSTED_ACTORS      trusted-actors.json from the base, whose humans may
+//                       apply the merge: human hold
 //   TRUSTED_ACTORS_PATH --find-prior: trusted-actors.json from the default
 //                       branch tip, whose humans' closing PRs stop the lane
 //   GITHUB_OUTPUT       --find-prior: the step output file
@@ -64,6 +67,8 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+
+import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
 
 export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);
@@ -112,6 +117,14 @@ function prTitle(runTitle, issueTitle, issueNumber) {
 // that touches a path the merge lane refuses (merge.diff-check.denied-paths in the base
 // pr-pipeline.yaml), so the two lists cannot drift apart.
 const HOLD_CLASSES = new Set(["work-class: structural", "work-class: untrusted-provenance"]);
+// An owner decision that a person merges the issue's PR. It holds only when the
+// lane's labeler check passes: the newest `labeled` event is a listed human's
+// (by id) or the lanes App's, so no one else can add the hold or stand in for it.
+export const HUMAN_MERGE_LABEL = "merge: human";
+export function trustedLabeler(events, label, { bot, humans }) {
+  const last = events.filter((event) => event?.event === "labeled" && event.label?.name === label).at(-1);
+  return last !== undefined && (last.actor?.login === bot || humans.has(last.actor?.id));
+}
 const MAX_TEXT = 3000;
 const MAX_ITEMS = 20;
 const MAX_ITEM = 300;
@@ -119,20 +132,11 @@ const MAX_ITEM = 300;
 // hide a hold path.
 const COMPARE_FILES_CAP = 300;
 
-// When a limit stop names no reset time, it is taken to reset this long after
-// the run: the shortest plan limit is a five-hour session window
-// (https://support.claude.com/en/articles/11145838).
-// Hard-coded until pr-pipeline.yaml has a limits.fallback-reset leaf:
-// https://github.com/melodic-software/claude-code-plugins/issues/7764
-export const FALLBACK_RESET_MS = 5 * 3_600_000;
-const HOUR_MS = 3_600_000;
-
-// When a limit stop at `from` may restart: its stated reset (else the
-// fallback), held between one hour and seven days after the stop, so a reset
-// in the past cannot start a tight restart loop and one far off cannot park
-// the issue.
-export const clampReset = (resets, from) =>
-  Math.min(Math.max(resets ?? from + FALLBACK_RESET_MS, from + HOUR_MS), from + 7 * 24 * HOUR_MS);
+// A limit stop with no reset time is taken to reset `limits.fallback-reset`
+// hours after the run: the shortest plan limit is a five-hour session window
+// (https://support.claude.com/en/articles/11145838). work-unblock takes
+// clampReset from here.
+export { clampReset };
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
 const MARKER = /^<!-- work-resolve-issue outcome=([a-z]+)(?: resets=(\S+))?(?: run=(\d+))? -->/;
 
@@ -447,9 +451,11 @@ export function decide({
   branch,
   changedFiles,
   holdPaths = null,
+  humanMerge = false,
   humanLabel = "needs-human",
   runUrl = "",
   limit = null,
+  limits = LIMIT_DEFAULTS,
   now = Date.now(),
   runId = "",
 }) {
@@ -458,7 +464,7 @@ export function decide({
   // code the run executed can forge the record, so it must not hide a stop
   // or pushback the skill reported from the person it goes to.
   if (limit && outcome.unread) {
-    const resets = new Date(clampReset(limit.resets, now)).toISOString().replace(/\.\d+Z$/, "Z");
+    const resets = new Date(clampReset(limit.resets, now, limits)).toISOString().replace(/\.\d+Z$/, "Z");
     return limitedPlan({ issueNumber, branch, resets, runId, runUrl });
   }
   if (outcome.exit === "done" && !branch) {
@@ -491,6 +497,7 @@ export function decide({
   const refs = outcome.link === "refs";
   const hold =
     refs ||
+    humanMerge ||
     issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
     changedFiles.length >= COMPARE_FILES_CAP ||
     holdPaths === null ||
@@ -850,11 +857,21 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       );
     };
     const changedFiles = outcome?.exit === "done" && branch ? await compare() : [];
-    const holdPaths = readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json"));
+    const resolvedPath = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
+    const holdPaths = readHoldPaths(resolvedPath);
     // A reuse whose outcome cannot be read never takes the limit record: the
     // skipped run hit no limit, and a limited marker would loop restarts. Its
     // file list is only text, so a failed compare never blocks the PR.
     const issueTitle = typeof issue.title === "string" ? issue.title : "";
+    const issueLabels = (issue.labels ?? []).map((label) => label.name);
+    const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+    // A labeler that cannot be read holds the PR, like an unreadable denied-path list.
+    const humanMerge =
+      !unreported &&
+      issueLabels.includes(HUMAN_MERGE_LABEL) &&
+      (await paginate(github, `${repo}/issues/${issueNumber}/events`)
+        .then((events) => trustedLabeler(events, HUMAN_MERGE_LABEL, { bot, humans: readHumans(env.TRUSTED_ACTORS ?? "") }))
+        .catch(() => true));
     const plan = unreported
       ? reusePlan({
           issueNumber,
@@ -869,21 +886,22 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       : decide({
           outcome,
           issueNumber,
-          issueLabels: (issue.labels ?? []).map((label) => label.name),
+          issueLabels,
           issueTitle,
           branch,
           changedFiles,
           holdPaths,
+          humanMerge,
           humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
           runUrl,
           limit,
+          limits: readLimits(resolvedPath),
           now,
           runId: /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "",
         });
     if (plan.action === "limited") {
       // Once per run: a rerun of this report, however late, finds its own
       // marker in the issue's whole comment history and posts nothing.
-      const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
       const comments = await paginate(github, `${repo}/issues/${issueNumber}/comments`);
       const posted = comments.some((comment) => {
         const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
@@ -899,7 +917,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       // A rerun finds the PR it already opened. Anyone can open a PR between two branches of a public repository, so
       // only one the lanes App opened is reused; otherwise the create fails.
       const owner = env.GITHUB_REPOSITORY.split("/")[0];
-      const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
       const open = (
         await github("GET", `${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${plan.branch}`)}`)
       ).find((candidate) => candidate.user?.login === bot);

@@ -118,8 +118,8 @@ the dated measurement and says how to re-measure it). When a script can do the j
   - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
     [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
     **As of**: 2026-10-10. **Recheck trigger**: the `claude logs` or `claude attach` row changes.
-- An interactive session in a prompting mode (default or auto) accepts inbound messages. A `-p`
-  receiver needs `crossSessionInbound: accept`, and lives only as long as its turn.
+- A `-p` receiver needs `crossSessionInbound: accept`. Delivery rules and the pointer are in
+  [reference/relay.md](reference/relay.md#a-named-receiver).
 - `--bare` cuts the per-turn cost but binds no inbox socket, so a bare session cannot receive
   messages or be listed. Use it for prompts, never for a receiver.
 - Remote Control is interactive only: `-p --remote-control` does not connect. Keep it out of
@@ -134,7 +134,7 @@ the dated measurement and says how to re-measure it). When a script can do the j
   [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages),
   [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
   and [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) live. **As of**:
-  2026-10-11. **Recheck trigger**: a release note names `crossSessionInbound`, `--bare`, `--bg`,
+  2026-10-18 for the two cross-session sections; 2026-10-11 for the CLI flags. **Recheck trigger**: a release note names `crossSessionInbound`, `--bare`, `--bg`,
   `--session-id` or Remote Control, or a route fails its hop check.
 
 The receiver's nested quoting, background sessions, and the mechanisms not used here (Remote

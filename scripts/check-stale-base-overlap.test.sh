@@ -183,6 +183,27 @@ else
   fail "release notes plus real overlap: rc=$rc out='$out'"
 fi
 
+# --- --warn: any overlap is a ::warning naming the paths, and exits 0 ---
+# #7871: the pull_request step is advisory; the merge queue is the gate.
+out="$(bash "$SCRIPT" --warn main 2>&1)" && rc=0 || rc=$?
+if [[ $rc -eq 0 && "$out" == *"::warning"*"shared.txt"* && "$out" == *"::warning"*"plugins/p/CHANGELOG.md"* ]]; then
+  ok "--warn turns a non-changelog overlap into a ::warning listing the paths and exits 0"
+else
+  fail "--warn overlap: rc=$rc out='$out'"
+fi
+out="$(bash "$SCRIPT" --warn 2>&1)" && rc=0 || rc=$?
+if [[ $rc -eq 2 && "$out" == *"usage:"* ]]; then
+  ok "--warn without a base ref exits 2 with usage"
+else
+  fail "--warn without a ref: rc=$rc out='$out'"
+fi
+out="$(bash "$SCRIPT" --warn does-not-exist 2>&1)" && rc=0 || rc=$?
+if [[ $rc -eq 2 && "$out" == *"not resolvable"* ]]; then
+  ok "--warn with a missing base ref still exits 2"
+else
+  fail "--warn missing base ref: rc=$rc out='$out'"
+fi
+
 # --- unresolvable base ---
 repo="$scratch/badref"
 make_repo "$repo"

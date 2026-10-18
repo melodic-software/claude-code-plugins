@@ -41,7 +41,8 @@ name: pr-merge
 # workflow-modified, once per version of the workflow file the broker named.
 #
 # How to keep one PR from merging: put the line `Hold: a human merges this`
-# in its body, or add the `do-not-merge` label. The gate refuses both.
+# in its body, or add the `do-not-merge` or `needs-human` label (the
+# human-gated role label). The gate refuses all of them.
 
 on:
   # Every trigger below is only a wake-up call. The run never trusts the event
@@ -101,7 +102,9 @@ jobs:
     # wait in line (`queue: max`) instead of being dropped. Without it GitHub
     # keeps only one waiting run and cancels the rest, which leaves CANCELLED
     # `merge` checks on PRs and makes the merge hook refuse them. Waiting is
-    # harmless because every run re-reads every PR from the API. GitHub caps
+    # harmless because every run re-reads every PR from the API, and a run
+    # with a pending successor that does its work skips the gate (the
+    # superseded step). GitHub caps
     # the waiting line at 100 runs and rejects the rest, so the triggers above
     # must start runs more slowly than they finish.
     concurrency:
@@ -188,11 +191,27 @@ jobs:
             echo "proceed=false" >>"$GITHUB_OUTPUT"
           fi
 
+      # A run still pending in the concurrency group below starts after this
+      # one. When one is pending that checks every candidate and does every
+      # follow-up this run would, this run ends green here with a notice,
+      # before it takes the lane token, so a backlog costs one sweep and no
+      # run is cancelled. Any error leaves superseded unset and the gate runs.
+      # Rules: .github/scripts/pr-merge/superseded.mjs.
+      - name: Check for a newer run that does this work
+        id: superseded
+        if: steps.who.outputs.proceed == 'true'
+        continue-on-error: true
+        env:
+          # The lane token holds no Actions permission.
+          ACTIONS_TOKEN: ${{ github.token }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: node .base/.github/scripts/pr-merge/superseded.mjs
+
       # Reads the lane's rules from main and works out which token
       # permissions its `merge-pr` activity gets.
       - name: Resolve the config
         id: config
-        if: steps.who.outputs.proceed == 'true'
+        if: steps.who.outputs.proceed == 'true' && steps.superseded.outputs.superseded != 'true'
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: pr-merge
@@ -254,11 +273,35 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           superseded-ok: true
 
+      # Measures the lane token's spend: this reading and the one before the
+      # revoke bracket the run. GET /rate_limit does not count against the
+      # REST limit. The installation's bucket is shared by every job using the
+      # lanes App, so the difference includes their calls. Never fails the job.
+      - name: Log the lane token rate limit at mint
+        id: rate-start
+        if: steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: |
+          r=$(gh api rate_limit)
+          line=$(jq -r '"mint core remaining=\(.resources.core.remaining) used=\(.resources.core.used) limit=\(.resources.core.limit) reset=\(.resources.core.reset | todate)"
+            + (if .resources.graphql then " graphql remaining=\(.resources.graphql.remaining)" else "" end)' <<<"$r")
+          echo "::notice title=lane-app-rate::$line"
+          echo "lane-app-rate: $line" >>"$GITHUB_STEP_SUMMARY"
+          jq -r '"used=\(.resources.core.used)\nreset=\(.resources.core.reset)"' <<<"$r" >>"$GITHUB_OUTPUT"
+
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) opened, plus Dependabot's unless
-      # merge.dependabot.mode is off. No label is read here. This is only a
-      # shortlist; the gate checks the author, the closing issue and verifier
-      # verdict or the Dependabot tier, and every other rule again. Read with the job's own read-only token.
+      # merge.dependabot.mode is off. This is only a shortlist; the gate checks
+      # the author, the closing issue and verifier verdict or the Dependabot
+      # tier, and every other rule again. A candidate the gate would refuse on
+      # its listed labels or body alone (the `do-not-merge` label, the
+      # human-gated role label from .work-item-tracker.json, `needs-human` by
+      # default, or a hold in the body) is set aside here before it costs
+      # lane-token calls (babysit_merge_prefilter.py); the summary still
+      # reports it. Read with the job's own read-only token.
       - name: List the candidate PRs
         id: candidates
         if: steps.lane-token.outputs.token != ''
@@ -275,15 +318,31 @@ jobs:
             exit 1
           fi
           authors=("app/$slug")
+          # The gate resolves the same label through babysit_postmerge._role_label.
+          human_gated=needs-human
+          if [ -f .base/.work-item-tracker.json ]; then
+            human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
+              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
+              | if . == "" then "needs-human" else . end' \
+              .base/.work-item-tracker.json) || {
+              echo "::error::cannot read the human-gated role label from the base .work-item-tracker.json"
+              exit 1
+            }
+          fi
           if [ "$DEPENDABOT" != off ]; then
             authors+=(app/dependabot)
           fi
           for author in "${authors[@]}"; do
             gh pr list --repo "$REPO" --base main --state open --limit 500 \
-              --author "$author" --json number,headRefOid,isDraft,updatedAt
+              --author "$author" --json number,headRefOid,isDraft,updatedAt,labels,body
           done |
             jq -cs '[add[] | select(.isDraft | not)
-              | {number, head: .headRefOid, updatedAt}] | unique_by(.number)' >"$RUNNER_TEMP/candidates.json"
+              | {number, head: .headRefOid, updatedAt, labels: [.labels[].name], body}]
+              | unique_by(.number)' |
+            python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py \
+              --human-gated="$human_gated" >"$RUNNER_TEMP/prefilter.json"
+          jq -c .candidates "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/candidates.json"
+          jq -c .held "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/held.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
 
       # The post-merge check, read-only, on every run whether or not any PR is
@@ -338,6 +397,17 @@ jobs:
           # GH_TOKEN (babysit_verify_evidence.py); the job runs main's code
           # alone, never a PR's.
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
+          # The first candidate saves its artifact listing here and the rest
+          # of the run reads it while it is under two minutes old; a
+          # candidate the saved listing would allow lists again before it is
+          # allowed.
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          # Reads that are the same for every candidate (acting login,
+          # credential pass, permissions, trusted list, run heads on main,
+          # FAIL run records, default branch, base rules, the queued entries
+          # a candidate kept) are shared here within their bounds
+          # (babysit_run_cache.py).
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           SCRIPT: ${{ steps.config.outputs.script }}
@@ -348,7 +418,11 @@ jobs:
           # The script and its flags come from the merge-pr activity on main.
           read -ra args < <(jq -r '.selected.args // ""' "$RUNNER_TEMP/resolved-config.json")
           results="$RUNNER_TEMP/results.jsonl"
-          : >"$results"
+          # The candidates set aside for a hold, reported as the gate would.
+          jq -c '.[] | {pr: .number, head, updatedAt, exit: 10, ready: false,
+            enqueued: false, merged: false, reportOnly: null, reason: "prefilter:\(.reason)",
+            dispatched: null, blockers: ["prefilter: \(.reason), refused before the gate"]}' \
+            "$RUNNER_TEMP/held.json" >"$results"
           while read -r number head updated; do
             out="$RUNNER_TEMP/gate-$number.json"
             code=0
@@ -436,6 +510,24 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/refire-refused.mjs
 
+      - name: Log the lane token rate limit at job end
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          START_USED: ${{ steps.rate-start.outputs.used }}
+          START_RESET: ${{ steps.rate-start.outputs.reset }}
+        run: |
+          r=$(gh api rate_limit)
+          line=$(jq -r --arg s "$START_USED" --arg sr "$START_RESET" '"end core remaining=\(.resources.core.remaining) used=\(.resources.core.used) limit=\(.resources.core.limit) reset=\(.resources.core.reset | todate)"
+            + (if .resources.graphql then " graphql remaining=\(.resources.graphql.remaining)" else "" end)
+            + (if $s == "" then ""
+               elif ($sr | tostring) != (.resources.core.reset | tostring) then " used-since-mint=window-rolled"
+               else " used-since-mint=\(.resources.core.used - ($s | tonumber))" end)' <<<"$r")
+          echo "::notice title=lane-app-rate::$line"
+          echo "lane-app-rate: $line" >>"$GITHUB_STEP_SUMMARY"
+
       # The token is cancelled as soon as the job is done; it would otherwise
       # expire within the hour. This never fails the job.
       - name: Revoke the lane token
@@ -457,7 +549,7 @@ jobs:
 
   # A push to main whose head commit the lanes App authored: the squash commit
   # of one of its PRs, which the merge queue just landed. The merge gate
-  # enqueues the next lane PR only once that merge is verified, so the full
+  # counts that merge in flight until it is verified, so the full
   # CI run that verifies it starts here instead of waiting for a scheduled
   # run. The author check runs before any runner starts, so other pushes cost
   # nothing; it only saves work, and the post-merge check still decides what

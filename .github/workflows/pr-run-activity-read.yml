@@ -376,6 +376,10 @@ jobs:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           github_token: ${{ github.token }}
           use_commit_signing: true
+          # A workflow_run after a lanes App push runs as the App; the trigger
+          # gate has already admitted it, so the action's own bot check only
+          # needs the App listed (as in pr-verify.yml).
+          allowed_bots: melodic-automation-lanes[bot]
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}
@@ -485,7 +489,7 @@ jobs:
           path: |
             ${{ runner.temp }}/skill-reply/reply.txt
             ${{ runner.temp }}/skill-reply/act-turns.json
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: error
 
       # The verdict comes from the action's structured_output, read through env
@@ -640,6 +644,7 @@ jobs:
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict/verdict.json
+          retention-days: 1
           if-no-files-found: error
 
   report:

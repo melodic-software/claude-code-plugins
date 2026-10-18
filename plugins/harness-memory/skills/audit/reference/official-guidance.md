@@ -355,9 +355,9 @@ rather than pricing it, the same stated assumption `scripts/lib/agents-md.sh` ca
   [Where AGENTS.md differs from CLAUDE.md](https://code.claude.com/docs/en/memory#where-agents-md-differs-from-claude-md)
   and the "My AGENTS.md isn't loading" entry under
   [Troubleshoot memory issues](https://code.claude.com/docs/en/memory#troubleshoot-memory-issues);
-  for which settings stop built-in mods, the "Mods built into Claude Code" section of
-  <https://code.claude.com/docs/en/plugins/mods/overview>.
-- **As of**: 2026-10-11 for the memory page; 2026-10-01 for the mods overview
+  for which settings stop built-in mods,
+  [Mods built into Claude Code](https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code).
+- **As of**: 2026-10-11 for the memory page; 2026-10-18 for the mods overview
 - **Recheck trigger**: those sections change which file names displace an `AGENTS.md`, the setting's
   values or default, or which sessions lack support, the `/memory` listing or the difference table
   changes, the mods overview changes which settings stop a built-in mod, or a release note names

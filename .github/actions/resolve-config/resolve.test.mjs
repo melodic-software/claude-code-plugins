@@ -330,6 +330,39 @@ test("the denied config path is the one the run read", () => {
 
 // Defaults
 
+// The values the lanes must keep with no limits leaf, as the request for the
+// leaf states them: a 5-hour fallback reset, a 1-hour to 7-day clamp, 5
+// restarts per sweep, 3 limit stops per head and per issue.
+const LIMITS = {
+  "fallback-reset": 5,
+  "reset-clamp-min": 1,
+  "reset-clamp-max": 168,
+  "restarts-per-run": 5,
+  "limit-stops-per-head": 3,
+  "limit-stops-per-issue": 3,
+  "wip-cap": 60,
+};
+
+test("limits: a config with no limits leaf resolves today's seven values", () => {
+  assert.deepEqual(run(fixture("valid.yaml")).limits, LIMITS);
+});
+
+test("limits: a set leaf overrides its default and leaves the others", () => {
+  const config = edited((doc) => {
+    doc.limits = { "fallback-reset": 2, "limit-stops-per-issue": 4 };
+  });
+  assert.deepEqual(run(config).limits, { ...LIMITS, "fallback-reset": 2, "limit-stops-per-issue": 4 });
+});
+
+test("limits: an unknown key, a value that is not an integer, or one out of its range is rejected", () => {
+  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }]) {
+    const config = edited((doc) => {
+      doc.limits = limits;
+    });
+    assertRejected(() => run(config), "invalid-config");
+  }
+});
+
 test("defaults are materialized: loop 2/3/2, merge off and manual, slot scope diff and enabled", () => {
   const resolved = run(fixture("valid.yaml"), { activity: "run-tests" });
   assert.deepEqual(resolved.loop, { "review-rounds": 2, "no-progress": 3, "dependency-review-rounds": 2 });

@@ -117,7 +117,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
 export class PublishError extends Error {}
 
-// Contrary evidence GitHub no longer lists: the resolver reports failClosedReason as is.
+// Contrary evidence GitHub no longer lists: failClosedReason carries the stable reason prefix.
 export class EvidenceGone extends PublishError {
   constructor(reason) {
     super(`refusing to publish: ${reason}`);

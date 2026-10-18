@@ -120,8 +120,9 @@ We pass the background-command maximum on every fallback poll and treat the stop
      `<scripts-dir>/source-control-review-threads` and emits `REVIEW-THREADS unresolved=<n>` when
      the unresolved count, or `THREADS_UNPROVEN`, changes. Resolving a thread moves no check and
      posts no comment, so the other reads never see it.
-   - Its first poll only records the checks and the thread count, so a re-arm at the deadline does
-     not re-emit them.
+   - It records the checks as the baseline on the first poll whose check read succeeds, and the
+     thread count on its first poll, so a re-arm at the deadline does not re-emit them. A poll whose
+     check read fails (any call in the read errors) keeps the baseline and emits no check lines.
 
    Capture the returned task id. Report: `Monitor watch armed (task <id>, PR #<N>). Fires on CI check completion, new comments, and review-thread count changes. Stop with TaskStop <id> or end session; re-armed at each deadline.` Keep that task id: it is what step 2 and §3.0.5 check.
 

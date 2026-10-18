@@ -131,6 +131,19 @@
     },
     {
       "id": 11,
+      "name": "inventories-nested-subagent",
+      "prompt": "keep going — we got cut off. Before the disconnect you had a research subagent running, and I think it had spawned its own helper subagent to read the test logs.",
+      "expected_output": "The inventory descends below the top level: it lists the research subagent and the helper subagent it spawned, as two separate items, and reads each one's real state from its own transcript or output rather than assuming the helper followed the parent. A level that cannot be enumerated from the resumed session is named in the report, not omitted.",
+      "files": [],
+      "expectations": [
+        "Inventories both the research subagent and the subagent it spawned, not only the top-level one",
+        "Reads the nested subagent's real state from its own artifact rather than inferring it from the parent's",
+        "Reports each in the recovered / restarted / still-running / lost list",
+        "Says so in the report if a nested level cannot be enumerated, rather than omitting it"
+      ]
+    },
+    {
+      "id": 12,
       "name": "rate-limited-subagents-resumed-or-restarted",
       "prompt": "keep going — we hit the usage limit and it has since reset. Two subagents were mid-task when it hit: the docs-writer, whose agent id is still live in this session, and the tests-fixer, which was launched from a session that has since closed. Your live /usage reading shows headroom.",
       "expected_output": "Both agents are singled out in the inventory as ended on a usage limit: the docs-writer by its last notification, the tests-fixer by the user's prompt and its trail, since its closed session's notifications are gone. After a live re-check shows headroom, the docs-writer is resumed with SendMessage to its live id; the tests-fixer's id no longer resolves, so it is restarted from its trail (branch, commits, worktree). Each is listed in the report with its partial-work evidence and one action.",
@@ -144,7 +157,7 @@
       ]
     },
     {
-      "id": 12,
+      "id": 13,
       "name": "rate-limited-worker-window-still-holds",
       "prompt": "keep going — a worker subagent stopped on a rate-limit error, and the limit message says it resets in a few hours. Your live rate_limits reading for this account shows the window is still full.",
       "expected_output": "The worker is singled out as rate-limited. The live re-check confirms the window still holds, so the skill does not resume it with SendMessage and does not spawn a replacement; it hands back through /session-flow:handoff and lists the worker in the report with its partial-work evidence and the reset it waits on.",
