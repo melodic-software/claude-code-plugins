@@ -966,6 +966,17 @@ class TestStaticValues(unittest.TestCase):
             ["Choose a type", "Open the hub", "Review consent"],
         )
 
+    def test_a_menu_description_read_through_a_mode_table_resolves(self) -> None:
+        # A built-in command record carries no menu field; a bundled skill does.
+        src = (
+            "function eo(){}export{eo as registerBundledSkill};"
+            + self.TABLE
+            + 'eo({name:"design",description:()=>s().description(),'
+            + "menuDescription:()=>s().menu()});"
+        )
+        skills, _ = inv.extract_bundled_skills(src, inv.build_brace_map(src))
+        self.assertEqual(skills["design"]["menu_description"], "Consent")
+
     def test_a_table_row_that_is_not_a_string_is_dropped(self) -> None:
         src = self.TABLE.replace('()=>"Open the hub"', "()=>void 0")
         rec = _cmd(
