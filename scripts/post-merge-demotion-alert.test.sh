@@ -163,10 +163,10 @@ commit() {
     '{sha: $sha, parents: [{sha: $p}], author: {login: $a}, commit: {message: ($s + "\n\nbody")}}'
 }
 
-# green_run <sha> -> one successful full run on main before the failing one
+# green_run <sha> [event] [created_at] -> one successful run on main before the failing one
 green_run() {
-  jq -n --arg sha "$1" '{id: 4000, event: "workflow_dispatch", conclusion: "success",
-    head_branch: "main", head_sha: $sha, created_at: "2026-10-17T14:00:00Z"}'
+  jq -n --arg sha "$1" --arg e "${2:-workflow_dispatch}" --arg t "${3:-2026-10-17T14:00:00Z}" \
+    '{id: 4000, event: $e, conclusion: "success", head_branch: "main", head_sha: $sha, created_at: $t}'
 }
 
 # Fixtures a test sets before run_step: JOBS (this attempt), BASE_JOBS (run
@@ -252,6 +252,11 @@ MARKER="<!-- babysit-merge-demotion sha=$SHA signal=schedule -->"
 files "failed scheduled full run on main files a schedule record" schedule "$FULL" schedule '[]'
 files "failed dispatched full run on main files a dispatch record" dispatch "$FULL" workflow_dispatch '[]'
 files "failed canary push run on main files a canary record" canary "$CANARY" push '[]'
+if grep -qE 'status=success|/compare/' <<<"$LOG"; then
+  fail "a canary record looked up a range: log='$LOG'"
+else
+  ok "a canary record looks up no range"
+fi
 files "a record for another signal on the same SHA is not a match" schedule "$FULL" schedule \
   "[$(issue 7 "<!-- babysit-merge-demotion sha=$SHA signal=canary -->")]"
 files "a record for another SHA is not a match" schedule "$FULL" schedule \
@@ -419,20 +424,53 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"title=Post-merge dispatch 
   "$body" == *"https://github.com/o/r/pull/8259, merge commit \`$MID\`, by alice"* &&
   "$body" == *"https://github.com/o/r/pull/8260, merge commit \`$SHA\`, by bob"* &&
   "$body" == *"- Failing run: $RUN_URL/attempts/2"$'\n'* && "$body" != *"git revert"* &&
-  "$body" != *"- Pull request:"* ]]; then
+  "$body" != *"- Pull request:"* && "$body" == *"picks the merge responsible, and reverts that one."* ]]; then
   ok "two merges since the last green full run are both named, with no single revert"
 else
   fail "two-merge range: rc=$RC log='$LOG' fields='$body'"
+fi
+
+SIDE=3333333333333333333333333333333333333333
+COMPARE="$(commit "$SIDE" "$OTHER" carol 'wip on a side branch'), $(commit "$MID" "$OTHER" alice 'feat(planning): a join prompt (#8259)'), $(
+  jq -n --arg sha "$SHA" --arg p1 "$MID" --arg p2 "$SIDE" \
+    '{sha: $sha, parents: [{sha: $p1}, {sha: $p2}], author: {login: "bob"}, commit: {message: "Merge (#8260)"}}'
+)" run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+body="$(post_fields)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"title=Post-merge dispatch failure after #8259..#8260: unattended"* &&
+  "$body" != *"$SIDE"* && "$body" != *"carol"* ]]; then
+  ok "the range follows first parents and leaves a merged side branch's commits out"
+else
+  fail "first-parent walk: rc=$RC log='$LOG' fields='$body'"
 fi
 
 GREEN='' run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 body="$(post_fields)"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"could not be found"* &&
   "$body" == *"- Pull request: https://github.com/o/r/pull/1234"* && "$body" == *"- Main at the failing run: \`$SHA\`"* &&
-  "$body" != *"git revert"* ]] && ! grep -q '/compare/' <<<"$LOG"; then
+  "$body" != *"git revert"* && "$body" == *"finds the merge responsible before reverting anything."* ]] &&
+  ! grep -q '/compare/' <<<"$LOG"; then
   ok "with no green full run to start from, the record says so and names the head commit without a revert"
 else
   fail "base unknown: rc=$RC log='$LOG' fields='$body'"
+fi
+
+COMPARE="$(commit "$SHA" "$MID" bob 'ci: record suite times (#8260)')" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+body="$(post_fields)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"could not be found"* &&
+  "$body" != *"attributed to the range"* && "$body" != *"git revert"* ]]; then
+  ok "a first-parent chain that never reaches the green SHA lists no range"
+else
+  fail "chain misses base: rc=$RC log='$LOG' fields='$body'"
+fi
+
+OLD=1111111111111111111111111111111111111111 PRS=2222222222222222222222222222222222222222
+GREEN="$(green_run "$OLD" workflow_dispatch 2026-10-17T12:00:00Z), $(green_run "$OTHER" schedule 2026-10-17T14:00:00Z), $(green_run "$PRS" pull_request 2026-10-17T15:00:00Z)" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -q "^GET repos/o/r/compare/$OTHER\.\.\.$SHA$" <<<"$LOG"; then
+  ok "the base is the newest green schedule or dispatch run, never a pull_request run"
+else
+  fail "base choice: rc=$RC log='$LOG'"
 fi
 
 # --- Re-run, baseline and the gitleaks gate ------------------------------------
