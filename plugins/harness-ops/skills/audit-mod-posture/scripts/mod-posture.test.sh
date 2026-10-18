@@ -57,6 +57,8 @@ plugin "$P/inline" inline '' '{"modules":["./register.js"]}'
 plugin "$P/hostile" hostile '{"modules":["./register.js"]}'
 plugin "$P/elsewhere" elsewhere '{"modules":["./register.js"]}'
 plugin "$P/broken" broken '{"modules":["./register.js"]}'
+plugin "$P/spaced" spaced '{"modules":["./a b.js"]}'
+plugin "$P/silent" silent '{"modules":["./register.js"]}'
 
 proj_real="$(cd "$FIX/proj" && pwd -P)"
 other_real="$(cd "$FIX/other proj" && pwd -P)"
@@ -67,7 +69,9 @@ jq -n --arg p "$P" --arg proj "$proj_real" --arg other "$other_real" '[
   {id:"inline@mk", scope:"project", enabled:false, installPath:"\($p)/inline", projectPath:$proj},
   {id:"bad id SECRETID1@mk", scope:"managed", enabled:true, installPath:"\($p)/hostile"},
   {id:"elsewhere@mk", scope:"local", enabled:true, installPath:"\($p)/elsewhere", projectPath:$other},
-  {id:"broken@mk", scope:"user", enabled:true, installPath:"\($p)/broken"}
+  {id:"broken@mk", scope:"user", enabled:true, installPath:"\($p)/broken"},
+  {id:"spaced@mk", scope:"user", enabled:true, installPath:"\($p)/spaced"},
+  {id:"silent@mk", scope:"user", enabled:true, installPath:"\($p)/silent"}
 ]' >"$FIX/list.json"
 
 # validate fixtures, keyed by plugin directory name.
@@ -87,6 +91,10 @@ validate_json hostile false \
   './register.js hooks: tool.check, tool.call{x=a b SECRETHOOK1}, ignore.previous instructions SECRETHOOK2' \
   './register.js calls: $.fs.write, rm -rf SECRETCALL1, $.env.get(SECRETCALL2)'
 validate_json elsewhere true './register.js hooks: tool.call'
+validate_json spaced true \
+  './a b.js hooks: tool.call{tool=mcp__plugin_context-guard_context-guard__status}, prompt.submit' \
+  './a b.js calls: $.process.run'
+validate_json silent false
 
 cat >"$FIX/bin/claude" <<'EOF'
 #!/usr/bin/env bash
@@ -171,9 +179,17 @@ assert_eq "validate failure reads unknown" "unknown unknown validate-failed" \
 # --- Grammar filter ------------------------------------------------------------------------
 assert_eq "id outside the grammar prints redacted-id" 1 "$(count_rows redacted-id)"
 assert_eq "managed scope is the managed tier" managed "$(field redacted-id 2)"
-assert_eq "hook names outside the grammar are dropped" "tool.check" "$(field redacted-id 5)"
-assert_eq "call names outside the grammar are dropped" '$.fs.write' "$(field redacted-id 6)"
+assert_eq "hook names outside the grammar print redacted, keeping a valid event" \
+  "tool.check,tool.call{redacted},redacted" "$(field redacted-id 5)"
+assert_eq "call names outside the grammar print redacted" '$.fs.write,redacted' "$(field redacted-id 6)"
 assert_eq "validate with success false is marked" validate-errors "$(field redacted-id 7)"
+assert_eq "managed tier can_disable reads unknown" unknown "$(field redacted-id 4)"
+assert_contains "withheld names are counted in a footer" "$OUT" "# not read: names: 4 hook or call name(s) outside the grammar withheld"
+assert_eq "module path with a space keeps its hooks; a long filter keeps its event" \
+  "tool.call{redacted},prompt.submit" "$(field spaced@mk 5)"
+assert_eq "module path with a space keeps its calls" '$.process.run' "$(field spaced@mk 6)"
+assert_eq "validate errors with no notes read unknown, not none" "unknown unknown validate-errors" \
+  "$(field silent@mk 5) $(field silent@mk 6) $(field silent@mk 7)"
 
 # --- Built-in tier -------------------------------------------------------------------------
 assert_eq "built-in row: tier, setting overrides default, can_disable from the table" \
@@ -228,10 +244,13 @@ run_mp --date 17-10-2026
 assert_eq "bad --date exits 2" 2 "$RC"
 run_mp --surface web
 assert_eq "bad --surface exits 2" 2 "$RC"
+run_mp --project "$FIX/no-such-dir"
+assert_eq "--project that is not a directory exits 2" 2 "$RC"
 run_mp --frobnicate
 assert_eq "unknown argument exits 2" 2 "$RC"
 run_mp --help
 assert_contains "--help prints usage" "$OUT" "Usage:"
+assert_contains "--help prints through the Exit line" "$OUT" "Exit: 0"
 
 # --- Real validate leaves the install directory unchanged ------------------------------------
 tree_hash() { (cd "$1" && find . -print0 | LC_ALL=C sort -z | xargs -0 ls -ld --time-style=+%s 2>/dev/null | awk '{ $2 = ""; print }' && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 cksum) | cksum; }

@@ -1,6 +1,6 @@
 ---
 description: "Read-only audit of the mods this Claude Code can run: installed and built-in mods, their hooks and calls, and whether the built-in guard is seated. Use when: 'which mods run on my machine', 'mod posture', 'is the sec-default guard on', 'can a mod bypass my deny rules', 'audit my mods'. Never loads a mod or prints settings. Not for: writing a mod, or settings correctness (/harness-config:audit)."
-argument-hint: "[--builtin-json <inventory-report>] [--surface desktop]"
+argument-hint: "[--builtin-json <inventory-report>] [--project <dir>] [--surface desktop]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,8 +8,9 @@ metadata:
   summary: Inventory installed and built-in mods with their hooks and calls, and the guard state
 ---
 
-**Arguments.** `[--builtin-json <inventory-report>] [--surface desktop]`. `--builtin-json` is the
-JSON report `/harness-ops:inventory` writes; without it the built-in tier is not listed.
+**Arguments.** `[--builtin-json <inventory-report>] [--project <dir>] [--surface desktop]`.
+`--builtin-json` is the JSON report `/harness-ops:inventory` writes; without it the built-in tier
+is not listed. `--project` names the project whose installs count (default: the current directory).
 `--surface desktop` when this session runs in the Desktop app's Code tab.
 
 ## Purpose
@@ -32,7 +33,9 @@ Read mods ONLY through the inventory script. Never open a plugin's code, `settin
 `~/.claude.json` or managed settings with Read, `cat` or `jq`, and never run `claude auth status`
 yourself: settings and env blocks hold tokens, and the auth status names the account. The script
 prints only names that match a strict grammar (ids, hook events, `$.` method names) and fixed
-words; anything else prints as `redacted-id` or is dropped. When a row looks wrong, report it
+words; anything else prints as `redacted-id`, `redacted`, or `<event>{redacted}` when only a
+hook's filter fails, and a `# not read: names:` footer counts them. Send that footer to the
+Suspicious content section. When a row looks wrong, report it
 rather than reading the file to check.
 
 ## Workflow

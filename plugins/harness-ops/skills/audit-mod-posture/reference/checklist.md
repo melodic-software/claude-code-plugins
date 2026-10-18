@@ -27,7 +27,7 @@ Reads the `# guard:` footer, once per run.
 
 Reads `hooks`. A row listing `tool.check` or `tool.call` (with or without a `{...}` filter) can
 approve, deny or rewrite Claude's tool calls. WARN for an installed mod, info for a built-in,
-PASS otherwise; `unknown` hooks read WARN, labeled unverified.
+PASS otherwise; `unknown` hooks, or a `redacted` entry, read WARN, labeled unverified.
 
 ## M3 Hooks prompt.submit or session.append
 
@@ -38,7 +38,8 @@ stored conversation rows. Same severities as M2.
 
 Reads `calls`. A row listing any `$.fs.` or `$.process.` method reaches files and processes as the
 user, outside every deny rule and managed hook, whether or not the guard is seated. info, always
-stated with that sentence; `unknown` (every built-in row) reads info, "calls not read".
+stated with that sentence; `unknown` (every built-in row) or a `redacted` entry reads info,
+"calls not read".
 
 ## M5 Inventory
 

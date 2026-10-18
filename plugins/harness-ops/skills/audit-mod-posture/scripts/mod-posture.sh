@@ -34,7 +34,7 @@ MANAGED_FILE=""
 SURFACE=""
 
 usage() {
-  sed -n '15,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '/^# Usage:/,/^# Exit:/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 need() { [[ $# -ge 2 && -n "$2" ]] || {
   echo "mod-posture.sh: $1 needs a value" >&2
@@ -53,6 +53,10 @@ while [[ $# -gt 0 ]]; do
   *) echo "mod-posture.sh: unknown argument (see --help)" >&2 && exit 2 ;;
   esac
 done
+[[ -d "$PROJECT" ]] || {
+  echo "mod-posture.sh: --project is not a directory" >&2
+  exit 2
+}
 [[ -z "$DATE" ]] && DATE="$(date +%Y-%m-%d)"
 [[ "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || {
   echo "mod-posture.sh: --date must be YYYY-MM-DD" >&2
@@ -72,14 +76,16 @@ TMP="$(mktemp -d)" || exit 2
 trap 'rm -rf -- "${TMP:?}"' EXIT
 NOT_READ=()
 
-# The grammars every printed name must fully match; anything else prints as a fixed word.
+# The grammars every printed name must fully match; anything else prints as a fixed word:
+# `<event>{redacted}` when only a hook's filter fails, else `redacted`. Nothing is dropped.
 ID_RE='^[A-Za-z0-9][A-Za-z0-9._-]{0,63}@[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+EVENT_RE='^[a-z][A-Za-z]*(\.[A-Za-z*][A-Za-z]*)*$'
 HOOK_RE='^[a-z][A-Za-z]*(\.[A-Za-z*][A-Za-z]*)*(\{[a-z][A-Za-z]*=[A-Za-z0-9._:-]{1,40}\})?$'
 CALL_RE='^\$\.[a-z][A-Za-z]*\.[a-z][A-Za-z]*$'
 
 safe_id() { [[ "$1" =~ $ID_RE ]] && printf '%s' "$1" || printf 'redacted-id'; }
-# filter_list <regex>: comma-separated names on stdin -> the ones that match, deduplicated in
-# order, joined by commas; `-` when none match.
+# filter_list <regex>: comma-separated names on stdin -> each name that matches, or its redacted
+# form, deduplicated in order, joined by commas; `-` when the list is empty.
 filter_list() {
   local re="$1" out="" item seen=","
   local IFS=','
@@ -88,7 +94,14 @@ filter_list() {
     item="${item#"${item%%[![:space:]]*}"}"
     item="${item%"${item##*[![:space:]]}"}"
     item="${item%% (via *}"
-    [[ "$item" =~ $re ]] || continue
+    [[ -n "$item" ]] || continue
+    if ! [[ "$item" =~ $re ]]; then
+      if [[ "$re" == "$HOOK_RE" && "$item" == *"{"* && "${item%%\{*}" =~ $EVENT_RE ]]; then
+        item="${item%%\{*}{redacted}"
+      else
+        item="redacted"
+      fi
+    fi
     [[ "$seen" == *",$item,"* ]] && continue
     seen+="$item,"
     out+="${out:+,}$item"
@@ -97,7 +110,18 @@ filter_list() {
 }
 
 ROWS=()
-row() { ROWS+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s' "$@")"); }
+WITHHELD=0
+row() {
+  local f item items
+  for f in "$5" "$6"; do
+    IFS=',' read -r -a items <<<"$f"
+    for item in "${items[@]}"; do [[ "$item" == *redacted* ]] && WITHHELD=$((WITHHELD + 1)); done
+  done
+  ROWS+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s' "$@")")
+}
+# after_marker <marker>: lines on stdin -> the text after the first occurrence of the marker, so a
+# module path with spaces never hides the names after it.
+after_marker() { awk -v m="$1" '{ i = index($0, m); if (i) print substr($0, i + length(m)) }'; }
 
 # --- Installed tier --------------------------------------------------------------------
 project_real="$(cd "$PROJECT" 2>/dev/null && pwd -P)" || project_real=""
@@ -133,14 +157,21 @@ else
     ((modules)) || continue
     if "$CLAUDE" plugin validate --json "$path" >"$TMP/validate.json" 2>/dev/null || jq -e '.contents' "$TMP/validate.json" >/dev/null 2>&1; then
       notes="$(jq -r '[.contents[]?.notes[]? | strings] | .[]' "$TMP/validate.json" 2>/dev/null)"
-      hooks="$(printf '%s\n' "$notes" | sed -n 's/^[^ ]* hooks: //p' | paste -sd, - | filter_list "$HOOK_RE")"
-      calls="$(printf '%s\n' "$notes" | sed -n 's/^[^ ]* calls: //p' | sed 's/ (via [^)]*)//g' | paste -sd, - | filter_list "$CALL_RE")"
+      hooks="$(printf '%s\n' "$notes" | after_marker ' hooks: ' | paste -sd, - | filter_list "$HOOK_RE")"
+      calls="$(printf '%s\n' "$notes" | after_marker ' calls: ' | sed 's/ (via [^)]*)//g' | paste -sd, - | filter_list "$CALL_RE")"
       source="validate"
-      jq -e '.success == true' "$TMP/validate.json" >/dev/null 2>&1 || source="validate-errors"
+      if ! jq -e '.success == true' "$TMP/validate.json" >/dev/null 2>&1; then
+        source="validate-errors"
+        # Errors can stop the analysis before it notes anything: no note is not "none".
+        [[ "$hooks" == "-" ]] && hooks="unknown"
+        [[ "$calls" == "-" ]] && calls="unknown"
+      fi
     else
       hooks="unknown" calls="unknown" source="validate-failed"
     fi
-    row "$(safe_id "$id")" "$tier" "$enabled" "yes" "$hooks" "$calls" "$source"
+    can_disable="yes"
+    [[ "$tier" == "managed" ]] && can_disable="unknown"
+    row "$(safe_id "$id")" "$tier" "$enabled" "$can_disable" "$hooks" "$calls" "$source"
   done <"$TMP/paths.tsv"
   ((elsewhere)) && NOT_READ+=("installed tier: $elsewhere install path(s) only other projects enable, skipped")
 fi
@@ -257,5 +288,6 @@ if [[ "$SURFACE" == "terminal" ]]; then
 else
   printf '# surface: desktop (%s, the claude on PATH)\n' "${version:-unknown}"
 fi
+((WITHHELD)) && NOT_READ+=("names: $WITHHELD hook or call name(s) outside the grammar withheld (printed as redacted; repeats count once)")
 for reason in "${NOT_READ[@]}"; do printf '# not read: %s\n' "$reason"; done
 exit 0
