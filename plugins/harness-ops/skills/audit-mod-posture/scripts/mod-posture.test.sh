@@ -226,6 +226,34 @@ printf '{}\n' >"$FIX/managed/managed-settings.d/10-team.json"
 run_mp --no-fetch
 assert_contains "a drop-in file seats the guard" "$OUT" "# guard: seated (managed settings present)"
 rm -rf -- "${FIX:?}/managed/managed-settings.d"
+M="$FIX/managed/managed-settings.json"
+printf '{"prependPlugins":["acme-guard@acme"],"env":{"T":"SECRETMANAGED1"}}\n' >"$M"
+cp -- "$M" "$FIX/managed-prepend.txt"
+run_mp --no-fetch
+assert_contains "managed prependPlugins without the guard: not seated" "$OUT" "# guard: not-seated (managed prependPlugins omits the guard)"
+printf '{"prependPlugins":["acme-guard@acme","sec-default@builtin"]}\n' >"$M"
+run_mp --no-fetch
+assert_contains "prependPlugins naming sec-default@builtin keeps the guard" "$OUT" "# guard: seated (managed settings present)"
+printf '{"prependPlugins":["acme-guard@acme"]}\n' >"$M"
+mkdir -p "$FIX/managed/managed-settings.d"
+printf '{"prependPlugins":["cc-plugin-sec-default@builtin"]}\n' >"$FIX/managed/managed-settings.d/20-guard.json"
+run_mp --no-fetch
+assert_contains "drop-in lists combine: a drop-in naming the guard keeps it" "$OUT" "# guard: seated (managed settings present)"
+rm -rf -- "${FIX:?}/managed/managed-settings.d"
+printf '{"pluginConfigs":{"cc-plugin-sec-default@builtin":{"options":{"allowModsToOverrideDenyRules":true}}}}\n' >"$M"
+run_mp --no-fetch
+assert_contains "allowModsToOverrideDenyRules true is named on the guard footer" "$OUT" "# guard: seated (managed settings present; mods can override deny rules: allowModsToOverrideDenyRules)"
+mkdir -p "$FIX/managed/managed-settings.d"
+printf '{"pluginConfigs":{"cc-plugin-sec-default@builtin":{"options":{"allowModsToOverrideDenyRules":false}}}}\n' >"$FIX/managed/managed-settings.d/30-off.json"
+run_mp --no-fetch
+assert_contains "a later drop-in setting the option false wins" "$OUT" "# guard: seated (managed settings present)"
+assert_not_contains "a later false leaves no override note" "$OUT" "override deny rules"
+rm -rf -- "${FIX:?}/managed/managed-settings.d"
+printf 'not json SECRETMANAGED2\n' >"$M"
+run_mp --no-fetch
+assert_contains "unparseable managed settings leave the guard unknown" "$OUT" "# guard: unknown (managed settings unreadable)"
+cp -- "$M" "$FIX/managed-unparseable.txt"
+rm -f -- "$M"
 mv "$FIX/auth.json" "$FIX/auth.off"
 run_mp --no-fetch
 assert_contains "unreadable auth status leaves the guard unknown" "$OUT" "# guard: unknown (managed settings absent; plan unread)"
@@ -281,7 +309,7 @@ fi
 
 # --- Planted secrets never reach stdout or stderr of any run ---------------------------------
 planted="$(grep -rhoE 'SECRET[A-Z0-9_]*' "$FIX" | LC_ALL=C sort -u)"
-assert_eq "all 17 planted secret tokens were collected" 17 "$(printf '%s\n' "$planted" | grep -c .)"
+assert_eq "all 19 planted secret tokens were collected" 19 "$(printf '%s\n' "$planted" | grep -c .)"
 while IFS= read -r secret; do
   [[ -n "$secret" ]] && assert_not_contains "secret $secret never emitted" "$ALL" "$secret"
 done <<<"$planted"

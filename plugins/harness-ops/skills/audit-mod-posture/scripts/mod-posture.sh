@@ -10,7 +10,8 @@
 #
 # Prints names only: plugin ids, hook event names and mods API method names, each filtered
 # through a strict grammar, plus fixed words. Never prints a settings or env value, a path,
-# or any `claude auth status` field but the derived guard state.
+# or any `claude auth status` field but the derived guard state. From managed settings it
+# reads only `prependPlugins` and the guard's `allowModsToOverrideDenyRules`, printed as words.
 #
 # Usage: mod-posture.sh [--date YYYY-MM-DD] [--project <dir>] [--builtin-json <file>]
 #                       [--overview <file> | --no-fetch] [--managed-file <file>]
@@ -233,8 +234,28 @@ fi
 managed="unknown"
 base="$(mscope::base_file "$MANAGED_FILE")"
 dropin="$(mscope::dropin_dir "$MANAGED_FILE")"
+prepend_omits=0 override=0
 if [[ -f "$base" ]] || compgen -G "$dropin/*.json" >/dev/null 2>&1; then
   managed="present"
+  # Two keys decide whether the guard loads and what it holds (mods admin page, "Set options on
+  # the built-in guard"). Files combine in drop-in order: lists union, a scalar's last value wins.
+  files=()
+  [[ -f "$base" ]] && files+=("$base")
+  while IFS= read -r f; do [[ -n "$f" ]] && files+=("$f"); done < <(compgen -G "$dropin/[!.]*.json" | LC_ALL=C sort)
+  if guard_keys="$(jq -rs '
+      ([.[] | .prependPlugins? | arrays] | if length == 0 then "unset"
+       elif (add | any(. == "sec-default@builtin" or . == "cc-plugin-sec-default@builtin")) then "guard"
+       else "omits" end),
+      ([.[] | .pluginConfigs?["cc-plugin-sec-default@builtin"]?.options?.allowModsToOverrideDenyRules?
+        | booleans] | last // false)' "${files[@]}" 2>/dev/null)"; then
+    [[ "${guard_keys%%$'\n'*}" == "omits" ]] && prepend_omits=1
+    [[ "${guard_keys##*$'\n'}" == "true" ]] && override=1
+  else
+    managed="unreadable"
+  fi
+  if [[ -z "$MANAGED_FILE" && -n "$(mscope::registry_keys)$(mscope::plist_domain)" ]]; then
+    NOT_READ+=("guard: prependPlugins and guard options are read from the managed files only, not an OS policy store")
+  fi
 else
   managed="absent"
   while IFS= read -r key; do
@@ -263,8 +284,13 @@ fi
 rm -f -- "$TMP/auth.json"
 case "$plan" in team | enterprise | max | pro | none) ;; "") plan="unread" ;; *) plan="other" ;; esac
 
-if [[ "$managed" == "present" ]]; then
+if [[ "$managed" == "unreadable" ]]; then
+  guard="unknown (managed settings unreadable)"
+elif ((prepend_omits)); then
+  guard="not-seated (managed prependPlugins omits the guard)"
+elif [[ "$managed" == "present" ]]; then
   guard="seated (managed settings present)"
+  ((override)) && guard="seated (managed settings present; mods can override deny rules: allowModsToOverrideDenyRules)"
 elif [[ "$plan" == "team" || "$plan" == "enterprise" ]]; then
   guard="seated (plan $plan)"
 elif [[ "$managed" == "absent" && "$plan" != "unread" && "$plan" != "other" ]]; then

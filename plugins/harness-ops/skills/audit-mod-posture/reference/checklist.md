@@ -20,6 +20,8 @@ Reads the `# guard:` footer, once per run.
 | Footer | Result |
 |---|---|
 | `seated (...)` | PASS |
+| `seated (...; mods can override deny rules: ...)` | WARN: managed settings let a user's mod approve a call a deny rule refuses |
+| `not-seated (managed prependPlugins omits the guard)` | WARN: managed `prependPlugins` replaces the default order and leaves the guard out |
 | `not-seated (...)` | WARN: a user's mod can approve a tool call that a deny rule refuses |
 | `unknown (...)` | WARN, labeled unverified; name the unread source from the basis |
 
@@ -53,6 +55,14 @@ The table itself. Not scored.
 - **As of**: 2026-10-17
 - **Recheck trigger**: that section adds or drops a hook or call it singles out, or changes what
   `tool.check`, `tool.call`, `prompt.submit` or `session.append` allows.
+
+- **Pointer**: for the guard's options and why `prependPlugins` must name it, fetch
+  [Manage mods for your organization: Set options on the built-in guard](https://code.claude.com/docs/en/plugins/mods/admin#set-options-on-the-built-in-guard)
+  live.
+- **As of**: 2026-10-17
+- **Recheck trigger**: that section renames `allowModsToOverrideDenyRules`, moves the options out
+  of `pluginConfigs` under `cc-plugin-sec-default@builtin`, or stops requiring `prependPlugins` to
+  name the guard.
 
 - **Pointer**: for which built-in mods exist and how each is turned off (the source of
   `can_disable`), fetch
