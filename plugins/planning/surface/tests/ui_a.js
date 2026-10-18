@@ -94,6 +94,14 @@ async page => {
   ok("Notes tab", await page.textContent("#flyTitle") === "Notes to Claude" && !!(await page.$("#noteText")));
   await page.click('#tabs [data-panel="settings"]'); await page.waitForTimeout(200);
   ok("Settings tab", await page.textContent("#flyTitle") === "Settings" && !!(await page.$('[data-set="shortcuts"]')));
+  await page.focus('#tabs [data-panel="settings"]'); await page.keyboard.press("ArrowRight"); await page.waitForTimeout(200);
+  ok("ArrowRight wraps from the last tab to the first and moves focus with it", await page.evaluate(() => document.activeElement.dataset.panel === "visuals" && document.activeElement.getAttribute("aria-selected") === "true" && document.getElementById("flyTitle").textContent.startsWith("Visuals")));
+  await page.keyboard.press("End"); await page.waitForTimeout(150);
+  ok("End goes to the last tab; only the selected tab is in the tab order", await page.evaluate(() => document.activeElement.dataset.panel === "settings" && [...document.querySelectorAll('#tabs [role="tab"]')].filter(b => b.tabIndex === 0).length === 1));
+  await page.keyboard.press("ArrowLeft"); await page.waitForTimeout(150);
+  ok("ArrowLeft goes back one tab", await page.evaluate(() => document.activeElement.dataset.panel === "activity"));
+  await page.keyboard.press("ArrowRight"); await page.waitForTimeout(150); // back on Settings, where the steps below expect to be
+  ok("the font stacks name no web font the CSP cannot load", await page.evaluate(() => { const c = getComputedStyle(document.documentElement); return !/Plex|Newsreader/.test(c.getPropertyValue("--sans") + c.getPropertyValue("--mono") + c.getPropertyValue("--display")); }));
   await page.click("#pinBtn"); await page.waitForTimeout(200);
   const pinned = await page.evaluate(() => getComputedStyle(document.getElementById("fly")).position);
   ok("Pin splits the screen", pinned === "static", pinned);
@@ -173,6 +181,7 @@ async page => {
     if (w === 820) ok("at 820 px the rail ends in a border", m.railB === "1px", m.railB);
     ok("an option title may take two lines at " + w + " px", m.choice === "2", m.choice);
     await page.click(".sumbtn"); await page.waitForTimeout(250);
+    ok("the summary renders no Decisions table without a decision row at " + w + " px", await page.evaluate(() => [...document.querySelectorAll("#dscroll table.sum")].every(t => t.tBodies[0] && t.tBodies[0].rows.length > 0)));
     ok("the summary does not widen the page at " + w + " px", await page.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1));
     await page.click('.qbtn[data-q="N2"]').catch(() => {}); await page.waitForTimeout(150);
   }
