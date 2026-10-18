@@ -1,0 +1,15 @@
+// good-for: rule-inert-assertion
+// A runtime GetType() operand can differ from the typeof one, so these can fail.
+using Xunit;
+
+public class WidgetRuntimeTypeEqualityTests
+{
+    [Fact]
+    public void Create_ReturnsExactlyAWidget()
+    {
+        var sut = WidgetFactory.Create();
+        Assert.Equal(typeof(Widget), sut.GetType());
+        Assert.NotEqual(typeof(Gadget), sut.GetType());
+        Assert.Same(sut.GetType(), typeof(Widget));
+    }
+}
