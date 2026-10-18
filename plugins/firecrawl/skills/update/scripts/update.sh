@@ -13,10 +13,13 @@
 #            the skill body's Preservation rules; this script only owns the
 #            deterministic parts — npm + metadata)
 #
-# Exit codes:
+# Exit codes (the shared drift-check contract):
 #   0  no drift OR apply completed successfully
 #   1  drift detected in --check mode (no mutations)
-#   2  prerequisite missing (curl/jq/npm) or network failure
+#   2  unverifiable: prerequisite missing (curl/jq/npm), network failure, or usage
+#
+# A firecrawl CLI that is not installed is reported but is not drift: --check
+# compares upstream with the recorded sync, not with this machine.
 #
 # This script never calls `firecrawl init`, never installs the upstream bundled
 # skills, and never writes upstream SKILL.md content to disk beyond a
@@ -97,18 +100,27 @@ fetch_upstream_sha() {
   sha256 "$out" | awk '{print $1}'
 }
 
-# Read the last field of a `- <Label>: <value>` line from upstream.md
-# (empty if the file or the line is absent — i.e. never synced).
+# Read the value of a `- <Label>: <value>` line from upstream.md: empty when
+# the file or the line is absent, or the value is a never-synced placeholder
+# such as `never` or `(none recorded)`.
 recorded_field() {
   [[ -f "$UPSTREAM_MD" ]] || return 0
-  grep -m1 "^- $1:" "$UPSTREAM_MD" | awk '{print $NF}'
+  local value
+  value=$(grep -m1 "^- $1: " "$UPSTREAM_MD" | tr -d '\r')
+  value="${value#"- $1: "}"
+  case "$value" in
+  "("* | never | none) return 0 ;;
+  *) ;; # a recorded value
+  esac
+  printf '%s' "$value"
 }
 
 recorded_upstream_sha() { recorded_field 'Upstream SHA256'; }
 recorded_cli_version() { recorded_field 'CLI version at sync'; }
+recorded_sync_date() { recorded_field 'Last sync'; }
 
 run_check() {
-  local current latest upstream_sha recorded_sha recorded_ver drift=0
+  local current latest upstream_sha recorded_sha recorded_ver synced drift=0
 
   section "CLI version"
   current=$(current_cli_version)
@@ -119,13 +131,13 @@ run_check() {
   recorded_ver=$(recorded_cli_version)
 
   if [[ -z "$current" ]]; then
-    log "installed:  NOT INSTALLED"
-    drift=1
+    log "installed:  NOT INSTALLED (not counted as drift)"
   else
     log "installed:  $current"
   fi
   log "latest:     $latest"
-  [[ -n "$recorded_ver" ]] && log "last sync:  $recorded_ver"
+  synced=$(recorded_sync_date)
+  log "last sync:  ${synced:-never} (CLI ${recorded_ver:-not recorded})"
 
   if [[ -n "$current" && "$current" != "$latest" ]]; then
     log "→ CLI upgrade available: $current → $latest"

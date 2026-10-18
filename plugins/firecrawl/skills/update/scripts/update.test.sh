@@ -117,6 +117,71 @@ else
 fi
 assert_eq "sha256 helper matches direct call" "$sha_direct" "$sha_via_helper"
 
+# --- 7. Never-synced placeholders read as empty -------------------------------------
+# The placeholder lines are the ones upstream.md carried before its first sync,
+# which the report used to print as `last sync:  recorded)`.
+
+FIXTURE_NEVER="$TEST_TMPDIR/upstream-never.md"
+cat >"$FIXTURE_NEVER" <<'EOF'
+- Last sync: never
+- Upstream SHA256: (none recorded)
+- CLI version at sync: (none recorded)
+EOF
+UPSTREAM_MD="$FIXTURE_NEVER"
+assert_eq "placeholder SHA reads as empty" "" "$(recorded_upstream_sha)"
+assert_eq "placeholder CLI version reads as empty" "" "$(recorded_cli_version)"
+assert_eq "placeholder sync date reads as empty" "" "$(recorded_sync_date)"
+UPSTREAM_MD="$FIXTURE_UP"
+assert_eq "parses recorded Last sync" "2026-05-22" "$(recorded_sync_date)"
+
+# --- 8. run_check exit-code contract (0 no drift, 1 drift, 2 unverifiable) ----------
+# Network helpers are stubbed; the recorded state is the section 4 fixture.
+
+stub_current="1.18.0"
+stub_latest="1.18.0"
+stub_sha="abc123def456"
+current_cli_version() { printf '%s' "$stub_current"; }
+latest_cli_version() { [[ -n "$stub_latest" ]] && printf '%s' "$stub_latest"; }
+fetch_upstream_sha() { [[ -n "$stub_sha" ]] && printf '%s' "$stub_sha"; }
+
+out=$(run_check 2>&1)
+assert_exit "in sync: exit 0" 0 "$?"
+assert_contains "in sync: reports no drift" "$out" "No drift"
+assert_contains "report prints the recorded sync date" "$out" "last sync:  2026-05-22"
+assert_contains "report prints the recorded SHA256" "$out" "recorded SHA256: abc123def456"
+
+stub_current=""
+out=$(run_check 2>&1)
+assert_exit "CLI not installed, upstream unchanged: exit 0" 0 "$?"
+assert_contains "CLI not installed is reported" "$out" "NOT INSTALLED"
+
+stub_sha="0000ffff"
+out=$(run_check 2>&1)
+assert_exit "CLI not installed, upstream changed: exit 1" 1 "$?"
+assert_contains "upstream change is named" "$out" "upstream content changed"
+stub_sha="abc123def456"
+stub_current="1.18.0"
+
+stub_latest="1.19.0"
+out=$(run_check 2>&1)
+assert_exit "installed CLI behind latest: exit 1" 1 "$?"
+stub_latest="1.18.0"
+
+UPSTREAM_MD="$FIXTURE_NEVER"
+out=$(run_check 2>&1)
+assert_exit "never synced: exit 1" 1 "$?"
+assert_contains "never synced: last sync reads never" "$out" "last sync:  never"
+UPSTREAM_MD="$FIXTURE_UP"
+
+stub_latest=""
+out=$(run_check 2>&1)
+assert_exit "npm registry unreachable: exit 2" 2 "$?"
+stub_latest="1.18.0"
+
+stub_sha=""
+out=$(run_check 2>&1)
+assert_exit "upstream fetch fails: exit 2" 2 "$?"
+
 # --- Final report ---------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
