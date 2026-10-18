@@ -76,6 +76,9 @@ MAX_MY_RESULTS = 5  # judgment: results one person's own Claude posts on one que
 MAX_MY_ROUND_RESULTS = 10  # judgment: results one person's own Claude posts across one round's questions
 MAX_RESULTS = 500  # judgment: results across the session; at the cap a guest's own Claude's is refused, none dropped
 MAX_DIGEST_RESULTS = 30  # judgment: results one digest lists; the rest are counted as "N more on the page"
+MAX_MY_PROPOSALS = 10  # judgment: proposals one person has waiting (new) at once, as MAX_PENDING_REQUESTS
+MAX_PROPOSALS = 200  # judgment: proposals across the session; at the cap a new one is refused, none dropped
+MAX_DIGEST_PROPOSALS = 30  # judgment: new proposals one digest lists; the rest wait for a later digest
 MAX_DIGEST_CHARS = 30000  # judgment: summary characters one digest lists, seven summaries at their longest
 MAX_OPEN_UPLOADS = 10
 MAX_RUN_IDS = 100
@@ -2936,12 +2939,16 @@ class Session:
             self._writer(pid)
             self._throttle(pid, "propose", now)
             text = self._tokenize(pid, text)
+            if sum(1 for p in self.state["proposals"] if p["pid"] == pid and p["status"]["kind"] == "new") >= MAX_MY_PROPOSALS:
+                raise DomainError(429, "too-many-pending", f"You have {MAX_MY_PROPOSALS} proposals waiting already.", field="text")
             prop = self._new_proposal(pid, text, {"kind": "direct"})
             self._notify_mentions(text, pid, "in a proposal")
         self._wrote(pid, "propose", now)
         return {"id": prop["id"]}
 
     def _new_proposal(self, author, text, via):
+        if len(self.state["proposals"]) >= MAX_PROPOSALS:
+            raise DomainError(429, "too-many-proposals", "This session holds no more proposals.")
         prop = {"id": self._next("P"), "pid": author, "text": text, "at": self.now(), "via": via, "status": {"kind": "new"}}
         self.state["proposals"].append(prop)
         self._queue_note(self._moderator_pids(), author)
@@ -3968,6 +3975,8 @@ class Session:
             guest = r["by"]["kind"] == "guest-claude"
             results.append({"qid": r["qid"], "id": r["id"], "kind": r["kind"], "summary": r["summary"], **({"from": "guest-claude", **by(r["by"]["pid"])} if guest else {})})
         proposals = [{"id": p["id"], "text": p["text"], **by(p["pid"])} for p in st["proposals"] if p["status"]["kind"] == "new" and self._active(p["pid"])]
+        proposals_more = len(proposals) - MAX_DIGEST_PROPOSALS
+        proposals = proposals[:MAX_DIGEST_PROPOSALS]
         notes = [
             {"qid": a["qid"], "variant": a["variant"], "text": a["text"], "element": _element(a["anchor"]["selector"]), **by(a["pid"])}
             for a in st["annotations"]
@@ -3982,6 +3991,7 @@ class Session:
             "results": results,
             **({"resultsMore": f"{more} more on the page"} if more else {}),
             "proposals": proposals,
+            **({"proposalsMore": f"{proposals_more} more on the page"} if proposals_more > 0 else {}),
             "annotations": notes,
             "people": self._digest_people(n),
         }

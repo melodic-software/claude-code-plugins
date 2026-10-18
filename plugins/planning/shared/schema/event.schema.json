@@ -259,6 +259,7 @@
             "properties": {"id": {"type": "string"}, "text": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
           }
         },
+        "proposalsMore": {"type": "string", "description": "\"N more on the page\": new proposals past the digest's count; a later digest lists them. Absent when every one is listed."},
         "annotations": {
           "type": "array",
           "items": {

@@ -296,7 +296,10 @@ person's own Claude posts at most `MAX_MY_RESULTS` results on a question and
 `MAX_MY_ROUND_RESULTS` in a round, and at `MAX_RESULTS` across the session a new one is refused
 (409 `results-full`), never one dropped. A digest lists at most `MAX_DIGEST_RESULTS` results and
 `MAX_DIGEST_CHARS` summary characters; the rest are counted in `resultsMore` ("N more on the
-page").
+page"). A person has at most `MAX_MY_PROPOSALS` proposals waiting (429 `too-many-pending`) and
+the session holds at most `MAX_PROPOSALS` (429 `too-many-proposals`); a digest lists at most
+`MAX_DIGEST_PROPOSALS` new proposals and counts the rest in `proposalsMore`, which a later digest
+lists.
 
 The **watcher key** is what a guest pastes into their own Claude, never their session secret:
 `POST /api/watcher` issues a random one (replacing any earlier one; `state.json` keeps its sha256

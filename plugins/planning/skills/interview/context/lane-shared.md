@@ -237,7 +237,8 @@ assumption sweep and the confirmation gate run as SKILL.md states, with the owne
 ## Proposals
 
 Guests propose questions. On every `round-sent`, place each pending proposal in the `open-round` or
-`close-round` `placements`, exactly one each:
+`close-round` `placements`, exactly one each. `proposalsMore` counts proposals past the digest's
+cap: a later digest lists them, so place only the listed ones.
 
 | `as` | When |
 |---|---|

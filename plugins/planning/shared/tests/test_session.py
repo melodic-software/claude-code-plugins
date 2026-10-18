@@ -1626,6 +1626,30 @@ class TestProposals(SessionCase):
         self.assertEqual(pid, "P1")
         self.assertEqual(len(self.notes(self.ann, "queue")), 1)
 
+    def test_a_person_with_ten_proposals_waiting_is_refused_an_eleventh_until_one_is_handled(self):
+        first = [self.propose(self.bo, f"Idea {i}") for i in range(10)][0]
+        self.refused("too-many-pending", "propose", self.bo, {"text": "Eleventh"}, http=429)
+        self.propose(self.ann, "Someone else may still propose")
+        self.act("act_on_proposal", HOST, {"id": first, "action": "park"})
+        self.propose(self.bo, "Eleventh, once one was parked")
+
+    def test_a_session_at_its_proposal_cap_refuses_a_new_one_from_anyone(self):
+        with mock.patch.object(session, "MAX_PROPOSALS", 2):
+            self.propose(self.bo, "One")
+            self.propose(self.ann, "Two")
+            self.refused("too-many-proposals", "propose", self.ann, {"text": "Three"}, http=429)
+            mid = self.act("chat", self.bo, {"text": "Three, from chat"})["id"]
+            self.refused("too-many-proposals", "propose_from_chat", HOST, {"id": mid}, http=429)
+        self.assertEqual(len(self.s.state["proposals"]), 2)
+
+    def test_a_digest_lists_at_most_its_cap_of_proposals_and_counts_the_rest(self):
+        self.open_round(text_q("Q1"))
+        props = [self.propose(self.bo, f"Idea {i}") for i in range(3)]
+        with mock.patch.object(session, "MAX_DIGEST_PROPOSALS", 2):
+            digest = digest_of(self)
+        self.assertEqual([p["id"] for p in digest["proposals"]], props[:2])
+        self.assertEqual(digest["proposalsMore"], "1 more on the page")
+
     def test_queue_notifications_roll_up_into_one_unread_line(self):
         self.propose(self.bo, "One")
         self.propose(self.bo, "Two")
