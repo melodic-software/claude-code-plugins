@@ -16,10 +16,11 @@ Reads a session transcript (JSONL) and prints one JSON object:
 An entry counts as a limit or error entry when it sets ``isApiErrorMessage``,
 carries a top-level ``error`` key, or is a ``system`` entry whose ``level`` is
 ``error``. The resuming prompt is the latest user entry that is not a tool result
-(not meta, compaction summary or sidechain), has an assistant entry before it, and
-comes after the last limit or error entry; entries at or after it belong to the
-resumed turn and are ignored, so the turn's own work never shortens the gap. Without
-such a prompt every entry counts, so a stopped transcript's own limit entry survives. Timestamps may carry any offset or ``Z``; a timestamp without an
+(not meta, compaction summary or sidechain) that has both an assistant entry and a
+limit or error entry before it; entries at or after it belong to the resumed turn
+and are ignored, so the turn's own work, including its own error entries, never
+shortens the gap. Without such a prompt every entry counts, so a stopped
+transcript's own limit entry survives. Timestamps may carry any offset or ``Z``; a timestamp without an
 offset is read as UTC.
 
 Exit codes:
@@ -111,11 +112,10 @@ def measure(path: Path, now: datetime) -> dict:
         elif _is_prompt(entry):
             prompts.append(stamp)
     boundary: datetime | None = None
-    last_stop_entry = max(errors, default=None)
     for prompt in sorted(prompts, reverse=True):
-        if last_stop_entry is not None and prompt <= last_stop_entry:
-            break
-        if any(stamp < prompt for stamp in assistants):
+        if any(stamp < prompt for stamp in errors) and any(
+            stamp < prompt for stamp in assistants
+        ):
             boundary = prompt
             break
     if boundary is not None:
