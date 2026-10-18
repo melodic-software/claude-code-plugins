@@ -79,9 +79,10 @@ same way and say why you think so.
 ## Leave the tree for the runner
 
 Run no `git add`, `commit`, `stash`, `push`, `checkout`, `reset`, `restore`, `switch` or
-`clean`; the runner reads the working tree. To undo your edits to a file, rewrite it with the
-content `git show HEAD:<path>` prints, or delete a file you created; then confirm
-`git diff -- <path>` is empty. Delete anything a command you ran left behind that the repository does not ignore
+`clean`; the runner reads the working tree. To undo one check's edits, reverse only the hunks
+you made for that check, using `git diff -- <path>` to see them, and keep every other check's
+fix in the same file; delete a file you created only for that check. Then rerun every check
+you already count `fixed`, and treat one that now fails as unfixed. Delete anything a command you ran left behind that the repository does not ignore
 (a build output, a cache, a report file), so the patch holds only fixes.
 
 ## Not in this mode
