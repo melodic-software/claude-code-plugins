@@ -61,7 +61,8 @@ class TestEnsureRunning(Running):
         self.assertRegex(out["guestUrl"], r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/$")
         self.assertEqual(out["localUrl"], f"http://127.0.0.1:{self.guest_port()}/")
         self.assertEqual((out["tunnel"], out["resumed"], out["shareChanged"]), ("quick", False, False))
-        self.assertEqual(Path(out["ownerLinkFile"]), self.d / ".owner-link")
+        # share.py resolves --dir; a Windows temp folder may be named in its 8.3 short form.
+        self.assertEqual(Path(out["ownerLinkFile"]), self.d.resolve() / ".owner-link")
         self.assertIn("watch.sh", out["watch"])
 
     def test_a_second_run_reuses_the_server_and_the_tunnel(self):
@@ -279,7 +280,9 @@ class TestLogsSummary(unittest.TestCase):
         self.assertEqual(out["repeatsUnmatched"], 0)
 
     def test_text_reads_the_same_counts_and_share_sh_prints_it(self):
-        p = subprocess.run(["bash", str(Path(share_cli.__file__).with_name("share.sh")), "--dir", str(self.d), "logs", "--summary"], capture_output=True, text=True, timeout=60, env=env())
+        # A bare "bash" is found by CreateProcess on Windows, which searches System32 (the WSL relay) before PATH.
+        bash = shutil.which("bash")
+        p = subprocess.run([bash, str(Path(share_cli.__file__).with_name("share.sh")), "--dir", str(self.d), "logs", "--summary"], capture_output=True, text=True, timeout=60, env=env())
         self.assertEqual(p.returncode, 0, p.stderr)
         for want in (
             "Summaries: 5 in 2 batches from 4 page views (1 of them the owner's, left out of the timings). A page with recording turned off sends none. 1 more did not fit in their batch.",

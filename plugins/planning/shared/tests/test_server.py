@@ -1887,7 +1887,7 @@ class TestUploads(ServerCase):
         self.post("/api/upload/act", {"id": declined, "action": "decline"}, self.owner)
         own = self.accepted(self.owner, name="notes.zip")
         st = self.app.session.state
-        secrets_on_disk = [v for u in st["uploads"] for k, v in u["status"].items() if k in ("tmp", "stored")] + [str(self.d), "uploads/"]
+        secrets_on_disk = [v for u in st["uploads"] for k, v in u["status"].items() if k in ("tmp", "stored")] + [str(self.d), str(self.d.resolve()), "uploads/"]
         self.assertGreaterEqual(len(secrets_on_disk), 4)
         for role, who in (("owner", self.owner), ("leader", lee), ("uploader", self.ann), ("other guest", self.bo), ("anonymous", {})):
             with self.subTest(role=role):
