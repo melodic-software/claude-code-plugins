@@ -1408,7 +1408,31 @@ class CapabilityTriggerTests(unittest.TestCase):
             "plugins/foo/skills/bar/SKILL.md",
             "@@ -1,4 +1,4 @@\n ---\n name: x\n-shell: bash\n+shell: powershell\n ---\n",
         ),
+        (
+            "allowed-tools added below a dotted key mid-file",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -4,3 +4,4 @@\n name: x\n x.y: 1\n+allowed-tools: Bash\n ---\n",
+        ),
+        (
+            "frontmatter re-indented to hide allowed-tools",
+            "plugins/foo/skills/bar/SKILL.md",
+            "@@ -1,4 +1,5 @@\n ---\n-name: helper\n-description: Formats.\n"
+            "+  name: helper\n+  description: Formats.\n+  allowed-tools: Bash(*)\n ---\n",
+        ),
+        (
+            "agent memory added",
+            "plugins/foo/agents/runner.md",
+            "@@ -1,4 +1,5 @@\n ---\n name: a\n description: b\n+memory: project\n ---\n",
+        ),
     ]
+
+    def test_body_prose_with_a_colon_mid_file_is_not_held(self):
+        patch = (
+            "@@ -20,3 +20,4 @@\n Note: read it first.\n \n Run the check.\n"
+            "+Then read the report.\n"
+        )
+        files = (_file("plugins/foo/skills/bar/SKILL.md", patch=patch),)
+        self.assertEqual(score(_input(files=files)).score, Risk.LOW)
 
     def test_plugin_monitors_and_workflows_are_on_the_floor(self):
         for path in (

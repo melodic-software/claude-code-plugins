@@ -1824,6 +1824,14 @@ class ReasonsComment(Unattended):
     def test_a_med_hold_does_not_claim_the_floor(self) -> None:
         self.assertNotIn("never an agent", self.body())
 
+    def test_an_unsafe_path_hold_does_not_claim_the_floor(self) -> None:
+        # A symlink or unreadable list scores this code with the floor off.
+        unsafe = merge.babysit_risk.Reason(
+            merge.babysit_risk.UNSAFE_PATH_CODE, merge.babysit_risk.Risk.HIGH, "x"
+        )
+        risk = merge.babysit_risk.RiskResult(merge.babysit_risk.Risk.HIGH, (unsafe,))
+        self.assertNotIn("never an agent", merge.risk_comment_body(risk, HEAD))
+
     def test_an_unchanged_assessment_is_not_rewritten(self) -> None:
         body = self.body()
         self.setUp()

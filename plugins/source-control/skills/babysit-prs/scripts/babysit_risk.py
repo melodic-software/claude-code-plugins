@@ -440,6 +440,7 @@ _CAPABILITY_KEYS = frozenset(
         "agent",
         "shell",
         "skills",
+        "memory",
     }
 )
 _HUNK = re.compile(r"@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@")
@@ -448,6 +449,8 @@ _KEY = re.compile(r"""(["']?)([A-Za-z][A-Za-z0-9_-]*)\1\s*:""")
 # or merge keys, quoted keys with escapes, and anchors or aliases.
 _OPAQUE_START = re.compile(r"""[^A-Za-z#-]|-[^\s-]""")
 _ANCHOR = re.compile(r"(?:^|[\s:\[{,])[&*][^\s,\]}]")
+# A line YAML may read as a mapping entry, whatever its key looks like.
+_MAPPING = re.compile(r":(?:\s|$)")
 
 
 def _capability_triggers(patch: str) -> list[str]:
@@ -491,6 +494,7 @@ def _capability_triggers(patch: str) -> list[str]:
             and text[0] not in " \t-#"
             and not _OPAQUE_START.match(text)
             and not _KEY.match(text)
+            and not _MAPPING.search(text)
         ):
             region = "body"  # column-0 prose on both sides is no YAML
             continue
@@ -501,6 +505,11 @@ def _capability_triggers(patch: str) -> list[str]:
             and (_OPAQUE_START.match(stripped) or _ANCHOR.search(text))
         ):
             found.append("frontmatter YAML the scanner cannot read")
+        # A changed capability key at any indentation: indenting every key
+        # keeps it top-level YAML.
+        nested = _KEY.match(stripped) if sign != " " else None
+        if nested and nested.group(2).casefold() in _CAPABILITY_KEYS:
+            found.append(f"frontmatter {nested.group(2).casefold()}")
         named = _KEY.match(text)
         if named:
             before, key = key, named.group(2).casefold()

@@ -333,7 +333,8 @@ merge:
   dependabot:
     mode: enforce
   # The HIGH path floor, floor-paths, floor-script-scopes and the capability
-  # check exist but are off here (owner decisions Q661 and Q663, 2026-10-18).
+  # check exist but are off in this pr-merge lane (owner decisions Q661 and
+  # Q663, 2026-10-18); the local babysit lane applies them.
   # The gates for a lane pull request are the non-author verifier verdict,
   # both AI review lanes, ci-status and the post-merge revert breaker. Audit
   # #8282, due 2026-11-18, revisits this. Setting `high-path-floor: true`

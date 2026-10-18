@@ -3039,9 +3039,12 @@ def _first_line(text: Any) -> str:
 
 def _floor_held(risk: babysit_risk.RiskResult) -> bool:
     """Whether the HIGH floor holds the pull request: a `high-` reason (a
-    floor or configured path, a capability change, a script file)."""
+    floor or configured path, a capability change, a script file). An unsafe
+    path scores HIGH with the floor off, so it is not a floor hold."""
     return any(
-        r.severity is babysit_risk.Risk.HIGH and r.code.startswith("high-")
+        r.severity is babysit_risk.Risk.HIGH
+        and r.code.startswith("high-")
+        and r.code != babysit_risk.UNSAFE_PATH_CODE
         for r in risk.reasons
     )
 

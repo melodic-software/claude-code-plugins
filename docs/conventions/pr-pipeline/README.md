@@ -491,7 +491,7 @@ except six:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
   `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH, and a SKILL.md,
   agents/*.md or commands/*.md change to `hooks`, `allowed-tools`, `tools`, `permissionMode` or
-  `mcpServers` frontmatter (and the other keys `babysit_risk.py` lists), YAML it cannot read line
+  `mcpServers` or `memory` frontmatter at any indentation (and the other keys `babysit_risk.py` lists), YAML it cannot read line
   by line, a moved `---` delimiter, a rename or copy into such a path, or a new
   `!` backtick command line), `floor-paths` (globs joined to
   that floor while it applies; a HIGH pull request waits for a human), `floor-script-scopes`
