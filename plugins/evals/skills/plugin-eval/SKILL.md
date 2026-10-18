@@ -37,17 +37,17 @@ row under [Sources](#sources). Background for a human reader:
 Print every field, in this order, before anything else:
 
 ```text
-cli_version:     <claude --version>
-floor_met:       <true | false> (git: <git --version | none>)
-platform:        <windows | wsl2 | linux | darwin | other>
-sandbox_backend: <present | absent | not-ready | unknown> (missing: <binaries that did not resolve> | links: <paths>)
-target_type:     <plugin | wrapped-skill | wrapped-agent | rules>
-suite_tools:     <read-only | the gated tools the cases request>
-same_model:      <yes | no | unknown | off> (tested <model>, judge <model>)
-estimate_usd:    roughly <n> (cases x runs x arms, plus judge calls)
-ceiling:         <n> USD | unlimited
-leftover:        <n> sandboxes (<total size> in <temp dir>) | unknown
-tmp_free:        <free space on the temp dir's filesystem> | unknown
+cli_version:         <claude --version>
+floor_met:           <true | false> (git: <git --version | none>)
+platform:            <windows | wsl2 | linux | darwin | other>
+sandbox_backend:     <present | absent | not-ready | unknown> (missing: <binaries that did not resolve> | links: <paths>)
+target_type:         <plugin | wrapped-skill | wrapped-agent | rules>
+suite_tools:         <read-only | the gated tools the cases request>
+same_model:          <yes | no | unknown | off> (tested <model>, judge <model>)
+estimate_usd:        roughly <n> (cases x runs x arms, plus judge calls)
+ceiling:             <n> USD | unlimited
+leftover_sandboxes:  <n> sandboxes (<total size> in <temp dir>) | unknown
+tmp_free:            <free space on the temp dir's filesystem> | unknown
 ```
 
 ### Leftover sandboxes
