@@ -327,12 +327,12 @@ export async function main(
     now,
   } = {},
 ) {
-  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "APP_SENDER_ID"]) {
+  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
   }
-  const client =
+  const base =
     api ??
     createGitHubApi({
       token: env.GITHUB_TOKEN,
@@ -340,6 +340,18 @@ export async function main(
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
     });
+  // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
+  // returns, so a run cancelled mid-step still records what it sent.
+  const client = {
+    ...base,
+    async dispatchWorkflow(request) {
+      const result = await base.dispatchWorkflow(request);
+      if (env.RUN_IDS_FILE && RUN_ID.test(String(result.workflowRunId))) {
+        appendFileSync(env.RUN_IDS_FILE, `${result.workflowRunId}\n`);
+      }
+      return result;
+    },
+  };
   const limits = await loadLimits(env);
   const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits, now });
   const reviews = await dispatchDependencyReviews({
@@ -350,14 +362,20 @@ export async function main(
     policy: readPolicy(env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`, log),
     repository: env.GITHUB_REPOSITORY,
   });
-  const fixes = await dispatchCiFixes({
-    api: client,
-    runId: env.GITHUB_RUN_ID,
-    log,
-    appSenderId: Number(env.APP_SENDER_ID),
-    maxDispatch: limits["fix-ci-per-run"] ?? 2,
-    restarts: limits["fix-ci-restarts"] ?? 1,
-  });
+  // A missing lanes App id stops fix-ci alone, as a failure.
+  let fixes = { dispatched: [], failed: 1 };
+  if (/^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "")) {
+    fixes = await dispatchCiFixes({
+      api: client,
+      runId: env.GITHUB_RUN_ID,
+      log,
+      appSenderId: Number(env.APP_SENDER_ID),
+      maxDispatch: limits["fix-ci-per-run"] ?? 2,
+      restarts: limits["fix-ci-restarts"] ?? 1,
+    });
+  } else {
+    log("::error::APP_SENDER_ID is not the lanes App's user id; no fix-ci dispatched");
+  }
   const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched];
   const failed = conflicts.failed + reviews.failed + fixes.failed;
   if (dispatched.length > 0) {

@@ -114,6 +114,12 @@ test("a head whose ci-status passed, is pending, is missing or came from another
         pr(3, { checks: [] }),
         pr(4, { checks: [check("ci-status", "FAILURE", { checkSuite: { app: { databaseId: 999 } } })] }),
         pr(5, { commits: { nodes: [] } }),
+        // More checks than the page holds could hide an earlier fix-ci run.
+        pr(6, {
+          commits: {
+            nodes: [{ commit: { oid: "6".padStart(40, "a"), statusCheckRollup: { contexts: { nodes: [check("ci-status", "FAILURE")], pageInfo: { hasNextPage: true } } } } }],
+          },
+        }),
       ],
     ],
   });
@@ -168,6 +174,19 @@ test("each listing page is one GraphQL query, and its rate-limit cost is logged"
     lines.filter((line) => line.startsWith("fix-ci listing")),
     ["fix-ci listing page 1: rateLimit.cost=3 remaining=4990", "fix-ci listing page 2: rateLimit.cost=3 remaining=4990"],
   );
+});
+
+test("a listing that repeats its cursor stops instead of looping", async () => {
+  const api = fakeApi();
+  let calls = 0;
+  api.listCiFixCandidates = async () => {
+    calls += 1;
+    return { rateLimit: { cost: 1 }, pullRequests: { nodes: [], pageInfo: { hasNextPage: true, endCursor: "same" } } };
+  };
+  const lines = [];
+  await dispatchCiFixes({ api, runId: "1", log: (line) => lines.push(line), appSenderId: APP, maxDispatch: 2, restarts: 1 });
+  assert.equal(calls, 2);
+  assert.ok(lines.some((line) => line.includes("listing stopped after page 2")), lines.join("\n"));
 });
 
 test("a fix-ci run for the PR that is not done yet holds the dispatch", async () => {

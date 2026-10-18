@@ -120,18 +120,26 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           # fix-ci starts only on PRs the lanes App opened, matched by this id.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          RUN_IDS_FILE: ${{ runner.temp }}/pr-unblock-run-ids
         run: node .base/.github/scripts/pr-unblock/dispatch.mjs
 
       # The record of which runs this run dispatched: an artifact only steps of
       # this run can upload, named with every id so a reader needs one list
       # call and no download. It outlives the 10-minute dispatch window and
-      # runs after a partial dispatch failure, which still sent the others.
+      # runs after a partial dispatch failure, which still sent the others,
+      # and after a cancel mid-dispatch: dispatch.mjs appends each id to the
+      # file as soon as its dispatch returns.
       - name: Name the dispatched-runs record
         id: record
-        if: always() && steps.dispatch.outputs.run-ids != ''
+        if: always() && steps.dispatch.outcome != 'skipped'
         env:
-          RUN_IDS: ${{ steps.dispatch.outputs.run-ids }}
+          RUN_IDS_FILE: ${{ runner.temp }}/pr-unblock-run-ids
         run: |
+          RUN_IDS=$(tr '\n' ' ' <"$RUN_IDS_FILE" 2>/dev/null | sed 's/ *$//') || RUN_IDS=""
+          if [ -z "$RUN_IDS" ]; then
+            echo "no run dispatched"
+            exit 0
+          fi
           if [[ ! "$RUN_IDS" =~ ^[1-9][0-9]{0,14}(\ [1-9][0-9]{0,14})*$ ]]; then
             echo "::error::run-ids is not a list of run ids"
             exit 1
@@ -142,7 +150,7 @@ jobs:
 
       - name: Record the dispatched runs
         if: >-
-          always() && steps.dispatch.outputs.run-ids != ''
+          always() && steps.record.outputs.name != ''
           && steps.record.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

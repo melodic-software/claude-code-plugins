@@ -576,11 +576,42 @@ test("main records fix-ci dispatches beside the others, capped by limits.fix-ci-
   assert.deepEqual(fallback, { code: 0, output: "run-ids=9141 9142\n" }, "with no fix-ci limit the default of 2 holds");
 });
 
-test("main refuses to run without the lanes App sender id", async () => {
-  await assert.rejects(
-    main({ GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: "/dev/null" }, { api: fakeApi(), loadLimits: async () => LIMIT_DEFAULTS }),
-    /APP_SENDER_ID/,
-  );
+test("without the lanes App sender id main still dispatches conflicts, dispatches no fix-ci, and exits 1", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  try {
+    const output = join(dir, "output");
+    writeFileSync(output, "");
+    const code = await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: output },
+      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS },
+    );
+    assert.equal(code, 1);
+    assert.equal(readFileSync(output, "utf8"), "run-ids=9150\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("main appends each run id to RUN_IDS_FILE as soon as its dispatch returns", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  try {
+    const file = join(dir, "ids");
+    const api = fakeApi({ pages: [[pr(160), pr(161)]], runIds: new Map([["161", undefined]]) });
+    const seen = [];
+    const dispatch = api.dispatchWorkflow;
+    api.dispatchWorkflow = async (request) => {
+      seen.push(readFileSync(file, { encoding: "utf8", flag: "a+" }));
+      return dispatch(request);
+    };
+    await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), RUN_IDS_FILE: file },
+      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS },
+    );
+    assert.deepEqual(seen, ["", "9160\n"], "the first id is on disk before the second dispatch");
+    assert.equal(readFileSync(file, "utf8"), "9160\n", "an id that is not a run id is not recorded");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("main writes nothing to GITHUB_OUTPUT when no run was dispatched", async () => {

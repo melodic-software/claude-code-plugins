@@ -25,6 +25,7 @@ export const DEFAULTS = Object.freeze({
 });
 
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
+const MAX_PAGES = 20;
 
 export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
   rateLimit { cost remaining }
@@ -44,6 +45,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
                     __typename
                     ... on CheckRun { name status conclusion title checkSuite { app { databaseId } } }
                   }
+                  pageInfo { hasNextPage }
                 }
               }
             }
@@ -58,7 +60,8 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
 // The check runs the GitHub Actions app posted on the PR's head.
 function headChecks(node, actionsAppId) {
   const commit = node.commits?.nodes?.[0]?.commit;
-  if (!commit || commit.oid !== node.headRefOid) {
+  // A cut-off list could hide ci-status or an earlier fix-ci run.
+  if (!commit || commit.oid !== node.headRefOid || commit.statusCheckRollup?.contexts?.pageInfo?.hasNextPage) {
     return null;
   }
   return (commit.statusCheckRollup?.contexts?.nodes ?? []).filter(
@@ -79,7 +82,7 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   }
   const checks = headChecks(node, actionsAppId);
   if (!checks) {
-    return "head commit not listed";
+    return "head commit or its checks not listed whole";
   }
   if (!checks.some((run) => run.name === "ci-status" && run.status === "COMPLETED" && run.conclusion === "FAILURE")) {
     return "ci-status has not failed";
@@ -125,6 +128,11 @@ export async function dispatchCiFixes({
       }
     }
     if (!pullRequests.pageInfo.hasNextPage) {
+      break;
+    }
+    // 20 pages is 1,000 open pull requests; a repeated cursor ends it too.
+    if (page === MAX_PAGES || pullRequests.pageInfo.endCursor === after) {
+      log(`::warning::fix-ci listing stopped after page ${page}; later pull requests wait for a later run`);
       break;
     }
     after = pullRequests.pageInfo.endCursor;
