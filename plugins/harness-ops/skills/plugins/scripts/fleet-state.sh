@@ -92,6 +92,17 @@
 #   attached. null means not applicable (a user-scope record, or no
 #   projectPath).
 #
+#   Each of those records also carries linkedWorktree: true|false|null — whether
+#   its projectPath is a linked git worktree (the git dir differs from the git
+#   common dir: `.git` is a file whose gitdir line points into a `worktrees/`
+#   directory). null means not applicable, or the path is not present so nothing
+#   could be read. `label` is "update ineffective; uninstall clears it" on a
+#   linked-worktree record whose version is below the catalog's (else below the
+#   highest any record of the id holds), and null otherwise. In a linked worktree
+#   `claude plugin update -s project` reports success and leaves the record
+#   unchanged (#6713), so the record is labeled, never dropped: it stays in
+#   installed[] and in divergences[], and versionsMatch is unchanged.
+#
 # Output (stdout) with --ids <selector>: NOT JSON — one record per line, in the
 #   order the block carries them, and nothing else. Fields are TAB-separated and
 #   the first field is always the fully-qualified `<name>@<marketplace>` id, so
@@ -995,7 +1006,23 @@ for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
   [[ -n "$pp" ]] || continue
   pp_fs="${pp//\\//}"
   if [[ -d "$pp_fs" ]]; then
-    presence_tsv+="$pp"$'\t'"true"$'\n'
+    # A third column says whether the directory is a LINKED git worktree: its
+    # `.git` is a file whose `gitdir:` line points into `<common>/worktrees/<name>`
+    # (the git dir differs from the git common dir). A submodule's `.git` file is
+    # also a file but points into `modules/`, so the `/worktrees/` segment is what
+    # tells the two apart. Builtins only, no process per path.
+    pp_linked="false"
+    if [[ -f "$pp_fs/.git" ]]; then
+      pp_gitfile=""
+      IFS= read -r pp_gitfile <"$pp_fs/.git" || true
+      pp_gitfile="${pp_gitfile//$'\r'/}"
+      pp_gitfile="${pp_gitfile//\\//}"
+      case "$pp_gitfile" in
+      gitdir:*/worktrees/*) pp_linked="true" ;;
+      *) ;;
+      esac
+    fi
+    presence_tsv+="$pp"$'\t'"true"$'\t'"$pp_linked"$'\n'
   else
     presence_tsv+="$pp"$'\t'"false"$'\n'
   fi
@@ -1032,12 +1059,23 @@ PASS2_PROGRAM='
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 PASS3_PROGRAM='
+  def triple:
+    if type == "string" then
+      ((capture("^v?(?<x>[0-9]+)[.](?<y>[0-9]+)[.](?<z>[0-9]+)") // null)
+       | if . == null then null else [.x, .y, .z] | map(tonumber) end)
+    else null end;
   (. | split("\u001d")) as $parts
   | ($parts[0] | fromjson) as $ctx
   | ($parts[1] | split("\n")
       | map(select(length > 0) | split("\t") | select(length >= 2 and (.[0] | length) > 0)
             | {key: .[0], value: (.[1] == "true")})
       | from_entries) as $pres
+  # Third column: whether a PRESENT path is a linked git worktree. Absent from a
+  # path that is not present, so the lookup below answers null, never false.
+  | ($parts[1] | split("\n")
+      | map(select(length > 0) | split("\t") | select(length >= 3 and (.[0] | length) > 0))
+      | map({key: .[0], value: (.[2] == "true")})
+      | from_entries) as $wt
   # Entries whose source is not a string never reached the payload, so they
   # are absent from this map entirely — a lookup returns null, the same
   # fail-open answer as an entry whose manifest could not be read. A manifest
@@ -1080,8 +1118,31 @@ PASS3_PROGRAM='
                     .projectPath as $pp
                     | (if ($pres | has($pp)) then $pres[$pp] else null end)
                   else null end
+                ),
+                linkedWorktree: (
+                  if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 then
+                    .projectPath as $pp
+                    | (if ($wt | has($pp)) then $wt[$pp] else null end)
+                  else null end
                 )
               })) as $installed
+  # A lagging project/local record in a linked worktree: `claude plugin update`
+  # reports success there and leaves the record unchanged (#6713), so the record
+  # is labeled instead of dropped. It stays in installed[] and in divergences[],
+  # and the label never changes versionsMatch. "Lagging" is measured against the
+  # catalog version when it parses, else the highest version any record of the id
+  # holds; a version that does not parse is never labeled.
+  | ($installed | group_by(.id)
+      | map({key: .[0].id, value: ([.[].version | triple | select(. != null)] | max)})
+      | from_entries) as $highest
+  | ($installed | map(
+      . as $r
+      | (($cv[$r.id] | triple) // $highest[$r.id]) as $ref
+      | $r + {label: (
+          if $r.linkedWorktree == true and ($r.version | triple) != null
+             and $ref != null and ($r.version | triple) < $ref
+          then "update ineffective; uninstall clears it" else null end)}
+    )) as $installed
   | ([$catalog[0].plugins[]?.name // empty] | unique) as $catalog_names
   | ($catalog_names | map(. + "@" + $name)) as $catalog_ids
   | ([$installed[].id] | unique) as $installed_ids
@@ -1137,7 +1198,7 @@ PASS3_PROGRAM='
       | map(select(length > 1))
       | map({
           id: .[0].id,
-          scopes: map({scope, version, projectPath, projectPathPresent}),
+          scopes: map({scope, version, projectPath, projectPathPresent, linkedWorktree, label}),
           versionsMatch: ((map(.version) | unique | length) == 1)
         })) as $divergences
   | {

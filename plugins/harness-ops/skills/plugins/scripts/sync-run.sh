@@ -1324,8 +1324,30 @@ finalize_moves() {
     # and an empty interior field would shift every later column left by one.
     [[ "$old" == "-" ]] && old=""
     [[ "$new" == "-" ]] && new=""
-    # An id the CLI called already-current changed nothing and is not a report row.
-    [[ "$result" == "noop" ]] && continue
+    # An id the CLI called already-current changed nothing and is not a report row,
+    # unless the run's own project/local record is still below the catalog: then the
+    # CLI judged some other record (a linked worktree's update is a no-op, #6713)
+    # and the update did not take. That is a failure, never a quiet success, and the
+    # next run would count the same divergence again.
+    if [[ "$result" == "noop" ]]; then
+      if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" && -f "$post" ]]; then
+        local ncur ncat nlabel
+        version_at ncur "$post" "$id" "$scope"
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to ncat -r --arg id "$id" '.catalog_versions[$id] // ""' "$post"
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to nlabel -r --arg id "$id" --arg sc "$scope" \
+          'first(.installed[]? | select(.id == $id and .scope == $sc and .currentProject == true)
+            | .label) // ""' "$post"
+        if [[ -n "$ncur" && -n "$ncat" && "$(version_direction "$ncur" "$ncat")" == "forward" ]]; then
+          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg cur "$ncur" --arg cat "$ncat" --arg label "$nlabel" \
+            '{id: $id, scope: $sc, rc: 0, output: "",
+              reason: ("the CLI said already at the latest version, but this project'"'"'s record is still at \($cur) and the catalog reads \($cat): the update did not take"
+                + (if $label == "" then "" else " (" + $label + ")" end))}')")
+        fi
+      fi
+      continue
+    fi
     if [[ -z "$new" && -f "$post" ]]; then
       version_at new "$post" "$id" "$scope"
       [[ "$new" == "$old" ]] && new=""
