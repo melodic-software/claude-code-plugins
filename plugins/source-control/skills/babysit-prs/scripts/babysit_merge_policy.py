@@ -2686,12 +2686,14 @@ def shared_refusal(
     now: datetime | None = None,
 ) -> str | None:
     """Why `shared` may not stand in for this pull request's own reads, or
-    None: it must name the same identity, self logins and lane, be no older
-    than `SHARED_MAX_AGE` (`SHARED_UNVERIFIED_MAX_AGE` while it passes with
-    a merge unverified), have no demotion record filed or changed since
-    (`_demotion_changed`), give this base the floor its own read would
-    (`merged_since_floor` with the shared demotion), and judge every merge
-    the post-merge check would judge now.
+    None: it must name the same identity, self logins and lane, give this
+    base the floor its own read would (`merged_since_floor` with the shared
+    demotion), be no older than `SHARED_MAX_AGE` (`SHARED_UNVERIFIED_MAX_AGE`
+    while it passes with a merge unverified), have no demotion record filed
+    or changed since (`_demotion_changed`), and judge every merge the
+    post-merge check would judge now. The binding comes before the age, so a
+    candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and does not
+    replace the run's answer.
 
     The check judges `branch` from the floor, never the base, so the answer
     holds for any base with that floor. A newer default-branch head changes
@@ -2702,7 +2704,7 @@ def shared_refusal(
     created after it verified."""
     age = (now or datetime.now(UTC)) - shared.computed_at
     owner, name = _split_repo(repo)
-    checks = (
+    binding = (
         (_login_key(shared.identity) != _login_key(identity), "identity-differs"),
         (
             {_login_key(s) for s in shared.self_logins}
@@ -2710,6 +2712,22 @@ def shared_refusal(
             "self-logins-differ",
         ),
         (shared.lane_merges_only != lane, "lane-differs"),
+    )
+    refusal = next((text for refused, text in binding if refused), None)
+    if refusal:
+        return refusal
+    try:
+        # The same newest config commit is the same floor; any other base
+        # walks its own config history to the floor it would read.
+        if newest_config_commit(
+            repo, base_sha
+        ) != shared.config_sha and shared.floor != merged_since_floor(
+            repo, base_sha, shared.demotion, authority
+        ):
+            return "floor-differs"
+    except PolicyReadError:
+        return "config-unreadable"
+    checks = (
         (not timedelta(0) <= age <= SHARED_MAX_AGE, "stale"),
         # A refusing answer refuses whatever was verified since, so only a
         # passing one with a merge still unverified is read again.
@@ -2728,17 +2746,6 @@ def shared_refusal(
         return refusal
     if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
         return "demotion-changed"
-    try:
-        # The same newest config commit is the same floor; any other base
-        # walks its own config history to the floor it would read.
-        if newest_config_commit(
-            repo, base_sha
-        ) != shared.config_sha and shared.floor != merged_since_floor(
-            repo, base_sha, shared.demotion, authority
-        ):
-            return "floor-differs"
-    except PolicyReadError:
-        return "config-unreadable"
     status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
     head = payload.get("sha") if status == 200 and is_json_object(payload) else None
     if head == shared.main_sha:
