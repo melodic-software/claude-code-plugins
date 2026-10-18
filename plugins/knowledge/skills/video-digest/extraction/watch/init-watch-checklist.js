@@ -5,6 +5,7 @@
  * Usage: node watch/init-watch-checklist.js <slice-dir> [--force]
  */
 
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -87,20 +88,48 @@ export function buildFloorsLine(contentClass, durationHours, sessionCount, durat
 }
 
 const ROW_ID = /^- \[([ xX])\] \*\*([^*]+)\*\*/;
+const CRITERIA_HASH = / <!-- criteria:([0-9a-f]+) -->\s*$/;
 const RESUME_HEADING = "## Resume notes";
+
+/**
+ * Hash of a row's criteria text: the row without its checkbox state and stored hash.
+ *
+ * @param {string} line checklist row
+ * @returns {string}
+ */
+function criteriaHash(line) {
+  const text = line.replace(CRITERIA_HASH, "").replace(/^- \[[ xX]\]/, "");
+  return createHash("sha256").update(text).digest("hex").slice(0, 12);
+}
+
+/**
+ * Append each row's criteria hash beside its checkbox, so a later regenerate can tell
+ * whether a tick still certifies the same criteria.
+ *
+ * @param {string} rendered freshly rendered checklist
+ * @returns {string}
+ */
+function stampCriteriaHashes(rendered) {
+  return rendered
+    .split("\n")
+    .map((line) => (ROW_ID.test(line) ? `${line} <!-- criteria:${criteriaHash(line)} -->` : line))
+    .join("\n");
+}
 
 /**
  * Carry an existing checklist's ticks (matched by row id), the indented
  * evidence lines under each ticked row, and its Resume notes section into a
  * freshly rendered one, so a regenerate never erases evidence. The row text
- * itself is regenerated.
+ * itself is regenerated. A tick whose stored criteria hash no longer matches the
+ * regenerated row is dropped with its evidence and reported. A tick saved before
+ * hashes existed has none to compare, so it is kept and gets the current hash.
  *
- * @param {string} rendered freshly rendered checklist
+ * @param {string} rendered freshly rendered checklist, rows already hash-stamped
  * @param {string} previous checklist already on disk
- * @returns {string}
+ * @returns {{ text: string, dropped: string[] }} merged checklist and the row ids whose ticks were dropped
  */
 export function carryOverProgress(rendered, previous) {
-  /** @type {Map<string, string[]>} ticked row id -> indented evidence lines under it */
+  /** @type {Map<string, { hash: string | null, evidence: string[] }>} ticked row id -> stored hash and indented evidence lines under it */
   const ticked = new Map();
   /** @type {string[] | null} */
   let evidence = null;
@@ -108,19 +137,28 @@ export function carryOverProgress(rendered, previous) {
     const match = ROW_ID.exec(line);
     if (match) {
       evidence = match[1] === " " ? null : [];
-      if (evidence) ticked.set(match[2], evidence);
+      if (evidence) {
+        ticked.set(match[2], { hash: CRITERIA_HASH.exec(line)?.[1] ?? null, evidence });
+      }
     } else if (evidence && /^\s+\S/.test(line)) {
       evidence.push(line);
     } else {
       evidence = null;
     }
   }
+  /** @type {string[]} */
+  const dropped = [];
   let merged = rendered
     .split("\n")
     .flatMap((line) => {
       const match = ROW_ID.exec(line);
       const kept = match ? ticked.get(match[2]) : undefined;
-      return kept ? [line.replace("- [ ]", "- [x]"), ...kept] : [line];
+      if (!kept) return [line];
+      if (kept.hash !== null && kept.hash !== CRITERIA_HASH.exec(line)?.[1]) {
+        dropped.push(match[2]);
+        return [line];
+      }
+      return [line.replace("- [ ]", "- [x]"), ...kept.evidence];
     })
     .join("\n");
 
@@ -129,12 +167,13 @@ export function carryOverProgress(rendered, previous) {
   if (previousNotes !== -1 && renderedNotes !== -1) {
     merged = merged.slice(0, renderedNotes) + previous.slice(previousNotes);
   }
-  return merged;
+  return { text: merged, dropped };
 }
 
 /**
  * Write the checklist. With `force`, an existing checklist is regenerated (floors,
- * signals, per-sheet rows) and keeps its ticks and Resume notes.
+ * signals, per-sheet rows) and keeps its ticks and Resume notes, except ticks on rows
+ * whose criteria changed: those are dropped and listed on stdout.
  *
  * @param {string} sliceDir
  * @param {{ force?: boolean }} [options]
@@ -228,8 +267,13 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
     template = template.replaceAll(key, value);
   }
 
+  template = stampCriteriaHashes(template);
   if (fs.existsSync(outPath)) {
-    template = carryOverProgress(template, fs.readFileSync(outPath, "utf8"));
+    const carried = carryOverProgress(template, fs.readFileSync(outPath, "utf8"));
+    template = carried.text;
+    if (carried.dropped.length > 0) {
+      writeStdout(`Dropped ticks (criteria changed since ticked): ${carried.dropped.join(", ")}`);
+    }
   }
 
   fs.mkdirSync(lanePath(absSlice, LANES.runState), { recursive: true });
