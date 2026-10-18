@@ -102,6 +102,8 @@ rm -rf <path>
 git worktree remove <path>
 ```
 
+**The session's own worktree is deferred.** When the candidate path equals `git rev-parse --show-toplevel`, skip its removal here and leave it for Step 4c, which removes it before deleting its branch.
+
 **Two guards, the workspace `down` and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → `down` → reap → removal.** `down` comes after the guards so a worktree they keep keeps its services. The stranded-work guard first, because it can abort the removal outright. Running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last of the three for the same reason inverted: it is the only one of the three that is *not* undoable, so it must not fire for a worktree the guards are about to save.
 
 **1. Stranded-work guard:** removal itself is recoverable, since `git worktree remove` unregisters the directory and leaves the branch ref intact, but a detached-HEAD worktree has no branch ref holding its commits, and for every other candidate the `git branch -D` emitted in Step 4c finishes the job one step later. Both are covered here, at the point where the candidate is still on disk.
@@ -313,17 +315,19 @@ Do NOT swallow stderr with `2>/dev/null`. A failed removal must surface so Step 
 ### Step 4c: Branch + current-worktree deletion (run inline on POSIX, emit on Windows or a hook block)
 
 ```bash
-git branch -D <branch-name>                    # -D needed (squash-merge changes SHA)
-git worktree remove <current-worktree-path>    # only if the active worktree was itself a candidate
+git -C '<main-root>' worktree remove '<current-worktree-path>'    # first, only if the active worktree was itself a candidate
+git -C '<main-root>' branch -D --end-of-options '<branch-name>'   # second: -D needed (squash-merge changes SHA); git refuses while the branch is still checked out in a worktree
 ```
+
+Substitute `<branch-name>`, `<main-root>` and `<current-worktree-path>` only when each is safe to quote: a branch name matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and holds no `..`; a path holds no single quote. Keep the single quotes. Any other value reaches no command: report it as data, because untrusted input can shape git ref names and paths.
 
 **Where it runs.** The Step 4 confirmation is the user's go-ahead. With it given and the stranded-work guard passed for the row:
 
-- **Linux and macOS (`uname -s` is not `MINGW*`, `MSYS*` or `CYGWIN*`): run both commands yourself.** A process's working directory can be removed on these systems while it runs, so the session's own worktree is removable, and the session carries on from a directory that still exists (run later commands with `git -C` on the main checkout, or by absolute path). Run the branch deletion from the main checkout (`git -C <main-root> branch -D <branch-name>`), and the `git worktree remove` line for the session's own worktree, which is the one Step 4b leaves for this step; every other candidate was already removed in Step 4b, after 4a and the 4b guards. Unlock first only for a row the Step 4b lock rules allow.
+- **Linux and macOS (`uname -s` is not `MINGW*`, `MSYS*` or `CYGWIN*`): run both commands yourself.** A process's working directory can be removed on these systems while it runs, so the session's own worktree is removable, and the session carries on from a directory that still exists (run later commands with `git -C` on the main checkout, or by absolute path). Run the worktree removal first and the branch deletion after it, both through `git -C '<main-root>'` as in the block above (the branch stays checked out, and so undeletable, while its worktree exists). The removal is for the session's own worktree, which is the one Step 4b defers to this step; every other candidate was already removed in Step 4b, after 4a and the 4b guards. Unlock first only for a row the Step 4b lock rules allow.
 - **Windows: emit them for the user.** The running Claude Code process holds the session worktree's directory handle there, so the worktree cannot delete itself. Surface the commands to run from a main-repo terminal (or via the `!` prompt prefix) instead of executing them.
 - **A hook blocks a command, on any host: stop, report the block and the command, and emit it for the user.** Try the command and report a block; never route around a hook, and never retry the same command.
 
-**The stranded-work precondition applies here too, and this is where it bites hardest.** Removal left the branch ref intact; this line is what actually destroys the commits. Run or emit `git branch -D <branch-name>` only for a branch whose row was `landed` or `ok`. For `STRANDED`, `UNKNOWN`, or `superseded`, run and emit nothing and say why. A suggested command in a code block reads as vetted, and a user pasting it has no way to know the guard upstream was never applied to it. Emit `git -C <path> push -u origin HEAD` instead.
+**The stranded-work precondition applies here too, and this is where it bites hardest.** Removal left the branch ref intact; this line is what actually destroys the commits. Run or emit the `git branch -D` line only for a branch whose row was `landed` or `ok`. For `STRANDED`, `UNKNOWN`, or `superseded`, run and emit nothing and say why. A suggested command in a code block reads as vetted, and a user pasting it has no way to know the guard upstream was never applied to it. Emit `git -C <path> push -u origin HEAD` instead.
 
 The branch this deletes may also be checked out by another worktree; `git branch -D` refuses in that case, which is git protecting the peer rather than an error to work around.
 
