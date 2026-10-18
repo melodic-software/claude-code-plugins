@@ -239,7 +239,10 @@ jobs:
     # or an output of a step that ran before any PR head code. act-outcome
     # reads steps that run after the skill: for a gate skill the verdict step,
     # so a gate skill must not execute head code; its promote, commit and
-    # turn terms only turn a success into a failure. merge-state and a
+    # turn terms only turn a success into a failure. The act-result step
+    # turns a failed skill step into a success only when the execution
+    # file's result message is a success over the turn cap, a shape the CLI
+    # writes and a finished run could report anyway. merge-state and a
     # pre-model escalation-reason come from the prepare step, before any
     # model turn; a post-model escalation-reason comes from post.sh after it,
     # and a forged one can only hand the PR to a person. In review-threads
@@ -293,18 +296,19 @@ jobs:
       # the PR branch fails. In merge-base mode a clean merge skips the skill
       # and succeeds only once its commit is made and promoted (or post.sh
       # escalates), and a staged merge that post.sh cleared but that was not
-      # committed fails. The verdict step's ACT_OUTCOME repeats this
+      # committed fails. A skill step that failed only on the turn cap
+      # counts as succeeded (act-result). The verdict step's ACT_OUTCOME repeats this
       # expression: runner-policy refuses YAML aliases.
       act-outcome: >-
         ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
         && ((steps.post.outputs.escalation-reason != ''
         || steps.commit.outcome == 'success' && steps.promote.outcome == 'success') && 'success' || 'failure')
-        || steps.act-skill.outcome == 'success'
+        || steps.act-result.outputs.outcome == 'success'
         && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
         || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success'
         || steps.commit.outcome == 'failure'
         || steps.post.outputs.tree != '' && steps.commit.outcome != 'success') && 'failure'
-        || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
+        || steps.act-skill.outcome != 'skipped' && (steps.act-result.outputs.outcome || steps.act-skill.outcome)
         || steps.act-script.outcome }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
@@ -991,12 +995,15 @@ jobs:
             cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"
           done
 
-      # In merge-base mode only a conflicted merge needs the model.
+      # In merge-base mode only a conflicted merge needs the model. A failure
+      # does not stop the job here: the next step fails it unless the failure
+      # is only the turn cap on a successful result.
       - name: Run the skill activity
         id: act-skill
         if: >-
           steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
           && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
+        continue-on-error: true
         uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
@@ -1041,6 +1048,55 @@ jobs:
             --permission-mode dontAsk
             ${{ steps.config.outputs.claude-args }}
             ${{ steps.stage.outputs.claude-args }}
+
+      # claude-code-action fails the step on a `success` result whose
+      # num_turns is over --max-turns, after the CLI has finished the work
+      # (base-action/src/run-claude-sdk.ts:241-250 at the pinned SHA). Such a
+      # run counts as a success: the last result message in the execution
+      # file must say subtype `success`, is_error false, and num_turns over
+      # the cap. Any other failure, or a missing or unreadable file, fails
+      # the job here, as the skill step itself did before.
+      - name: Check the skill's failure is only the turn cap
+        id: act-result
+        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ACT_OUTCOME: ${{ steps.act-skill.outcome }}
+          EXECUTION_FILE: >-
+            ${{ steps.act-skill.outputs.execution_file
+            || format('{0}/claude-execution-output.json', runner.temp) }}
+          MAX_TURNS: ${{ steps.config.outputs.max-turns }}
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { ACT_OUTCOME, EXECUTION_FILE, MAX_TURNS } = process.env;
+            if (ACT_OUTCOME === 'success') {
+              core.setOutput('outcome', 'success');
+              return;
+            }
+            let result = null;
+            try {
+              const messages = JSON.parse(fs.readFileSync(EXECUTION_FILE, 'utf8'));
+              result = Array.isArray(messages) ? messages.filter((m) => m?.type === 'result').at(-1) ?? null : null;
+            } catch (error) {
+              core.setFailed(`the skill step failed and its execution file is not readable: ${error.code ?? error.name}`);
+              return;
+            }
+            const cap = /^[1-9][0-9]*$/.test(MAX_TURNS ?? '') ? Number(MAX_TURNS) : null;
+            const turns = result?.num_turns;
+            if (
+              result?.subtype === 'success' && result.is_error === false && cap !== null
+              && Number.isSafeInteger(turns) && turns > cap
+            ) {
+              core.notice(`the skill finished with a successful result after ${turns} turns, over the ${cap}-turn cap; counted as a success`);
+              core.setOutput('outcome', 'success');
+              return;
+            }
+            core.setFailed(
+              `the skill step failed: result subtype=${JSON.stringify(result?.subtype ?? null)} ` +
+                `is_error=${JSON.stringify(result?.is_error ?? null)} num_turns=${JSON.stringify(turns ?? null)} max-turns=${cap ?? 'unset'}`,
+            );
 
       # The reply is untrusted model text: it is read with jq and printed as
       # data, never interpolated into a command. The file path falls back to
@@ -1156,7 +1212,7 @@ jobs:
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@64fd515245f2bdeea8dedca1a3cea9ca39804bec # v0.43.0
         with:
-          outcome: ${{ steps.act-skill.outcome }}
+          outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
           execution-file: >-
             ${{ steps.act-skill.outputs.execution_file
             || format('{0}/claude-execution-output.json', runner.temp) }}
@@ -1181,7 +1237,7 @@ jobs:
       # summary is model text, printed as data.
       - name: Check the gate skill's verdict
         id: skill-verdict
-        if: always() && steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
+        if: always() && steps.act-result.outputs.outcome == 'success' && steps.config.outputs.gating == 'gate'
         env:
           STRUCTURED_OUTPUT: ${{ steps.act-skill.outputs.structured_output }}
         run: |
@@ -1210,7 +1266,7 @@ jobs:
         if: >-
           steps.config.outputs.prepare == 'merge-base' && steps.prepare.outcome == 'success'
           && (steps.prepare.outputs.merge-state == 'clean'
-          || steps.act-skill.outcome == 'success' && steps.act-turns.outcome == 'success')
+          || steps.act-result.outputs.outcome == 'success' && steps.act-turns.outcome == 'success')
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           OUT: ${{ runner.temp }}/merge-base-out
@@ -1888,12 +1944,12 @@ jobs:
             ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
             && ((steps.post.outputs.escalation-reason != ''
             || steps.commit.outcome == 'success' && steps.promote.outcome == 'success') && 'success' || 'failure')
-            || steps.act-skill.outcome == 'success'
+            || steps.act-result.outputs.outcome == 'success'
             && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
             || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success'
             || steps.commit.outcome == 'failure'
             || steps.post.outputs.tree != '' && steps.commit.outcome != 'success') && 'failure'
-            || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
+            || steps.act-skill.outcome != 'skipped' && (steps.act-result.outputs.outcome || steps.act-skill.outcome)
             || steps.act-script.outcome }}
           VERDICT_DIR: ${{ runner.temp }}/verdict
         run: |

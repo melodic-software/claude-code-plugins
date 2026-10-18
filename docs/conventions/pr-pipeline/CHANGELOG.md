@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.12.1 - 2026-10-18
+## 2.12.2 - 2026-10-18
 
 `pr-unblock` `address-feedback` widens a kept thread's scope from its path alone to also a file in
 the `plugins/<p>/` directory that path sits in, and a test file (`test_*.py`, `*_test.py`,
@@ -11,6 +11,16 @@ part leaves out files the harness or a shell runs or loads as instructions: anyt
 `.sh`, `.py`, `.mjs`, `.js` or `.ts` file. The review-thread tool, the promote step and the reply
 job apply the same rule; the promote step imports the base's `thread-scope.mjs` from a copy taken
 before the head checkout, checked against its SHA-256. `.github/` stays refused. `version` stays 2.
+
+## 2.12.1 - 2026-10-18
+
+A write-runner skill run that claude-code-action fails only because its `success` result went over
+`--max-turns` now counts as a success: `act-outcome`, the verdict, the lane record and the job
+result report success, so `pipeline/resolve-issue` posts `success` and report-outcome proceeds as on
+any finished run. The run job reads this from the execution file's last result message (subtype
+`success`, `is_error` false, `num_turns` over the cap); any other failure, or a missing or
+unreadable execution file, still fails
+([pr-run-activity.md](pr-run-activity.md#the-run-job)). `version` stays 2.
 
 ## 2.12.0 - 2026-10-18
 

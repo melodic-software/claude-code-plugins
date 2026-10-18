@@ -257,11 +257,14 @@ empty; `head-sha` and `head-ref` are the trigger gate's; `base-sha` is set only 
 is always on the default branch. `merge-state` and a pre-model `escalation-reason` come from the
 prepare step, before any model turn; a post-model `escalation-reason` comes from `post.sh` after
 it, and a forged one can only hand the PR to a person. `act-outcome` is the activity step's
-outcome, except that a skill whose step succeeded is a failure when it took no model turn, when it
-is a gate skill and the verdict check (below) fails, when its commits could not be moved onto the
-PR branch, or when its merge commit failed or was not made; in `prepare: merge-base`, a clean merge
-that skipped the skill is a success once its commit is promoted. These checks are steps that run
-after the skill.
+outcome, except that a skill step claude-code-action failed only because a `success` result went
+over `--max-turns` counts as succeeded. That holds only when the execution file's last result
+message has subtype `success`, `is_error` false and `num_turns` over the cap; any other failure,
+or a missing or unreadable execution file, still fails the job. A skill whose step succeeded is a
+failure when it took no model turn, when it is a gate skill and the verdict check (below) fails,
+when its commits could not be moved onto the PR branch, or when its merge commit failed or was not
+made; in `prepare: merge-base`, a clean merge that skipped the skill is a success once its commit
+is promoted. These checks are steps that run after the skill.
 
 The write file also outputs the lane record of a skill run: `lane-class` and `lane-resets`, the
 failure class and usage-limit reset that ci-workflows' `report-lane-outcome` reads from the
