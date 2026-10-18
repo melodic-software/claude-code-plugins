@@ -6,7 +6,7 @@ expected_outcome: 'The Skill tool is called for code-tidying:batch-simplify and 
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/code-tidying:batch-simplify unattended 72h'
+  prompt: '/code-tidying:batch-simplify unattended 72h src ./repo'
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
   max_turns: 150
   timeout_seconds: 2400
@@ -45,6 +45,10 @@ graders:
     pattern: 'old: level is'
     match: "count:2"
     target: { source: file, path: lib/old.sh }
+  - name: fallback-group-list
+    type: llm
+    focus: last_message
+    criteria: 'PASS only if the final reply shows a per-group list with a separate entry and a status or outcome for each of at least two groups (the src group holding src/greet.sh and the repo group holding repo/tool.sh), as the skill''s fallback for missing task tools. FAIL if the reply covers one merged group, gives only a file list with no per-group entries, or shows no per-group tracking.'
   - name: fallback-completed-run
     type: llm
     focus: last_message
