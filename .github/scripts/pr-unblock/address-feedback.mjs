@@ -276,7 +276,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
-      throw new Error(`${method} ${url} returned ${response.status}`);
+      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { status: response.status });
     }
     return { data: await response.json(), link: response.headers.get("link") ?? "" };
   }
@@ -311,6 +311,28 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     async listCheckRuns(sha, name) {
       const url = `${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&filter=all&per_page=100`;
       return (await request(url)).data.check_runs ?? [];
+    },
+    // Every check run on a commit, up to 300 (fix-ci-context.mjs).
+    async listCommitCheckRuns(sha) {
+      const runs = [];
+      for (let page = 1; page <= 3; page += 1) {
+        const { data } = await request(`${repo}/commits/${sha}/check-runs?filter=latest&per_page=100&page=${page}`);
+        runs.push(...(data.check_runs ?? []));
+        if ((data.check_runs ?? []).length < 100) {
+          break;
+        }
+      }
+      return runs;
+    },
+    listAnnotations: async (id) => (await request(`${repo}/check-runs/${id}/annotations?per_page=50`)).data,
+    getJob: async (id) => (await request(`${repo}/actions/jobs/${id}`)).data,
+    // The job log redirects to a short-lived download URL; fetch follows it.
+    async getJobLog(id) {
+      const response = await fetch(`${repo}/actions/jobs/${id}/logs`, { headers });
+      if (!response.ok) {
+        throw Object.assign(new Error(`GET job ${id} logs returned ${response.status}`), { status: response.status });
+      }
+      return response.text();
     },
     async getCommit(sha) {
       return (await request(`${repo}/commits/${sha}`)).data;
@@ -354,6 +376,22 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     },
     async createIssueComment(pr, body) {
       await request(`${repo}/issues/${pr}/comments`, "POST", { body });
+    },
+    // One page: apply-ci-fix.mjs refuses to read more labels than it holds.
+    async listLabels(pr) {
+      const { data, link } = await request(`${repo}/issues/${pr}/labels?per_page=100`);
+      if (/rel="next"/.test(link)) {
+        throw new Error("the pull request has more labels than one page holds");
+      }
+      return data;
+    },
+    // The Git Data API (apply-ci-fix.mjs): GitHub signs a commit made with no
+    // author or committer as the App.
+    createBlob: async (content) => (await request(`${repo}/git/blobs`, "POST", { content, encoding: "base64" })).data.sha,
+    createTree: async (baseTree, tree) => (await request(`${repo}/git/trees`, "POST", { base_tree: baseTree, tree })).data.sha,
+    createCommit: async (message, tree, parents) => (await request(`${repo}/git/commits`, "POST", { message, tree, parents })).data.sha,
+    async updateRef(ref, sha, force) {
+      await request(`${repo}/git/refs/${ref.split("/").map(encodeURIComponent).join("/")}`, "PATCH", { sha, force });
     },
   };
 }
