@@ -269,7 +269,10 @@ jobs:
             script=${check%% *}
             read -ra flags <<<"${check#"$script"}"
             status=0
-            (cd "$LANE" && CHECK_DATA_ROOT="$LANE" bash "$BASE/$script" "${flags[@]}") || status=$?
+            # A check gets none of the runner's file-command paths, so it
+            # cannot write this step's outputs.
+            (cd "$LANE" && env -u GITHUB_OUTPUT -u GITHUB_ENV -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
+              CHECK_DATA_ROOT="$LANE" bash "$BASE/$script" "${flags[@]}") || status=$?
             echo "$check: exit status $status"
             results=$(jq -c --arg check "$check" --argjson exit "$status" '. + [{check: $check, exit: $exit}]' <<<"$results")
           done
