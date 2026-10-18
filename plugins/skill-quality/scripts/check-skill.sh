@@ -159,9 +159,11 @@
 #      skipped with an INFO when no base resolves or the skill is new)
 #  31. A `${user_config.KEY}` token used as the subject of a condition ("When
 #      `${user_config.x}` is true") with no inline fallback for the unexpanded
-#      token, in SKILL.md or any skill `.md` prose (FAIL; a file recorded with
-#      its hit count in CHECK_SKILL_SETTINGS_TOKEN_BASELINE, default
-#      scripts/settings-token-baseline.txt, WARNs while the count holds)
+#      token, in SKILL.md or any skill `.md` prose (FAIL where a baseline
+#      applies: CHECK_SKILL_SETTINGS_TOKEN_BASELINE, or the default
+#      scripts/settings-token-baseline.txt when the checker sits in the skill's
+#      repository; a file recorded there with its hit count WARNs while the
+#      count holds. WARN wherever no baseline applies)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -2431,7 +2433,7 @@ else
     warn "SKILL.md body grew vs $SIZE_BASE_LABEL: $SIZE_BASE_BODY -> $BODY_LINES lines (/playbooks:skill-authoring, Body)"
 fi
 
-# --- Check 31: settings token as a condition with no fallback (FAIL) ----------
+# --- Check 31: settings token as a condition with no fallback (FAIL/WARN) -----
 # A `${user_config.KEY}` token is substituted when the user set the key and can
 # arrive as the literal token when they did not, so "When `${user_config.x}` is
 # true" reads as neither true nor false. The convention is a value stated with
@@ -2445,7 +2447,12 @@ fi
 # token are skipped; evals/ and vendor/ are not read. Severity: a file listed in
 # SETTINGS_TOKEN_BASELINE with a hit count WARNs while its count holds, and FAILs
 # when the count rises, falls (lower the row) or reaches zero (remove it), so the
-# list only shrinks; every hit in an unlisted file FAILs.
+# list only shrinks; every hit in an unlisted file FAILs. Those rules apply only
+# where a baseline applies to the run: one named by
+# CHECK_SKILL_SETTINGS_TOKEN_BASELINE, or the default file when the checker sits
+# in the same repository as the skill. Anywhere else (a consumer repository with
+# no baseline of its own, a plain tree such as a plugin-cache install) every hit
+# WARNs.
 SETTINGS_TOKEN_BASELINE="${CHECK_SKILL_SETTINGS_TOKEN_BASELINE:-$SCRIPT_DIR/settings-token-baseline.txt}"
 settings_token_hits() { # one .md file; prints "<line>\t<key>" per hit
   awk '
@@ -2531,10 +2538,21 @@ settings_token_row_count() { # baseline file, repo-relative path; prints the cou
 ST_LABEL="$SETTINGS_TOKEN_BASELINE"
 [[ -z "${CHECK_SKILL_SETTINGS_TOKEN_BASELINE:-}" ]] && ST_LABEL="scripts/settings-token-baseline.txt"
 ST_BASELINE_OK=0
-if [[ -f "$SETTINGS_TOKEN_BASELINE" ]]; then
-  ST_BASELINE_OK=1
-elif [[ -n "${CHECK_SKILL_SETTINGS_TOKEN_BASELINE:-}" ]]; then
-  err "CHECK_SKILL_SETTINGS_TOKEN_BASELINE=$SETTINGS_TOKEN_BASELINE does not exist — a missing baseline must not silently become a clean run"
+ST_STRICT=0
+if [[ -n "${CHECK_SKILL_SETTINGS_TOKEN_BASELINE:-}" ]]; then
+  ST_STRICT=1
+  if [[ -f "$SETTINGS_TOKEN_BASELINE" ]]; then
+    ST_BASELINE_OK=1
+  else
+    err "CHECK_SKILL_SETTINGS_TOKEN_BASELINE=$SETTINGS_TOKEN_BASELINE does not exist — a missing baseline must not silently become a clean run"
+  fi
+elif [[ -f "$SETTINGS_TOKEN_BASELINE" && -n "$SKILL_REL" ]]; then
+  st_own_root="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  st_skill_root="$(git -C "$SKILL_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  if [[ -n "$st_own_root" && "$st_own_root" == "$st_skill_root" ]]; then
+    ST_STRICT=1
+    ST_BASELINE_OK=1
+  fi
 fi
 ST_SEEN=""
 ST_ANY=0
@@ -2566,7 +2584,9 @@ while IFS= read -r st_md; do
   done <<<"$st_hits"
   # shellcheck disable=SC2016  # backticks are literal Markdown in the message
   st_fix='state the fallback in the same sentence, e.g. "(unexpanded, empty, or any other value means `false`)", as `/code-tidying:tidy` does for `hard_exclusions`'
-  if [[ -z "$st_base" ]]; then
+  if [[ -z "$st_base" ]] && ((ST_STRICT == 0)); then
+    warn "settings token used as a condition with no inline fallback at $st_where — advisory: no settings-token baseline applies to this run (set CHECK_SKILL_SETTINGS_TOKEN_BASELINE to a baseline file, empty for none, to make it a FAIL); $st_fix"
+  elif [[ -z "$st_base" ]]; then
     err "settings token used as the subject of a condition with no inline fallback at $st_where: an unset key can arrive as the literal token, which reads as neither true nor false; $st_fix"
   elif ((st_count > st_base)); then
     err "settings-token hits in $st_rel rose from the baseline's $st_base to $st_count at $st_where: $st_fix"

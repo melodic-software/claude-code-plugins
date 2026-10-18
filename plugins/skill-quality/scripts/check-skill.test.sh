@@ -5327,6 +5327,57 @@ else
   fail "check 31 should FAIL a missing named baseline (rc=$rc): $out"
 fi
 
+# Check 31 severity follows whether a baseline applies to the run. A consumer
+# that names its own baseline (the empty-file cases above) is strict. With no
+# baseline named, only a run of the checker on its own repository applies the
+# default baseline; a consumer repository or a plain tree gets WARNs, exit 0.
+run_st_default() { # cwd, checker path, skills root, skill
+  (cd "$1" && env -u CHECK_SKILL_SETTINGS_TOKEN_BASELINE \
+    CHECK_SKILL_SKILLS_ROOT="$3" CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$2" "$4")
+}
+out="$(run_st_default "$TMP" "$SUT" "$SKILLS" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: settings token used as a condition with no inline fallback at SKILL.md:8 (x)' <<<"$out" &&
+  grep -q 'no settings-token baseline applies to this run' <<<"$out" && ! grep -q 'FAIL: settings token' <<<"$out"; then
+  pass "check 31 WARNs, exit 0, in a consumer git repo with no baseline of its own"
+else
+  fail "check 31 should WARN in a consumer repo with no baseline (rc=$rc): $out"
+fi
+
+ST_PLAIN="$(mktemp -d)"
+trap 'rm -rf "$TMP" "$ST_PLAIN"' EXIT
+mkdir -p "$ST_PLAIN/skills"
+cp -R "$SKILLS/st-misread" "$ST_PLAIN/skills/"
+out="$(GIT_CEILING_DIRECTORIES="$ST_PLAIN" run_st_default "$ST_PLAIN" "$SUT" "$ST_PLAIN/skills" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: settings token used as a condition with no inline fallback at SKILL.md:8 (x)' <<<"$out" &&
+  grep -q 'no settings-token baseline applies to this run' <<<"$out"; then
+  pass "check 31 WARNs, exit 0, on a plain tree such as a plugin-cache install"
+else
+  fail "check 31 should WARN on a plain tree (rc=$rc): $out"
+fi
+
+# The checker inside the repository it checks: its default baseline applies.
+ST_TOOL="$TMP/tools/skill-quality"
+mkdir -p "$ST_TOOL"
+cp "$SCRIPT_DIR/check-skill.sh" "$SCRIPT_DIR/skill-frontmatter.sh" "$SCRIPT_DIR/metadata-registry.txt" "$ST_TOOL/"
+: >"$ST_TOOL/settings-token-baseline.txt"
+out="$(run_st_default "$TMP" "$ST_TOOL/check-skill.sh" "$SKILLS" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'FAIL: settings token used as the subject of a condition with no inline fallback at SKILL.md:8 (x)' <<<"$out"; then
+  pass "check 31 FAILs an unlisted hit when the checker's own repository is checked"
+else
+  fail "check 31 should FAIL an unlisted hit in the checker's own repository (rc=$rc): $out"
+fi
+printf '.claude/skills/st-misread/SKILL.md 1\n' >"$ST_TOOL/settings-token-baseline.txt"
+out="$(run_st_default "$TMP" "$ST_TOOL/check-skill.sh" "$SKILLS" st-misread 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'recorded in scripts/settings-token-baseline.txt' <<<"$out"; then
+  pass "check 31 WARNs on a row of the default baseline in the checker's own repository"
+else
+  fail "check 31 should WARN on a default-baseline row in its own repository (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

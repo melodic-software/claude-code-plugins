@@ -291,6 +291,11 @@ and review against the invariant.
   `CHECK_SKILL_SKILLS_ROOT` (or `CLAUDE_PROJECT_DIR`) so the non-git checks still resolve a
   skills root; without either and without a git toplevel, the script exits 2 naming the
   missing root.
+- Check 31 (a `${user_config.KEY}` token as a condition with no fallback) FAILs only where a
+  settings-token baseline applies: `CHECK_SKILL_SETTINGS_TOKEN_BASELINE`, or the bundled default
+  when the checker runs from the repository holding the skill. In a consumer repository or a
+  plugin-cache tree its hits are WARNs; set that variable to your own baseline file (empty for
+  none) to make them block.
 - `check-skill.sh` runs `npx markdownlint-cli2` for check 6; when `npx` is absent that check downgrades
   to a WARN rather than failing, so a run on a machine without Node still gates on every other check.
 - **Check 6 defers to the skill's own repo markdownlint config.** `markdownlint-cli2` discovers config
