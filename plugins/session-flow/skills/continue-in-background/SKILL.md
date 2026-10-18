@@ -135,10 +135,12 @@ fallback), then:
    runs inside a linked git worktree, where isolation is skipped per the same page.
 
    **`worktree.bgIsolation`.** Read it with `jq` from the settings files, first file that sets
-   it wins: the managed settings file and its `managed-settings.d` drop-in directory where they
-   exist on this machine, then the project's `.claude/settings.local.json` and
-   `.claude/settings.json`, then `~/.claude/settings.json`. The order among them follows the
-   settings page (pointer below). Managed settings delivered another way, or from a location this
+   it wins across tiers: managed settings (the managed settings file and its `managed-settings.d`
+   drop-in directory, where they exist on this machine), then the project's
+   `.claude/settings.local.json` and `.claude/settings.json`, then `~/.claude/settings.json`.
+   Within the managed tier, do not assume first match: read the file-versus-drop-in and
+   drop-in-versus-drop-in order, and where each lives, from the settings precedence pointer
+   below, and apply it. Managed settings delivered another way, or from a location this
    read cannot find, are not covered: say so in the launch report. A `--settings` value cannot be
    read from files either, so whenever a launch report is written, say the read covered the files
    only. `none` is the value that turns isolation off; the pointer says what it does. When the value is `none`,
@@ -147,9 +149,12 @@ fallback), then:
    checkout in place, alongside the user, so both may touch the same files at once; this holds
    inside a linked worktree too. Any other
    result, including a file that does not parse, leaves the gate above unchanged. The `--cloud`
-   variant below ignores this setting. Pointer:
+   variant below ignores this setting. Pointers:
    <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of 2026-10-18;
    recheck trigger: that section changes what `worktree.bgIsolation` does or its accepted values.
+   Settings precedence, including managed drop-ins:
+   <https://code.claude.com/docs/en/settings#settings-precedence>; as of 2026-10-18; recheck
+   trigger: that section changes the tier order, the managed file locations or the drop-in order.
 2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
    First write the prompt, exactly as emitted between the rails, to a temporary file with the
    Write tool (full path: the between-rails lines of the resume region of the
