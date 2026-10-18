@@ -19,14 +19,15 @@ never an abort. These probes color a report; they are not gates.
 
 ## Why these are gathered at run time, never pre-computed
 
-A worktree-isolated agent **refuses any command carrying a `$`-expansion**, which made these skills
-fail at load, in `handoff`'s case in exactly the isolated sessions that most need a save-point.
-Keep `$`-expansion out of the pre-compute block
-(melodic-software/claude-code-plugins#1687).
+A `$`-expansion in a pre-compute line made these skills fail at load, in `handoff`'s case in
+exactly the isolated sessions that most need a save-point. Keep `$`-expansion out of the
+pre-compute block (melodic-software/claude-code-plugins#1687). The accepted and refused shapes for
+worktree-isolated Bash are owned by `/source-control:worktree`, under "Accepted command shapes for
+body-time and subagent Bash".
 
-`$HOME` is the one variable observed to survive that guard in every position; any braced form,
-including `${HOME}`, is refused, and other names pass or fail by a rule nobody has characterized.
-Prefer a probe that needs no expansion at all.
+That heading holds the bare `$HOME` exception and leaves other names unsettled. This file adds one
+observation: any braced form, including `${HOME}`, is refused. Prefer a probe that needs no
+expansion at all.
 
 - **Pointer**: the pass and refuse table in
   [melodic-software/claude-code-plugins#1687, "Final state of the rule"](https://github.com/melodic-software/claude-code-plugins/issues/1687#issuecomment-5086783455),
