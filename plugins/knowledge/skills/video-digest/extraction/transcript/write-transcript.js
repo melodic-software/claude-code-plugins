@@ -11,7 +11,11 @@ import {
   cleanManualCaptions,
   stripCaptionHtmlEntities,
 } from "@melodic/video-digestion/transcript/manual-caption-clean";
-import { formatTimestamp, formatTranscript } from "@melodic/video-digestion/transcript/vtt-parser";
+import {
+  formatTimestamp,
+  formatTranscript,
+  parseVttSegment,
+} from "@melodic/video-digestion/transcript/vtt-parser";
 
 import { primaryEntry } from "../adapters/adapter-contract.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
@@ -32,6 +36,16 @@ import { resolveTranscriptStrategy } from "./transcript-strategy.js";
  */
 function countParagraphs(transcript) {
   return transcript ? transcript.split("\n\n").length : 0;
+}
+
+/** @typedef {{ startSec: number, endSec: number, text: string }} WatchCue */
+
+/**
+ * @param {{ startSec: number, endSec: number, text: string }} cue
+ * @returns {WatchCue}
+ */
+function toWatchCue(cue) {
+  return { startSec: cue.startSec, endSec: cue.endSec, text: cue.text };
 }
 
 const BOUNDARY_REPEAT_MIN_WORDS = 2;
@@ -277,6 +291,8 @@ export function transcriptFilename(entryIndex, primaryEntryIndex) {
  * @typedef {Object} EnvelopeTranscriptEntry
  * @property {number} entryIndex
  * @property {string} transcriptPath
+ * @property {WatchCue[]} cues - the cues the transcript was built from (parsed
+ *   caption cues, or the ASR cues), the input to watching's frame densification
  * @property {number} cueCount
  * @property {number} paragraphCount
  * @property {boolean} cleanedAutoCaptions
@@ -403,7 +419,7 @@ export async function writeEnvelopeTranscriptArtifacts(
       continue;
     }
 
-    /** @type {{ transcript: string, cueCount: number, paragraphCount: number, cleanedAutoCaptions: boolean, repairedTermCount: number }} */
+    /** @type {{ transcript: string, sourceCues: WatchCue[], cueCount: number, paragraphCount: number, cleanedAutoCaptions: boolean, repairedTermCount: number }} */
     let built;
     if (plan.strategy === "asr") {
       const asr = await runAsr({
@@ -422,6 +438,7 @@ export async function writeEnvelopeTranscriptArtifacts(
       const transcript = formatTranscript(asr.cues);
       built = {
         transcript,
+        sourceCues: asr.cues.map(toWatchCue),
         cueCount: asr.cues.length,
         paragraphCount: countParagraphs(transcript),
         cleanedAutoCaptions: false,
@@ -430,9 +447,13 @@ export async function writeEnvelopeTranscriptArtifacts(
     } else {
       const caption = /** @type {NonNullable<typeof entry.caption>} */ (entry.caption);
       const vttText = String(await readFile(caption.path, "utf8"));
-      built = buildTranscriptText(vttText, caption.isAutoCaption, {
-        repairLexicon: plan.strategy === "captions+repair" ? repairLexicon : null,
-      });
+      built = {
+        ...buildTranscriptText(vttText, caption.isAutoCaption, {
+          repairLexicon: plan.strategy === "captions+repair" ? repairLexicon : null,
+        }),
+        // The raw parsed caption cues, as watching always received them.
+        sourceCues: parseVttSegment(vttText).map(toWatchCue),
+      };
     }
 
     await mkdir(lanePath(sliceDir, LANES.source), { recursive: true });
@@ -445,6 +466,7 @@ export async function writeEnvelopeTranscriptArtifacts(
     transcripts.push({
       entryIndex,
       transcriptPath,
+      cues: built.sourceCues,
       cueCount: built.cueCount,
       paragraphCount: built.paragraphCount,
       cleanedAutoCaptions: built.cleanedAutoCaptions,

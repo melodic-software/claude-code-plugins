@@ -169,6 +169,9 @@ describe("runWatchCli envelope consumption", () => {
     expect(output.videoSlug).toBe("fixture-video-7zZy1QTvokM");
     expect(output.status).toBe("vision");
     expect(vi.mocked(orchestrateWatching)).toHaveBeenCalledOnce();
+    expect(vi.mocked(orchestrateWatching).mock.calls[0][0].cues).toEqual([
+      { startSec: 0, endSec: 2, text: "hello world" },
+    ]);
 
     const state = await readWatchJson();
     expect(state.phases.acquire.metrics.entryCount).toBe(1);
