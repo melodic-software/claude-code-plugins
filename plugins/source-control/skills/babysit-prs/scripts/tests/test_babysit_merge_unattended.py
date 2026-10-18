@@ -549,6 +549,13 @@ class Unattended(unittest.TestCase):
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
         self.pr_labels: list[dict[str, Any]] = []
         self.dependabot_reads: list[policy.Eligibility] = []
+        # The default branch head the in-flight cap is read at: the base, so
+        # the cap is `self.config`'s.
+        self.main_head = BASE
+        # Reads of the pipeline config at `main_head` when it is not the
+        # base, in order: a config, or an exception to raise. Empty reads
+        # `self.config`.
+        self.head_configs: list[Any] = []
 
     def _dependabot_eligibility(self, *args: Any, **kwargs: Any) -> Any:
         if not self.dependabot_reads:
@@ -568,6 +575,19 @@ class Unattended(unittest.TestCase):
         if self.default_branch is None:
             raise policy.PolicyReadError("the default branch could not be read")
         return self.default_branch
+
+    def _read_config_at(self, repo: str, sha: str, *args: Any) -> Any:
+        if sha != self.main_head or sha == BASE or not self.head_configs:
+            return self.config
+        read = self.head_configs.pop(0)
+        if isinstance(read, Exception):
+            raise read
+        return read
+
+    def _get(self, endpoint: str) -> tuple[int | None, Any]:
+        if endpoint == "repos/owner/repo/commits/main":
+            return 200, {"sha": self.main_head}
+        return self._real_get(endpoint)
 
     def _dispatch(self, repo: str, ref: str) -> None:
         self.log.append("dispatch")
@@ -627,13 +647,17 @@ class Unattended(unittest.TestCase):
             argv += ["--merge", "--expected-head", HEAD]
         argv += list(flags)
         out = io.StringIO()
+        self._real_get = policy._get
         patches = [
             mock.patch.object(sys, "argv", argv),
+            mock.patch.object(policy, "_get", side_effect=self._get),
             mock.patch.object(policy, "pull_request", return_value=pr_record),
             mock.patch.object(
                 policy, "_default_branch", side_effect=self._default_branch
             ),
-            mock.patch.object(policy, "read_config_at", return_value=self.config),
+            mock.patch.object(
+                policy, "read_config_at", side_effect=self._read_config_at
+            ),
             mock.patch.object(policy, "read_acting_login", return_value=self.acting),
             mock.patch.object(
                 policy, "credential_refusal", return_value=self.credentials
@@ -1551,6 +1575,66 @@ class OneUnattendedMergeInFlight(Unattended):
                     "dequeue-self:id=PR_self" in self.log, not kept, self.log
                 )
                 self.assertEqual(code, 0 if kept else 10)
+
+    def test_the_room_check_reads_the_cap_again_not_from_the_run_cache(
+        self,
+    ) -> None:
+        # Another gate process saved a cap of 1; the head's is 5, so the
+        # fifth entry stays only on a fresh read.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {run_cache.ENV: path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        run_cache.put(policy.MAX_IN_FLIGHT_SECTION, "owner/repo", 1)
+        self.config = dataclasses.replace(self.config, max_in_flight=5)
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+        self.flight = policy.InFlight(True, None, frozenset(), 1)
+        code, out = self.run_main()
+        self.assertIs(out["enqueued"], True)
+        self.assertNotIn("dequeue-self:id=PR_self", self.log)
+        self.assertEqual(code, 0)
+
+    def test_the_room_check_reads_the_cap_at_the_default_branch_head(
+        self,
+    ) -> None:
+        # Three earlier entries and one unverified merge: the fifth entry
+        # stays only at a cap of 5, read at main's head, not at the base.
+        self.main_head = "d" * 40
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.flight = policy.InFlight(True, None, frozenset(), 1)
+        for base_cap, head_cap, kept in ((1, 5, True), (5, 1, False)):
+            with self.subTest(base_cap=base_cap, head_cap=head_cap):
+                self.log.clear()
+                self.config = dataclasses.replace(self.config, max_in_flight=base_cap)
+                head = dataclasses.replace(self.config, max_in_flight=head_cap)
+                self.head_configs = [head, head]
+                self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+                code, out = self.run_main()
+                self.assertEqual(out["unattended"]["inFlight"]["cap"], head_cap)
+                self.assertIs(out["enqueued"], kept)
+                self.assertEqual(
+                    "dequeue-self:id=PR_self" in self.log, not kept, self.log
+                )
+
+    def test_a_failed_room_check_read_keeps_the_lower_applied_cap(self) -> None:
+        # The gate applied main's cap of 1; the re-read fails, and the base's
+        # 5 would leave room, so the lower cap holds and the entry leaves.
+        self.main_head = "d" * 40
+        self.config = dataclasses.replace(self.config, max_in_flight=5)
+        self.head_configs = [
+            dataclasses.replace(self.config, max_in_flight=1),
+            policy.PolicyReadError("HTTP 502"),
+        ]
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+        self.flight = policy.InFlight(True, None, frozenset(), 0)
+        code, out = self.run_main()
+        self.assertIn("dequeue-self:id=PR_self", self.log)
+        self.assertIs(out["enqueued"], False)
+        self.assertEqual(code, 10)
 
     def test_the_earliest_entry_stays(self) -> None:
         self.entries = [
