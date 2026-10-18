@@ -1201,6 +1201,17 @@ class LocalLaneFloorSwitchTests(unittest.TestCase):
                     result = score(_local_input((changed,), high_floor=on))
                     self.assertEqual(result.score, expected, _codes(result))
 
+    def test_an_unreadable_floor_paths_list_is_not_read_with_the_switch_off(self):
+        inp = _input(files=(_file("docs/x.md"),), floor_paths=("./bin/**",))
+        for high_floor in (False, True):
+            with self.subTest(high_floor=high_floor):
+                result = score(
+                    dataclasses.replace(
+                        inp, high_floor=high_floor, floor_extensions=False
+                    )
+                )
+                self.assertEqual(result.score, Risk.LOW, _codes(result))
+
     def test_main_floor_entries_still_hold_with_the_switch_off(self):
         result = score(_local_input((_file(".github/x.yml"),), high_floor=False))
         self.assertIn("high-path:.github/**", _codes(result))

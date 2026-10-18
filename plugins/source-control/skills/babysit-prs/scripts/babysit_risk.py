@@ -570,8 +570,12 @@ def _high_path_reasons(
     configured = _readable_globs(inp.high_paths, unsafe)
     on = inp.high_floor is not False
     extended = on and inp.floor_extensions is not False
-    added = (*FLOOR_ADDITIONS, *_readable_globs(inp.floor_paths, unsafe))
-    floor = (*HIGH_FLOOR, *(added if extended else ())) if on else ()
+    added = (
+        (*FLOOR_ADDITIONS, *_readable_globs(inp.floor_paths, unsafe))
+        if extended
+        else ()
+    )
+    floor = (*HIGH_FLOOR, *added) if on else ()
     scopes = _readable_globs(inp.floor_script_scopes, unsafe) if extended else ()
     reasons = []
     if unsafe:

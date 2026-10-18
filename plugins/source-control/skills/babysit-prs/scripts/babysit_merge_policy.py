@@ -425,7 +425,8 @@ class PipelineConfig:
     # decision Q624): absent, the HIGH path floor and the C2 contradictions
     # are off and there is no file cap (`max_changed_lines` None: no line
     # cap); a value other than true or false turns a switch on. The local
-    # babysit lane ignores them and keeps every check.
+    # babysit lane ignores them, except that `high_path_floor` gates the floor
+    # additions there too (`babysit_risk.RiskInput.floor_extensions`).
     high_path_floor: bool = False
     # `merge.diff-check.floor-paths`: globs joined to the floor (owner
     # decision Q641); they hold a pull request for a human, unlike
