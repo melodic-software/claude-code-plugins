@@ -612,9 +612,14 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    and Write are denied on the directory and on the tool's replies directory. The tool lists the
    kept threads, checks paths, and records a reply: it refuses a disposition file outside the
    scratch directory or off the template, and a `VALID` reply whose fix is not on the lane branch
-   or whose lane branch changes a file no kept thread names or any `.github/` path. It posts
-   nothing. The promote step then moves the PR branch only when the lane branch changes nothing
-   but kept-thread paths, none under `.github/`, in fewer than 300 files.
+   or whose lane branch changes a file outside every kept thread's scope or any `.github/` path.
+   A thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except
+   one under `hooks/`, `.claude-plugin/` or a `.claude/` directory, a `CLAUDE.md` or `AGENTS.md`,
+   or a `.sh`, `.py`, `.mjs`, `.js` or `.ts` file; and a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
+   directory. It posts nothing. The promote step then moves the PR branch only when every path the
+   lane branch changes is in a kept thread's scope, none under `.github/`, in fewer than 300
+   files, judged by a copy of the base's `thread-scope.mjs` taken before the head checkout and
+   imported only when its SHA-256 matches.
 3. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths and
    comment ids, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
@@ -641,7 +646,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
      and escalates `feedback-incomplete`;
    - when a reply is `VALID` or the PR branch moved, compares the model job's gated head with the
      PR's current head: the branch must be ahead, hold every fix commit, and change fewer than 300
-     files, each a kept thread's path and none under `.github/`, and each fix commit must change
+     files, each in a kept thread's scope and none under `.github/`, and each fix commit must change
      its own thread's path. Otherwise it posts no reply and escalates `feedback-not-landed`;
    - re-reads every kept thread and, right before posting, the thread itself, and skips one that
      is resolved, on another PR, or whose comments are not exactly the ones the model job read;
@@ -667,7 +672,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those six
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
 
-The skill's limits to kept-thread paths and away from `.github/` are instructions and the tool's
+The skill's limits to kept-thread scope and away from `.github/` are instructions and the tool's
 checks at record time; the promote step's path check is what holds the push, and the reply job's
 compare withholds the replies when the branch changed anything else. A diff at the files listing's limit escalates as `feedback-protected-path`,
 since it could hide a `.github/` path. Residual: a reviewed-head marker confirms a head, not one
