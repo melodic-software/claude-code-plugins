@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.5.1 - 2026-10-17
+## 2.6.1 - 2026-10-17
 
 `address-feedback.mjs select` now also keeps a thread the lane escalated (the lanes App's last
 comment is an `INCORRECT`, `UNCERTAIN` or `VALID-defer` reply) when every comment after it is by a
@@ -8,6 +8,13 @@ human on the base's trusted-actor list, created after the escalation and edited 
 Those replies are marked `direction: true` in the thread file. Before, every comment had to be the
 reviewer bot's, so the lane never read a person's answer to its own escalation
 ([pr-run-activity.md](pr-run-activity.md)). `version` stays 2.
+
+## 2.6.0 - 2026-10-17
+
+A daily `maintenance` producer, the lane sweep ([README.md, The lane sweep](README.md#the-lane-sweep)):
+a collect script, one read-only model leg per unit, and a file script that checks every quoted line
+against main, de-duplicates by fingerprint, and files at most 5 `needs-triage` issues with the job's
+own token. It labels nothing `agent-ready`. `version` stays 2.
 
 ## 2.5.0 - 2026-10-17
 
