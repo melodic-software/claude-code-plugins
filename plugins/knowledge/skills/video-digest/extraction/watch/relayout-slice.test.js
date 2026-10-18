@@ -306,6 +306,59 @@ describe("relayoutSlice", () => {
     expect((await relayoutSlice({ sliceDir, targetDir, noMedia: true })).exitCode).toBe(0);
   });
 
+  describe("a temp session holding two videos", () => {
+    /** @param {Record<string, unknown>|null} primaryMedia */
+    function makeTwoVideoFixture(primaryMedia) {
+      const fixture = makeFixture();
+      const state = JSON.parse(read(fixture.sliceDir, "run-state/watch.json"));
+      const { workDir } = state.tempSession;
+      writeTree(workDir, {
+        "111.mp4": "other-video-bytes",
+        "111.en.vtt": "WEBVTT\n",
+        "111.info.json": JSON.stringify({ id: "111", display_id: "111" }),
+      });
+      state.phases = { acquire: { metrics: { entryCount: 2, ...(primaryMedia ? { primaryMedia } : {}) } } };
+      fs.writeFileSync(path.join(fixture.sliceDir, "run-state/watch.json"), JSON.stringify(state));
+      return fixture;
+    }
+
+    it("re-lays out the recorded primary entry's video", async () => {
+      const { sliceDir, targetDir } = makeTwoVideoFixture({
+        video: `${VIDEO_ID}.mp4`,
+        infoJson: `${VIDEO_ID}.info.json`,
+        caption: `${VIDEO_ID}.en.vtt`,
+      });
+
+      const result = await relayoutSlice({ sliceDir, targetDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(read(targetDir, `media/${VIDEO_ID}.mp4`)).toBe("video-bytes");
+      expect(JSON.parse(read(targetDir, "metadata/info.json")).title).toBe("Sample Talk");
+      expect(fs.existsSync(path.join(targetDir, "transcript/en.vtt"))).toBe(true);
+    });
+
+    it("copies the primary entry even when it is not the one the filenames suggest", async () => {
+      const { sliceDir, targetDir } = makeTwoVideoFixture({
+        video: "111.mp4",
+        infoJson: "111.info.json",
+        caption: "111.en.vtt",
+      });
+
+      const result = await relayoutSlice({ sliceDir, targetDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(read(targetDir, `media/${VIDEO_ID}.mp4`)).toBe("other-video-bytes");
+    });
+
+    it("still refuses media mode when no primary entry is recorded", async () => {
+      const { sliceDir, targetDir } = makeTwoVideoFixture(null);
+
+      expect((await relayoutSlice({ sliceDir, targetDir })).exitCode).toBe(1);
+      expect(fs.existsSync(targetDir)).toBe(false);
+      expect((await relayoutSlice({ sliceDir, targetDir, noMedia: true })).exitCode).toBe(0);
+    });
+  });
+
   it("gates an unclosed slice on its outcome checks", async () => {
     const { sliceDir, targetDir } = makeFixture({ status: "synthesizing" });
 

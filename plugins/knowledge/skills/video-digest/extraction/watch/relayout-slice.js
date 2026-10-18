@@ -208,9 +208,18 @@ export async function relayoutSlice({
     };
     const work = ls(workDir);
     const frames = ls(framesDir);
-    const videos = work.filter((name) => VIDEO_FILE.test(name));
+    const acquireMetrics = /** @type {{ primaryMedia?: unknown }|undefined} */ (state.phases?.acquire?.metrics);
+    const recorded = acquireMetrics?.primaryMedia;
+    const recordedName = (/** @type {string} */ key) => {
+      const value = recorded && typeof recorded === "object" ? /** @type {Record<string, unknown>} */ (recorded)[key] : null;
+      return typeof value === "string" && value === path.basename(value) && work.includes(value) ? value : null;
+    };
+    const recordedVideo = recordedName("video");
+    const recordedInfo = recordedName("infoJson");
+    const videos = recordedVideo ? [recordedVideo] : work.filter((name) => VIDEO_FILE.test(name));
     const id = videos.length === 1 ? path.basename(videos[0], path.extname(videos[0])) : "";
-    info = id ? readJsonObject(path.join(workDir, `${id}.info.json`)) : null;
+    const infoName = recordedVideo && recordedInfo ? recordedInfo : `${id}.info.json`;
+    info = id ? readJsonObject(path.join(workDir, infoName)) : null;
     if (!info || frames.length === 0) {
       return refuse(
         `the temp session needs one video with its info JSON and the extracted frames ` +
@@ -219,12 +228,14 @@ export async function relayoutSlice({
           "otherwise pass --no-media to re-lay out without media/, frames/all/, the caption tracks and info.json",
       );
     }
-    if (id !== state.videoId && info.display_id !== state.videoId) {
+    // A recorded primary entry is authoritative: an X post's entry ids differ from the post id.
+    if (!recordedVideo && id !== state.videoId && info.display_id !== state.videoId) {
       return refuse(`the temp session's video is ${id}, not this slice's ${state.videoId}`);
     }
     plan.push({ from: path.join(workDir, videos[0]), to: `media/${state.videoId}${path.extname(videos[0])}` });
-    for (const name of work.filter((each) => each.startsWith(`${id}.`) && each.endsWith(".vtt"))) {
-      plan.push({ from: path.join(workDir, name), to: `transcript/${name.slice(id.length + 1)}` });
+    const stem = infoName.slice(0, -".info.json".length);
+    for (const name of work.filter((each) => each.startsWith(`${stem}.`) && each.endsWith(".vtt"))) {
+      plan.push({ from: path.join(workDir, name), to: `transcript/${name.slice(stem.length + 1)}` });
     }
     for (const name of frames) {
       plan.push({ from: path.join(framesDir, name), to: `frames/all/${name}` });
