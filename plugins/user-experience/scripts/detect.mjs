@@ -201,7 +201,8 @@ function checkTeam(path, home, seam) {
   if (outside) return { path, cause: "resolves outside the project" };
   if (fileError) return { path, cause: /^(is a symlink|is not a regular file)/.test(fileError) ? `unreadable (${fileError})` : `malformed: ${fileError === "the top level must be a mapping" ? "the top level is not a mapping" : fileError}` };
   if (!existsSync(layer.path)) return { path, cause: "not found" };
-  const notes = layer.errors.map((e) => shown(e));
+  // The user and local layers merge into out.values too, so their refusals are warnings as well.
+  const notes = out.layers.filter((l) => ["team", "local", "user"].includes(l.name)).flatMap((l) => l.errors).map((e) => shown(e));
   const doc = out.values;
   const { version, routing: routingSchema } = TEAM_SCHEMA.properties;
   if (doc.version !== version.const) return { path, cause: `version ${quote(doc.version ?? null)} is not one this plugin reads (${version.const})` };
