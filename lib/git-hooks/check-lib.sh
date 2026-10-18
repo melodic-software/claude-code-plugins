@@ -31,6 +31,15 @@
 #   checks_is_agent            0 when an agent runs the hook
 #   checks_skip_listed <tool>  0 when checks.skipmissing names the tool
 #   checks_push_ranges         pre-push: "<base> <local>" per pushed ref
+#   checks_regular_file [--tip <sha>] <p>
+#                              0 when <p> is a regular file: on disk, or in
+#                              pre-push the blob at the tip commit of the
+#                              range <p> changed in (--tip names the tip
+#                              when two ranges change the same path)
+#   checks_file_text [--tip <sha>] <p>
+#                              prints <p>'s content from the same place;
+#                              returns 1, printing nothing, when <p> is not a
+#                              regular file there (deleted, symlink, submodule)
 
 CHECKS_EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
 
@@ -166,6 +175,56 @@ checks_diff() {
     ;;
   *) return 1 ;;
   esac
+}
+
+# checks_range_tip <path>: pre-push; prints the tip of the first pushed range
+# whose base-to-tip diff touches <path>, so a path is read from its own ref.
+checks_range_tip() {
+  local b l
+  while read -r b l; do
+    git diff --quiet "$b" "$l" -- ":(literal)$1" 2>/dev/null && continue
+    printf '%s' "$l"
+    return 0
+  done <"$CHECKS_TMP/push-ranges"
+  return 1
+}
+
+# checks_regular_file [--tip <sha>] <path>: a regular file, not a symlink or a
+# submodule entry. In pre-push the answer is the blob at the tip, never the
+# work tree.
+checks_regular_file() {
+  local tip=""
+  if [[ "${1:-}" == --tip ]]; then
+    tip="$2"
+    shift 2
+  fi
+  if [[ "$CHECKS_MODE" != pre-push ]]; then
+    [[ -f "$1" && ! -L "$1" ]]
+    return
+  fi
+  [[ -n "$tip" ]] || tip="$(checks_range_tip "$1")" || return 1
+  local entry
+  entry="$(git ls-tree -z "$tip" -- "$1" 2>/dev/null | tr -d '\0')"
+  [[ "$entry" == 100* && "${entry#*$'\t'}" == "$1" ]]
+}
+
+# checks_file_text [--tip <sha>] <path>: the content a check judges. A path
+# that is not a regular file returns 1 with no output, so it is never judged
+# as an empty file.
+checks_file_text() {
+  local tip=""
+  if [[ "${1:-}" == --tip ]]; then
+    tip="$2"
+    shift 2
+  fi
+  if [[ "$CHECKS_MODE" != pre-push ]]; then
+    checks_regular_file "$1" || return 1
+    cat -- "$1"
+    return
+  fi
+  [[ -n "$tip" ]] || tip="$(checks_range_tip "$1")" || return 1
+  checks_regular_file --tip "$tip" "$1" || return 1
+  git show "$tip:$1" 2>/dev/null
 }
 
 checks_files() {

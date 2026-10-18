@@ -64,24 +64,6 @@ fi
 TIP=""
 BASE=""
 
-file_text() {
-  if [[ "$CHECKS_MODE" == worktree ]]; then
-    cat -- "$1"
-  else
-    git show "$TIP:$1" 2>/dev/null
-  fi
-}
-
-regular_file() {
-  local entry
-  if [[ "$CHECKS_MODE" == worktree ]]; then
-    [[ -f "$1" && ! -L "$1" ]]
-    return
-  fi
-  entry="$(git ls-tree -z "$TIP" -- "$1" 2>/dev/null | tr -d '\0')"
-  [[ "$entry" == 100* && "${entry#*$'\t'}" == "$1" ]]
-}
-
 # is_new <path>: the range adds the file rather than changing it.
 is_new() {
   if [[ "$CHECKS_MODE" == worktree ]]; then
@@ -128,10 +110,10 @@ check_range() {
   done < <(checks_diff --name-status -M --diff-filter=R -z 2>/dev/null)
   while IFS= read -r -d '' f; do
     verified_type "$f" || continue
-    regular_file "$f" || continue
+    checks_regular_file "$f" || continue
     if [[ "$renamed" != *$'\n'"$f"$'\n'* ]] && is_new "$f"; then
       text="$(
-        file_text "$f"
+        checks_file_text "$f"
         printf x
       )"
       text="${text%x}"
@@ -139,7 +121,7 @@ check_range() {
         '{hook_event_name: "PostToolUse", tool_name: "Write", tool_input: {file_path: $p, content: $c}}')"
     else
       text="$(
-        file_text "$f" | added_lines "$f"
+        checks_file_text "$f" | added_lines "$f"
         printf x
       )"
       text="${text%x}"
