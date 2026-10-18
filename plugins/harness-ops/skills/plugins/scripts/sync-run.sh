@@ -59,7 +59,7 @@
 #    timings:{total,outside_marketplaces,resolution}, marketplaces:[…], errors:[…]}
 #   Each marketplace block: {name, timings, catalog_last_updated, catalog_source,
 #    source_checkout, auto_update, refresh:{rc,output,predicted}, project_root,
-#    in_repo:{updated,failed,would_update},
+#    in_repo:{updated,failed,would_update,live_read},
 #    user_sweep:{updated,failed,would_update,withheld_downgrades},
 #    downgraded, install_gap, installed, installed_with_unset_user_config,
 #    install_enable_deferred, stopped_before_install, enable_gap, enabled,
@@ -95,7 +95,11 @@
 #   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
 #   `{id, version, files_differ, unreleased_changes}` per stale install, the last
-#   true when the clone holds `.changes/<plugin>/`. `source_checkout` is null
+#   true when the clone holds `.changes/<plugin>/`. `in_repo.live_read[]` is
+#   `{id, scope, installed, path}`, filled under --audit only, for each in-repo
+#   record of a marketplace whose `directory` source is the run's own project
+#   root (or a folder under it): the CLI reads that folder live and will not
+#   update the record, so it is not in `would_update`. `source_checkout` is null
 #   unless the source is `directory`; then it is `{path, state, branch, upstream,
 #   ahead, behind, dirty}` with `state` one of tracking, no_upstream, detached,
 #   not_a_repo, and the counts as of the checkout's last fetch (never fetched here).
@@ -713,7 +717,7 @@ divergence_block() {
 # values ARE the per-marketplace reset, so both come from this one function.
 reset_marketplace_state() {
   MP_ERRORS=()
-  IR_UPDATED=() IR_FAILED=() IR_WOULD=()
+  IR_UPDATED=() IR_FAILED=() IR_WOULD=() IR_LIVE=()
   US_UPDATED=() US_FAILED=() US_WOULD=()
   WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=()
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
@@ -896,11 +900,35 @@ run_marketplace() {
       # exit 2 with empty output is a FAILED projection, never "nothing in-repo".
       mp_error "in-repo projection failed (exit $rc), step not run: $(proj_err)"
     else
+      # A marketplace whose `directory` source is this very repository is read
+      # live from that folder: `claude plugin update` answers "nothing to update"
+      # and leaves the project record pinned, so an update predicted for it
+      # would be one the CLI never makes.
+      local live_path=""
+      if [[ "$MODE" == "audit" ]]; then
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to live_path -r '
+          def fold: gsub("\\\\"; "/") | rtrimstr("/");
+          (.marketplace.source // "") as $s | (.project_root // "" | fold) as $r
+          # fleet-state folds the project root to lower case after the drive letter
+          # on Windows, where the recorded source keeps its case: compare folded.
+          | ($r | test("^[A-Za-z]:")) as $ci
+          | def eqp($a; $b): if $ci then ($a | ascii_downcase) == ($b | ascii_downcase) else $a == $b end;
+          if ($s | startswith("directory:")) and $r != "" then
+              ($s | sub("^directory:"; "") | fold) as $p
+              | if eqp($p; $r) or eqp(($p | .[0:($r | length) + 1]); $r + "/") then $p else "" end
+            else "" end' "$RUN_DIR/pre.$mp.json"
+      fi
       while IFS=$'\t' read -r id scope; do
         id="${id//$'\r'/}"
         scope="${scope//$'\r'/}"
         [[ -n "$id" ]] || continue
         version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
+        if [[ "$MODE" == "audit" && -n "$live_path" ]]; then
+          IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
+            '{id: $id, scope: $sc, installed: $old, path: $path}')")
+          continue
+        fi
         if [[ "$MODE" == "audit" ]]; then
           predict_cli "claude plugin update $id -s $scope"
           IR_WOULD+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" \
@@ -1597,7 +1625,7 @@ monitor_rows() {
 # --- one marketplace block --------------------------------------------------------
 emit_marketplace_block() {
   local mp="$1"
-  local ir_u ir_f ir_w us_u us_f us_w wh dg inst en pr errs unset_cfg installed_disabled monitors
+  local ir_u ir_f ir_w ir_l us_u us_f us_w wh dg inst en pr errs unset_cfg installed_disabled monitors
   # A marketplace abandoned on a failed read reaches here without finalize_moves.
   [[ -n "$T_FN_S" ]] || clock_into T_FN_S
   # Written on the first pass only. The re-entry reads this sidecar; overwriting
@@ -1610,6 +1638,7 @@ emit_marketplace_block() {
   json_array_of ir_u ${IR_UPDATED[@]+"${IR_UPDATED[@]}"}
   json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
   json_array_of ir_w ${IR_WOULD[@]+"${IR_WOULD[@]}"}
+  json_array_of ir_l ${IR_LIVE[@]+"${IR_LIVE[@]}"}
   json_array_of us_u ${US_UPDATED[@]+"${US_UPDATED[@]}"}
   json_array_of us_f ${US_FAILED[@]+"${US_FAILED[@]}"}
   json_array_of us_w ${US_WOULD[@]+"${US_WOULD[@]}"}
@@ -1653,7 +1682,7 @@ emit_marketplace_block() {
     --argjson refresh_predicted "$REFRESH_PREDICTED" \
     --argjson project_root "$PROJECT_ROOT_JSON" \
     --argjson ir_u "$ir_u" --argjson ir_f "$ir_f" --argjson ir_w "$ir_w" \
-    --argjson us_u "$us_u" --argjson us_f "$us_f" --argjson us_w "$us_w" \
+    --argjson ir_l "$ir_l" --argjson us_u "$us_u" --argjson us_f "$us_f" --argjson us_w "$us_w" \
     --argjson wh "$wh" --argjson dg "$dg" \
     --argjson install_gap "$INSTALL_GAP" --argjson inst "$inst" \
     --argjson enable_gap "$ENABLE_GAP" --argjson en "$en" --argjson pr "$pr" \
@@ -1706,7 +1735,7 @@ emit_marketplace_block() {
      source_checkout: $checkout,
      refresh: {rc: $refresh_rc, output: $refresh_out, reason: $refresh_reason, predicted: $refresh_predicted},
      project_root: $project_root,
-     in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w},
+     in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w, live_read: $ir_l},
      user_sweep: {updated: $us_u, failed: $us_f, would_update: $us_w,
                   withheld_downgrades: $wh},
      downgraded: $dg,
