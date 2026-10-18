@@ -15,7 +15,7 @@ metadata:
 Finds where your sessions lose time and tokens, across every session on this machine, so you can
 change what causes it. The sweep reports no correction count and no trend over time. To see
 whether you are getting faster, run it twice with different `--since`/`--until` windows and compare
-the two reports by hand. For corrections, see `/session-flow:audit-friction`. Two bundled stdlib scripts do the counting; this skill runs them,
+the two reports by hand. Two bundled stdlib scripts do the counting; this skill runs them,
 presents the report, and routes each finding to the skill that would act on it. It never applies a
 finding itself. The `style` pass reads the same store for preferences you type in more than one
 session and hands each one you confirm to `/session-flow:retro codify`.
