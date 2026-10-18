@@ -211,6 +211,43 @@ class TestExit(TunnelCase):
         with mock.patch.object(detached, "started", return_value=None):
             self.assertIsNone(tunnel.alive(self.d))
 
+    def legacy(self, **changes):
+        """The record as a build before processStart wrote it, with `changes` applied."""
+        rec = json.loads((self.d / tunnel.RECORD).read_text(encoding="utf-8"))
+        rec.pop("processStart")
+        rec.update(changes)
+        (self.d / tunnel.RECORD).write_text(json.dumps(rec), encoding="utf-8")
+        return rec
+
+    def test_a_record_from_before_process_start_that_is_still_the_tunnel_keeps_its_link(self):
+        first = tunnel.ensure(self.d, 4321)
+        self.legacy()
+        self.assertEqual(tunnel.ensure(self.d, 4321)["url"], first["url"])
+        self.assertEqual(len(self.runs()), 1)
+        self.assertEqual(tunnel.read(self.d)["processStart"], detached.started(first["pid"]))
+
+    def test_a_record_from_before_process_start_naming_another_program_of_the_name_is_not_ours(self):
+        rec = tunnel.ensure(self.d, 4321)
+        self.addCleanup(detached.stop, rec["pid"], rec["marker"])
+        other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", rec["marker"]])
+        self.addCleanup(lambda: (other.kill(), other.wait()))
+        self.legacy(pid=other.pid)
+        self.assertIsNone(tunnel.alive(self.d))
+        self.assertNotIn("processStart", tunnel.read(self.d))
+        self.assertFalse(tunnel.stop(self.d))
+        self.assertIsNone(other.poll())
+
+    def test_a_record_from_before_process_start_naming_this_process_is_never_ours(self):
+        rec = tunnel.ensure(self.d, 4321)
+        self.addCleanup(detached.stop, rec["pid"], rec["marker"])
+        me = os.getpid()
+        self.legacy(pid=me, marker=detached.describe(me))
+        tunnel_args = ["cloudflared", "tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:4321"]
+        with mock.patch.object(detached, "command_line", return_value=tunnel_args), mock.patch.object(detached.os, "kill") as kill:
+            self.assertIsNone(tunnel.alive(self.d))
+            self.assertFalse(tunnel.stop(self.d))
+        kill.assert_not_called()
+
     def test_stop_never_signals_this_process(self):
         me = os.getpid()
         with mock.patch.object(detached.os, "kill") as kill:

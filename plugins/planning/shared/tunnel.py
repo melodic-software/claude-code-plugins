@@ -78,10 +78,46 @@ def _identity(rec):
     return rec["pid"], rec.get("marker") or "cloudflared", rec.get("processStart") or "unknown"
 
 
-def alive(data_dir):
-    """The record when its cloudflared still runs, else None."""
+def _legacy_start(rec):
+    """The start of the process a record written before processStart existed names, or None unless
+    it is still that tunnel: not this process, alive by the old marker check, its command line a
+    quick tunnel to the recorded port, and its start readable. On Windows, when the command line
+    cannot be read, the marker check on the image path stands alone."""
+    pid = rec["pid"]
+    if pid == os.getpid() or not detached.alive(pid, rec.get("marker") or "cloudflared"):
+        return None
+    args = detached.command_line(pid)
+    if args is None and not detached.WINDOWS:
+        return None
+    if args is not None and ("tunnel" not in args or not _points_at(args, rec.get("port"))):
+        return None
+    return detached.started(pid)
+
+
+def _ours(data_dir, rec, held):
+    """True when rec's process is the recorded cloudflared. A record with no processStart is
+    accepted once, when _legacy_start proves it, and gets processStart written back (under the
+    tunnel lock, which `held` says the caller already has), so an update keeps the guest link."""
+    if rec.get("processStart"):
+        return detached.alive(*_identity(rec))
+    start = _legacy_start(rec)
+    if start is None:
+        return False
+    d = Path(data_dir)
+    if held:
+        _write(d, {**rec, "processStart": start})
+    else:
+        with detached.locked(d / LOCK):
+            if read(d) == rec:
+                _write(d, {**rec, "processStart": start})
+    rec["processStart"] = start
+    return True
+
+
+def alive(data_dir, held=False):
+    """The record when its cloudflared still runs, else None. `held`: the caller holds the tunnel lock."""
     rec = read(data_dir)
-    return rec if rec and detached.alive(*_identity(rec)) else None
+    return rec if rec and _ours(data_dir, rec, held) else None
 
 
 def host(url):
@@ -136,7 +172,7 @@ def ensure(data_dir, port):
     """The running tunnel to `port`, reattached or started (a new address); raises TunnelDown."""
     d = Path(data_dir)
     with detached.locked(d / LOCK):
-        rec = alive(d)
+        rec = alive(d, held=True)
         if rec and rec.get("port") == port:
             return rec
         if rec:
@@ -154,6 +190,16 @@ def _url_arg(args):
     return found[0] if len(found) == 1 else None
 
 
+def _points_at(args, port):
+    """True when the one `--url` in args is http://127.0.0.1:<port> or http://localhost:<port>."""
+    try:
+        target = urllib.parse.urlsplit(_url_arg(args) or "")
+        to = (target.scheme, target.hostname, target.port)
+    except ValueError:
+        return False
+    return isinstance(port, int) and to in (("http", "127.0.0.1", port), ("http", "localhost", port))
+
+
 def adoptable(pid, port):
     """Why pid cannot be adopted as the tunnel to `port`, or None: it must run the cloudflared
     executable (by the file name the OS reports, which a process cannot set, unlike its command
@@ -165,12 +211,7 @@ def adoptable(pid, port):
     args = detached.command_line(pid)
     if args is None:
         return f"the command line of cloudflared pid {pid} cannot be read, so the port it points at is unknown"
-    try:
-        target = urllib.parse.urlsplit(_url_arg(args) or "")
-        to = (target.scheme, target.hostname, target.port)
-    except ValueError:
-        to = None
-    if to not in (("http", "127.0.0.1", port), ("http", "localhost", port)):
+    if not _points_at(args, port):
         return f"cloudflared pid {pid} does not point at port {port} on this machine (its --url must be http://127.0.0.1:{port})"
     return None
 
@@ -203,7 +244,7 @@ def stop(data_dir):
     d = Path(data_dir)
     with detached.locked(d / LOCK):
         rec = read(d)
-        stopped = bool(rec) and _end(rec)
+        stopped = bool(rec) and _ours(d, rec, True) and _end(rec)
         (d / RECORD).unlink(missing_ok=True)
         return stopped
 
