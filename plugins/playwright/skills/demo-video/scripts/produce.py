@@ -28,6 +28,8 @@ ACCENT = (45, 140, 255)
 OK_GREEN = (36, 163, 92)
 INK = (17, 20, 28)
 RIPPLE = 0.3   # seconds
+SMALL_TARGET = 120   # output px: an unzoomed click on a box whose longer side is under this gets a scaled ring
+SMALL_SCALE = 2.0    # gap and stroke multiplier for that ring
 
 
 def ease_cubic(u):   # the curve record.mjs moves the real mouse with
@@ -159,12 +161,15 @@ class Renderer:
         if not (0 <= age <= RIPPLE):
             return None
         u = age / RIPPLE
-        stroke = 3.0 * z
-        gap = (3 + 9 * smooth(u)) * z
-        room = min(box[0], box[1], self.W - box[0] - box[2], self.H - box[1] - box[3]) - stroke - 1
-        gap = max(min(gap, room), 1.0)
+        k = SMALL_SCALE if z < 1.05 and max(box[2], box[3]) < SMALL_TARGET else 1.0
+        stroke = 3.0 * z * k
+        gap = (3 + 9 * smooth(u)) * z * k
+        # each side keeps its own room, so a near edge limits only that side of the ring
+        gl, gt, gr, gb = (max(min(gap, room - stroke - 1), 1.0)
+                          for room in (box[0], box[1], self.W - box[0] - box[2], self.H - box[1] - box[3]))
+        gap = max(gl, gt, gr, gb)
         alpha = int(230 * (1 - u) ** 0.8)
-        x0, y0, x1, y1 = box[0] - gap, box[1] - gap, box[0] + box[2] + gap, box[1] + box[3] + gap
+        x0, y0, x1, y1 = box[0] - gl, box[1] - gt, box[0] + box[2] + gr, box[1] + box[3] + gb
         ox0, oy0 = max(x0 - stroke, 1), max(y0 - stroke, 1)
         ox1, oy1 = min(x1 + stroke, self.W - 1), min(y1 + stroke, self.H - 1)
         S = 3

@@ -218,6 +218,42 @@ def rewrite(src, dst, fn):
 
 
 @unittest.skipUnless(HAVE_DEPS, 'needs numpy, Pillow, ffmpeg and ffprobe')
+class RippleSize(unittest.TestCase):
+    """ripple() on a bare Renderer: only the frame size is needed, so no capture is built."""
+    @classmethod
+    def setUpClass(cls):
+        import produce
+        cls.r = produce.Renderer.__new__(produce.Renderer)
+        cls.r.W, cls.r.H = 1920, 1080
+        cls.age = produce.RIPPLE * 0.9
+
+    def ring(self, box, z):
+        return self.r.ripple(Image.new('RGB', (1920, 1080), (255, 255, 255)), box, self.age, z)
+
+    def test_near_edge_keeps_full_gap_on_other_sides(self):
+        box = [900, 500, 300, 200]
+        far = self.ring(box, 1.0)
+        near = self.ring([6, 500, 300, 200], 1.0)
+        self.assertEqual(near[1], far[1])               # top
+        self.assertEqual(near[3], far[3])               # bottom
+        self.assertAlmostEqual(near[2] - 306, far[2] - 1200, places=3)  # right
+        self.assertGreater(near[0], 0)                  # left stays inside the frame
+
+    def test_small_target_at_full_frame_gets_a_larger_ring(self):
+        small = self.ring([900, 500, 60, 32], 1.0)
+        big = self.ring([900, 500, 300, 200], 1.0)
+        self.assertGreater(900 - small[0], 900 - big[0])
+        self.assertGreater(small[0], 0)
+        self.assertLess(small[2], 1920)
+
+    def test_zoomed_target_is_unchanged(self):
+        from demo_common import smooth
+        z = 1.5
+        ring = self.ring([900, 500, 60, 32], z)
+        self.assertAlmostEqual(900 - ring[0], (3 + 9 * smooth(0.9)) * z + 3 * z, delta=0.2)
+
+
+@unittest.skipUnless(HAVE_DEPS, 'needs numpy, Pillow, ffmpeg and ffprobe')
 class DemoPipelineSmoke(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
