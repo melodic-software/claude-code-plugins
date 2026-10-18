@@ -31,6 +31,7 @@ rather than a value is unset: treat it as the default.
 | `yt_dlp_cookies_file` | `${user_config.yt_dlp_cookies_file}` | empty |
 | `yt_dlp_cookies_from_browser` | `${user_config.yt_dlp_cookies_from_browser}` | empty |
 | `max_concurrent_acquires` | `${user_config.max_concurrent_acquires}` | `1` |
+| `asr_python` | `${user_config.asr_python}` | empty |
 
 How each value becomes a `run.mjs` flag: `context/output-contract.md` (`library_dir`) and
 `reference/sources/youtube.md` (the yt-dlp options).
@@ -320,11 +321,29 @@ and keeps its text-only path.
 selected automatically for caption-absent entries and available on request via
 `--transcript-strategy asr` even when captions exist. Either way it runs under `watch` only. ASR
 needs the media file and the `transcript` action never downloads media. Detected at runtime
-through the machine's Python (`python`, `python3`, or `py`. Whichever imports `faster_whisper`)
+through the machine's Python (the `asr_python` interpreter from the table above when set, then
+`python`, `python3`, or `py`. Whichever imports `faster_whisper`)
 and **never auto-installed**. When it is absent the pipeline degrades explicitly rather than
 failing: it falls back to a caption strategy where a caption exists, otherwise completes the
 digest without a transcript, and either way records the reason in the `transcriptDegradation`
 field (`watch.json` phase metrics and the CLI's stdout JSON), never silently.
+
+**Faster-whisper install recipe.** A default Python that refuses `pip install --user` (PEP 668,
+externally managed) needs a virtual environment. Run these yourself; the skill never does. Replace
+`<dir>` with a directory of your choice, then set the `asr_python` option to the venv's interpreter
+(`<dir>/bin/python`, or `<dir>\Scripts\python.exe` on Windows):
+
+```bash
+uv venv <dir> --python 3.13
+uv pip install --python <dir> faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12 "av<19"
+```
+
+The `nvidia-*` wheels supply the CUDA libraries for GPU runs; skip them for CPU-only. On Windows the
+runner script adds each `site-packages/nvidia/*/bin` directory as a DLL directory, so no PATH edit is
+needed. The `av<19` pin works around a reported faster-whisper 1.2.1 and PyAV 19 incompatibility
+(`TypeError: open() got an unexpected keyword argument 'metadata_errors'`), reported by a producing
+run and not reproduced here, as of 2026-10-18. Recheck when a faster-whisper release after 1.2.1
+ships, and drop the pin once it installs and runs against current PyAV.
 
 ## Eval fixtures
 

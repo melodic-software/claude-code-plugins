@@ -64,7 +64,8 @@ lines.push(`ImageMagick: ${magick ?? "MISSING - install ImageMagick 7 (watch act
 
 // Optional ASR rung: detected through whichever Python imports faster_whisper, never installed.
 let whisper;
-for (const python of ["python", "python3", "py"]) {
+const configuredPython = process.env.CLAUDE_PLUGIN_OPTION_ASR_PYTHON?.trim();
+for (const python of [...(configuredPython ? [configuredPython] : []), "python", "python3", "py"]) {
   if (probe(python, ["-c", "import faster_whisper"]) !== undefined) {
     whisper = python;
     break;

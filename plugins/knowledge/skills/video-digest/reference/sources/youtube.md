@@ -89,6 +89,7 @@ order-independent, so they combine with `--work-root` in any order.
 | `<yt_dlp_cookies_file>` | `--cookies-file "<value>"` | non-empty | authenticated acquisition from a Netscape cookies.txt (never commit it) |
 | `<yt_dlp_cookies_from_browser>` | `--cookies-from-browser "<value>"` | non-empty | forces one browser's cookies instead of the automatic platform-ordered fallback; a cookies file wins over it |
 | `<max_concurrent_acquires>` | `--max-concurrent-acquires "<value>"` | set and not the default `1` | caps concurrent acquisitions (1–3); higher increases HTTP 429 risk |
+| `<asr_python>` | `--asr-python "<value>"` | non-empty | interpreter probed for `faster_whisper` before the PATH candidates (`SKILL.md` Prerequisites) |
 
 One more throttle flag has no `userConfig` option: `--acquire-phase-gap <sec>`, a leading
 `run.mjs` flag. A `watch` acquires in two passes, the video and then the captions, and the flag sets
