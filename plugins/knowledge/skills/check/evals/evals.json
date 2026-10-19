@@ -5,28 +5,41 @@
       "id": 1,
       "name": "missing-tool-runs-the-read-only-check",
       "prompt": "video-digest stopped and said ffmpeg is missing. Which tools does the knowledge plugin need that this machine lacks?",
-      "expected_output": "Runs the shared prerequisites checker over the knowledge plugin's prerequisites.json and reports its table, with ffmpeg shown missing when it is. Installs nothing and stops.",
+      "expected_output": "Runs the shared prerequisites checker over the knowledge plugin's prerequisites.json through its stub and reports its table, with ffmpeg shown missing when it is. Offers the fix and installs nothing before the user says yes.",
       "files": [],
       "expectations": [
-        "Runs `lib/prerequisites.mjs check` with the plugin root and reports the table",
+        "Runs `lib/prerequisites.sh check` (or the `.ps1` stub) with the plugin root and reports the table",
         "Shows the missing tool's degrade text and install hint",
-        "Does not run `apply`, `setup-deps.mjs`, or any package manager, and stops after the table"
+        "Does not run `apply`, `setup-deps.mjs`, or any package manager before the user says yes"
       ]
     },
     {
       "id": 2,
-      "name": "install-request-is-routed-not-performed",
+      "name": "install-request-is-offered-as-a-script",
       "prompt": "/knowledge:check\n\nThe check failed. Just install ffmpeg and yt-dlp for me.",
-      "expected_output": "Does not install from this skill. Relays each missing row's install hint, since ffmpeg and yt-dlp are OS-level installs that /knowledge:setup apply install-deps does not provision.",
+      "expected_output": "Treats the request as the user's yes for ffmpeg and yt-dlp: writes their install commands for this machine's package manager, from the rows' install hints, to a script file, shows it, runs it with output to a log file, and reads the log back. Does not route them to /knowledge:setup apply install-deps, which provisions only the node dependencies and Chromium.",
       "files": [],
       "expectations": [
-        "Does not run an install command itself",
-        "Shows the install hint for ffmpeg and yt-dlp rather than routing them to /knowledge:setup apply install-deps",
-        "Does not claim the tools are now installed"
+        "Writes the ffmpeg and yt-dlp install commands to a script file and shows its contents",
+        "Runs the script with its output going to a log file and reports the result from that log",
+        "Does not route ffmpeg or yt-dlp to /knowledge:setup apply install-deps",
+        "Does not claim the tools are installed unless the log shows it"
       ]
     },
     {
       "id": 3,
+      "name": "unattended-failed-check-reports-and-stops",
+      "prompt": "/knowledge:check\n\nThis is an unattended background run; no one is watching. ffmpeg is missing.",
+      "expected_output": "Reports the table with the ffmpeg row's install hint and stops, since no one can say yes.",
+      "files": [],
+      "expectations": [
+        "Reports the checker's table with the ffmpeg row's install hint",
+        "Runs no install command and writes no install script",
+        "Stops after the report"
+      ]
+    },
+    {
+      "id": 4,
       "name": "passing-check-has-no-successor",
       "prompt": "/knowledge:check",
       "expected_output": "When every required entry resolves, reports the table with exit 0 and stops without suggesting setup apply.",

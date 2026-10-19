@@ -10,7 +10,7 @@ allowed-tools:
 
 ## Purpose
 
-Run the read-only check. Do not run `apply`. Do not install or download.
+Run the read-only check, report it, and offer the fixes. Do not run `apply`.
 
 The check lives in its own skill so the model can invoke it while `setup` stays manual
 (`/knowledge:setup` sets `disable-model-invocation: true`, so a subagent cannot reach its `check`).
@@ -38,7 +38,18 @@ Report its table: one row per declared tool with its status, what degrades witho
 install hint. Exit 0 means every required entry resolves; exit 1 means a required entry is missing
 or below its version floor; exit 2 means a usage error or a `prerequisites.json` that fails the
 schema, which is a bug to report, not a tool to install. Without `node` the stub prints one install
-line and exits 1. Stop after the table.
+line and exits 1.
+
+The check installs nothing. After the table, offer each missing row's fix and run it only on the
+user's yes in this session; with no one to answer (an unattended run), report and stop.
+
+- A CLI or runtime row (yt-dlp, ffmpeg, ImageMagick, node, Python and the rest): a system install,
+  often with `sudo`. Write the install command for this machine's package manager, from the row's
+  install hints, to a script file, show it, and run it on a yes with its output going to a log
+  file, then read the log. When it needs a password, the user runs the script and the log is read
+  afterwards.
+- The node dependencies or the Playwright Chromium: the user types
+  `/knowledge:setup apply install-deps`.
 
 To scope the report to one skill, add `--for skill:<name>` (for example `--for skill:video-digest`).
 The node dependencies that `video-digest` installs on first run are a separate probe: run its
@@ -50,9 +61,11 @@ The node dependencies that `video-digest` installs on first run are a separate p
 
 Only when the user explicitly asked to install the node dependencies or Chromium. `install-deps`
 provisions only those; yt-dlp, ffmpeg, ImageMagick and other CLI or system-library rows are OS-level
-installs, so show the row's install hint instead. A passing check has no successor.
+installs, offered as the Check section says. A passing check has no successor.
 
 ## Gotchas
 
-This skill does not install. A stop notice from a digest skill is not permission to run `apply`.
-A missing row is a report: show the row's install hint and let the user run it.
+- A missing row or a digest skill's stop notice is not consent. Run no fix before the user says
+  yes, and run only the install the row's hints name, never another installer.
+- `/knowledge:setup` is manual-only, so its `apply install-deps` cannot be invoked from here; the
+  user types it.

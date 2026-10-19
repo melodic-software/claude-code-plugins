@@ -268,9 +268,11 @@ as of 2026-10-10; recheck when either section changes.
 Verify before starting (stop and route to the fix path on failure). The readiness report is
 `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`;
 run it by hand when the pre-computed context did not run. It also prints where the dependencies
-install. `/knowledge:check` is the model-invocable, read-only report of every tool the plugin
-declares; name it beside the preflight when a prerequisite fails. `--data-dir` is the relocation override: pass another directory to both `setup-deps.mjs`
+install. `--data-dir` is the relocation override: pass another directory to both `setup-deps.mjs`
 and `run.mjs` when the default is not writable.
+
+`/knowledge:check` is the model-invocable, read-only report of every tool the plugin declares;
+name it beside the preflight when a prerequisite fails.
 
 1. **video-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
    Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin
