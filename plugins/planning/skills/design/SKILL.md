@@ -424,14 +424,15 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
   suggest it if available. Suggest `/discovery:research` (if enabled) for a deferred item needing
   external research, and the `terminology` then `handoff` actions at the session tail
 - **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`,
-  and `system` scopes, when discussion touches configurability, extension points, observability,
-  or testability, open a design thread for it. Extension points start from the Phase 2
-  variation-point pass. Skip on early-exit, `status`, or trivial single-file work. Apply
-  [`reference/design-defaults.md`](reference/design-defaults.md) first (quality bar, consumer
-  standards, the Brief's quality requirements, generalize-now-or-wait, per-tenant configurability
-  as vendor guidance), then recommend from SRP, OCP, LSP, ISP, DIP, composition over inheritance,
-  reuse and DRY of knowledge, coupling and cohesion, information hiding, deep modules and YAGNI per
-  [`design-principles.md`](${CLAUDE_PLUGIN_ROOT}/reference/design-principles.md).
+  and `system` scopes, always apply [`reference/design-defaults.md`](reference/design-defaults.md)
+  first (quality bar, consumer standards, the Brief's quality requirements, generalize-now-or-wait,
+  per-tenant configurability as vendor guidance, and the Principles thread handoff requires), then
+  recommend from SRP, OCP, LSP, ISP, DIP, composition over inheritance, reuse and DRY of knowledge,
+  coupling and cohesion, information hiding, deep modules and YAGNI per
+  [`design-principles.md`](${CLAUDE_PLUGIN_ROOT}/reference/design-principles.md). When discussion
+  touches configurability, extension points, observability, or testability, open a design thread
+  for it; extension points start from the Phase 2 variation-point pass. Skip on early-exit,
+  `status`, or trivial single-file work.
 
 ## What this skill does NOT do
 
