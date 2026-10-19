@@ -15,7 +15,7 @@
 // and the texts this suite types, never from the page's own prompt builder.
 "use strict";
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, snap, joinAs, openClaude } = require("./browser_harness");
 const Connect = require(path.join(__dirname, "..", "web", "connect.js"));
 
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
@@ -181,7 +181,8 @@ async function main() {
     ok(`and, under it, "${HELD}"`, await until(ann.page, held => [...document.querySelectorAll(".vf-res")].some(li => li.textContent.includes("The address step drops most.")
       && li.querySelector(".vf-res-share:not([hidden])")?.textContent.includes(held)), HELD));
     ok("its pasted source line became a link", await ann.page.evaluate(() => [...document.querySelectorAll(".vf-res .vf-src")].some(a => a.href === "https://example.com/funnel")));
-    ok("the owner sees it marked as Ann's own Claude, with Share", await shown(owner, "Answer from Ann's own Claude") && await resLi(owner, "The address step drops most.").locator("button", { hasText: "Share with everyone" }).isVisible());
+    ok("the owner sees it marked as Ann's own Claude, with Share", await shown(owner, "Answer from Ann's own Claude") && await openClaude(owner) && await resLi(owner, "The address step drops most.").locator("button", { hasText: "Share with everyone" }).isVisible());
+    await openClaude(bo.page);
     await bo.page.waitForTimeout(2500);
     ok("Bo does not see it before the owner shares it", !(await text(bo.page)).includes("The address step drops most."));
     await resLi(owner, "The address step drops most.").locator("button", { hasText: "Share with everyone" }).click();

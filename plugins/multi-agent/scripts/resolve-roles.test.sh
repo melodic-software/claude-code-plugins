@@ -140,6 +140,15 @@ assert_contains "unknown role lists the valid roles" "$(cat "$T/plain.err")" "va
 run plain all --session-model gpt >/dev/null
 assert_eq "unknown session model exits 2" 2 "$?"
 
+run plain all --session-model best >/dev/null
+assert_eq "best is not a session model: exits 2" 2 "$?"
+
+fixture bestrole
+printf 'schema: 1\nroles:\n  worker:\n    model: best\n' >"$T/bestrole/repo/.claude/multi-agent.yaml"
+out="$(run bestrole worker --session-model opus)"
+assert_lacks "best is not a role model: the layer's value is dropped" "$out" '"model":"best"'
+assert_contains "best is not a role model: the rejection is named" "$out" 'best'
+
 # Per-key override across layers, with the source layer named per value.
 fixture layered
 printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/layered/home/.claude/multi-agent.yaml"
@@ -311,7 +320,7 @@ assert_contains "consumer basis key ignored" "$out" 'roles.worker.basis_model ig
 
 # A bundled entry with no basis resolves as unrecorded.
 fixture nobasis
-printf 'schema: 1\nfrontier: fable,best\nfanout:\n  model: opus\nroles:\n  worker:\n    model: inherit\n    effort: medium\n' >"$T/nobasis/defaults.yaml"
+printf 'schema: 1\nfrontier: fable\nfanout:\n  model: opus\nroles:\n  worker:\n    model: inherit\n    effort: medium\n' >"$T/nobasis/defaults.yaml"
 out="$(run nobasis worker --session-model opus --defaults "$T/nobasis/defaults.yaml")"
 assert_contains "no bundled basis: unrecorded" "$out" '"basis":{"model":"unrecorded","fanout_model":"unrecorded","effort":"unrecorded"}'
 

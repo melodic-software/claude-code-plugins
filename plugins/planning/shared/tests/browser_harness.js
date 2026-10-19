@@ -127,4 +127,10 @@ function png(w, h, [y0, y1] = [-1, -1]) {
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
 }
 
-module.exports = { loadPlaywright, suite, recorder, until, snap, joinAs, png, upOnSparePort };
+/** Open the question's "Claude on this question" section when it is folded; true once its body shows. */
+async function openClaude(page) {
+  const t = page.locator(".vf-cltoggle");
+  if ((await t.getAttribute("aria-expanded")) !== "true") await t.click();
+  return until(page, () => !document.querySelector(".vf-clbody").hidden);
+}
+module.exports = { loadPlaywright, suite, recorder, until, snap, joinAs, png, upOnSparePort, openClaude };

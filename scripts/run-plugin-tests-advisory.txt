@@ -7,8 +7,3 @@
 # One repo-relative suite path per line; `#` comments and blank lines are
 # ignored. An entry that matches no discovered suite fails the runner (exit 2).
 # Keep the condition for removing each entry beside it.
-
-# Advisory on main while the shared-UI browser timings are reworked.
-# Remove both when the shared-UI timing sweep PR (branch test/shared-ui-timing-sweep) merges.
-plugins/planning/shared/tests/align.test.sh
-plugins/planning/shared/tests/ui.test.sh

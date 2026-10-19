@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "batch-simplify finished (72h scope, unattended). No task tools in this session, so I tracked the groups in the checklist copy.\n\n- Group 1 (src): src/greet.sh simplified, verification passed.\n- Group 2 (repo): repo/tool.sh simplified, verification passed.\n\nEdits are uncommitted in the working tree."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I could not run batch-simplify because TaskCreate, TaskUpdate and TaskList are not available in this session. Please enable the task tools and run it again.",
+      "why": "stops for want of the task tools"
+    },
+    {
+      "answer": "",
+      "why": "no report"
+    }
+  ]
+}

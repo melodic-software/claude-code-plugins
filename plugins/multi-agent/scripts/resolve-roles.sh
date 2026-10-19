@@ -31,7 +31,7 @@
 #                                         layer declares code, research and
 #                                         mechanical
 #   --session-model <alias>               the session model's alias (opus,
-#                                         sonnet, haiku, fable, best); omitted
+#                                         sonnet, haiku, fable); omitted
 #                                         means unknown, which the guard treats
 #                                         as frontier
 #   --root <dir>      repository root (default: CLAUDE_PROJECT_DIR, else the
@@ -67,7 +67,7 @@ DEFAULTS="$SCRIPT_DIR/../reference/defaults.yaml"
 # https://code.claude.com/docs/en/model-config#choose-an-effort-level (as of
 # 2026-10-11; recheck when either section adds, renames or drops an alias or a
 # level). `default`, `opusplan` and the `[1m]` variants are left out on purpose.
-ALIASES=" opus sonnet haiku fable best "
+ALIASES=" opus sonnet haiku fable "
 EFFORTS=" low medium high xhigh max "
 
 die() {

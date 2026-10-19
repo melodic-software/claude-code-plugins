@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".work/recipe-import/design/design-threads.md",
+            "old_string": "# Design threads\n",
+            "new_string": "# Design threads\n\n## Principles\n"
+          }
+        }
+      ],
+      "why": "editing a design artifact is allowed"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "recipes/app.py",
+            "old_string": "def ",
+            "new_string": "def changed_"
+          }
+        }
+      ],
+      "why": "edited existing source code"
+    }
+  ]
+}

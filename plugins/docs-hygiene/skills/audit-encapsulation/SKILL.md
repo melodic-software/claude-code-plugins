@@ -79,11 +79,26 @@ Matched shapes:
 
 Matched path prefixes: `.claude/skills/<X>/...`, `plugins/<plugin>/skills/<X>/...`, and relative forms (`skills/<X>/...` plugin-README short cites, plus `../`-prefixed cites whose lexical resolution lands on a private skill surface, including sibling-skill links that never spell `skills/` in the cite text).
 
-Legal external cites: bare `<X>/SKILL.md` path (discouraged but legal. Natural-language + slash invocation is canonical), `<X>/<file>.json` data files at skill root (data-file carve-out), and `<X>/scripts/<entry>` entry scripts (entry-surface carve-out below).
+Cross-plugin shapes, in a marketplace monorepo (a `plugins/` directory), flagged when the citing file sits under `plugins/<q>/` and the cite names another plugin `<p>` (p≠q):
 
-**scripts/ entry-surface carve-out:** a skill's `scripts/` is its declared ENTRY surface per `context/public-surface-contract.md`. Harness / CI / hooks / workflow registries MAY path-cite a skill's entry scripts directly, so this inbound audit treats `<X>/scripts/...` cites as legal (like data files and bare `SKILL.md`) and never flags them. The skill-to-skill half of the asymmetry, a sibling SKILL.md citing another skill's `scripts/` stays slash-only, is out of this inbound audit's scope; a consuming repo that wants it enforced wires its own outbound gate.
+- Skill root with no trailing subdirectory: `plugins/<p>/skills/<X>`
+- Bare `plugins/<p>/skills/<X>/SKILL.md`
+- `plugins/<p>/skills/<X>/scripts/...`
+- The same targets as a `../`-prefixed path, or as a `github.com/<owner>/<repo>/tree|blob/<ref>/...` or `raw.githubusercontent.com/<owner>/<repo>/<ref>/...` URL
 
-The script scans the consumer repo it runs in: every `.claude/` child directory except `skills/` (self-citation domain; opt in via `--include-skills` for skill-maintenance review) and `worktrees/`, plus `.github/`, `docs/`, `.lefthook/`, `plugins/`, root instruction/config files (`AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `lefthook.yml`), and `.claude/` top-level files. Each filtered to what exists.
+A cite inside the same plugin stays legal. Subdirectory, anchor and schema cites keep their existing rows.
+
+Own marketplace id: when `.claude-plugin/marketplace.json` names the marketplace, `<plugin>@<id>` for that id is flagged on any line that is not an install recipe (`plugin install|uninstall|update|enable|disable`). Third-party ids never match.
+
+Every text file type under the scanned surfaces is read (binary files and `node_modules/` are skipped), not only md/sh/json/yml/yaml.
+
+Allowlist: `docs/conventions/audit-encapsulation-allowlist.tsv` (or `--allowlist <file>`), one `path<TAB>reason` row per exempt file or `dir/` prefix; `#` lines and blank lines are skipped, a row with no reason is an error (exit 2). Use it only for fixtures, evals and tests that exist to exercise a detector; a real cite is fixed, not listed.
+
+Legal external cites: bare `<X>/SKILL.md` path in a consumer repo, from outside `plugins/`, or inside the same plugin (discouraged but legal. Natural-language + slash invocation is canonical), `<X>/<file>.json` data files at skill root (data-file carve-out), and `<X>/scripts/<entry>` entry scripts from callers outside `plugins/` or inside the same plugin (entry-surface carve-out below).
+
+**scripts/ entry-surface carve-out:** a skill's `scripts/` is its declared ENTRY surface per `context/public-surface-contract.md`. Harness / CI / hooks / workflow registries outside `plugins/` MAY path-cite a skill's entry scripts directly, so this inbound audit treats their `<X>/scripts/...` cites as legal (like data files). A file under `plugins/<q>/` citing another plugin's `scripts/` is flagged: plugin-to-plugin goes by `/plugin:skill`. The skill-to-skill half of the asymmetry, a sibling SKILL.md citing another skill's `scripts/` stays slash-only, is out of this inbound audit's scope; a consuming repo that wants it enforced wires its own outbound gate.
+
+The script scans the consumer repo it runs in: every `.claude/` child directory except `skills/` (self-citation domain; opt in via `--include-skills` for skill-maintenance review) and `worktrees/`, plus `.github/`, `docs/`, `.lefthook/`, `plugins/`, root instruction/config files (`AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `lefthook.yml`), and `.claude/` top-level files. Each filtered to what exists. Consumer repos with only `.claude/skills/` behave as before, apart from the wider file types.
 
 Or invoke the skill (the agent applies the filter taxonomy below):
 
