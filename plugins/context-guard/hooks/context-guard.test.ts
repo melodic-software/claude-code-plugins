@@ -42,6 +42,12 @@ type World = {
   ran: string[]
   exits: (number | 'throw')[]
   toolMs: number
+  // A helper run waits on this promise when set.
+  gate?: Promise<void>
+  // Called after each toast is recorded.
+  onToast?: () => void
+  // session.surfaces throws when set.
+  surfacesFail?: boolean
 }
 
 // The world beneath the plugin. `percent` drives the reading; tokens follow it on a 200000 window
@@ -91,7 +97,10 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
   })
   on('session.id', () => ({ value: w.sid }))
   on('session.version', () => ({ value: { version: w.version } }))
-  on('session.surfaces', () => ({ value: w.surfaces }))
+  on('session.surfaces', () => {
+    if (w.surfacesFail) throw new Error('surfaces failed')
+    return { value: w.surfaces }
+  })
   on('session.model', () => ({ value: 'Opus 5.5' }))
   on('session.turns', () => ({ value: w.turns }))
   on('session.root', () => ({ value: '/repo' }))
@@ -106,8 +115,9 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
     if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: { kind: 'file', size: file.text.length, mtimeMs: file.mtimeMs, isLink: false } }
   })
-  on('process.run', ($: unknown, e: { argv: readonly string[]; init?: { stdin?: string } }) => {
+  on('process.run', async ($: unknown, e: { argv: readonly string[]; init?: { stdin?: string } }) => {
     w.runs.push({ argv: e.argv, stdin: e.init?.stdin })
+    await w.gate
     // A helper run takes the next queued exit; 'throw' is a run that did not start.
     const exit = e.argv[0] === 'node' ? (w.exits.shift() ?? 0) : 0
     if (exit === 'throw') throw new Error('spawn failed')
@@ -121,6 +131,7 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
   on('prompt.read', () => ({ value: { text: w.box, cursor: w.box.length } }))
   on('ui.toast', ($: unknown, e: { text: string }) => {
     w.toasts.push(e.text)
+    w.onToast?.()
     return { value: undefined }
   })
   on('prompt.suggest', ($: unknown, e: { text: string }) => {
@@ -976,6 +987,41 @@ test('menu: a crossing read with the turn\'s final answer reaches the person bef
   expect(w.logs).toHaveLength(1)
 })
 
+test('menu: a slow snapshot write does not delay the crossing toast, and the write still runs', async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.percent = 60
+  const before = w.runs.length
+  let release = () => {}
+  w.gate = new Promise<void>(resolve => (release = resolve))
+  const toasted = new Promise<void>(resolve => (w.onToast = resolve))
+  const done = measure($, 60)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('no toast while the snapshot write was held')), 2_000)
+  })
+  try {
+    await Promise.race([toasted, timeout])
+  } finally {
+    clearTimeout(timer)
+  }
+  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+  release()
+  await done
+  expect(w.runs.length).toBe(before + 1)
+})
+
+test('menu: a failing toast step still runs the snapshot write', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'composer')
+  await bash($)
+  w.percent = 60
+  const before = w.runs.length
+  w.surfacesFail = true
+  await measure($, 60).catch(() => {})
+  expect(w.runs.length).toBe(before + 1)
+})
+
 test('menu: a crossing read after a pending restatement reaches the person at once and gives Claude the current verdict', async ($, on) => {
   const { w } = world(on, { turns: 3, percent: 60 })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
@@ -1012,6 +1058,42 @@ test('operator mode: a shown crossing recorded before a pending restatement merg
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   await compact($, 'manual')
   expect(own((await prompt($, 'composer')).context)).toEqual([])
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.suggested).toEqual([offer(restated('degraded'))])
+})
+
+test('compaction: an approach line recorded before a pending restatement merges into it', async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.percent = 47
+  await measure($, 47)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  await compact($, 'manual')
+  w.percent = undefined
+  expect(own((await prompt($)).context)).toEqual([restated('degraded')])
+})
+
+test('compaction: a threshold before a pending restatement merges into it and keeps its action sentence', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, { thresholds: [{ at_percent: 46, action: 'handoff' }] })
+  await bash($)
+  w.percent = 47
+  await measure($, 47)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  await compact($, 'manual')
+  w.percent = undefined
+  expect(own((await prompt($)).context)).toEqual(['context-guard (operator setting for a threshold): handoff.', restated('degraded')])
+})
+
+test('operator mode: a crossing held at the end of a turn is not offered beside the restatement a compaction adds', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'composer')
+  await bash($)
+  w.percent = 60
+  await measure($, 60)
+  await compact($, 'auto')
+  w.percent = undefined
+  await measure($, 0)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   expect(w.suggested).toEqual([offer(restated('degraded'))])
 })

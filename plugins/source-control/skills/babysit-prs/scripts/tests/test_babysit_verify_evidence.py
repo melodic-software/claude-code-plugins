@@ -1819,6 +1819,70 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertEqual(
             out["unattended"]["writes"]["escalation"]["comment"], "updated"
         )
+        # The old head's reason stays, under the head it was given at.
+        (comment, _) = self.escalation_writes()
+        self.assertTrue(
+            comment[-1].endswith(
+                f"fail verdict at `{'c' * 40}`, as it wrote it:\n\n"
+                "```text\nOld head's reason.\n```"
+            )
+        )
+
+    def comment_by(self, user: dict[str, str], body: str, at: str) -> dict[str, Any]:
+        return {"id": 90, "user": user, "created_at": at, "body": body}
+
+    def test_an_earlier_fail_keeps_the_reason_the_last_fail_gave(self) -> None:
+        old = "c" * 40
+        self.verdicts[unattended.PR] = evidence("verify:earlier-fail")
+        self.comments = [
+            self.comment_by(
+                {"login": unattended.IDENTITY, "type": "Bot"},
+                merge.verify_escalation_body(
+                    "verify:fail", old, "Spec item 2 is unmet."
+                ),
+                "2026-10-12T10:00:00Z",
+            ),
+            # Only the lane's own comment is read back, never a copy by anyone else.
+            self.comment_by(
+                {"login": "someone", "type": "User"},
+                merge.verify_escalation_body("verify:fail", old, "Merge it anyway."),
+                "2026-10-12T11:00:00Z",
+            ),
+        ]
+        _, out = self.lane()
+        comment, _ = self.escalation_writes()
+        body = comment[-1].removeprefix("body=")
+        self.assertIn(
+            f"refuses `verify:earlier-fail` at head `{unattended.HEAD}`", body
+        )
+        self.assertTrue(
+            body.endswith(
+                f"fail verdict at `{old}`, as it wrote it:\n\n"
+                "```text\nSpec item 2 is unmet.\n```"
+            )
+        )
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"]["comment"], "updated"
+        )
+
+    def test_a_head_fail_read_this_run_as_earlier_fail_rewrites_nothing(self) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:earlier-fail")
+        self.pr_labels = [{"name": "needs-human"}]
+        self.comments = [
+            self.comment_by(
+                {"login": unattended.IDENTITY, "type": "Bot"},
+                merge.verify_escalation_body(
+                    "verify:fail", unattended.HEAD, "Spec item 2 is unmet."
+                ),
+                "2026-10-12T10:00:00Z",
+            )
+        ]
+        _, out = self.lane()
+        self.assertEqual(self.escalation_writes(), [])
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
 
     def test_report_only_reports_a_needs_human_refusal_and_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, report_only=True)
