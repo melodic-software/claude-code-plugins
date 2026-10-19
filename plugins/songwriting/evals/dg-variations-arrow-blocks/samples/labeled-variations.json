@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Dominant problem: line 3 tells the feeling the other lines already show. Three variations, each a full block with the changed line marked.\n\n**Variation A: image axis**\n\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► Your coffee ring is fading where you set it down\nEighty miles of nothing and the radio gone bad\n\n**Variation B: action axis**\n\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► I turn to tell you something, then I turn back\nEighty miles of nothing and the radio gone bad\n\n**Variation C: vowel axis**\n\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► I keep your side of the seat belt clicked and empty\nEighty miles of nothing and the radio gone bad\n\nScansion maps and craft notes for each are in `variations/`."
+    },
+    {
+      "answer": "§3, §8 and §2 run. Voiceprint: none on disk, register gate skipped (no voiceprint).\n\n### Version 1 (POV)\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► You'd have made me pull over at the first gas station\nEighty miles of nothing and the radio gone bad\n\n### Version 2 (time)\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► Last June you had your bare feet on the glove box\nEighty miles of nothing and the radio gone bad\n\n### Version 3 (sound)\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► Half a song about you on a station I can't find\nEighty miles of nothing and the radio gone bad\n\n### Version 4 (understatement)\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► I left your sunglasses right where you threw them\nEighty miles of nothing and the radio gone bad"
+    },
+    {
+      "answer": "Every version below keeps line 4 as it is. Here are three:\n\n**A. Image: a reach that comes back empty** (`slack` / `bad`, family rhyme)\n```\n  Dust on the dashboard, a map I never fold\n  Your sweater in the back seat, still smelling like the cold\n► I reach across for your hand and come up holding slack\n  Eighty miles of nothing and the radio gone bad\n```\n\n**B. Image: something left on the glass** (`laughed` / `bad`, assonance)\n```\n  Dust on the dashboard, a map I never fold\n  Your sweater in the back seat, still smelling like the cold\n► Your handprint on the windshield from the last time you laughed\n  Eighty miles of nothing and the radio gone bad\n```\n\n**C. A statement shown through an action** (`had` / `bad`, perfect rhyme)\n```\n  Dust on the dashboard, a map I never fold\n  Your sweater in the back seat, still smelling like the cold\n► Say your name out loud, the only company I've had\n  Eighty miles of nothing and the radio gone bad\n```",
+      "why": "observed Opus reply: bare letter labels A. B. C."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "► Your coffee ring is fading\n► I turn to tell you something\n► I keep your seat belt clicked"
+    },
+    {
+      "answer": "Variation A is below.\n► Your coffee ring is fading",
+      "why": "only one labeled block"
+    },
+    {
+      "answer": "Here are three:\n\n```\n  Dust on the dashboard, a map I never fold\n  Your sweater in the back seat, still smelling like the cold\n► I reach across for your hand and come up holding slack\n  Eighty miles of nothing and the radio gone bad\n```\n\n```\n  Dust on the dashboard, a map I never fold\n  Your sweater in the back seat, still smelling like the cold\n► Your handprint on the windshield from the last time you laughed\n  Eighty miles of nothing and the radio gone bad\n```\n\n```\n  Dust on the dashboard, a map I never fold\n  Your sweater in the back seat, still smelling like the cold\n► Say your name out loud, the only company I've had\n  Eighty miles of nothing and the radio gone bad\n```",
+      "why": "full blocks but no labels"
+    }
+  ]
+}

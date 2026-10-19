@@ -80,7 +80,8 @@
     },
     "result": {
       "type": "object",
-      "required": ["op", "qid", "kind", "used", "why", "summary", "sources", "report"],
+      "required": ["op", "kind", "used", "why", "summary", "sources", "report"],
+      "description": "No qid: the answer to `request`, a request about the whole session (scope: session).",
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["result"]},

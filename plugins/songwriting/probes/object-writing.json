@@ -1,0 +1,130 @@
+{
+  "skill": "songwriting:object-writing",
+  "plugin": "songwriting",
+  "skill_dir": "plugins/songwriting/skills/object-writing",
+  "ranking_note": "Authored from the before descriptions at commit 11a25e8bb3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling songwriting skills the near-miss negatives aim at; one or two negatives are adjacent non-songwriting requests.",
+  "competitors": [
+    "songwriting:metaphor",
+    "songwriting:practice",
+    "songwriting:rhyme",
+    "songwriting:song-form",
+    "songwriting:diagnose"
+  ],
+  "competitor_dirs": {
+    "songwriting:metaphor": "plugins/songwriting/skills/metaphor",
+    "songwriting:practice": "plugins/songwriting/skills/practice",
+    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
+    "songwriting:song-form": "plugins/songwriting/skills/song-form",
+    "songwriting:diagnose": "plugins/songwriting/skills/diagnose"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a word and a timer, I want to dump sensory stuff for ten minutes."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You write about 'grandmother's kitchen' through every sense and I'll mine it for lines."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My verse says 'I felt sad and lonely'. How do I make it concrete?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is 'cold as ice' too worn out? How would I rescue it?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Who's narrating this lyric? I keep slipping between 'you' and 'she'."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write about a bus station using smell, taste, touch, the body's motion, everything."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "These lines are all telling, not showing. Help me ground them."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Spin a chain of images starting from a rusty dog collar."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Should the camera be close up or wide in this verse?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find rhymes for 'collar'."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Build me a 30-day songwriting practice plan."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I need a metaphor for ambition."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is this song AABA?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a marketplace listing for my used bicycle."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run me through exercise 3.2 from the rhyming book."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Collide some noun and verb pairs for me."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Review my finished draft and tell me what's off."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Describe the smell of fresh bread for my bakery's website."
+    }
+  ]
+}

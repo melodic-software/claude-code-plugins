@@ -29,3 +29,16 @@ that join is the whole point of those reports; the recorded tradeoff is one more
 
 [RESEARCH: confirm which of the three consumers still require a BOM-prefixed UTF-8 file before
 fixing the encoding].
+
+## Thread 6: Principles. RESOLVED
+
+Principles applied: SRP keeps the query apart from the writer; YAGNI rules out a pluggable format
+layer.
+Generalize now or wait: the Brief's `Intent: second variant = speculative` line settles it: wait
+for the third occurrence and keep the CSV writer specific.
+Rationale: no second export format is planned, so an abstraction now would have one implementation.
+
+## Thread 7: Lifecycle and reversibility. RESOLVED
+
+Door: Thread 1 one-way (the column layout is a published contract); Threads 2, 3 and 4 two-way.
+Rationale: only the column layout outlives a code change; the rest is replaced by editing code.

@@ -66,6 +66,7 @@ def _queue_read(
     armed: bool = False,
     state: str | None = None,
     position: int | None = None,
+    failed_ejections: int | None = 0,
 ) -> dict[str, Any]:
     """A `read_merge_queue` answer; the default is a base with no merge queue."""
     return {
@@ -76,6 +77,7 @@ def _queue_read(
         "autoMergeArmed": armed,
         "state": state,
         "position": position,
+        "failedEjections": failed_ejections,
     }
 
 
@@ -1024,7 +1026,9 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
                 return rules
             raise AssertionError(f"unexpected gh_json call: {args}")
 
-        def commits_side_effect(repo: str, number: int) -> list[dict[str, Any]]:
+        def commits_side_effect(
+            repo: str, number: int, head: str | None = None
+        ) -> list[dict[str, Any]]:
             if commits_error:
                 raise RuntimeError("simulated commit-verification fetch failure")
             return commits or []

@@ -46,7 +46,8 @@ activities:
     # reviewer bot opened on a reviewed head, left by it alone or answered by
     # a trusted person after the lane escalated them, hands the pull request to a
     # person when it changes .github/ or `loop.review-rounds` rounds already
-    # ran, and gives the skill the review-thread tool.
+    # ran (a write-access fix request newer than the last round still runs
+    # one more round on its threads), and gives the skill the review-thread tool.
     prepare: review-threads
     # Pushes its fixes to the pull request's branch, nothing else.
     effect: mutate-branch
@@ -56,8 +57,10 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      # A person's hold stops it.
-      labels-absent: [do-not-merge, needs-human]
+      # do-not-merge stops it. On a needs-human PR the select step keeps only
+      # threads a trusted person with write access asked it to fix, and
+      # holds the PR when there are none; pr-merge still refuses that PR.
+      labels-absent: [do-not-merge]
       # A draft pull request is skipped.
       draft: [false]
   publish-feedback:
@@ -111,6 +114,51 @@ activities:
     # Reads the verdict the model wrote, and the PR body for an advisory.
     reads-untrusted: true
     inputs: [pr, head-sha]
+  fix-ci:
+    # Fixes the failing CI checks on a lanes App pull request: reproduces each
+    # with the repository's own command, fixes the cause and reruns it. It
+    # holds no write token: the runner turns its uncommitted edits into a
+    # patch that apply-ci-fix pushes. pr-unblock-dispatch.yml starts it; a
+    # trusted person may also dispatch it by hand.
+    skill: source-control:pull-request
+    # The skill's CI mode for failing checks: never weakens a check, never
+    # edits .github/, and reports each check fixed or escalated.
+    args: ci --ci
+    # Before the run a base job writes the failing checks' names, workflow,
+    # annotations and log ends to a context file, or hands the pull request
+    # to a person once `loop.fix-ci-rounds` fixes were already pushed. The
+    # read runner gives the skill that file, Bash, Edit and Write.
+    prepare: ci-context
+    # Runs head code, so no write token: the change leaves as a patch.
+    effect: read
+    # ci-status judges the pushed fix.
+    gating: advisory
+    # Reads check annotations and logs, which print head text.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
+  apply-ci-fix:
+    # Applies fix-ci's patch to the head fix-ci worked on and pushes it as one
+    # commit, without force. A script, no model, and it runs no head code.
+    script: .github/scripts/pr-unblock/apply-ci-fix.mjs
+    # Before the mint the runner checks the patch artifact and the head;
+    # the script refuses the whole patch when any change is under .github/,
+    # an agent instruction path (CLAUDE.md, AGENTS.md, .claude/ or
+    # .claude-plugin/, a plugin's hooks/, .mcp.json, .gitmodules, CODEOWNERS), a
+    # symbolic link or a gitlink, and hands an empty, invalid or unappliable
+    # patch to a person.
+    prepare: apply-patch
+    # Pushes the fix to the pull request's branch, nothing else.
+    effect: mutate-branch
+    gating: advisory
+    # Reads the patch and the report the model wrote.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
   resolve-issue:
     # Works one issue labeled agent-ready: either commits the change to a new
     # branch, or stops and says why. The runner adds `--issue <number>`.
@@ -119,8 +167,19 @@ activities:
     # Validates the format of every changelog fragment before the skill
     # reports done. A missing fragment is caught on the PR by ci-status
     # (--check-required needs committed work, and the lane commits through
-    # the API, not in the checkout).
+    # the API, not in the checkout). After the skill, work-resolve-issue.yml's
+    # run-checks job runs each check again itself, from the base copy against
+    # the lane branch with the base's scripts/, and report-outcome stops a done
+    # run whose checks failed or did not run, whatever the outcome file says.
     checks: ["scripts/check-changelog-fragments.sh --check"]
+    # Runs the diff-scoped lint checks a push would face (markdown,
+    # shellcheck, exec bits, changelog fragments, plugin validation) in the
+    # run, so the skill fixes what they report before it commits and the PR
+    # does not open red. Advisory: unlike checks, the runner does not run
+    # these again, and a failure the skill cannot fix still opens the PR,
+    # named in its report. --uncommitted checks the work tree as the commit
+    # the API would make, since the lane commits through the API.
+    self-checks: ["scripts/check-affected.sh --uncommitted"]
     # Repository scripts the run may call with any arguments it chooses, to
     # check its work the way an issue's done-when says. Each runs from a
     # read-only copy of the base. A script that changes files, runs code from
@@ -202,7 +261,9 @@ activities:
   merge-pr:
     # Runs the merge gate on one PR and, when it passes, adds the PR to the
     # merge queue at the head it checked. No model. .github/workflows/pr-merge.yml
-    # runs it for each candidate PR.
+    # runs it for each candidate PR. On its schedule the same token also takes
+    # off a needs-human the lanes App set for a pr-unblock escalation whose
+    # reason no longer holds (.github/scripts/pr-merge/clear-escalations.mjs).
     script: plugins/source-control/scripts/source-control-babysit-merge
     args: --unattended --authority pr-merge --merge
     effect: merge
@@ -258,9 +319,15 @@ lanes:
       # Runs after review-dependency, in its own job with its own token.
       - activity: apply-dependency-verdict
         needs: [review-dependency]
+      # Started by pr-unblock-dispatch.yml for lanes App PRs whose ci-status
+      # failed.
+      - activity: fix-ci
+      # Runs after fix-ci, in its own job with its own token.
+      - activity: apply-ci-fix
+        needs: [fix-ci]
       # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
-        needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict]
+        needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-ci-fix]
   pr-merge:
     stage: merge
     slots:
@@ -292,16 +359,111 @@ models:
     triage-issue: triage
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
+  # A run on an issue (resolve-issue) takes its budget from the issue's Size,
+  # Complexity and Uncertainty org issue fields, read by id. An empty field,
+  # or one whose latest setter is not a listed human or the lanes App, is not
+  # assessed and the lane refuses the issue (not-assessed); an unmapped
+  # option fails the run. Turn cap = base-turns x complexity factor, rounded
+  # up; it replaces the profile's max-turns.
+  issue-dimensions:
+    fields:
+      size:
+        field-id: 15462270
+        options: { "27053568": small, "27053567": medium, "27053566": large }
+      complexity:
+        field-id: 48625720
+        options: { "85127651": low, "85127652": medium, "85127653": high }
+      uncertainty:
+        field-id: 48625721
+        options: { "85127654": known, "85127655": knowable, "85127656": unknown }
+    sizes:
+      # 75 turns is the cap every lane run had; 50 minutes covers the high
+      # factor at the 20 seconds a turn the old 75-turn, 25-minute run allowed.
+      small: { base-turns: 75, timeout-minutes: 50 }
+      # Twice small's turns and time.
+      medium: { base-turns: 150, timeout-minutes: 100 }
+      # Too big for one run: the lane skips it (split-required) before any
+      # model turn, and triage sends it to /work-items:decompose.
+      large: split
+    complexity:
+      # Base turns as they are: a small low-complexity issue runs as before.
+      low: 1
+      # Half again, for an issue with several moving parts.
+      medium: 1.5
+      # Double, the most a size's timeout covers.
+      high: 2
+    uncertainty:
+      # The approach is known: run it.
+      known: run
+      # Answerable by reading or asking first: skip until it is (research-first).
+      knowable: research-first
+      # Only an experiment answers it: skip until a probe has (probe-first).
+      unknown: probe-first
+
+# The funding role whose secrets pay for each Claude lane's runs (README.md,
+# Funding). A lane on ci-workflows' run-claude-cli action (today intake and
+# pr-verify) passes its role with <ROLE>_CLAUDE_API_KEY and
+# <ROLE>_CLAUDE_CODE_OAUTH_TOKEN, role upper-snake; the others are the role each
+# lane takes when it moves there.
+funding:
+  intake: automations
+  pr-unblock: automations
+  fix-ci: automations
+  pr-verify: automations
+  pr-refine: automations
+  claude-review: reviews
+  claude-security-review: reviews
+  work-resolve-issue: issue-lane
 
 loop:
   review-rounds: 3
   dependency-review-rounds: 2
+  # Fixes fix-ci may push to one pull request before the next run hands it to
+  # a person instead. 3 matches review-rounds: past it, CI failing again after
+  # each pushed fix means the fixes are not converging and a person decides.
+  fix-ci-rounds: 3
 
 limits:
-  # Open lanes-App PRs at which work-resolve-issue starts no new run, and
-  # work-unblock re-fires none, until the merge lane brings the count down.
-  # Judgment, Little's law; revisit after a day of data.
-  wip-cap: 60
+  # fix-ci runs one pr-unblock-dispatch run starts. 2 matches the
+  # review-dependency cap, so a push to main starts at most a few model runs
+  # while plan usage per run is unmeasured; the backlog drains over pushes.
+  fix-ci-per-run: 2
+  # Extra fix-ci dispatches on one head whose fix-ci run failed (an outage,
+  # a timeout). 1 retries once; a second failure on the same head is a
+  # pattern for a person, not a retry.
+  fix-ci-restarts: 1
+  # The issue lane's WIP cap when the lane merge rate cannot be read; the
+  # wip block below derives it otherwise.
+  wip-cap: 12
+  # Restarts after a run reaches its turn cap, per agent-ready a person adds.
+  # 0 hands every capped run back to a person, naming the cap; it stays 0
+  # until the lane commits a capped run's leftover edits.
+  turn-cap-restarts: 0
+  # Hours of issue-lane admissions the admitted backlog (open issues with
+  # agent-ready) may hold before new agent-ready labels pause.
+  admission-window-hours: 24
+  # Share of the lane's hourly merge rate admitted per hour; the release point
+  # is this factor times hourly merges times admission-window-hours.
+  admission-factor: 0.8
+
+wip:
+  # Cap = lane PRs merged per hour over the window times this target.
+  target-lead-time-hours: 2
+  # Floor under the computed cap: the earlier fixed cap (#8252). It stops a
+  # day with few merges from shrinking the cap until the lane stalls.
+  min-cap: 12
+  merge-rate-window-hours: 24
+  # Lane PRs opened in the window may be at most this share of those merged
+  # in it (not limits.admission-factor, which sizes the agent-ready backlog).
+  opened-to-merged-ratio: 0.8
+  # Held lane PRs (needs-human, do-not-merge, or a "Hold: a human merges
+  # this" body line) count here, not against the cap. Step down to 30 later.
+  held-cap: 60
+  held-alarm-hours: 24
+  # Over the WIP cap the lane pauses from this date; the held cap only alerts.
+  # The owner clears it to only alert. Empty: over a cap the lane alerts and
+  # keeps starting runs.
+  pause-from: "2026-10-18"
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
@@ -315,24 +477,92 @@ merge:
   # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
   # true at a rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
+  # Lane merges in flight at once (queued plus merged and not yet verified).
+  # The merge queue tests each PR against the latest base plus the PRs ahead
+  # of it.
+  max-in-flight: 5
+  # Minutes pr-merge's gate loop runs before it starts no further candidate;
+  # the next run starts after the last one reached. Runs 39190604942,
+  # 39187691831 and 39183126369 (the last three scheduled sweeps that ran
+  # the gate) checked 37-39 candidates each: median 30-39 s, longest
+  # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
+  # candidate included, inside the 15 minutes between scheduled runs.
+  gate-budget-minutes: 10
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge
-  # verdict at the head and ci-status passes. Owner decision: no Dependabot
-  # pull request waits on a human (docs/adr/0073).
+  # verdict at the head and ci-status passes. Owner decision 2026-10-18: a
+  # major update, or one whose version cannot be read (a SHA pin) or whose
+  # sources disagree, waits for a human whatever the verdict (`majors: hold`); `review` lets the verdict
+  # merge it.
   dependabot:
     mode: enforce
-  # Owner decision Q624: the lane denies no path and applies no HIGH path
-  # floor, size cap or C2 contradiction check; the verifier verdict, the kill
-  # switch, the fork and Dependabot refusals, lane-author and single-closing-
-  # issue eligibility and the demotion stop still hold. Each
-  # removed check comes back by setting it here: list denied-paths, set
-  # `high-path-floor: true` or `c2-contradictions: true`, or set
-  # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
+    majors: hold
+  # The HIGH path floor, floor-paths, floor-script-scopes and the capability
+  # check are on (owner decision 2026-10-18, reversing Q661): lanes may edit
+  # runnable plugin files (the #8184 scope), and fix-ci's patch guard
+  # covers only .github/** and agent instruction paths. The scorer's fixed HIGH floor (.github/**,
+  # docs/conventions/**, agent instructions, hooks, lib/, scripts/, package
+  # manifests and more) now applies in the pr-merge lane too. A lane PR
+  # touching a floor path or script, or changing
+  # capability frontmatter in a SKILL.md, agents/**/*.md or commands/**/*.md,
+  # scores HIGH and waits for a human, who merges it in person. A denied path
+  # would instead make the PR ineligible. The switch governs both lanes: in
+  # the local babysit lane, false would leave out floor-paths,
+  # floor-script-scopes, the capability check and the floor entries for
+  # plugin monitors and workflows, keeping the rest of the fixed floor. The
+  # verifier verdict, both AI review lanes, ci-status and the post-merge
+  # revert breaker still gate every lane PR.
+  # Owner decision Q624 still holds for the rest: no denied path, size cap or
+  # C2 contradiction check. Each comes back by setting it here: list
+  # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
+  # or `max-changed-lines` (the earlier 8 and 400).
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
-  # provenance work only; scoped lane PRs merge on the verifier verdict.
+  # provenance work only; scoped lane PRs off the HIGH floor merge on the
+  # verifier verdict.
   diff-check:
     denied-paths: []
+    high-path-floor: true
+    floor-paths:
+      - "**/bin/**"
+      - "**/.lsp.json"
+      - "**/settings*.json"
+      - "plugins/ai-slop/scripts/**"
+      - "plugins/ai-slop/skills/*/scripts/**"
+      - "plugins/source-control/scripts/**"
+      - "plugins/source-control/skills/*/scripts/**"
+      - "plugins/discovery/scripts/**"
+      - "plugins/discovery/skills/*/scripts/**"
+      - "plugins/knowledge/scripts/**"
+      - "plugins/knowledge/skills/*/scripts/**"
+      - "plugins/skill-quality/scripts/**"
+      - "plugins/skill-quality/skills/*/scripts/**"
+      - "plugins/testing/scripts/**"
+      - "plugins/testing/skills/*/scripts/**"
+      - "plugins/autonomy/scripts/**"
+      - "plugins/autonomy/skills/*/scripts/**"
+      # The directories of the scripts a SessionStart or PreToolUse hook runs
+      # by path, outside the plugin's hooks/, held whole so a sibling module
+      # cannot shadow one of their imports (pydeps.py, arm_observer.py,
+      # destructive_guard.py).
+      - "plugins/animation/scripts/**"
+      - "plugins/explainer-video/scripts/**"
+      - "plugins/speech/scripts/**"
+      - "plugins/playwright/skills/demo-video/scripts/**"
+      - "plugins/session-flow/skills/running-retro/scripts/**"
+      - "plugins/disk-hygiene/skills/clean/scripts/**"
+    # Owner decision Q646 (2026-10-18): a .ps1 or .cjs file, or one with git
+    # mode 100755, holds the same way in the plugins the CI lanes load and,
+    # in the scorer, at the top level. work-items and review are already on
+    # the floor; other plugins stay an accepted risk (Q640c).
+    floor-script-scopes:
+      - "plugins/ai-slop/**"
+      - "plugins/source-control/**"
+      - "plugins/discovery/**"
+      - "plugins/knowledge/**"
+      - "plugins/skill-quality/**"
+      - "plugins/testing/**"
+      - "plugins/autonomy/**"

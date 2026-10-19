@@ -49,7 +49,8 @@
       "properties": {
         "ok": {"const": true},
         "chat": {"type": "array", "maxItems": 100, "items": {"type": "object", "required": ["id", "pid", "text", "at"]}},
-        "before": {"type": "string"}
+        "before": {"type": "string"},
+        "files": {"type": "object", "description": "What the page's messages carry, read as the snapshot's `files`; left out when they carry none."}
       }
     }
   }

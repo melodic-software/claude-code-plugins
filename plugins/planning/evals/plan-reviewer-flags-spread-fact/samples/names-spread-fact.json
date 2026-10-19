@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | IMPORTANT | Design alignment | The 30-day retention window is written into three files (app/cleanup/job.py, app/api/settings_view.py, docs/operations.md) with no shared source | Define it once in app/settings.py and read it everywhere |\n",
+      "why": "findings table row"
+    },
+    {
+      "answer": "The plan hardcodes `30` for retention in the job, the API view and the docs.\n",
+      "why": "hardcoded in each surface"
+    },
+    {
+      "answer": "- Retention days are duplicated across job.py and settings_view.py; a later change to 30 would diverge.\n",
+      "why": "duplicated"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No plan gaps found.\n",
+      "why": "clean pass"
+    },
+    {
+      "answer": "No duplicated retention value: the plan keeps 30 days in one setting.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "The plan doesn't repeat the 30-day retention anywhere.\n",
+      "why": "negated with n't"
+    },
+    {
+      "answer": "| 1 | SUGGESTION | Plan mechanics | Phase 1's Sanity Check names tests/test_cleanup.py, which does not exist yet for the 30-day retention job | Create it in the phase |\n",
+      "why": "a different finding about retention"
+    }
+  ]
+}

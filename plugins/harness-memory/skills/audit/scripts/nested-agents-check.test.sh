@@ -16,8 +16,31 @@ assert_contains() {
   esac
 }
 
+# Fixture repos must commit whatever the user's global git config says: identity
+# set, signing off, no global hooks. Shadows the helper's make_repo, which does
+# not turn signing or hooks off and ignores a failed init commit.
+make_repo() {
+  unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG
+  mkdir -p "$1"
+  (
+    cd "$1" && git init -q &&
+      git config user.email "test@example.com" &&
+      git config user.name "test" &&
+      git config commit.gpgsign false &&
+      git config tag.gpgsign false &&
+      git config core.hooksPath /dev/null &&
+      git commit -q --allow-empty -m init
+  ) || {
+    printf 'FAIL: fixture repo setup failed: %s\n' "$1" >&2
+    exit 1
+  }
+}
+
 commit_all() {
-  (cd "$1" && git add -A && git commit -q -m "${2:-fixture}")
+  (cd "$1" && git add -A && git commit -q -m "${2:-fixture}") || {
+    printf 'FAIL: fixture commit failed in %s\n' "$1" >&2
+    exit 1
+  }
 }
 
 # --- Case 1: --help, bad argument, outside a repo ---

@@ -6,8 +6,9 @@
 # its content is not already on the base. Everything else is recoverable, and the
 # distinction is the only thing standing between a cleanup sweep and data loss.
 #
-# Read-only by construction: no fetch, no ref write, no checkout, no removal, no
-# network. Every verdict is computed from refs already on disk, so a stale remote
+# Read-only by construction: no fetch, no ref write, no checkout, no removal, and
+# no network unless --merged-pr-proof is passed (one read-only `gh pr list` per
+# unlanded branch). Every verdict is computed from refs already on disk, so a stale remote
 # ref yields a conservative answer (see the fail-closed rule below), never a wrong
 # destructive one.
 #
@@ -65,7 +66,7 @@ $PROG — read-only landed-vs-stranded classification for git worktrees.
 
 Usage:
   $PROG [--repo-dir <dir>] [--worktree <path>]... [--base <ref>]
-        [--merged-refs-file <path>] [--no-peers]
+        [--merged-refs-file <path>] [--no-peers] [--merged-pr-proof]
   $PROG --path-key <value>
   $PROG --help
 
@@ -90,6 +91,13 @@ Options:
                       offline.
   --no-peers          Skip peer detection (another worktree holding the same
                       commits). Peer detection is O(n^2) ancestry probes.
+  --merged-pr-proof   For a row that is not landed, read the branch's merged pull
+                      request (one \`gh pr list --state merged --head <branch>\`
+                      per branch, the only network use) and report landed when
+                      local HEAD equals or is an ancestor of the PR head commit,
+                      or every unpushed local commit is in the PR's commit list.
+                      A failed read keeps the prior verdict and names the read in
+                      the reason. Off by default, so the script stays offline.
   --path-key <value>  Print the path comparison key for <value> and exit. A
                       debug seam the test suite asserts the normalizer through.
 
@@ -153,6 +161,7 @@ REPO_DIR="."
 BASE_REF=""
 MERGED_REFS_FILE=""
 DO_PEERS=true
+USE_PR_PROOF=false
 EXPLICIT_TARGETS=()
 
 while [[ $# -gt 0 ]]; do
@@ -189,6 +198,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --no-peers)
     DO_PEERS=false
+    shift
+    ;;
+  --merged-pr-proof)
+    USE_PR_PROOF=true
     shift
     ;;
   *) die "unknown argument: $1" ;;
@@ -570,6 +583,87 @@ classify_landed() {
   L_REASON="head-differs-from-base-on-${#specs[@]}-touched-path(s)"
 }
 
+# merged_pr_proof <path> <branch>: affirmative proof from the branch's MERGED pull
+# request, for a row the content probes left `no` or `?`. Sets L_STATE, L_METHOD
+# and L_REASON; returns 0 only when it proved the branch landed.
+#
+# Range patch-id cannot match a multi-commit branch to its squash commit, and
+# `git cherry` calls each part `+`; the merged PR is the one record that names
+# what was merged. Landed when local HEAD equals or is an ancestor of the PR's
+# head commit, or every unpushed local commit is in the PR's commit list. A later
+# local commit that is in neither stays unproven, which is what keeps a reused
+# branch name from reading as landed.
+#
+# Any failed read leaves the prior verdict and appends a reason naming the read:
+# an unreadable PR is `unproven`, never `landed`.
+merged_pr_proof() {
+  local p="$1" branch="$2" out="$WORKDIR/merged-pr.out" head_oid unpushed_list sha
+  local -a pr_heads=()
+  local commits_file="$WORKDIR/merged-pr.commits" kind val
+  : >"$commits_file"
+  if ! command -v gh >/dev/null 2>&1; then
+    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:gh-not-found"
+    return 1
+  fi
+  # Only a PR merged INTO the resolved base proves anything: a stacked PR merged
+  # into another feature branch never reached the base.
+  local base_name="${L_BASE%@*}"
+  base_name="${base_name#*/}"
+  if [[ -z "$L_BASE" || -z "$base_name" ]]; then
+    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:no-resolved-base"
+    return 1
+  fi
+  if ! (cd "$p" && gh pr list --state merged --head "$branch" --limit 20 \
+    --json headRefOid,baseRefName,commits \
+    --jq '.[] | "pr " + .baseRefName, "head " + .headRefOid, (.commits[] | "commit " + .oid)') >"$out" 2>/dev/null; then
+    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:gh-pr-list"
+    return 1
+  fi
+  local in_base=false
+  while read -r kind val; do
+    case "$kind" in
+    pr)
+      in_base=false
+      if [[ "$val" == "$base_name" ]]; then in_base=true; fi
+      ;;
+    head) [[ "$in_base" == "true" ]] && pr_heads+=("$val") ;;
+    commit) [[ "$in_base" == "true" ]] && printf '%s\n' "$val" >>"$commits_file" ;;
+    *) ;;
+    esac
+  done <"$out"
+  if [[ ${#pr_heads[@]} -eq 0 ]]; then
+    L_REASON="${L_REASON:+$L_REASON; }no-merged-pr-into-$base_name-for-branch"
+    return 1
+  fi
+
+  for head_oid in "${pr_heads[@]}"; do
+    # Exit 1 is "not an ancestor"; any other status (the PR head was never
+    # fetched, so the object is absent) proves nothing and is not an error.
+    if git -C "$p" merge-base --is-ancestor HEAD "$head_oid" 2>/dev/null; then
+      L_STATE="yes"
+      L_METHOD="merged-pr-head"
+      L_REASON="head-is-ancestor-of-merged-pr-head"
+      return 0
+    fi
+  done
+
+  if ! unpushed_list=$(git -C "$p" rev-list HEAD --not --remotes 2>/dev/null) || [[ -z "$unpushed_list" ]]; then
+    L_REASON="${L_REASON:+$L_REASON; }merged-pr-read-failed:local-commit-list"
+    return 1
+  fi
+  while read -r sha; do
+    [[ -z "$sha" ]] && continue
+    if ! grep -Fxq "$sha" "$commits_file"; then
+      L_REASON="${L_REASON:+$L_REASON; }local-commits-not-all-in-merged-pr"
+      return 1
+    fi
+  done <<<"$unpushed_list"
+  L_STATE="yes"
+  L_METHOD="merged-pr-commits"
+  L_REASON="every-unpushed-commit-in-merged-pr"
+  return 0
+}
+
 # ---------------------------------------------------------------------------
 # Targets
 # ---------------------------------------------------------------------------
@@ -740,6 +834,9 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
     reason="nothing-unpushed"
   else
     classify_landed "$p"
+    if [[ "$USE_PR_PROOF" == "true" && "$L_STATE" != "yes" && "${T_BRANCH[$idx]}" != "(detached)" ]]; then
+      merged_pr_proof "$p" "${T_BRANCH[$idx]}" || true
+    fi
     R_LANDED+=("$L_STATE")
     R_METHOD+=("$L_METHOD")
     R_BASE+=("$L_BASE")
