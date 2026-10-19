@@ -658,6 +658,7 @@ function resolveSlot(
     ...(activity.args === undefined ? {} : { args: activity.args }),
     ...(activity.prepare === undefined ? {} : { prepare: activity.prepare }),
     ...(activity.checks === undefined ? {} : { checks: activity.checks }),
+    ...(activity["self-checks"] === undefined ? {} : { "self-checks": activity["self-checks"] }),
     ...(activity["verify-scripts"] === undefined ? {} : { "verify-scripts": activity["verify-scripts"] }),
     ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
     effect: activity.effect,
@@ -730,6 +731,8 @@ const limitsOf = (limits = {}) => ({
   "wip-cap": limits["wip-cap"] ?? 60,
   "fix-ci-per-run": limits["fix-ci-per-run"] ?? 2,
   "fix-ci-restarts": limits["fix-ci-restarts"] ?? 1,
+  "admission-window-hours": limits["admission-window-hours"] ?? 24,
+  "admission-factor": limits["admission-factor"] ?? 0.8,
 });
 
 const loopOf = (loop = {}) => ({
@@ -749,6 +752,14 @@ export function resolveLoop(files, { configPath }) {
 // run that resolves no lane slot (pr-unblock-dispatch.yml).
 export function resolveLimits(files, { configPath }) {
   return limitsOf(loadConfig(files, { configPath }).limits);
+}
+
+// The wip leaf as set, after the same file checks as resolve(), for the WIP
+// cap check. Its defaults have one copy, WIP_DEFAULTS in
+// .github/scripts/work-resolve-issue/limits.mjs, which its readers apply;
+// this module imports nothing outside this action's sparse checkout.
+export function resolveWipLeaf(files, { configPath }) {
+  return loadConfig(files, { configPath }).wip ?? {};
 }
 
 export function resolve(
@@ -774,6 +785,7 @@ export function resolve(
     selected: index < 0 ? null : slots[index],
     loop: loopOf(doc.loop),
     limits: limitsOf(doc.limits),
+    wip: doc.wip ?? {},
     merge: resolveMerge(doc.merge, configPath),
   };
 }

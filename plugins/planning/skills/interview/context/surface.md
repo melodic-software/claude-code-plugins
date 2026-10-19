@@ -218,6 +218,8 @@ Rules R-A to R-K:
 
 ## Wording lint
 
+A recommendation carries no question to the user. Accept settles only the headline, so a second question hidden in the recommendation ("Also tell me which rung you intend") goes unanswered; ask it as its own question. `round.py` warns, and never refuses, when `add`, `add-round`, `apply` or `revise --rec` sets a recommendation that asks the user something (a question mark, "tell me", "let me know", "please confirm"); treat the warning as a rewrite.
+
 Every question states its decision in plain words. Before `add-round`, scan each title, recommendation and basis for bare session ids (`Q<N>` and `C<N>`) and coined terms, and define each inline or spell it out. Real names such as a tracker key, a severity code or a standard (`ABC2`, `SEV1`, `HTTP2`) stay as written. `round.py` warns on a bare `Q<N>` that names no question in the file, on a bare `C<N>`, and on a recommendation or basis over the length budget (R12); treat a warning as a rewrite. `add-round --check` prints these warnings before anything is written.
 
 ## Offers

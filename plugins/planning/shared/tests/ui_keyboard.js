@@ -204,9 +204,9 @@ async function main() {
     await until(phoneOwner, () => window.Core.snapshot()?.me?.role === "owner");
     const more = phoneOwner.locator(".vf-tab", { hasText: "More" });
     await surface(phoneOwner, "phone More sheet", ".vf-moresheet", { opener: more });
-    await surface(phoneOwner, "phone notifications sheet (from More)", ".vf-bellpop", {
+    await surface(phoneOwner, "phone Inbox sheet (from More)", ".vf-bellpop", {
       before: async () => { await more.focus(); await more.evaluate(el => el.setAttribute("data-kb-opener", "")); await phoneOwner.keyboard.press("Enter"); await until(phoneOwner, shownSel, ".vf-moresheet", 3000); },
-      opener: phoneOwner.locator(".vf-msitem", { hasText: "Notifications" }), expectBack: ".vf-tab[data-kb-opener]",
+      opener: phoneOwner.locator(".vf-msitem", { hasText: "Inbox" }), expectBack: ".vf-tab[data-kb-opener]",
     });
     const pia = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(pia, "Pia");

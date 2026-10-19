@@ -1,0 +1,5 @@
+{
+  "name": "review",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the review plugin: registers /review:explain-change so the hand-off resolves inside the containment root, without a copy of the real skill"
+}

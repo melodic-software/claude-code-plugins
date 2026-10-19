@@ -15,7 +15,7 @@ import re
 import secrets
 import time
 
-CURRENT = 3
+CURRENT = 5
 MIGRATIONS = {}
 
 PROTOTYPE_KEYS = frozenset({"questions", "answers", "ideas", "people", "secrets", "round"})
@@ -793,6 +793,7 @@ def mention_texts(doc):
         out += [(s, "text"), (s, "note")]
     out += [(q, "text") for q in _list(doc.get("questions")) if _dict(_dict(q).get("origin")).get("kind") == "host"]
     out += [(r, "text") for key in ("proposals", "chat", "annotations", "requests") for r in _list(doc.get(key))]
+    out += [(c, "text") for lst in _dict(doc.get("discussions")).values() for c in _list(lst)]
     out += [(m["replyTo"], "excerpt") for m in _list(doc.get("chat")) if isinstance(_dict(m).get("replyTo"), dict)]
     out += [(n, "body") for lst in _dict(doc.get("notifications")).values() for n in _list(lst) if _dict(n).get("kind") in ("mention", "reply")]
     return [(h, k) for h, k in out if isinstance(h, dict) and isinstance(h.get(k), str)]
@@ -833,3 +834,47 @@ def _v2_to_v3(doc, ctx):
 
 
 MIGRATIONS[2] = _v2_to_v3
+
+
+# -- 3 -> 4: the Inbox remembers what each person opened --------------------------------------
+
+
+def _v3_to_v4(doc, ctx):
+    """inboxSeen, with each person's own requests read at the status they have now, so the upgrade itself makes
+    nothing unread; what waits on the owner starts unread."""
+    results = {x.get("id"): x for lst in _dict(doc.get("results")).values() for x in _list(lst) if isinstance(x, dict)}
+    people = _dict(doc.get("people"))
+    seen = collections.defaultdict(dict)
+    for r in _list(doc.get("requests")):
+        status = _dict(_dict(r).get("status"))
+        kind, pid = status.get("kind"), r.get("pid")
+        if not isinstance(pid, str) or not isinstance(r.get("id"), str):
+            continue
+        if kind == "done":
+            res = _dict(results.get(status.get("result")))
+            by = _dict(res.get("by"))
+            # session.py's rule: a removed guest's own-Claude result leaves every view
+            gone = by.get("kind") == "guest-claude" and _dict(_dict(people.get(by.get("pid"))).get("status")).get("kind") != "active"
+            visible = bool(res) and not gone and (res.get("published") or pid == HOST or by.get("pid") == pid)
+            mark = "unshared" if not visible else "answered" if pid == HOST or not res.get("published") else "shared"
+        else:
+            mark = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}.get(kind)
+        if mark:
+            seen[pid][r["id"]] = mark
+    if seen:
+        ctx.note(f"inbox: {sum(map(len, seen.values()))} requests of {len(seen)} people start read")
+    return {**doc, "inboxSeen": dict(seen)}
+
+
+MIGRATIONS[3] = _v3_to_v4
+
+
+# -- 4 -> 5: a Discussion under each question ----------------------------------------------------
+
+
+def _v4_to_v5(doc, ctx):
+    """discussions (qid -> comments) and discussionSeen (pid -> qid -> when they last opened it), both empty."""
+    return {**doc, "discussions": {}, "discussionSeen": {}}
+
+
+MIGRATIONS[4] = _v4_to_v5

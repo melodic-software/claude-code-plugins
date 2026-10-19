@@ -58,6 +58,13 @@ on:
         required: false
         type: string
         default: ""
+      trusted-base:
+        description: >-
+          pr-base trusts the PR's base SHA; default-tip trusts the default
+          branch tip, for a lane whose PR keeps a stale base.
+        required: false
+        type: string
+        default: pr-base
       ci-context-attempt:
         description: >-
           For a prepare: ci-context activity, the run attempt whose
@@ -297,6 +304,7 @@ jobs:
         with:
           base-sha: ${{ steps.gate.outputs.base-sha }}
           pr-number: ${{ steps.gate.outputs.pr-number }}
+          mode: ${{ inputs.trusted-base }}
 
       - name: Resolve the config
         id: config
