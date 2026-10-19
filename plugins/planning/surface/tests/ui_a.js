@@ -199,10 +199,10 @@ async page => {
   ok("a filter that matches nothing says so in the rail, not a blank list", (await page.$$(".rail-list .qbtn")).length > 0 || /No questions match/.test(await page.textContent("#railList")));
   await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
 
-  // a session with no answered question, on a second page whose state has its events stripped and whose stream is refused (the 3 s poll then feeds the page the same stripped state)
+  // a session with no answered question, on a second page whose state has its events, page responses and terminal decisions stripped and whose stream is refused (the 3 s poll then feeds the page the same stripped state)
   const stripped = await page.context().newPage();
   await stripped.route("**/events", r => r.abort());
-  await stripped.route("**/api/state", async route => { const res = await route.fetch(); const body = await res.json(); body.responses.events = []; await route.fulfill({response: res, json: body}); });
+  await stripped.route("**/api/state", async route => { const res = await route.fetch(); const body = await res.json(); body.responses.events = []; body.responses.responses = {}; for (const q of body.questions.questions) delete q.terminal; await route.fulfill({response: res, json: body}); });
   await stripped.setViewportSize({width: 1400, height: 860});
   await stripped.goto(base); await stripped.waitForSelector(".qbtn", {state: "attached"});
   await stripped.click(".sumbtn"); await stripped.waitForTimeout(400);
