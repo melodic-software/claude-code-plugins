@@ -36,7 +36,9 @@ verdict and the commit. SKILL.md Step 4 holds the tag-to-mode table; this file h
 ## A CRITICAL on the re-review
 
 Any CRITICAL the re-review rates stops the loop: the original finding the fix left in place, a
-regression the fix introduced, or a defect the first call missed.
+regression the fix introduced, or a defect the first call missed. A CRITICAL that matches no
+first-call finding is not a new finding to fix: it is never logged as a `discovery` and never
+gets a fix brief.
 
 - Append a `human-decision` entry marked blocking to `DEVIATIONS.md` in the memory slice: the tag,
   the finding with its `file:line`, whether it repeats a first-call finding, the fix that was
@@ -44,7 +46,8 @@ regression the fix introduced, or a defect the first call missed.
 - Escalate once. Interactive: put the finding to the user with the options (fix another way,
   accept the risk, replan). Unattended: the entry is the escalation; leave the phase unmarked and
   park the run, which is blocked on a call only a person can make.
-- Never fix and re-review a third time, and never mark the phase `[DONE]` over it.
+- Send no further fix brief and run no further review at this boundary, and never mark the phase
+  `[DONE]` over it.
 
 An IMPORTANT finding that survives the re-review goes into the boundary report and, when the run
 keeps the log, a `discovery` entry; the phase continues.

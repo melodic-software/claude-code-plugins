@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "- 2026-10-19T09:14Z human-decision (blocking): Phase 3 `Review: security` re-review rates `storage/paths.py:18` CRITICAL: a `mkdir -p` shell command built from the client folder name and run with `shell=True`. It does not repeat the first call's finding (`api/upload.py:31`, now cleared); the fix commit e81c4f0a introduced it. Head: e81c4f0a5d27b93c6e0f1a84d2b7c5e39f6a0d12.",
+      "why": "does not repeat, named explicitly"
+    },
+    {
+      "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL, a regression from fix e81c4f0a.",
+      "why": "regression"
+    },
+    {
+      "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL. Repeats a first-call finding: no.",
+      "why": "field form"
+    },
+    {
+      "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL; it doesn't repeat api/upload.py:31.",
+      "why": "contracted negation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL on the re-review. Fix tried: basename helper in e81c4f0a.",
+      "why": "says nothing about whether it repeats"
+    },
+    {
+      "answer": "- human-decision (blocking): the re-review rates the same finding CRITICAL again.",
+      "why": "calls it the same finding"
+    }
+  ]
+}

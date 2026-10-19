@@ -7,6 +7,18 @@
     {
       "answer": "- human-decision (blocking): re-review rated api/search.py:42 CRITICAL a second time.\n\nThe run parks with a handoff; it never loops back to another fix brief.",
       "why": "never-loops statement"
+    },
+    {
+      "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again.\n\nDo not send a third fix brief. The run parks for a person.",
+      "why": "negated third fix brief"
+    },
+    {
+      "answer": "- 2026-10-18T14:02Z human-decision (blocking): Phase 4 `Review: security`, api/search.py:42 CRITICAL on the re-review too; repeats the first-call finding. Fix tried: escape_like() in one fix brief, committed as 9c2e5d71. The re-review ran with the same --base.\n\nNext: the run parks; Phase 4 stays [TODO].",
+      "why": "past-tense account of the one fix and re-review is not a plan"
+    },
+    {
+      "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again.\nNeeds a person; options: parameterize and re-run the review, accept the risk, or replan.",
+      "why": "options put to a person are not the run's plan"
     }
   ],
   "fail": [
@@ -25,6 +37,18 @@
     {
       "answer": "Instead of parking, dispatch another fix brief.",
       "why": "instead is not a negator"
+    },
+    {
+      "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again.\n\nI'll send another fix brief and re-run the review.",
+      "why": "plans another fix and review"
+    },
+    {
+      "answer": "- discovery: escape_like() did not parameterize the query.\n\nNext: parameterize `q`, then re-run the review against the same base.",
+      "why": "re-run the review"
+    },
+    {
+      "answer": "Next: dispatch a fix brief that switches to a bound parameter and re-review.",
+      "why": "a fix brief with no third or another still plans a new round"
     }
   ]
 }

@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: no-third-round
     type: regex
-    pattern: '^(?![^\n]*(?:\b(?:no|not|never|without|nor)\b|n''t\b))[^\n]*\b(?:another|third|one more)\b[^\n]*\b(?:fix|re-?review|review|quality-gate)\b'
+    pattern: '^(?![^\n]*(?:\b(?:no|not|never|without|nor)\b|n''t\b|\boptions?\b))[^\n]*(?:\b(?:another|third|one more|new|further|extra)\s+(?:round|pass|cycle|fix|re-?review|\/?review(?::quality-gate)?|quality-gate|gate)\b(?![ \t-]*(?:finding|comment|item)s?\b)|(?<!\bthe )(?<!\bthis )(?<!\ba )(?<!\ban )(?<!\bunattended )(?<!\bautonomous )\b(?:dispatch|send|run|re-?run|launch|trigger|queue|schedule|kick off|loop back to|go back to)\b(?!\s+of\b)[^\n]{0,40}?\b(?:fix|re-?review|review|quality-gate)\b|\b(?:then|and|to|will|''ll|next:?)\s+re-?review\b)'
     flags: 'mi'
     match: not_contains
     target: last_message
