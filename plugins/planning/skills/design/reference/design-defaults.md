@@ -55,6 +55,14 @@ Unattended (declared by the caller, never sniffed), follow the interview's rule:
 
 Stumble: `variation-points.md` and this question read an intent answer no interview asked for.
 
+## Principles thread
+
+Write a `Principles` thread in `design-threads.md`: the principles and `Overrides bundled default`
+lines that shaped the design, and how generalize-now-or-wait was settled, citing the Brief's
+`Intent:` line counts; the user's answer settles it, never this skill. At `prototype`, record
+`Principles: deferred (prototype) [RESEARCH: name the principles if it heads for production]`.
+Stumble: `/planning:design-handoff` requires this thread and no step wrote it.
+
 ## Per-tenant configurability (vendor guidance)
 
 When the Tenancy posture thread finds a multi-tenant product and configurability varies by
