@@ -725,8 +725,11 @@ App token the broker mints for that file on `main`. A finished `ci-status` or re
 up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
 must start them more slowly than they finish to stay under GitHub's cap on queued runs.
 
-After the gate, the job writes each candidate's verdict on its head as one `pr-merge / gate` check
-run with its own `GITHUB_TOKEN` (`checks: write`; the lane token holds no Checks permission):
+After the gate, a `gate-check` job of its own writes each candidate's verdict on its head as one
+`pr-merge / gate` check run with its `GITHUB_TOKEN`, from the gate's rows the merge job hands it as
+an artifact. Only that job holds `checks: write`, since main's ruleset requires `ci-status` from
+the same GitHub Actions app and a token with that permission could pass it; the merge job keeps
+`checks: read` and the lane token holds no Checks permission. The check is:
 neutral and titled with the top refusal, the gate's reason or else its first blocker, with the
 blockers in the summary; success once enqueued or merged, only over a refusal already on show. It
 reads the heads' existing check runs in one GraphQL query per 50 candidates and writes only where
