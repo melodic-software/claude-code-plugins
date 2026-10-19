@@ -31,7 +31,7 @@ PILOT_SUITE = REPO_ROOT / "plugins" / "evals" / "evals"
 # what keeps the fixtures discriminating: this pattern alone does not.
 FAIL_LINE = re.compile(
     r"^FAIL .*(unknown frontmatter key|duplicate grader|no grader|runs|not parsed"
-    r"|schema_version|is required|requires|no prompt|sample)",
+    r"|schema_version|is required|requires|no prompt|sample|JavaScript)",
     re.MULTILINE,
 )
 
@@ -109,6 +109,15 @@ class ValidatorTestCase(unittest.TestCase):
 
     def validate(self, *args):
         return run_validator(str(self.eval_dir), *args)
+
+    def validate_without_node(self):
+        """Run with an empty PATH, so only the offline Python check grades."""
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), str(self.eval_dir)],
+            capture_output=True,
+            text=True,
+            env={"PATH": ""},
+        )
 
     def assert_fail(self, result, *substrings):
         self.assertEqual(
@@ -803,7 +812,7 @@ class WarnTier(ValidatorTestCase):
                 """,
             },
         )
-        result = self.validate()
+        result = self.validate_without_node()
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertNotIn("FAIL", result.stdout)
         self.assertIn("WARN", result.stdout)
@@ -1179,7 +1188,7 @@ class SampleAnswers(ValidatorTestCase):
             graders={"g": regex_grader("x", "flags: y\n")},
         )
         self.samples("c", "g", passing=["no match here", "x"], failing=["x"])
-        result = self.validate()
+        result = self.validate_without_node()
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertIn("samples not checked: flag y", result.stdout)
         self.assertEqual(1, result.stdout.count("samples not checked"))
@@ -1215,6 +1224,127 @@ class R2Regression(ValidatorTestCase):
             self.eval_dir / "grading-method-choice",
         )
         self.assert_clean(self.validate())
+
+
+HAS_NODE = shutil.which("node") is not None
+
+
+class JavaScriptSyntax(ValidatorTestCase):
+    """Python's `re` accepts syntax that the binary's JavaScript engine does not."""
+
+    TOKENS = (
+        ("backslash-A", "\\\\Aabc", "\\A"),
+        ("backslash-Z", "abc\\\\Z", "\\Z"),
+        ("backslash-z", "abc\\\\z", "\\z"),
+        ("possessive-star", "a*+b", 'possessive quantifier "*+"'),
+        ("possessive-plus", "a++b", 'possessive quantifier "++"'),
+        ("possessive-question", "a?+b", 'possessive quantifier "?+"'),
+        ("possessive-brace", "a{2,3}+b", 'possessive quantifier "{2,3}+"'),
+        ("atomic-group", "(?>ab)c", "atomic group (?>"),
+        ("named-group", "(?P<w>ab)c", "named group (?P<"),
+        ("named-backreference", "(?P<w>a)(?P=w)", "named backreference (?P="),
+        ("comment-group", "ab(?#note)c", "comment group (?#"),
+        ("conditional-group", "(a)?(?(1)b|c)", "conditional group (?("),
+    )
+
+    def test_each_python_only_token_fails_naming_the_grader_and_token(self):
+        for label, pattern, token in self.TOKENS:
+            with self.subTest(label):
+                self.setUp()
+                self.case(
+                    "c", prompt=CLEAN_PROMPT, graders={"my-grader": regex_grader(pattern)}
+                )
+                result = self.validate()
+                self.assert_fail(result, 'grader "my-grader"', token, "Python-only")
+                self.assertIn("c/graders/my-grader.md", result.stdout)
+
+    def test_python_only_syntax_in_an_input_match_fails(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "used": "---\ntype: tool_used\ntool: Skill\ninput_match: 'a++'\n---\n",
+                "order": "---\ntype: tool_order\nbefore: Read\n"
+                "after: { tool: Skill, input_match: '\\Aabc' }\n---\n",
+            },
+        )
+        result = self.validate()
+        self.assert_fail(result, 'grader "used" input_match', 'grader "order" after')
+
+    def test_javascript_valid_quantifiers_and_escapes_are_not_flagged(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "g": regex_grader("a+?b*?c{2}d{1,2}?\\\\+\\\\+(?:x)(?=y)[+]z"),
+            },
+        )
+        self.assertNotIn("Python-only", self.validate().stdout)
+
+    @unittest.skipUnless(HAS_NODE, "node is not installed")
+    def test_a_sample_javascript_sorts_the_other_way_fails(self):
+        # Python reads `\A` as the start of the text; JavaScript as a literal A.
+        self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("\\\\Aabc")})
+        self.samples("c", "g", passing=["abc here"], failing=["nothing"])
+        result = self.validate()
+        self.assert_fail(result, "Python-only", "must-pass sample 1 fails grader")
+        self.assertIn("under JavaScript", result.stdout)
+        self.assertIn("c/samples/g.json", result.stdout)
+
+    @unittest.skipUnless(HAS_NODE, "node is not installed")
+    def test_a_pattern_javascript_does_not_compile_fails(self):
+        self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("(abc")})
+        result = self.validate()
+        self.assert_fail(result, 'grader "g" pattern does not compile under JavaScript')
+
+    @unittest.skipUnless(HAS_NODE, "node is not installed")
+    def test_a_u_flag_with_an_invalid_escape_fails(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={"g": regex_grader("\\\\Aabc", "flags: u\n")},
+        )
+        self.assert_fail(self.validate(), "does not compile under JavaScript")
+
+    @unittest.skipUnless(HAS_NODE, "node is not installed")
+    def test_count_and_not_contains_modes_are_graded_by_javascript(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "twice": regex_grader("ok", 'match: "count:2"\n'),
+                "absent": regex_grader("TODO", "match: not_contains\n"),
+            },
+        )
+        self.samples("c", "twice", passing=["ok, ok"], failing=["ok", "ok ok ok"])
+        self.samples("c", "absent", passing=["done"], failing=["a TODO left"])
+        result = self.validate()
+        self.assert_clean(result)
+        self.assertNotIn("JavaScript", result.stdout)
+
+    @unittest.skipUnless(HAS_NODE, "node is not installed")
+    def test_a_javascript_only_pattern_is_graded_where_python_cannot(self):
+        # `\p{L}` needs the u flag in JavaScript and does not compile in `re`.
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={"g": regex_grader("^\\\\p{L}+$", "flags: u\n")},
+        )
+        self.samples("c", "g", passing=["abc"], failing=["123"])
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertNotIn("FAIL", result.stdout)
+        # `re` cannot grade it, but the JavaScript pass did, and found it sound.
+        self.assertIn("samples not checked", result.stdout)
+        self.samples("c", "g", passing=["123"], failing=["abc"])
+        self.assert_fail(self.validate(), "under JavaScript")
+
+    def test_without_node_only_the_token_check_runs(self):
+        self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("conftest")})
+        self.samples("c", "g", passing=["conftest.py"], failing=["nothing"])
+        result = self.validate_without_node()
+        self.assert_clean(result)
+        self.assertNotIn("JavaScript", result.stdout)
 
 
 class PilotSuite(unittest.TestCase):
