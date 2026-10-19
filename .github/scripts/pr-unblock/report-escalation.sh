@@ -7,10 +7,12 @@
 #
 # Environment:
 #   GH_TOKEN            token with pull-requests: write and issues: write
+#                       (statuses: write in status mode)
 #   GITHUB_REPOSITORY   owner/repo
 #   PR_NUMBER           the pull request
 #   HEAD_SHA            the gated head; it is the resume key
-#   ESCALATION_REASON   protected-path-conflict | workflow-staged | repeat-cap
+#   ESCALATION_REASON   protected-path-conflict | workflow-staged
+#                       | unexpected-path-staged | repeat-cap
 #                       | unresolved-conflict | feedback-protected-path
 #                       | feedback-round-cap | feedback-uncertain
 #                       | feedback-not-landed | feedback-invalid
@@ -20,7 +22,10 @@
 #                       | dependency-security-close | dependency-escalate
 #                       | dependency-config-unreadable
 #                       | dependency-files-truncated
-#                       | dependency-control-uncited
+#                       | dependency-control-uncited | ci-fix-round-cap
+#                       | ci-fix-empty | ci-fix-invalid
+#                       | ci-fix-protected-path | ci-fix-not-applied
+#                       | ci-fix-escalated
 #   TRACKER_CONFIG      base .work-item-tracker.json
 #                       (default .base/.work-item-tracker.json)
 #   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
@@ -35,6 +40,12 @@
 # comment write is tried three times, so a transient failure does not leave the
 # label without its explanation.
 #
+# With the argument `status`, it instead posts one failing `pr-unblock/conflict`
+# commit status on HEAD_SHA when the reason is unresolved-conflict, and nothing
+# for any other reason. GitHub starts no pull_request workflow on a conflicted
+# PR, so this status is what shows the head why its CI is missing. That mode
+# needs GH_TOKEN with statuses: write and reads TARGET_URL (optional, the run).
+#
 # Exit: 0 when escalated or already escalated; 1 on bad input or API failure.
 set -euo pipefail
 
@@ -46,6 +57,7 @@ die() {
 case ${ESCALATION_REASON:-} in
   protected-path-conflict) why='a conflicted path is protected, so the lane does not resolve it' ;;
   workflow-staged) why='the merge stages a change under .github/workflows/, which the lane does not push' ;;
+  unexpected-path-staged) why='the merge stages a change to a path that did not conflict, which the lane does not push' ;;
   repeat-cap) why='the lane has resolved conflicts on this branch as many times in a row as its cap allows' ;;
   unresolved-conflict) why='the lane could not resolve every conflict' ;;
   feedback-protected-path) why='the pull request changes .github/, so the lane does not address its review threads' ;;
@@ -64,16 +76,40 @@ case ${ESCALATION_REASON:-} in
   dependency-config-unreadable) why='the lane could not read the base .github/dependabot.yml, so it does not mark this dependency update for merge' ;;
   dependency-files-truncated) why='the dependency review chose merge, but the files listing it read was cut short, so the lane does not mark this dependency update for merge' ;;
   dependency-control-uncited) why='the dependency review chose merge for a review-only dependency without quoting its control, so the lane does not mark it for merge' ;;
+  ci-fix-round-cap) why='the lane has pushed as many CI fixes to this pull request as its cap allows, and CI still fails' ;;
+  ci-fix-empty) why='the lane changed nothing that fixes the failing checks' ;;
+  ci-fix-invalid) why='the CI fix the lane wrote did not pass validation, so it was not pushed' ;;
+  ci-fix-protected-path) why='the CI fix changes .github/, which the lane does not push' ;;
+  ci-fix-not-applied) why='the CI fix did not apply to the head it was written for, so it was not pushed' ;;
+  ci-fix-escalated) why='the lane could not fix every failing check; its run log names each one and why' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
 esac
 case $ESCALATION_REASON in
   feedback-*) activity=address-feedback ;;
   dependency-*) activity=review-dependency ;;
+  ci-fix-*) activity=fix-ci ;;
   *) activity=resolve-conflicts ;;
 esac
 [[ ${PR_NUMBER:-} =~ ^[1-9][0-9]*$ ]] || die "PR_NUMBER is not a pull request number"
 [[ ${HEAD_SHA:-} =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || die "HEAD_SHA is not a commit id"
 [[ ${GITHUB_REPOSITORY:-} =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "GITHUB_REPOSITORY is not owner/repo"
+
+case ${1:-} in
+  '') ;;
+  status)
+    if [[ $ESCALATION_REASON != unresolved-conflict ]]; then
+      echo "no conflict status for $ESCALATION_REASON"
+      exit 0
+    fi
+    args=(-f state=failure -f context=pr-unblock/conflict
+      -f "description=Conflicts with the base branch; CI does not run until they are resolved")
+    [[ -n ${TARGET_URL:-} ]] && args+=(-f "target_url=$TARGET_URL")
+    gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" "${args[@]}" >/dev/null
+    echo "posted pr-unblock/conflict failure on $HEAD_SHA"
+    exit 0
+    ;;
+  *) die "unknown mode [$1]" ;;
+esac
 
 tracker=${TRACKER_CONFIG:-.base/.work-item-tracker.json}
 label=needs-human

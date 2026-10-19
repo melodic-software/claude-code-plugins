@@ -183,7 +183,7 @@ workstream that decides the row, or says none does.
 | Live workflow tests that drive a host on fixture repositories, each assertion naming a failure | Behavioral drift across models and hosts. **Inference** | Plugin eval suites for `plan` and `interview` | CONVERGENT | **Already present** in shape. |
 
 **License.** `plugins/rpi/.claude-plugin/plugin.json` says MIT and the repository LICENSE is the MIT
-notice reproduced below. Nothing from `rpi` is copied into this marketplace; if text is, the same
+notice recorded under [License notice](#license-notice). Nothing from `rpi` is copied into this marketplace; if text is, the same
 notice travels with it.
 
 - **Pointer**: when re-deriving these rows, fetch
