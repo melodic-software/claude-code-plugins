@@ -132,6 +132,7 @@
       "properties": {
         "routing": { "const": "runner-input" },
         "runnerInput": { "$ref": "#/$defs/inputName" },
+        "role": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
         "allowedInputs": { "$ref": "#/$defs/uniqueStringArray" },
         "allowedSecrets": { "$ref": "#/$defs/stringMap" },
         "allowedCallerPermissions": { "$ref": "#/$defs/githubPermissionMap" },
