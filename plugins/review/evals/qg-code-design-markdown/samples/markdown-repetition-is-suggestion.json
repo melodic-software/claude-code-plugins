@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | SUGGESTION | high | Duplicated Code | docs/setup.md and docs/deploy.md restate the Node.js 20 requirement from README.md | docs/setup.md:3 | Link to the README |\n\nCRITICAL 0, IMPORTANT 0, SUGGESTION 1",
+      "why": "SUGGESTION row, counts line names no file"
+    },
+    {
+      "answer": "Not CRITICAL or IMPORTANT: setup.md is Markdown.\n\n| 1 | SUGGESTION | high | Duplicated Code | docs/setup.md restates the Node.js 20 requirement from README.md | docs/setup.md:3 | Link to the README |",
+      "why": "negated mention of CRITICAL beside a file name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | Duplicated Code | Node.js 20 restated | docs/setup.md:3 | Link to the README |",
+      "why": "Markdown repetition rated CRITICAL"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | high | Duplicated Code | Node.js 20 restated | docs/deploy.md:3 | Link to the README |",
+      "why": "Markdown repetition rated IMPORTANT"
+    },
+    {
+      "answer": "No code-design issues found.",
+      "why": "repetition not reported"
+    }
+  ]
+}
