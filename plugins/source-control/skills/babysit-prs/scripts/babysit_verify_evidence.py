@@ -132,6 +132,13 @@ UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
 # The run cache's section of run records, and the fields `_run_state` reads.
 RUN_SECTION = "run-record"
 RECORD_SECTION = "fail-head-ref"
+# What earlier pr-merge runs read, copied into this run's cache by
+# .github/scripts/pr-merge/carry-run-cache.mjs from a cache entry any job in
+# the default branch's cache scope could have written. Each is used only
+# where it counts a FAIL; any other answer is read from GitHub.
+CARRIED_RUN_SECTION = "carried-run-record"
+CARRIED_RECORD_SECTION = "carried-fail-head-ref"
+CARRIED_ON_BRANCH = "carried-on-branch"
 RUN_FIELDS = (
     "id",
     "path",
@@ -396,15 +403,19 @@ class Reader:
         except ValueError as exc:
             raise _Unreadable(f"{label}: {exc}") from exc
 
-    def _contains(self, sha: str) -> bool:
+    def _contains(self, sha: str, *, shared: bool = False) -> bool:
         """Whether the branch holds `sha`, read under the Actions token (a
         contents read). A yes stays true while the branch only moves forward
         (main's ruleset forbids force pushes), so the run shares it; a no is
-        read again by each gate process."""
+        read again by each gate process. A yes an earlier run found
+        (`CARRIED_ON_BRANCH`) serves a FAIL's run only (`shared`), where it
+        can only count the FAIL."""
         if sha not in self._on_branch:
             key = f"{self.repo}|{sha}...{self.branch}"
             if run_cache.get("on-branch", key, None) is True:
                 self._on_branch[sha] = True
+                return True
+            if shared and run_cache.get(CARRIED_ON_BRANCH, key, None) is True:
                 return True
             compare = json_object(
                 self._actions(
@@ -419,18 +430,31 @@ class Reader:
 
     def _run_state(self, run_id: int, *, shared: bool = False) -> str:
         """The run's standing. A FAIL's run (`shared`) may be judged on a
-        record another gate process of the run read, however long ago: a
+        record another gate process of the run read, however long ago, or
+        on one an earlier run carried in when it shows origin: a
         FAIL counts whether its run is origin or counted, and origin rests
         only on fields a re-run keeps (id, path, event, branch, repositories,
         head) plus a live branch check, never on status, conclusion or
         attempt, so a stale record cannot turn a FAIL away. A PASS needs a
         completed success, which a re-run can undo, so its run is read by
-        this process."""
+        this process, never taken from a FAIL's judgment."""
         if run_id in self._runs and (shared or run_id not in self._shared_runs):
             return self._runs[run_id]
         key = f"{self.repo}|{run_id}"
         record = run_cache.get(RUN_SECTION, key, None) if shared else None
         cached = is_json_object(record)
+        origin: bool | None = None
+        if shared and not cached:
+            # A carried record counts the FAIL when it shows origin; any
+            # other answer from it could turn the FAIL away, so the run is
+            # read instead.
+            carried = run_cache.get(CARRIED_RUN_SECTION, key, None)
+            if is_json_object(carried):
+                try:
+                    if self._origin(carried, run_id, shared=True):
+                        record, cached, origin = carried, True, True
+                except _Unreadable:
+                    pass
         try:
             if not cached:
                 record = json_object(
@@ -439,27 +463,17 @@ class Reader:
                         f"run {run_id}",
                     )
                 )
-            head = record.get("head_sha")
-            origin = (
-                record.get("id") == run_id
-                and record.get("path") == WORKFLOW_PATH
-                and record.get("event") == "workflow_run"
-                and record.get("head_branch") == self.branch
-                and json_object(record.get("repository")).get("full_name") == self.repo
-                and json_object(record.get("head_repository")).get("full_name")
-                == self.repo
-                and isinstance(head, str)
-                and merge_policy.SHA_RE.fullmatch(head) is not None
-                and self._contains(head)
-            )
+            if origin is None:
+                origin = self._origin(record, run_id, shared=shared)
         except _Unreadable:
             self._shared_runs.discard(run_id)
             self._runs[run_id] = UNREAD
             return UNREAD
-        if cached:
+        if cached or shared:
             self._shared_runs.add(run_id)
         else:
             self._shared_runs.discard(run_id)
+        if not cached:
             self._started[run_id] = record.get("run_started_at")
             run_cache.put(RUN_SECTION, key, {k: record.get(k) for k in RUN_FIELDS})
         done = (
@@ -469,7 +483,23 @@ class Reader:
         self._runs[run_id] = FOREIGN if not origin else COUNTED if done else ORIGIN
         return self._runs[run_id]
 
-    def _head_ref(self, run_id: int, name: str, artifact_id: Any) -> Any:
+    def _origin(self, record: dict[str, Any], run_id: int, *, shared: bool) -> bool:
+        """Whether `record` names a run of the verifier on the branch of this
+        repository whose head the branch holds."""
+        head = record.get("head_sha")
+        return (
+            record.get("id") == run_id
+            and record.get("path") == WORKFLOW_PATH
+            and record.get("event") == "workflow_run"
+            and record.get("head_branch") == self.branch
+            and json_object(record.get("repository")).get("full_name") == self.repo
+            and json_object(record.get("head_repository")).get("full_name") == self.repo
+            and isinstance(head, str)
+            and merge_policy.SHA_RE.fullmatch(head) is not None
+            and self._contains(head, shared=shared)
+        )
+
+    def _head_ref(self, run_id: int, name: str, artifact_id: Any, head_ref: str) -> Any:
         """The head ref an untied FAIL's verdict.json records, shared by the
         run's gate processes under the artifact's id: an id names contents
         that never change (an overwrite uploads a new id), and a FAIL whose
@@ -480,6 +510,11 @@ class Reader:
         dated = run_cache.get_dated(RECORD_SECTION, key, None) if shared else None
         if dated is not None and is_json_object(dated[0]):
             return dated[0].get("head_ref")
+        # A carried head ref ties the FAIL to this PR; one naming another
+        # ref could untie it, so the record is read instead.
+        carried = run_cache.get(CARRIED_RECORD_SECTION, key, None) if shared else None
+        if head_ref and is_json_object(carried) and carried.get("head_ref") == head_ref:
+            return head_ref
         record = self._record(run_id, name)
         if shared:
             run_cache.put(RECORD_SECTION, key, {"head_ref": record.get("head_ref")})
@@ -730,7 +765,7 @@ class Reader:
                 continue
             if not tied:
                 try:
-                    recorded = self._head_ref(run_id, name, item.get("id"))
+                    recorded = self._head_ref(run_id, name, item.get("id"), head_ref)
                 except _Unreadable:
                     unreadable = unreadable or f"record of {name}"
                     continue
