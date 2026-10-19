@@ -37,12 +37,15 @@ concurrency:
 
 jobs:
   dispatch:
-    # A review run GitHub skipped (a draft PR) has reviewed nothing.
+    # A review run GitHub skipped (a draft PR) has reviewed nothing, and a
+    # cancelled one (most often superseded by a newer push) finished no review.
+    # A job skipped here starts no runner.
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && github.event.workflow_run.conclusion != 'skipped'
+      && github.event.workflow_run.conclusion != 'cancelled'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
