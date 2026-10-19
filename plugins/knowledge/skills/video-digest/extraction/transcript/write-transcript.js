@@ -315,7 +315,8 @@ export function transcriptFilename(entryIndex, primaryEntryIndex) {
  * explicit pipeline override ({@link resolveTranscriptStrategy}): captions are
  * consumed as before, `captions+repair` layers proper-noun repair (lexicon =
  * title + post text + harvested links), and the `asr` rung runs the optional
- * local toolchain, biased and repaired with the same lexicon — detected at runtime, never auto-installed. A degraded entry
+ * local toolchain, its cues repaired with the same lexicon — detected at
+ * runtime, never auto-installed. A degraded entry
  * (no transcript producible) is recorded in `transcriptDegradation`.
  *
  * @param {object} options
