@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/w/docs/standards/README.md\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/w/docs/standards/integrations.md\"}}]}}\n",
+      "why": "Read tool on the matched file"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat docs/standards/README.md docs/standards/integrations.md\",\"description\":\"Read standards\"}}]}}\n",
+      "why": "cat in Bash"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"for f in docs/standards/README.md docs/standards/integrations.md; do echo \\\"=== $f\\\"; cat \\\"$f\\\"; done\",\"description\":\"Read files\"}}]}}\n",
+      "why": "loop with cat after the path"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -n 1,40p docs/standards/integrations.md\"}}]}}\n",
+      "why": "sed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty trace"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/w/docs/standards/README.md\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_x\",\"content\":\"| integrations | ... | integrations.md |\"}]}}\n",
+      "why": "reads only the index; the matched file name appears only in a result"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"ls docs/standards/integrations.md\"}}]}}\n",
+      "why": "lists the file without reading it"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/w/src/integrations/ports/payment-gateway.js\"}}]}}\n",
+      "why": "another file under integrations"
+    }
+  ]
+}

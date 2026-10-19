@@ -234,6 +234,16 @@ test("any other merge.dependabot.mode or key fails the schema", () => {
   );
   rejectedFor(
     withMerge({ dependabot: { mode: "enforce", majors: true } }),
+    /must be equal to one of the allowed values/,
+  );
+  rejectedFor(
+    withMerge({ dependabot: { mode: "enforce", other: true } }),
     /must NOT have additional properties/,
   );
+});
+
+test("merge.dependabot.majors takes hold or review", () => {
+  for (const majors of ["hold", "review"]) {
+    assert.doesNotThrow(() => run(withMerge({ dependabot: { mode: "enforce", majors } })), majors);
+  }
 });

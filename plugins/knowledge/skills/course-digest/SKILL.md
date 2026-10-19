@@ -84,10 +84,11 @@ Script uses Playwright's bundled Chromium with a fresh temp context (not Chrome 
 - Progress tracking with per-lesson elapsed time, ETA, structured `run-report.json` output
 - SIGINT handler saves progress on Ctrl+C. No work lost on interruption
 
-**Long-running extractions (50+ lessons):** the CC Bash tool has a hard 10-minute timeout limit. For large courses:
+**Long-running extractions (50+ lessons):** a large course can outlast a single Bash call, so run the
+extraction in the background; it resumes by rerunning the same command:
 
 ```bash
-# Run in background with nohup — no timeout limit
+# Run in the background so the extraction does not hold a foreground call
 nohup node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" extract-course.js --course-dir <path> > extraction.log 2>&1 &
 echo $!  # save PID
 
@@ -97,6 +98,13 @@ tail -20 extraction.log
 # Check run report after completion
 cat <course-dir>/run-report.json
 ```
+
+If the run is stopped, start the same command again: it skips lessons already extracted.
+
+- **Pointer**: for the current foreground timeout and background time limits, fetch
+  <https://code.claude.com/docs/en/tools-reference#timeout-and-output-limits> live.
+- **As of**: 2026-10-18
+- **Recheck trigger**: that section or its background-command time-limit section changes.
 
 ## Platform detection and adapter architecture
 

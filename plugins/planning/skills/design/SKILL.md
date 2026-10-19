@@ -261,6 +261,12 @@ Each round:
 
 Continue until no new gaps surface, then run the `handoff` action.
 
+## Lifecycle and reversibility
+
+Skip on early-exit, `status`, or trivial single-file work. Otherwise call each significant decision
+a one-way or two-way door, prompt an ADR for each one-way door, and scale investment by subdomain
+and quality bar: [`reference/reversibility.md`](reference/reversibility.md).
+
 ## Terminology pass (`terminology` action)
 
 Over the full type inventory, once type modeling stabilizes:
@@ -390,7 +396,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 - **Frontier rounds.** Every open thread whose prerequisites are settled surfaces in the same
   numbered round, each with a recommendation; a thread that depends on an unresolved thread waits
   for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's
-  `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round
+  `use_ask_user_question` user config (`${user_config.use_ask_user_question}`; unexpanded or empty means off) is on and the round
   is independent questions that fit one `AskUserQuestion` call (the per-call question limit:
   <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11; recheck
   when that section changes the per-call question limit). Inline prose otherwise
@@ -420,7 +426,12 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 - **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`,
   and `system` scopes, when discussion touches configurability, extension points, observability,
   or testability, open a design thread for it. Extension points start from the Phase 2
-  variation-point pass. Skip on early-exit, `status`, or trivial single-file work
+  variation-point pass. Skip on early-exit, `status`, or trivial single-file work. Apply
+  [`reference/design-defaults.md`](reference/design-defaults.md) first (quality bar, consumer
+  standards, the Brief's quality requirements, generalize-now-or-wait, per-tenant configurability
+  as vendor guidance), then recommend from SRP, OCP, LSP, ISP, DIP, composition over inheritance,
+  reuse and DRY of knowledge, coupling and cohesion, information hiding, deep modules and YAGNI per
+  [`design-principles.md`](${CLAUDE_PLUGIN_ROOT}/reference/design-principles.md).
 
 ## What this skill does NOT do
 
@@ -439,7 +450,9 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 
 ## Next
 
-/planning:design-handoff gates the finished design and writes it into PLAN.md's `## Design` for /planning:plan.
+- The design is finished: /planning:design-handoff gates it and writes it into PLAN.md's `## Design` for /planning:plan.
+- A name is still undecided: /naming:name-it-better.
+- A resolved decision is worth keeping: /architecture:record-decision.
 
 ## Relationship to other skills
 

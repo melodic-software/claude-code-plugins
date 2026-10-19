@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Lints every tracked shell script.\nset -euo pipefail\ngit ls-files -z '*.sh' | xargs -0 shellcheck\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "#!/usr/bin/env bash\n# Lints every tracked shell script.\nset -euo pipefail\ngit ls-files -z '*.sh' | xargs -0 shellcheck -e SC2034\n",
+      "why": "excluded the rule"
+    }
+  ]
+}

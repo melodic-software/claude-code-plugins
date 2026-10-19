@@ -39,3 +39,16 @@ Decision: keep the existing outbox rather than adopting the provider's own broad
 Rationale: the outbox already gives us at-least-once delivery and a replayable audit trail, and the
 provider's broadcast API offers neither; the recorded tradeoff is one extra hop for durability we
 would otherwise have to rebuild.
+
+## Thread 7: Principles. RESOLVED
+
+Principles applied: SRP keeps per-channel formatting out of the fanout service; reuse of the
+existing outbox over a new delivery path.
+Generalize now or wait: the Brief's `Intent: second variant = category` line settles it: channels
+vary, so the per-channel step is isolated behind one interface now.
+Rationale: the Intent line is the user's answer; every new channel is a known variation.
+
+## Thread 8: Lifecycle and reversibility. RESOLVED
+
+Door: Thread 1 one-way (callers build on the event contract); Threads 2, 4 and 6 two-way.
+Rationale: only the event contract crosses a team boundary; the rest changes in code alone.

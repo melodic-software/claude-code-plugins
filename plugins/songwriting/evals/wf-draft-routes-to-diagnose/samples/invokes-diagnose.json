@@ -1,0 +1,56 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "songwriting:diagnose",
+            "args": "demo"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/songwriting/skills/workflow/SKILL.md"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "songwriting:diagnose"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "songwriting:song-form"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/songwriting/skills/diagnose/SKILL.md"
+          }
+        }
+      ]
+    }
+  ]
+}
