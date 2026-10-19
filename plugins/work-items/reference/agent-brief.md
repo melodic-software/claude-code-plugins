@@ -34,6 +34,8 @@ Each pair below comes from one of two changes, a retry backoff cap and a CSV exp
 **Type:** Bug / Feature / Task (the issue's type: native Issue Type on org repos, `type:` label on personal / non-org repos)
 **Summary:** <the change, in one line>
 
+**Root cause:** <bugs only: `unknown`, or the cause in one line, e.g. `known: stale cache key in RetryPolicy`>
+
 **Current behavior:**
 <What the code does today. A bug: the faulty result. A feature: the existing behavior it extends.>
 
@@ -63,6 +65,13 @@ Apply this template when:
 - Issue body is vague and needs structuring for autonomous execution
 
 The brief can be the issue body itself or a comment; a comment starts with the `## Agent Brief` heading, which is how agents find it. An item `/work-items:decompose` publishes already carries these fields as body sections (Outcome, Key interfaces, Done when, Out of scope) and needs no separate `## Agent Brief` block.
+
+### The Root cause field
+
+Bugs only; a feature or task omits it. `unknown` means reproducing the failure has not named its
+cause, so `/work-items:work` runs diagnosis (`/debugging:debug`, or `/testing:diagnose` for a failing
+test) before implementing. `known: <cause>` means the report or reproduction names the cause, and
+the item goes straight to the fix. A brief without the field is treated as `known`.
 
 ### Whose brief counts
 

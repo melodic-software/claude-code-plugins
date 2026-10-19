@@ -126,6 +126,47 @@ describe("acquireYouTubeMedia", () => {
     expect(result.error).toContain("ladder exhausted");
   });
 
+  it("returns caption: null in full mode when the ladder is exhausted but the video downloaded", async () => {
+    const workDir = "/tmp/fake-work";
+    const result = await acquireYouTubeMedia(
+      DRIVER_WATCH_URL,
+      { workDir, mode: "full", videoId: DRIVER_VIDEO_ID },
+      {
+        ...NO_THROTTLE,
+        sleep: async () => {},
+        spawn: spawnOk,
+        listFiles: async () => [
+          `${workDir}/7zZy1QTvokM.mp4`,
+          `${workDir}/7zZy1QTvokM.info.json`,
+        ],
+        readFile: async () => JSON.stringify({ id: "7zZy1QTvokM", title: "Driver Video" }),
+      },
+    );
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data?.caption).toBeNull();
+      expect(result.data?.artifacts.videoPath).toBe(`${workDir}/7zZy1QTvokM.mp4`);
+    }
+  });
+
+  it("still fails in full mode when no video downloaded and no captions exist", async () => {
+    const workDir = "/tmp/fake-work";
+    const result = await acquireYouTubeMedia(
+      DRIVER_WATCH_URL,
+      { workDir, mode: "full", videoId: DRIVER_VIDEO_ID },
+      {
+        ...NO_THROTTLE,
+        sleep: async () => {},
+        spawn: spawnOk,
+        listFiles: async () => [`${workDir}/7zZy1QTvokM.info.json`],
+        readFile: async () => JSON.stringify({ id: "7zZy1QTvokM", title: "Driver Video" }),
+      },
+    );
+
+    expect(result.success).toBe(false);
+  });
+
   it("classifies a bare .en.vtt as platform-asr when the source declares that class", async () => {
     const workDir = "/tmp/fake-work";
     const videoId = "1001551417340022785";

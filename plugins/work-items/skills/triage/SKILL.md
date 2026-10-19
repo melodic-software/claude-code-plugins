@@ -233,7 +233,7 @@ as `Reproduced <n> of <n> (triage_repro_count=<n>, <layer>)` followed by the rec
 raw marker stays on the item until step 5 replaces it, so a pass that stops here leaves the item in
 the attention view with its evidence already posted.
 
-**A verified bug is not a diagnosed one.** Reproducing it confirms the failure, not its cause. When the root cause is still unknown, the brief routes the item through diagnosis before any fix: `/debugging:debug`, or `/testing:diagnose` when the symptom is already a failing test. A report whose facts are in hand but too unstructured to reproduce from is shaped first with `/bugs:write`; one missing facts only the reporter holds still takes `status:needs-info`. A bug whose root cause the report or the reproduction already names goes straight to the fix.
+**A verified bug is not a diagnosed one.** Reproducing it confirms the failure, not its cause. When the root cause is still unknown, the item's Agent Brief sets its Root cause field to `unknown` (triage writes that field on every bug it briefs, as `known: <cause>` when the cause is named; the field is in the agent-brief template), and `/work-items:work` routes the item through diagnosis before any fix: `/debugging:debug`, or `/testing:diagnose` when the symptom is already a failing test. A report whose facts are in hand but too unstructured to reproduce from is shaped first with `/bugs:write`; one missing facts only the reporter holds still takes `status:needs-info`. A bug whose root cause the report or the reproduction already names goes straight to the fix.
 
 ### 4. Interview (if needed)
 

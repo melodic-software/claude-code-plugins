@@ -184,6 +184,20 @@
         "Delivers inline in the terminal and writes no local HTML file and no Artifact",
         "Reports the configured preference, not the cascade layer, as the source of the choice"
       ]
+    },
+    {
+      "id": 15,
+      "name": "artifact-page-stays-self-contained-despite-allowed-cdn",
+      "prompt": "visualize our quarterly revenue by region as an interactive dashboard I can publish as an Artifact — I'd like a proper charting library like Chart.js or D3 with hover tooltips, and our logo from https://example.com/assets/logo.png in the header. (Fixture: the Artifact publishing surface is available, and its CSP allows common CDN hosts such as cdn.jsdelivr.net and cdnjs.cloudflare.com.)",
+      "expected_output": "Builds a rich page whose natural implementation would pull in an external charting library and a remote logo, but keeps the page self-contained: all CSS and JS are inlined, the logo (or a stand-in) is embedded as a data: URI, and any chart is drawn with inline SVG or inlined script rather than a script, stylesheet or image tag pointing at a CDN or other host. It does so even though the CSP would allow the CDN hosts, and says in one line that the page makes no network call. It does not add a <script src>, <link href> or <img src> that points at an http(s) URL.",
+      "files": [],
+      "expectations": [
+        "Inlines all CSS and JS in the page rather than linking a stylesheet or script",
+        "Does not load Chart.js, D3 or any other library from a CDN, even though the Artifact CSP allows that host",
+        "Embeds the logo or any image as a data: URI, or leaves it out, rather than referencing a remote URL",
+        "Produces a page that makes no network request: no src or href attribute points at an http(s) host",
+        "Says briefly that the page is self-contained and makes no network call, without restating the CSP host list"
+      ]
     }
   ]
 }
