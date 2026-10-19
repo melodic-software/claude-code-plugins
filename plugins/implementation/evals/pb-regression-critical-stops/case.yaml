@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: not-a-repeat
     type: regex
-    pattern: '(?:\b(?:not|no)\b|n''t\b)[^\n]{0,40}\brepeat|\brepeats?(?: a first[- ]call finding)?\b[^\n]{0,5}?:\s*no\b|\bnew (?:CRITICAL|finding|defect)\b|\bregression\b|\bintroduced (?:by|in) the fix\b|\bthe fix (?:commit )?(?:introduced|added)\b|\bdifferent (?:CRITICAL|finding|defect)\b'
+    pattern: '(?:\b(?:not|no)\b|n''t\b)[^\n]{0,40}\brepeat|\brepeats?(?: a first[- ]call finding)?\b[^\n]{0,5}?:\s*no\b|\bnew (?:CRITICAL|finding|defect)\b|\bregression\b|\bintroduced (?:by|in) the fix\b|\bthe fix (?:commit )?(?:introduced|added)\b|\b(?:added|introduced) by (?:the )?fix(?: commit)?\b|\bdifferent (?:CRITICAL|finding|defect)\b'
     flags: 'i'
     target: last_message
   - name: no-further-round

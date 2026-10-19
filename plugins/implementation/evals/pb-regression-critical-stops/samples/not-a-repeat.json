@@ -15,6 +15,10 @@
     {
       "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL; it doesn't repeat api/upload.py:31.",
       "why": "contracted negation"
+    },
+    {
+      "answer": "- Found: the re-review no longer reports api/upload.py:31. It rates one CRITICAL at storage/paths.py:18, a line added by fix commit e81c4f0a.",
+      "why": "added by fix commit, without the word repeat"
     }
   ],
   "fail": [
