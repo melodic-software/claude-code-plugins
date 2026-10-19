@@ -44,7 +44,9 @@ name: pr-merge
 #
 # On its schedule it also gives a PR a new head, an empty commit, when a lane
 # run on its current head was refused by the token broker as
-# workflow-modified, once per version of the workflow file the broker named.
+# workflow-modified, once per version of the workflow file the broker named,
+# and takes off a needs-human label the lanes App set for a pr-unblock
+# escalation once its recorded reason no longer holds.
 #
 # How to keep one PR from merging: put the line `Hold: a human merges this`
 # in its body, or add the `do-not-merge` or `needs-human` label (the
@@ -856,6 +858,25 @@ jobs:
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/refire-refused.mjs
+
+      # A pr-unblock escalation adds the human-gated label with a reason. On
+      # the schedule, this takes off a label the lanes App set once that
+      # reason no longer holds at the PR's head (workflow-staged, a conflict
+      # reason, feedback-protected-path), after a comment naming the reason
+      # and the head: never a label a person set, and never after anyone but
+      # the App commented or reviewed since it went on. At most five a run, and not
+      # while the lane is report-only.
+      # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
+      - name: Clear escalations whose reason no longer holds
+        if: >-
+          always() && github.event_name == 'schedule'
+          && steps.lane-token.outputs.token != ''
+          && steps.mode.outputs.report-only == 'false'
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+        run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
 
       - name: Log the API budget at job end
         id: budget-end
