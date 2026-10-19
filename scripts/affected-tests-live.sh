@@ -226,4 +226,48 @@ for probe in 'plugins/github/skills/advise/S*.md|plugins/github/github.test.sh' 
   fi
 done
 
+# --- LIVE repo: files a suite reads select that suite (#8410) ------------------
+# The selection audit traced each suite reading these files while a one-file
+# diff to the file did not select it: each suite reaches them through a path
+# built from parts, a directory glob, or a launcher hooks.json names, so its
+# `# test-scope:` header declares them (R8).
+s_session=plugins/planning/shared/tests/test_session.py
+s_dims=plugins/work-items/tests/set-dimensions.test.sh
+gh_adapter=plugins/work-items/tools/work-item-tracker/adapters/github
+tracker_lib=plugins/work-items/tools/work-item-tracker/lib
+pl_fix=plugins/planning/shared/tests/fixtures
+read_pairs=(
+  "$s_session|plugins/planning/shared/schema/event.schema.json"
+  "$s_session|plugins/planning/shared/schema/question-shape.schema.json"
+  "$s_session|plugins/planning/surface/schema/event.schema.json"
+  "$s_session|plugins/planning/surface/schema/ops.schema.json"
+  "$s_session|plugins/planning/surface/schema/responses.schema.json"
+  "$s_session|plugins/planning/surface/schema/visual.schema.json"
+  "$s_dims|$gh_adapter/capabilities.json"
+  "$s_dims|$gh_adapter/common.sh"
+  "$s_dims|$gh_adapter/set-fields.sh"
+  "$s_dims|$tracker_lib/id.sh"
+  "$s_dims|$tracker_lib/lease.sh"
+  "plugins/ruff-format/hooks/ruff-format.test.sh|plugins/ruff-format/lib/git-hooks/install.mjs"
+  "plugins/ruff-format/hooks/ruff-format.test.sh|plugins/ruff-format/lib/prerequisites.mjs"
+  "plugins/biome-format/hooks/biome-format-end-of-turn.test.sh|plugins/biome-format/hooks/exec-bash.mjs"
+  "plugins/code-metrics/skills/audit-complexity/scripts/audit-complexity.test.sh|plugins/code-metrics/scripts/yaml_subset.py"
+  "plugins/instruction-placement/git-hooks/index-check.test.sh|plugins/instruction-placement/.claude-plugin/plugin.json"
+)
+for fixture in events-v1 invalid-device-scope-on-prototype invalid-reaction-agree \
+  invalid-recommendation-on-choice old-page-defaults state-v0-prototype state-v2-mentions \
+  state-v3 state-v4 state-v5 wire-heartbeat wire-presence; do
+  read_pairs+=("$s_session|$pl_fix/$fixture.json")
+done
+for pair in "${read_pairs[@]}"; do
+  suite="${pair%%|*}" file="${pair#*|}"
+  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$file" 2>/dev/null)"
+  RC=$?
+  if [[ -e "$REPO_ROOT/$file" && "$RC" -eq 0 ]] && has_line "$out" "$suite"; then
+    ok "LIVE: $file selects $suite"
+  else
+    fail "LIVE: $file did not select $suite (rc=$RC): $out"
+  fi
+done
+
 test_harness::report

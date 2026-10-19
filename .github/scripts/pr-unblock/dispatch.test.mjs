@@ -5,9 +5,12 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
+import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
+// The lanes App bot's user id (.github/standards/trusted-actors/trusted-actors.json).
+const LANES_APP = 337595936;
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
 // its top-level run-name scalar as YAML reads it (a double-quoted string, or a
 // plain one cut at " #", which starts a comment), with the inputs filled in.
@@ -68,11 +71,15 @@ function fakeApi({
   failChecks = new Set(),
   runIds = new Map(),
   workflowRuns = [],
+  ciFixPulls = [],
 } = {}) {
   const calls = { list: [], get: [], checks: [], dispatch: [], runs: [] };
   let round = 0;
   return {
     calls,
+    async listCiFixCandidates() {
+      return { rateLimit: { cost: 1, remaining: 4999 }, pullRequests: { nodes: ciFixPulls, pageInfo: { hasNextPage: false, endCursor: null } } };
+    },
     async listOpenPulls({ base, after }) {
       calls.list.push({ base, after });
       const index = after === undefined ? 0 : Number(after);
@@ -472,7 +479,7 @@ test("a 15-digit workflow_run_id is accepted", async () => {
 });
 
 // main against a fake API, with GITHUB_OUTPUT a real file it appends to.
-async function runMain(apiOptions) {
+async function runMain(apiOptions, limits = LIMIT_DEFAULTS) {
   const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
   const output = join(dir, "output");
   writeFileSync(output, "");
@@ -483,8 +490,9 @@ async function runMain(apiOptions) {
         GITHUB_REPOSITORY: "octo/repo",
         GITHUB_RUN_ID: "4242",
         GITHUB_OUTPUT: output,
+        APP_SENDER_ID: String(LANES_APP),
       },
-      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS },
+      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits },
     );
     return { code, output: readFileSync(output, "utf8") };
   } finally {
@@ -531,6 +539,80 @@ test("main records a review-dependency dispatch beside the conflict dispatches",
   const { code, output } = await runMain({ pages: [[pr(130), dependabot]] });
   assert.equal(code, 0);
   assert.equal(output, "run-ids=9130 9131\n");
+});
+
+// A lanes App PR whose head's ci-status failed, as fix-ci-dispatch.mjs lists it.
+const ciFixPull = (number) => {
+  const head = String(number).padStart(40, "c");
+  return {
+    number,
+    isDraft: false,
+    isCrossRepository: false,
+    baseRefName: "main",
+    headRefOid: head,
+    author: { login: "melodic-automation-lanes", databaseId: LANES_APP },
+    labels: { nodes: [] },
+    commits: {
+      nodes: [
+        {
+          commit: {
+            oid: head,
+            statusCheckRollup: {
+              contexts: {
+                nodes: [{ __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } }],
+              },
+            },
+          },
+        },
+      ],
+    },
+  };
+};
+
+test("main records fix-ci dispatches beside the others, capped by limits.fix-ci-per-run", async () => {
+  const pulls = [ciFixPull(141), ciFixPull(142), ciFixPull(143)];
+  const capped = await runMain({ pages: [[pr(140)]], ciFixPulls: pulls }, { ...LIMIT_DEFAULTS, "fix-ci-per-run": 1, "fix-ci-restarts": 1 });
+  assert.deepEqual(capped, { code: 0, output: "run-ids=9140 9141\n" });
+  const fallback = await runMain({ pages: [[]], ciFixPulls: pulls });
+  assert.deepEqual(fallback, { code: 0, output: "run-ids=9141 9142\n" }, "with no fix-ci limit the default of 2 holds");
+});
+
+test("without the lanes App sender id main still dispatches conflicts, dispatches no fix-ci, and exits 1", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  try {
+    const output = join(dir, "output");
+    writeFileSync(output, "");
+    const code = await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: output },
+      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS },
+    );
+    assert.equal(code, 1);
+    assert.equal(readFileSync(output, "utf8"), "run-ids=9150\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("main appends each run id to RUN_IDS_FILE as soon as its dispatch returns", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  try {
+    const file = join(dir, "ids");
+    const api = fakeApi({ pages: [[pr(160), pr(161)]], runIds: new Map([["161", undefined]]) });
+    const seen = [];
+    const dispatch = api.dispatchWorkflow;
+    api.dispatchWorkflow = async (request) => {
+      seen.push(readFileSync(file, { encoding: "utf8", flag: "a+" }));
+      return dispatch(request);
+    };
+    await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), RUN_IDS_FILE: file },
+      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS },
+    );
+    assert.deepEqual(seen, ["", "9160\n"], "the first id is on disk before the second dispatch");
+    assert.equal(readFileSync(file, "utf8"), "9160\n", "an id that is not a run id is not recorded");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("main writes nothing to GITHUB_OUTPUT when no run was dispatched", async () => {
@@ -622,4 +704,86 @@ test("the GitHub adapter calls the documented endpoints", async () => {
     requests[3].url,
     "https://api.example/repos/octo/repo/actions/workflows/pr-unblock.yml/runs?event=workflow_dispatch&per_page=100",
   );
+});
+
+// The record a run leaves: the next run, against the same GitHub state,
+// dispatches the same PRs and skips the reads the record makes redundant.
+// #1 conflicts at a head a successful run handled; #2 conflicts and is new;
+// #3 reads UNKNOWN, then CONFLICTING at a head a successful run handled.
+const recordState = () => ({
+  pages: [[pr(1), pr(2), pr(3, { mergeable: "UNKNOWN" })]],
+  requeries: [[pr(3)]],
+  checked: new Set([pr(1).headRefOid, pr(3).headRefOid]),
+});
+
+test("a run records heads a finished run handled, and the next run skips their reads and re-queries", async () => {
+  const record = emptyRecord();
+  const first = harness(recordState(), { record });
+  await first.run();
+  // Without a record: a check-run read per conflicting head (#1, #2, #3) and
+  // one re-query round after one 10 s wait.
+  assert.deepEqual(dispatchedNumbers(first.api), ["2"]);
+  assert.equal(first.api.calls.checks.length, 3);
+  assert.equal(first.api.calls.get.length, 1);
+  assert.deepEqual(first.sleeps, [10_000]);
+  assert.deepEqual([...record.handled.get(CHECK_NAME)].sort(), [pr(1).headRefOid, pr(3).headRefOid]);
+
+  const second = harness(recordState(), { record: parseRecord(serializeRecord(record)) });
+  await second.run();
+  assert.deepEqual(dispatchedNumbers(second.api), ["2"]);
+  assert.deepEqual(second.api.calls.checks.map((call) => call.sha), [pr(2).headRefOid]);
+  assert.equal(second.api.calls.get.length, 0);
+  assert.deepEqual(second.sleeps, []);
+  assert.ok(second.lines.includes(`skip #1: head ${pr(1).headRefOid} already has a ${CHECK_NAME} check run (recorded)`));
+});
+
+test("a run whose every candidate is recorded lists no workflow runs", async () => {
+  const record = emptyRecord();
+  markHandled(record, CHECK_NAME, pr(1).headRefOid);
+  const { api, run } = harness({ pages: [[pr(1)]] }, { record });
+  await run();
+  assert.deepEqual(api.calls.runs, []);
+  assert.deepEqual(api.calls.checks, []);
+});
+
+test("only a finished run that handles the head for good is recorded", async () => {
+  const runs = new Map([
+    [pr(1).headRefOid, [UNTRUSTED_SKIP]],
+    [pr(2).headRefOid, [{ status: "in_progress", conclusion: null }]],
+    [pr(3).headRefOid, [failedRun("2026-10-17T10:00:00Z", " resets=2026-10-17T12:00:00Z")]],
+    [pr(4).headRefOid, [failedRun("2026-10-17T10:00:00Z", null)]],
+  ]);
+  const record = emptyRecord();
+  const { run } = harness({ pages: [[pr(1), pr(2), pr(3), pr(4)]], checked: runs }, { record, maxDispatch: 9 });
+  await run();
+  // #4 failed for a reason other than the usage limit: handled for good.
+  assert.deepEqual([...(record.handled.get(CHECK_NAME) ?? [])], [pr(4).headRefOid]);
+});
+
+test("main carries the record in DISPATCH_RECORD and writes it only when it changed", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-record-"));
+  const output = join(dir, "output");
+  const path = join(dir, "record.json");
+  const env = {
+    GITHUB_TOKEN: "t0ken",
+    GITHUB_REPOSITORY: "octo/repo",
+    GITHUB_RUN_ID: "4242",
+    GITHUB_OUTPUT: output,
+    APP_SENDER_ID: String(LANES_APP),
+    DISPATCH_RECORD: path,
+  };
+  // A recorded head no open PR carries any more is dropped.
+  writeFileSync(path, JSON.stringify({ version: 1, handled: { [CHECK_NAME]: ["f".repeat(40)] }, dispatched: {} }));
+  const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS });
+  try {
+    writeFileSync(output, "");
+    assert.equal(await main(env, options()), 0);
+    assert.equal(readFileSync(output, "utf8"), "record-changed=true\n");
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 1, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, dispatched: {} });
+    writeFileSync(output, "");
+    assert.equal(await main(env, options()), 0);
+    assert.equal(readFileSync(output, "utf8"), "");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

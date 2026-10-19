@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Identity check first: \"window\" stresses WIN, so a rhyme needs a different consonant before that short-i vowel. \"Widow\" is close in sound but a different word; \"window/window\" would be identity, not rhyme.\n\nHere is a labeled menu across the stability tiers. Pick by what you want line 4 to feel like; I won't pick one for you.\n\n| Tier | Candidate | Note |\n| --- | --- | --- |\n| Family | *in though* | voiced/unvoiced swap, soft landing |\n| Family | *thin glow* | keeps the porch-light world |\n| Additive | *winds blow* | extra consonant, still resolves |\n| Subtractive | *win, though* | drops the d, conversational |\n| Assonance | *sin, oh* | vowel-only, unresolved |\n| Assonance | *gimme so* | loose, spoken |\n| Consonance | *wander* | consonant frame, unstable |\n| Mosaic | *been so slow* | multi-word, lands the waiting |\n| Mosaic | *in the snow* | multi-word, season shift |\n| Mosaic | *spin and go* | motion, leaving |\n\nThe menu leans unstable on purpose: he hasn't called, so a perfect rhyme may close the verse too neatly. The choice is yours by emotional intent."
+    },
+    {
+      "answer": "Response filter §1: identity check pass (no window/window), tier walk pass, mosaic present, cliche scan pass.\n\n**Perfect / near-perfect**\n- \"Lindo\" (proper noun, risky)\n- \"in, though\"\n\n**Family rhymes**\n- \"skin glow\"\n- \"thin flow\"\n\n**Additive / subtractive**\n- \"wind blows\" (additive)\n- \"win so\" (subtractive)\n\n**Assonance / consonance**\n- \"listen\" (assonance on the stressed i)\n- \"wonder\" (consonance)\n\n**Mosaic (multi-word)**\n- \"been so low\"\n- \"kitchen glow\"\n- \"in the cold\"\n\nWhich one fits depends on whether you want the verse to resolve or stay open. I'm leaving the pick to you."
+    },
+    {
+      "answer": "Family: thin glow. Subtractive: win so. Consonance: wander. Mosaic: been so slow."
+    },
+    {
+      "answer": "| Stability | Candidate | How it rhymes |\n|---|---|---|\n| Near-perfect | **limbo** | m/b are close cousins of n/d |\n| Near-perfect | **Pinto** | t is the voiceless twin of d |\n| One sound dropped | **kiddo** | the \"n\" is gone |\n| Vowel match | **pillow** | same ĭ and -oh, different middle |\n| Multi-word | **dim glow** | m-gl echoes n-d |",
+      "why": "observed Opus reply: tiers named by their mechanism in plain words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here are rhymes: limbo, crescendo, innuendo, in though, been so."
+    },
+    {
+      "answer": "Family: thin glow, skin glow. Perfect: Lindo."
+    },
+    {
+      "answer": "Perfect rhymes work best here; additive and assonance rhymes are weaker.",
+      "why": "no family tier"
+    },
+    {
+      "answer": "| Stability | Candidate |\n|---|---|\n| Perfect | **limbo** |\n| Vowel match | **pillow** |\n| Multi-word | **dim glow** |",
+      "why": "no family or additive/subtractive tier"
+    }
+  ]
+}

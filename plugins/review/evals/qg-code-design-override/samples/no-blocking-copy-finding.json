@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Overrides bundled default Duplicated Code per docs/standards/service-boundaries.md\n\nNo code-design issues found.",
+      "why": "override applied, no finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Overrides bundled default Duplicated Code per docs/standards/service-boundaries.md\n\n| 1 | CRITICAL | high | Duplicated Code | MAX_RETRIES copied | services/shipping/retry.js:1 | Share a module |",
+      "why": "line emitted but the copy still rated CRITICAL"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | high | Duplicated Code | withRetry copied from billing | services/shipping/retry.js:3 | Extract a shared package |",
+      "why": "rated IMPORTANT, no override"
+    }
+  ]
+}

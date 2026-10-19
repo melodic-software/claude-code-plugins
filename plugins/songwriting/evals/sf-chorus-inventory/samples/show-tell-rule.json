@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "Form: verse/chorus. Verse 1 sets the scene, verse 2 moves time forward, and the chorus is meant to hold the song's broader statement.\n\nSection mode: verses show; the chorus tells. Your chorus is concrete inventory (mug, screen door, Bible, porch swing). Those are strong images, but a chorus full of objects is verse material in the wrong box: it never says what the objects mean, so there's nothing for the verses to recolor.\n\nSmallest structural change: keep the verses, and let the chorus make one statement the objects point to, something like the idea in verse 2's last line. Move one or two of the chorus objects into the verses where they can be shown. For the actual replacement lines, take it to `/songwriting:co-write` line-brainstorm."
+    },
+    {
+      "answer": "§6 Form filter run.\n\n**What each section is doing**\n- Verse 1: shows the parents pretending.\n- Chorus: a list of four objects.\n- Verse 2: time jump, the house is sold.\n\n**Diagnosis.** The verse/chorus form is fine; the chorus is in the wrong mode. Verses carry situation and image; the chorus tells, it makes the broad statement. Yours is a catalog of images, which belongs in a verse. A chorus is also sung back, so four parallel object lines give the listener nothing to sing along to.\n\n**Change:** turn the chorus into a telling statement and redistribute the objects to the verses. Line writing is a `/songwriting:co-write` job."
+    },
+    {
+      "answer": "Your verses **show**: a kitchen, a driveway, a kid on a step, a house that got sold. Your chorus shows too. It's four concrete objects in a row: mug, screen door, Bible, porch swing. In Pat's terms the chorus is the central section. Its job is to sum up or comment on what the verses showed and to hold the song's central idea. Yours never makes a statement.",
+      "why": "observed Opus reply"
+    },
+    {
+      "answer": "## Diagnosis: the chorus is showing when it should be telling\n\n**Form so far:** Verse / Chorus / Verse. That's verse/chorus, with two verses and one chorus.\n\n**What's working.** Both verses show well, and the mug paying off in verse 2 is the right instinct.\n\n1. The chorus becomes the telling section. It states the carry / carried-by idea from your verse 2 line.",
+      "why": "observed Sonnet reply: halves far apart"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The chorus needs a stronger hook and the verses need more detail."
+    },
+    {
+      "answer": "Show, don't tell: the chorus should show more.",
+      "why": "generic show-don't-tell, rule inverted"
+    },
+    {
+      "answer": "Your verses show a lot of detail, and the chorus shows even more. Add a few more images to the chorus so it matches.",
+      "why": "verses show, but the chorus is never told to tell or state"
+    }
+  ]
+}

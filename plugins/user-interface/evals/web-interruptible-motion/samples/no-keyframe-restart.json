@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": ".panel { translate: -100% 0; transition: translate 300ms var(--ease-out); }\n.panel.is-open { translate: 0 0; }",
+      "why": "a transition retargets from the current value"
+    },
+    {
+      "answer": "const x = useSpring(0);\nx.set(open ? 0 : -320);",
+      "why": "a spring retargets with its current velocity"
+    },
+    {
+      "answer": "@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }\n.panel { translate: -100% 0; transition: translate 300ms var(--ease-out); }\n.panel.is-open { translate: 0 0; animation: fade-in 150ms; }",
+      "why": "an opacity-only keyframe does not move the panel; the transition still retargets its position"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@keyframes slide-in { from { translate: -100% 0; } to { translate: 0 0; } }\n.panel.is-open { animation: slide-in 300ms ease-out forwards; }",
+      "why": "the keyframe restarts from zero on each toggle"
+    },
+    {
+      "answer": "@keyframes slide-out { from { translate: 0 0; } to { translate: -100% 0; } }\n.panel.is-closing { animation: slide-out 300ms ease-out forwards; }",
+      "why": "closing starts a new keyframe from its first frame, not the current position"
+    }
+  ]
+}

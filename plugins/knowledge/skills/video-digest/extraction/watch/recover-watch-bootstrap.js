@@ -28,6 +28,7 @@ import {
   interleaveTranscriptAndFrames,
 } from "../watching/timestamp-interleave.js";
 import { writeWatchingManifest } from "../watching/write-watching-manifest.js";
+import { recordDurationMismatch } from "./duration-mismatch.js";
 import {
   createWatchState,
   markPhaseComplete,
@@ -356,6 +357,11 @@ export async function recoverWatchBootstrapCli(argv) {
     overCap: false,
     candidateCount: watching.candidateCount,
   };
+
+  state = await recordDurationMismatch(state, sliceDir, {
+    metadataDurationSec: metadata.durationSec,
+    probedDurationSec: probe?.durationSec,
+  });
 
   const manifest = await writeWatchingManifest(sliceDir, watching, tempSession);
   state.artifactPaths = {
