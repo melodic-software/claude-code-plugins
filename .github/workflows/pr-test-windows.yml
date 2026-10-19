@@ -30,8 +30,9 @@ name: pr-test-windows
 # path list here drifted from the selection and failed closed: a change to
 # plugins/guardrails/hooks/exec-bash.mjs or a hooks.json selects Windows jobs
 # but matched no listed path, so no run started. The selector maps an
-# unclassified file to its language's whole corpus, and a docs-only diff
-# selects nothing, so such a push costs only `select-tests-windows` on Linux;
+# unclassified code file to its language's whole corpus; a docs-only diff, or a
+# data file no suite reads, selects nothing, so such a push costs only
+# `select-tests-windows` on Linux;
 # a Windows job skipped by its `if:` starts no runner.
 #
 # Draft pull requests run nothing: `select-tests-windows` gates on the draft flag and
