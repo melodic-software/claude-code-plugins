@@ -174,6 +174,12 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
 - **Does not enumerate a catalog in its own body.** The candidate set is resolved at runtime; an
   embedded inventory would be a permanent token cost that rots as the fleet changes.
 
+## Next
+
+/session-flow:workflow
+
+A menu has no single successor; the workflow router picks the one next stage.
+
 ## Gotchas
 
 - A skill turned off via `skillOverrides` can still appear in a catalog but cannot run.

@@ -1,0 +1,15 @@
+Marketplace: market1: current (autoUpdate: on)
+In-repo: 0: <case> has no project/local installs
+Updated: 1 plugin(s)
+  - beta@market1 (user): 0.1.0 → 0.2.0
+Moved during this run: 2 plugin(s), by something other than this run's update calls
+  - alpha@market1 (user): 0.1.0 → 0.2.0
+  - zeta@market1 (user): 0.1.0 → 0.2.0
+Divergences: 2 actionable elsewhere on this machine → run `/harness-ops:plugins converge` (of 2 in all: 0 pre-existing, 2 newly created by this run (0 by the in-repo update, 1 by the user-scope sweep, 1 moved during this run, cause unattributed))
+Note: zeta (0.1.0 → 0.2.0) moved during this run. The algorithm that ran is the pre-update one:
+  ${CLAUDE_PLUGIN_ROOT} still resolves to the version loaded at session start. /reload-plugins
+  before relying on the new version.
+Timing: <elided>
+
+Run journal: <run_dir>
+Timing: <elided>

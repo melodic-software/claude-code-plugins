@@ -69,7 +69,9 @@ installs the catalog's names no longer carry (`delisted[]`), the same for instal
 run stands in (`delisted_project[]`, one `{id, scope}` each), the effective `true` `enabledPlugins`
 keys with no install record that those names no longer carry (`delisted_settings_only[]`; a
 catalog with an empty `plugins` array produces none of the three), the project-scope enable rows, the normalizer result, the cache-content counts and stale ids with the scope they cover (`cache_content.scope`, always `user`), the catalog regression
-interval, the three-snapshot divergence split, whether the sweep updated this plugin itself, the
+interval, the three-snapshot divergence split, the ids that moved during the run under an update
+call that reported them current (`moved_during_run[]`, with `noop_unverified` counting the
+already-current answers the snapshots could not confirm), whether this plugin itself moved, the
 moved plugins whose installed build declares a monitor (`updated_with_monitors[]`, one
 `{id, scope, monitors}` each, read from the record's own cache directory in the post-sweep
 snapshot), `catalog_last_updated` (the marketplace's `lastUpdated` as Step 2's `pre.<mp>.json` read
@@ -102,15 +104,36 @@ background `autoUpdate` sweep or a concurrent session can change installed/enabl
 steps. Inside a step, the loop body is deliberately snapshot-driven: Step 3 reads its id list once
 and then issues one `claude plugin update` per line. That is the intended design, not a violation of
 the rule above. Re-reading state before each of sixty-odd calls would buy nothing: the CLI is the
-serialization point, so the worst outcome of losing the race on any single id is that the id was
-already updated by whoever won it, and the call degrades to a no-op.
+serialization point, so no call tears a file, and losing the race on one id leaves that id at the
+version whoever won it wrote: the call degrades to a no-op.
 
-Detecting that race is not something this step can do from CLI output, so do not pretend to. An
-id reported "already at the latest version" is *equally* consistent with a benign no-op and with a
-concurrent sweep having just updated it; the two are indistinguishable, and a report row that claims
-to tell them apart would be inventing a signal. The one outcome that **is** distinguishable, and
-worth a report row under "Action needed", is an id present in the pre-mutation snapshot that the CLI
-then reports as **not installed**. That is a genuine concurrent uninstall, not this benign race.
+**The CLI's text cannot tell that race from a true no-op, but the run's snapshots can.** An id the
+CLI reports "already at the latest version (X)" is consistent with both a plugin that was current and
+one that something else moved after the pre-mutation read, so the script never decides from that
+line alone. For each such id, `finalize_moves` reads the id's version in `post.<mp>.json` and takes
+`X` from the CLI's line as the cross-check, and compares the post version with `<old>`, the
+pre-mutation snapshot's version (`pre.<mp>.json` for Step 2, `mid.<mp>.json` for Step 3):
+
+| Post version | Printed `X` | Result |
+|---|---|---|
+| equal to `<old>` | absent or equal to `<old>` | a true no-op: no row |
+| differs from `<old>` | any | **moved during this run**: a row |
+| equal to `<old>` | differs from `<old>` | stays a no-op, counted as unverified (the sources disagree) |
+| unreadable, or `<old>` unreadable | any | stays a no-op, counted as unverified |
+
+A moved row is `{id, scope, kind, old, new, direction}` in the digest's `moved_during_run[]`, with
+`new` the post version and `direction` from the same triple compare Updated rows use. The report says
+the id moved during this run "by something other than this run's update calls": the snapshots show
+that it moved, not who moved it, so no row names a process. The row is not an `Updated:` row, because
+this run's call changed nothing. A backward move is also in `downgraded[]`, flagged `concurrent: true`,
+and the report qualifies it `(moved during this run)`. The row feeds the self-update check and the
+monitor count like an updated row, and the divergence split credits it separately. `noop_unverified`
+counts the no-ops the snapshots could not confirm, and the report says so when it is above zero. The
+run did not lose or reverse any update by seeing this; the row exists so the report does not call a
+plugin that changed "unchanged".
+
+The one other outcome worth a report row under "Action needed" is an id present in the pre-mutation
+snapshot that the CLI then reports as **not installed**. That is a genuine concurrent uninstall.
 
 ## Downgrade guard
 
@@ -167,6 +190,11 @@ shows the pre-update version for a plugin that did update. So: when the CLI repo
 an id and the post-sweep version is unchanged, report the CLI's reported value, or `<unknown>` if it
 named none. Never report `<old> → <old>`, and never count that id as not-updated. A report line
 that says nothing changed for a plugin that did change is worse than one that admits it cannot tell.
+
+The CLI's "already at the latest version (X)" line is not a source for `<new>`: this run's call
+changed nothing. It is the cross-check the "Concurrency" section's table uses against source 3, so
+an already-current id whose post version differs from `<old>` is reported as moved during the run,
+never dropped and never filed under `Updated:`.
 
 One data point, not a license to drop the fallback: on Claude Code 2.1.228 a 63-plugin user-scope
 sweep had all 21 CLI-reported updates already reflected in a post-sweep `fleet-state.sh` re-read, so
@@ -780,7 +808,11 @@ unrelated fleets.
 
 Report as
 `<N> actionable: <N-M> pre-existing, <M> newly created by this run (<a> by the in-repo update, <b>
-by the user-scope sweep)`, so each split follows the total it sums to. When a project root
+by the user-scope sweep)`, so each split follows the total it sums to. A new divergence on an id
+the run's snapshots show moved during the run (`moved_during_run[]`, see "Concurrency") is
+attributed to neither step: the line adds `, <c> moved during this run, cause unattributed` inside
+the parentheses when `<c>` is above zero, and the three parts sum to `<M>`. The total, the
+pre-existing count and the `converge` recommendation do not change. When a project root
 resolved, the line leads with this repo's count and then gives the same machine-wide split under
 `on this whole machine`, because `<N>` counts every repo's divergences and the here-count is a part
 of it, not a separate remainder. When a snapshot was missed the split cannot be computed, and the
@@ -807,8 +839,10 @@ project records note below it, which says why a path can be absent. `divergences
 (`projectPathPresent` stays advisory), and a digest written before the split carries none of the four
 counts and renders the row as it did.
 
-**Say when the sweep updated `harness-ops` itself.** Step 3 sweeps every user-scope id, which
-necessarily includes the plugin providing this skill. When it does, the algorithm that ran is the
+**Say when `harness-ops` itself moved during the run.** Step 3 sweeps every user-scope candidate,
+which can include the plugin providing this skill, and a concurrent update can move it too; the
+digest's `self_updated` is true when this plugin's install moved either way, whichever step or
+process moved it and in whichever direction. When it did, the algorithm that ran is the
 **pre-update** one: `${CLAUDE_PLUGIN_ROOT}` keeps resolving to the version loaded at session start,
 so every later `fleet-state.sh` call and every remaining step executes the old copy, and the report
 describes work done by a version the user no longer has installed. We treat this as a reporting
