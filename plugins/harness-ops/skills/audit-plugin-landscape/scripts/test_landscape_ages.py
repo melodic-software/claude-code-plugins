@@ -1,9 +1,13 @@
 """Tests for landscape_ages.py using recorded gh api responses; no network."""
 
+import contextlib
+import io
 import json
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest import mock
 
 import landscape_ages as la
 
@@ -96,6 +100,42 @@ class Ages(unittest.TestCase):
         la.run(INSTALLED, KNOWN, MANIFESTS, lambda e: calls.append(e) or recorded(e), TODAY)
         self.assertEqual(len(calls), len(set(calls)))
         self.assertEqual(calls.count("repos/acme/mk"), 1)
+
+
+class MainExitCodes(unittest.TestCase):
+    def run_main(self, api):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mk = root / "mk"
+            (mk / ".claude-plugin").mkdir(parents=True)
+            (mk / la.MARKETPLACE_MANIFEST).write_text(json.dumps(MANIFESTS["mk"]))
+            (root / "installed_plugins.json").write_text(json.dumps(INSTALLED))
+            known = {"mk": {**KNOWN["mk"], "installLocation": str(mk)}}
+            (root / "known_marketplaces.json").write_text(json.dumps(known))
+            out, err = io.StringIO(), io.StringIO()
+            with mock.patch.object(la, "gh_api", api), \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = la.main(["--plugins-dir", tmp, "--today", TODAY.isoformat()])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_total_outage_exits_three_with_empty_stdout(self):
+        code, out, err = self.run_main(lambda e: (0, "gh: not logged in"))
+        self.assertEqual(code, 3)
+        self.assertEqual(out, "")
+        self.assertIn("no repository could be checked", err)
+
+    def test_partial_outage_still_reports_and_exits_zero(self):
+        def api(endpoint):
+            return recorded(endpoint) if endpoint == "repos/acme/mk" else (0, "offline")
+
+        code, out, _ = self.run_main(api)
+        self.assertEqual(code, 0)
+        self.assertTrue(json.loads(out))
+
+    def test_all_repositories_answering_exits_zero(self):
+        code, out, _ = self.run_main(recorded)
+        self.assertEqual(code, 0)
+        self.assertTrue(json.loads(out))
 
 
 if __name__ == "__main__":
