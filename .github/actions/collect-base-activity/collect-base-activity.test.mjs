@@ -202,6 +202,16 @@ test("a listed check's copy carries the base's shellcheck, markdownlint and ruff
   }
 });
 
+// A skill that commits runs its checks, fixes and re-runs them before it
+// commits, since the checks read the working tree (#8319 review).
+test("a committing skill with checks is told to commit after the checks and their fixes", () => {
+  const { status, args, allowed } = withChecks(["scripts/check-x.sh --check"]);
+  assert.equal(status, 0);
+  assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
+  const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
+  assert.match(systemPrompt, /Run the checks before you commit: run them, fix, run them again, then commit/);
+});
+
 // A skill with checks but no commit tool (merge-base: the runner commits what
 // the skill staged) must not be told to commit its check fixes.
 test("prepare: merge-base with checks is never told to commit", () => {

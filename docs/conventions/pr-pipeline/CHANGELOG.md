@@ -9,7 +9,8 @@ untracked files and file modes included, and leaves the checkout's HEAD and inde
 The checks copy now carries the base's `.shellcheckrc` and `.markdownlint-cli2.jsonc`, which
 `check-affected.sh` lints with, and `.github/requirements-ci.txt`, where `run-ruff.sh` reads its
 pin. A skill with `checks` is now told to fix what a check reports in the working tree and name
-anything it could not fix in its report. `version` stays 2.
+anything it could not fix in its report; one that commits is told to run the checks, fix and re-run
+them before it commits. `version` stays 2.
 
 ## 2.14.0 - 2026-10-18
 

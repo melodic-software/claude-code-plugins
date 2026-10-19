@@ -292,6 +292,11 @@ runs:
               chmod -R a-w "$CHECKS_DIR"
               disallowed="${disallowed:+$disallowed,}Edit(/$CHECKS_DIR/**),Write(/$CHECKS_DIR/**)"
               system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers. Fix each failure a check reports in the working tree and run the check again; name any failure you could not fix in your report."
+              # The checks read the working tree, so a run that commits runs
+              # them first and commits after, or its fixes stay uncommitted.
+              if [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
+                system_prompt="$system_prompt Run the checks before you commit: run them, fix, run them again, then commit your changes and the fixes."
+              fi
             fi
             # The activity's verify-scripts run with any arguments from a
             # read-only base copy of the script's plugin (or of scripts/),
