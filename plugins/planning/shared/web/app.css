@@ -1951,6 +1951,8 @@
 /* ---------- composer send button: a label on wide screens, a round icon on phones ---------- */
 /* ---------- Item 11: the Inbox (in the bell's place): my requests, what waits on the host, notifications ---------- */
 .app .vf-inboxbtn .vf-bell-n { position: static; box-shadow: none; background: var(--accent); color: var(--on-accent); }
+/* .vf-tbtn's min-inline-size replaces flex's min-content floor: on a crowded top bar the title gives way, not these labels */
+.app :is(.vf-inboxbtn, .vf-sharebtn) { flex-shrink: 0; }
 .app .vf-inboxpop { inline-size: 420px; max-block-size: min(640px, calc(100% - 64px)); }
 .app .vf-inboxpop .vf-pp-head { gap: 8px; }
 .app .vf-inboxpop .vf-pp-head .vf-pop-title { flex: 0 1 auto; }

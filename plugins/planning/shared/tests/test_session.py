@@ -681,7 +681,7 @@ class TestMerge(SessionCase):
         self.refused("wrong-status", "request_merge", self.old, {"to": self.bo}, http=409)
         self.refused("bad-field", "request_merge", self.bo, {"to": self.bo})
         self.refused("bad-field", "request_merge", self.bo, {"to": HOST})
-        self.assertEqual([n["kind"] for n in self.notes(HOST, "queue")], ["queue"])
+        self.assertEqual(self.notes(HOST, "queue"), [])  # a waiting Inbox item stands for it
 
     def test_approving_a_merge_request_merges_and_notifies(self):
         mid = self.act("request_merge", self.old, {"to": self.ann})["id"]
@@ -2203,7 +2203,7 @@ class TestRequests(SessionCase):
         rid = self.ask(self.ann)
         r = self.s.state["requests"][0]
         self.assertEqual((rid, r["status"], r["runner"], r["edited"]), ("R1", {"kind": "pending"}, "host", False))
-        self.assertEqual(len(self.notes(HOST, "queue")), 1)
+        self.assertEqual(self.notes(HOST, "queue"), [])  # the owner's Inbox lists it as waiting instead
 
     def test_at_most_ten_pending_requests_per_person(self):
         for i in range(10):
@@ -2490,7 +2490,7 @@ class TestSelfRunner(SessionCase):
         self.assertNotIn("Q1", self.s.snapshot(self.bo)["results"])
         self.assertEqual([r["summary"] for r in self.s.snapshot(self.ann)["results"]["Q1"]], ["The address step."])
         self.assertEqual([r["published"] for r in self.s.snapshot(HOST)["results"]["Q1"]], [False])
-        self.assertEqual(len(self.notes(HOST, "queue")), 1)
+        self.assertEqual(self.notes(HOST, "queue"), [])  # the owner's Inbox lists it as waiting instead
         self.act("act_on_request", HOST, {"action": "publish", "id": xid})
         self.assertEqual(self.s.snapshot(self.bo)["results"]["Q1"][0]["summary"], "The address step.")
         self.assertEqual([n["title"] for n in self.notes(self.ann, "request")], ["Your request on question Q1 is done."])
@@ -3920,7 +3920,7 @@ class TestApproveJoins(SessionCase):
         host = self.s.snapshot(HOST)
         self.assertEqual([(j["pid"], j["name"]) for j in host["joinRequests"]], [(out["pid"], "Jib")])
         self.assertNotIn(out["pid"], [p["pid"] for p in host["people"]])
-        self.assertEqual(self.notes(HOST, "queue")[-1]["title"], "1 new item in the queue.")
+        self.assertEqual(self.notes(HOST, "queue"), [])  # the owner's Inbox lists the join as waiting instead
         self.act("act_on_join", HOST, {"pid": out["pid"], "action": "admit"})
         self.assertIn(out["pid"], [p["pid"] for p in self.s.snapshot(out["pid"])["people"]])
         self.assertEqual(self.s.snapshot(HOST)["joinRequests"], [])

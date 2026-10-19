@@ -141,14 +141,16 @@ async function main() {
     await until(lee, () => window.Core.me.isLeader && window.Core.state.me?.notifications?.length > 0);
     for (const p of [owner, lee]) await p.evaluate(() => window.Core.readNotifications("all"));
     ok("a leader whose notifications are read starts with an empty badge", await until(lee, () => document.querySelector(".vf-bell-n").textContent === ""), await badge(lee));
+    await owner.evaluate(() => { const w = window.Core.state.inbox.find(i => i.group === "waiting" && i.unread); return window.Core.readInbox([w.key], { [w.key]: w.status }); });
+    ok("the owner, having opened one of the two requests waiting to run, counts 2", await until(owner, () => document.querySelector(".vf-bell-n").textContent === "2"), await badge(owner));
     await bo.evaluate(() => window.Core.idea("Put the order summary in a sticky right column"));
     ok("a guest's proposal makes the leader's badge 1", await until(lee, () => document.querySelector(".vf-bell-n").textContent === "1", null, 10000), await badge(lee));
     await openInbox(lee);
     ok("  with Mark all read in the Inbox", await lee.evaluate(() => { const b = document.querySelector(".vf-inboxpop .vf-pp-head .vf-btn"); return !b.hidden && b.textContent === "Mark all read"; }));
     await lee.locator(".vf-inboxpop .vf-pp-head .vf-btn").click();
     ok("  which empties it", await until(lee, () => document.querySelector(".vf-bell-n").textContent === ""), await badge(lee));
-    ok("the owner, with requests waiting to run, gets the queue line unread", await until(owner, () => window.Core.state.me.notifications.some(n => n.kind === "queue" && !n.read), null, 10000));
-    ok("  and the badge counts the three unread Inbox items only, not the queue line again", (await badge(owner)) === "3", await badge(owner));
+    ok("the owner, with requests waiting to run, gets the proposal's queue line, its only one", await until(owner, () => window.Core.state.me.notifications.filter(n => n.kind === "queue" && !n.read).length === 1, null, 10000));
+    ok("  and the badge counts it: 3", await until(owner, () => document.querySelector(".vf-bell-n").textContent === "3"), await badge(owner));
 
     // ---------- the phone sheet ----------
     await bo.click(".vf-bell");

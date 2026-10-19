@@ -1237,7 +1237,6 @@ class Session:
             }
             st["credentials"]["secrets"][sha256(secret)] = new
             if waiting:
-                self._queue_note([HOST], new)
                 was = None
         with self._lock:
             self._joins.pop(window, None)
@@ -1530,7 +1529,6 @@ class Session:
                 raise DomainError(409, "wrong-status", "You already asked; the owner has not answered yet.", status="pending")
             mid = self._next("G")
             st["mergeRequests"].append({"id": mid, "from": pid, "to": to, "at": now, "status": {"kind": "pending"}})
-            self._queue_note([HOST], pid)
         self._wrote(pid, "merge-request", now)
         return {"id": mid}
 
@@ -3173,9 +3171,7 @@ class Session:
             r = st["requests"][-1]
             if runner == "host" and pid == HOST:  # the host's own request needs no Run: it reaches Claude now
                 self._run([r])
-            elif runner == "host":  # a self request's text is its requester's alone: no queue note, no mention
-                self._queue_note([HOST], pid)
-            if runner == "host":
+            if runner == "host":  # a self request's text is its requester's alone: no mention
                 self._notify_mentions(text, pid, f"in a request on question {q['id']}", qid=q["id"])
             self._seen_now(pid, rid)  # asking is not news to the asker: the Inbox item starts read
         self._wrote(pid, "request", now)
@@ -3326,7 +3322,6 @@ class Session:
             if sum(len(lst) for lst in st["results"].values()) >= MAX_RESULTS:
                 raise DomainError(409, "results-full", f"This session holds at most {MAX_RESULTS} results.", max=MAX_RESULTS)
             res = self._new_result(r["qid"], r, body, {"kind": "guest-claude", "pid": pid}, False)
-            self._queue_note([HOST], pid)
             return {"id": res["id"]}
 
     def fail_my_request(self, pid, body):
@@ -3682,7 +3677,6 @@ class Session:
                     saved = self.path.parent / rec["image"]
                     _write_chunk(saved, 0, image[0])
                 reports[fid] = rec
-                self._queue_note([HOST], pid)
         except BaseException:
             if saved:
                 self._discard(saved)
@@ -3960,7 +3954,8 @@ class Session:
         return note
 
     def _queue_note(self, pids, actor):
-        """One unread line per moderator counting new queue items, never one line per item."""
+        """One unread line per moderator counting new queue items with no Inbox item (proposals, suggestions, offers),
+        never one line per item. Requests, shares, reports, merges and joins are the owner's waiting Inbox items instead."""
         for p in pids:
             old = next((n for n in reversed(self.state["notifications"].get(p, [])) if n.get("rollup", {}).get("key") == "queue" and not n["read"]), None)
             k = old["rollup"]["n"] + 1 if old else 1
@@ -4494,8 +4489,6 @@ class Session:
         res = self._new_result(q["id"], req, op, {"kind": "host-claude"}, own)
         if own:
             res["publishedAt"] = res["at"]
-        else:
-            self._queue_note([HOST], None)
         return {"id": res["id"], "published": own}
 
     def _op_fail_request(self, op):
