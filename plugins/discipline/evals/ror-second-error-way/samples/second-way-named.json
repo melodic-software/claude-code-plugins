@@ -64,6 +64,14 @@
     {
       "answer": "Try a different approach to the build; InvoiceError is unchanged.",
       "why": "generic 'a different approach'"
+    },
+    {
+      "answer": "src/invoices.ts throws InvoiceError consistently with Result, so this is not a second one.",
+      "why": "negated 'a second one' in error context"
+    },
+    {
+      "answer": "Not a different approach to handling errors; invoices.ts follows Result.",
+      "why": "negated 'a different approach' in error context"
     }
   ]
 }
