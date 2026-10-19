@@ -182,7 +182,7 @@ export async function runWatchCli(argv) {
 }
 
 /** Conventional exit code (128 + signal number) for each signal the watch cleans up on. */
-const SIGNAL_EXIT_CODES = { SIGINT: 130, SIGTERM: 143 };
+const SIGNAL_EXIT_CODES = { SIGHUP: 129, SIGINT: 130, SIGTERM: 143 };
 
 /** Longest the signal handler waits for watchUrl to wind down before removing the dirs anyway. */
 const INTERRUPT_SETTLE_MS = 10_000;

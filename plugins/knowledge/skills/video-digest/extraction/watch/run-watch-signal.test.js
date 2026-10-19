@@ -1,5 +1,5 @@
 /**
- * A watch killed by SIGINT or SIGTERM during acquisition removes the temp dirs it
+ * A watch killed by SIGHUP, SIGINT or SIGTERM during acquisition removes the temp dirs it
  * made and exits with the conventional signal code. A real child run is used: a
  * fake `yt-dlp` on PATH blocks the acquisition so the signal lands mid-download.
  * POSIX only (the fake yt-dlp is a shell script).
@@ -86,7 +86,10 @@ describe.skipIf(process.platform === "win32")("run-watch interrupted by a signal
     expect(await watchTempDirs()).toEqual([]);
   });
 
-  it("SIGTERM also ends a grandchild the yt-dlp child started", async () => {
+  it.each([
+    ["SIGTERM", 143],
+    ["SIGHUP", 129],
+  ])("%s also ends a grandchild the yt-dlp child started", async (signal, exitCode) => {
     const grandPid = path.join(sandbox, "grandchild.pid");
     // A real yt-dlp runs ffmpeg as its own child; this one leaves a writer looping
     // in the background, which outlives a SIGKILL sent to yt-dlp alone.
@@ -108,9 +111,6 @@ describe.skipIf(process.platform === "win32")("run-watch interrupted by a signal
 
     await waitFor(() => existsSync(started));
     const pid = Number(await fs.readFile(grandPid, "utf8"));
-    child.kill("SIGTERM");
-    expect(await exited).toEqual({ code: 143, sig: null });
-
     const alive = () => {
       try {
         process.kill(pid, 0);
@@ -120,6 +120,8 @@ describe.skipIf(process.platform === "win32")("run-watch interrupted by a signal
       }
     };
     try {
+      child.kill(signal);
+      expect(await exited).toEqual({ code: exitCode, sig: null });
       await waitFor(() => !alive(), 2_000).catch(() => {});
       expect(alive()).toBe(false);
       await new Promise((resolve) => setTimeout(resolve, 300));
