@@ -225,10 +225,12 @@ jobs:
       group: pr-merge
       queue: max
     runs-on: ubuntu-24.04
-    # A ceiling above the gate's time budget (merge.gate-budget-minutes),
+    # A ceiling above the gate's time budget (merge.gate-budget-minutes, 10),
     # which is what ends a long sweep: the budget stops between candidates,
     # a timeout can stop one between its check and its merge-queue write.
-    timeout-minutes: 55
+    # 30 leaves the budget, about a minute before the loop, the longest
+    # measured candidate (about 3 minutes) and the closing steps well inside.
+    timeout-minutes: 30
     permissions:
       contents: read # check out main
       pull-requests: read # list the open PRs

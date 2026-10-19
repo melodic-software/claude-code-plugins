@@ -357,6 +357,20 @@ models:
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
 
+# The funding role whose secrets pay for each Claude lane's runs (README.md,
+# Funding). A lane on ci-workflows' run-claude-cli action (today only intake)
+# passes its role with <ROLE>_CLAUDE_API_KEY and <ROLE>_CLAUDE_CODE_OAUTH_TOKEN,
+# role upper-snake; the others are the role each lane takes when it moves there.
+funding:
+  intake: automations
+  pr-unblock: automations
+  fix-ci: automations
+  pr-verify: automations
+  pr-refine: automations
+  claude-review: reviews
+  claude-security-review: reviews
+  work-resolve-issue: issue-lane
+
 loop:
   review-rounds: 3
   dependency-review-rounds: 2
@@ -397,11 +411,11 @@ merge:
   # of it.
   max-in-flight: 5
   # Minutes pr-merge's gate loop runs before it starts no further candidate;
-  # the next run starts after the last one reached. Measured over the last
-  # three scheduled sweeps that ran the gate (2026-10-19): 37-39 candidates,
-  # median 30-39 s, longest 157-164 s, about 1 minute before the loop. 10
-  # keeps a run, worst candidate included, inside the 15-minute schedule.
-  # TODO-owner: confirm the value.
+  # the next run starts after the last one reached. Runs 39190604942,
+  # 39187691831 and 39183126369 (the last three scheduled sweeps that ran
+  # the gate) checked 37-39 candidates each: median 30-39 s, longest
+  # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
+  # candidate included, inside the 15 minutes between scheduled runs.
   gate-budget-minutes: 10
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
