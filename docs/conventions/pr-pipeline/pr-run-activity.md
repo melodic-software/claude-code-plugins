@@ -669,7 +669,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    commits carrying a `github-actions` `pr-unblock / address-feedback` check run that ended
    `success` or `failure` (a round whose reply job was refused still counts). At the cap, a kept
    thread with a write-access human's fix request created after the newest counted round (its
-   latest marker or check-run completion) still runs one more round, on those threads only; a
+   latest marker, or the completion of a model check run that ended `success`, `failure`,
+   `cancelled` or `timed_out`) still runs one more round, on those threads only; a
    round with no readable time grants none. Both escalations skip `awaiting-human` with nothing
    minted. Otherwise
    it writes `$RUNNER_TEMP/lane-feedback/threads.json`.

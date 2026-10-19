@@ -487,10 +487,12 @@ test("below the cap, a fix request changes nothing: every kept thread runs", asy
   assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1", "PRRT_2"]);
 });
 
-const check = (completedAt) => ({ name: "pr-unblock / address-feedback", conclusion: "success", app: { slug: "github-actions" }, completed_at: completedAt });
+const check = (completedAt, conclusion = "success") => ({ name: "pr-unblock / address-feedback", conclusion, app: { slug: "github-actions" }, completed_at: completedAt });
 for (const [label, overrides] of [
   ["a fix request older than the last round marker", { minute: 5 }],
   ["a fix request older than the last round's model check run", { checks: { [HEAD]: [check(at(25))] } }],
+  ["a fix request older than a cancelled model run", { checks: { [HEAD]: [check(at(25), "cancelled")] } }],
+  ["a fix request older than a timed-out model run", { checks: { [HEAD]: [check(at(25), "timed_out")] } }],
   ["a round with no readable time", { roundAt: null }],
   ["an untrusted person's fix request", { user: STRANGER, permissions: { stranger: "admin" } }],
   ["a trusted person's fix request without write access", { permissions: { "kyle-sexton": "read" } }],

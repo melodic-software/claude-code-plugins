@@ -58,19 +58,21 @@ export function countRounds(issueComments, appId) {
 // or broker refusal after the push moved the head); a forged one only stops
 // the lane sooner.
 export const MODEL_CHECK = "pr-unblock / address-feedback";
-const isModelRound = (run) =>
-  run.name === MODEL_CHECK && run.app?.slug === "github-actions" && ["success", "failure"].includes(run.conclusion);
+const isModelRun = (run, conclusions) =>
+  run.name === MODEL_CHECK && run.app?.slug === "github-actions" && conclusions.includes(run.conclusion);
 export function countCheckRounds(checkRunsByCommit) {
-  return checkRunsByCommit.filter((runs) => runs.some(isModelRound)).length;
+  return checkRunsByCommit.filter((runs) => runs.some((run) => isModelRun(run, ["success", "failure"]))).length;
 }
 
-// When the newest counted round ended: the latest of its round markers'
-// creation and its model check runs' completion. NaN when any of them has no
-// readable time, so no fix request counts as newer.
+// When the newest round ended: the latest of the round markers' creation and
+// the model check runs' completion, a cancelled or timed-out one included so
+// one fix request cannot start a round again after such a run. NaN when any of
+// them has no readable time, so no fix request counts as newer.
 export function lastRoundAt(issueComments, appId, checkRunsByCommit) {
+  const ended = ["success", "failure", "cancelled", "timed_out"];
   const times = [
     ...issueComments.filter((comment) => isRoundMarker(comment, appId)).map((comment) => comment.created_at),
-    ...checkRunsByCommit.flat().filter(isModelRound).map((run) => run.completed_at),
+    ...checkRunsByCommit.flat().filter((run) => isModelRun(run, ended)).map((run) => run.completed_at),
   ].map((time) => Date.parse(time ?? ""));
   return times.some(Number.isNaN) ? Number.NaN : Math.max(...times);
 }
