@@ -1996,6 +1996,16 @@ class TestClaudeActivity(DirCase):
             self.doc()["restatement"]["sections"], {"outOfScope": "- no Windows"}
         )
 
+    def test_restate_takes_problem_and_work_size_sections(self):
+        sections = {
+            "problem": "- Gap: exports time out for large accounts",
+            "workSize": "- Size: Medium",
+        }
+        self.apply({"op": "restate", "sections": sections})
+        doc = self.doc()
+        self.assertEqual(doc["restatement"]["sections"], sections)
+        self.assertEqual(doc["restatements"][-1]["sections"], sections)
+
     def test_restate_refusals(self):
         for sections in (
             {},
