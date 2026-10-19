@@ -1059,14 +1059,14 @@ and those opened in it.
 | `opened-to-merged-ratio` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. Not `limits.admission-factor`, which sizes the agent-ready backlog. |
 | `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap. |
 | `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
-| `pause-from` | empty | UTC date or date-time from which the lane pauses over a cap; empty never pauses. |
+| `pause-from` | empty | UTC date or date-time from which the lane pauses over the WIP cap; empty never pauses. |
 
 A held lane PR carries `needs-human` or `do-not-merge`, or has a body line exactly
 `Hold: a human merges this`. Held PRs never count against the WIP cap; countable PRs are the open
 lane PRs that are not held. Over the WIP cap (countable at or above it), over the held cap, over
 the admission share, or with a held PR past the alarm age, the check writes a warning annotation.
-Over either cap on or after `pause-from` it pauses the lane: work-resolve-issue starts no run and
-work-unblock re-fires none. A read that fails never caps; without a merged count the cap is
+Over the WIP cap on or after `pause-from` it pauses the lane: work-resolve-issue starts no run and
+work-unblock re-fires none. The held cap only alerts; it never pauses the lane. A read that fails never caps; without a merged count the cap is
 `limits.wip-cap`. A held PR's age runs from when it opened.
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary

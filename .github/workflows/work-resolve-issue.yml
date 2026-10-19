@@ -53,10 +53,11 @@ jobs:
       slot: ${{ steps.slot.outputs.slot }}
       capped: ${{ steps.wip.outputs.capped }}
     steps:
-      # When the WIP cap check pauses the lane (over the WIP or held cap on or
-      # after wip.pause-from), resolve-issue is skipped: no slot, no token.
-      # work-unblock's sweep re-fires the issue once under the caps. The check
-      # publishes its status as the `wip` output; one that fails starts the run.
+      # When the WIP cap check pauses the lane (over the WIP cap on or after
+      # wip.pause-from; the held cap only alerts), resolve-issue is skipped: no
+      # slot, no token. work-unblock's sweep re-fires the issue once under the
+      # cap. The check publishes its status as the `wip` output; one that fails
+      # starts the run.
       - name: Check out the default branch tip
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -6,8 +6,8 @@
 // body line exactly "Hold: a human merges this") counts against the held
 // cap and its age alarm. Lane PRs opened in the window may be at most
 // wip.opened-to-merged-ratio times those merged in it. Over a cap the check alerts; it
-// pauses the lane only on or after wip.pause-from. A read that fails never
-// caps.
+// pauses the lane only over the WIP cap, on or after wip.pause-from; the held
+// cap only alerts. A read that fails never caps.
 import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -200,18 +200,34 @@ test("a held PR older than the alarm age raises the alarm; the oldest age is rep
   assert.equal(status(await read({ merged: 100 })).held_oldest_age_hours, null);
 });
 
-test("over a cap the lane pauses only on or after pause-from: unset never, future not yet, past yes", async () => {
+test("over the WIP cap the lane pauses only on or after pause-from: unset never, future not yet, past yes", async () => {
   const overWip = await read({ open: [pr(), pr(), pr()], merged: 24 });
-  const overHeld = await read({ open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 100 });
-  for (const reads of [overWip, overHeld]) {
-    assert.equal(status(reads).alert, true);
-    assert.equal(status(reads).paused, false);
-    assert.equal(status(reads, { "pause-from": "2026-10-19" }).paused, false);
-    assert.equal(status(reads, { "pause-from": "2026-10-18" }).paused, true);
-    assert.equal(status(reads, { "pause-from": "2026-10-01T00:00:00Z" }).paused, true);
-  }
+  assert.equal(status(overWip).alert, true);
+  assert.equal(status(overWip).paused, false);
+  assert.equal(status(overWip, { "pause-from": "2026-10-19" }).paused, false);
+  assert.equal(status(overWip, { "pause-from": "2026-10-18" }).paused, true);
+  assert.equal(status(overWip, { "pause-from": "2026-10-01T00:00:00Z" }).paused, true);
   const under = await read({ open: [pr()], merged: 24 });
   assert.equal(status(under, { "pause-from": "2026-10-01" }).paused, false);
+});
+
+test("over the held cap alone the lane alerts but never pauses, whatever pause-from says", async () => {
+  const overHeld = await read({ open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 100 });
+  for (const pauseFrom of ["", "2026-10-19", "2026-10-18", "2026-10-01T00:00:00Z"]) {
+    const result = status(overHeld, { "pause-from": pauseFrom });
+    assert.equal(result.held_over, true, pauseFrom);
+    assert.equal(result.wip_over, false, pauseFrom);
+    assert.equal(result.alert, true, pauseFrom);
+    assert.equal(result.paused, false, pauseFrom);
+  }
+});
+
+test("over both caps the lane pauses, because of the WIP cap", async () => {
+  const both = await read({ open: [pr(), pr(), pr(), ...Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] }))], merged: 24 });
+  const result = status(both, { "pause-from": "2026-10-01" });
+  assert.equal(result.held_over, true);
+  assert.equal(result.wip_over, true);
+  assert.equal(result.paused, true);
 });
 
 test("reads that fail never cap or pause", async () => {
