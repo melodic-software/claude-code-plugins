@@ -2473,10 +2473,12 @@
     // ---------- Item 11: the Inbox ----------
     const inbox = () => Core.state.inbox || [];
     const IX_STAT = { waiting: "Waiting", running: "Running", answered: "Answered", unshared: "Answered", shared: "Shared", declined: "Declined", failed: "Failed" };
-    /** A count that is news: unread Inbox items, plus unread notifications the Inbox does not already show (a request's
-     *  own notices and the host's queue line are its items). */
+    /** A count that is news: unread Inbox items, plus unread notifications the Inbox does not already show. A request's
+     *  own notices are its items; the queue line also counts proposals, suggestions and offers, which have no item, so
+     *  it is dropped only while a waiting item (the owner's alone), read or not, already stands for it. */
     function inboxUnread() {
-      return inbox().filter(i => i.unread).length + notes().filter(n => !n.read && n.kind !== "request" && n.kind !== "queue").length;
+      const waiting = inbox().some(i => i.group === "waiting");
+      return inbox().filter(i => i.unread).length + notes().filter(n => !n.read && n.kind !== "request" && !(n.kind === "queue" && waiting)).length;
     }
     const qLabel = qid => { const q = qById(qid); return q ? `${q.id} · ${q.text}` : qid || ""; };
     /** My request, open: its answer when I can see it, else its card, in that question's Claude section. */
