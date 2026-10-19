@@ -104,6 +104,31 @@ Present the script's findings and its coverage block as reported, the denominato
 clean report a claim rather than an absence. A run that examined 0 test files says so and is never
 presented as a clean bill.
 
+## Project context
+
+Each finding ends with `[project: <path>; ci: <yes|no|unknown>; kind: <kind>]`, in the Finding cell of
+the `--findings` table (the table keeps its seven columns) and before `Action:` in the text modes
+(`--brief` shows it only for a C# finding). The scan reads files only; it never builds or runs a
+project, and a value the evidence does not settle is `unknown`, never a guess.
+
+- **`project`** (C# only): the nearest `.csproj` above the test file. Other languages report `unknown`.
+- **`ci`**: `yes` when a `.github/workflows` `dotnet test` or `dotnet build` targets the project's
+  `.csproj`, a `.sln`/`.slnx` that lists it, or a directory holding one. `no` when workflows were read,
+  at least one such command was found and none targets it. `unknown` with no workflow, a workflow that
+  does not parse (no `jobs:` key, a tab indent), a variable, `.slnf` or continued command target, a
+  `working-directory`, a local action (`uses: ./`, other than a reusable workflow) or a step that
+  starts a script, or no `dotnet` command at all. A script step or local action in any workflow makes
+  untargeted projects report `ci: unknown`, because the scan does not scope steps to jobs.
+- **`kind`**: `unit`, `integration`, `functional`, `architecture`, `live` or `operational`. A
+  `project_kinds` entry (`<glob>=<kind>` against the repo-relative `.csproj` path, first match wins;
+  quote an entry that starts with `*`) decides first. Otherwise the project path's name tokens
+  (`Unit`, `Integration`, `Smoke` is `live`, `Functional`, `Architecture`, `Provisioning` is
+  `operational`) and package references (Reqnroll and Playwright are `functional`, ArchUnitNET
+  `architecture`, Testcontainers `integration`) must name one kind. Two kinds that disagree are
+  `unknown`, except that `operational`, then `live`, win so a warning is never lost.
+- A finding in a `live` or `operational` project adds `WARNING: ... do not run these tests`.
+- Findings in a `ci: yes`, `kind: unit` project rank first; the rest keep scan order.
+
 ## Gate mode (`--check`). Fail closed
 
 The machine-checkable gate the [liveness-assertion contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/liveness-assertion/README.md)

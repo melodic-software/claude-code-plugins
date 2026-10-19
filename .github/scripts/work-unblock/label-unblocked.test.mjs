@@ -67,7 +67,9 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // `openReady` is what the sweep's open agent-ready listing answers.
 // `runs` is every work-resolve-issue run; the listing answers those created in
 // the `created` range it is asked for; `jobs` are per run id. `openLanePrs` is
-// the search's open lanes-App PR count; null makes the search fail.
+// how many open lanes-App PRs, none held, the search lists; null makes the
+// listing fail. `mergedLanePrs` is the search's merged count in the window
+// (24 by default: a WIP cap of 2), null makes it fail.
 // `blobs` maps a path to its blob SHA on main.
 // `timeline` and `pulls` are per issue and per pull request number.
 function world({
@@ -82,6 +84,7 @@ function world({
   runs = [],
   jobs = {},
   openLanePrs = 0,
+  mergedLanePrs = 24,
   blobs = {},
   timeline = {},
   pulls = {},
@@ -109,14 +112,19 @@ function world({
       return { workflow_runs: listed(inRange) };
     }
     if (method === "GET" && route === "/search/issues") {
-      assert.equal(
-        new URL(path, "https://x").searchParams.get("q"),
-        `repo:${REPO} is:pr is:open author:app/melodic-automation-lanes`,
-      );
-      if (openLanePrs === null) {
+      const q = new URL(path, "https://x").searchParams.get("q");
+      if (q === `repo:${REPO} is:pr is:open author:app/melodic-automation-lanes`) {
+        if (openLanePrs === null) {
+          throw new Error(`${method} ${path} failed with status 403`);
+        }
+        const open = Array.from({ length: openLanePrs }, () => ({ labels: [], body: "", created_at: STAMP }));
+        return { total_count: openLanePrs, incomplete_results: false, items: open.slice((page - 1) * 100, page * 100) };
+      }
+      assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/melodic-automation-lanes (merged|created):>=\S+$/);
+      if (q.includes("is:merged") && mergedLanePrs === null) {
         throw new Error(`${method} ${path} failed with status 403`);
       }
-      return { total_count: openLanePrs, items: [] };
+      return { total_count: q.includes("is:merged") ? mergedLanePrs : 0, incomplete_results: false, items: [] };
     }
     if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/actions/runs/(\\d+)/jobs$`)))) {
       assert.equal(new URL(path, "https://x").searchParams.get("filter"), "latest");
@@ -1136,7 +1144,7 @@ test("a re-fire record and the App's re-add in the same second, on unchanged wor
 // budget, say) or because the WIP cap skipped resolve-issue. It is re-fired
 // with the usual record, past once per workflow version, an hour after the
 // run ended (the broker's Retry-After is at most an hour, so the reset has
-// passed) and only while fewer than limits.wip-cap (60) lane PRs are open.
+// passed) and only while the WIP cap check does not pause the issue lane.
 const pickSlot = { name: "pick-slot", conclusion: "success", steps: [{ name: "Check the WIP cap", conclusion: "success" }] };
 const MINT_FAILED = [
   pickSlot,
@@ -1149,6 +1157,7 @@ function stalledRun({
   conclusion = jobs === WIP_CAPPED ? "success" : "failure",
   ended = "2026-10-16T10:05:00Z",
   openLanePrs = 10,
+  mergedLanePrs = 24,
   comments = [note()],
   events = [added(LABELED_AT, OWNER)],
   blobs = BLOBS,
@@ -1160,6 +1169,7 @@ function stalledRun({
     runs: [{ ...laneRun({ number, conclusion }), updated_at: ended }],
     jobs: { [5000 + number]: jobs },
     openLanePrs,
+    mergedLanePrs,
     blobs,
   });
   return { ...fake, actions: fake.github };
@@ -1178,32 +1188,58 @@ test("a run that did no work waits until an hour after it ended, past any rate-l
   assert.deepEqual(writes(calls), []);
 });
 
-test("a run the WIP cap skipped is re-fired once the open lane PRs are under the cap", async () => {
-  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 59 });
-  assert.equal(await sweep({ github, actions }), 0);
+// The sweep reads the resolved config's `limits` and `wip`; a past pause-from
+// lets the issue lane pause over its cap.
+const withConfig = (config) => {
+  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-config-")), "resolved-config.json");
+  writeFileSync(path, JSON.stringify(config));
+  return { RESOLVED_CONFIG: path };
+};
+const PAUSING = withConfig({ wip: { "pause-from": "2026-10-01" } });
+
+test("a run the WIP cap skipped is re-fired once the issue lane is under its cap", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 1 });
+  assert.equal(await sweep({ github, actions }, PAUSING), 0);
   assert.deepEqual(writes(calls), refired(30));
 });
 
-test("at or over the WIP cap nothing is re-fired", async () => {
-  for (const openLanePrs of [60, 61]) {
+test("while the issue lane is paused over its cap nothing is re-fired", async () => {
+  for (const openLanePrs of [2, 3]) {
     for (const jobs of [WIP_CAPPED, MINT_FAILED]) {
       const { github, actions, calls } = stalledRun({ jobs, openLanePrs });
-      assert.equal(await sweep({ github, actions }), 0);
+      assert.equal(await sweep({ github, actions }, PAUSING), 0);
       assert.deepEqual(writes(calls), [], `${openLanePrs} open`);
     }
   }
 });
 
-test("a WIP cap count that cannot be read re-fires: the read error blocks no lane work", async () => {
-  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: null });
+test("over the cap with no pause-from the lane only alerts, so the run is re-fired", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 60 });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
 });
 
-test("the resolved wip-cap sets the cap", async () => {
-  const { github, actions, calls } = stalledRun({ openLanePrs: 20 });
-  assert.equal(await sweep({ github, actions }, withLimits({ "wip-cap": 20 })), 0);
-  assert.deepEqual(writes(calls), []);
+test("a WIP read that fails re-fires: the read error blocks no lane work", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: null });
+  assert.equal(await sweep({ github, actions }, PAUSING), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("with the search rate limit spent the sweep makes no WIP read and re-fires", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 3 });
+  assert.equal(await sweep({ github, actions, rate: { remaining: () => 0 } }, PAUSING), 0);
+  assert.ok(!calls.some((call) => call.includes("/search/issues")));
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("with no merged count the resolved limits.wip-cap sets the cap", async () => {
+  const config = withConfig({ limits: { "wip-cap": 20 }, wip: { "pause-from": "2026-10-01" } });
+  const at = stalledRun({ openLanePrs: 20, mergedLanePrs: null });
+  assert.equal(await sweep({ github: at.github, actions: at.actions }, config), 0);
+  assert.deepEqual(writes(at.calls), []);
+  const under = stalledRun({ openLanePrs: 19, mergedLanePrs: null });
+  assert.equal(await sweep({ github: under.github, actions: under.actions }, config), 0);
+  assert.deepEqual(writes(under.calls), refired(30));
 });
 
 // Each earlier re-fire left its record and the App's remove and re-add.
