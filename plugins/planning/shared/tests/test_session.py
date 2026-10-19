@@ -2477,16 +2477,24 @@ class TestInbox(TestRequests):
         self.assertFalse(self.inbox(HOST, "waiting")[f"fail:{failed}"]["unread"])  # opened: history from here on
         self.act("act_on_request", HOST, {"action": "rerun", "id": failed})
         self.assertEqual(self.inbox(HOST, "waiting"), {})
+        self.apply({"op": "fail-request", "request": failed, "reason": "Still no sources."})
+        self.assertTrue(self.inbox(HOST, "waiting")[f"fail:{failed}"]["unread"])  # a second failure waits again
+        self.read(HOST, f"fail:{failed}")
         self.clock.tick(10)
         self.act("add_to_report", self.bo, {"id": fids[2], "text": "Still broken on the phone."})
-        self.assertEqual(sorted(self.inbox(HOST, "waiting")), [f"report:{fids[2]}"])  # new words from the reporter wait again
+        item = self.inbox(HOST, "waiting")[f"report:{fids[2]}"]  # new words from the reporter wait again, unread
+        self.assertTrue(item["unread"])
+        self.read(HOST, f"report:{fids[2]}")
+        self.act("act_on_report", HOST, {"action": "ask", "id": fids[2]})
+        self.clock.tick(10)
+        self.act("add_to_report", self.bo, {"id": fids[2], "text": "And on the laptop."})
+        self.assertTrue(self.inbox(HOST, "waiting")[f"report:{fids[2]}"]["unread"])  # read before it was asked about, unread on its return
 
-    def test_a_request_discarded_before_discards_were_marked_cancelled_never_waits(self):
+    def test_only_the_cancelled_flag_marks_a_discard_never_a_reason_claude_wrote(self):
         rid = self.ask(self.ann)
         self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
-        self.act("act_on_request", HOST, {"action": "discard", "id": self.apply(self.result_op(rid))["results"][0]["id"]})
-        self.s.state["requests"][0]["status"]["cancelled"] = False  # as every discard wrote it before
-        self.assertEqual(self.inbox(HOST, "waiting"), {})
+        self.apply({"op": "fail-request", "request": rid, "reason": session.NOT_SHARED})  # Claude's text, read from a guest's ask
+        self.assertTrue(self.inbox(HOST, "waiting")[f"fail:{rid}"]["unread"])
 
     def test_a_read_takes_one_to_a_hundred_string_keys_and_works_while_ended(self):
         rid = self.ask(self.ann)
@@ -2816,7 +2824,7 @@ class TestSessionControls(SessionCase):
         self.assertEqual(self.act("set_prefs", HOST, {"set": {"popups": ["join", "share"]}})["prefs"], {"popups": ["join", "share"]})
         self.assertEqual(self.s.snapshot(self.ann)["me"]["prefs"], {})
         self.act("set_prefs", HOST, {"set": {"popups": []}})  # every kind off: the Inbox only
-        for bad in ("join", ["mention"], ["join"] * 7):
+        for bad in ("join", ["mention"], ["join"] * 7, ["join", "join"]):
             self.refused("bad-field", "set_prefs", HOST, {"set": {"popups": bad}})
 
     def test_title_is_1_to_80_and_goal_up_to_200(self):
@@ -3190,7 +3198,7 @@ class TestSnapshots(SessionCase):
         return next(c for c in snap["cards"]["Q1"] if c["ref"] == ref)
 
     def test_the_anonymous_view_has_exactly_four_keys(self):
-        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 5})
+        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 6})
         self.act("rotate_guest_link", HOST, {})
         self.assertTrue(self.s.anonymous_view()["joinNeedsKey"])
 
@@ -3263,7 +3271,7 @@ class TestSnapshots(SessionCase):
 
     def test_a_snapshot_carries_schema_version_and_rev(self):
         snap = self.s.snapshot(self.cy)
-        self.assertEqual((snap["schemaVersion"], snap["rev"]), (5, self.s.state["rev"]))
+        self.assertEqual((snap["schemaVersion"], snap["rev"]), (6, self.s.state["rev"]))
 
     def test_the_shared_part_is_built_once_per_rev(self):
         first = self.s._base()
@@ -4618,13 +4626,13 @@ class TestStateFrom394a8bc(unittest.TestCase):
         self.assertEqual(s.state["inboxSeen"], {
             self.ANN: {"R1": "waiting", "R2": "running", "R3": "unshared", "R8": "waiting"},
             self.BO: {"R4": "shared", "R5": "declined", "R6": "failed"},
-            HOST: {"R7": "answered"},
+            HOST: {"R7": "answered", "fail:R6": "open"},  # 5 -> 6: Bo's request Claude failed before the upgrade starts read
         })
         self.assertEqual((tmp / "state.v3.json").read_text(encoding="utf-8").rstrip("\n"), json.dumps(raw, ensure_ascii=False))
         for pid in (self.ANN, self.BO, HOST):
             self.assertEqual([i["key"] for i in s.snapshot(pid)["inbox"] if i["group"] == "mine" and i["unread"]], [], pid)
-        # Bo's request Claude failed (R6) waits on the host until the host opens it, as one failed after the upgrade would
-        self.assertEqual([(i["key"], i["unread"]) for i in s.snapshot(HOST)["inbox"] if i["group"] == "waiting"], [("run:R1", True), ("share:X1", True), ("fail:R6", True)])
+        # Bo's request Claude failed (R6) before the upgrade is history: read, so out of Needs you
+        self.assertEqual([(i["key"], i["unread"]) for i in s.snapshot(HOST)["inbox"] if i["group"] == "waiting"], [("run:R1", True), ("share:X1", True), ("fail:R6", False)])
         s.act_on_request(HOST, {"action": "publish", "id": "X1"})
         item = next(i for i in s.snapshot(self.ANN)["inbox"] if i["key"] == "R3")
         self.assertEqual((item["status"], item["unread"], item["result"]), ("shared", True, "X1"))

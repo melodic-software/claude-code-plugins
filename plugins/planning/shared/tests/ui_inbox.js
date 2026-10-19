@@ -102,6 +102,9 @@ async function main() {
     await ann.keyboard.press("Escape");
 
     // ---------- the host's own request skips Run and Share ----------
+    // every toast text the owner's page shows from here, as ui_inbox_page.js watches them
+    await owner.evaluate(() => { window.__toasts = []; window.__obs = new MutationObserver(() => { const t = document.querySelector(".vf-toast span")?.textContent; if (t) window.__toasts.push(t); });
+      window.__obs.observe(document.querySelector(".vf-toast"), { childList: true, characterData: true, subtree: true }); });
     await owner.evaluate(t => window.Core.request("Q1", "ask", t), HOST_ASK);
     const hid = await reqId(owner, HOST_ASK);
     ok("the host's own request runs at once: its card shows Running, with no Run button", await until(owner, t => {
@@ -110,8 +113,10 @@ async function main() {
     }, HOST_ASK));
     result(hid, HOST_ANSWER);
     ok("its answer shows to Bo at once, with no Share", await until(bo, a => (window.Core.state.research.Q1 || []).some(x => x.summary === a), HOST_ANSWER, 10000));
+    await until(owner, t => window.Core.state.inbox.some(i => i.group === "mine" && i.status === "answered" && window.Core.state.myRequests.find(r => r.id === i.id)?.text === t), HOST_ASK, 10000);
     await owner.waitForTimeout(2500); // a few polls: the answer is the host's news, in the Inbox only
-    ok("  and the host gets no pop-up for it: only a join, a request to Run and a report pop up for the host", await owner.evaluate(() => document.querySelector(".vf-toast span")?.textContent !== "Claude answered your request on Q1"));
+    ok("  and the host gets no pop-up for it: only a join, a request to Run and a report pop up for the host", await owner.evaluate(() => !window.__toasts.some(t => /answered/.test(t))), JSON.stringify(await owner.evaluate(() => window.__toasts)));
+    await owner.evaluate(() => window.__obs.disconnect());
     const hostMine = await items(owner);
     ok("  the host's Inbox lists it under My requests as Answered, unread", hostMine.length === 1 && hostMine[0].chip === "Answered" && hostMine[0].unread, JSON.stringify(hostMine));
     await showTab(owner, "needs");
@@ -219,6 +224,10 @@ async function main() {
     ok("  nothing scrolls sideways", await bo.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.querySelector(".vf-inboxpage").scrollWidth <= innerWidth));
     await bo.click(".vf-ibback");
     ok("  Back to the session closes it", await until(bo, () => document.querySelector(".vf-inboxpage").hidden && !!document.querySelector(".vf-tabs")?.offsetParent));
+    await bo.locator(".vf-tab", { hasText: "More" }).tap();
+    await bo.locator(".vf-msitem", { hasText: "Inbox" }).tap();
+    ok("  opened from More, the Inbox page leaves the More tab's aria-expanded false", await until(bo, () => !document.querySelector(".vf-inboxpage").hidden)
+      && await bo.evaluate(() => [...document.querySelectorAll(".vf-tab")].find(b => b.textContent.includes("More")).getAttribute("aria-expanded") === "false"));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));

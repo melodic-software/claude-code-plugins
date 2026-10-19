@@ -576,7 +576,7 @@
     // ---------- toast ----------
     // The toast is a live region from load; text goes in a frame after it is cleared, so screen readers announce it.
     const toast = E("div", "vf-toast"); toast.setAttribute("role", "status");
-    const toastTxt = E("span"), toastAct = btn("vf-toast-act"), toastX = ibtn("vf-toast-x", "x", "Close");
+    const toastTxt = E("span"), toastAct = btn("vf-toast-act"), toastX = ibtn("vf-toast-x", "x", "Close this pop-up");
     toastAct.hidden = true; toastX.hidden = true;
     toast.append(toastTxt, toastAct, toastX);
     toastX.onclick = () => { ui.alertOpen = false; hideToast(); };
@@ -2784,7 +2784,8 @@
       const owner = Core.me.isOwner, mod = Core.canModerate(), R = curRound(), q = [], ix = [];
       for (const it of queueItems(S)) {
         // a report seen or with Claude, a file on its way and a round only the owner sends are not this person's to do now
-        if (it.t === "request" || (it.t === "report" && (it.f.status !== "open" || it.f.asked)) || (it.t === "upload" && !["offered", "done"].includes(it.u.status)) || (it.t === "ready" && !owner)) continue;
+        if (it.t === "request" || (it.t === "report" && (it.f.status !== "open" || it.f.asked)) || (it.t === "upload" && !["offered", "done"].includes(it.u.status)) || (it.t === "ready" && !owner)
+          || ((it.t === "proposal" || it.t === "suggestion") && !mod)) continue; // placing is a moderator's
         q.push({ ...it, ck: it.t === "upload" ? (it.u.status === "offered" ? "file" : "picture") : it.t });
       }
       for (const i of inbox()) if (i.group === "mine" && i.unread && (i.status === "answered" || i.status === "shared")) ix.push({ ...i, ck: "answer" });
@@ -2820,7 +2821,7 @@
         b.onclick = () => { const o = new Set([].concat(ui.ixOff[b._tab] || [])); o.has(b.dataset.stat) ? o.delete(b.dataset.stat) : o.add(b.dataset.stat); ui.ixOff[b._tab] = [...o]; store.put("vf-ix-off", ui.ixOff); render(); };
         return b;
       }, (b, k) => { b._tab = tab; b.dataset.stat = k; b.textContent = `${CHIP_WORD[k] || k} · ${list.filter(x => x.ck === k).length}`; b.setAttribute("aria-pressed", String(!off.has(k))); });
-      ixChips.hidden = keys.length < 2;
+      ixChips.hidden = keys.length < 2 && !keys.some(k => off.has(k)); // a chip turned off always stays in reach
       return list.filter(x => !off.has(x.ck));
     }
     /** Queue rows on the Inbox page: their question link and Show in Host view leave the page for where they live. */
@@ -2838,7 +2839,7 @@
     bellBtn.onclick = () => openBell(bellBtn);
     bpBack.onclick = () => { const a = bellPop._anchor; closePop(); a?.focus?.({ preventScroll: true }); };
     bpAll.onclick = () => {
-      const items = inbox().filter(i => i.unread);
+      const items = inbox().filter(i => i.unread && !i.key.startsWith("fail:")); // a failed request clears only from its row
       for (let n = 0; n < items.length; n += 100) { // the server takes 100 a read
         const part = items.slice(n, n + 100);
         Core.readInbox(part.map(i => i.key), Object.fromEntries(part.map(i => [i.key, i.status]))).catch(fail);
@@ -3883,6 +3884,8 @@
         // What urgently waits on me pops up once when it arrives, those arriving together as one.
         const fresh = [];
         for (const i of S.inbox || []) if (i.group === "waiting" && !(("iw:" + i.key) in seen) && urgent().includes(i.kind) && !isMe(i.byCid)) { seen["iw:" + i.key] = "seen"; if (!first) fresh.push(i.key); }
+        const waits = new Set((S.inbox || []).filter(i => i.group === "waiting").map(i => "iw:" + i.key));
+        for (const k of Object.keys(seen)) if (k.startsWith("iw:") && !waits.has(k)) delete seen[k]; // one that comes back pops up again
         hostAlerts(fresh);
       }
       // Item 11: a toast when Claude answers one of my requests, once I can open the answer.
@@ -3911,7 +3914,7 @@
       if (!items.length) return null;
       if (items.length === 1) return [ALERT_ONE[items[0].kind](items[0]), { label: "Open", run: () => openInboxItem(items[0]) }];
       const kinds = new Set(items.map(i => i.kind)), n = items.length;
-      return [kinds.size === 1 ? ALERT_MANY[items[0].kind](n) : `${n} things wait on you`, { label: "Open Inbox", run: () => { ui.ixTab = "needs"; openBell(bellBtn.offsetParent ? bellBtn : tabBtns.more); } }];
+      return [kinds.size === 1 ? ALERT_MANY[items[0].kind](n) : `${n} things wait on you`, { label: "Open Inbox", run: () => { ui.ixTab = "needs"; if (ui.pop === bellPop) render(); else openBell(bellBtn.offsetParent ? bellBtn : tabBtns.more); } }];
     }
     /** New urgent keys join the pop-up showing (or queued) now, else start one; each pass also drops what stopped waiting. */
     function hostAlerts(fresh) {
@@ -4279,7 +4282,8 @@
     };
     nativeShare.onclick = () => navigator.share?.({ title: "Join the interview", url: shareField.value }).catch(() => {});
     on(document, "pointerdown", e => {
-      if (ui.pop && !dlgOpen() && !ui.pop.contains(e.target) && !ui.pop._anchor?.contains(e.target) && !e.target.closest?.("[data-pid]")) closePop();
+      // a toast (its Close or Open) is not outside: it does its own thing to what is open
+      if (ui.pop && !dlgOpen() && !ui.pop.contains(e.target) && !ui.pop._anchor?.contains(e.target) && !toast.contains(e.target) && !e.target.closest?.("[data-pid]")) closePop();
     });
     const vis = () => { if (document.visibilityState === "hidden") markSeen(ui.cur); };
     on(document, "visibilitychange", vis);
@@ -4559,6 +4563,7 @@
         return;
       }
       if (e.key === "Escape") {
+        if (toast._tag === "alert" && toast.classList.contains("vf-on")) { ui.alertOpen = false; hideToast(); return; } // an urgent pop-up goes first
         if (!lb.hidden) { closeLb(); return; }
         if (!reader.hidden) { closeReader(); return; }
         if (ui.pop) { const r = ui.pop._return, a = r?.isConnected && r !== document.body ? r : ui.pop._anchor; closePop(); a?.focus?.(); return; }
@@ -6105,13 +6110,13 @@
           qAct("Run", "vf-btn-primary", () => Core.requestAct(li._it.r.id, "run").then(() => flash("Running. The result shows on the question.")).catch(runFail)));
         else if (it.r.status === "running") a.push(qAct("Mark failed", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "fail").catch(fail)));
         else a.push(qAct("Run again", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "rerun").catch(fail)));
-        a.push(qAct("Review in Inbox", "vf-btn-ghost", () => openReview(li._it.r.id)));
+        a.push(qAct("Review in Inbox", "vf-btn-ghost", () => openReview(li._it.id)));
       }
-      if (it.t === "proposal") a.push(
+      if (it.t === "proposal" && Core.canModerate()) a.push(
         qAct("Park", "vf-btn-ghost", guarded(PARK_ASK, () => Core.proposal(li._it.i.id, "park").then(() => flash("Parked.")).catch(fail))),
         ...(v8() ? [qAct("Later", "vf-btn-ghost", guarded(LATER_ASK, () => Core.later(li._it.i.id, "Off this session's goal").then(() => flash("Moved to Later. It becomes a tracker item when the session ends.")).catch(fail)))] : []),
         qAct("Make it a question", "vf-btn-primary", () => Core.proposal(li._it.i.id, "question").then(r => flash(`Added to round ${r.round ?? curRound().current + 1}.`)).catch(fail)));
-      if (it.t === "suggestion") a.push(
+      if (it.t === "suggestion" && Core.canModerate()) a.push(
         qAct("Dismiss", "vf-btn-ghost", () => Core.dismissSuggestion(li._it.qid, li._it.x.id).catch(fail)),
         qAct("Use this", "vf-btn-brass", () => Core.useSuggestion(li._it.qid, li._it.x.id).then(() => flash("Locked answer replaced.")).catch(fail)));
       if (it.t === "merge" && owner) a.push(

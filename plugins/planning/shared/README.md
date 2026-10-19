@@ -86,7 +86,9 @@ one already. The flags may instead be `defaults.json` keys, `import`, `guestPort
   session instead answers that browser 401 `merged-into-owner`; see [Moderation](#moderation).)
   Uploads do not carry over yet. A round the
   prototype had sent to Claude opens again. The original stays beside it as `state.v0.json`.
-  Each later step keeps the file it read as `state.v<N>.json`. Version 3 stores mentions as
+  Each later step keeps the file it read as `state.v<N>.json`. Version 6 marks requests the owner discarded before
+  as cancelled and starts the owner's read marks of guests' requests Claude failed before, so an upgrade adds nothing
+  to Needs you. Version 3 stores mentions as
   `<@pid>` (see Mentions under [Moderation](#moderation)): an "@Name" only one person holds now becomes theirs; then,
   for a chat message with one "@Word" left and one mention notification about it to someone it
   does not name already, Word becomes that person wherever Word names only them. Anything still
@@ -299,7 +301,7 @@ The snapshot's `inbox` carries a person's own requests and, for the owner, what 
 built by `session.py` for the viewer alone (never another person's request or a result its requester cannot see).
 `inboxSeen` in `state.json` keeps, per person, the status each item had when they opened it; an item whose status
 moved since is unread, and only `POST /api/inbox/read {keys}` (keys of the caller's own Inbox; others mark nothing)
-marks one read. The badge leaves out the `request` notification kind, which the items already show. The owner gets
+marks one read; Mark all read leaves `fail:` items alone, which clear only from their row. The badge leaves out the `request` notification kind, which the items already show. The owner gets
 no `queue` line for what its Inbox lists as waiting (requests, shares, reports, merges, joins); queue lines for
 proposals, suggestions and upload offers still count. The owner's own requests skip the queue: one starts running
 when sent. A guest's request, the owner's guest identity included, still waits for Run.

@@ -9,4 +9,4 @@ bump: minor
 
 ### Fixed
 
-- The owner's Inbox no longer lists requests the owner discarded or cancelled, or problem reports already asked about, as waiting; a request Claude failed waits only until the owner opens it.
+- The owner's Inbox no longer lists requests the owner discarded or cancelled, or problem reports already asked about, as waiting; a request Claude failed waits only until the owner opens it, and again if it fails again. Session files move to schema version 6, which marks earlier discards cancelled and starts earlier failures read.

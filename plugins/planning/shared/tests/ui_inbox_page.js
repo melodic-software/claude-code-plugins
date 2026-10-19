@@ -62,6 +62,12 @@ async function main() {
       const r = [...document.querySelectorAll(".vf-ibneeds li")].filter(li => !li.closest("[hidden]") && !li.parentElement.closest("li"));
       return r.length === 1 && r[0].textContent.includes(t) && r[0].querySelector(".vf-revstat")?.textContent === "Failed";
     }, FAILS), JSON.stringify(await shown(owner)));
+    await owner.click(".vf-iball");
+    await owner.waitForTimeout(1500); // the reads land and a poll comes back
+    ok("Mark all read leaves the failed request in Needs you, unread: it clears only from its row", await owner.evaluate(t => {
+      const li = [...document.querySelectorAll(".vf-ibneeds .vf-revlist > li")].find(l => l.textContent.includes(t));
+      return !!li && !li.querySelector(".vf-ndot").hidden && window.Core.state.inbox.some(i => i.kind === "fail" && i.unread);
+    }, FAILS));
     await owner.locator(".vf-ibneeds .vf-revlist > li", { hasText: FAILS }).locator(".vf-qref").click();
     ok("opening the failed request closes the page and shows it on Q1", await closed(owner) && await until(owner, t => [...document.querySelectorAll(".vf-threq")].some(li => li.textContent.includes(t)), FAILS));
     await showTab(owner, "needs");
@@ -86,9 +92,44 @@ async function main() {
     ok("Show in Host view closes the page and rings the proposal's row in the Host queue", await closed(owner)
       && await until(owner, t => document.querySelector(".vf-center")?.dataset.mode === "host" && [...document.querySelectorAll(".vf-queue > li")].some(li => li.textContent.includes(t) && li.classList.contains("vf-hl")), IDEA));
 
+    // ---------- the Host view's Review in Inbox, and a chip turned off ----------
+    const REVIEW = "Ann asks one the host reviews from the Host view";
+    await ann.evaluate(t => window.Core.request("Q1", "ask", t), REVIEW);
+    await until(owner, t => [...document.querySelectorAll(".vf-queue > li")].some(li => li.dataset.t === "request" && li.textContent.includes(t)), REVIEW, 10000);
+    await owner.locator(".vf-queue > li", { hasText: REVIEW }).locator("button", { hasText: "Review in Inbox" }).click();
+    ok("the Host view's Review in Inbox opens Needs you with the request's row ringed", await until(owner, t => !document.querySelector(".vf-inboxpage").hidden
+      && document.querySelector(".vf-ixtabs [data-k=needs]").getAttribute("aria-pressed") === "true"
+      && [...document.querySelectorAll(".vf-ibneeds .vf-revlist > li")].some(li => li.textContent.includes(t) && li.classList.contains("vf-hl")), REVIEW));
+    await owner.click(".vf-ibchips [data-stat=proposal]");
+    await owner.locator(".vf-ibneeds .vf-revlist > li", { hasText: REVIEW }).locator("button", { hasText: /^Run$/ }).click();
+    ok("with only a kind whose chip is off left, the chips stay in reach and say so", await until(owner, () => !document.querySelector(".vf-ibchips").hidden
+      && document.querySelector(".vf-ibchips [data-stat=proposal]")?.getAttribute("aria-pressed") === "false" && /^Nothing with these chips on/.test(document.querySelector(".vf-ibneeds .vf-ibempty").textContent)));
+    await owner.click(".vf-ibchips [data-stat=proposal]");
+
+    // ---------- an urgent pop-up over the open Inbox: Close, a second one for the same report, Escape ----------
+    const REPORT2 = "The Next button skips Q2.";
+    await owner.evaluate(() => { window.__toasts = []; new MutationObserver(() => { const t = document.querySelector(".vf-toast span")?.textContent; if (t) window.__toasts.push(t); }).observe(document.querySelector(".vf-toast"), { childList: true, characterData: true, subtree: true }); });
+    await lee.evaluate(([t, c]) => window.Core.report(t, c), [REPORT2, CTX]);
+    ok("a report pops up for the owner over the open Inbox page", await until(owner, () => document.querySelector(".vf-toast.vf-on span")?.textContent === "Lee reported a problem.", null, 10000));
+    ok("  its Close is named Close this pop-up", await owner.evaluate(() => document.querySelector(".vf-toast-x").getAttribute("aria-label") === "Close this pop-up"));
+    await owner.click(".vf-toast-x");
+    ok("  Close takes the pop-up away and leaves the Inbox page open", await until(owner, () => !document.querySelector(".vf-toast.vf-on")) && await owner.evaluate(() => !document.querySelector(".vf-inboxpage").hidden));
+    const f2 = await owner.evaluate(t => window.Core.state.reports.find(r => r.text === t).id, REPORT2);
+    await owner.evaluate(id => window.Core.reportAct(id, "ask"), f2);
+    await until(owner, id => !window.Core.state.inbox.some(i => i.key === "report:" + id), f2);
+    await owner.waitForTimeout(1500);
+    await lee.evaluate(id => window.Core.addToReport(id, "It skips Q3 too."), f2);
+    ok("the same report, back after its reporter adds to it, pops up again", await until(owner, () => window.__toasts.filter(t => t === "Lee reported a problem.").length === 2, null, 10000), JSON.stringify(await owner.evaluate(() => window.__toasts)));
+    await owner.keyboard.press("Escape");
+    ok("  the first Escape takes the pop-up away and leaves the Inbox page open", await until(owner, () => !document.querySelector(".vf-toast.vf-on")) && await owner.evaluate(() => !document.querySelector(".vf-inboxpage").hidden));
+    await owner.keyboard.press("Escape");
+    await closed(owner);
+
     // ---------- a guest: the question they are asked, and a notification ----------
     s.apply(A.dir, [{ op: "set-for", qid: "Q2", for: [annPid] }]);
     await showTab(ann, "needs");
+    ok("a guest's Needs you lists no proposal or suggestion to place, her own proposal included", await until(ann, () => document.querySelectorAll(".vf-ibneeds .vf-ixitem").length > 0)
+      && await ann.evaluate(() => !document.querySelector(".vf-ibneeds .vf-ibq > li")));
     ok("Ann's Needs you lists Q2, the question she is asked to answer", await until(ann, () => [...document.querySelectorAll(".vf-ibneeds .vf-ixitem")].some(b => b.textContent.includes("Q2") && b.textContent.includes("You are asked to answer this question.")), null, 10000),
       JSON.stringify(await shown(ann)));
     await ann.locator(".vf-ibneeds .vf-ixitem", { hasText: "Q2" }).click();
