@@ -72,6 +72,9 @@ parts:
 When the request or an upstream artifact already states part 1, ask it as a one-line confirmation.
 A prototype gets one line. Classify a bug fix or refactor from the request and confirm it in one
 line, "Intent: not applicable?"; a refactor that extracts a new abstraction asks the full question.
+Under `lock`, a part 1 answer the user's own request states, or a bug fix or refactor it names as
+such, is recorded directly with no confirmation question, since invoking `lock` is the
+confirmation. One stated only upstream, missing, or contradictory is a gap: STOP and surface it.
 Record under `### Captured assumptions`, the second form for a confirmed bug fix or refactor:
 
 ```text
