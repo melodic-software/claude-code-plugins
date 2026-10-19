@@ -1307,8 +1307,8 @@ wf_runs_elsewhere() {
   local_uses="$(LC_ALL=C grep -E '^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*["'\'']?\./' <<<"$body")"
   LC_ALL=C grep -qvE 'uses:[[:space:]]*["'\'']?\./\.github/workflows/|^$' <<<"$local_uses" && return 0
   cmds="$(LC_ALL=C sed -E -e 's/(&&|\|\||;|\|)/\n/g' <<<"$body" |
-    LC_ALL=C sed -E 's/^[[:space:]]*(-[[:space:]]+)?(run:[[:space:]]*)?["'\'']?//')"
-  LC_ALL=C grep -qE '^(\./|\.\\|(bash|sh|pwsh|powershell)[[:space:]]+[^-[:space:]]|[^[:space:]]+\.(sh|ps1|cmd|bat)([[:space:]"'\'']|$))' <<<"$cmds"
+    LC_ALL=C sed -E 's/^[[:space:]]*((-[[:space:]]+)?run:[[:space:]]*)?["'\'']?//')"
+  LC_ALL=C grep -qE '^(\./|\.\\|(bash|sh|pwsh|powershell)([[:space:]]+-[^[:space:]]+)*[[:space:]]+[^-[:space:]]|[^[:space:]]+\.(sh|ps1|cmd|bat)([[:space:]"'\'']|$))' <<<"$cmds"
 }
 
 # load_workflows: collect the targets of every `dotnet test` and `dotnet build`

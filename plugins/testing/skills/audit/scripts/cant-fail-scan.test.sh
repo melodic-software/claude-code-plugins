@@ -2370,6 +2370,14 @@ assert_matches "a local composite action leaves an untargeted project ci: unknow
 printf 'name: ci\njobs:\n  t:\n    uses: ./.github/workflows/reuse.yml\n  pack:\n    steps:\n      - run: dotnet build ./tests/Zeta.Unit.Tests/Zeta.Unit.Tests.csproj\n' >"$PJX/.github/workflows/ci.yml"
 pj_scan
 assert_matches "a local reusable workflow, parsed itself, and a ./ dotnet target keep ci: no" "$out" 'Alpha\.Tests\.csproj; ci: no;'
+printf 'name: ci\non:\n  push:\n    paths:\n      - "build.sh"\n      - ./src/**\njobs:\n  t:\n    steps:\n      - run: dotnet build tests/Zeta.Unit.Tests/Zeta.Unit.Tests.csproj\n' >"$PJX/.github/workflows/ci.yml"
+pj_scan
+assert_matches "a paths filter naming a script or ./ path is not a command, so ci: no" "$out" 'Alpha\.Tests\.csproj; ci: no;'
+for step in 'bash scripts/x.sh' 'pwsh -File build.ps1' 'bash -x build.sh'; do
+  printf 'name: ci\njobs:\n  t:\n    steps:\n      - run: %s\n  pack:\n    steps:\n      - run: dotnet build tests/Zeta.Unit.Tests/Zeta.Unit.Tests.csproj\n' "$step" >"$PJX/.github/workflows/ci.yml"
+  pj_scan
+  assert_matches "an interpreter step ($step) leaves an untargeted project ci: unknown" "$out" 'Alpha\.Tests\.csproj; ci: unknown;'
+done
 # a malformed workflow, and no workflow, fail soft to unknown
 printf '\tjobs\n  - [unclosed\n\x00\x01garbage' >"$PJX/.github/workflows/ci.yml"
 pj_scan
