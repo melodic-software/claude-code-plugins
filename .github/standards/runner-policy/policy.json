@@ -516,6 +516,16 @@
         "pull-requests": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/pr-automerge-dependabot.yml@d223a6446680fb261e264d1dea9efba46f20ead2": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "package-auto-merge", "review-only-dependencies"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "write",
+        "pull-requests": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-run-checks.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",

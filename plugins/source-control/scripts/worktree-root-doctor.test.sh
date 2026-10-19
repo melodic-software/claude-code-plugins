@@ -286,6 +286,74 @@ else
   skip_case "worktree add unavailable for the linked-worktree note fixture"
 fi
 
+# --- A worktree nested in another repository's work tree --------------------------
+
+NEST_A="$(mkrepo nesta)"
+NEST_B="$(mkrepo nestb)"
+for r in "$NEST_A" "$NEST_B"; do
+  fgit -C "$r" config user.email t@t.t
+  fgit -C "$r" config user.name t
+  fgit -C "$r" config commit.gpgsign false
+  printf 'seed\n' >"$r/README.md"
+  fgit -C "$r" add README.md >/dev/null 2>&1
+  fgit -C "$r" commit -qm init >/dev/null 2>&1
+done
+mkdir -p "$NEST_A/.work"
+NESTED_WT="$NEST_A/.work/b-wt"
+if fgit -C "$NEST_B" worktree add -q "$NESTED_WT" -b feat/nested >/dev/null 2>&1; then
+  run "$EMPTY_GCFG" "$NEST_B"
+  assert_exit "a worktree inside another repository is a finding (exit 1)" 1 "$RC"
+  assert_contains "the finding is error-level" "$OUT" "error: worktree "
+  NEST_A_P="$(physical_dir "$NEST_A")"
+  NEST_B_P="$(physical_dir "$NEST_B")"
+  assert_contains "the finding names the nested worktree" "$OUT" "b-wt"
+  assert_contains "the finding names the containing repository" "$OUT" "different repository ($NEST_A_P)"
+  assert_contains "the finding names the owning repository" "$OUT" "of repository $NEST_B_P"
+  assert_contains "the finding carries the remove command" "$OUT" "git -C $NEST_B_P worktree remove "
+else
+  skip_case "worktree add unavailable for the nested-worktree fixture"
+fi
+
+# An in-root worktree and a worktree inside its own repository are not flagged.
+IN_ROOT="$TEST_TMPDIR/ok-root"
+mkdir -p "$IN_ROOT"
+fgit -C "$WTREPO" config worktreeroot.path "$IN_ROOT"
+OWN_WT="$WTREPO/.work/own"
+mkdir -p "$WTREPO/.work"
+if fgit -C "$WTREPO" worktree add -q "$IN_ROOT/in-root-wt" -b feat/in-root >/dev/null 2>&1 &&
+  fgit -C "$WTREPO" worktree add -q "$OWN_WT" -b feat/own >/dev/null 2>&1; then
+  run "$EMPTY_GCFG" "$WTREPO"
+  assert_not_contains "in-root and own-repository worktrees raise no nesting error" "$OUT" \
+    "sits inside the work tree of a different repository"
+else
+  skip_case "worktree add unavailable for the in-root fixture"
+fi
+
+# A main checkout nested in another repository (a clone under a dotfiles repo) is
+# not a worktree to remove.
+mkdir -p "$NEST_A/clone"
+fgit -C "$NEST_A/clone" init -q -b main >/dev/null 2>&1
+run "$EMPTY_GCFG" "$NEST_A/clone"
+assert_not_contains "a clone under another repository is not flagged" "$OUT" \
+  "sits inside the work tree of a different repository"
+
+# A worktree inside its own repository's tree is not flagged even when that
+# repository's main checkout sits inside another repository.
+fgit -C "$NEST_A/clone" config user.email t@t.t
+fgit -C "$NEST_A/clone" config user.name t
+fgit -C "$NEST_A/clone" config commit.gpgsign false
+printf 'seed\n' >"$NEST_A/clone/README.md"
+fgit -C "$NEST_A/clone" add README.md >/dev/null 2>&1
+fgit -C "$NEST_A/clone" commit -qm init >/dev/null 2>&1
+mkdir -p "$NEST_A/clone/.work"
+if fgit -C "$NEST_A/clone" worktree add -q "$NEST_A/clone/.work/x" -b feat/clone-own >/dev/null 2>&1; then
+  run "$EMPTY_GCFG" "$NEST_A/clone"
+  assert_not_contains "an own-tree worktree of a nested clone is not flagged" "$OUT" \
+    "sits inside the work tree of a different repository"
+else
+  skip_case "worktree add unavailable for the nested-clone fixture"
+fi
+
 # --- Standing notes are always present ---------------------------------------------
 
 run "$EMPTY_GCFG" "$REPO"
