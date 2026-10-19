@@ -12,10 +12,20 @@
 # block-noncanonical-commit gate enforces the message MECHANIC (`-F -`); this
 # gate reads the CONTENT that mechanic carries.
 #
-# UNRESOLVED = NO ENFORCEMENT. No team-tracked pattern, a non-ERE pattern, or
-# an unreadable config -> the gate no-ops. It never blocks against the bundled
+# UNRESOLVED = NO ENFORCEMENT. No team-tracked pattern -> the gate no-ops; a
+# non-ERE pattern or an unreadable config no-ops too, with a notice (below). It never blocks against the bundled
 # Conventional Commits default: enforcement strength equals the strength of
 # explicit team config, so a repo that never opted in is never gated.
+#
+# A BROKEN CONVENTION IS NOT AN UNRESOLVED ONE, AND THE GUARD FAILS OPEN ON IT.
+# The resolver's exit code and stderr tell them apart, with no change to its
+# contract: exit 0 enforces; exit 1 with empty stderr is "no convention tracked"
+# and stays quiet; exit 1 with a diagnostic (an unreadable pointer, a non-ERE
+# pattern) or exit 2 means that key's check did not run. That is the chosen fail
+# mode, per key: a key that resolved still enforces, the failed key's check is
+# skipped, and a once-per-session notice on both channels names the check and
+# carries the resolver's diagnostic, so a broken config is never mistaken for no
+# policy.
 #
 # NEVER BLOCKS `gh pr create` ITSELF. Only a present-and-violating `--title`
 # value blocks; a missing `--title` (interactive/web flow) passes untouched —
@@ -144,6 +154,10 @@ RESOLVER="$_HOOK_SELF/resolve-convention-pattern.sh"
 
 SUBJECT_ERE=""
 TITLE_ERE=""
+# A key's diagnostic when its resolution failed (see the header); empty when it
+# resolved or is simply untracked.
+SUBJECT_DIAG=""
+TITLE_DIAG=""
 CONV_LOADED=0
 
 # An explicit `## convention_source` H2 names a third file the resolver reads.
@@ -246,20 +260,50 @@ ensure_convention_patterns() {
         conv_dep_lines+="DEP 0 $conv_dep"$'\n'
       fi
     done
+    # The resolver's stderr is read, not discarded: its exit code and stderr
+    # tell an unresolved key from a broken convention (see the header). Without
+    # a scratch file stderr cannot be read; /dev/null then leaves exit 1 quiet
+    # and exit 2 a notice carrying the status alone. The redirect sits on a
+    # group for the fork reason given below.
+    { conv_errf=$(mktemp); } 2>/dev/null || conv_errf=/dev/null
     for conv_key in subject_pattern pr_title_pattern; do
-      # The redirect sits on a single-command group, NOT inside the
-      # substitution. Bash execs the body in the substitution's own subshell
-      # only when that body carries no redirection of its own, so
-      # `$(cmd 2>/dev/null)` pays a second fork that `{ v=$(cmd); } 2>/dev/null`
-      # does not (measured with `strace -f -e trace=clone,clone3,execve`). The
-      # group holds exactly one command, so its status is still the resolver's
-      # and the `|| conv_val=""` fallback fires on exactly the same failures.
-      { conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key"); } 2>/dev/null || conv_val=""
+      # The redirect sits on a group, NOT inside the substitution. Bash execs
+      # the body in the substitution's own subshell only when that body carries
+      # no redirection of its own, so `$(cmd 2>file)` pays a second fork that
+      # `{ v=$(cmd); } 2>file` does not (measured with
+      # `strace -f -e trace=clone,clone3,execve`). The group's second command
+      # reads the status the first left, which is the resolver's.
+      { conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key"); conv_rc=$?; } 2>"$conv_errf"
+      if ((conv_rc != 0)); then
+        conv_val=""
+        conv_err=""
+        IFS= read -r -d '' conv_err <"$conv_errf" || true
+        conv_err="${conv_err//[$'\r\n\t']/ }"
+        conv_err="${conv_err#"${conv_err%%[![:space:]]*}"}"
+        conv_err="${conv_err%"${conv_err##*[![:space:]]}"}"
+        # Exit 1 with empty stderr is the resolver's "no convention tracked".
+        # Anything else (exit 1 with a diagnostic, exit 2, a crash) is a
+        # failure of this key alone.
+        if [[ -n "$conv_err" || $conv_rc -ne 1 ]]; then
+          conv_diag="${conv_err:0:300}"
+          [[ -n "$conv_diag" ]] || conv_diag="exit status $conv_rc, no message"
+          case "$conv_key" in
+          subject_pattern) SUBJECT_DIAG="$conv_diag" ;;
+          *) TITLE_DIAG="$conv_diag" ;;
+          esac
+        fi
+      fi
       case "$conv_key" in
       subject_pattern) SUBJECT_ERE="$conv_val" ;;
       *) TITLE_ERE="$conv_val" ;;
       esac
     done
+    [[ "$conv_errf" == /dev/null ]] || rm -f "$conv_errf" 2>/dev/null
+    # Fail open per key, stated: a key the resolver cannot answer is not
+    # enforced, while a key that resolved still is. The answer is not cached, so
+    # a fixed config is read on the next call; the notice is emitted where the
+    # failed key would have been checked (conv_failure_notice).
+    [[ -z "$SUBJECT_DIAG" && -z "$TITLE_DIAG" ]] || return 0
     # Write through a temp name and rename, so a reader never sees a half file.
     if [[ -n "$CONV_CACHE" ]] && mkdir -p "${CONV_CACHE%/*}" 2>/dev/null; then
       if printf '%s\n%s\n%s\n%sEND\n' "$REPO_ROOT" "$SUBJECT_ERE" "$TITLE_ERE" "$conv_dep_lines" \
@@ -269,6 +313,16 @@ ensure_convention_patterns() {
         rm -f "$CONV_CACHE.$$" 2>/dev/null
       fi
     fi
+  fi
+}
+
+# conv_failure_notice <check> <checked thing> <diagnostic>: tell both readers,
+# once per session (agent for the model), that a check did not run.
+conv_failure_notice() {
+  # One latch key per check: a shared key lets whichever check fails first hide
+  # the other's skip for the rest of the session.
+  if hook::notice_once "guardrails-convention-resolver-$1" "$INPUT"; then
+    hook::emit_skip_notice PreToolUse "guardrails block-convention-violation: the $1 convention check did not run, so this $2 was not checked. The convention resolver reported \"$3\". This notice does not repeat this session."
   fi
 }
 
@@ -453,7 +507,7 @@ check_segment() {
   done
   if [[ "${gw[gs]:-}" == "gh" && "${gw[gs + 1]:-}" == "pr" && "${gw[gs + 2]:-}" == "create" ]]; then
     ensure_convention_patterns
-    if [[ -n "$TITLE_ERE" ]]; then
+    if [[ -n "$TITLE_ERE" || -n "$TITLE_DIAG" ]]; then
       local t="" ti
       for ((ti = gs + 3; ti < gn; ti++)); do
         case "${gw[ti]}" in
@@ -469,7 +523,10 @@ check_segment() {
         *) ;;
         esac
       done
-      if [[ -n "$t" ]] && ! [[ "$t" =~ $TITLE_ERE ]]; then
+      # The skip is reported only once a title was actually left unchecked.
+      if [[ -n "$t" && -n "$TITLE_DIAG" ]]; then
+        conv_failure_notice "PR-title" "PR title" "$TITLE_DIAG"
+      elif [[ -n "$t" ]] && ! [[ "$t" =~ $TITLE_ERE ]]; then
         block_title "$t"
       fi
     fi
@@ -551,6 +608,10 @@ check_segment() {
 
   [[ "$sub" == "commit" ]] || return 0
   ensure_convention_patterns
+  if [[ -n "$SUBJECT_DIAG" ]]; then
+    conv_failure_notice "commit-subject" "commit subject" "$SUBJECT_DIAG"
+    return 0
+  fi
   [[ -n "$SUBJECT_ERE" ]] || return 0
   [[ -n "$seg_dir" ]] ||
     hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"

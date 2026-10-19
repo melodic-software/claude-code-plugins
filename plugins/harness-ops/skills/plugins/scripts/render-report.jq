@@ -120,6 +120,9 @@ def block($d):
          "In-repo: \(.in_repo.updated | length) project/local install(s) updated in \(.project_root)"
        end),
 
+      ((.in_repo.live_read // [])[] |
+         "  \(.id) (\(.scope)): read live from \(.path); project record pinned at \(.installed); the CLI will not update it (remove and re-add the project record if the pin matters)"),
+
       (if $audit then
          "Would update: \($would | length) plugin(s)",
          ($would[] | "  would run: claude plugin update \(.id) -s \(.scope) (installed \(.installed))"),
@@ -217,13 +220,14 @@ def block($d):
        else empty end),
 
       (if (.stale_project_records.total // 0) > 0 then
-         .stale_project_records as $s
+         # The records come from this marketplace's install records only, so the label names it.
+         .name as $name | .stale_project_records as $s
          # A digest written before 3.8.1 carries only `by_path`; render it the way it was rendered then.
          | if $s.by_parent == null then
-             "Stale project records: \($s.total) record(s) across \($s.by_path | length) path(s) not present on this machine",
+             "Stale project records (\($name)): \($s.total) record(s) across \($s.by_path | length) path(s) not present on this machine",
              ($s.by_path[] | "  - \(.path): \(.count) record(s)")
            else
-             "Stale project records: \($s.total) record(s) across \($s.paths) path(s) not present on this machine",
+             "Stale project records (\($name)): \($s.total) record(s) across \($s.paths) path(s) not present on this machine",
              ($s.by_parent[] | "  - \(.parent): \(.count) record(s) across \(.paths) path(s)"),
              (if ($s.more_parents // 0) > 0 then "  +\($s.more_parents) more parent director(ies)" else empty end),
              (if $audit then "  Full per-path list: not kept, the audit scratch directory is removed on exit"
@@ -239,6 +243,9 @@ def block($d):
             "  \($s.project) of these are project-scope. For those left by worktrees removed under the",
             "  source-control worktree root, /source-control:worktree audit (if installed) classifies them",
             "  and gives the gated reap; local-scope records and other paths are not that audit's to reap."
+          else empty end),
+         (if ($s["local"] // 0) > 0 then
+            "  Of these, \($s["local"]) local-scope record(s); nothing reaps them yet."
           else empty end)
        else empty end),
 

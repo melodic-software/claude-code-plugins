@@ -34,7 +34,7 @@ export const ACTIONS_PUBLISHERS = Object.freeze(["actions", "github", "anthropic
 export const GITHUB_COMMITTER_EMAIL = "noreply@github.com";
 export const SKIP_MARKER = "[dependabot skip]";
 const BUMP_PATH = /^plugins\/[A-Za-z0-9._-]+\/(\.claude-plugin\/plugin\.json|CHANGELOG\.md)$/;
-const RED = new Set(["failure", "cancelled", "timed_out", "action_required", "startup_failure"]);
+export const RED = new Set(["failure", "cancelled", "timed_out", "action_required", "startup_failure"]);
 
 const PREFIX = /^[a-z]+(\([^)]*\))?!?:\s*/i;
 const SINGLE = /\bbump (\S+) from (\S+) to (\S+?)(?:\s+in\s.*)?$/i;

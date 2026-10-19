@@ -3,7 +3,7 @@ In-repo: 1 project/local install(s) updated in <case>
 Updated: 1 plugin(s)
   - delta@market1 (project): 0.1.0 → 0.2.0
 Divergences: 0 actionable
-Stale project records: 3 record(s) across 2 path(s) not present on this machine
+Stale project records (market1): 3 record(s) across 2 path(s) not present on this machine
   - <case>/: 3 record(s) across 2 path(s)
   Full per-path list: <run_dir>/stale-project-records.market1.json
   (not counted as divergences: converge cannot cd into a path that is not present. A path can also
@@ -12,6 +12,7 @@ Stale project records: 3 record(s) across 2 path(s) not present on this machine
   2 of these are project-scope. For those left by worktrees removed under the
   source-control worktree root, /source-control:worktree audit (if installed) classifies them
   and gives the gated reap; local-scope records and other paths are not that audit's to reap.
+  Of these, 1 local-scope record(s); nothing reaps them yet.
 Cache content: 1 user-scope install(s) whose cache files disagree with their recorded gitCommitSha
   - alpha@market1 0.1.0: 4 file(s) differ
   Remediation: remove that version's directory under the plugin cache, then re-run

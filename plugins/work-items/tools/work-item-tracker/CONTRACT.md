@@ -200,6 +200,7 @@ work-item-tracker.sh list-sub-items <parent-id> [--state open|closed|all]
 work-item-tracker.sh list-items [--state open|closed|all] [--repo <o>/<r>] [--label <name>]
 work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--repo <o>/<r>] [--label <name>]
 work-item-tracker.sh label-provenance <id> --label <name> [--label <name> ...]
+work-item-tracker.sh set-fields <id> --field <field-id>=<option-id> [--field <field-id>=<option-id> ...]
 work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
 work-item-tracker.sh capabilities
 ```
@@ -229,6 +230,18 @@ emits no result. The work-loop
 admission gate admits an item only on exit `0` with `admitted: true`, so an adapter that declares
 no `label-provenance` key (the gate reads an absent key as `false`, exit `6`) fails closed. Only
 the GitHub adapter implements it today.
+
+`set-fields` sets single-select issue fields by option id, every `--field` in one write that
+leaves the item's other fields as they are. An option id that is not one of its field's options
+exits `5` before anything is written. It prints `{schema_version, id, fields: [{field_id,
+option_id, value}]}`, where `value` is the option's name. Only the GitHub adapter implements it,
+for organization issue fields: it reads the options from `GET /orgs/{org}/issue-fields`, which
+needs `read:org` on an OAuth or classic token, and writes names, since the REST write takes the
+option's name (pointer:
+[issue field values](https://docs.github.com/en/rest/issues/issue-field-values) and
+[organization issue fields](https://docs.github.com/en/rest/orgs/issue-fields), as of
+2026-10-18, recheck trigger: the write starts taking option ids, or the listing's permission
+changes). An adapter that declares no `set-fields` key exits `6`.
 
 `claim --ttl-minutes <n>` (0–59) **adds to** `--ttl-hours`, it never replaces it: `--ttl-hours 24
 --ttl-minutes 30` is a 24.5-hour lease. For a sub-hour lease pass `--ttl-hours 0 --ttl-minutes <n>`.

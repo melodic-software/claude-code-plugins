@@ -1,0 +1,130 @@
+{
+  "skill": "songwriting:meter-prosody",
+  "plugin": "songwriting",
+  "skill_dir": "plugins/songwriting/skills/meter-prosody",
+  "ranking_note": "Authored from the before descriptions at commit 11a25e8bb3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling songwriting skills the near-miss negatives aim at; one or two negatives are adjacent non-songwriting requests.",
+  "competitors": [
+    "songwriting:song-form",
+    "songwriting:rhyme",
+    "songwriting:diagnose",
+    "songwriting:suno",
+    "songwriting:metaphor"
+  ],
+  "competitor_dirs": {
+    "songwriting:song-form": "plugins/songwriting/skills/song-form",
+    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
+    "songwriting:diagnose": "plugins/songwriting/skills/diagnose",
+    "songwriting:suno": "plugins/songwriting/skills/suno",
+    "songwriting:metaphor": "plugins/songwriting/skills/metaphor"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Mark the stresses in 'I never wanted you to go' for me."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Could this verse work in the ballad 8-6-8-6 pattern?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The melody puts the accent on 'the' instead of 'heart'. How do I fix that?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "All my lines are the same length and the verse feels too settled. Should I unbalance it?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I hummed a tune into my phone in 4/4. Help me fit these words to it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Does the rhythm of my lyric match the restless feeling of the story?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "How many stressed syllables per line should I aim for in this chorus?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The words feel crammed into the melody in bar three. What can I trim?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is this four-line verse resolved, or does it feel like it wants to keep moving?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find a rhyme for 'orange'."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Do I need a bridge in this song?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "My second verse just repeats the first. What should it say instead?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Tell me overall what's wrong with my draft."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Scan this PDF and pull out the tables."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Where does the hook go in the chorus?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a Suno prompt at 92 BPM."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me some metaphors for longing."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Convert 120 BPM to milliseconds per beat for my delay pedal."
+    }
+  ]
+}

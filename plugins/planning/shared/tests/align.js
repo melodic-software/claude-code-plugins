@@ -243,8 +243,8 @@ function helpers(page) {
 
 function views(page, CFG) {
   const { clickIn, phone, more, mode, joinIfAsked } = helpers(page);
-  // the Claude thread: its own column from 1200px, a tab below that
-  const claudeTab = async () => { await clickIn(".vf-splittabs .vf-seg-btn", "Claude"); return true; };
+  // the Claude thread: the "Claude on this question" section below the answers, opened
+  const claudeTab = async () => { if (await page.evaluate(() => document.querySelector(".vf-cltoggle")?.getAttribute("aria-expanded") !== "true")) await page.click(".vf-cltoggle"); return true; };
   const gotoQ = async id => { await mode("tree"); const ok = await clickIn(`[data-tkey="q:${id}"]`); await mode("focus"); return ok; };
   const railTab = async () => { if (await phone()) await clickIn(".vf-tab", "Questions"); };
   const W = ms => page.waitForTimeout(ms);
@@ -260,7 +260,8 @@ function views(page, CFG) {
     "compare": () => mode("compare"),
     "tree": () => mode("tree"),
     "proposed": async () => { await railTab(); return clickIn(".vf-proprow", "Proposed"); },
-    "requests": async () => { await railTab(); return clickIn(".vf-proprow", "Requests"); },
+    // the host's review view: the Inbox on Waiting on you, its status chips and request rows
+    "review": async () => { if (!((await phone()) ? await more("Inbox") : await clickIn(".vf-bell"))) return false; await W(120); return clickIn(".vf-ixtabs .vf-seg-btn", "Waiting on you"); },
     "propose-form": async () => { await railTab(); return clickIn(".vf-propose"); },
     "chat": () => clickIn(".vf-fab"),
     "settings": async () => ((await phone()) ? more("Settings") : clickIn(".vf-gear")),
@@ -278,6 +279,15 @@ function views(page, CFG) {
       if (await phone()) return more("Report a problem");
       await page.keyboard.press("?"); await W(120); return clickIn(".vf-help-report");
     },
+    // Your reports: the owner files one the first time (one report every 10 s), then opens the list from More or Help
+    "my-reports": async () => {
+      if (!(await page.evaluate(() => (window.Core.state.myReports || []).length))) {
+        await page.evaluate(() => window.Core.report("The Send button did nothing on the payment question", window.Core.reportContext()));
+        await page.waitForFunction(() => (window.Core.state.myReports || []).length > 0, null, { timeout: 5000 }).catch(() => {});
+      }
+      if (await phone()) return more("Your reports");
+      await page.keyboard.press("?"); await W(120); return clickIn(".vf-help-myreps");
+    },
     "ask-panel": async () => ((await phone()) ? more("Ask Claude") : clickIn(".vf-asktop")),
     "thread": async () => { await gotoQ("Q1"); return claudeTab(); },
     "choice": () => gotoQ("Q11"),
@@ -293,8 +303,9 @@ function views(page, CFG) {
     "device": async () => { await clickIn(".vf-person-me"); await W(150); return clickIn(".vf-pcard .vf-menu-item", "another device"); },
     "msg-menu": async () => { await clickIn(".vf-fab"); await W(150); return clickIn(".vf-msgmore"); },
     "compare-formats": async () => { await mode("compare"); return page.evaluate(() => { const b = document.querySelector(".vf-board"); if (!b) return false; b.scrollLeft = b.scrollWidth; return true; }); },
-    "bell": () => clickIn(".vf-bell"),
-    "bell-mute": async () => { await clickIn(".vf-bell"); await W(120); return clickIn(".vf-mutebtn"); },
+    // the Inbox remembers its tab on the device, and "review" leaves it on Waiting on you: start these on All
+    "bell": async () => { if (!(await clickIn(".vf-bell"))) return false; await W(120); return clickIn(".vf-ixtabs .vf-seg-btn", "All"); },
+    "bell-mute": async () => { await clickIn(".vf-bell"); await W(120); await clickIn(".vf-ixtabs .vf-seg-btn", "All"); await W(120); return clickIn(".vf-mutebtn"); },
     "mention": async () => {
       await gotoQ("Q9"); await page.click("#vf-answer"); await page.keyboard.type("Ask @");
       await W(150); return page.evaluate(() => !document.querySelector(".vf-mentions").hidden);
@@ -308,9 +319,9 @@ function views(page, CFG) {
     "ref-add": async () => { await gotoQ("Q5"); return clickIn(".vf-refadd"); },
     "ref-reader": async () => { await gotoQ("Q1"); return clickIn(".vf-ref-img"); },
     "reply": async () => { await clickIn(".vf-fab"); await W(150); await clickIn(".vf-msgmore"); await W(120); return clickIn(".vf-msgmenu .vf-menu-item", "Reply"); },
-    "confirm-unlock": async () => { await gotoQ("Q4"); await clickIn(".vf-splittabs .vf-seg-btn", "Answers"); return clickIn(".vf-lock .vf-btn", "Unlock"); },
+    "confirm-unlock": async () => { await gotoQ("Q4"); return clickIn(".vf-lock .vf-btn", "Unlock"); },
     "confirm-remove": async () => { await mode("host"); return clickIn(".vf-hpeople .vf-btn-danger", "Remove"); },
-    "pick-thumbs": async () => { await gotoQ("Q11"); await clickIn(".vf-splittabs .vf-seg-btn", "Answers"); return page.evaluate(() => { const a = document.querySelector(".vf-alist .vf-pickthumb:not([hidden])"); a?.scrollIntoView({ block: "center" }); return !!a; }); },
+    "pick-thumbs": async () => { await gotoQ("Q11"); return page.evaluate(() => { const a = document.querySelector(".vf-alist .vf-pickthumb:not([hidden])"); a?.scrollIntoView({ block: "center" }); return !!a; }); },
     "more": async () => ((await phone()) ? clickIn(".vf-tab", "More") : "skip"),
     // last: these leave the seeded page; the next view reloads it
     "empty-host": async () => { await page.goto(CFG.emptyHost); await page.reload(); await joinIfAsked("Kyle"); return true; },
