@@ -1716,6 +1716,13 @@ class CapabilityTriggerTests(unittest.TestCase):
                 self.assertIn(
                     "high-capability", _codes(score(_input(files=(changed,))))
                 )
+        # Review thread L470: a node start after a second block indicator.
+        for line in ("  - - *a", "  - - &a x", "  - ? *a", "  ? *a"):
+            with self.subTest(line):
+                changed = _edit(SKILL, _front("foo:", "  - a"), _front("foo:", line))
+                self.assertIn(
+                    "high-capability", _codes(score(_input(files=(changed,))))
+                )
 
     def test_a_description_edit_beside_wildcard_tool_grants_is_not_held(self):
         # Review thread L466: `*` inside a plain or quoted scalar is text.
