@@ -430,7 +430,7 @@ cp "$R/.git/config" "$TMP/config.before"
 prepare
 put a.txt 'resolved\n'
 tg add a.txt
-tg config remote.origin.url 'https://x-access-token:ghs_example@github.com/o/r'
+tg config remote.origin.url 'https://example.invalid/rewritten/r'
 tg config core.fsmonitor "$TMP/fsmonitor.sh"
 printf '#!/usr/bin/env bash\ntouch "%s/fsmonitor-ran"\n' "$TMP" >"$TMP/fsmonitor.sh"
 chmod +x "$TMP/fsmonitor.sh"
@@ -460,7 +460,7 @@ for target in config index-snapshot attributes; do
   prepare
   put a.txt 'resolved\n'
   tg add a.txt
-  tg config remote.origin.url 'https://x-access-token:ghs_example@github.com/o/r'
+  tg config remote.origin.url 'https://example.invalid/rewritten/r'
   cp "$R/.git/config" "$TMP/config.rewritten"
   printf 'x' >>"$DIR/$target"
   run_post

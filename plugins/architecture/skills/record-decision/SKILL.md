@@ -138,6 +138,10 @@ and offer the repository's own observed shape instead.
 | A design handoff lists ADR candidates | Invoked from `/planning:design-handoff` when that plugin is installed | One invocation per candidate; the offer never blocks the handoff |
 | A scan needs to read existing records | `/architecture:improve` reads the same ladder | Both skills load the plugin's shared discovery reference; neither carries a second copy |
 
+## Next
+
+/planning:plan. The plan consumes the recorded decision as a fixed part of the design.
+
 ## Gotchas
 
 Failure modes this skill runs into, each stated as the rule it implies.

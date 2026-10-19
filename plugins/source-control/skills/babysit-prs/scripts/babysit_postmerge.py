@@ -721,10 +721,7 @@ class _Context:
                     ],
                     allowed_executables=("git",),
                     check=False,
-                    env_overrides={
-                        "GIT_GRAFT_FILE": os.devnull,
-                        "GIT_NO_LAZY_FETCH": "1",
-                    },
+                    env_overrides=policy.HISTORY_GIT_ENV,
                 )
             except (RuntimeError, ValueError, OSError):
                 return None

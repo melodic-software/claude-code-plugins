@@ -39,7 +39,7 @@ autonomy plugin, and this doc points at them.
 | `README.md` | This contract. No config values. |
 | `pr-pipeline.schema.json` | Schema for a repository's pipeline config. |
 | `examples/` | Worked configs that show the shape. Script paths in them are placeholders until their lanes land. |
-| `CHANGELOG.md` | Contract versions. |
+| `CHANGELOG.md` | Contract versions, written by the release pull request from fragments under `.changes/pr-pipeline/`. |
 
 A repository's config lives at `docs/conventions/pr-pipeline.yaml` unless the lane passes another
 path as the config reader's `config-path` input. The reader reads that path at the base SHA; it
@@ -90,7 +90,7 @@ reader applies.
 
 | Lane | Starts on |
 |---|---|
-| `pr-refine` | ready |
+| `pr-refine` | a PR opened, reopened or marked ready, or a `workflow_dispatch`; not each push, so a docs change pushed after its first run waits for a reopen or a dispatch |
 | `pr-run-checks` | dispatch from `pr-refine` |
 | `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
 | `pr-verify` | dispatch from `pr-refine` |
@@ -115,14 +115,25 @@ that runs on a push to `main` and on a trusted human's `workflow_dispatch`:
   `require-pr: false` and `require-kind: human`).
 - With the kill switch on, the run ends green with a notice and dispatches nothing.
 
+GitHub starts no `pull_request` workflow on a PR with a merge conflict, so a conflicted head gets
+no CI. When `resolve-conflicts` escalates with `unresolved-conflict`, `pr-unblock.yml`'s
+`report-conflict-status` job (a script job with no model, the lane's only `statuses: write`, on its
+own `GITHUB_TOKEN`) posts a `failure` commit status with context `pr-unblock/conflict` on that
+head, saying CI does not run until the conflicts are resolved. A push that resolves them is a new
+head, which the status does not reach. A conflict that clears with the head unchanged (main moved
+again) leaves the failing status on it until a push or a person replaces it. The other
+`resolve-conflicts` escalations post no status; they hand the PR to a person through the comment
+and label alone.
+
 `pr-unblock`'s `address-feedback` dispatches come from `pr-feedback-dispatch.yml`, also scripted,
 on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
 the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
 `activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
 this repository, exactly one open non-draft PR into `main` has its head, the lanes App opened that
-PR, it carries neither `do-not-merge` nor `needs-human`, both lanes' newest reviewed-head markers
+PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
-reviewer bot, or answered by a trusted human after the lane escalated it), the head has no
+reviewer bot, or answered by a trusted human after the lane escalated it; on a PR carrying the
+human-gated label, only one whose answer is a fix request, below), the head has no
 `pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
@@ -132,6 +143,15 @@ id>`, which the gate and the broker read to tie the run to a review of the PR's 
 In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is followed by
 `publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the
 model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
+
+On a PR carrying the human-gated role label (`needs-human` unless the base's
+`.work-item-tracker.json` names another), `address-feedback` works a thread only when a reply
+after the lane's escalation, by a person on the trusted-actor list who holds write or admin
+permission on the repository, has a line that starts with `PR-fix lane: please fix this finding`,
+in any letter case, outside a fenced code block (a quoted `>` line never matches). Without such a
+thread the dispatcher starts nothing and the select step skips with `awaiting-human`, so the PR
+stays held; with one, the write runner lifts only the human-gated hold for that run, and
+`do-not-merge` still stops it. `pr-merge` refuses the PR either way.
 
 `pr-unblock`'s `review-dependency` dispatches come from the same `pr-unblock-dispatch.yml` run,
 so the gate and the broker check them as they check a conflict dispatch. After the conflict
@@ -146,6 +166,28 @@ script job with no model, `publish-artifact`), which acts on the verdict the mod
 and never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
 [ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
+
+`pr-unblock`'s `fix-ci` runs in three jobs of `pr-unblock.yml`, so no model holds a write token:
+`fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
+the pull request to a person once `loop.fix-ci-rounds` fixes were pushed; `fix-ci` (a `read`
+skill in [patch output mode](pr-run-activity.md#patch-output-mode)) runs
+`source-control:pull-request ci --ci`, which reruns, fixes and reruns the checks; and
+`apply-ci-fix` (a `mutate-branch` script, no model, no head code) pushes the patch as one commit
+without force, refusing the whole patch on any change to `.github/**`, an agent instruction path
+(`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a plugin's `hooks/`, `.mcp.json`,
+`.gitmodules`, `CODEOWNERS`), a symbolic link or a gitlink
+([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
+[`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
+unappliable patch, or a check the model escalated, goes to `report-escalation`. The same
+`pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
+GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
+same-repository ones into `main` that the lanes App opened (by bot id), with no `do-not-merge`
+or `needs-human` label, whose head's `ci-status` check run from the GitHub Actions app ended
+`failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
+untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
+and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
+lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
+concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
@@ -424,7 +466,10 @@ that fails counts as a refusal.
   It holds the rung at `off` until a human closes it directly. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
   force. The wrapper finds these issues by author (the agent identity or `github-actions[bot]`), so
-  removing the marker or the label does not clear one.
+  removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
+  that no merge the failing run covers was enqueued by the agent identity, it files a
+  post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
+  also `needs-human`. That record does not hold the rung off.
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
@@ -434,8 +479,13 @@ that fails counts as a refusal.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.
-- **One merge in flight.** The wrapper refuses while the identity has an entry in the merge queue,
-  or while an earlier unattended merge has not passed its post-merge check.
+- **Merges in flight.** `merge.max-in-flight` (default 1) caps the identity's merge-queue entries
+  plus its merged pull requests that have not passed the post-merge check. It is read at the default
+  branch head once per cache window, not at the pull request's base (the base's value when that
+  read fails), and read again uncached after an enqueue. The wrapper
+  refuses at the cap, and an entry enqueued past it (another host's came first) dequeues itself. A
+  red full run or canary run charges every unverified merge whose commit it contains, so a breakage
+  found with several in flight demotes the rung and fails the post-merge check for all of them.
 - **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
   pr-merge lane owns Dependabot pull requests (below).
 
@@ -487,7 +537,7 @@ except six:
 - **Cap variable.** For the same reason the workflow passes `CLAUDE_LANES_MERGE_RUNG_CAP` from its
   `vars` context as `--lane-rung-cap`. Empty (unset) is no cap; `off`, `C2` or `C3` caps the rung;
   a missing flag or any other value holds the rung at `off`.
-- **Post-merge check and one merge in flight.** Only merges the agent identity enqueued count. A
+- **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
 While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
@@ -542,7 +592,7 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
 - **Gate.** Either tier merges only once `ci-status` succeeded on its head, through the same gate
   as the lane's own: mergeable, no `do-not-merge` label, no body hold, no blocking comment from a
   human with write access, the rung (C2) and its cap, the kill switches, the post-merge check and
-  one merge in flight. No closing issue, denied-path rule or diff risk score applies: `ci-status`
+  the merges in flight. No closing issue, denied-path rule or diff risk score applies: `ci-status`
   (and, for tier `review`, the review verdict) is the gate, and a workflow pin bump touches
   `.github/**` by definition.
 - **Switch.** `merge.dependabot.mode` decides it, not `merge.report-only`: `enforce` merges,
@@ -897,13 +947,14 @@ One counter per PR, in the findings store, is shared by every lane. After `loop.
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
 escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
 rounds have run. The default is 2; this repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
-escalates.
+escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
+App may push to one PR; the next fix-ci run hands it to a person before any model turn.
 
 ## Limits
 
 The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
 are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
-typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all seven
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all nine
 with defaults.
 
 | Key | Default | What it sets |
@@ -915,11 +966,14 @@ with defaults.
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
 | `limit-stops-per-issue` | 3 | Limit stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
 | `wip-cap` | 60 | Open lanes-App pull requests at or above which work-resolve-issue starts no run and work-unblock re-fires none; at most 500. |
+| `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
+| `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
-the WIP cap check fails open and starts the run. This repository sets `wip-cap` only.
+the WIP cap check fails open and starts the run. This repository sets `wip-cap` and the two
+fix-ci limits.
 
 ## Planning lane work
 
@@ -944,6 +998,15 @@ a changed workflow that runs from the base branch, merges only once a tracked is
 check and its owner; a line in the pull request body does not count. Evidence: melodic-software/ci-workflows#755 listed its
 intake author gate as "unverified, fails closed", merged, and skipped every intake run here
 (melodic-software/ci-workflows#772).
+
+The lanes token broker parses this config with resolve-config code pinned in azure-iac
+(`src/lanes-token-broker/resolve-config.pin`, fetched by `scripts/deploy/fetch-resolve-config.sh`).
+A pull request that changes a file that script fetches carries the body line
+`Broker pin: melodic-software/azure-iac#<n>`, naming the azure-iac pull request that bumps the pin
+to its merge commit; `ci-status` fails it otherwise. The path list is the `BROKER_PATHS` value of
+`ci-status`'s "Require a broker pin PR for a broker-fetched change" step in
+`.github/workflows/pr-require-checks.yml`. Evidence: #8313 changed `resolve.mjs` with no pin bump,
+and the broker denied every pr-unblock token request as `config-invalid` until azure-iac#44.
 
 ## Outside this repository
 
@@ -989,3 +1052,8 @@ list. The config reader reads the synced copy from the base SHA's
 ## Versioning
 
 The schema's `version` is the contract major. [`CHANGELOG.md`](CHANGELOG.md) records each change.
+A pull request that changes this directory does not edit `CHANGELOG.md`: it adds a changelog
+fragment, `scripts/new-changelog-fragment.sh pr-pipeline <major|minor|patch|none>`, and the release
+pull request writes the fragments into one `CHANGELOG.md` entry
+([ADR 0048](../../adr/0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md)).
+A `major` fragment's pull request also raises the schema's `version`.

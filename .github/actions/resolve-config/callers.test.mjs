@@ -190,6 +190,40 @@ test("intake-triage.yml: a dispatch runs only from main and passes the gate's id
   }
 });
 
+test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation with a gated head", () => {
+  const head = "c".repeat(40);
+  const { jobs } = workflow("pr-unblock.yml");
+  const job = jobs["report-conflict-status"];
+  const context = (reason, headSha) => ({
+    "needs.resolve-conflicts.outputs.escalation-reason": reason,
+    "needs.resolve-conflicts.outputs.head-sha": headSha,
+  });
+  assert.equal(evaluate(job.if, context("unresolved-conflict", head)), true);
+  for (const reason of ["repeat-cap", "protected-path-conflict", "workflow-staged", ""]) {
+    assert.equal(evaluate(job.if, context(reason, head)), false, reason);
+  }
+  assert.equal(evaluate(job.if, context("unresolved-conflict", "")), false, "no gated head to post on");
+  assert.deepEqual(job.permissions, { contents: "read", statuses: "write" });
+  assert.equal(job.uses, undefined, "a script job, never the write runner");
+});
+
+// Runs 39184851924 and 39184853452: fix-ci's job group rendered to its own
+// run's group, pr-unblock-fix-ci-<pr>, and the job never started.
+test("pr-unblock.yml: no job's concurrency group is its own run's group", () => {
+  const { on, concurrency, jobs } = workflow("pr-unblock.yml");
+  const render = (group, activity) =>
+    group.replaceAll("${{ inputs.activity }}", activity).replaceAll("${{ inputs.pr-number }}", "7923");
+  for (const activity of on.workflow_dispatch.inputs.activity.options) {
+    const runGroup = render(concurrency.group, activity);
+    for (const [id, job] of Object.entries(jobs)) {
+      if (job.concurrency) assert.notEqual(render(job.concurrency.group, activity), runGroup, `${id} (${activity})`);
+    }
+  }
+  // fix-ci still runs one at a time per PR, a running one never cancelled.
+  assert.equal(render(concurrency.group, "fix-ci"), "pr-unblock-fix-ci-7923");
+  assert.equal(concurrency["cancel-in-progress"], false);
+});
+
 // address-feedback's head-sha output is empty after a gate stop.
 test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback ran no feedback round", async () => {
   const head = "c".repeat(40);

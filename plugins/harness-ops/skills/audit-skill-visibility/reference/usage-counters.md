@@ -117,6 +117,15 @@ in the home directory rather than under `~/.claude`. The supported lever is
 session polls the file at 1 Hz, and the strongest public report of curing input
 lag pruned this file rather than the install tree.
 
+- **Pointer:** [claude-directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
+  lists the paths the retention sweep deletes, all under `~/.claude/`, and does not
+  list `~/.claude.json`; [claude directory: `claude purge`](https://code.claude.com/docs/en/claude-directory#clear-local-data)
+  names "the project's entry in `~/.claude.json`" among what it deletes. That the
+  sweep never reaches the file is an inference from the list's silence.
+- **As of:** 2026-10-18 (Claude Code 2.1.300 docs).
+- **Recheck trigger:** the "Cleaned up automatically" table gains a `~/.claude.json`
+  row, or the `claude purge` deletion list changes.
+
 `.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants; the
 leading number only looks like a PID. See
 [`audit-install-state/reference/surfaces.md`](../../audit-install-state/reference/surfaces.md)

@@ -2328,5 +2328,59 @@ class RoleLabelRead(unittest.TestCase):
                 self.assertEqual(self._read(proc), pm.DEFAULT_ROLE_LABEL)
 
 
+class SeveralInFlight(CheckCase):
+    """`merge.max-in-flight` above 1: several lane merges land unverified, and
+    one red full run on a head containing them all charges every one."""
+
+    def test_a_red_run_charges_every_unverified_lane_merge_and_demotes(
+        self,
+    ) -> None:
+        commits = ("6" * 40, "7" * 40, "8" * 40)
+        self.gh.merged = [
+            identity_merge(
+                number=7101 + i,
+                mergeCommit={"oid": sha},
+                mergedAt=f"2026-10-12T10:0{i}:00Z",
+            )
+            for i, sha in enumerate(commits)
+        ]
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                41,
+                conclusion="failure",
+                run_attempt=2,
+                created_at="2026-10-12T10:05:00Z",
+            ),
+        )
+        self.gh.attempts[(41, 1)] = dispatch_run(
+            41, conclusion="failure", created_at="2026-10-12T10:05:00Z"
+        )
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        verdict = pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=datetime(2026, 10, 12, 11, 0, tzinfo=UTC),
+            pinned_sha=lambda merge: HEAD_SHA,
+            lane_merges_only=True,
+        )
+        charged = [(f.signal, f.merge.number) for f in verdict.failures]
+        self.assertEqual(
+            charged, [("dispatch", 7101), ("dispatch", 7102), ("dispatch", 7103)]
+        )
+        gate = pm.gate_from_report(verdict.report())
+        self.assertEqual(
+            gate.refusal, "failure:dispatch#7101,dispatch#7102,dispatch#7103"
+        )
+        self.assertFalse(any(gate.verified(m.merge) for m in verdict.merges))
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        # One demotion record per charged merge.
+        self.assertEqual(report["telemetry"], {"demotion_events": 3})
+        self.assertEqual(report["errors"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
