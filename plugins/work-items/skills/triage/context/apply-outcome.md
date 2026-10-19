@@ -55,7 +55,7 @@ whose mode names the step that must come first. Then write all of them in one ca
 outcome's label edit:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/triage/scripts/set-dimensions.sh" [--ref '<ref>'] <item-id> <dimension>=<key> ...
+bash "<plugin-root>/skills/triage/scripts/set-dimensions.sh" [--ref '<ref>'] <item-id> <dimension>=<key> ...
 ```
 
 The script maps each key to its option id through the block and sets the fields through the

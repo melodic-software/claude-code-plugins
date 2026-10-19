@@ -435,6 +435,19 @@
         "Applies needs-human and status:ready and does not apply agent-ready",
         "Comments naming a probe or spike as the next step and does not start one"
       ]
+    },
+    {
+      "id": 33,
+      "name": "triage-human-gates-a-split-size-interactively",
+      "prompt": "/work-items:triage 523\n\nInteractive session. GitHub binding. #523 asks to rewrite the docs of all thirty plugins to a new template, each a separate change; the approach is clear and the item is otherwise fully specified (work-class: scoped). The repository's docs/conventions/pr-pipeline.yaml has models.issue-dimensions: fields size (field-id 11, options \"101\": quick, \"102\": long, \"103\": huge), complexity (field-id 12, options \"201\": plain, \"202\": tricky) and uncertainty (field-id 13, options \"301\": settled, \"302\": open, \"303\": murky); sizes quick (base-turns 40), long (base-turns 200) and huge (split); complexity plain 1, tricky 2; uncertainty settled run, open research-first, murky probe-first. The operator says not to decompose it today. What does the outcome do?",
+      "expected_output": "Thirty separate changes fit no size's base-turns in one run, so it sets size=huge (the split size) with the other two dimensions through set-dimensions.sh. Although the session is interactive and decompose is deferred, the edit applies status:ready and needs-human and clears the raw marker, with a comment naming /work-items:decompose as the next step. It applies no agent-ready and does not run /work-items:decompose.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Sets size=huge through set-dimensions.sh and does not apply agent-ready",
+        "Applies needs-human and status:ready and clears the raw-intake marker",
+        "Comments naming /work-items:decompose as the next step and does not run it"
+      ]
     }
   ]
 }

@@ -124,8 +124,9 @@ this session through `session-bridge` so the reader's moves and notes arrive as 
 show on the page. The table is the record; the page is a view of it. Item text is tracker text (K2), so only
 `scripts/build-board.mjs` writes the page, from its checked-in template (`templates/board.html`) and the items as escaped
 JSON data. Never hand-write the page or add script to it. A lane run, CI, or `medium: terminal`
-prints the table only. `context/board.md` writes the plugin's root directory as `<plugin-root>`,
-which is `${CLAUDE_PLUGIN_ROOT}`; put that path in place of the placeholder before running a command.
+prints the table only. `context/board.md` and `context/apply-outcome.md` write the plugin's root
+directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`; put that path in place of the
+placeholder before running a command.
 
 ## Triage settings
 
