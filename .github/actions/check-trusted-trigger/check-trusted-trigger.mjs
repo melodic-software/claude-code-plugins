@@ -49,7 +49,7 @@ export class GitHubError extends Error {
 
 // One function every API read and write goes through; tests replace it.
 export function createGitHub({ token, apiUrl = "https://api.github.com", fetchImpl = fetch, onResponse }) {
-  return async function github(method, apiPath, body) {
+  return async function github(method, apiPath, body, headers = {}) {
     const response = await fetchImpl(`${apiUrl}${apiPath}`, {
       method,
       headers: {
@@ -57,6 +57,7 @@ export function createGitHub({ token, apiUrl = "https://api.github.com", fetchIm
         Authorization: `Bearer ${token}`,
         "X-GitHub-Api-Version": "2022-11-28",
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
