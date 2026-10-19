@@ -24,8 +24,10 @@
 #    workflow-staged      an index entry under .github/workflows/ was added,
 #                         removed, or changed in mode or blob since the
 #                         snapshot, or differs from the gated head's tree (a
-#                         workflow change merged in from the base: the lane
-#                         token cannot push one);
+#                         workflow change merged in from the base) unless the
+#                         staged workflows are exactly the trusted base's, no
+#                         head workflow is dropped, and the PR's own diff
+#                         touches no workflow;
 #    unexpected-path-staged  an index entry is neither a stage-0 snapshot
 #                         entry as it was nor at a path the snapshot held
 #                         unmerged, or a stage-0 snapshot entry is gone
@@ -174,7 +176,28 @@ filter_workflows() {
 filter_workflows "$out/index-snapshot" >"$tmp/workflows-before"
 filter_workflows "$tmp/index" >"$tmp/workflows-after"
 cmp -s "$tmp/workflows-before" "$tmp/workflows-after" || reason workflow-staged
-g diff-index --cached --quiet "$head" -- .github/workflows/ || reason workflow-staged
+# A staged workflow set that differs from the gated head is main's own when
+# the PR's own diff against every merge base touches no workflow, the staged
+# entries are exactly the trusted base's, and no head workflow is dropped.
+workflows_are_base_own() {
+  local mb found=0 record mode oid path
+  while IFS= read -r mb; do
+    found=1
+    g diff --quiet "$mb" "$head" -- .github/workflows/ || return 1
+  done < <(g merge-base --all "$head" "$base" || true)
+  ((found)) || return 1
+  # ls-tree --format quotes paths even with -z, so reshape its default
+  # "<mode> <type> <oid>\t<path>" records into ls-files -s form.
+  while IFS= read -r -d '' record; do
+    read -r mode _ oid <<<"${record%%$'\t'*}"
+    printf '%s %s 0\t%s\0' "$mode" "$oid" "${record#*$'\t'}"
+  done < <(g ls-tree -r -z "$base" -- .github/workflows/) >"$tmp/workflows-base"
+  cmp -s "$tmp/workflows-base" "$tmp/workflows-after" || return 1
+  while IFS= read -r -d '' path; do
+    g cat-file -e "$base:$path" 2>/dev/null || return 1
+  done < <(g ls-tree -r -z --name-only "$head" -- .github/workflows/)
+}
+g diff-index --cached --quiet "$head" -- .github/workflows/ || workflows_are_base_own || reason workflow-staged
 
 declare -A final=()
 while IFS= read -r -d '' record; do
