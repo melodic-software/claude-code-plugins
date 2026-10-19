@@ -1466,6 +1466,44 @@
 .app .vf-clbody { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; padding: 0 14px 14px; }
 .app .vf-clbody[hidden] { display: none; }
 .app .vf-clbody > .vf-askform { margin: 0; }
+/* Item 10: the Discussion under the Claude section, folded to its head by default. */
+.app .vf-disc { margin-block-start: 16px; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--pane); scroll-margin-block-start: 8px; }
+.app .vf-disc-h { font-size: inherit; padding: 6px; }
+.app .vf-disc-head {
+  all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap;
+  inline-size: 100%; min-block-size: 44px; padding: 6px 8px; border-radius: var(--r-md); color: var(--text);
+}
+.app .vf-disc-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app .vf-disc-title { font-size: 14px; font-weight: 650; }
+.app .vf-disc-head .vf-chev { margin-inline-start: auto; }
+.app .vf-disc[data-open="true"] .vf-disc-head .vf-chev { rotate: 180deg; }
+.app .vf-disc-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 0 14px 14px; }
+.app .vf-disc-body[hidden], .app .vf-disc-form[hidden], .app .vf-cm [hidden] { display: none; }
+.app .vf-disc-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin: 0; padding: 0; list-style: none; }
+.app .vf-cm { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; padding-block: 10px; border-block-start: 1px solid var(--line); }
+.app .vf-disc-list > .vf-cm:first-child { border-block-start: 0; padding-block-start: 2px; }
+.app .vf-cm-col { min-width: 0; display: grid; gap: 4px; }
+.app .vf-cm-head { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; font-size: 12px; }
+.app .vf-cm-name { font-weight: 650; }
+.app .vf-cm-new { margin: 0; inline-size: 6px; block-size: 6px; }
+.app .vf-cm-txt { font-size: 13.5px; overflow-wrap: anywhere; }
+.app .vf-cm-txt p { margin: 0; }
+.app .vf-cm-ishidden .vf-cm-txt { color: var(--muted); }
+.app .vf-cm-became {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 8px; border-radius: var(--r-sm);
+  background: color-mix(in oklch, var(--claude) 12%, transparent); color: var(--muted); font-size: 12px;
+}
+.app .vf-cm-view, .app .vf-fromdisc { color: var(--claude); font-weight: 650; font-size: 12px; }
+.app .vf-fromdisc { justify-self: start; margin-block-start: 4px; text-decoration: underline; }
+.app .vf-fromdisc[hidden] { display: none; }
+.app .vf-cm .vf-mreacts { grid-column: auto; }
+.app .vf-cm-acts { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; font-size: 12px; }
+.app .vf-cm-acts .vf-lbtn { color: var(--faint); min-block-size: 28px; }
+.app .vf-cm-acts .vf-lbtn:hover { color: var(--text); }
+.app .vf-cm-acts .vf-cm-react { display: inline-flex; }
+.app .vf-cm-acts .vf-cm-react[hidden] { display: none; }
+.app .vf-disc-hint { color: var(--faint); font-size: 12px; }
+.app .vf-disc-form .vf-crow { flex-wrap: wrap; }
 .app .vf-chip-new { color: var(--on-accent); background: var(--accent); border: 1px solid transparent; }
 .app .vf-chip[hidden] { display: none; }
 .app .vf-thlist { gap: 12px; }

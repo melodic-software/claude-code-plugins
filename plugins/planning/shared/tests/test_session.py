@@ -3107,7 +3107,7 @@ class TestSnapshots(SessionCase):
         return next(c for c in snap["cards"]["Q1"] if c["ref"] == ref)
 
     def test_the_anonymous_view_has_exactly_four_keys(self):
-        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 4})
+        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 5})
         self.act("rotate_guest_link", HOST, {})
         self.assertTrue(self.s.anonymous_view()["joinNeedsKey"])
 
@@ -3180,7 +3180,7 @@ class TestSnapshots(SessionCase):
 
     def test_a_snapshot_carries_schema_version_and_rev(self):
         snap = self.s.snapshot(self.cy)
-        self.assertEqual((snap["schemaVersion"], snap["rev"]), (4, self.s.state["rev"]))
+        self.assertEqual((snap["schemaVersion"], snap["rev"]), (5, self.s.state["rev"]))
 
     def test_the_shared_part_is_built_once_per_rev(self):
         first = self.s._base()
@@ -4531,7 +4531,7 @@ class TestStateFrom394a8bc(unittest.TestCase):
         raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
         self.assertEqual(raw["schemaVersion"], 3)
         s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        self.assertEqual({k: v for k, v in s.state.items() if k != "inboxSeen"}, {**raw, "schemaVersion": 4})
+        self.assertEqual({k: v for k, v in s.state.items() if k not in ("inboxSeen", "discussions", "discussionSeen")}, {**raw, "schemaVersion": session.migrate.CURRENT})
         self.assertEqual(s.state["inboxSeen"], {
             self.ANN: {"R1": "waiting", "R2": "running", "R3": "unshared", "R8": "waiting"},
             self.BO: {"R4": "shared", "R5": "declined", "R6": "failed"},
@@ -5447,7 +5447,7 @@ class TestReportsOnAnOlderFile(StateFixtureCase):
         raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
         self.assertNotIn("reports", raw)
         s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        self.assertEqual({k: v for k, v in s.state.items() if k != "inboxSeen"}, {**raw, "schemaVersion": 4})  # no one named with @: only its version moves, and the Inbox marks join
+        self.assertEqual({k: v for k, v in s.state.items() if k not in ("inboxSeen", "discussions", "discussionSeen")}, {**raw, "schemaVersion": session.migrate.CURRENT})  # no one named with @: only its version moves, and the Inbox marks join
         guest = next(p for p in s.state["people"] if p != HOST and s.state["people"][p]["status"]["kind"] == "active")
         self.assertEqual(s.report(guest, {"text": "Broken", "ctx": {**CTX, "qid": None}})["id"], "F1")
         self.assertEqual(session.Session.load(tmp / "state.json", validate_writes=True).state["session"]["seq"]["F"], 1)
@@ -5599,7 +5599,7 @@ class TestTakingPartOnAnOlderFile(StateFixtureCase):
         raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
         self.assertFalse({"passes", "lateActs"} & set(raw) or any("for" in q for q in raw["questions"]))
         s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        self.assertEqual({k: v for k, v in s.state.items() if k != "inboxSeen"}, {**raw, "schemaVersion": 4})  # no one named with @: only its version moves, and the Inbox marks join
+        self.assertEqual({k: v for k, v in s.state.items() if k not in ("inboxSeen", "discussions", "discussionSeen")}, {**raw, "schemaVersion": session.migrate.CURRENT})  # no one named with @: only its version moves, and the Inbox marks join
         s.set_for(HOST, {"qid": "Q5", "for": ["Ann"]})
         self.assertEqual(s.pass_("aB3dE5fG7hJ9", {"qid": "Q5", "reason": "Not mine"}), {"pass": True})
         self.assertEqual(session.Session.load(tmp / "state.json", validate_writes=True).state["passes"]["Q5"]["aB3dE5fG7hJ9"]["reason"], "Not mine")

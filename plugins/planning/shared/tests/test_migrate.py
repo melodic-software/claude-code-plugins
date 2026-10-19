@@ -48,7 +48,7 @@ class TestChain(unittest.TestCase):
             "p:aB3dE5fG7hJ9:computer": {"kL1mN3pQ5rS7": ["thumbs"], "host": ["idea"]},
             "p:kL1mN3pQ5rS7:phone": {"aB3dE5fG7hJ9": ["heart"], "host": ["down"]},
         }})
-        self.assertEqual({k: v for k, v in out.items() if k not in ("reactions", "schemaVersion", "inboxSeen")}, {k: v for k, v in doc.items() if k not in ("reactions", "schemaVersion")})
+        self.assertEqual({k: v for k, v in out.items() if k not in ("reactions", "schemaVersion", "inboxSeen", "discussions", "discussionSeen")}, {k: v for k, v in doc.items() if k not in ("reactions", "schemaVersion")})
         self.assertEqual((out["schemaVersion"], doc), (migrate.CURRENT, json.loads(raw)))  # state-v1.json names no one with @
 
     def test_the_current_chain_is_the_identity(self):
@@ -58,14 +58,14 @@ class TestChain(unittest.TestCase):
 
 class TestMigrate(unittest.TestCase):
     def test_current_version_comes_back_unchanged(self):
-        doc = {"schemaVersion": 4, "rev": 3}
-        self.assertEqual(migrate.migrate(doc), {"schemaVersion": 4, "rev": 3})
+        doc = {"schemaVersion": 5, "rev": 3}
+        self.assertEqual(migrate.migrate(doc), {"schemaVersion": 5, "rev": 3})
 
     def test_newer_version_is_refused_naming_both_versions(self):
         with self.assertRaises(migrate.MigrationError) as ctx:
-            migrate.migrate({"schemaVersion": 5})
-        self.assertIn("schemaVersion 5", str(ctx.exception))
-        self.assertIn("newer than 4", str(ctx.exception))
+            migrate.migrate({"schemaVersion": 6})
+        self.assertIn("schemaVersion 6", str(ctx.exception))
+        self.assertIn("newer than 5", str(ctx.exception))
 
     def test_missing_or_non_integer_version_is_refused(self):
         for doc in (
@@ -93,11 +93,11 @@ class TestMigrate(unittest.TestCase):
 
     def test_a_gap_in_the_chain_is_refused(self):
         with (
-            mock.patch.object(migrate, "CURRENT", 5),
+            mock.patch.object(migrate, "CURRENT", 6),
             self.assertRaises(migrate.MigrationError) as ctx,
         ):
-            migrate.migrate({"schemaVersion": 4})
-        self.assertIn("no migration from schemaVersion 4 to 5", str(ctx.exception))
+            migrate.migrate({"schemaVersion": 5})
+        self.assertIn("no migration from schemaVersion 5 to 6", str(ctx.exception))
 
     def test_v3_gains_inbox_seen_with_each_persons_requests_read_and_nothing_else_changes(self):
         raw = (FIXTURES / "state-v3.json").read_text(encoding="utf-8")
@@ -105,8 +105,8 @@ class TestMigrate(unittest.TestCase):
         out = migrate.migrate(doc, notes)
         # state-v3.json's four requests at the status their requester sees, written out by hand: R1's result is shared.
         self.assertEqual(out["inboxSeen"], {"kL1mN3pQ5rS7": {"R1": "shared", "R3": "waiting", "R4": "failed"}, "aB3dE5fG7hJ9": {"R2": "running"}})
-        self.assertEqual({k: v for k, v in out.items() if k not in ("inboxSeen", "schemaVersion")}, {k: v for k, v in doc.items() if k != "schemaVersion"})
-        self.assertEqual((out["schemaVersion"], doc), (4, json.loads(raw)))
+        self.assertEqual({k: v for k, v in out.items() if k not in ("inboxSeen", "schemaVersion", "discussions", "discussionSeen")}, {k: v for k, v in doc.items() if k != "schemaVersion"})
+        self.assertEqual((out["schemaVersion"], doc), (migrate.CURRENT, json.loads(raw)))
         self.assertEqual(notes, ["inbox: 4 requests of 2 people start read"])
 
     def test_v3_to_v4_reads_an_unshared_answer_as_unshared_and_the_hosts_own_as_answered(self):
@@ -117,6 +117,15 @@ class TestMigrate(unittest.TestCase):
         ], "results": {"Q1": [{"id": "X1", "published": False, "by": {"kind": "host-claude"}}, {"id": "X2", "published": False, "by": {"kind": "host-claude"}},
                               {"id": "X3", "published": False, "by": {"kind": "guest-claude", "pid": "pidAnn001"}}]}}
         self.assertEqual(migrate.migrate(doc)["inboxSeen"], {"pidAnn001": {"R1": "unshared", "R3": "answered"}, "host": {"R2": "answered"}})
+
+    def test_v4_gains_empty_discussions_and_seen_marks_and_nothing_else_changes(self):
+        raw = (FIXTURES / "state-v4.json").read_text(encoding="utf-8")
+        doc, notes = json.loads(raw), []
+        out = migrate.migrate(doc, notes)
+        self.assertEqual((out["discussions"], out["discussionSeen"], out["schemaVersion"]), ({}, {}, 5))
+        self.assertEqual({k: v for k, v in out.items() if k not in ("discussions", "discussionSeen", "schemaVersion")}, {k: v for k, v in doc.items() if k != "schemaVersion"})
+        self.assertEqual((doc, notes), (json.loads(raw), []))
+        self.assertIsNone(schema.first_error(out, STATE))
 
 
 class TestV3ToV4RemovedGuest(unittest.TestCase):
