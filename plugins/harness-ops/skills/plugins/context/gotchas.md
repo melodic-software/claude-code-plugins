@@ -112,7 +112,10 @@ For when the sweep fires, see
 auto-update runs). Re-read state immediately before each mutating
 step (`sync.md`'s "Concurrency" section, `converge.md` Step 4) rather than driving a whole multi-step
 sync off one snapshot taken at the start. When a mutation's actual result doesn't match what the
-snapshot predicted, that's this race. Note it in the report, don't treat it as a bug to chase.
+snapshot predicted, that's this race. Note it in the report, don't treat it as a bug to chase. For
+an update call the CLI answers "already at the latest version", the report's `Moved during this run:`
+row is that note: `sync.md`'s "Concurrency" section says how the run's snapshots separate a moved id
+from a true no-op.
 
 The catalog shifts the same way. A marketplace refresh landing mid-session, whether a background
 `autoUpdate` sweep or a concurrent session's manual update, rewrites the marketplace's own

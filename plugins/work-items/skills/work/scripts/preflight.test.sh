@@ -12,6 +12,11 @@ set -uo pipefail
 # redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
+# Pin the approvals layout to the repository-root-sharing one; the layout cases
+# below override PREFLIGHT_UNAME / PREFLIGHT_UID per call.
+export PREFLIGHT_UNAME=Linux
+unset PREFLIGHT_UID
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/preflight.sh"
 
@@ -59,6 +64,16 @@ run() {
   local fx="$1" cfg="$2"
   shift 2
   PREFLIGHT_FIXTURE_DIR="$fx" CLAUDE_CONFIG_DIR="$cfg" bash "$SCRIPT" "$@"
+}
+
+# run_home <home> <fixture-dir> <config-dir> [args...] — like run(), with HOME set
+# so a tilde-form entry expands deterministically. CLAUDE_CONFIG_DIR still points
+# settings at the fixture, so HOME only steers norm_path's ~ expansion (and the
+# repository-root-equals-home layout check).
+run_home() {
+  local home="$1" fx="$2" cfg="$3"
+  shift 3
+  HOME="$home" PREFLIGHT_FIXTURE_DIR="$fx" CLAUDE_CONFIG_DIR="$cfg" bash "$SCRIPT" "$@"
 }
 
 # write_settings <config-dir> <allow-json-array> [dir ...]
@@ -512,6 +527,104 @@ assert_contains "a parent that is not the tree makes the run INCOMPLETE" "$OUT" 
 assert_not_contains "a parent that is not the tree is never named as the main checkout" "$OUT" \
   "includes the main checkout's settings.local.json ('"
 
+# --- Case 16m: per-worktree layouts credit only the worktree's own local file --
+# Since v2.1.211 the main checkout's local file is shared by the worktrees, except
+# on Windows, with the root equal to $HOME, or with a root not owned by the user,
+# where an approval stays with its worktree. Case 16's grant (main-local only) is
+# real coverage in the shared layout and no coverage in these.
+PWREPO="$TEST_TMPDIR/layout-main"
+git init -q "$PWREPO"
+commit_empty "$PWREPO"
+PWTOP="$(git -C "$PWREPO" rev-parse --show-toplevel)"
+mkdir -p "$PWTOP/.claude"
+jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$PWTOP/.claude/settings.local.json"
+PWWT="$TEST_TMPDIR/layout-wt"
+git -C "$PWREPO" worktree add -q --detach "$PWWT"
+assert_eq "shared layout credits the main-local grant → no gap" "0" "$(run "$PWWT" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+OTHER_UID=$(($(id -u) + 1))
+
+# Windows (injected uname): the main checkout's grant is not credited.
+WINUN="MINGW64_NT-10.0"
+assert_eq "Windows layout: main-local-only grant is a gap" "1" "$(PREFLIGHT_UNAME="$WINUN" run "$PWWT" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+OUT=$(PREFLIGHT_UNAME="$WINUN" run "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "Windows layout names the gap verb" "$OUT" "'gh pr create'"
+assert_contains "Windows layout header names the cause" "$OUT" "per-worktree approvals layout (Windows)"
+assert_not_contains "Windows layout is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+assert_eq "MSYS and CYGWIN spellings are Windows too" "1 1" \
+  "$(PREFLIGHT_UNAME=MSYS_NT run "$PWWT" "$CFG16" --count --worktree-root "$POSIX_CHILD") $(PREFLIGHT_UNAME=CYGWIN_NT run "$PWWT" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+assert_eq "Windows layout from the main checkout does not credit its file to the fresh worker" "1" \
+  "$(PREFLIGHT_UNAME="$WINUN" run "$PWREPO" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+# The worktree's own local file is credited.
+mkdir -p "$PWWT/.claude"
+jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$PWWT/.claude/settings.local.json"
+assert_eq "Windows layout, interactive: the worktree's own local grant counts" "0" "$(PREFLIGHT_UNAME="$WINUN" run "$PWWT" "$CFG16" --count)"
+assert_eq "Windows layout, named worker: its own local grant counts" "0" \
+  "$(PREFLIGHT_UNAME="$WINUN" run "$PWREPO" "$CFG16" --project-root "$PWWT" --count --worktree-root "$POSIX_CHILD")"
+rm "$PWWT/.claude/settings.local.json"
+# A main-local deny still reaches the run in the per-worktree layout.
+jq -n '{permissions:{deny:["Bash(git commit *)"]}}' >"$PWTOP/.claude/settings.local.json"
+OUT=$(PREFLIGHT_UNAME="$WINUN" run "$PWWT" "$CFG16D" --worktree-root "$POSIX_CHILD")
+assert_contains "Windows layout still reads the main-local deny" "$OUT" "is DENIED"
+jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$PWTOP/.claude/settings.local.json"
+
+# A root owned by another user (injected current uid differs from the owner).
+assert_eq "root not owned by the user: main-local-only grant is a gap" "1" "$(PREFLIGHT_UID="$OTHER_UID" run "$PWWT" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+OUT=$(PREFLIGHT_UID="$OTHER_UID" run "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "ownership header names the cause" "$OUT" "root, .git or .claude not owned by the user"
+mkdir -p "$PWWT/.claude"
+jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$PWWT/.claude/settings.local.json"
+assert_eq "root not owned by the user: the worktree's own local grant counts" "0" "$(PREFLIGHT_UID="$OTHER_UID" run "$PWWT" "$CFG16" --count)"
+rm "$PWWT/.claude/settings.local.json"
+
+# Repository root equal to $HOME.
+assert_eq "root equal to HOME: main-local-only grant is a gap" "1" "$(run_home "$PWTOP" "$PWWT" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+OUT=$(run_home "$PWTOP" "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "HOME header names the cause" "$OUT" "repository root is the home directory"
+assert_eq "root under HOME is still shared" "0" "$(run_home "$TEST_TMPDIR" "$PWWT" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+# A HOME that is a symlink to the repository root is the same directory.
+ln -s "$PWTOP" "$TEST_TMPDIR/layout-home-link"
+assert_eq "root equal to a symlinked HOME: main-local-only grant is a gap" "1" "$(run_home "$TEST_TMPDIR/layout-home-link" "$PWWT" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+OUT=$(run_home "$TEST_TMPDIR/layout-home-link" "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "symlinked HOME header names the cause" "$OUT" "repository root is the home directory"
+
+# One foreign entry is enough: each of the root, .git and .claude alone.
+for tag in ROOT GIT CLAUDE; do
+  assert_eq "only $tag not owned by the user: main-local-only grant is a gap" "1" \
+    "$(env "PREFLIGHT_OWNER_$tag=$OTHER_UID" PREFLIGHT_FIXTURE_DIR="$PWWT" CLAUDE_CONFIG_DIR="$CFG16" bash "$SCRIPT" --count --worktree-root "$POSIX_CHILD")"
+done
+
+# --- Case 16n: an undeterminable layout is not credited and is INCOMPLETE -----
+OUT=$(PREFLIGHT_UID=unreadable run "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "undeterminable layout reports the unread layer" "$OUT" "UNREAD LAYER"
+assert_contains "undeterminable layout does not credit the main-local grant" "$OUT" "'gh pr create'"
+assert_contains "undeterminable layout ends INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+assert_not_contains "undeterminable layout never claims OK" "$OUT" "PREFLIGHT: OK"
+assert_eq "undeterminable layout leaves the gap uncredited" "1" "$(PREFLIGHT_UID=unreadable run "$PWWT" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+assert_exit "undeterminable layout still exits 0 (report-only)" 0 "$(
+  PREFLIGHT_UID=unreadable run "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD" >/dev/null
+  echo $?
+)"
+# An owner stat cannot read (injected non-numeric) is undeterminable too.
+OUT=$(PREFLIGHT_OWNER_GIT=unreadable run "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "unreadable owner reports the unread layer" "$OUT" "UNREAD LAYER"
+assert_contains "unreadable owner ends INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+# Neither HOME nor USERPROFILE set: root-equals-home cannot be ruled out.
+OUT=$(env -u HOME -u USERPROFILE PREFLIGHT_FIXTURE_DIR="$PWWT" CLAUDE_CONFIG_DIR="$CFG16" bash "$SCRIPT" --worktree-root "$POSIX_CHILD")
+assert_contains "HOME and USERPROFILE unset reports the unread layer" "$OUT" "UNREAD LAYER"
+assert_contains "HOME and USERPROFILE unset ends INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+# An empty platform string is unknown, never the shared layout.
+OUT=$(PREFLIGHT_UNAME="" run "$PWWT" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "unreadable platform reports the unread layer" "$OUT" "UNREAD LAYER"
+assert_contains "unreadable platform ends INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+# Run from the main checkout itself, interactively, its own local file is what the
+# session loads: credited, and nothing is unread.
+OUT=$(PREFLIGHT_UID=unreadable run "$PWREPO" "$CFG16")
+assert_not_contains "undeterminable layout from the main checkout is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
+assert_eq "undeterminable layout from the main checkout credits its own file" "0" "$(PREFLIGHT_UID=unreadable run "$PWREPO" "$CFG16" --count)"
+# A bare repository has no main checkout to judge: no layout finding.
+OUT=$(PREFLIGHT_UID=unreadable run "$TEST_TMPDIR/res-bare-wt" "$CFGRES" --worktree-root "$RESROOT")
+assert_not_contains "bare repo is not judged for layout" "$OUT" "approvals layout"
+
 # --- Case 17: a distinct --project-root reads the worker's OWN local settings -
 # When --project-root names a real worker worktree (toplevel differs from cwd),
 # read ITS OWN settings.local.json — the worker's file, present in that checkout —
@@ -550,14 +663,6 @@ mkdir -p "$HOME19"
 CFG19="$TEST_TMPDIR/cfg19"
 # shellcheck disable=SC2088  # the literal ~ entry is the input under test, not a path to expand
 write_settings "$CFG19" "$FULL_ALLOW" "~/.worktrees"
-# run_home <home> <fixture-dir> <config-dir> [args...] — like run(), with HOME set
-# so a tilde-form entry expands deterministically. CLAUDE_CONFIG_DIR still points
-# settings at the fixture, so HOME only steers norm_path's ~ expansion.
-run_home() {
-  local home="$1" fx="$2" cfg="$3"
-  shift 3
-  HOME="$home" PREFLIGHT_FIXTURE_DIR="$fx" CLAUDE_CONFIG_DIR="$cfg" bash "$SCRIPT" "$@"
-}
 OUT=$(run_home "$HOME19" "$REPO" "$CFG19" --worktree-root "$HOME19/.worktrees/999-x")
 assert_not_contains "tilde-form entry covers an absolute child → no (c) gap" "$OUT" "GAP (c)"
 assert_eq "tilde-form entry expands → zero gaps" "0" "$(run_home "$HOME19" "$REPO" "$CFG19" --count --worktree-root "$HOME19/.worktrees/999-x")"
