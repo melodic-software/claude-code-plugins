@@ -231,8 +231,7 @@ was observed in, the date, and the denial text verbatim (or the owner's words, q
 that it is a habit, not a constraint. A resumed session retries a recorded refusal once, in its
 documented required shape, before handing the action to the user, then re-tags the entry with the
 result or moves it under `Superseded:`. A reservation the owner has since lifted in their own words
-moves under `Superseded:` too. Carried records without evidence handed actions back in 5 of 8
-audited sessions, and one handed-back merge later went through with no denial.
+moves under `Superseded:` too.
 
 Before closing the section, re-scan for *but*, *except*, *unless*, "the exception is", "the corner
 case". Those words mark constraints that emerged mid-discussion and never rose to a top-line
@@ -412,8 +411,7 @@ blocker is listed here in its sequence position, marked as waiting, and named on
 
 **When every action waits on a peer or the owner, list the prework that advances them** (review
 the peer's PR, check a release's state, pre-verify the condition the wait is for), so the resumed
-session does it before going idle. Never write a bare "no action owed" line: an audited session
-resumed from one and idled with review and release prework available.
+session does it before going idle. Never write a bare "no action owed" line.
 
 The `Resumption brief` names only the first of these. This section owns the rest. It is the one
 place the full sequence exists, so it survives when the brief's single action is done.
