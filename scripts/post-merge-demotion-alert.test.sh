@@ -97,6 +97,7 @@ if [[ "$method" != GET ]]; then
   exit 0
 fi
 [[ "${STUB_FAIL_READ:-}" != 1 ]] || exit 1
+[[ "${STUB_FAIL_LANE_READ:-}" != 1 || "$endpoint" != *creator=melodic-automation-lanes* ]] || exit 1
 case "$endpoint" in
   */comments*) fixture="$STUB_DIR/comments.json" ;;
   */jobs*)
@@ -203,7 +204,7 @@ run_step() {
   local graphql="${GRAPHQL:-}"
   printf '%s\n' "${graphql:-null}" >"$TMP_ROOT/stub/graphql.json"
   : >"$TMP_ROOT/stub/log"
-  OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" \
+  OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
@@ -777,5 +778,15 @@ else
 fi
 PIPELINE="$PIPE" files "a lane record of another run is not this run's record" schedule "$FULL" schedule \
   "[$(issue 52 "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->"$'\n\n'"- Failing run: ${RUN_URL}0/attempts/1")]"
+
+# Only a demotion record stands in by its failing run: any other issue a
+# filer opened that names the run holds nothing.
+PIPELINE="$PIPE" files "a non-demotion issue naming this run is not its record" schedule "$FULL" schedule \
+  "[$(issue 53 "triage note"$'\n\n'"- Failing run: $RUN_URL/attempts/1")]"
+# A failed read of the identity's records still files this workflow's own.
+FAIL_LANE_READ=1 PIPELINE="$PIPE" files "an unreadable lane record list still files" schedule "$FULL" schedule '[]'
+if [[ "$OUT" != *"could not read melodic-automation-lanes[bot]'s records"* ]]; then
+  fail "an unreadable lane record list did not warn: out='$OUT'"
+fi
 
 test_harness::report

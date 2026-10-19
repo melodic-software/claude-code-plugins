@@ -299,21 +299,34 @@ jobs:
           else
             lane_filer=''
           fi
-          records=''
-          for filer in "${filers[@]}"; do
-            records+="$(gh api --paginate \
-              "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$filer&per_page=100" \
+          # A failed read of github-actions[bot]'s records fails the job; a
+          # failed read of the identity's warns and files from this workflow's
+          # own records, which can add a record but never drop one.
+          read_records() {
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$1&per_page=100" \
               --jq '.[] | select(.pull_request == null) | [.number, .state, (.body // "")]
                 | [.[0], .[1], (.[2] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
                    ([.[2] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
                     | ltrimstr("- Failing run: ") | sub("\\s+$"; ""))]
-                | @tsv')"$'\n'
-          done
+                | @tsv'
+          }
+          records="$(read_records "${filers[0]}")"$'\n'
+          if [[ -n "${filers[1]:-}" ]]; then
+            if lane_records="$(read_records "${filers[1]}")"; then
+              records+="$lane_records"
+            else
+              echo "::warning::could not read $lane_filer's records; matching this workflow's own records only"
+            fi
+          fi
           number=''
           state=''
           filed=''
           while IFS=$'\t' read -r n s first failing; do
-            if [[ "$first" == "$marker" || "$first" == "$failure_marker" || "$failing" == "$RUN_URL/attempts/"* ]]; then
+            # A record matched by its failing run must be a demotion record:
+            # anything else names the run without holding the gate.
+            if [[ "$first" == "$marker" || "$first" == "$failure_marker" ||
+              ( "$first" == "<!-- babysit-merge-demotion "* && "$failing" == "$RUN_URL/attempts/"* ) ]]; then
               number="$n"
               state="$s"
               filed="$failing"
