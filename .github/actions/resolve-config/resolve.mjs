@@ -658,6 +658,7 @@ function resolveSlot(
     ...(activity.args === undefined ? {} : { args: activity.args }),
     ...(activity.prepare === undefined ? {} : { prepare: activity.prepare }),
     ...(activity.checks === undefined ? {} : { checks: activity.checks }),
+    ...(activity["self-checks"] === undefined ? {} : { "self-checks": activity["self-checks"] }),
     ...(activity["verify-scripts"] === undefined ? {} : { "verify-scripts": activity["verify-scripts"] }),
     ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
     effect: activity.effect,
@@ -730,6 +731,8 @@ const limitsOf = (limits = {}) => ({
   "wip-cap": limits["wip-cap"] ?? 60,
   "fix-ci-per-run": limits["fix-ci-per-run"] ?? 2,
   "fix-ci-restarts": limits["fix-ci-restarts"] ?? 1,
+  "admission-window-hours": limits["admission-window-hours"] ?? 24,
+  "admission-factor": limits["admission-factor"] ?? 0.8,
 });
 
 const loopOf = (loop = {}) => ({

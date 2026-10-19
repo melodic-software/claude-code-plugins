@@ -70,15 +70,17 @@ function isProperNounShaped(word) {
 }
 
 /**
- * Build the repair lexicon from the post text and its harvested links.
- * Description terms win over link-derived terms on a key collision (the
- * author's casing beats a lowercased URL slug).
+ * Build the repair lexicon from the video title, the post text and its
+ * harvested links. Title terms win over description terms, and both win over
+ * link-derived terms, on a key collision (the author's casing beats a
+ * lowercased URL slug).
  *
  * @param {string} description - the post text (yt-dlp `description`)
  * @param {readonly HarvestedLink[]} [harvestedLinks]
+ * @param {string} [title] - the video title (yt-dlp `title`)
  * @returns {string[]} lexicon terms, single words and multi-word phrases
  */
-export function buildRepairLexicon(description, harvestedLinks = []) {
+export function buildRepairLexicon(description, harvestedLinks = [], title = "") {
   /** @type {Map<string, string>} */
   const byKey = new Map();
   /** @param {string} term */
@@ -88,33 +90,34 @@ export function buildRepairLexicon(description, harvestedLinks = []) {
     if (!byKey.has(key)) byKey.set(key, term);
   };
 
-  const tokens = (description ?? "")
-    .split(/\s+/)
-    .map(stripEdgePunctuation)
-    .filter(Boolean);
+  // Each text is its own pass, so a capitalized run never spans the title and
+  // the description.
+  for (const text of [title, description]) {
+    const tokens = (text ?? "").split(/\s+/).map(stripEdgePunctuation).filter(Boolean);
 
-  // Runs of consecutive capitalized words form phrases ("Claude Code") — the
-  // multi-word shape single-token extraction misses. Phrases go in FIRST so
-  // the author's spaced phrasing wins a key collision with a compacted form
-  // of the same name (e.g. the "#ClaudeCode" hashtag).
-  /** @type {string[]} */
-  let run = [];
-  const flushRun = () => {
-    if (run.length >= 2) add(run.join(" "));
-    run = [];
-  };
-  for (const token of tokens) {
-    if (/^[A-Z][A-Za-z0-9'’.-]*$/.test(token) && !STOPWORDS.has(token.toLowerCase())) {
-      run.push(token);
-    } else {
-      flushRun();
+    // Runs of consecutive capitalized words form phrases ("Claude Code") — the
+    // multi-word shape single-token extraction misses. Phrases go in FIRST so
+    // the author's spaced phrasing wins a key collision with a compacted form
+    // of the same name (e.g. the "#ClaudeCode" hashtag).
+    /** @type {string[]} */
+    let run = [];
+    const flushRun = () => {
+      if (run.length >= 2) add(run.join(" "));
+      run = [];
+    };
+    for (const token of tokens) {
+      if (/^[A-Z][A-Za-z0-9'’.-]*$/.test(token) && !STOPWORDS.has(token.toLowerCase())) {
+        run.push(token);
+      } else {
+        flushRun();
+      }
     }
-  }
-  flushRun();
+    flushRun();
 
-  for (const token of tokens) {
-    if (isProperNounShaped(token)) {
-      add(token.replace(/^[@#]/, ""));
+    for (const token of tokens) {
+      if (isProperNounShaped(token)) {
+        add(token.replace(/^[@#]/, ""));
+      }
     }
   }
 

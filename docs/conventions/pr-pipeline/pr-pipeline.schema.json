@@ -128,6 +128,20 @@
           "maximum": 5,
           "default": 1,
           "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
+        },
+        "admission-window-hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 24,
+          "description": "Hours of issue-lane admissions the admitted backlog (open issues labeled agent-ready) may hold before new agent-ready labels pause. Admissions are open while that backlog is under the admission factor times lane merges per hour times this window."
+        },
+        "admission-factor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.8,
+          "description": "Share of the issue lane's hourly merge rate (lanes App PRs merged in the last 24 hours, divided by 24) admitted per hour. The release point is this factor times hourly merges times admission-window-hours."
         }
       }
     },
@@ -180,7 +194,13 @@
       }
     },
     "merge": { "$ref": "#/$defs/merge" },
-    "models": { "$ref": "#/$defs/models" }
+    "models": { "$ref": "#/$defs/models" },
+    "funding": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": { "enum": ["reviews", "automations", "issue-lane"] },
+      "description": "Claude lane id -> the funding role whose secrets pay for its runs. The lane passes the role to run-claude-cli with <ROLE>_CLAUDE_API_KEY and <ROLE>_CLAUDE_CODE_OAUTH_TOKEN, role upper-snake (README.md, Funding)."
+    }
   },
   "$defs": {
     "name": {
@@ -327,11 +347,13 @@
       "oneOf": [{ "required": ["skill"] }, { "required": ["script"] }],
       "dependentRequired": {
         "checks": ["skill"],
+        "self-checks": ["skill"],
         "verify-scripts": ["skill"],
         "web-access": ["skill"]
       },
       "dependentSchemas": {
         "verify-scripts": { "properties": { "effect": { "not": { "const": "read" } } } },
+        "self-checks": { "properties": { "effect": { "not": { "const": "read" } } } },
         "prepare": {
           "oneOf": [
             {
@@ -369,6 +391,16 @@
             "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
           },
           "description": "Repository check scripts a skill with an effect other than read may run, each with its fixed flags. The write runner runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
+        },
+        "self-checks": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
+          },
+          "description": "Advisory repository check scripts a skill with an effect other than read runs and fixes before it commits, each with its fixed flags, through the same wrapper as checks. Unlike checks, the runner never runs them again, so a failure the skill cannot fix still opens the PR and is named in its report."
         },
         "verify-scripts": {
           "type": "array",
@@ -599,6 +631,13 @@
           "minimum": 1,
           "default": 1,
           "description": "Lane merges allowed in flight at once: the agent identity's merge-queue entries plus its merged pull requests the post-merge check has not verified. The gate reads it at the default branch head, not the pull request's base, and refuses `in-flight:` at this count. A post-merge failure charges every unverified lane merge whose commit the red run contains, and any charge demotes the rung."
+        },
+        "max-queue-ejections": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 2,
+          "description": "Merge-queue removals for failed checks since the pull request's head last changed (a pushed commit or a force push) at which the unattended merge gate stops enqueuing that head: the queue would eject it again on the same commits. A push resets the count."
         },
         "verify-authors": {
           "enum": ["lane", "any"],
