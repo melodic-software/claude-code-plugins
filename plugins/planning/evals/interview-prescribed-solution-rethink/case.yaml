@@ -18,7 +18,7 @@ graders:
     arm: with-only
   - name: evidence-rated
     type: regex
-    pattern: '\b(?:evidence|rating)\b(?:\W{0,6}|\s+(?:is|rated)\s+)(?:observed|reported|inferred)\b|\((?:observed|reported|inferred)\b[^)\n]{0,120}\)|\b(?:problem|gap)\b[^\n.?]{0,80}\b(?:is|was|rated)\s+(?:observed|reported|inferred)\b'
+    pattern: '(?<![a-z])(?:evidence|rating)(?![a-z])(?:[\W_]{0,6}|\s+(?:is|rated)\s+[*_]{0,2})(?:observed|reported|inferred)(?![a-z])|\([*_]{0,2}(?:observed|reported|inferred)(?![a-z])[^)\n]{0,120}\)|\b(?:problem|gap)\b[^\n.?]{0,80}\b(?:is|was|rated)\s+[*_]{0,2}(?:observed|reported|inferred)(?![a-z])'
     flags: i
     arm: both
   - name: rethink-or-accept-asked
@@ -28,14 +28,14 @@ graders:
   - name: no-plan-write
     type: tool_used
     tool: Write
-    input_match: 'PLAN\.md'
+    input_match: '"file_path":"[^"]*PLAN\.md"'
     min: 0
     max: 0
     arm: both
   - name: no-plan-edit
     type: tool_used
     tool: Edit
-    input_match: 'PLAN\.md'
+    input_match: '"file_path":"[^"]*PLAN\.md"'
     min: 0
     max: 0
     arm: both

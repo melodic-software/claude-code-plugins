@@ -7,6 +7,10 @@
     {
       "answer": "Q1: How many attempts should the wrapper make? My recommendation: 5 with exponential backoff capped at 10 minutes.\nQ2: Which status codes count as retryable? My recommendation: 502, 503 and 504.",
       "why": "ordinary detail questions with the problem not yet confirmed; no rethink-or-accept"
+    },
+    {
+      "answer": "The problem and the fix are both stated, so I won't ask you to rethink the retry wrapper.\n\nQ1: How long should the wrapper keep retrying? Options: (a) about 2 minutes, enough for a typical deploy; (b) 15 minutes; (c) several hours, which would need a queue, not a wrapper. My recommendation: (a).",
+      "why": "a trade-off noted inside one option of a retry-window question is a detail, not a rethink"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "Before adding a retry wrapper, a dead-letter queue with replay may fit this problem better. Q1: Should we build the queue instead?",
       "why": "argues for a different approach"
+    },
+    {
+      "answer": "Problem: deliveries dropped on 503s during customer deploys (observed). Before any detail questions, let's settle the mechanism now. Q1: in-process retry wrapper, or a durable queue with replay? My recommendation: the queue.",
+      "why": "asks the user to choose between keeping the wrapper and replacing it"
     }
   ]
 }
