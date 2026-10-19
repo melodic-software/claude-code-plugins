@@ -299,6 +299,37 @@ else
 fi
 rm -rf "$f" "$g"
 
+# --- a listed convention: versioned by its newest CHANGELOG heading -------------
+base_fixture f
+mkdir -p "$f/docs/conventions/demo"
+printf '# Changelog for demo\n\n## 2.14.0 - 2026-10-18\n\nProse.\n' >"$f/docs/conventions/demo/CHANGELOG.md"
+printf 'alpha\nbeta\ndemo\n' >"$f/scripts/fragment-plugins.txt"
+git_test_config "$f" add -A
+git_test_config "$f" commit -qm convention
+add_fragment "$f" demo one-44444444 minor "### Changed
+
+- Thing."
+out="$(run_release "$f" 2>&1)"
+rc=$?
+if ((rc == 0)) && [[ "$out" == *"demo: 2.14.0 -> 2.15.0 (minor) from 1 fragment(s)"* ]] && [[ ! -e "$f/.changes/demo" && ! -e "$f/docs/conventions/demo/.claude-plugin" ]]; then
+  ok "releases a listed convention from its newest heading and consumes its fragments"
+else
+  fail "expected demo 2.14.0 -> 2.15.0 with the fragment gone, got rc=$rc: $out"
+fi
+expect_file "writes the convention entry above its newest heading" \
+  "$f/docs/conventions/demo/CHANGELOG.md" '# Changelog for demo
+
+## [2.15.0] - 2026-10-04
+
+### Changed
+
+- Thing.
+
+## 2.14.0 - 2026-10-18
+
+Prose.'
+rm -rf "$f"
+
 # --- usage ------------------------------------------------------------------------
 base_fixture f
 out="$(cd "$f" && bash scripts/release-plugins.sh --date tomorrow 2>&1)"
