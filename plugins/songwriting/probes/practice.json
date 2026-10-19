@@ -1,0 +1,132 @@
+{
+  "skill": "songwriting:practice",
+  "plugin": "songwriting",
+  "skill_dir": "plugins/songwriting/skills/practice",
+  "ranking_note": "Authored from the before descriptions at commit 11a25e8bb3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling songwriting skills the near-miss negatives aim at; one or two negatives are adjacent non-songwriting requests.",
+  "competitors": [
+    "songwriting:object-writing",
+    "songwriting:workflow",
+    "songwriting:rhyme",
+    "songwriting:metaphor",
+    "songwriting:song-form",
+    "songwriting:diagnose"
+  ],
+  "competitor_dirs": {
+    "songwriting:object-writing": "plugins/songwriting/skills/object-writing",
+    "songwriting:workflow": "plugins/songwriting/skills/workflow",
+    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
+    "songwriting:metaphor": "plugins/songwriting/skills/metaphor",
+    "songwriting:song-form": "plugins/songwriting/skills/song-form",
+    "songwriting:diagnose": "plugins/songwriting/skills/diagnose"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want to write every morning before work. Lay out a routine I can stick to."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Set me up with a two-month songwriting curriculum, one thing a day."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What's today's craft drill?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Walk me through one of the structural exercises from the lyric form book."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a rhyming worksheet to work on this week."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I keep skipping days. How do I make songwriting a daily thing?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Assign me exercise 2.3 from Songwriting Without Boundaries."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Plan out a week of short warm-up writing sessions for me."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want structured homework like a Berklee student would get."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find a rhyme for 'morning'."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I have a half-finished verse that's stuck. Help me get unstuck."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is this metaphor working?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where should my title go?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make me a 5-day gym workout plan."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write about 'sidewalk' through all seven senses for me right now."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Who's the speaker in this lyric?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check my song draft and tell me what's off."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Build me a daily Spanish vocabulary habit."
+    }
+  ]
+}

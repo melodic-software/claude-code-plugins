@@ -24,6 +24,8 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `dispatcher-run-id` | `token` mode: the `pr-unblock-dispatch.yml` run that dispatched this one; sent as `dispatcher_run_id` when set. The broker needs it to trust a run sent by `github-actions[bot]` |
 | `effect`, `contents`, `pull-requests`, `issues` | `token` mode: this job's own `resolve-config` outputs, compared with the broker's answer |
 | `superseded-ok` | `true` ends green, with a `lane-token-superseded` warning and no token, on a 403 whose reason is `workflow-modified` (a newer copy of the caller workflow on the default branch, whose run does the work). Default `false` |
+| `pr-workflow-change-ok` | `token` mode with `pr-number`: `true` ends green, with no token and `skip-reason` `workflow-modified`, on a 403 `workflow-modified` naming a workflow file the PR itself changes ([below](#a-workflow-file-the-pr-changes)). Default `false` |
+| `head-sha`, `default-branch`, `github-token` | Required with `pr-workflow-change-ok`: the gated head, the default branch, and a token that reads the repository's contents, for the compare |
 
 ## Outputs
 
@@ -33,6 +35,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `expires-at` | The expiry the broker returned |
 | `mint-id` | `<check_run_id>-<run_attempt>`, the broker's audit key for this mint |
 | `failure-reason` | The one-line reason the step failed with (`lane-token-denied: ...`); empty on a success |
+| `skip-reason` | `workflow-modified` when `pr-workflow-change-ok` skipped; empty otherwise |
 
 ## What it does
 
@@ -48,7 +51,8 @@ run, and mints nothing ([Check mode](#check-mode)).
    - `github-rate-limited`: GitHub rate-limited the broker. The retry waits exactly the
      `Retry-After` header (a minute when it is absent) plus up to 20 seconds of jitter. When that
      wait would end more than 8 minutes after the first request, it fails red at once, naming the
-     limit kind (`primary` or `secondary`), its resource and the time it resets.
+     limit kind (`primary` or `secondary`), its resource and the time it resets. On an issue lane,
+     work-unblock's hourly sweep re-fires such a run once the reset has passed.
    - `github-unavailable`: another broker call to GitHub failed. The retry waits 60, 120 and 240
      seconds plus up to 20 seconds of jitter, or a longer `Retry-After`.
 
@@ -60,7 +64,9 @@ run, and mints nothing ([Check mode](#check-mode)).
 4. Any status but 200 fails red with `lane-token-denied`, the HTTP status, and the broker's
    `reason` and `detail`, printed as one line of data. The reasons are listed in the contract.
    With `superseded-ok: true`, a 403 with reason `workflow-modified` warns and ends green instead,
-   setting no output, so steps gated on the `token` output skip.
+   setting no output, so steps gated on the `token` output skip. With `pr-workflow-change-ok: true`,
+   such a 403 for a workflow file the PR changes ends green with `skip-reason` set
+   ([below](#a-workflow-file-the-pr-changes)).
 5. On 200, masks the token, then compares the broker's `effect`, `permissions`, `lane`, `activity`
    and `repository_ids` with this job's values (`pull-requests` is `pull_requests` in the API). Any
    difference revokes the token and fails red with `effect-mismatch`. That happens when the PR's
@@ -93,6 +99,30 @@ Run it from the base checkout before any head checkout, after `resolve-config`:
 ```
 
 The job needs `permissions: id-token: write`, and so does the caller job that grants it.
+
+## A workflow file the PR changes
+
+The broker refuses every mint as `workflow-modified` while a PR changes the caller workflow or
+`pr-run-activity-write.yml`, and the refusal does not say whether the PR or the default branch
+changed the file. With `pr-workflow-change-ok: true` the step skips only when:
+
+1. the answer is 403 with reason `workflow-modified`;
+2. its `detail` is exactly `<file> differs from refs/heads/<default-branch>`, where `<file>` is a
+   `.github/workflows/*.yml` or `*.yaml` path; and
+3. `GET /repos/{owner}/{repo}/compare/<default-branch>...<head-sha>`, read with `github-token`,
+   lists `<file>` as a `filename` or a renamed file's `previous_filename`. The three-dot compare
+   lists what the head changed since its merge base with the default branch; GitHub lists at most
+   300 changed files, so a file past that is not found and the step stays red.
+
+It then writes `lane-token-skipped: ...` with the reason and file to the job summary as a notice,
+sets `skip-reason=workflow-modified`, sets no token and exits 0. Every
+other case fails red as step 4 says, with `; not skipped: <why>` appended for a `workflow-modified`
+refusal: a detail that does not parse, a file the compare does not list, or a compare that cannot
+be read. The compare is GitHub's, at the gated head, and the caller passes the input only on a
+`pull_request` run, which executes the PR's own workflow files: a dispatched run executes the
+default branch's files, so its refusal means the default branch moved and must stay red. Text the
+PR's code writes never reaches the decision. A PR that changes the workflow running the job already
+controls that job, so this adds nothing it could not already do.
 
 ## Check mode
 

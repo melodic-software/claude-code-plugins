@@ -276,6 +276,23 @@ run --app-slug 'bad"slug'
 check "invalid slug: exit 3" 3 "$?"
 check "invalid slug: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
+# 25b. A surviving ${user_config.lane_app_slug} placeholder or an empty slug is
+#      absent: with GET user failing, the identity stays unresolved (exit 5).
+# shellcheck disable=SC2016 # the literal placeholder is the input under test
+for slug in '${user_config.lane_app_slug}' ''; do
+  setup "[$(c 41 "$OLD")]"
+  STUB_USER=fail run --app-slug "$slug"
+  check "absent slug '$slug': exit 5, identity unresolved" 5 "$?"
+  check "absent slug '$slug': no write" 0 "$(writes)"
+done
+
+# 25c. A placeholder slug is not fatal when GET user reports a User.
+setup "[$(c 41 "$OLD")]"
+# shellcheck disable=SC2016 # the literal placeholder is the input under test
+run --app-slug '${user_config.lane_app_slug}'
+check "placeholder slug, user token: exit 0" 0 "$?"
+check "placeholder slug, user token: comment 41 updated" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
+
 # 26. An Enterprise Managed User login (underscore shortcode) is a valid identity.
 setup "[$(c 3 "$FOREIGN" outsider), $(c 41 "$OLD" 'jane_acme')]"
 STUB_USER='{"login":"jane_acme","type":"User"}' run

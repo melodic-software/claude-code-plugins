@@ -1,0 +1,89 @@
+{
+  "questions": [
+    {"id": "Q1", "text": "How many columns should the payment step use?", "round": 1, "lockedText": "Use a two-column layout",
+     "references": [{"kind": "image", "asset": "0123456789abcdef.png", "caption": "Today's layout"}, {"kind": "file", "upload": "U1-00000000"}]},
+    {"id": "Q2", "text": "Which control groups the shipping options?", "round": 1, "dependsOn": ["Q1"], "format": "choice",
+     "options": [{"id": "opt-1", "label": "Tabs"}, {"id": "opt-2", "label": "Accordion"}],
+     "needsReview": {"because": "Q1", "ts": 1550.0}},
+    {"id": "Q3", "text": "Should we add a dark theme?", "from": "Bo Sample", "round": 2, "addedBy": "Hana Host", "byHost": true},
+    {"id": "Q4", "text": "Does the page need an offline mode?", "round": 2, "proposal": "I2", "legacyHint": "made-up field"}
+  ],
+  "round": {"current": 2, "status": "open", "ready": {"by": "Ann Example", "ts": 2500.0}},
+  "answers": {
+    "Q1": {
+      "claude": {"name": "Claude", "text": "Two columns", "ts": 1100.0, "votes": ["pidBo0002"], "claude": true, "rec": true, "basis": "Checked against: the existing grid"},
+      "claude-2": {"name": "Claude", "text": "One column", "ts": 1099.998, "votes": [], "claude": true},
+      "claude-3": {"name": "Claude", "text": "Three columns", "ts": 1099.997, "votes": [], "claude": true},
+      "pidAnn001": {"name": "Ann Example", "text": "Use a two-column layout", "ts": 1200.0, "votes": ["host"], "editedAfter": 1,
+                    "cites": ["X1"], "ctx": {"view": "compare", "device": "phone", "browser": "MadeUpBrowser 1", "vw": 390, "vh": 844}},
+      "host": {"name": "Hana Host", "text": "Agree with Ann", "ts": 1300.0, "votes": []}
+    },
+    "Q2": {
+      "opt-1": {"name": "Option", "text": "Tabs", "ts": 1399.999, "votes": ["pidAnn001"], "option": true},
+      "opt-2": {"name": "Option", "text": "Accordion", "ts": 1399.998, "votes": [], "option": true},
+      "pidAnn001": {"name": "Ann Example", "text": "", "ts": 1400.0, "votes": [], "pick": "opt-1"}
+    },
+    "Q4": {
+      "pidBo0002": {"name": "Bo Sample", "text": "Yes please", "ts": 2700.0, "votes": ["pidAnn001"], "att": [{"kind": "link", "url": "https://example.org/offline"}]}
+    }
+  },
+  "ideas": [
+    {"id": "I1", "cid": "pidBo0002", "name": "Bo Sample", "text": "Should we add a dark theme?", "ts": 1700.0, "status": "question", "qid": "Q3", "direct": true},
+    {"id": "I2", "cid": "pidAnn001", "name": "Ann Example", "text": "Offline mode", "ts": 1800.0, "status": "placed", "qid": "Q4", "direct": true},
+    {"id": "I3", "cid": "pidBo0002", "name": "Bo Sample", "text": "Bigger buttons", "ts": 1900.0, "status": "later", "reason": "Off this session's goal", "via": "Ann Example"}
+  ],
+  "locks": {"Q1": {"by": "Hana Host", "answerCid": "pidAnn001", "name": "Ann Example", "text": "Use a two-column layout", "ts": 1500.0}},
+  "suggestions": {"Q1": [{"id": "S1", "cid": "pidBo0002", "name": "Bo Sample", "text": "Two columns with a sidebar", "note": "Room for filters", "ts": 1600.0, "votes": ["pidAnn001"], "status": "open"}]},
+  "suggestSeq": 1,
+  "chat": [
+    {"id": "M1", "cid": "pidAnn001", "name": "Ann Example", "text": "Hello all", "ts": 1050.0, "forwarded": false},
+    {"id": "M2", "cid": "pidBo0002", "name": "Bo Sample", "text": "Bigger buttons", "ts": 1060.0, "forwarded": "I3",
+     "replyTo": {"id": "M1", "cid": "pidAnn001", "name": "Ann Example", "text": "Hello all"}},
+    {"id": "M3", "cid": "pidOld0004", "name": "Dee Former", "text": "Back later", "ts": 1070.0, "forwarded": false}
+  ],
+  "chatSeq": 3,
+  "leaders": ["pidAnn001"],
+  "trusted": ["pidBo0002"],
+  "people": {
+    "host": {"name": "Hana Host", "ts": 1000.0},
+    "pidAnn001": {"name": "Ann Example", "ts": 1010.0},
+    "pidBo0002": {"name": "Bo Sample", "ts": 1020.0},
+    "pidCy0003": {"name": "Cy Removed", "ts": 1030.0}
+  },
+  "secrets": {
+    "fixture-guest-secret-ann-not-a-real-secret-000": "pidAnn001",
+    "fixture-guest-secret-bo-not-a-real-secret-0000": "pidBo0002",
+    "fixture-guest-secret-cy-not-a-real-secret-0000": "pidCy0003",
+    "fixture-guest-secret-gone-not-a-real-secret-00": "pidGone999",
+    "fixture-host-session-secret-not-a-real-one-000": "host"
+  },
+  "settings": {"voting": true, "signoff": false, "chat": true, "follow": true, "showNames": false, "digestNames": true, "uploads": false,
+               "hideClaude": false, "theme": {"mode": "dark", "accent": "violet"}, "legacyToggle": true},
+  "title": "Fixture checkout session",
+  "requests": [
+    {"id": "R1", "qid": "Q1", "kind": "research", "text": "Find layout studies", "cid": "pidAnn001", "name": "Ann Example", "ts": 1150.0, "status": "done"},
+    {"id": "R2", "qid": "Q4", "kind": "ask", "text": "Is offline hard?", "cid": "pidBo0002", "name": "Bo Sample", "ts": 2750.0, "status": "pending", "edited": true}
+  ],
+  "requestSeq": 2,
+  "research": {"Q1": [{"id": "X1", "requestId": "R1", "kind": "research", "by": "Ann Example", "byCid": "pidAnn001", "askedAt": 1150.0,
+                       "ask": "Find layout studies", "skill": "/discovery:research", "summary": "Two columns test well.",
+                       "sources": [{"title": "A made-up study", "url": "https://example.org/study"}], "report": "A made-up report.", "ts": 1180.0}]},
+  "researchSeq": 1,
+  "removed": ["pidCy0003"],
+  "ended": null,
+  "guestKey": "guest-key-aaaa",
+  "ownerToken": "fixture-owner-token-0001",
+  "shareUrl": "https://fixture-quiet-lake.trycloudflare.com",
+  "goal": "Pick the payment step layout",
+  "mergeRequests": [{"id": "G1", "from": "pidBo0002", "to": "pidAnn001", "fromName": "Bo Sample", "toName": "Ann Example", "ts": 2000.0, "status": "declined"}],
+  "mergeSeq": 1,
+  "uploads": [],
+  "uploadSeq": 0,
+  "prefs": {"pidAnn001": {"sort": {"value": "votes", "ts": 1210.0}, "legacyPref": {"value": 1, "ts": 1.0}}},
+  "notifications": {"pidAnn001": [
+    {"id": "N1", "kind": "votes", "title": "2 people agreed with your answer on Q1", "ts": 1250.0, "since": 1240.0, "read": false, "key": "votes:Q1", "n": 2, "qid": "Q1"},
+    {"id": "N2", "kind": "reply", "title": "replied to your message", "by": "Bo Sample", "byCid": "pidBo0002", "body": "Bigger buttons", "msg": "M2", "ts": 1061.0, "since": 1061.0, "read": true}
+  ]},
+  "notifySeq": 2,
+  "legacyWidget": {"made": "up"}
+}

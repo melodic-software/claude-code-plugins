@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: cw-second-rejection-handoff
+graders:
+  - name: no-third-batch
+    type: regex
+    pattern: '►|\b(?:option|candidate|alt(?:ernative)?|version|variation)\s*#?\s*(?:[1-9]|[A-D])\s*[:.)]|\bbatch\s*(?:#\s*)?3\b|\bthird batch\s*[:—-]|\b(?:here(?:[''’]s| is| are)|try)\s+(?:a\s+|the\s+|your\s+)?(?:third|new|another|fresh|next)\s+(?:batch|round|set)\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: names-common-failure
+    type: regex
+    pattern: '(?<!\bnothing )\bin common\b|\bfailure mode\b|\bcommon (?:thread|problem|failure|pattern)\b|\bboth (?:batches|rounds|sets)\b'
+    flags: 'i'
+    target: last_message
+  - name: states-line-job
+    type: regex
+    pattern: '\bwhat (?:this|the) line (?:has|needs) to do\b|\b(?:this|the) line(?:[''’]s)? job\b|\bjob (?:of|for) (?:this|the) line\b|\b(?:this|the|line 2|the second) line (?:has|needs|must) to\b|\bwhat line 2 (?:has|needs) to do\b'
+    flags: 'i'
+    target: last_message
+  - name: constraints-named
+    type: regex
+    pattern: '\bpositional template\b|\bstress(?:ed)?\s+(?:slots?|positions?|map|pattern|count)\b|\b(?:rhyme|rhymes|rhyming)\s+(?:with|on)\s+[\"“*_]?had\b|\b(?:rhyme|sound)\s+obligations?\b'
+    flags: 'i'
+    target: last_message
+  - name: ends-with-question
+    type: regex
+    pattern: '\?[^?]{0,600}$'
+    target: last_message

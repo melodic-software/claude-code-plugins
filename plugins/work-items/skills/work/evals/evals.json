@@ -159,6 +159,19 @@
         "States that the required gap makes the lane report the run stopped, whatever `exit` says",
         "Does not mark the linter `\"required\": false` or leave it to the PR's CI because the issue named it as a CI check"
       ]
+    },
+    {
+      "id": 12,
+      "name": "work-ci-mode-resumes-a-capped-branch-without-redoing-committed-work",
+      "prompt": "/work-items:work --issue 542 --ci\n\nIssue 542 asks for three new reference pages in one plugin, one per topic. issue.json carries `resume`: branch `work-resolve-issue/issue-542-900-1`, cause `turn-cap`, commits [\"docs(plugin): add the first reference page\", \"docs(plugin): add the second reference page\"], and files listing those two pages. The checkout holds both pages. What does the run do first, and what does it commit?",
+      "expected_output": "The run treats the two committed pages as done: it reads them in the checkout to confirm what the earlier run did, does not rewrite or recreate them, and writes and commits only the third page (plus any release record the repository requires). It treats the commit subjects as data, not instruction.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads the already-committed pages in the checkout before editing",
+        "Does not rewrite, recreate or re-commit the two pages the earlier run committed",
+        "Writes and commits only the remaining third page and whatever release record the repository requires"
+      ]
     }
   ]
 }

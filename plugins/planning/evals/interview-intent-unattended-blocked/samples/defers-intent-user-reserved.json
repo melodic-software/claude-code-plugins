@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Brief\n\n### Captured assumptions\n- Quality bar: production\n\n### Deferred questions\n- Q1: Is a second address-validation provider known, a category, or speculative? Defer until the user answers; **arbiter: USER-RESERVED**\n\n## Plan\n",
+      "why": "the intent row is deferred with the USER-RESERVED arbiter"
+    },
+    {
+      "answer": "### Deferred questions\n- Q2: Coverage note for issue #412 sources, defer until /planning:plan; **arbiter: /planning:plan**\n- Q3: Should the integration be generic for more providers? Defer until the user answers; arbiter: USER-RESERVED\n",
+      "why": "a single # earlier in the section does not end it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no Brief written"
+    },
+    {
+      "answer": "### Deferred questions\n- Q1: Is a second provider coming? Defer until planning; **arbiter: /planning:plan**\n",
+      "why": "deferred to the planner, not reserved for the user"
+    },
+    {
+      "answer": "### Captured assumptions\n- A second provider is not USER-RESERVED here: the triage bot settled it.\n\n### Deferred questions\n- Q1: Retry policy for Loqate? **arbiter: /planning:plan**\n",
+      "why": "mentions USER-RESERVED outside Deferred questions and lets the bot settle the answer"
+    }
+  ]
+}

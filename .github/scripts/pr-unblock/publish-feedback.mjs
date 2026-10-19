@@ -10,7 +10,8 @@
 //      fields, within the limits below. Any failure posts no reply.
 //   2. For VALID replies, confirms every fix commit reached the PR branch
 //      after the model job's gated head and that the branch changed no path
-//      but the kept threads' and none under .github/.
+//      outside the kept threads' scope (thread-scope.mjs) and none under
+//      .github/.
 //   3. Re-reads each thread and skips one that is resolved, moved, or has a
 //      comment the model job did not see; posts the templated reply on its
 //      root comment and resolves it only when it is VALID. The PR head is
@@ -46,7 +47,6 @@ import {
   countRounds,
   createGitHubApi,
   currentThreads,
-  isProtectedPath,
   isRoundMarker,
   DEFAULT_MAX_ROUNDS,
   maxRoundsFrom,
@@ -57,6 +57,7 @@ import {
   SHA,
   trustedHumansFrom,
 } from "./address-feedback.mjs";
+import { inThreadScope } from "./thread-scope.mjs";
 
 export const LIMITS = { bytes: 262144, note: 2000, evidence: 10, files: 300 };
 const THREAD_ID = /^PRRT_[A-Za-z0-9_-]{1,100}$/;
@@ -168,9 +169,10 @@ export function renderReply({ disposition, evidence, fixSha, note }) {
 }
 
 // Whenever the PR branch moved since the model job's gated head, or a reply is
-// VALID, that range may change only the kept threads' paths (run.json, whose
-// SHA-256 the model job's runner recorded), and nothing under .github/. Every VALID
-// fix must be a commit in that range that changes its own thread's path.
+// VALID, that range may change only what inThreadScope allows around the kept
+// threads' paths (run.json, whose SHA-256 the model job's runner recorded), and
+// nothing under .github/. Every VALID fix must be a commit in that range that
+// changes its own thread's path.
 async function fixesLanded({ api, run, headSha, replies }) {
   const valid = replies.filter((reply) => reply.disposition === "VALID");
   if (valid.length === 0 && run.head_sha === headSha) {
@@ -187,7 +189,7 @@ async function fixesLanded({ api, run, headSha, replies }) {
     files.length < LIMITS.files &&
     files.every((file) =>
       [file.filename, file.previous_filename].every(
-        (path) => path === undefined || (paths.has(path) && !isProtectedPath(path)),
+        (path) => path === undefined || inThreadScope(path, paths),
       ),
     );
   if (!inRange) {
