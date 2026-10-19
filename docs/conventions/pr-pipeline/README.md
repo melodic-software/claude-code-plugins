@@ -388,11 +388,17 @@ head:
 | `feedback-protected-path` | the PR changes nothing under `.github/` |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
-when any account but the lanes App commented or reviewed since that event, or when an App comment
+when a person commented, reviewed or left a review comment since that event (a bot account, such
+as an AI review or another lane, does not count), or when an App comment
 written or edited since then carries any marker other than pr-unblock's escalation (pr-merge's
 own `babysit-merge-*` escalations, another lane's). Every other reason
 (`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
 `ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
+
+Accepted risk: a person's request relayed through an App posts as a Bot account (`claude[bot]`
+replying to an `@claude` mention that asks to wait), and so does a third-party App writing "needs
+a human"; neither keeps the label. A person who wants the hold comments themselves or adds the
+label back.
 
 ## Patch rules
 
