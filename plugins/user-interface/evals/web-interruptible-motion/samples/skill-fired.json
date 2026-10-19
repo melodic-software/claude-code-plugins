@@ -5,11 +5,11 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "user-interface:design"
+            "skill": "user-interface:write-animation"
           }
         }
       ],
-      "why": "the design skill fired"
+      "why": "the write-animation skill fired"
     }
   ],
   "fail": [
