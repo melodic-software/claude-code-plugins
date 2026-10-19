@@ -421,6 +421,11 @@ class PipelineConfig:
     # `report` reports it and writes nothing, and `enforce` merges it
     # whatever `merge.report-only` says.
     dependabot_mode: str = "off"
+    # `merge.dependabot.majors`: `hold` (absent, or any other value) refuses a
+    # Dependabot pull request with a major update, or one whose version cannot
+    # be read, whatever the review verdict says, so a human merges it;
+    # `review` lets the verdict merge it.
+    dependabot_majors: str = "hold"
     # The pr-merge lane's risk switches under `merge.diff-check` (owner
     # decision Q624): absent, the HIGH path floor and the C2 contradictions
     # are off and there is no file cap (`max_changed_lines` None: no line
@@ -447,6 +452,9 @@ class PipelineConfig:
 LOCAL_BABYSIT = "local-babysit"
 PR_MERGE = "pr-merge"
 DEPENDABOT_MODES = ("off", "report", "enforce")
+DEPENDABOT_MAJORS = ("hold", "review")
+# The refusal for a major update under `merge.dependabot.majors: hold`.
+MAJOR_HELD = "dependabot-major-held"
 
 
 def enabled_authority(config: PipelineConfig) -> str | None:
@@ -560,6 +568,7 @@ def read_config_at(
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
             ("merge.dependabot.mode", False),
+            ("merge.dependabot.majors", False),
             ("merge.max-in-flight", False),
         ],
     )
@@ -606,6 +615,12 @@ def read_config_at(
             f"merge.dependabot.mode {dependabot_mode!r} is not off, report or enforce"
         )
         dependabot_mode = "off"
+    dependabot_majors = scalar("merge.dependabot.majors") or "hold"
+    if dependabot_majors not in DEPENDABOT_MAJORS:
+        notes.append(
+            f"merge.dependabot.majors {dependabot_majors!r} is not hold or review"
+        )
+        dependabot_majors = "hold"
     in_flight_cap = scalar("merge.max-in-flight")
     if in_flight_cap is not None and not re.fullmatch(r"[1-9][0-9]*", in_flight_cap):
         notes.append(
@@ -624,6 +639,7 @@ def read_config_at(
         report_only=report_only not in (None, "false"),
         require_verifier_verdict=verdict not in (None, "false"),
         dependabot_mode=dependabot_mode,
+        dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
         floor_paths=tuple(values["merge.diff-check.floor-paths"]),
         floor_script_scopes=tuple(values["merge.diff-check.floor-script-scopes"]),
@@ -1635,11 +1651,13 @@ def dependabot_eligibility(
     *,
     pr: Mapping[str, Any],
     agent_identity: str | None,
+    hold_majors: bool = True,
 ) -> Eligibility:
     """Whether the pr-merge lane may merge a Dependabot pull request: not a
     fork, opened by Dependabot's App; tier `auto` (`babysit_dependabot.classify`),
     or tier `review` with the lanes App's `verdict=merge` round marker at the
-    current head (`merge_verdict`), where a diff beyond the manifests, lock
+    current head (`merge_verdict`) and, under `hold_majors`
+    (`merge.dependabot.majors: hold`), no major or unreadable update, where a diff beyond the manifests, lock
     files and `uses:` repins Dependabot manages also makes the tier `review`;
     every commit Dependabot's (plus, after a review, the lanes App's
     `[dependabot skip]` fixes) and every push Dependabot's (or that commit's
@@ -1725,6 +1743,27 @@ def dependabot_eligibility(
         # A tier `review` pull request merges only on the review activity's
         # `verdict=merge` at this head, and may then carry its fix commits.
         lane_commits = None
+        # Fail closed: an update whose version cannot be read (a SHA pin), or
+        # no readable update at all, is held like a major, marked
+        # `(unreadable)`; so is every update when the title and the commit
+        # metadata disagree, marked `(disagree)`.
+        disagree = "sources-disagree" in tier.reasons
+        majors = [
+            u.name
+            if u.major
+            else f"{u.name}(unreadable)"
+            if u.major is None
+            else f"{u.name}(disagree)"
+            for u in tier.updates
+            if u.major is not False or disagree
+        ] or ([] if tier.updates else ["updates(unreadable)"])
+        if hold_majors and majors:
+            return Eligibility(
+                False,
+                f"{MAJOR_HELD}:{','.join(majors)}",
+                "C2",
+                dependabot=tier,
+            )
         if tier.tier != dependabot.AUTO:
             comments = _paginated(
                 f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
@@ -3195,13 +3234,20 @@ def assess(
     if dependabot_pr:
         promo = Promotion(None, "not-read-in-pr-merge-lane")
         eligible = (
-            dependabot_eligibility(repo, number, pr=pr, agent_identity=identity)
+            dependabot_eligibility(
+                repo,
+                number,
+                pr=pr,
+                agent_identity=identity,
+                hold_majors=config.dependabot_majors == "hold",
+            )
             if config.dependabot_mode != "off"
             else Eligibility(False, "dependabot-merge-off")
         )
         promoted = True
         details["dependabot"] = {
             "mode": config.dependabot_mode,
+            "majors": config.dependabot_majors,
             **(eligible.dependabot.report() if eligible.dependabot else {}),
         }
     elif lane:
