@@ -1,0 +1,15 @@
+{
+  "ops": [
+    {
+      "op": "result",
+      "qid": "Q2",
+      "request": "R3",
+      "kind": "explore",
+      "used": [{"name": "planning:interview", "type": "skill"}],
+      "why": "The answer is in this session's own answers.",
+      "summary": "Two people prefer the saved method as the default.",
+      "sources": [],
+      "report": "Bo and Ann both chose the saved method; nobody chose none."
+    }
+  ]
+}

@@ -37,7 +37,10 @@ extraction waits for the third (Rule of Three).
   not page content: it takes no tag and no `tag-exempt` sub-shape, stays out of every Key claims
   section, and `SOURCES.md` records it once as a channel artifact. Fence attributes arrive as `theme={null}`. Formatter
   hooks expand hard tabs on the surfaces they are allowed to touch, never `source.*`, which
-  stays the unaltered fetch. URLs arrive `\&`-escaped. Digest text reproduces these artifacts
+  stays the unaltered fetch. URLs arrive `\&`-escaped. Some real headings arrive as HTML tags
+  (`<h2 id="where-skills-live">`, any of `<h1>`-`<h6>` with an `id`) instead of `#` lines, so the
+  Phase 2 inventory counts both forms; a `#`-only scan drops an H2 and merges its section into
+  the previous unit. Digest text reproduces these artifacts
   byte-exact and never repairs them. The reader-facing exception under **Archive-reading
   conventions** covers escaped links: a downstream artifact written *for a reader* repairs the
   corruption and discloses that it did.
@@ -287,7 +290,8 @@ asserts:
 - **A quote whose clauses differ in applicability is split.** When one source sentence joins
   clauses that would take different tags (one transfers to the harness, another names an API
   request parameter, say), the digest writes one claim row per clause. Each row quotes its own
-  clause verbatim, marking the cut with an ellipsis per the `SKILL.md` Phase 3 truncation rule,
+  clause as an exact contiguous substring, noting the cut outside the fence per the
+  `SKILL.md` Phase 3 verbatim rule,
   and carries its own tag and evidence. A row never carries two tags. Where a clause cannot be
   read without the other, each row quotes the whole sentence and its tag line names the clause
   the tag covers; that is the only case where a tag covers less than its row's quote.

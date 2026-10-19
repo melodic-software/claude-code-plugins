@@ -44,12 +44,15 @@ auto-merge not yet verified. Only 0 lets a merge proceed.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import os
 import re
 import sys
 from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -60,7 +63,13 @@ from babysit_gh import (
     gh_http_status,
     is_owner_repo_pair,
 )
-from babysit_util import is_json_array, is_json_object, json_array, json_object
+from babysit_util import (
+    is_json_array,
+    is_json_object,
+    json_array,
+    json_object,
+    run_command,
+)
 
 FULL_RUN_WORKFLOW = "pr-require-checks.yml"
 CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml"
@@ -476,6 +485,24 @@ def _attempt(owner: str, name: str, run_id: int, attempt: int) -> Run | None:
 
 # --- Judging runs -------------------------------------------------------------------
 
+_FULL_SHA = re.compile(r"[0-9a-f]{40}")
+
+
+def _full_history_clones() -> list[Path]:
+    """The distinct non-shallow clones among the merge gate's history
+    checkouts (`babysit_merge_policy._history_checkouts`)."""
+    roots: list[Path] = []
+    for checkout in policy._history_checkouts():
+        top = policy._git(checkout, "rev-parse", "--show-toplevel")
+        if not top or not top.strip():
+            continue
+        root = Path(top.strip())
+        if root not in roots and (
+            policy._git(root, "rev-parse", "--is-shallow-repository") == "false\n"
+        ):
+            roots.append(root)
+    return roots
+
 
 @dataclass
 class _Context:
@@ -489,6 +516,8 @@ class _Context:
     branch: str = ""
     lane_cache: dict[int, bool] = field(default_factory=dict)
     checks_cache: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
+    # Full-history clones `contains` asks first; None until first resolved.
+    local_clones: list[Path] | None = None
     baseline_cache: dict[tuple[str, datetime], frozenset[str] | None] = field(
         default_factory=dict
     )
@@ -641,11 +670,16 @@ class _Context:
         return self.lane_cache[run.id]
 
     def contains(self, ancestor: str, sha: str) -> bool:
-        """Whether `sha` is `ancestor` or has it in its history."""
+        """Whether `sha` is `ancestor` or has it in its history: from a local
+        full-history clone when one holds both commits, else from the compare
+        API, whose `ahead` or `identical` status means `ancestor` is reachable
+        from `sha`, which is what `git merge-base --is-ancestor` tests."""
         key = (ancestor, sha)
         if key not in self.contains_cache:
             if ancestor == sha:
                 self.contains_cache[key] = True
+            elif (local := self._local_contains(ancestor, sha)) is not None:
+                self.contains_cache[key] = local
             else:
                 compare = _read(
                     [
@@ -659,6 +693,41 @@ class _Context:
                     "identical",
                 )
         return self.contains_cache[key]
+
+    def _local_contains(self, ancestor: str, sha: str) -> bool | None:
+        """`git merge-base --is-ancestor` in the first local clone that can
+        decide (exit 0 or 1), or None. Only full SHA-1 ids are asked: a ref
+        name can point elsewhere locally than on GitHub. A shallow clone is
+        never asked, and graft files and replace refs are ignored, as any of
+        them would cut history and answer False for an ancestor. A partial
+        clone never lazy-fetches a missing commit: it exits non-zero and the
+        compare API answers."""
+        if not (_FULL_SHA.fullmatch(ancestor) and _FULL_SHA.fullmatch(sha)):
+            return None
+        if self.local_clones is None:
+            self.local_clones = _full_history_clones()
+        for root in self.local_clones:
+            try:
+                proc = run_command(
+                    [
+                        "git",
+                        "--no-replace-objects",
+                        "-C",
+                        str(root),
+                        "merge-base",
+                        "--is-ancestor",
+                        ancestor,
+                        sha,
+                    ],
+                    allowed_executables=("git",),
+                    check=False,
+                    env_overrides=policy.HISTORY_GIT_ENV,
+                )
+            except (RuntimeError, ValueError, OSError):
+                return None
+            if proc.returncode in (0, 1):
+                return proc.returncode == 0
+        return None
 
     def outcome(self, run: Run, *, attributable: bool) -> tuple[str, str]:
         """(state, detail). Attempt 1 decides; for a full run (`attributable`)
@@ -1002,8 +1071,11 @@ def attribute(repo: str, verdict: PostMergeVerdict) -> list[int]:
     return triggered
 
 
-def _role_label(owner: str, name: str) -> str:
-    """The tracker's human-gated role label, or the default on any doubt."""
+def _role_label(owner: str, name: str, *, strict: bool = False) -> str:
+    """The tracker's human-gated role label, or the default when the tracker
+    config is absent (404) or maps none. Any other failed read is the default
+    too, unless `strict`: then it raises `PostMergeReadError`, so a merge gate
+    never holds on a label the tracker may have remapped."""
     try:
         config = _read(
             [
@@ -1014,7 +1086,9 @@ def _role_label(owner: str, name: str) -> str:
             ],
             TRACKER_CONFIG,
         )
-    except PostMergeReadError:
+    except PostMergeReadError as exc:
+        if strict and gh_http_status(str(exc)) != 404:
+            raise
         return DEFAULT_ROLE_LABEL
     label = json_object(
         json_object(json_object(config).get("config")).get("role_labels")
@@ -1533,6 +1607,50 @@ def read_shared(path: str) -> policy.SharedPostMerge | None:
         )
     except (OSError, ValueError, policy.PolicyReadError):
         return None
+
+
+def write_shared(path: str, shared: policy.SharedPostMerge) -> bool:
+    """Replace the report at `path` with `shared` in this script's schema, so
+    the next candidate's `read_shared` reuses a gate's recompute. A temp file
+    in the same directory, then `os.replace`: a reader sees the old file or
+    the new one, never part of one. The pr-merge job runs its candidates one
+    after another, so there is no concurrent writer. Best effort: a failure is
+    logged, the old file stays, and the caller's verdict stands."""
+    demotion = shared.demotion
+    times = (demotion.newest_created, demotion.cleared_at)
+    newest, cleared = (t.isoformat() if t else None for t in times)
+    payload = {
+        **shared.gate.report,
+        "since": shared.floor.isoformat(),
+        "shared": {
+            "mainSha": shared.main_sha,
+            "configSha": shared.config_sha,
+            "demotion": {
+                "active": demotion.active,
+                "reason": demotion.reason,
+                "records": list(demotion.records),
+                "newestCreated": newest,
+                "clearedAt": cleared,
+            },
+            "identity": shared.identity,
+            "selfLogins": sorted(shared.self_logins),
+            "laneMergesOnly": shared.lane_merges_only,
+            "computedAt": shared.computed_at.isoformat(),
+        },
+    }
+    tmp: Path | None = None
+    try:
+        target = Path(path)
+        tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        os.replace(tmp, target)
+    except (OSError, TypeError, ValueError) as exc:
+        print(f"post-merge answer not written to {path}: {exc}", file=sys.stderr)
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
+        return False
+    return True
 
 
 def _since(value: str) -> datetime:
