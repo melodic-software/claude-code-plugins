@@ -882,7 +882,10 @@ trust-root change are:
   holds `workflows`, so no lane can push `.github/workflows/`. The one exception is a lane's
   post-run report job, which may still mint after a signed GitHub-made commit changed a lane
   workflow on main during the run
-  ([azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39));
+  ([azure-iac#39](https://github.com/melodic-software/azure-iac/pull/39)). After main changes a lane
+  workflow, `gh run rerun` on an older lane run fails: a rerun replays that run's workflow file and
+  the broker denies it as `workflow-modified`. Start a fresh event instead (`gh pr update-branch`, a
+  new dispatch or a push); the denial is intended, since lane workflows always come from main;
 - the merge queue and the required `ci-status` check, which no lane can write;
 - required review-thread resolution;
 - the kill switch;
