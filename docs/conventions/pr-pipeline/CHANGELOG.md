@@ -1,25 +1,17 @@
 # Changelog for the PR pipeline convention
 
-## 2.16.0 - 2026-10-18
+## 2.15.1 - 2026-10-18
 
-`merge.diff-check.floor-paths` (a list of globs) adds paths to the risk scorer's HIGH path floor
-while `high-path-floor` applies; a pull request touching one waits for a human, where a denied path
-makes it ineligible. With the floor, a changed SKILL.md, agents/**/*.md or commands/**/*.md file
-is compared by its base and head text, each read once: it scores HIGH when its frontmatter gains or
-changes `hooks`, `allowed-tools`, `tools`, `permissionMode`, `mcpServers`, `memory` or another
-capability key `babysit_risk.py` lists, when it adds or changes a `!` backtick command or gains a
-```` ```! ```` block, when a changed line falls inside a ```` ```! ```` block, or when either side or changed
-frontmatter cannot be read. `merge.diff-check.floor-script-scopes` (a list of globs) holds a
-`.ps1` or `.cjs` file, or one with git mode 100755, inside one of them or at the top level the same
-way. This repository lists `bin/`, `.lsp.json`, `settings*.json` and the scripts of the plugins
-the CI lanes load as floor paths, and those plugins as script scopes (Q646), and sets
-`high-path-floor: true` (owner decision 2026-10-18, reversing Q661), so its pr-merge lane holds
-such a pull request for a human, and the scorer's fixed HIGH floor (`.github/**`,
-`docs/conventions/**`, agent instructions, hooks, `lib/`, `scripts/`, package manifests and more)
-now applies there too. The switch governs both lanes: in the local babysit lane, false leaves out
-`floor-paths`, `floor-script-scopes`, the capability check and the new fixed floor entries
-(`plugins/*/monitors/**`, `plugins/*/workflows/**`), so a local-lane pull request scores as it did
-before this release. `version` stays 2.
+`work-resolve-issue` no longer takes the model's word that its checks passed. A new `run-checks`
+job, on a fresh runner after `resolve-issue`, runs each of the activity's `checks` from the default
+branch tip's copy against a checkout of the lane branch whose `scripts/` is the base's, so
+`scripts/fragment-plugins.txt` comes from the base and only the branch's own files, such as
+`.changes/`, are checked. It hands the results (branch, tip, each check's exit status) to
+`report-outcome` as a job output, never through the outcome artifact that code the model started
+can rewrite, and only when `run-checks` succeeded. `report-outcome` lists those results under
+Verification and stops a done run whose checks failed, are missing, or ran on a tip the branch has
+since left, even when the outcome file's `not_done` is empty ([#7497](https://github.com/melodic-software/claude-code-plugins/issues/7497)).
+`version` stays 2.
 
 ## 2.15.0 - 2026-10-18
 

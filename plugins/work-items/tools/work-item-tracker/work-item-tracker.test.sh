@@ -164,6 +164,12 @@ RC_CAPTURE=$?
 assert_eq "undeclared label-provenance verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the label-provenance verb" "$ERR" "label-provenance"
 
+# An adapter with no issue fields declares no set-fields key: the verb degrades, never writes.
+ERR="$(run_dispatcher set-fields "fake:o/r#1" --field 1=2 2>&1 >/dev/null)"
+RC_CAPTURE=$?
+assert_eq "undeclared set-fields verb → exit 6" "6" "$RC_CAPTURE"
+assert_contains "exit-6 stderr names the set-fields verb" "$ERR" "set-fields"
+
 # --- capabilities passthrough ---
 
 OUT="$(run_dispatcher capabilities)"

@@ -454,12 +454,14 @@ scheduling surfaces vary per consumer and are the operator's choice.
   product, audited by their own acceptance gates, not stripped by this experiment. Phase 1 records
   each one under `plugins/<name>/` as `unstripped-product-surface`, and changelog-parity is why.
 - **`CLAUDE_CODE_SIMPLE=1` / `--bare` and `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` are not part of this
-  contract.** They are two distinct documented switches, and both ablate *Claude Code's own*
-  surfaces, so this skill neither sets nor depends on either (Pointer: when deciding what each
-  switch turns off, fetch their rows in
+  contract.** They are separate switches that act on *Claude Code's own* surfaces, so this skill
+  neither sets nor depends on any of them (Pointer: when deciding what each switch turns off, fetch
+  the `--bare` flag's section,
+  [headless: start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode),
+  and the two variables' rows in
   [environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live. As
-  of: 2026-10-11. Recheck trigger: either row starts turning off a surface the operator owns, or the
-  two merge): the experiment here ablates *your* instructions, which is the part you
+  of: 2026-10-18. Recheck trigger: any of them starts turning off a surface the operator owns, or
+  two of them merge): the experiment here ablates *your* instructions, which is the part you
   own. (Measuring what those product-side switches buy belongs to a context-budget audit, not to
   this experiment.)
 - **Windows:** repo-relative restore paths in `manifest.json` use forward slashes. The manifest

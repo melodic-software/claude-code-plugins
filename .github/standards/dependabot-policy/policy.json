@@ -50,6 +50,24 @@
         "reviewed": "2026-10-17",
         "basis": ".github/workflows/eval-browser-dispatch.yml:153 installs the root lockfile in the job that holds AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN (:203); :163 runs the playwright it pulls in, :189 runs playwright-cli, and :45 makes Bash(playwright-cli *) the eval's default tool, so it runs beside the claude process holding that secret.",
         "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
+      },
+      {
+        "repository": "melodic-software/claude-code-plugins",
+        "ecosystem": "npm",
+        "directory": "/.github/actions/resolve-config",
+        "dependency": "ajv",
+        "reviewed": "2026-10-18",
+        "basis": ".github/actions/resolve-config/action.yml:159 installs this lockfile and :160 runs resolve-config.mjs, whose resolve.mjs:7 loads ajv to validate the lane rules inside credentialed CI lanes; in pr-merge.yml:210-215 its output sets the permissions the lane token is minted with at :261, so a hijacked release can widen that token.",
+        "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
+      },
+      {
+        "repository": "melodic-software/claude-code-plugins",
+        "ecosystem": "npm",
+        "directory": "/.github/actions/resolve-config",
+        "dependency": "yaml",
+        "reviewed": "2026-10-18",
+        "basis": ".github/actions/resolve-config/action.yml:159 installs this lockfile and :160 runs resolve-config.mjs, whose resolve.mjs:8 loads yaml to parse the lane config inside credentialed CI lanes; in pr-merge.yml:210-215 its output sets the permissions the lane token is minted with at :261, so a hijacked release can widen that token.",
+        "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
       }
     ],
     "excludeSemverMajor": true,

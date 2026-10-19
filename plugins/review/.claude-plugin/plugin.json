@@ -18,6 +18,12 @@
     "skill"
   ],
   "userConfig": {
+    "connected_page_guard_enabled": {
+      "type": "boolean",
+      "title": "Connected-page guard",
+      "description": "Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page.",
+      "default": true
+    },
     "ratchet_offer": {
       "type": "boolean",
       "title": "Ratchet offers",
