@@ -1,0 +1,19 @@
+{
+  "id": "Q4",
+  "text": "Which payment step prototype reads more clearly?",
+  "alternatives": [],
+  "dependsOn": [],
+  "round": 2,
+  "purpose": "gather",
+  "format": {
+    "kind": "prototype",
+    "variants": [
+      {"id": "v-1", "label": "Two columns", "asset": "9999aaaabbbbcccc.html"},
+      {"id": "v-2", "label": "Stacked", "asset": "ddddeeeeffff0000.png"}
+    ]
+  },
+  "answerScope": "device",
+  "references": [],
+  "origin": {"kind": "claude"},
+  "needsReview": []
+}

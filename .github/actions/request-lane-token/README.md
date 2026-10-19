@@ -48,7 +48,8 @@ run, and mints nothing ([Check mode](#check-mode)).
    - `github-rate-limited`: GitHub rate-limited the broker. The retry waits exactly the
      `Retry-After` header (a minute when it is absent) plus up to 20 seconds of jitter. When that
      wait would end more than 8 minutes after the first request, it fails red at once, naming the
-     limit kind (`primary` or `secondary`), its resource and the time it resets.
+     limit kind (`primary` or `secondary`), its resource and the time it resets. On an issue lane,
+     work-unblock's hourly sweep re-fires such a run once the reset has passed.
    - `github-unavailable`: another broker call to GitHub failed. The retry waits 60, 120 and 240
      seconds plus up to 20 seconds of jitter, or a longer `Retry-After`.
 
