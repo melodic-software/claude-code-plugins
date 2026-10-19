@@ -592,7 +592,9 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
    claude-code-action reset, and escalates `unresolved-conflict` (an unmerged entry, or conflict
    markers in a staged resolution) or `workflow-staged` (a `.github/workflows/` index entry changed
    since the snapshot, or differs from the gated head, as a workflow change merged in from the base
-   does: the lane token cannot push one) or `unexpected-path-staged` (an index entry added,
+   does, unless the staged `.github/workflows/` entries are exactly the trusted base's (mode and
+   blob), no head workflow is dropped, and the PR's own diff against every merge base touches no
+   workflow) or `unexpected-path-staged` (an index entry added,
    changed or removed at a path the merge did not leave conflicted, as `git add -A` would stage);
    otherwise it writes the index as a tree.
 4. With no escalation reason and a tree, a pinned `github-script` step commits through the Git
@@ -632,7 +634,7 @@ its check:
 | Hold label added during the run, found before the commit | success | `awaiting-human` | empty | neutral |
 | Hold label or draft set during the run, found before the promote | success | `awaiting-human` | empty | neutral |
 | Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
-| Model staged, or the merge brought in, a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
+| Model staged, or the merge brought in, a `.github/workflows/` change that is not the trusted base's own | success | `awaiting-human` | `workflow-staged` | neutral |
 | Model staged a change to a path that did not conflict | success | `awaiting-human` | `unexpected-path-staged` | neutral |
 | Resolved, committed, promoted | success | none | empty | success |
 | Commit step fails or lane branch moved | failure | none | empty | failure |
@@ -641,9 +643,11 @@ its check:
 | A prepare step fails | skipped | none | empty | failure (run job failed) |
 | A post-skill step fails | success | none | empty | failure (run job failed) |
 
-Residual: a `.github/workflows/` change from the base side of the merge (not conflicted, not
-staged by the model) is committed and pushed. GitHub does not refuse it for the App's missing
-`workflows` permission: sandbox probe run 38148710292 pushed such merges by all three methods.
+Residual: when every staged `.github/workflows/` entry is the trusted base's own and the PR
+changes no workflow, the merge is committed and pushed. GitHub did not refuse that shape for the
+App's missing `workflows` permission: sandbox probe run 38148710292 pushed it by all three methods.
+A merged workflow blob that is on no branch was refused (`POST /git/trees` 403 in run
+39066232629), and still escalates.
 
 ### prepare: review-threads
 
