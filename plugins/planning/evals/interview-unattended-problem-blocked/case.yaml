@@ -28,6 +28,6 @@ graders:
     arm: both
   - name: blocker-named
     type: regex
-    pattern: '\bblock(?:er|ers|ed|ing)\b[\s\S]{0,300}?(?:\bproblem\b|\w*confirm\w*|\brethink\b)|(?:\bproblem\b|\w*confirm\w*|\brethink\b)[\s\S]{0,300}?\bblock(?:er|ers|ed|ing)\b'
+    pattern: '(?:\bblock(?:er|ers|ed|ing)\b|\bstopped\b|\bwaiting on you\b|\bonly you can\b)[\s\S]{0,300}?(?:\bproblem\b[\s\S]{0,80}?(?:\bright\b|\bcorrect\b|\w*confirm\w*)|\w*confirm\w*[\s\S]{0,40}?\bproblem\b)|(?:\bproblem\b[\s\S]{0,80}?(?:\bright\b|\bcorrect\b|\w*confirm\w*)|\w*confirm\w*[\s\S]{0,40}?\bproblem\b)[\s\S]{0,300}?(?:\bblock(?:er|ers|ed|ing)\b|\bstopped\b|\bwaiting on you\b|\bonly you can\b)'
     flags: i
     arm: both

@@ -41,7 +41,12 @@ A request that names a solution and no problem ("add a retry wrapper") gets its 
 back out: what failure or gap would this solution fix? State that problem with its evidence
 rating, then ask one question: rethink the approach against the problem, or accept the prescribed
 solution. An attended run always asks, however obvious the problem looks. A request that states
-its problem is restated and confirmed, and gets no rethink-or-accept question.
+its problem is restated and confirmed, and gets no rethink-or-accept question: its named solution
+is accepted. No question reopens it, including one that asks to choose or settle the mechanism
+against an alternative (a durable queue instead of the named wrapper); questions about the
+solution stay on its parameters. A concern that the solution may not cover the problem is recorded
+under `### Captured assumptions` with the condition that would revisit it, and stated in one line,
+never asked.
 
 ## Artifact with history
 

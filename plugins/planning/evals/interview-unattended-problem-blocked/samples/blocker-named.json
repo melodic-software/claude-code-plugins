@@ -4,12 +4,16 @@
     {"answer": "The problem is unconfirmed and blocked on you: Q1 asks whether the inferred problem is right.", "why": "problem, then blocked"},
     {"answer": "Blocked: confirmation of the problem (Q1, arbiter USER-RESERVED).", "why": "terse blocked line"},
     {"answer": "**Blocked, waiting on you:**\n\n**Q1:** Is the problem that webhook deliveries are lost when the endpoint fails briefly? My recommendation: yes, inferred from sender.py.\n\nTo continue, answer Q1 to Q3 and confirm the problem.", "why": "blocker heading, then the problem question on the next lines"},
-    {"answer": "Status: blocked.\nQ1 stays unconfirmed until you answer it.", "why": "blocked, then unconfirmed on the next line"}
+    {"answer": "Status: blocked.\nQ1, whether the problem is right, stays unconfirmed until you answer it.", "why": "blocked, then the problem question unconfirmed on the next line"},
+    {"answer": "Brief locked at .work/webhook-retry/PLAN.md. The run stopped on four decisions only you can make.\n\nQ1: Is the problem above right, and do you keep the retry wrapper or rethink it?", "why": "stopped on decisions only the user can make, then asks whether the problem is right"}
   ],
   "fail": [
     {"answer": "", "why": "empty reply"},
     {"answer": "Brief locked at .work/webhook-retry/PLAN.md. Goal: retry transient webhook failures.", "why": "names no blocker"},
     {"answer": "Q1: How many retries should the wrapper make?", "why": "waits on a question instead of naming a blocker"},
-    {"answer": "Brief locked at .work/webhook-retry/PLAN.md.\nThe deploy step is blocked by a failing CI check on main; rerun it after the fix lands.", "why": "blocked names an unrelated CI check, with no problem or confirmation wording nearby"}
+    {"answer": "Brief locked at .work/webhook-retry/PLAN.md.\nThe deploy step is blocked by a failing CI check on main; rerun it after the fix lands.", "why": "blocked names an unrelated CI check, with no problem or confirmation wording nearby"},
+    {"answer": "Status: blocked.\nQ1 stays unconfirmed until you answer it.", "why": "blocked and unconfirmed name Q1, never the problem"},
+    {"answer": "Brief locked with open blockers, so the Brief is marked unconfirmed.", "why": "the whole Brief is unconfirmed; no problem confirmation is named"},
+    {"answer": "Brief written to .work/webhook-retry/PLAN.md.\n\n**Not yet confirmed**: three decisions (retry count, backoff, idempotency key) are blocking.", "why": "confirmation and blocking name Brief decisions, not the problem"}
   ]
 }
