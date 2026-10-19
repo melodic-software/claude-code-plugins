@@ -32,108 +32,108 @@ import { pathToFileURL } from "node:url";
 const BLOCKER_CHARS = 300;
 
 export function normalizeReason(reason) {
-	const raw =
-		reason === null || reason === undefined || reason === false
-			? "not ready"
-			: String(reason);
-	const [first, ...rest] = raw.split(";")[0].split(":");
-	const kept = [first.trim()];
-	for (const segment of rest) {
-		if (segment === "" || /^\s|[\d#,]/.test(segment)) break;
-		kept.push(segment);
-	}
-	return kept.join(":");
+  const raw =
+    reason === null || reason === undefined || reason === false
+      ? "not ready"
+      : String(reason);
+  const [first, ...rest] = raw.split(";")[0].split(":");
+  const kept = [first.trim()];
+  for (const segment of rest) {
+    if (segment === "" || /^\s|[\d#,]/.test(segment)) break;
+    kept.push(segment);
+  }
+  return kept.join(":");
 }
 
 const trimBlocker = (text) =>
-	Array.from(String(text).replaceAll(/[\r\n`]/g, " "))
-		.slice(0, BLOCKER_CHARS)
-		.join("");
+  Array.from(String(text).replaceAll(/[\r\n`]/g, " "))
+    .slice(0, BLOCKER_CHARS)
+    .join("");
 
 export function summarize({
-	runId,
-	event,
-	live,
-	startedAt,
-	results,
-	candidates,
-	held,
-	gateOutcome,
-	cursor,
+  runId,
+  event,
+  live,
+  startedAt,
+  results,
+  candidates,
+  held,
+  gateOutcome,
+  cursor,
 }) {
-	const refusals = new Map();
-	let enqueued = 0;
-	let merged = 0;
-	let readyUnmerged = 0;
-	for (const result of results) {
-		if (result.enqueued) enqueued += 1;
-		if (result.merged) merged += 1;
-		if (result.enqueued || result.merged) continue;
-		if (result.ready) {
-			readyUnmerged += 1;
-			continue;
-		}
-		const key = normalizeReason(result.reason);
-		refusals.set(key, (refusals.get(key) ?? 0) + 1);
-	}
-	const reached = results.length - held.length;
-	const stopped =
-		gateOutcome === "success" &&
-		Number.isInteger(candidates) &&
-		reached < candidates;
-	return {
-		run_id: runId,
-		event,
-		live,
-		started_at: startedAt,
-		candidates,
-		enqueued,
-		merged,
-		ready_unmerged: readyUnmerged,
-		refusal_counts: Object.fromEntries(refusals),
-		held: held.length,
-		budget_stop: stopped
-			? {
-					reached,
-					candidates,
-					next_after: Number.isInteger(cursor?.last) ? cursor.last : null,
-				}
-			: null,
-		results: results.map((result) => ({
-			...result,
-			blockers: Array.isArray(result.blockers)
-				? result.blockers.map(trimBlocker)
-				: [],
-		})),
-	};
+  const refusals = new Map();
+  let enqueued = 0;
+  let merged = 0;
+  let readyUnmerged = 0;
+  for (const result of results) {
+    if (result.enqueued) enqueued += 1;
+    if (result.merged) merged += 1;
+    if (result.enqueued || result.merged) continue;
+    if (result.ready) {
+      readyUnmerged += 1;
+      continue;
+    }
+    const key = normalizeReason(result.reason);
+    refusals.set(key, (refusals.get(key) ?? 0) + 1);
+  }
+  const reached = results.length - held.length;
+  const stopped =
+    gateOutcome === "success" &&
+    Number.isInteger(candidates) &&
+    reached < candidates;
+  return {
+    run_id: runId,
+    event,
+    live,
+    started_at: startedAt,
+    candidates,
+    enqueued,
+    merged,
+    ready_unmerged: readyUnmerged,
+    refusal_counts: Object.fromEntries(refusals),
+    held: held.length,
+    budget_stop: stopped
+      ? {
+          reached,
+          candidates,
+          next_after: Number.isInteger(cursor?.last) ? cursor.last : null,
+        }
+      : null,
+    results: results.map((result) => ({
+      ...result,
+      blockers: Array.isArray(result.blockers)
+        ? result.blockers.map(trimBlocker)
+        : [],
+    })),
+  };
 }
 
 function readJson(path, fallback) {
-	try {
-		return path ? JSON.parse(readFileSync(path, "utf8")) : fallback;
-	} catch {
-		return fallback;
-	}
+  try {
+    return path ? JSON.parse(readFileSync(path, "utf8")) : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export function main(env = process.env) {
-	const results = readJson(env.SUMMARY_PATH, []);
-	const held = readJson(env.HELD_PATH, []);
-	const candidates = readJson(env.CANDIDATES_PATH, null);
-	const out = summarize({
-		runId: Number(env.GITHUB_RUN_ID) || null,
-		event: env.EVENT || null,
-		live: env.LIVE === "true",
-		startedAt: env.RUN_STARTED_AT || null,
-		results: Array.isArray(results) ? results : [],
-		candidates: Array.isArray(candidates) ? candidates.length : null,
-		held: Array.isArray(held) ? held : [],
-		gateOutcome: env.GATE_OUTCOME,
-		cursor: readJson(env.CURSOR_PATH, null),
-	});
-	const to = env.SWEEP_SUMMARY_TO;
-	writeFileSync(`${to}.tmp`, JSON.stringify(out));
-	renameSync(`${to}.tmp`, to);
+  const results = readJson(env.SUMMARY_PATH, []);
+  const held = readJson(env.HELD_PATH, []);
+  const candidates = readJson(env.CANDIDATES_PATH, null);
+  const out = summarize({
+    runId: Number(env.GITHUB_RUN_ID) || null,
+    event: env.EVENT || null,
+    live: env.LIVE === "true",
+    startedAt: env.RUN_STARTED_AT || null,
+    results: Array.isArray(results) ? results : [],
+    candidates: Array.isArray(candidates) ? candidates.length : null,
+    held: Array.isArray(held) ? held : [],
+    gateOutcome: env.GATE_OUTCOME,
+    cursor: readJson(env.CURSOR_PATH, null),
+  });
+  const to = env.SWEEP_SUMMARY_TO;
+  writeFileSync(`${to}.tmp`, JSON.stringify(out));
+  renameSync(`${to}.tmp`, to);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main();
