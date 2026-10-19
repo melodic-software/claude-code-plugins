@@ -85,7 +85,8 @@ Contract enforced here (encoded as code, not convention):
   dequeues the identity's queued entries, a held identity entry leaves the
   queue, an eligible MED or HIGH pull request gets one upserted
   `<!-- babysit-merge-risk -->` comment (and the human-gated role label once
-  an earlier run's comment names the same head), a verifier refusal that
+  an earlier run's identical comment has stood for
+  `merge.risk-escalation-minutes`), a verifier refusal that
   needs a human gets the tracker's human-gated role label and one upserted
   `<!-- babysit-merge-verify-escalation -->` comment, a Dependabot update held
   under `merge.dependabot.majors: hold` gets the same label and one upserted
@@ -3165,6 +3166,18 @@ def _newest_marker_comment(
     return max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
 
 
+def _stood_unchanged(comment: dict[str, Any], body: str, minutes: int) -> bool:
+    """Whether `comment` already reads `body` (the same score, reasons and
+    head) and has for at least `minutes`, timed from its last change: a
+    rewrite of its reasons restarts the time."""
+    if str(comment.get("body") or "") != body:
+        return False
+    changed = parse_github_timestamp(
+        str(comment.get("updated_at") or comment.get("created_at") or "")
+    )
+    return changed is not None and _now() - changed >= timedelta(minutes=minutes)
+
+
 def upsert_marker_comment(
     repo: str,
     number: int,
@@ -3428,7 +3441,8 @@ def unattended_writes(
     this run refused it for itself (`own_refusal`) or scored it above LOW
     (`risk:<score>`). Then the reasons comment for an eligible
     MED or HIGH pull request on a path not stopped, escalated (`escalate`)
-    when the comment read before this run already names this head, and the escalation
+    when the comment read before this run already says the same and has for
+    `merge.risk-escalation-minutes` (`_stood_unchanged`), and the escalation
     (`escalate_verify`) for a verifier refusal that needs a human, or for a
     Dependabot update held under `merge.dependabot.majors: hold`, keyed on the
     eligibility reason. Nothing is written before
@@ -3524,13 +3538,17 @@ def unattended_writes(
                     f"repos/{repo}/issues/{number}/comments?per_page=100",
                     f"#{number} comments",
                 )
-            # A reasons comment an earlier run wrote at this head means the
-            # refusal persisted across two sweeps: escalate it.
+            # An earlier run's reasons comment saying the same thing at this
+            # head for long enough means the refusal persisted: escalate it.
+            # A shorter stand may be a review still running at the head.
+            config = inputs.get("config")
+            minutes = (
+                config.risk_escalation_minutes
+                if config is not None
+                else merge_policy.RISK_ESCALATION_MINUTES
+            )
             prior = _newest_marker_comment(comments, identity, RISK_MARKER)
-            if prior is not None and any(
-                f"at head `{head}`." in line
-                for line in _marker_lines(prior.get("body"))
-            ):
+            if prior is not None and _stood_unchanged(prior, body, minutes):
                 escalation = escalate(
                     repo, number, identity, body, RISK_MARKER,
                     {**inputs, "comments": comments},

@@ -2049,20 +2049,118 @@ class ReasonsComment(Unattended):
     LABEL = (
         f"write:api -X POST repos/owner/repo/issues/{PR}/labels -f labels[]=needs-human"
     )
+    # The earlier sweep's comment was written at 10:00; by default this run
+    # is two hours on, past the 60-minute minimum.
+    WRITTEN = datetime(2026, 10, 12, 10, 0, tzinfo=UTC)
 
-    def earlier_sweep(self, body: str, login: str = IDENTITY) -> None:
+    def setUp(self) -> None:
+        super().setUp()
+        self.now = self.WRITTEN + timedelta(hours=2)
+
+    def run_main(
+        self, *flags: str, merge_flag: bool = True
+    ) -> tuple[int, dict[str, Any]]:
+        with mock.patch.object(merge, "_now", return_value=self.now):
+            return super().run_main(*flags, merge_flag=merge_flag)
+
+    def earlier_sweep(
+        self,
+        body: str,
+        login: str = IDENTITY,
+        kind: str | None = None,
+        updated: datetime | None = None,
+    ) -> None:
         """The reasons comment an earlier run left, read before this one."""
+        stamp = self.WRITTEN.isoformat().replace("+00:00", "Z")
         self.comments = [
             {
                 "id": 77,
                 "user": {
                     "login": login,
-                    "type": "Bot" if login == IDENTITY else "User",
+                    "type": kind or ("Bot" if login == IDENTITY else "User"),
                 },
-                "created_at": "2026-10-12T10:00:00Z",
+                "created_at": stamp,
+                "updated_at": (updated.isoformat().replace("+00:00", "Z"))
+                if updated
+                else stamp,
                 "body": body,
             }
         ]
+
+    def test_a_review_still_running_reaches_the_score_as_med(self) -> None:
+        # A review job in progress at the head binds no evidence, so the
+        # pull request is scored, MED, not held back before scoring.
+        running = {
+            "path": merge.review_evidence.LANES["claude-review"][0],
+            "event": "pull_request",
+            "id": 1,
+            "head_sha": HEAD,
+            "status": "in_progress",
+            "conclusion": None,
+            "created_at": "2026-10-12T10:00:00Z",
+        }
+        lanes = merge.review_evidence.bind(
+            HEAD, [running], [], [], is_human=lambda actor: False
+        )
+        self.assertEqual(lanes[0].unbound_reason, "run-not-success")
+        self.lanes = lanes
+        _, out = self.run_main()
+        self.assertEqual(out["unattended"]["risk"]["score"], "MED")
+        self.assertEqual(self.log, ["risk-comment:POST"])
+
+    def test_a_review_pending_med_ten_minutes_on_gets_no_label(self) -> None:
+        # Issue #8450 review: a review still running scores MED on every
+        # sweep; two sweeps minutes apart must not label it for good.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.now = self.WRITTEN + timedelta(minutes=10)
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, [])
+        self.assertEqual(out["unattended"]["writes"]["riskComment"], "unchanged")
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_the_same_reasons_sixty_one_minutes_on_get_the_label(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.now = self.WRITTEN + timedelta(minutes=61)
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "added", "comment": "unchanged"},
+        )
+
+    def test_a_recent_rewrite_of_the_reasons_resets_the_age(self) -> None:
+        # Written two hours ago, its reasons rewritten ten minutes ago.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body, updated=self.now - timedelta(minutes=10))
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, [])
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_no_minimum_labels_the_second_sweep(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.config = dataclasses.replace(self.config, risk_escalation_minutes=0)
+        self.now = self.WRITTEN + timedelta(minutes=1)
+        self.lanes = UNBOUND
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+
+    def test_another_bot_accounts_marker_is_not_an_earlier_sweep(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body, login="other-app[bot]", kind="Bot")
+        self.lanes = UNBOUND
+        self.run_main()
+        self.assertEqual(self.log, ["risk-comment:POST"])
 
     def test_the_first_sweep_comments_without_a_label(self) -> None:
         self.lanes = UNBOUND
@@ -2093,13 +2191,15 @@ class ReasonsComment(Unattended):
                     {"label": "added", "comment": "unchanged"},
                 )
 
-    def test_a_changed_assessment_at_the_same_head_comments_before_the_label(
+    def test_changed_reasons_at_the_same_head_rewrite_without_a_label(
         self,
     ) -> None:
+        # The rewrite restarts the age the next sweep measures.
         self.earlier_sweep(f"{merge.RISK_MARKER}\nrisk **HIGH** at head `{HEAD}`.")
         self.lanes = UNBOUND
-        self.run_main()
-        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH"])
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
 
     def test_a_same_head_rerun_with_the_label_writes_nothing(self) -> None:
         body = self.body()

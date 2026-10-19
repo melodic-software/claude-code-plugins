@@ -400,6 +400,11 @@ def _rest_actor(actor: Any) -> dict[str, Any] | None:
 
 # --- Config at the base SHA -----------------------------------------------------
 
+# The default `merge.risk-escalation-minutes`: longer than a review lane's
+# run, so a review still running at the head (scored MED, evidence unbound)
+# finishes before its refusal is labeled (judgment).
+RISK_ESCALATION_MINUTES = 60
+
 
 @dataclass(frozen=True)
 class PipelineConfig:
@@ -459,6 +464,11 @@ class PipelineConfig:
     # Absent, or anything but a whole number from 1 to
     # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
     max_queue_ejections: int = 2
+    # `merge.risk-escalation-minutes`: how long a MED or HIGH reasons comment
+    # must have stood unchanged at the head before the gate adds the
+    # human-gated label; 0 is no minimum. Absent, or anything but a whole
+    # number, is `RISK_ESCALATION_MINUTES`.
+    risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -595,6 +605,7 @@ def read_config_at(
             ("merge.dependabot.majors", False),
             ("merge.max-in-flight", False),
             ("merge.max-queue-ejections", False),
+            ("merge.risk-escalation-minutes", False),
         ],
     )
     if values is None:
@@ -662,6 +673,15 @@ def read_config_at(
             f"{MAX_QUEUE_EJECTIONS_LIMIT}"
         )
         ejections = None
+    escalation_minutes = scalar("merge.risk-escalation-minutes")
+    if escalation_minutes is not None and not re.fullmatch(
+        r"0|[1-9][0-9]*", escalation_minutes
+    ):
+        notes.append(
+            f"merge.risk-escalation-minutes {escalation_minutes!r} is not a whole "
+            "number of minutes"
+        )
+        escalation_minutes = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -682,6 +702,9 @@ def read_config_at(
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
         max_queue_ejections=int(ejections) if ejections else 2,
+        risk_escalation_minutes=int(escalation_minutes)
+        if escalation_minutes is not None
+        else RISK_ESCALATION_MINUTES,
     )
 
 
