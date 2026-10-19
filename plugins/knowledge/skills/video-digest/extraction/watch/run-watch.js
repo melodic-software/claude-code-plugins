@@ -151,7 +151,7 @@ export async function runWatchCli(argv) {
       : removeRecordedTempSessionDirs(temp.dirs, "watch");
     return cleanup;
   };
-  /** @type {Promise<unknown> | null} */
+  /** @type {Promise<number> | null} */
   let running = null;
   const signalHandlers = Object.entries(SIGNAL_EXIT_CODES).map(([signal, code]) => {
     const handler = () => {
@@ -451,6 +451,8 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     cues,
     maxFrameGapSec,
   });
+  // A killed ffmpeg yields a degraded result, not a rejection: write nothing from it.
+  throwIfInterrupted();
 
   state.status = "vision";
   state.frameSelection = {
