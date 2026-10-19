@@ -372,6 +372,14 @@ class TestRefusals(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("asks the user", err)
 
+    def test_question_mark_in_a_bare_url_query_is_not_an_ask(self):
+        q = question(
+            "Q4", recommendation="See https://example.com/docs?page=2 for the limit."
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("asks the user", err)
+
     def test_bare_issue_ref_warns_without_meta_repo(self):
         q = question("Q4", title="Does #123 block the release?")
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))

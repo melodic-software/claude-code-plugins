@@ -139,7 +139,7 @@ BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[QC][0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 ASKS_USER = re.compile(
-    r"\?|\b(?:tell|let) me\b|\bplease (?:confirm|say|choose|pick|tell|let|state|specify)\b",
+    r"\?(?:\s|$)|\b(?:tell|let) me\b|\bplease (?:confirm|say|choose|pick|tell|let|state|specify)\b",
     re.IGNORECASE,
 )
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
