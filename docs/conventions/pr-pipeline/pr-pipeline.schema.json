@@ -608,6 +608,11 @@
               "enum": ["off", "report", "enforce"],
               "default": "off",
               "description": "enforce: merge Dependabot pull requests whatever merge.report-only says. report: report each decision and write nothing. off: refuse every Dependabot pull request and leave them unlisted."
+            },
+            "majors": {
+              "enum": ["hold", "review"],
+              "default": "hold",
+              "description": "hold: refuse a pull request with a major update, one whose version cannot be read, or one whose title and commit metadata disagree, whatever the review verdict says, and escalate it to a human with the tracker's human-gated role label. review: a major update is tier review and merges on the lanes App's verdict=merge marker."
             }
           }
         }
