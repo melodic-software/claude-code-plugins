@@ -14,8 +14,11 @@ import {
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { pipelineEvent } from "./predicate.mjs";
 import {
+  checkAppliedBySupported,
   checkConfigPath,
+  checkPatchRules,
   laneHasActivity,
+  loadConfig,
   modelArgs,
   modelSettings,
   neededFacts,
@@ -269,7 +272,8 @@ const escapeCommand = (text) =>
 
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
-function filesUnderBase(basePath, configPath) {
+// `readRules` reads a rule file beside this module; tests replace it.
+function filesUnderBase(basePath, configPath, readRules = readOwn) {
   checkConfigPath(configPath);
   const schema = readJsonUnderBase(basePath, SCHEMA_PATH);
   if (schema === undefined) {
@@ -281,9 +285,11 @@ function filesUnderBase(basePath, configPath) {
     vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
     codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
     trustedActors: readJsonUnderBase(basePath, TRUSTED_ACTORS_PATH),
-    laneRules: readOwn("./lane-rules.json"),
-    effectGrants: readOwn("./effect-grants.json"),
-    activityRules: readOwn("./activity-rules.json"),
+    laneRules: readRules("./lane-rules.json"),
+    effectGrants: readRules("./effect-grants.json"),
+    activityRules: readRules("./activity-rules.json"),
+    patchRules: readRules("./patch-rules.json"),
+    patchRulesSchema: readRules("./patch-rules.schema.json"),
   };
 }
 
@@ -291,10 +297,13 @@ function filesUnderBase(basePath, configPath) {
 // (with its code) for a config or request the resolver refuses. `event` is the
 // payload; by default it is read from EVENT_PATH. With `absentAsNull`, a valid
 // config whose lane holds no slot for the activity resolves to null.
-export async function resolveFromBase({ env, github, sleep = wait, event, absentAsNull = false }) {
+export async function resolveFromBase({ env, github, sleep = wait, event, absentAsNull = false, readRules }) {
   const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
   const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
-  const files = filesUnderBase(basePath, configPath);
+  const files = filesUnderBase(basePath, configPath, readRules);
+  // A lane run checks the patch rules before anything else; the token
+  // broker, which calls loadConfig and resolveGrant itself, never reads them.
+  checkPatchRules(files.patchRules, files.patchRulesSchema, loadConfig(files, { configPath }).activities);
   const request = {
     lane: env.LANE,
     activity: env.ACTIVITY || undefined,
@@ -325,6 +334,7 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
       `activity \`${chosen.name}\` sets prepare: ${chosen.prepare}, and this runner does not pass prepare-supported: true`,
     );
   }
+  checkAppliedBySupported(chosen, env.APPLIED_BY_SUPPORTED);
   return resolved;
 }
 

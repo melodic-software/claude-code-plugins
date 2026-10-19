@@ -235,6 +235,107 @@ function checkLeaves(activities, activityRules) {
   }
 }
 
+// The prepare mode an applied-by target must set, per key.
+const APPLIER_PREPARE = Object.freeze({ patch: "apply-patch" });
+
+// What the schema cannot check about `applied-by`: each target is a script
+// activity (a patch target one with prepare: apply-patch), and every lane that
+// holds the producer holds the target in a slot that needs the producer.
+function checkAppliedBy(doc) {
+  const reject = (message) => {
+    throw new Rejection("invalid-applied-by", message);
+  };
+  const handsOn = (activity) => !isComposite(activity) && isObject(activity["applied-by"]);
+  for (const [name, activity] of Object.entries(doc.activities)) {
+    for (const [key, target] of Object.entries(handsOn(activity) ? activity["applied-by"] : {})) {
+      const applier = Object.hasOwn(doc.activities, target) ? doc.activities[target] : undefined;
+      if (typeof applier?.script !== "string") {
+        reject(`activity \`${name}\` applied-by.${key} names \`${target}\`, which is not a script activity`);
+      }
+      const prepare = APPLIER_PREPARE[key];
+      if (prepare !== undefined && applier.prepare !== prepare) {
+        reject(`activity \`${name}\` applied-by.${key} names \`${target}\`, which does not set prepare: ${prepare}`);
+      }
+    }
+  }
+  for (const lane of Object.keys(doc.lanes)) {
+    const leaves = laneSlots(doc, lane);
+    for (const producer of leaves.filter((entry) => handsOn(entry.activity))) {
+      for (const [key, target] of Object.entries(producer.activity["applied-by"])) {
+        const applier = leaves.find((entry) => entry.name === target);
+        if (applier === undefined) {
+          reject(`lane \`${lane}\` holds \`${producer.name}\`, whose applied-by.${key} \`${target}\` is not in the lane`);
+        }
+        if (!applier.needs.includes(producer.name)) {
+          reject(`lane \`${lane}\` slot \`${target}\` applies \`${producer.name}\`'s ${key} and does not need it`);
+        }
+      }
+    }
+  }
+}
+
+// Every patch-rules.json row refuses these, so no row can admit them.
+const UNIVERSAL_REFUSE = Object.freeze([
+  "github",
+  "claude",
+  "mcp-config",
+  "gitmodules",
+  "settings",
+  "symlink",
+  "gitlink",
+  "new-executable",
+  "rename-into-refused",
+]);
+
+// patch-rules.json against its schema, which names every refusal and allow
+// rule apply-patch knows; then what the schema cannot check: each row refuses
+// the universal set, a two-parent commit allows exactly merge-result, and
+// each prepare mode a patch-producing activity uses has a row.
+export function checkPatchRules(patchRules, schema, activities = {}) {
+  const fail = (message) => {
+    throw new Rejection("patch-rules", message);
+  };
+  if (!isObject(patchRules) || !isObject(schema)) {
+    fail("patch-rules.json and patch-rules.schema.json must be present");
+  }
+  const validate = new Ajv2020({ allErrors: true, strict: false, validateFormats: false }).compile(schema);
+  if (!validate(patchRules)) {
+    fail(
+      `patch-rules.json fails its schema: ${validate.errors.map((error) => `${error.instancePath || "/"} ${error.message}`).join("; ")}`,
+    );
+  }
+  for (const [row, rules] of Object.entries(patchRules)) {
+    const missing = UNIVERSAL_REFUSE.filter((name) => !rules.refuse.includes(name));
+    if (missing.length > 0) {
+      fail(`patch-rules.json row \`${row}\` does not refuse ${missing.join(", ")}`);
+    }
+    if (rules.commit.parents.includes("base") && (rules.allow.length !== 1 || rules.allow[0] !== "merge-result")) {
+      fail(`patch-rules.json row \`${row}\` commits with the base as a parent, so its allow must be exactly [merge-result]`);
+    }
+  }
+  for (const [name, activity] of Object.entries(activities)) {
+    const row = activity?.prepare ?? "default";
+    if (activity?.["applied-by"]?.patch !== undefined && !Object.hasOwn(patchRules, row)) {
+      fail(`activity \`${name}\` hands on a patch with prepare: ${row}, and patch-rules.json has no \`${row}\` row`);
+    }
+  }
+  return patchRules;
+}
+
+// A runner names the applied-by keys it hands on (applied-by-supported, a
+// comma- or space-separated list); an applying leaf with any other key would
+// hand nothing on, so it fails before the head checkout.
+export function checkAppliedBySupported(selected, supported = "") {
+  const kinds = new Set(String(supported).split(/[\s,]+/).filter(Boolean));
+  const missing = Object.keys(selected?.["applied-by"] ?? {}).filter((key) => !kinds.has(key));
+  if (selected?.applies && missing.length > 0) {
+    throw new Rejection(
+      "applied-by-unsupported",
+      `activity \`${selected.name}\` sets applied-by ${missing.join(", ")}, and this runner does not pass applied-by-supported: ${missing.join(", ")}`,
+    );
+  }
+}
+
 // What the schema cannot check about `models`: every profile a route or
 // default-profile names exists, and every route names a skill activity or a
 // run route, so a mistyped route cannot silently take the default.
@@ -379,6 +480,7 @@ export function loadConfig(files, { configPath }) {
       }
     }
   }
+  checkAppliedBy(doc);
   return doc;
 }
 
@@ -528,18 +630,18 @@ function codeownersGlobs(text) {
 
 // The changed-paths input: the PR's changed files that still exist, that match
 // the slot's `paths` predicate when it has one, and that have a safe name. For
-// any effect but `read`, instruction surfaces and every path CODEOWNERS lists
-// are left out of what the activity is asked to fix. Sorted, without
-// duplicates.
+// an activity that edits (an effect other than `read`, or a patch it hands
+// on), instruction surfaces and every path CODEOWNERS lists are left out of
+// what it is asked to fix. Sorted, without duplicates.
 export function changedPathTargets({
   paths,
   predicatePaths,
-  effect,
+  edits,
   codeowners,
 }) {
   const owned = codeownersGlobs(codeowners);
   const notTargeted = (path) =>
-    effect !== "read" &&
+    edits &&
     (INSTRUCTION_SURFACES.some((glob) =>
       posix.matchesGlob(path.toLowerCase(), glob),
     ) ||
@@ -659,7 +761,7 @@ function resolveSlot(
         ),
       ),
       predicatePaths: predicate?.paths,
-      effect: activity.effect,
+      edits: activity.effect !== "read" || activity["applied-by"]?.patch !== undefined,
       codeowners,
     });
     if (targets.length === 0) {
@@ -705,6 +807,7 @@ function resolveSlot(
     ...(activity["self-checks"] === undefined ? {} : { "self-checks": activity["self-checks"] }),
     ...(activity["verify-scripts"] === undefined ? {} : { "verify-scripts": activity["verify-scripts"] }),
     ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
+    ...(activity["applied-by"] === undefined ? {} : { "applied-by": activity["applied-by"] }),
     effect: activity.effect,
     gating: activity.gating,
     "reads-untrusted": activity["reads-untrusted"],
