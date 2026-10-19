@@ -14,4 +14,4 @@ Lock the Brief. Use the topic slug `address-validation`.
 
 Goal: checkout catches an undeliverable delivery address before payment, using the Loqate API. This goes to production. Loqate is the only provider and nothing says another is coming.
 
-Acceptance: an address Loqate marks undeliverable keeps the Pay button disabled and shows a message.
+Acceptance: an address Loqate marks undeliverable keeps the Pay button disabled and shows a message. Undeliverable means Loqate returns an unverified result; partial and ambiguous matches let checkout proceed. The Pay button lives in our separate web client, which renders a `canPay` flag and a message that checkout in this repo returns. If Loqate cannot answer (an error, an outage or a timeout), checkout fails open: Pay stays enabled.
