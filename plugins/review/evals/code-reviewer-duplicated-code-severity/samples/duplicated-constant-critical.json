@@ -11,6 +11,10 @@
     {
       "answer": "### CRITICAL\n\n- src/upload/validate.js:2: the 25 MB limit copies MAX_UPLOAD_MB; import it. Confidence: high\n\n### SUGGESTION\n\n- src/payments/labels.js:4: Shotgun Surgery.",
       "why": "finding under a CRITICAL section heading"
+    },
+    {
+      "answer": "**CRITICAL**: 25 copied from MAX_UPLOAD_MB at src/upload/validate.js:2; import the constant. Confidence: high",
+      "why": "finding whose text starts with the copied number"
     }
   ],
   "fail": [
@@ -37,6 +41,14 @@
     {
       "answer": "CRITICAL | src/upload/validate.js:25 | checkUploadSize has no test | Confidence: high",
       "why": "CRITICAL about something else; 25 is only a line number"
+    },
+    {
+      "answer": "CRITICAL: 0, IMPORTANT: 0, SUGGESTION: 2 (the 25 MB copy of MAX_UPLOAD_MB and the label switch)",
+      "why": "summary count line with zero CRITICAL findings"
+    },
+    {
+      "answer": "CRITICAL / IMPORTANT / SUGGESTION: 0 / 0 / 2, the 25 MB copy of MAX_UPLOAD_MB among the suggestions",
+      "why": "slash-separated summary count line"
     }
   ]
 }
