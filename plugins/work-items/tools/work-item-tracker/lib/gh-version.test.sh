@@ -51,7 +51,7 @@ CLAUDE_CODE_REMOTE=false GH_STUB_VERSION=2.94.0 PATH="$STUB_BIN:$PATH" wit_gh_ha
 assert_eq "CLAUDE_CODE_REMOTE=false keeps the native surface on gh 2.94" "0" "$?"
 CLAUDE_CODE_REMOTE=true wit_gh_session_refuses_graphql
 assert_eq "CLAUDE_CODE_REMOTE=true is a GraphQL-refusing session" "0" "$?"
-CLAUDE_CODE_REMOTE= wit_gh_session_refuses_graphql
+CLAUDE_CODE_REMOTE='' wit_gh_session_refuses_graphql
 assert_eq "an unset CLAUDE_CODE_REMOTE is not" "1" "$?"
 
 PATH="$NOGH" wit_gh_has_native_surface

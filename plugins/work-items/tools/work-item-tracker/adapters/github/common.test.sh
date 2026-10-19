@@ -144,7 +144,7 @@ EOF
 
   (CLAUDE_CODE_REMOTE=true wit_require_graphql_session "--parent" >/dev/null 2>&1)
   assert_eq "wit_require_graphql_session exits 3 in a remote session" "3" "$?"
-  (CLAUDE_CODE_REMOTE= wit_require_graphql_session "--parent" >/dev/null 2>&1)
+  (CLAUDE_CODE_REMOTE='' wit_require_graphql_session "--parent" >/dev/null 2>&1)
   assert_eq "wit_require_graphql_session passes in a local session" "0" "$?"
 
   : >"$EMIT_STUB/calls.log"

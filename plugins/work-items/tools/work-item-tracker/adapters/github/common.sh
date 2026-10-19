@@ -378,8 +378,8 @@ wit_emit_item() {
   local rest_to_view='{number, title, state, assignees, labels, issueType: .type, url: .html_url, createdAt: .created_at}'
   if wit_gh_has_native_surface; then
     wit_run_gh_native read issue view "$number" -R "$owner/$repo" \
-      --json number,title,state,assignees,labels,issueType,blockedBy,parent,url,createdAt
-    (($? == 0)) && native=1
+      --json number,title,state,assignees,labels,issueType,blockedBy,parent,url,createdAt &&
+      native=1
   fi
   if ((native)); then
     wit_gh_load_wont_do_labels
