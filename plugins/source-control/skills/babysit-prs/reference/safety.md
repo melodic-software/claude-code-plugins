@@ -1033,8 +1033,9 @@ ready LOW pull request on a merge-queue base is enqueued at the pinned head, onl
 when that full SHA is the head the policy scored, after a
 second kill-switch read and a second read of the opt-in label (presence and provenance), after an
 armed auto-merge is disarmed and refused instead, only while the merge queue has removed that head
-for failed checks fewer than `merge.max-queue-ejections` times (default 2) since it last changed,
-and after a
+for failed checks fewer than `merge.max-queue-ejections` times (default 2) since it last changed
+(a refused head gets one `<!-- babysit-merge-queue-ejections -->` comment linking the failing
+`merge_group` runs), and after a
 `<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When the
 identity's earlier queue entries and its unverified merges already reach `merge.max-in-flight`
 (default 1), the new entry dequeues itself. The enqueue returns before

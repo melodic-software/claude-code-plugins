@@ -17,6 +17,7 @@ import contextlib
 import io
 import json
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -75,6 +76,7 @@ def _queue(
     return {"data": {"repository": {"pullRequest": pull_request}}}
 
 
+LIMIT = merge.merge_policy.MAX_QUEUE_EJECTIONS_LIMIT
 COMMIT = {"__typename": "PullRequestCommit"}
 FORCE_PUSH = {"__typename": "HeadRefForcePushedEvent"}
 
@@ -903,6 +905,8 @@ class MergeQueueReadBack(unittest.TestCase):
             ([], 0),
             ([COMMIT, _removed(), _removed()], 2),
             ([_removed(), _removed(), _removed()], 3),
+            # A head change inside a full window still bounds the count.
+            ([COMMIT] + [_removed("manually_removed")] * (LIMIT - 1), 0),
             ([_removed(), _removed(), COMMIT], 0),
             ([_removed(), _removed(), FORCE_PUSH, _removed()], 1),
             ([COMMIT, _removed("manually_removed"), _removed()], 1),
@@ -911,8 +915,34 @@ class MergeQueueReadBack(unittest.TestCase):
                 result = self._read(_queue(timeline=timeline))
                 self.assertEqual(result["failedEjections"], expected)
 
+    def test_failed_merge_group_runs_are_the_pull_requests_own(self) -> None:
+        runs = {
+            "workflow_runs": [
+                {"head_branch": "gh-readonly-queue/main/pr-5-abc", "html_url": "u1"},
+                {"head_branch": "gh-readonly-queue/main/pr-55-abc", "html_url": "u2"},
+                {"head_branch": "gh-readonly-queue/main/pr-5-def", "html_url": "u3"},
+            ]
+        }
+        ok = subprocess.CompletedProcess([], 0, json.dumps(runs), "")
+        with mock.patch.object(merge, "gh_capture", return_value=ok) as gh:
+            self.assertEqual(
+                merge._failed_merge_group_runs("owner/repo", "main", 5), ["u1", "u3"]
+            )
+        self.assertIn("event=merge_group&status=failure", gh.call_args.args[0][1])
+        failed = subprocess.CompletedProcess([], 1, "", "HTTP 403")
+        with mock.patch.object(merge, "gh_capture", return_value=failed):
+            self.assertIsNone(merge._failed_merge_group_runs("owner/repo", "main", 5))
+
     def test_an_unreadable_timeline_counts_nothing(self) -> None:
-        for timeline in (None, [{"__typename": "IssueComment"}, _removed()], [None]):
+        # A full window with no head change in it: older failed-check
+        # removals may lie beyond it, so the count is unreadable.
+        full = [_removed("manually_removed")] * (LIMIT - 1) + [_removed()]
+        for timeline in (
+            None,
+            [{"__typename": "IssueComment"}, _removed()],
+            [None],
+            full,
+        ):
             with self.subTest(timeline=timeline):
                 payload = _queue()
                 pr = payload["data"]["repository"]["pullRequest"]

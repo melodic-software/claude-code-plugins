@@ -1541,12 +1541,55 @@ class EachRefusalMakesNoMergeCall(Unattended):
 
     def test_a_head_the_queue_ejected_twice_is_not_enqueued_again(self) -> None:
         self.queue = fixtures._queue_read(required=True, failed_ejections=2)
-        code, out = self.run_main()
+        with mock.patch.object(merge, "_failed_merge_group_runs", return_value=[]):
+            code, out = self.run_main()
         self.assert_no_merge(code)
-        self.assertEqual(self.log, [])
+        self.assertFalse([e for e in self.log if not e.startswith("write:")], self.log)
         self.assertTrue(
             any("queue-ejected:2" in b and HEAD in b for b in out["blockers"]),
             out["blockers"],
+        )
+
+    def test_a_refused_head_gets_one_marked_comment_naming_its_runs(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        url = "https://github.com/owner/repo/actions/runs/7"
+        with mock.patch.object(
+            merge, "_failed_merge_group_runs", return_value=[url]
+        ) as runs:
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        runs.assert_called_once_with("owner/repo", "main", PR)
+        (write,) = [
+            c.args[0]
+            for c in self.capture.call_args_list
+            if any(merge.QUEUE_EJECTION_MARKER in a for a in c.args[0])
+        ]
+        self.assertIn("POST", write)
+        body = write[-1].removeprefix("body=")
+        self.assertTrue(body.startswith(merge.QUEUE_EJECTION_MARKER + "\n"))
+        self.assertIn(f"`{HEAD}`", body)
+        self.assertIn(url, body)
+        self.assertIn("A push resets the count.", body)
+        self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "created")
+        # A rerun finds the same comment and writes nothing.
+        self.comments = [
+            {
+                "id": 91,
+                "user": {"login": IDENTITY, "type": "Bot"},
+                "created_at": "2026-10-12T10:00:00Z",
+                "body": body,
+            }
+        ]
+        self.capture.reset_mock()
+        with mock.patch.object(merge, "_failed_merge_group_runs", return_value=[url]):
+            _, out = self.run_main()
+        self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "unchanged")
+        self.assertFalse(
+            any(
+                merge.QUEUE_EJECTION_MARKER in a
+                for c in self.capture.call_args_list
+                for a in c.args[0]
+            )
         )
 
     def test_one_ejection_still_enqueues(self) -> None:

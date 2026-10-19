@@ -440,8 +440,9 @@ class PipelineConfig:
     max_queue_ejections: int = 2
 
 
-# The most `merge.max-queue-ejections` may be: the timeline items the
-# enqueue reads back, so any count it allows fits in one read.
+# The most `merge.max-queue-ejections` may be, and the timeline items the
+# enqueue reads back. A full read with no head change in it may have missed
+# older removals, so it counts as unreadable and refuses.
 MAX_QUEUE_EJECTIONS_LIMIT = 20
 
 LOCAL_BABYSIT = "local-babysit"

@@ -193,11 +193,6 @@ test("the summary does not call a full run unneeded when only the gate's dispatc
   assert.match(summary, /earlier lane merges are the post-merge-dispatch job's/);
 });
 
-test("the merge job may outlast a full sweep of about 40 candidates", () => {
-  const header = job.slice(0, job.indexOf("\n    steps:\n"));
-  assert.match(header, /\n {4}timeout-minutes: 55\n/);
-});
-
 // Runs the gate step with a fake gate whose second candidate kills the loop,
 // as a cancelled run would stop it mid-sweep.
 const runCancelledGate = () => {

@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- `merge.max-queue-ejections` (default 2, 1 to 20): the unattended merge gate no longer enqueues a head the merge queue has removed that many times for failed checks since the head last changed (a pushed commit or a force push). The merge-queue read takes the pull request's last 20 removal, commit and force-push timeline items; the refusal names the head, a push resets the count, and an unreadable timeline refuses the enqueue.
+- `merge.max-queue-ejections` (default 2, 1 to 20): the unattended merge gate no longer enqueues a head the merge queue has removed that many times for failed checks since the head last changed (a pushed commit or a force push). The merge-queue read takes the pull request's last 20 removal, commit and force-push timeline items; the refusal names the head, a push resets the count, and an unreadable timeline (or 20 items with no head change among them) refuses the enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment, upserted like the verifier escalation's, linking the failing `merge_group` runs.
 
 ### Changed
 

@@ -487,8 +487,10 @@ that fails counts as a refusal.
   found with several in flight demotes the rung and fails the post-merge check for all of them.
 - **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the
   wrapper enqueuing a head the merge queue has removed that many times for failed checks since the
-  head last changed; the queue would eject it again on the same commits. A push resets the count,
-  and an unreadable timeline refuses the enqueue.
+  head last changed; the queue would eject it again on the same commits. A push resets the count.
+  An unreadable timeline, or 20 timeline items with no head change among them, refuses the
+  enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment naming the
+  failing `merge_group` runs.
 - **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
   pr-merge lane owns Dependabot pull requests (below).
 
