@@ -127,6 +127,7 @@ on stdout.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import time
@@ -219,7 +220,35 @@ BODY_MERGE_HOLD_RE = re.compile(
 )
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
-MERGE_HOLD_LABEL = "do-not-merge"
+MERGE_HOLD_LABELS = ("do-not-merge",)
+# Where this process's gate processes share the resolved human-gated label.
+HUMAN_GATED_SECTION = "human-gated-label"
+
+
+def human_gated_label(repo: str) -> str:
+    """The tracker's human-gated role label for `repo` (`needs-human` unless
+    `.work-item-tracker.json` maps it): the label the verifier escalation adds
+    and an autonomous merge holds on. Shared across a run's gate processes.
+    A failed read other than a 404 raises `PostMergeReadError` and is never
+    shared."""
+    cached = run_cache.get(HUMAN_GATED_SECTION, repo, run_cache.MAX_AGE)
+    if isinstance(cached, str) and cached:
+        return cached
+    owner, name = repo.split("/", 1)
+    label = postmerge._role_label(owner, name, strict=True)
+    run_cache.put(HUMAN_GATED_SECTION, repo, label)
+    return label
+
+
+def merge_hold_label(labels: Iterable[Any], *, human_gated: str | None) -> str | None:
+    """The first hold label among `labels`, matched case-insensitively. An
+    autonomous merge passes the resolved `human_gated` label, which holds it
+    too: autonomous sessions must not resolve what carries it. An attended
+    merge, the person that label asks for, passes None."""
+    names = {str(name).casefold() for name in labels}
+    holds = (*MERGE_HOLD_LABELS, *((human_gated,) if human_gated else ()))
+    return next((label for label in holds if label.casefold() in names), None)
+
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
 
@@ -1512,10 +1541,21 @@ def evaluate(
             "PR body holds the merge (do not merge, or a Hold: line) -- a human "
             "hold, report it and leave it"
         )
-    if any(str(name).casefold() == MERGE_HOLD_LABEL for name in labels):
+    # Autonomous: the unattended policy or the autopilot merge tier, both
+    # merging with no person present; only an attended merge lifts the
+    # human-gated hold.
+    autonomous = unattended is not None or tier is not None
+    try:
+        human_gated = human_gated_label(repo) if autonomous else None
+    except postmerge.PostMergeReadError as exc:
+        human_gated = None
         blockers.append(
-            f"PR carries the {MERGE_HOLD_LABEL!r} label -- a human hold, "
-            "report it and leave it"
+            f"the human-gated role label is unreadable ({exc}) -- an autonomous "
+            "merge cannot tell which label holds it"
+        )
+    if held_by := merge_hold_label(labels, human_gated=human_gated):
+        blockers.append(
+            f"PR carries the {held_by!r} label -- a human hold, report it and leave it"
         )
     if pr.get("mergeable") != "MERGEABLE":
         blockers.append(
@@ -1818,7 +1858,7 @@ def evaluate(
         "mergeStateStatus": pr.get("mergeStateStatus"),
         "reviewDecision": review_decision,
         "headRefOid": head,
-        "labels": labels,  # surfaced for agent reasoning; only do-not-merge is hardcoded
+        "labels": labels,  # surfaced for agent reasoning; only the hold labels are hardcoded
         "expectedHead": expected_head,
         "headMatches": head_matches,
         "effectiveRules": rules,
@@ -2164,7 +2204,7 @@ def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
     ]
     if is_json_object(entry):
         # An entry is a live enqueue even beside errors: reported enqueued so
-        # it is recorded and checked against the one-in-flight rule.
+        # it is recorded and checked against the merge.max-in-flight cap.
         record["status"] = "enqueued"
         record["success"] = True
         record["mergeQueue"] = {
@@ -2951,6 +2991,7 @@ def assess_unattended(
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
     shared: merge_policy.SharedPostMerge | None = None,
+    share: Callable[[merge_policy.SharedPostMerge], object] | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -2985,6 +3026,7 @@ def assess_unattended(
         lane_kill_switch=lane_kill_switch,
         lane_rung_cap=lane_rung_cap,
         shared=shared,
+        share=share,
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -3091,8 +3133,10 @@ def escalate_verify(
         inputs.get("comments"),
         marker=VERIFY_ESCALATION_MARKER,
     )
-    owner, name = repo.split("/", 1)
-    label = postmerge._role_label(owner, name)
+    try:
+        label = human_gated_label(repo)
+    except postmerge.PostMergeReadError:
+        label = postmerge.DEFAULT_ROLE_LABEL
     labels = pr.get("labels")
     present = is_json_array(labels) and any(
         str(json_object(item).get("name") or "").casefold() == label.casefold()
@@ -3309,10 +3353,11 @@ def unattended_enqueue(
     kill switch and the opt-in label are read again; the pin comment is
     posted before the enqueue and the enqueue goes nowhere without it; after
     the enqueue the queue is
-    re-read and, when another identity entry was enqueued earlier, this one
-    dequeues itself. In the pr-merge lane the kill switch "read again" is the
-    value the workflow passed at the start of its run, so a flip during the
-    run does not stop this enqueue."""
+    re-read and, when the identity entries enqueued earlier and the unverified
+    lane merges already fill `merge.max-in-flight`, this one dequeues itself.
+    In the pr-merge lane the kill switch "read again" is the value the
+    workflow passed at the start of its run, so a flip during the run does not
+    stop this enqueue."""
     inputs = policy.inputs or {}
     identity, branch = str(inputs["identity"]), str(inputs["branch"])
     pin = str(result.get("headRefOid") or "")
@@ -3414,9 +3459,20 @@ def unattended_enqueue(
     entries = _identity_queue_entries(repo, branch, identity)
     numbers = [json_object(e.get("pullRequest")).get("number") for e in entries or []]
     step["identityEntries"] = numbers
-    if entries is None or not numbers or numbers[0] != number:
-        # Another host's entry came first, or the order cannot be read: this
-        # entry leaves so only one unattended merge is in flight.
+    # Room for queued entries: `merge.max-in-flight`, read again uncached at
+    # the default branch head, less the unverified lane merges the policy
+    # counted. A failed read keeps the lower of the base's cap and the one
+    # the assessment applied, so a cap lowered on main still holds.
+    cap, source = merge_policy._run_max_in_flight(
+        repo, branch, None, inputs["config"], shared=False
+    )
+    if source == "base":
+        cap = min(cap, inputs.get("flight_cap", cap))
+    room = cap - inputs["flight"].unverified
+    if entries is None or number not in numbers[: max(room, 0)]:
+        # Earlier entries (another host's) fill the room, or the order cannot
+        # be read: this entry leaves so no more than `merge.max-in-flight`
+        # unattended merges are in flight.
         mine = next(
             (
                 e
@@ -3434,7 +3490,7 @@ def unattended_enqueue(
             postmerge.DEQUEUE_MUTATION, node_id
         )
         why = (
-            "another unattended merge is in flight"
+            "the merge.max-in-flight cap is full"
             if entries is not None
             else "the queue could not be re-read whole"
         )
@@ -3886,6 +3942,14 @@ def main() -> int:
                 lane_kill_switch=args.lane_kill_switch,
                 lane_rung_cap=args.lane_rung_cap,
                 shared=shared,
+                # Each recompute goes back to the file for the next candidate.
+                share=(
+                    None
+                    if args.postmerge_result is None
+                    else functools.partial(
+                        postmerge.write_shared, args.postmerge_result
+                    )
+                ),
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)

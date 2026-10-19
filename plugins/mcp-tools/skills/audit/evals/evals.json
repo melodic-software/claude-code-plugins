@@ -109,6 +109,22 @@
         "Does not flag list_reports under C20: a tool with no x-mcp-header passes",
         "Prioritizes the C20 FAIL ahead of WARN and info items"
       ]
+    },
+    {
+      "id": 9,
+      "name": "over-length-description-warns",
+      "prompt": "Audit the MCP tool definitions in evals/fixtures/over-length-description.md relative to the skill directory against the design-quality checklist. Give me the per-tool scorecard and the server-level result, and tell me what to fix first.",
+      "expected_output": "A scorecard rating C4 WARN, not FAIL, on export_ledger because its description is over 2,048 characters, and a server-level C4 WARN because the server instructions field is over 2,048 characters. Both findings advise keeping critical details near the start, where truncation cannot reach them, and neither is treated as a spec violation.",
+      "files": [
+        "evals/fixtures/over-length-description.md"
+      ],
+      "expectations": [
+        "Rates C4 WARN, not FAIL, on export_ledger because its description is over 2,048 characters",
+        "Rates C4 WARN, not FAIL, on the server-level row because the server instructions field is over 2,048 characters",
+        "Advises putting critical details near the start of the description, where truncation cannot reach them",
+        "Advises putting critical details near the start of the server instructions, where truncation cannot reach them",
+        "Presents the 2,048-character floor as this skill's own rule built on client behavior, not a spec rule"
+      ]
     }
   ]
 }
