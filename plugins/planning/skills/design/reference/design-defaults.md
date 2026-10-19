@@ -18,8 +18,7 @@ Resolve the consumer's standards through the "Resolution ladder" section of
 `Applies when` matches the task's surfaces or its design and architecture concerns. A consumer
 standard that contradicts a bundled default wins: apply it and record, in the thread it shapes,
 `Overrides bundled default <principle> per <standards file>`. An override the Brief already records
-is settled. Stumble: `/planning:plan` grounds in the consumer's standards and design did not, so a
-design could adopt a bundled default the plan then had to overturn.
+is settled. Stumble: `/planning:plan` grounds in the consumer's standards and design read none.
 
 ## Quality requirements (NFRs)
 
@@ -54,8 +53,15 @@ Unattended (declared by the caller, never sniffed), follow the interview's rule:
   generalizing later is a code-only refactor when the variation stays contained), and escalate it
   once, as one blocker line in the run's output.
 
-Stumble: an unattended design run could settle the user's repeat-or-vary decision from a ticket's
-wording.
+Stumble: `variation-points.md` and this question read an intent answer no interview asked for.
+
+## Principles thread
+
+Write a `Principles` thread in `design-threads.md`: the principles and `Overrides bundled default`
+lines that shaped the design, and how generalize-now-or-wait was settled, citing the Brief's
+`Intent:` line counts; the user's answer settles it, never this skill. At `prototype`, record
+`Principles: deferred (prototype) [RESEARCH: name the principles if it heads for production]`.
+Stumble: `/planning:design-handoff` requires this thread and no step wrote it.
 
 ## Per-tenant configurability (vendor guidance)
 
@@ -70,8 +76,7 @@ tenant, recommend:
 - an owner and a removal path for every option.
 
 This is vendor guidance, not a standard: a consumer standard on tenancy or configuration wins.
-Stumble: no planning step owned per-tenant variation, so each tenant request could become its own
-code path.
+Stumble: no planning step owns per-tenant variation today.
 
 - **Pointer**: when a design sets per-tenant variation, fetch the AWS Well-Architected SaaS Lens
   [General design principles](https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/general-design-principles.html)

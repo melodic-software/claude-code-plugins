@@ -25,6 +25,10 @@
     {
       "answer": "No single source for the cap: each surface keeps its own 25 MB constant, matching the existing pattern.",
       "why": "negated mention"
+    },
+    {
+      "answer": "A single shared constant for the 25 MB cap isn't needed here.",
+      "why": "a single home named only as not needed"
     }
   ]
 }

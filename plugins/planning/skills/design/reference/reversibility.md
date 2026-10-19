@@ -18,9 +18,9 @@ Read the `Quality bar:` line under the Brief's `### Captured assumptions`; with 
 | `internal` | one-way doors only | applies | skipped |
 | `production` | every significant decision | applies | applies |
 
-A prototype records one thread in `design-threads.md`,
-`Lifecycle and reversibility: deferred (prototype): revisit if it heads for production`, and the
-round says that reversibility was skipped and deferred.
+A prototype records one TAGGED-DEFERRED thread in `design-threads.md`,
+`Lifecycle and reversibility: deferred (prototype) [RESEARCH: make the door calls if it heads for production]`,
+and the round says that reversibility was skipped and deferred.
 
 ## One-way and two-way doors
 
@@ -56,7 +56,9 @@ built end to end through every layer it needs, to clean internal quality (clear 
 its seam, no cruft). This is a default the user can override with any style. While it is the only
 slice it is a two-way door; once other slices build on the style, changing it is a one-way door,
 so record it then with an ADR prompt. Unattended, record the slice as a captured assumption in its
-thread with a revisit trigger, never as `blocked`.
+thread with a revisit trigger, never as `blocked`. Stumble: agents on greenfield work pick an
+architecture style by habit and build a full layered skeleton before any slice runs end to end; the
+interview recorded no style decision for design to read.
 
 Sources: Jimmy Bogard,
 [Vertical Slice Architecture](https://www.jimmybogard.com/vertical-slice-architecture/) (2018);

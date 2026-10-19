@@ -29,6 +29,18 @@
     {
       "answer": "T2 retry schedule is a two-way door: no ADR.\nT1 payload: one-way door, decided with two candidates.",
       "why": "the only ADR mention is negated"
+    },
+    {
+      "answer": "T1 payload: one-way door; skip the ADR for now.",
+      "why": "ADR mentioned only to skip it"
+    },
+    {
+      "answer": "T1 payload is a one-way door.\nADR: not required.",
+      "why": "negated ADR on the next line"
+    },
+    {
+      "answer": "T1 payload is a one-way door, but it stays internal for now, so I won't prompt an ADR.",
+      "why": "declined ADR prompt"
     }
   ]
 }

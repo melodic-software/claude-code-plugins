@@ -1,5 +1,5 @@
 ---
 type: regex
-pattern: '^(?![^\n]*\b(?:nothing|none|not|isn''t|aren''t|neither|no)\b[^\n]*\bone-way)(?:[^\n]*\bone-way\b[^\n]*(?:\n[^\n]*){0,6}?(?<!\bno )(?<!\bwithout an )(?<!\bwithout )(?:\bADR\b(?![ \t]*(?::[ \t]*)?(?:not needed|none|n/a)\b)|architecture:record-decision|architecture decision record)|[^\n]*(?<!\bno )(?<!\bwithout an )(?<!\bwithout )(?:\bADR\b|architecture:record-decision|architecture decision record)[^\n]*\bone-way\b)'
+pattern: '^(?![^\n]*\b(?:no|not|never|without|skip\w*|won[''’]t|don[''’]t|isn[''’]t|needn[''’]t|nothing|none|unnecessary|n/a)\b)(?:(?=[^\n]*\bone-way\b)[^\n]*|[^\n]*\bone-way\b[^\n]*\n(?:[^\n]*\n){0,5}?(?![^\n]*\b(?:no|not|never|without|skip\w*|won[''’]t|don[''’]t|isn[''’]t|needn[''’]t|nothing|none|unnecessary|n/a)\b)[^\n]*)(?:architecture:record-decision|\b(?:record|write|draft|offer|recommend|prompt|run)\w*\b[^\n]*?\b(?:ADR|architecture decision record)\b|\b(?:ADR|architecture decision record)\b[^\n]*?\b(?:offer|recommend|record|write|draft|prompt)\w*\b)'
 flags: mi
 ---

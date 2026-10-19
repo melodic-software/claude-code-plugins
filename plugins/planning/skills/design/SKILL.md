@@ -263,8 +263,9 @@ Continue until no new gaps surface, then run the `handoff` action.
 
 ## Lifecycle and reversibility
 
-Call each significant decision a one-way or two-way door, prompt an ADR for each one-way door, and
-scale investment by subdomain and quality bar: [`reference/reversibility.md`](reference/reversibility.md).
+Skip on early-exit, `status`, or trivial single-file work. Otherwise call each significant decision
+a one-way or two-way door, prompt an ADR for each one-way door, and scale investment by subdomain
+and quality bar: [`reference/reversibility.md`](reference/reversibility.md).
 
 ## Terminology pass (`terminology` action)
 
@@ -430,7 +431,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
   standards, the Brief's quality requirements, generalize-now-or-wait, per-tenant configurability
   as vendor guidance), then recommend from SRP, OCP, LSP, ISP, DIP, composition over inheritance,
   reuse and DRY of knowledge, coupling and cohesion, information hiding, deep modules and YAGNI per
-  [`design-principles.md`](${CLAUDE_PLUGIN_ROOT}/reference/design-principles.md)
+  [`design-principles.md`](${CLAUDE_PLUGIN_ROOT}/reference/design-principles.md).
 
 ## What this skill does NOT do
 
