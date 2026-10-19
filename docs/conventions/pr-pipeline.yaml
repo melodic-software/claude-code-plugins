@@ -429,14 +429,68 @@ merge:
   dependabot:
     mode: enforce
     majors: hold
-  # Owner decision Q624: the lane denies no path and applies no HIGH path
-  # floor, size cap or C2 contradiction check; the verifier verdict, the kill
-  # switch, the fork and Dependabot refusals, lane-author and single-closing-
-  # issue eligibility and the demotion stop still hold. Each
-  # removed check comes back by setting it here: list denied-paths, set
-  # `high-path-floor: true` or `c2-contradictions: true`, or set
-  # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
+  # The HIGH path floor, floor-paths, floor-script-scopes and the capability
+  # check are on (owner decision 2026-10-18, reversing Q661): lanes may edit
+  # runnable plugin files (the #8184 scope), and fix-ci's patch guard
+  # covers only .github/** and agent instruction paths. The scorer's fixed HIGH floor (.github/**,
+  # docs/conventions/**, agent instructions, hooks, lib/, scripts/, package
+  # manifests and more) now applies in the pr-merge lane too. A lane PR
+  # touching a floor path or script, or changing
+  # capability frontmatter in a SKILL.md, agents/**/*.md or commands/**/*.md,
+  # scores HIGH and waits for a human, who merges it in person. A denied path
+  # would instead make the PR ineligible. The switch governs both lanes: in
+  # the local babysit lane, false would leave out floor-paths,
+  # floor-script-scopes, the capability check and the floor entries for
+  # plugin monitors and workflows, keeping the rest of the fixed floor. The
+  # verifier verdict, both AI review lanes, ci-status and the post-merge
+  # revert breaker still gate every lane PR.
+  # Owner decision Q624 still holds for the rest: no denied path, size cap or
+  # C2 contradiction check. Each comes back by setting it here: list
+  # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
+  # or `max-changed-lines` (the earlier 8 and 400).
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
-  # provenance work only; scoped lane PRs merge on the verifier verdict.
+  # provenance work only; scoped lane PRs off the HIGH floor merge on the
+  # verifier verdict.
   diff-check:
     denied-paths: []
+    high-path-floor: true
+    floor-paths:
+      - "**/bin/**"
+      - "**/.lsp.json"
+      - "**/settings*.json"
+      - "plugins/ai-slop/scripts/**"
+      - "plugins/ai-slop/skills/*/scripts/**"
+      - "plugins/source-control/scripts/**"
+      - "plugins/source-control/skills/*/scripts/**"
+      - "plugins/discovery/scripts/**"
+      - "plugins/discovery/skills/*/scripts/**"
+      - "plugins/knowledge/scripts/**"
+      - "plugins/knowledge/skills/*/scripts/**"
+      - "plugins/skill-quality/scripts/**"
+      - "plugins/skill-quality/skills/*/scripts/**"
+      - "plugins/testing/scripts/**"
+      - "plugins/testing/skills/*/scripts/**"
+      - "plugins/autonomy/scripts/**"
+      - "plugins/autonomy/skills/*/scripts/**"
+      # The directories of the scripts a SessionStart or PreToolUse hook runs
+      # by path, outside the plugin's hooks/, held whole so a sibling module
+      # cannot shadow one of their imports (pydeps.py, arm_observer.py,
+      # destructive_guard.py).
+      - "plugins/animation/scripts/**"
+      - "plugins/explainer-video/scripts/**"
+      - "plugins/speech/scripts/**"
+      - "plugins/playwright/skills/demo-video/scripts/**"
+      - "plugins/session-flow/skills/running-retro/scripts/**"
+      - "plugins/disk-hygiene/skills/clean/scripts/**"
+    # Owner decision Q646 (2026-10-18): a .ps1 or .cjs file, or one with git
+    # mode 100755, holds the same way in the plugins the CI lanes load and,
+    # in the scorer, at the top level. work-items and review are already on
+    # the floor; other plugins stay an accepted risk (Q640c).
+    floor-script-scopes:
+      - "plugins/ai-slop/**"
+      - "plugins/source-control/**"
+      - "plugins/discovery/**"
+      - "plugins/knowledge/**"
+      - "plugins/skill-quality/**"
+      - "plugins/testing/**"
+      - "plugins/autonomy/**"

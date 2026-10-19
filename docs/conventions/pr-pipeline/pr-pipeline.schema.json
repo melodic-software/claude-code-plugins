@@ -626,7 +626,17 @@
             "high-path-floor": {
               "type": "boolean",
               "default": false,
-              "description": "pr-merge lane only: true scores a diff touching the risk scorer's fixed HIGH path floor HIGH. Absent or false: only denied-paths count. The local babysit lane always applies the floor."
+              "description": "true scores a diff touching the risk scorer's fixed HIGH path floor or floor-paths HIGH, as it does a SKILL.md, agents/**/*.md or commands/**/*.md file whose head text, compared with its base text, gains or changes hooks, allowed-tools, tools, permissionMode, mcpServers, memory or another capability key babysit_risk.py lists in its frontmatter, adds or changes a ! backtick command, gains a ```! block, changes a line inside a ```! block, or cannot be read, and a script file in floor-script-scopes HIGH. Absent or false: only denied-paths count. The local babysit lane keeps the rest of the fixed floor, but false also leaves out floor-paths, floor-script-scopes, the capability check and the plugin monitors and workflows floor entries there."
+            },
+            "floor-paths": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Globs joined to the risk scorer's HIGH path floor while it applies: a diff touching one scores HIGH and waits for a human, where a denied path makes the pull request ineligible. They add to the fixed floor, never replace it."
+            },
+            "floor-script-scopes": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Globs inside which, as at the repository top level, a .ps1 or .cjs file, or a file with git mode 100755, scores HIGH while the floor applies and waits for a human."
             },
             "c2-contradictions": {
               "type": "boolean",

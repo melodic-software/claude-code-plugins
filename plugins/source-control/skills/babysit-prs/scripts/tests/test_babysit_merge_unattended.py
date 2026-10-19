@@ -1974,6 +1974,29 @@ class GateReviewFixes(Unattended):
         self.async_merge.assert_not_called()
 
 
+class FloorReadsCapabilityText(Unattended):
+    """With the floor on, the scorer gets each capability file's base and head
+    text, so a prose-only SKILL.md edit scores LOW instead of unreadable."""
+
+    def test_a_prose_only_skill_edit_scores_low(self) -> None:
+        self.config = dataclasses.replace(self.config, high_path_floor=True)
+        path = "plugins/foo/skills/bar/SKILL.md"
+        self.files = (
+            (ChangedFile(path, None, "modified", 1, 1, True, "100644", "100644"),),
+            True,
+        )
+        front = "---\nname: bar\ndescription: y\n---\n\n"
+        texts = {BASE: front + "Old prose.\n", HEAD: front + "New prose.\n"}
+        policy._TEXT_AT.clear()
+        self.addCleanup(policy._TEXT_AT.clear)
+        with mock.patch.object(
+            policy, "_file_at", side_effect=lambda o, n, p, sha: texts[sha]
+        ):
+            code, out = self.run_main(merge_flag=False)
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+
+
 class ReasonsComment(Unattended):
     """MED/HIGH on an eligible pull request: one upserted comment (T14, D15)."""
 
@@ -1997,6 +2020,29 @@ class ReasonsComment(Unattended):
         self.assertTrue(body.startswith(f"body={merge.RISK_MARKER}\n"))
         self.assertIn("evidence-unbound:claude-review", body)
         self.assertIn(HEAD, body)
+
+    def test_a_floor_hold_says_a_human_merges_it(self) -> None:
+        # Owner decision Q648: only the owner merges a floor-held PR.
+        self.files = ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)
+        self.run_main()
+        body = next(
+            c.args[0][-1]
+            for c in self.capture.call_args_list
+            if "babysit-merge-risk" in " ".join(c.args[0])
+        )
+        self.assertIn("high-path:.github/**", body)
+        self.assertIn("a human merges it in person, never an agent or a lane", body)
+
+    def test_a_med_hold_does_not_claim_the_floor(self) -> None:
+        self.assertNotIn("never an agent", self.body())
+
+    def test_an_unsafe_path_hold_does_not_claim_the_floor(self) -> None:
+        # A symlink or unreadable list scores this code with the floor off.
+        unsafe = merge.babysit_risk.Reason(
+            merge.babysit_risk.UNSAFE_PATH_CODE, merge.babysit_risk.Risk.HIGH, "x"
+        )
+        risk = merge.babysit_risk.RiskResult(merge.babysit_risk.Risk.HIGH, (unsafe,))
+        self.assertNotIn("never an agent", merge.risk_comment_body(risk, HEAD))
 
     def test_an_unchanged_assessment_is_not_rewritten(self) -> None:
         body = self.body()

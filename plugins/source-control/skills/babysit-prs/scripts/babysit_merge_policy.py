@@ -54,7 +54,7 @@ from babysit_gh import (
     gh_http_status,
     is_owner_repo_pair,
 )
-from babysit_risk import ChangedFile, glob_match
+from babysit_risk import ChangedFile, glob_match, is_capability_path
 from babysit_util import (
     is_json_array,
     is_json_object,
@@ -430,8 +430,17 @@ class PipelineConfig:
     # decision Q624): absent, the HIGH path floor and the C2 contradictions
     # are off and there is no file cap (`max_changed_lines` None: no line
     # cap); a value other than true or false turns a switch on. The local
-    # babysit lane ignores them and keeps every check.
+    # babysit lane ignores them, except that `high_path_floor` gates the floor
+    # additions there too (`babysit_risk.RiskInput.floor_extensions`).
     high_path_floor: bool = False
+    # `merge.diff-check.floor-paths`: globs joined to the floor (owner
+    # decision Q641); they hold a pull request for a human, unlike
+    # denied-paths, which makes it ineligible.
+    floor_paths: tuple[str, ...] = ()
+    # `merge.diff-check.floor-script-scopes`: globs inside which a `.ps1` or
+    # `.cjs` file, or a file with git mode 100755, holds the same way (owner
+    # decision Q646).
+    floor_script_scopes: tuple[str, ...] = ()
     c2_contradictions: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
@@ -564,6 +573,8 @@ def read_config_at(
             ("merge.diff-check.high-path-floor", False),
             ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
+            ("merge.diff-check.floor-paths", True),
+            ("merge.diff-check.floor-script-scopes", True),
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
             ("merge.dependabot.mode", False),
@@ -651,6 +662,8 @@ def read_config_at(
         dependabot_mode=dependabot_mode,
         dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
+        floor_paths=tuple(values["merge.diff-check.floor-paths"]),
+        floor_script_scopes=tuple(values["merge.diff-check.floor-script-scopes"]),
         c2_contradictions=c2_contradictions,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
@@ -2536,6 +2549,7 @@ def _changed_files(
                 additions=entry.get("additions"),
                 deletions=entry.get("deletions"),
                 has_patch="patch" in entry,
+                patch=entry.get("patch"),
                 mode=(side or {}).get(path),
                 previous_mode=None
                 if status in ("added", "removed")
@@ -2559,6 +2573,56 @@ def changed_files(
     return _changed_files(
         owner, name, shaped, str(json_object(pr.get("base")).get("sha"))
     )
+
+
+# Capability file text by (owner, name, path, sha): a SHA pins the text, so a
+# run reads each side of each file once.
+_TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
+
+
+def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
+    key = (owner, name, path, sha)
+    if key not in _TEXT_AT:
+        # Quoted, so a `?` or `#` in a changed path cannot pick another ref.
+        _TEXT_AT[key] = _file_at(owner, name, quote(path, safe="/"), sha)
+    return _TEXT_AT[key]
+
+
+def with_capability_contents(
+    repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
+) -> tuple[ChangedFile, ...]:
+    """Each changed capability file (not removed) with its base text at the
+    base SHA, from its previous path on a rename or copy, and its head text
+    at the head SHA, or the reason either could not be read."""
+    owner, name = _split_repo(repo)
+    base = json_object(pr.get("base")).get("sha")
+    head = json_object(pr.get("head")).get("sha")
+    read = []
+    for changed in files:
+        if changed.status == "removed" or not is_capability_path(changed.path):
+            read.append(changed)
+            continue
+        try:
+            if not (isinstance(base, str) and base and isinstance(head, str) and head):
+                raise PolicyReadError(
+                    "the pull request record names no base or head SHA"
+                )
+            before = (
+                None
+                if changed.status == "added"
+                else _text_at(owner, name, changed.previous_path or changed.path, base)
+            )
+            after = _text_at(owner, name, changed.path, head)
+            read.append(replace(changed, contents=(before, after)))
+        except Exception as exc:  # noqa: BLE001 - any failure reads as unreadable (HIGH)
+            reason = f"{type(exc).__name__}: {exc}"
+            # repr escapes a newline in the author-controlled path, so the line
+            # cannot start a workflow command.
+            print(
+                f"capability contents of {changed.path!r}: {reason!r}", file=sys.stderr
+            )
+            read.append(replace(changed, contents_error=reason))
+    return tuple(read)
 
 
 # --- Promotion evidence -----------------------------------------------------------------------

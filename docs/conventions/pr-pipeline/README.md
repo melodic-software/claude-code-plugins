@@ -480,7 +480,9 @@ that fails counts as a refusal.
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
 - **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
-  `merge.diff-check.denied-paths` and matched case-insensitively. A diff that touches any of them
+  `merge.diff-check.denied-paths` and, while `high-path-floor` is true, `floor-paths`,
+  `floor-script-scopes` and the capability check (see the pr-merge lane), matched
+  case-insensitively. A diff that touches any of them
   scores HIGH and is never merged unattended.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
@@ -527,16 +529,34 @@ except six:
   `verifier-verdict-not-required` unless `merge.require-verifier-verdict` is true, and the schema
   rejects such a config. The lane starts with `merge.report-only: true`; the owner reads its
   reports and sets `false` to let it merge.
-- **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent, and
-  this repository leaves every one off (owner decision, 2026-10-17): `denied-paths` (an empty
-  list denies no path), `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH),
-  `c2-contradictions` (true scores a removed, renamed or copied file, a schema change or more
-  than one plugin MED), `max-changed-files` and `max-changed-lines` (absent is no cap). The local
-  babysit lane ignores these switches and keeps every check. The review evidence and the
-  security lane's findings still count.
+- **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
+  `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
+  `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH, and a SKILL.md,
+  agents/**/*.md or commands/**/*.md file whose head text, compared with its base text, gains or
+  changes `hooks`, `allowed-tools`, `tools`, `permissionMode`, `mcpServers`, `memory` or another
+  frontmatter key `babysit_risk.py` lists, adds or changes a `!` backtick command, gains a
+  ```` ```! ```` block,
+  changes a line inside a ```` ```! ```` block, has changed frontmatter the strict reader cannot
+  follow, or cannot be read, and a rename or copy into such a path), `floor-paths` (globs joined to
+  that floor while it applies; a HIGH pull request waits for a human), `floor-script-scopes`
+  (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file scores HIGH with
+  the floor), `c2-contradictions` (true
+  scores a removed, renamed or copied file, a schema change or more than one plugin MED),
+  `max-changed-files` and `max-changed-lines` (absent is no cap). This repository lists
+  `floor-paths` and `floor-script-scopes` and sets `high-path-floor: true` (owner decision
+  2026-10-18, reversing Q661: lanes may edit runnable plugin files and fix-ci's patch guard
+  covers only `.github/**` and agent instruction paths), so a lane pull request on the floor waits for a human; the non-author verifier
+  verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
+  leaves the rest off (owner decision,
+  2026-10-17). The local babysit lane ignores the other switches and keeps the rest of
+  the fixed floor, both caps and the C2 contradictions, but `high-path-floor` governs it too:
+  false leaves out `floor-paths`, `floor-script-scopes`, the capability check and the floor
+  entries for plugin monitors and workflows. The review evidence and the security lane's findings
+  still count.
 
-  What is left with them off: a lane pull request may change the merge gate, the workflows and
-  their tokens, these lane rules, skills, hooks, agent instructions and CI checks, at any size.
+  What is left with every switch off: a lane pull request may change the merge gate, the
+  workflows and their tokens, these lane rules, skills, hooks, agent instructions and CI checks,
+  at any size.
   The brakes that remain are the verifier verdict, the kill switch, the fork and Dependabot
   refusals, lane authorship with one closing issue, the review evidence and the demotion stop;
   setting `merge.report-only` back to true stops every merge. A verdict reads the diff only and runs no changed code, and a pull request
