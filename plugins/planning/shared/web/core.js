@@ -51,7 +51,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
-    goal: "", intro: "", annotations: [], uploads: [], reports: [], passes: {}, myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
+    goal: "", intro: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
@@ -203,9 +203,13 @@
     view.ideas = proposals.map(p => ({ id: p.id, cid: p.pid, name: nameOf(p.pid), text: plain(p.text), ts: p.at,
       status: p.status.kind === "not-placed" ? "notplaced" : p.status.kind, qid: p.status.question || "", reason: p.status.reason || "",
       ...(p.via?.kind === "chat" ? { via: nameOf(p.via.by) } : {}) }));
-    view.chat = (s.chat || []).map(m => ({ id: m.id, cid: m.pid, name: nameOf(m.pid), text: plain(m.text), ts: m.at, ...(m.gapAbove ? { gapAbove: true } : {}),
-      ...(m.replyTo ? { replyTo: { id: m.replyTo.id, cid: m.replyTo.pid, name: nameOf(m.replyTo.pid), text: plain(m.replyTo.excerpt) } } : {}),
-      ...(m.proposed ? { forwarded: m.proposed } : {}), reactions: m.reactions || {} }));
+    // Claude's shared answer to a request about the whole session is the host's message marked `claude`: it shows as Claude's.
+    const byClaude = new Set((s.chat || []).filter(m => m.claude).map(m => m.id));
+    const who = (pid, claude) => (claude ? { cid: "claude", name: "Claude" } : { cid: pid, name: nameOf(pid) });
+    view.chat = (s.chat || []).map(m => ({ id: m.id, ...who(m.pid, m.claude), text: plain(m.text), ts: m.at, ...(m.gapAbove ? { gapAbove: true } : {}),
+      ...(m.replyTo ? { replyTo: { id: m.replyTo.id, ...who(m.replyTo.pid, m.replyTo.claude || byClaude.has(m.replyTo.id)), text: plain(m.replyTo.excerpt) } } : {}),
+      ...(m.proposed ? { forwarded: m.proposed } : {}), ...(m.claude ? { claude: true, result: m.claude.result } : {}), ...(m.request ? { request: m.request } : {}),
+      reactions: m.reactions || {} }));
     // Each question's Discussion, oldest first; `seen` is when I last opened it, so others' comments after it are new.
     view.discussions = Object.fromEntries(Object.entries(s.discussions || {}).map(([qid, lst]) => [qid, lst.map(c => ({ id: c.id, cid: c.pid, name: nameOf(c.pid),
       text: plain(c.text), ts: c.at, edited: !!c.edited, hidden: !!c.hidden, request: c.request || "", reactions: c.reactions || {} }))]));
@@ -219,14 +223,14 @@
     for (const [qid, lst] of Object.entries(s.results || {})) {
       view.research[qid] = lst.map(x => {
         const r = x.request ? reqText.get(x.request) : null, by = x.by?.kind === "guest-claude" ? x.by.pid : r?.pid;
-        return { id: x.id, kind: x.kind, summary: x.summary, sources: x.sources || [], report: x.report || "", ts: x.at, requestId: x.request || "",
+        return { id: x.id, kind: x.kind, summary: x.summary, msg: x.msg || "", sources: x.sources || [], report: x.report || "", ts: x.at, requestId: x.request || "",
           // A guest's own Claude names its own tools in `used`; the label never repeats them.
           skill: x.by?.kind === "guest-claude" ? "their own Claude" : (x.used || []).map(u => u.name).join(", ") || "Claude", why: x.why || "", published: x.published !== false,
           own: x.by?.kind === "guest-claude", // the requester's own Claude answered it (Connect your Claude), not the host's
           ...(r ? { ask: plain(r.text) } : {}), ...(by ? { byCid: by, by: nameOf(by) } : {}) };
       });
     }
-    const req = r => ({ id: r.id, qid: r.qid, kind: r.kind, text: plain(r.text), edited: r.edited, cid: r.pid, name: nameOf(r.pid), ts: r.at,
+    const req = r => ({ id: r.id, qid: r.qid || "", kind: r.kind, text: plain(r.text), edited: r.edited, cid: r.pid, name: nameOf(r.pid), ts: r.at,
       status: r.status.kind, runner: r.runner, ...(r.status.reason ? { reason: r.status.reason } : {}) });
     view.requests = (s.requests || []).map(req);
     view.myRequests = (s.myRequests || []).map(req);
@@ -244,7 +248,9 @@
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
-    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, asked: !!r.asked, ts: r.ts }));
+    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, asked: !!r.asked, ts: r.ts, adds: r.adds || [] }));
+    // My own problem reports (Your reports): their words, additions and status, never the page context.
+    view.myReports = (s.myReports || []).map(r => ({ id: r.id, text: r.text, image: r.image, status: r.status, ts: r.ts, adds: r.adds || [] }));
     view.files = s.files || {};
     // Passes and their reasons (owner only): qid -> pid -> {reason?, ts}.
     view.passes = s.passes || {};
@@ -343,6 +349,8 @@
 
   const OPPOSITE = { thumbs: "down", down: "thumbs" }; // one person never holds both on one answer
   const Core = {
+    /** A request about the whole session has no question: the page files it, and finds its results, under this key. */
+    GENERAL: "session",
     // cid holds the public pid (the prototype's name for it).
     me: { cid: secret ? get("pid") || "" : ownerToken ? "host" : "", name: get("name") || "", isOwner: !!ownerToken, isLeader: false, isTrusted: false },
     state: structuredClone(DEFAULTS),
@@ -557,9 +565,11 @@
     /** Owner: mark a report seen or resolved; either tells the reporter. */
     /** Owner: seen | resolved tell the reporter; ask hands a report to Claude once (a report alone never reaches it). */
     reportAct: (id, action) => act("/api/report/act", { id, action }),
-    /** Owner: one report's picture, as a data: URL. */
-    reportImage: async id => {
-      const r = await fetch(`/api/report/image?${new URLSearchParams({ id })}`, { headers: ident() });
+    /** The reporter: a line, a screenshot (a data: URL) or both added to their own report while it is not fixed. */
+    addToReport: (id, text, image) => act("/api/report/add", { id, ...(text ? { text } : {}), ...(image ? { image } : {}) }),
+    /** Owner: one report's picture, or its Nth addition's, as a data: URL. */
+    reportImage: async (id, add) => {
+      const r = await fetch(`/api/report/image?${new URLSearchParams({ id, ...(add ? { add } : {}) })}`, { headers: ident() });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw { status: r.status, ...j };
       return j.image;
@@ -581,7 +591,7 @@
     setPurpose: (qid, purpose) => act("/api/question/purpose", { qid, purpose }),
     sendRound: () => act("/api/round/send", {}),
     /** runner "self": the request runs on my own Claude (Connect your Claude); only I see it. */
-    request: (qid, kind, text, _extra, runner) => act("/api/request", { qid, kind, text, ...(runner === "self" ? { runner } : {}) }),
+    request: (qid, kind, text, _extra, runner) => act("/api/request", { ...(qid === Core.GENERAL ? { scope: qid } : { qid }), kind, text, ...(runner === "self" ? { runner } : {}) }),
     /** My own Claude's side of a self request: claim it, post its answer ({summary, sources, report, used, why}), or give up. */
     myClaim: id => act("/api/mine/requests/claim", { id }),
     myResult: (id, body) => act("/api/mine/requests/result", { id, ...body }),

@@ -28,7 +28,7 @@ A quality requirement the Brief records is settled: a `Quality requirement:` lin
 `Quality requirements deferred (prototype)` line stands: ask none.
 
 With no Brief, or a Brief at `internal` or `production` that records none, prompt from
-`${CLAUDE_PLUGIN_ROOT}/skills/interview/context/nfr-prompts.md`: at `internal`, only the prompts
+[`<plugin-root>/skills/interview/context/nfr-prompts.md`](../../interview/context/nfr-prompts.md): at `internal`, only the prompts
 this design touches; at `production`, every prompt, asked or stated as not applying. Record each answer in
 `design-threads.md` in that file's `Quality requirement:` line format; "no target needed" counts as
 captured. Stumble: the Brief had no slot for quality requirements, and once it gained one, a design
@@ -61,7 +61,8 @@ Write a `Principles` thread in `design-threads.md`: the principles and `Override
 lines that shaped the design, and how generalize-now-or-wait was settled, citing the Brief's
 `Intent:` line counts; the user's answer settles it, never this skill. At `prototype`, record
 `Principles: deferred (prototype) [RESEARCH: name the principles if it heads for production]`.
-Stumble: `/planning:design-handoff` requires this thread and no step wrote it.
+Stumble: no step recorded which principles shaped the design or how generalize-now-or-wait was
+settled.
 
 ## Per-tenant configurability (vendor guidance)
 
