@@ -149,6 +149,7 @@ MAX_OPEN_REPORTS = 5  # judgment: reports one person has waiting for the owner
 MAX_REPORTS = 500  # judgment: reports across the session; at the cap a new one is refused, none dropped
 MAX_REPORT_ERRORS = 5  # the page's latest client errors a report carries
 MAX_REPORT_ERROR = 300  # characters of each
+MAX_REPORT_ADDS = 10  # judgment: lines or screenshots a reporter adds to one report while it is open
 REPORTS_DIR = "reports"  # in the private data folder: a report's picture, read only by the owner and the upload reader
 ZIP_UNPACKED_MAX = 1024 * 1024 * 1024  # judgment: bytes an archive kind may unpack to in all
 ZIP_RATIO_MAX = 100  # unpacked to packed, per entry past ZIP_RATIO_GRACE (Apache POI ZipSecureFile's default)
@@ -367,7 +368,9 @@ def cross_field_errors(doc):
     errors += [f"A Discussion comment on {qid[:40]} has an id the server never makes." for qid, lst in doc["discussions"].items() for c in lst if not COMMENT_ID.fullmatch(c["id"])]
     errors += [f"A result under {key[:40]} names another place." for key, lst in doc["results"].items() for r in lst if r.get("qid", GENERAL) != key]
     errors += [f"Report {fid[:40]} holds an id or picture name the server never makes." for fid, r in doc.get("reports", {}).items()
-               if not REPORT_ID.fullmatch(fid) or not (r.get("image") is None or re.fullmatch(rf"{REPORTS_DIR}/{fid}\.(png|jpg|webp)", r["image"]))]
+               if not REPORT_ID.fullmatch(fid) or not (r.get("image") is None or re.fullmatch(rf"{REPORTS_DIR}/{fid}\.(png|jpg|webp)", r["image"]))
+               or len(r.get("adds", [])) > MAX_REPORT_ADDS
+               or any(not (a.get("image") is None or re.fullmatch(rf"{REPORTS_DIR}/{fid}-{n}\.(png|jpg|webp)", a["image"])) for n, a in enumerate(r.get("adds", []), 1))]
     return errors
 
 
@@ -3982,6 +3985,40 @@ class Session:
             self._reported[pid] = now
         return {"id": fid}
 
+    def add_to_report(self, pid, body):
+        """POST /api/report/add: the reporter adds a line, a screenshot or both to their own report while it is open or
+        seen; another person's report reads as missing. A seen report goes back to open, so the owner sees it waiting
+        again. At most MAX_REPORT_ADDS per report; one write a second."""
+        body = _body(body)
+        text = _text(body, "text", empty_ok=True)
+        image = _report_image(body.get("image"))
+        if not text and not image:
+            raise DomainError(400, "empty", "Add a line or a screenshot.", field="text")
+        now, saved = self.now(), None
+        try:
+            with self._write_as(pid, "report-add") as st:
+                fid = _ident(body, "id")
+                r = st.get("reports", {}).get(fid)
+                if r is None or r["by"] != pid:
+                    raise DomainError(404, "not-found", f"No report {fid[:20]}.")
+                if r["status"] == "resolved":
+                    raise DomainError(409, "wrong-status", f"Report {fid} is fixed.", status=r["status"])
+                adds = r.setdefault("adds", [])
+                if len(adds) >= MAX_REPORT_ADDS:
+                    raise DomainError(409, "too-many", f"A report takes at most {MAX_REPORT_ADDS} additions.", max=MAX_REPORT_ADDS)
+                add = {"ts": now, **({"text": text} if text else {})}
+                if image:
+                    add["image"] = f"{REPORTS_DIR}/{fid}-{len(adds) + 1}.{image[1]}"
+                    saved = self.path.parent / add["image"]
+                    _write_chunk(saved, 0, image[0])
+                adds.append(add)
+                r["status"] = "open"
+        except BaseException:
+            if saved:
+                self._discard(saved)
+            raise
+        return {"id": fid, "adds": len(adds), "status": "open"}
+
     def _report(self, fid):
         r = self.state.get("reports", {}).get(fid) if isinstance(fid, str) else None
         if r is None:
@@ -4011,12 +4048,17 @@ class Session:
             return {"id": fid, "status": action}
 
     def report_image(self, pid, body):
-        """GET /api/report/image?id=: owner only. A report's picture as a data: URL."""
+        """GET /api/report/image?id=[&add=N]: owner only. A report's picture, or its Nth addition's, as a data: URL."""
         with self._lock:
             self._owner(pid)
             fid = _ident(_body(body), "id")
             r = self._report(fid)
-            stored = r.get("image", "")
+            n = body.get("add")
+            if n is None:
+                stored = r.get("image", "")
+            else:
+                adds = r.get("adds", [])
+                stored = adds[int(n) - 1].get("image", "") if str(n).isdigit() and 1 <= int(n) <= len(adds) else ""
         f = self.path.parent / stored
         if not stored or not f.is_file():
             raise DomainError(404, "not-found", f"Report {fid} has no picture.")
@@ -4025,7 +4067,14 @@ class Session:
 
     def _report_view(self, fid, r):
         """A report as the owner's page reads it: whether it has a picture, never where it is saved."""
-        return {"id": fid, **{k: copy.deepcopy(v) for k, v in r.items() if k != "image"}, "image": "image" in r}
+        return {"id": fid, **{k: copy.deepcopy(v) for k, v in r.items() if k not in ("image", "adds")}, "image": "image" in r,
+                "adds": [{**{k: v for k, v in a.items() if k != "image"}, "image": "image" in a} for a in r.get("adds", [])]}
+
+    def _my_report_view(self, fid, r):
+        """A report as its reporter reads it in Your reports: their words and additions, and its status, never the
+        context their page sent or where a picture is saved."""
+        return {"id": fid, "text": r["text"], "status": r["status"], "ts": r["ts"], "image": "image" in r,
+                "adds": [{**{k: v for k, v in a.items() if k != "image"}, "image": "image" in a} for a in r.get("adds", [])]}
 
     # -- settings, prefs, notifications, session ---------------------------------------------
 
@@ -5184,6 +5233,7 @@ class Session:
             visible = [p for p in st["proposals"] if self._active(p["pid"]) and (moderator or p["pid"] == pid)]
             snap["proposals"] = copy.deepcopy(visible)
             snap["myRequests"] = copy.deepcopy([r for r in st["requests"] if r["pid"] == pid])
+            snap["myReports"] = [self._my_report_view(f, r) for f, r in st.get("reports", {}).items() if r["by"] == pid]
             snap["inbox"] = self._inbox(pid)
             snap["me"]["watcher"] = pid in st["credentials"].get("watchers", {}).values()
             for qid, lst in st["results"].items():  # my own Claude's answers waiting for the owner's Share

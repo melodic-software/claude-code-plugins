@@ -643,6 +643,17 @@
         "image": {"type": "string"},
         "status": {"enum": ["open", "seen", "resolved"]},
         "asked": {"$ref": "#/$defs/ts", "description": "When the owner asked Claude about the report, which wrote `report-filed`; absent until then."},
+        "adds": {
+          "description": "Lines and screenshots the reporter added while the report was open, oldest first; absent until the first.",
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "required": ["ts"],
+            "additionalProperties": false,
+            "properties": {"text": {"$ref": "#/$defs/text"}, "image": {"type": "string"}, "ts": {"$ref": "#/$defs/ts"}}
+          }
+        },
         "ts": {"$ref": "#/$defs/ts"}
       }
     },

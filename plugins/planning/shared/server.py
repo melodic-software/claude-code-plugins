@@ -220,6 +220,7 @@ ROUTES = {
     "/api/upload/act": ("person", "act_on_upload"),  # session.py: accept and decline the owner's, withdraw the uploader's
     "/api/report": ("person", "report"),
     "/api/report/act": ("owner", "act_on_report"),
+    "/api/report/add": ("person", "add_to_report"),
 }
 UPLOAD_CHUNK = "/api/upload/chunk"
 CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chunk-Total", "sha256": "X-Chunk-Sha256", "fileSha256": "X-File-Sha256"}
@@ -227,7 +228,7 @@ GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("pers
 # The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
 # requests. Anywhere else the header answers 401, so the key never acts as the person's session secret.
 WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
-BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}  # path -> bytes, where not session.BODY_MAX
+BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_MAX, "/api/report/add": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}  # path -> bytes, where not session.BODY_MAX
 SERVER_ERROR = ("state-invalid", "The server could not do that; nothing was written.")
 
 

@@ -5436,6 +5436,49 @@ class TestReports(SessionCase):
         self.assertEqual(self.s.state["reports"]["F1"]["by"], self.ann)
         self.assertTrue(self.s._holds_content(self.ann))
 
+    def test_your_reports_lists_only_your_own_with_their_status_and_never_the_context(self):
+        self.file(self.ann, image=data_url("png", PNG_BYTES))
+        self.file(self.bo, text="Mine is broken too")
+        self.file(self.ann, text="Chat is slow")
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.act("act_on_report", HOST, {"id": "F3", "action": "resolved"})
+        mine = self.s.snapshot(self.ann)["myReports"]
+        self.assertEqual([(r["id"], r["text"], r["status"], r["image"]) for r in mine], [("F1", "Send does nothing", "seen", True), ("F3", "Chat is slow", "resolved", False)])
+        self.assertEqual([r["id"] for r in self.s.snapshot(self.bo)["myReports"]], ["F2"])
+        self.assertEqual(self.s.snapshot(HOST)["myReports"], [])
+        self.assertNotIn("ctx", json.dumps(mine))
+        self.assertNotIn("reports/F1", json.dumps(mine))
+
+    def test_a_reporter_adds_a_line_or_a_screenshot_to_their_open_report_and_a_seen_one_waits_again(self):
+        self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.assertEqual(self.act("add_to_report", self.ann, {"id": "F1", "text": "It happens on Q2 too"}), {"id": "F1", "adds": 1, "status": "open"})
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        self.assertEqual((self.tmp / "reports" / "F1-2.png").read_bytes(), PNG_BYTES)
+        mine = self.s.snapshot(self.ann)["myReports"][0]
+        self.assertEqual((mine["status"], [(a.get("text"), a["image"]) for a in mine["adds"]]), ("open", [("It happens on Q2 too", False), (None, True)]))
+        owner = self.s.snapshot(HOST)["reports"][0]
+        self.assertEqual([(a.get("text"), a["image"]) for a in owner["adds"]], [("It happens on Q2 too", False), (None, True)])
+        self.assertEqual(self.s.report_image(HOST, {"id": "F1", "add": "2"})["image"], data_url("png", PNG_BYTES))
+        self.refused("not-found", "report_image", HOST, {"id": "F1", "add": "1"}, http=404)
+        self.refused("owner-only", "report_image", self.ann, {"id": "F1", "add": "2"}, http=403)
+        self.assertIsNone(session.document_error(self.disk()))
+        session.Session.load(self.s.path, validate_writes=True)
+
+    def test_only_the_reporter_adds_to_a_report_and_only_while_it_is_not_fixed(self):
+        self.file(self.ann)
+        self.refused("not-found", "add_to_report", self.bo, {"id": "F1", "text": "me too"}, http=404)
+        self.refused("not-found", "add_to_report", HOST, {"id": "F1", "text": "noted"}, http=404)
+        self.refused("empty", "add_to_report", self.ann, {"id": "F1", "text": " "})
+        self.refused("file-type", "add_to_report", self.ann, {"id": "F1", "image": data_url("png", b"GIF89a" + b"\x00" * 30)}, http=415)
+        for _ in range(session.MAX_REPORT_ADDS):
+            self.act("add_to_report", self.ann, {"id": "F1", "text": "more"})
+        self.refused("too-many", "add_to_report", self.ann, {"id": "F1", "text": "one more"}, http=409)
+        self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F2", "action": "resolved"})
+        self.refused("wrong-status", "add_to_report", self.ann, {"id": "F2", "text": "still broken"}, http=409)
+        self.assertEqual(self.s.state["reports"]["F2"].get("adds"), None)
+
     def test_a_report_id_or_picture_name_the_server_never_makes_is_refused_at_load(self):
         self.file(self.ann, image=data_url("png", PNG_BYTES))
         for edit in (lambda d: d["reports"]["F1"].update(image="../state.json"), lambda d: d["reports"]["F1"].update(image="reports/F2.png"),

@@ -756,6 +756,16 @@
       E("p", "vf-pop-note", "Take a screenshot first, then add it here. Only the host and Claude see your report."), repShot,
       E("h3", "vf-pop-sub", "Sent with this report"), repSent, repErr);
 
+    // Follow-up item 3: Your reports, the person's own problem reports in this session with where each stands. While one
+    // is not fixed they can add a line or a screenshot to it (the same screenshot path and caps). Only they and the host
+    // see a report.
+    const myRepPop = E("div", "vf-pop vf-reportpop vf-myreps"); myRepPop.setAttribute("role", "dialog"); myRepPop.setAttribute("aria-label", "Your reports"); myRepPop.hidden = true;
+    const myRepList = E("ul", "vf-plist vf-myrep-list"); myRepList.setAttribute("role", "list");
+    const myRepDone = btn("vf-btn vf-btn-ghost", "Done");
+    const myRepRow = E("div", "vf-crow"); myRepRow.append(E("span", "vf-spacer"), myRepDone);
+    myRepPop.append(E("h2", "vf-pop-title", "Your reports"), E("p", "vf-pop-note", "Only you and the host see these."), myRepList, myRepRow);
+    const REP_WORD = { open: "Sent", seen: "Seen by the host", resolved: "Fixed" };
+
     // Wide panels: beside the rail when there is room, over the center pane when not, a bottom sheet on phones.
     function panel(title, label) {
       const pop = E("div", "vf-pop vf-panel"); pop.setAttribute("role", "dialog"); pop.setAttribute("aria-label", label); pop.hidden = true;
@@ -1488,7 +1498,8 @@
     const helpTour = btn("vf-btn vf-btn-primary vf-btn-sm vf-help-tour", "Show me around");
     const helpIntro = btn("vf-btn vf-btn-ghost vf-btn-sm vf-help-intro", "Why you're here");
     const helpReport = btn("vf-btn vf-btn-ghost vf-btn-sm vf-help-report", "Report a problem");
-    keysPop.append(E("h2", "vf-pop-title", "Help"), E("p", "vf-pop-note", "A one-minute tour of the questions, your answer, other people's answers and the chat."), helpTour, helpIntro, helpReport,
+    const helpMyReps = btn("vf-btn vf-btn-ghost vf-btn-sm vf-help-myreps", "Your reports");
+    keysPop.append(E("h2", "vf-pop-title", "Help"), E("p", "vf-pop-note", "A one-minute tour of the questions, your answer, other people's answers and the chat."), helpTour, helpIntro, helpReport, helpMyReps,
       Core.telemetry.notice("core-rec vf-help-rec"), E("h3", "vf-pop-sub", "Keyboard shortcuts"), keyList, E("p", "vf-pop-note", "They work when you are not typing in a field."));
 
     // Phase 4c: "Why you're here", reopened from the header (or More on a phone) after the first view.
@@ -1736,6 +1747,7 @@
     const msTour = msItem("help", "Show me around"); msTour._d.textContent = "A one-minute tour";
     const msIntro = msItem("doc", "Why you're here");
     const msReport = msItem("alert", "Report a problem"); msReport._d.textContent = "Tell the host something is broken";
+    const msMyReps = msItem("doc", "Your reports"); msMyReps._d.textContent = "What you reported and where it stands";
     const msRecords = msItem("doc", "What this page records");
     moreSheet.append(msHead, msList);
 
@@ -1893,7 +1905,7 @@
     devicePop.append(E("h2", "vf-pop-title", "Use on another device"), E("p", "vf-pop-note", "Scan this on your phone, or open the link in another browser. You stay the same person there, with your answers and votes."), qrBox, devField, devRow, devWarn);
 
     keysBtn.before(introBtn);
-    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, RQ.pop, confirmPop, tiePop, proposePop, reportPop, askMenu, citePop, msgMenu, askPanel, devicePop,
+    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, RQ.pop, confirmPop, tiePop, proposePop, reportPop, myRepPop, askMenu, citePop, msgMenu, askPanel, devicePop,
       bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
 
     // ---------- actions ----------
@@ -2027,7 +2039,7 @@
     function openPop(pop, anchor) {
       closePop(); hideCard();
       ui.pop = pop; pop.hidden = false; pop._return = null;
-      if (phone.matches && (pop === proposePop || pop === reportPop)) pop.removeAttribute("style"); // a sheet: the stylesheet places it
+      if (phone.matches && (pop === proposePop || pop === reportPop || pop === myRepPop)) pop.removeAttribute("style"); // a sheet: the stylesheet places it
       else placeNear(pop, anchor);
       anchor.setAttribute("aria-expanded", "true"); pop._anchor = anchor;
       render();
@@ -2737,6 +2749,9 @@
     helpIntro.onclick = () => { closePop(); openIntro(keysBtn.offsetParent ? keysBtn : gear.offsetParent ? gear : top); };
     helpReport.onclick = () => openReport(keysBtn);
     msReport.onclick = () => openReport(tabBtns.more);
+    helpMyReps.onclick = () => openPop(myRepPop, keysBtn);
+    msMyReps.onclick = () => openPop(myRepPop, tabBtns.more);
+    myRepDone.onclick = () => { const a = myRepPop._anchor; closePop(); if (a?.isConnected && a.offsetParent) a.focus({ preventScroll: true }); };
     msRecords.onclick = () => { closePop(); Core.telemetry.openRecords(); };
     on(hIntroIn, "input", () => { ui.introDirty = hIntroIn.value.trim() !== (Core.state.intro || ""); counter(hIntroCount, hIntroIn, 500); hIntroSave.disabled = !ui.introDirty; });
     hIntroSave.onclick = () => {
@@ -3704,6 +3719,61 @@
       Core.report(text, REP.ctx, REP.image).then(() => { repTa.value = ""; repCount.textContent = `0 / ${repTa.maxLength}`; dropShot(); repBack(); flash("Report sent. The host and Claude will look at it."); })
         .catch(x => { repErr.textContent = `Not sent: ${x?.message || Core.errorText(x)}`; }).finally(() => { repSend.disabled = false; });
     };
+    function makeMyRep() {
+      const li = E("li", "vf-pitem vf-myrep");
+      const head = E("div", "vf-rhead2"), status = E("span", "vf-chip vf-myrep-status"), when = E("span", "vf-meta");
+      head.append(status, E("span", "vf-spacer"), when);
+      const text = E("p", "vf-myrep-text"), adds = E("ul", "vf-myrep-adds"); adds.setAttribute("role", "list");
+      const form = E("form", "vf-myrep-add"), ta = E("textarea", "vf-ta"), file = E("input", "vf-rep-file");
+      ta.rows = 2; ta.maxLength = 2000; ta.setAttribute("aria-label", "Add a line to this report"); ta.placeholder = "Add a line";
+      file.type = "file"; file.accept = "image/png,image/jpeg,image/webp"; file.id = "vf-myrep-file-" + Math.random().toString(36).slice(2, 10);
+      const pick = E("label", "vf-btn vf-btn-ghost vf-btn-sm vf-rep-add", "Add a screenshot"); pick.htmlFor = file.id;
+      const shot = E("img", "vf-rep-shot"); shot.alt = "Your screenshot"; shot.hidden = true;
+      const send = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Add"); send.type = "submit";
+      const err = E("p", "vf-rep-err"); err.setAttribute("role", "alert");
+      const row = E("div", "vf-crow"); row.append(pick, E("span", "vf-spacer"), send);
+      form.append(ta, file, row, shot, err);
+      li.append(head, text, adds, form);
+      li._k = { status, when, text, adds, form, ta, file, pick, shot, send, err, image: "" };
+      const k = li._k;
+      on(file, "change", async () => {
+        const f = file.files?.[0]; if (!f) return;
+        err.textContent = "";
+        try {
+          if (!["image/png", "image/jpeg", "image/webp"].includes(f.type)) throw new Error("type");
+          const sh = await shrinkShot(f);
+          k.image = sh.url; shot.src = sh.url; shot.hidden = false; pick.textContent = "Change screenshot";
+        } catch { k.image = ""; file.value = ""; shot.hidden = true; err.textContent = "That picture could not be added. Use a PNG, JPEG or WebP screenshot."; }
+      });
+      form.onsubmit = e => {
+        e.preventDefault();
+        const t = ta.value.trim();
+        if (!t && !k.image) return ta.focus();
+        send.disabled = true; err.textContent = "";
+        Core.addToReport(li._r.id, t, k.image).then(() => {
+          ta.value = ""; k.image = ""; file.value = ""; shot.hidden = true; shot.removeAttribute("src"); pick.textContent = "Add a screenshot";
+          flash("Added to your report. The host sees it.");
+        }).catch(x => { err.textContent = `Not added: ${x?.message || Core.errorText(x)}`; }).finally(() => { send.disabled = false; });
+      };
+      return li;
+    }
+    function fillMyRep(li, r) {
+      const k = li._k;
+      li._r = r; li.dataset.status = r.status;
+      k.status.textContent = REP_WORD[r.status] || r.status;
+      k.when.textContent = ago(r.ts) === "now" ? "just now" : `${ago(r.ts)} ago`;
+      k.text.textContent = r.text;
+      const lines = r.adds.map(a => E("li", null, [a.text, a.image ? "Screenshot added" : ""].filter(Boolean).join(" · ")));
+      if (k.adds.childElementCount !== lines.length || [...k.adds.children].some((c, i) => c.textContent !== lines[i].textContent)) k.adds.replaceChildren(...lines);
+      k.adds.hidden = !lines.length;
+      k.form.hidden = r.status === "resolved";
+    }
+    function renderMyReps(S) {
+      const mine = (S.myReports || []).slice().sort((a, b) => b.ts - a.ts);
+      msMyReps.hidden = helpMyReps.hidden = !mine.length;
+      if (myRepPop.hidden) return;
+      sync(myRepList, mine, r => r.id, makeMyRep, fillMyRep);
+    }
     newGuestBtn.onclick = guarded({ title: "Make a new guest link?", body: "The guest link you shared stops working: nobody new can join with it. People already here stay. You share the new link again.", ok: "Make new guest link" },
       () => Core.newGuestLink().then(() => { openPop(sharePop, shareBtn.offsetParent ? shareBtn : gear); flash("New guest link made. Share it again."); }).catch(fail));
     newOwnerBtn.onclick = guarded({ title: "Make a new owner link?", body: "Your current owner link stops working everywhere, including other devices and tabs that use it. This page reloads with the new one: save it, or you lose host access.", ok: "Make new owner link" },
@@ -5456,8 +5526,9 @@
         const ctx = E("ul", "vf-rep-sent"), show = btn("vf-btn vf-btn-ghost vf-btn-sm", "Show screenshot"), img = E("img", "vf-rep-shot");
         img.alt = "The reporter's screenshot"; img.hidden = true;
         show.onclick = () => { show.disabled = true; Core.reportImage(li._it.f.id).then(src => { img.src = src; img.hidden = false; show.hidden = true; }).catch(e => { show.disabled = false; fail(e); }); };
-        extra.append(ctx, show, img);
-        li._k.rep = { ctx, show };
+        const adds = E("ul", "vf-myrep-adds vf-rep-adds"); adds.setAttribute("aria-label", "Added by the reporter");
+        extra.append(ctx, show, img, adds);
+        li._k.rep = { ctx, show, adds };
       }
       return li;
     }
@@ -5491,6 +5562,21 @@
           `${c.device}, ${BROWSER_NAME[c.browser] || "other browser"}, ${c.viewport.w} × ${c.viewport.h}${v ? ` (visible ${Math.round(v.w)} × ${Math.round(v.h)} at ${v.scale}×)` : ""}`,
           ...(c.build ? [`Page version ${c.build}`] : []), ...c.errors.map(e => `Error: ${e}`)].map(t => E("li", null, t)));
         k.rep.show.hidden = !it.f.image || !!k.rep.show.nextSibling.getAttribute("src");
+        // What the reporter added since: each line, and a screenshot that loads only when the owner asks.
+        const sig = JSON.stringify(it.f.adds);
+        if (k.rep.adds._sig !== sig) {
+          k.rep.adds._sig = sig;
+          k.rep.adds.replaceChildren(...it.f.adds.map((a, i) => {
+            const row = E("li", null, `Added: ${a.text || "a screenshot"}`);
+            if (a.image) {
+              const b = btn("vf-lbtn", "Show screenshot"), im = E("img", "vf-rep-shot"); im.alt = "The reporter's added screenshot"; im.hidden = true;
+              b.onclick = () => { b.disabled = true; Core.reportImage(li._it.f.id, i + 1).then(src => { im.src = src; im.hidden = false; b.hidden = true; }).catch(e => { b.disabled = false; fail(e); }); };
+              row.append(" ", b, im);
+            }
+            return row;
+          }));
+        }
+        k.rep.adds.hidden = !it.f.adds.length;
       }
       fillAtts(k.att, (it.r || it.i || it.x)?.att, `${QT[it.t]} from ${disp(person[1] || "someone")}`);
       const sig = [it.t, it.r?.status, it.u?.status, it.f?.status, it.f?.asked, owner, Core.canModerate()].join("|");
@@ -6456,6 +6542,7 @@
       tabs.style.setProperty("--tabs-n", "5");
       renderBell(S, mod);
       renderMore(S, mod);
+      renderMyReps(S);
 
       // a color someone just chose: repaint their avatars wherever they are
       for (const a of root.querySelectorAll(".core-avatar[data-who]")) { const c = Core.colorFor(a.dataset.who); if (a.style.getPropertyValue("--av") !== c) a.style.setProperty("--av", c); }
