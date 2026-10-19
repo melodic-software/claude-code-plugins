@@ -415,11 +415,14 @@ def _open_findings(
 ) -> int:
     """Summary findings of the review chain covering the pinned head
     (`chain`, from `_resolve`), plus inline threads still open, plus inline
-    findings whose thread is gone. A summary finding from a review of an
-    earlier head outside that chain is closed: the covering review no longer
-    reports it. Whole reviews of one head (a reopen or a draft toggle re-runs
-    one) never supersede each other: a chain link that is a whole review
-    counts the most findings any completed whole review of its head reported.
+    findings of the chain whose thread is gone. A summary or thread-less
+    inline finding from a review of an earlier head outside that chain is
+    closed: the covering review no longer reports it. Reviews of one head (a
+    reopen or a draft toggle re-runs a whole one) never supersede each other:
+    a whole-review link counts the most findings any completed whole review
+    of its head reported, and every link counts the most inline findings
+    left without a thread by any review of its kind (whole or incremental)
+    at its head.
 
     A resolved thread is closed when:
     - a human resolved it;
@@ -439,6 +442,8 @@ def _open_findings(
         raise Unbound("threads-unread")
     # (job started, job completed, inline findings) per recorded attempt.
     windows: list[tuple[datetime | None, datetime | None, int]] = []
+    # (head, whole review) per window, to count missing ones on the chain.
+    kinds: list[tuple[str, bool]] = []
     # When the first review at `reviewed` started; unknown keeps every
     # thread's human test.
     first: datetime | None = None
@@ -473,6 +478,7 @@ def _open_findings(
                     rec.inline,  # type: ignore[arg-type]
                 )
             )
+            kinds.append((rec.sha, rec.whole))
             if (
                 item["head_sha"] == reviewed
                 and started
@@ -518,7 +524,16 @@ def _open_findings(
             and _line_changed(thread, head_file)
         ) and not is_human(thread.get("resolvedBy")):
             open_threads += 1
-    missing = sum(max(k - n, 0) for (_, _, k), n in zip(windows, covered))
+    # Inline findings with no thread left, counted like summary findings:
+    # per chain link, the most any review of its kind at its head left.
+    gone = [max(k - n, 0) for (_, _, k), n in zip(windows, covered)]
+    missing = sum(
+        max(
+            (g for g, kind in zip(gone, kinds) if kind == (rec.sha, rec.whole)),
+            default=0,
+        )
+        for rec in chain
+    )
     return summary + open_threads + missing
 
 

@@ -1016,6 +1016,28 @@ class CoveringReviewTests(Base):
         )
         self.assertEqual(self.bind(runs)["claude-review"].open_findings, 0)
 
+    def test_threadless_inline_finding_of_a_superseded_review_drops(self) -> None:
+        runs = self.two_reviews(
+            "findings=1 inline=1 scope=whole", "findings=0 inline=0 scope=whole"
+        )
+        self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 0)
+
+    def test_threadless_inline_finding_of_the_covering_review_counts(self) -> None:
+        runs = self.two_reviews(
+            "findings=0 inline=0 scope=whole", "findings=1 inline=1 scope=whole"
+        )
+        self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 1)
+
+    def test_threadless_inline_finding_of_a_same_head_whole_rerun_counts(
+        self,
+    ) -> None:
+        runs = self.two_reviews(
+            "findings=1 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            earlier_sha=S,
+        )
+        self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 1)
+
     def test_a_clean_whole_rerun_at_the_same_head_keeps_the_earlier_findings(
         self,
     ) -> None:
