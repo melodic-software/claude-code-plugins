@@ -21,6 +21,10 @@
     {
       "answer": "Q1: Should the Pay button stay disabled while the lookup runs?",
       "why": "a question, but not the intent question"
+    },
+    {
+      "answer": "No other provider is coming, so should the Pay button stay disabled?",
+      "why": "states the intent answer, then asks a different question"
     }
   ]
 }
