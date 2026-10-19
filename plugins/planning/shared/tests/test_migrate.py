@@ -119,8 +119,12 @@ class TestMigrate(unittest.TestCase):
         self.assertEqual(migrate.migrate(doc)["inboxSeen"], {"pidAnn001": {"R1": "unshared", "R3": "answered"}, "host": {"R2": "answered"}})
 
     def test_v5_marks_discards_cancelled_and_starts_claudes_earlier_failures_read(self):
-        failed = lambda reason, cancelled=False: {"kind": "failed", "at": 1.0, "reason": reason, "cancelled": cancelled}
-        req = lambda rid, pid, status, runner="host": {"id": rid, "pid": pid, "runner": runner, "status": status}
+        def failed(reason, cancelled=False):
+            return {"kind": "failed", "at": 1.0, "reason": reason, "cancelled": cancelled}
+
+        def req(rid, pid, status, runner="host"):
+            return {"id": rid, "pid": pid, "runner": runner, "status": status}
+
         doc = {"schemaVersion": 5, "people": {"pidAnn001": {"status": {"kind": "active"}}, "pidGone01": {"status": {"kind": "removed"}}},
                "inboxSeen": {"host": {"R9": "answered"}}, "requests": [
                    req("R1", "pidAnn001", failed(migrate.NOT_SHARED)),  # the owner discarded it
