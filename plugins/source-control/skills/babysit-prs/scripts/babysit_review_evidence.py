@@ -81,6 +81,7 @@ class _Record:
     since: str | None = None  # incremental review base
     through: str | None = None  # no-change skip target
     skip: str | None = None  # any other skip
+    completed: datetime | None = None  # when the lane job that left it completed
 
 
 class Unbound(Exception):
@@ -352,6 +353,7 @@ def _record(lane: str, sha: str, job: Mapping[str, Any]) -> _Record | None:
         inline=int(match["k"]),
         whole=match["whole"] is not None,
         since=match["since"],
+        completed=_time(job.get("completed_at")),
     )
 
 
@@ -413,30 +415,36 @@ def _open_findings(
 ) -> int:
     """Summary findings of the review chain covering the pinned head
     (`chain`, from `_resolve`), plus inline threads still open, plus inline
-    findings whose thread is gone. A summary finding from a review outside
-    that chain (an older run or attempt, or a head the chain does not pass
-    through) is closed: the covering review no longer reports it.
+    findings whose thread is gone. A summary finding from a review of an
+    earlier head outside that chain is closed: the covering review no longer
+    reports it. Whole reviews of one head (a reopen or a draft toggle re-runs
+    one) never supersede each other: a chain link that is a whole review
+    counts the most findings any completed whole review of its head reported.
 
-    A resolved thread is closed when a human resolved it, when the covering
-    chain reports no finding at all, or when GitHub marks it outdated, it was
-    opened before the first review at `reviewed` (the head whose review
-    covers the pinned head) started, and no line of its flagged range is left
-    at the pinned head (`_line_changed`). Otherwise it stays open until a
-    human resolves it: resolving a thread alone never closes it, so the
-    reviewer clears a finding, not the agent that resolved it. A thread
-    stands for a recorded inline finding only when it was opened inside that
-    lane job's run, and it stands for one finding across both lanes
-    (`claimed`), so neither an unrecorded review's thread nor the other
-    lane's untagged thread hides a missing one."""
+    A resolved thread is closed when:
+    - a human resolved it;
+    - the covering chain reports no finding at all and the thread was opened
+      before the covering review's job completed, so that review read past it;
+    - or GitHub marks it outdated, it was opened before the first review at
+      `reviewed` (the head whose review covers the pinned head) started, and
+      no line of its flagged range is left at the pinned head
+      (`_line_changed`): a later review read the changed lines.
+    Otherwise it stays open until a human resolves it: resolving a thread
+    alone never closes it, so the reviewer clears a finding, not the agent
+    that resolved it. A thread stands for a recorded inline finding only when
+    it was opened inside that lane job's run, and it stands for one finding
+    across both lanes (`claimed`), so neither an unrecorded review's thread
+    nor the other lane's untagged thread hides a missing one."""
     if threads is None:
         raise Unbound("threads-unread")
-    summary = sum(rec.findings - rec.inline for rec in chain)  # type: ignore[operator]
-    cleared = all(rec.findings == 0 for rec in chain)
     # (job started, job completed, inline findings) per recorded attempt.
     windows: list[tuple[datetime | None, datetime | None, int]] = []
     # When the first review at `reviewed` started; unknown keeps every
     # thread's human test.
     first: datetime | None = None
+    # Per head, the most (findings, summary findings) any completed whole
+    # review of it reported.
+    whole_max: dict[str, tuple[int, int]] = {}
     for item in lane_runs:
         for attempt in _attempts(item).values():
             # A draft-skipped run has only the caller job and reviewed nothing.
@@ -451,6 +459,12 @@ def _open_findings(
                 continue
             if rec.findings < rec.inline:  # type: ignore[operator]
                 raise Unbound("count-inconsistent")
+            if rec.whole:
+                n, m = whole_max.get(rec.sha, (0, 0))
+                whole_max[rec.sha] = (
+                    max(n, rec.findings),
+                    max(m, rec.findings - rec.inline),  # type: ignore[operator]
+                )
             started = _time(job.get("started_at"))
             windows.append(
                 (
@@ -465,6 +479,16 @@ def _open_findings(
                 and (first is None or started < first)
             ):
                 first = started
+    counts = [
+        whole_max.get(rec.sha, (0, 0))
+        if rec.whole
+        else (rec.findings, rec.findings - rec.inline)  # type: ignore[operator]
+        for rec in chain
+    ]
+    summary = sum(m for _, m in counts)
+    cleared = all(n == 0 for n, _ in counts)
+    # The covering review read only threads opened before its job completed.
+    read_through = chain[0].completed
     if not isinstance(threads, list | tuple):
         raise Unbound("evidence-error")
     covered = [0] * len(windows)
@@ -484,7 +508,7 @@ def _open_findings(
                     break
         if thread.get("isResolved") is not True:
             open_threads += 1
-        elif cleared:
+        elif cleared and read_through and created and created < read_through:
             continue
         elif not (
             thread.get("isOutdated") is True
