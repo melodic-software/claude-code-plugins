@@ -131,6 +131,7 @@ from __future__ import annotations
 import argparse
 import functools
 import json
+import os
 import re
 import time
 from collections.abc import Callable, Iterable, Mapping
@@ -2054,8 +2055,39 @@ def pull_request_landed(repo: str, number: int) -> dict[str, Any]:
 MERGE_QUEUE_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){merged isInMergeQueue isMergeQueueEnabled "
-    "mergeQueueEntry{state position} autoMergeRequest{enabledAt}}}}"
+    "mergeQueueEntry{state position} autoMergeRequest{enabledAt} "
+    f"timelineItems(last:{merge_policy.MAX_QUEUE_EJECTIONS_LIMIT},itemTypes:["
+    "REMOVED_FROM_MERGE_QUEUE_EVENT,PULL_REQUEST_COMMIT,HEAD_REF_FORCE_PUSHED_EVENT])"
+    "{nodes{__typename ... on RemovedFromMergeQueueEvent{reason}}}}}}"
 )
+# A head change: a pushed commit or a force push.
+HEAD_CHANGES = ("PullRequestCommit", "HeadRefForcePushedEvent")
+
+
+def _failed_ejections(pr: dict[str, Any]) -> int | None:
+    """The merge queue's removals of the pull request for failed checks since
+    its newest head change, read from the timeline items (oldest first), or
+    None when they cannot be read: a malformed item, or a full window with no
+    head change in it, whose older removals the read did not reach.
+
+    The timeline places a commit by its date, not its push (UNVERIFIED: no
+    GitHub page or schema field states either; `PullRequestCommit` carries no
+    date of its own). A commit made before a removal but pushed after it then
+    sorts before the removal, which is charged to the new head: the count
+    only grows, so the gate refuses rather than enqueues. Only a commit dated
+    after a removal it was pushed before (a skewed clock) would hide one."""
+    nodes = json_object(pr.get("timelineItems")).get("nodes")
+    if not is_json_array(nodes):
+        return None
+    count = 0
+    for node in reversed(nodes):
+        kind = json_object(node).get("__typename")
+        if kind in HEAD_CHANGES:
+            return count
+        if kind != "RemovedFromMergeQueueEvent":
+            return None
+        count += json_object(node).get("reason") == "failed_checks"
+    return count if len(nodes) < merge_policy.MAX_QUEUE_EJECTIONS_LIMIT else None
 
 
 def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
@@ -2101,6 +2133,7 @@ def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
         "autoMergeArmed": is_json_object(pr.get("autoMergeRequest")),
         "state": entry.get("state") if entry else None,
         "position": entry.get("position") if entry else None,
+        "failedEjections": _failed_ejections(pr),
     }
 
 
@@ -2702,6 +2735,7 @@ def queued_entry_hold(
 
 RISK_MARKER = "<!-- babysit-merge-risk -->"
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
+QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
 # The attended queue's escalation marker (work-items reference
 # escalation-marker.md): first line of the held-major comment, so
@@ -2900,6 +2934,28 @@ def score_unattended(
         }
         return replace(policy, details=details)
     pr, config = inputs["pr"], inputs["config"]
+    details = {
+        **(policy.details or {}),
+        "headSha": json_object(pr.get("head")).get("sha"),
+    }
+    # The pr-merge lane also needs a passing verifier verdict at the head,
+    # judged first: a refusal stands whatever the diff scores, so its lane
+    # evidence and changed files are not read and its reasons comment waits
+    # for a run the verifier passes. A refusal makes this pull request's own
+    # queued entry leave too.
+    reader: verify_evidence.Reader | None = None
+    if (
+        inputs.get("authority") == merge_policy.PR_MERGE
+        and config.require_verifier_verdict
+    ):
+        reader = verify_evidence.Reader(repo, str(inputs["branch"]))
+        verdict = reader.evidence(number, str(details["headSha"]), pr)
+        details["verify"] = verdict.report()
+        inputs["verify_reader"] = reader
+        if verdict.refusal:
+            inputs["own_refusal"] = inputs.get("own_refusal") or verdict.refusal
+            reason = policy.reason or verdict.refusal
+            return replace(policy, reason=reason, details=details, inputs=inputs)
     comments: list[dict[str, Any]] | None = None
     try:
         lanes, comments = _lane_evidence(
@@ -2943,9 +2999,7 @@ def score_unattended(
             **lane_switches,
         )
     )
-    details = {
-        **(policy.details or {}),
-        "headSha": json_object(pr.get("head")).get("sha"),
+    details |= {
         "risk": {
             "score": risk.score.name,
             "reasons": [
@@ -2967,25 +3021,16 @@ def score_unattended(
     reason = policy.reason or (
         None if risk.score is babysit_risk.Risk.LOW else f"risk:{risk.score.name}"
     )
-    # The pr-merge lane also needs a passing verifier verdict at the head; a
-    # refusal makes this pull request's own queued entry leave too.
-    if (
-        inputs.get("authority") == merge_policy.PR_MERGE
-        and config.require_verifier_verdict
-    ):
-        reader = verify_evidence.Reader(repo, str(inputs["branch"]))
+    if reader is not None and reason is None and reader.saved:
+        # The run's saved listing lacks anything uploaded since; allow only
+        # on a listing of this gate run's own. A candidate refused already is
+        # not enqueued, so it does not page the listing again.
+        reader.refresh()
         verdict = reader.evidence(number, str(details["headSha"]), pr)
-        if verdict.refusal is None and reason is None and reader.saved:
-            # The run's saved listing lacks anything uploaded since; allow
-            # only on a listing of this gate run's own. A candidate refused
-            # already is not enqueued, so it does not page the listing again.
-            reader.refresh()
-            verdict = reader.evidence(number, str(details["headSha"]), pr)
         details["verify"] = verdict.report()
-        inputs["verify_reader"] = reader
         if verdict.refusal:
             inputs["own_refusal"] = inputs.get("own_refusal") or verdict.refusal
-        reason = reason or verdict.refusal
+        reason = verdict.refusal
     return replace(policy, reason=reason, details=details, inputs=inputs)
 
 
@@ -3194,6 +3239,53 @@ def escalate(
         if proc.returncode != 0:
             raise RuntimeError(f"label {label}: {proc.stderr.strip()}")
     return {"label": "present" if present else "added", "comment": comment}
+
+
+def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] | None:
+    """The links of the pull request's failed merge_group runs among the
+    repository's newest 100, newest first, or None when they cannot be read.
+    Read under the verdict reader's Actions token when one is set."""
+    token = os.environ.get(verify_evidence.TOKEN_ENV)
+    proc = gh_capture(
+        [
+            "api",
+            f"repos/{repo}/actions/runs?event=merge_group&status=failure&per_page=100",
+        ],
+        env_overrides={"GH_TOKEN": token} if token else None,
+    )
+    if proc.returncode != 0:
+        return None
+    try:
+        runs = json_object(json.loads(proc.stdout)).get("workflow_runs")
+    except ValueError:
+        return None
+    if not is_json_array(runs):
+        return None
+    prefix = f"gh-readonly-queue/{branch}/pr-{number}-"
+    return [
+        str(run.get("html_url"))
+        for run in map(json_object, runs)
+        if str(run.get("head_branch") or "").startswith(prefix) and run.get("html_url")
+    ]
+
+
+def queue_ejection_body(head: str, count: int, runs: list[str] | None) -> str:
+    """The comment for a head the gate stopped enqueuing: a function of the
+    head, the count and the runs read, so a rerun renders the same body."""
+    lines = [
+        QUEUE_EJECTION_MARKER,
+        f"Unattended merge: the merge queue removed head `{head}` {count} times "
+        "for failed checks, so the pr-merge lane will not enqueue it again. "
+        "A push resets the count.",
+        "",
+    ]
+    if runs is None:
+        lines.append("The failing merge_group runs could not be read.")
+    elif not runs:
+        lines.append("No failing merge_group run was found among the newest 100.")
+    else:
+        lines += ["Failing merge_group runs:", *(f"- {url}" for url in runs)]
+    return "\n".join(lines)
 
 
 def _queued_verify_hold(verifier: verify_evidence.Reader, number: int) -> str | None:
@@ -3450,6 +3542,31 @@ def unattended_enqueue(
         return hold("auto-merge is armed on this pull request; disarmed, not enqueued")
     if queue["inQueue"] or queue["merged"]:
         return hold("the pull request is already queued or merged")
+    # A head the queue keeps ejecting for failed checks fails again on the
+    # same commits; only a push (which resets the count) can change that.
+    ejections = queue.get("failedEjections")
+    step["failedEjections"] = ejections
+    if ejections is None:
+        return hold("the merge queue's removals of this head are unreadable")
+    if ejections >= inputs["config"].max_queue_ejections:
+        # One marked comment, so fix-ci or a person sees why the lane stopped.
+        try:
+            step["ejectionComment"] = upsert_marker_comment(
+                repo,
+                number,
+                identity,
+                queue_ejection_body(
+                    pin, ejections, _failed_merge_group_runs(repo, branch, number)
+                ),
+                inputs.get("comments"),
+                marker=QUEUE_EJECTION_MARKER,
+            )
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            step["ejectionComment"] = f"error: {exc}"
+        return hold(
+            f"queue-ejected:{ejections} failed-check removals from the merge queue "
+            f"at head {pin}; a push resets the count"
+        )
     kill = merge_policy.kill_switch(
         repo,
         authority=str(inputs.get("authority")),
