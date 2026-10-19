@@ -32,7 +32,7 @@ assert_gate() {
 
 assert_gate 'Pass this session'"'"'s id on every direct helper invocation.'
 # shellcheck disable=SC2016  # intentional literal phrase with backticks
-assert_gate 'Never remove a worktree, and never emit its `git branch -D`, while its work is stranded'
+assert_gate 'Never remove a worktree, and never run or emit its `git branch -D`, while its work is stranded'
 assert_gate 'never nested inside any repository'"'"'s tree'
 
 echo "PASS=$PASS FAIL=$FAIL"

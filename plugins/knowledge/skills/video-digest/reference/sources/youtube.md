@@ -32,7 +32,9 @@ Built by `acquisition/build-yt-dlp-args.js`. Auto-generated captions are in scop
 the caption ladder below deliberately falls through to them.
 
 **Caption ladder:** manual EN → auto EN (the original `en-orig` before a bare auto `en`) →
-auto-translate EN → STOP and surface if exhausted. A track is manual only when info.json
+auto-translate EN → exhausted: `transcript` mode STOPs and surfaces; `watch` (video downloaded)
+proceeds caption-less and the transcript strategy picks `asr` or records a
+`transcriptDegradation`. A track is manual only when info.json
 `subtitles` lists its key.
 Rung 3 and below trigger the auto-caption dedup clean-up pass. Declared caption class:
 `manual-and-auto`. Declared transcript strategy: `captions`.

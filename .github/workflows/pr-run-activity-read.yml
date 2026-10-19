@@ -58,6 +58,27 @@ on:
         required: false
         type: string
         default: ""
+      trusted-base:
+        description: >-
+          pr-base trusts the PR's base SHA; default-tip trusts the default
+          branch tip, for a lane whose PR keeps a stale base.
+        required: false
+        type: string
+        default: pr-base
+      ci-context-attempt:
+        description: >-
+          For a prepare: ci-context activity, the run attempt whose
+          ci-context-<attempt> artifact holds the context file a base job of
+          this workflow run wrote; empty otherwise.
+        required: false
+        type: string
+        default: ""
+      ci-context-sha256:
+        description: >-
+          For a prepare: ci-context activity, that context file's SHA-256.
+        required: false
+        type: string
+        default: ""
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
@@ -81,6 +102,11 @@ on:
           The run attempt in the artifact name
           patch-<lane>-<activity>-<attempt>, when patch-state is written.
         value: ${{ jobs.run.outputs.patch-attempt }}
+      reply-attempt:
+        description: >-
+          The run attempt in the artifact name
+          skill-reply-<lane>-<activity>-<attempt>, when the skill ran.
+        value: ${{ jobs.run.outputs.reply-attempt }}
 
 permissions: {}
 
@@ -192,6 +218,7 @@ jobs:
         || steps.patch.outputs.state == 'empty' && 'empty' || '' }}
       patch-sha256: ${{ steps.patch-upload.outcome == 'success' && steps.patch.outputs.sha256 || '' }}
       patch-attempt: ${{ steps.patch-upload.outcome == 'success' && github.run_attempt || '' }}
+      reply-attempt: ${{ steps.reply-upload.outcome == 'success' && github.run_attempt || '' }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
       # silently let the App's own events through. An empty default branch
@@ -277,6 +304,7 @@ jobs:
         with:
           base-sha: ${{ steps.gate.outputs.base-sha }}
           pr-number: ${{ steps.gate.outputs.pr-number }}
+          mode: ${{ inputs.trusted-base }}
 
       - name: Resolve the config
         id: config
@@ -290,6 +318,9 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           pr-number: ${{ steps.gate.outputs.pr-number }}
           head-sha: ${{ steps.gate.outputs.head-sha }}
+          # This file performs prepare: ci-context (the context steps below)
+          # and refuses every other mode.
+          prepare-supported: "true"
 
       # Any other effect belongs in pr-run-activity-write.yml; the caller chose
       # the wrong file. Fails before anything reads the PR head.
@@ -311,6 +342,55 @@ jobs:
         run: |
           echo "::error::a gating: gate activity cannot use output-mode: patch"
           exit 1
+
+      # ci-context is this file's one prepare mode, and its edits leave only
+      # as a patch.
+      - name: Assert the prepare mode is ci-context in patch mode
+        if: >-
+          steps.config.outcome == 'success' && steps.config.outputs.prepare != ''
+          && (steps.config.outputs.prepare != 'ci-context' || inputs.output-mode != 'patch')
+        env:
+          PREPARE: ${{ steps.config.outputs.prepare }}
+        run: |
+          echo "::error::prepare: $PREPARE is not a read mode, or ci-context runs without output-mode: patch"
+          exit 1
+
+      # ci-context, before the head checkout: the context file a base job of
+      # this workflow run wrote, downloaded by its attempt. A missing artifact
+      # leaves the directory empty, which the next step refuses.
+      - name: Download the CI context
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'ci-context'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ci-context-${{ inputs.ci-context-attempt }}
+          path: ${{ runner.temp }}/lane-ci
+
+      # Exactly one regular context.json of at most 1 MiB, with the base job's
+      # SHA-256, written for the head this run gated; the stage step then
+      # makes it read-only.
+      - name: Check the CI context
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'ci-context'
+        env:
+          CI_DIR: ${{ runner.temp }}/lane-ci
+          CONTEXT_SHA256: ${{ inputs.ci-context-sha256 }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+        run: |
+          file="$CI_DIR/context.json"
+          if [ "$(find "$CI_DIR" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)" != 1 ] || [ -L "$file" ] || [ ! -f "$file" ] ||
+            [ "$(stat -c %s "$file")" -gt 1048576 ]; then
+            echo "::error::the ci-context artifact is not exactly one context.json of at most 1 MiB"
+            exit 1
+          fi
+          sum=$(sha256sum <"$file")
+          if ! [[ $CONTEXT_SHA256 =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$CONTEXT_SHA256" ]; then
+            echo "::error::the context file does not match the SHA-256 its job recorded"
+            exit 1
+          fi
+          if [ "$(jq -r '.head_sha' "$file")" != "$HEAD_SHA" ]; then
+            echo "::error::the context file was written for another head; the next dispatch reads this one"
+            exit 1
+          fi
 
       # The job token has no issues grant: in a private repository a PR that
       # closes an issue may fail this step red.
@@ -335,6 +415,7 @@ jobs:
           skill: ${{ steps.config.outputs.skill }}
           gating: ${{ steps.config.outputs.gating }}
           effect: ${{ steps.config.outputs.effect }}
+          prepare: ${{ steps.config.outputs.prepare }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
 
       # Nothing after this step needs sudo or docker.
@@ -418,7 +499,7 @@ jobs:
       - name: Run the skill activity
         id: act-skill
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
-        uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967 # v1.0.252
+        uses: anthropics/claude-code-action@5eb090f3c3afd701a0672cd32981197ca27688f6 # v1.0.253
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -447,7 +528,7 @@ jobs:
           # A workflow_run after a lanes App push runs as the App, and a
           # dispatcher-sent run as github-actions; the trigger gate has
           # already admitted both, so the action's own bot check only needs
-          # them listed (the App as in pr-verify.yml).
+          # them listed (the App pushes the lane's PRs).
           allowed_bots: >-
             ${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions'
             || 'melodic-automation-lanes[bot]' }}
@@ -552,6 +633,7 @@ jobs:
             }
 
       - name: Upload the skill's final reply
+        id: reply-upload
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

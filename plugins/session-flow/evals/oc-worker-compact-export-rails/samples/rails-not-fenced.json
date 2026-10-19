@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Paste the text between the rails.\n\n────────────────────\nYou are a spawned worker and did NOT inherit the parent session's context.\n\n1. DELEGATE / FAN OUT\n\nDiscipline: trigger-evaluation is mandatory.\n────────────────────\n",
+      "why": "bare rails"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```text\n────────────────────\nYou are a spawned worker and did NOT inherit the parent session's context.\n\n1. DELEGATE / FAN OUT\n\nDiscipline: trigger-evaluation is mandatory.\n────────────────────\n```",
+      "why": "rails inside a code fence"
+    }
+  ]
+}

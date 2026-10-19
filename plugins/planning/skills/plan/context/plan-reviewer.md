@@ -51,11 +51,13 @@ the finding; a tool behavior you did not probe is an assumption, and the finding
 - Testable by design — logic separated from orchestration; injectable boundaries for planned handlers/services
 - Bug-fix plans — does the test strategy name the regression test (level + rough assertion), or document an explicit carve-out?
 - Names reveal responsibility — vague role-suffixes (Manager, Helper, Util, Processor) on planned types/files?
+- Does the planned file list or design place one fact or rule in several files, or build what existing code already does?
+- Principle and reversibility threads: the Design section or design artifacts record them resolved, directional or tagged-deferred (a prototype names them deferred); a missing one is a finding, except under an early-exit `design-resolution.md`, which carries neither
 - Variation verdicts: every external system the plan touches has a verdict in the Design section of abstract now or contain now, and a `leave inline` verdict on an external system is a finding (leave inline is for internal one-offs only); no provider name reaches domain code, storage, or a public contract under a contain verdict; no planned abstraction exposes implementation types in its signatures
 
 ### Plan mechanics
 - Every phase has at least one mechanically verifiable Sanity Check
-- Every brief scope-item maps to a phase; nothing silently dropped
+- Every Brief acceptance criterion maps to at least one phase, and no phase does work the Brief's Out-of-scope section lists
 - No machine-specific path (a drive letter such as `C:\`, or a `/Users/<name>` or `/home/<name>` path) unless it is marked as a deliberate example; a published PLAN.md is read on other machines
 - Contract migrations have a pre-flight consumer check as the first work item
 - The plan cites the standards sections loaded for the surfaces it touches, or states why grounding was skipped (scale tier)

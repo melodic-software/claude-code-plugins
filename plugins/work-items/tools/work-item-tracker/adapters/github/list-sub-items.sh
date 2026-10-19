@@ -67,6 +67,7 @@ target_repo="$WIT_ID_OWNER/$WIT_ID_REPO"
 # gets a one-line stderr note so the next projection change is visible instead of
 # silent. It cannot fire on well-formed input: every node gh emits carries a
 # `url`. stdout stays the machine-parseable envelope either way.
+wit_require_graphql_session "list-sub-items"
 wit_run_gh read issue view "$WIT_ID_NUMBER" -R "$target_repo" --json subIssues
 scoped="$(jq -c --arg repo "$target_repo" '
   def node_repo:

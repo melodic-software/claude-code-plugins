@@ -27,7 +27,8 @@
 #   --ref <ref>   read <file> as committed at <ref>: a 40-hex commit id or
 #                 `origin/<name>`. Validated before any git call and passed to
 #                 git after --end-of-options.
-#   --strict      exit 3 on a parse error instead of taking the fallback
+#   --strict      exit 3 on a parse error instead of taking the fallback; a key
+#                 repeated in one mapping is a parse error too
 #
 # Output: the resolved value, or empty when nothing resolves (the caller
 # applies its documented default). Exit 0 for a well-formed invocation,
@@ -104,7 +105,7 @@ fi
 
 records=""
 if ((present)); then
-  if ! records="$(LC_ALL=C awk -f "$PARSER" <<<"$text")"; then
+  if ! records="$(LC_ALL=C awk -v STRICT="$strict" -f "$PARSER" <<<"$text")"; then
     printf 'parse-concern-value: %s: line %s\n' "$concern_file" \
       "$(awk -F '\t' '$1 == "error" { print $2 ": " $3 }' <<<"$records" | tail -n 1)" >&2
     ((strict)) && exit 3
