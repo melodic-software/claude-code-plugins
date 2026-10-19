@@ -31,7 +31,10 @@
 // Any other reason is decided by a person and is never cleared here.
 //
 // With no pr-unblock escalation since the label, a pr-merge escalation clears
-// as `head-moved` instead: the newest lanes App comment carrying each of
+// as `head-moved` instead, but only when the marked lanes App comment written
+// last before the label is pr-merge's and came within PAIRED_MS of it, so a
+// label added for another reason is never read as pr-merge's. Then the
+// newest lanes App comment carrying each of
 // pr-merge's own markers (PR_MERGE_MARKERS) names, in its `at head `<sha>``,
 // a head that is not the PR's current one. pr-merge then judges the new head
 // and escalates again if its refusal still holds. A marker whose head does not
@@ -133,6 +136,26 @@ function prMergeEscalations(appComments) {
   });
 }
 
+// Whether the lanes App comment written last at or before `since` that carries
+// any marker other than this script's own is pr-merge's alone, and was written
+// within PAIRED_MS of it: pr-merge writes its comment, then the label. A
+// comment's writes are its creation and its last edit; a tie fails closed.
+function pairedWithPrMerge(appComments, since) {
+  let newest = -Infinity;
+  let ours = false;
+  for (const item of appComments) {
+    const markers = lines(item.body).filter((line) => line.includes("<!--") && !CLEARED.test(line));
+    const at = Math.max(...[item.created_at, item.updated_at].map(Date.parse).filter((time) => time <= since));
+    if (markers.length === 0 || at < newest) {
+      continue;
+    }
+    const mine = markers.every((line) => PR_MERGE_MARKERS.includes(line));
+    ours = at > newest ? mine : ours && mine;
+    newest = at;
+  }
+  return ours && since - newest <= PAIRED_MS;
+}
+
 // When a timeline item was written, and by whom, for a comment or review.
 function spoken(item) {
   if (item.event === "commented") {
@@ -161,7 +184,7 @@ async function verdict({ github, repo, number, label, bot, mainSha }) {
   const escalations = appComments
     .map((item) => ({ body: lines(item.body), at: Date.parse(item.created_at) }))
     .filter(({ body, at }) => body[0] === ESCALATION && RESUME_KEY.test(body[1] ?? "") && at >= since);
-  const merged = escalations.length === 0 ? prMergeEscalations(appComments) : [];
+  const merged = escalations.length === 0 && pairedWithPrMerge(appComments, since) ? prMergeEscalations(appComments) : [];
   let reasons = [];
   if (merged.length === 0) {
     if (escalations.length === 0 || !(escalations[0].at - since <= PAIRED_MS)) {

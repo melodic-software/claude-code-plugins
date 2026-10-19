@@ -293,6 +293,31 @@ test("a pr-merge escalation whose head does not parse as 40-hex is kept", async 
   assert.deepEqual(none.writes(), []);
 });
 
+test("a pr-merge comment rewritten just before the label pairs with it", async () => {
+  const w = world({ timeline: [commented(BOT, verifyBody(OLD), "2026-10-17T08:00:00Z", "2026-10-18T09:59:58Z"), labeled(BOT, "2026-10-18T10:00:00Z")] });
+  await run(w);
+  assert.equal(w.writes().at(-1)?.method, "DELETE");
+});
+
+test("an old pr-merge comment with nothing written beside a later label is kept", async () => {
+  // The label came on for another reason whose comment write failed.
+  const w = world({ timeline: [commented(BOT, riskBody(OLD), "2026-10-17T08:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z")] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("another lane's escalation just before the label keeps it beside an older pr-merge comment", async () => {
+  // babysit_merge.py's major_escalation_body, posted before the label it adds.
+  const major = `<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-dependabot-major -->\nUnattended merge: \`actions/checkout 5.0.0\` is a major version update at head \`${OLD}\`.`;
+  for (const prior of [riskBody(OLD), verifyBody(OLD)]) {
+    const w = world({
+      timeline: [commented(BOT, prior, "2026-10-17T08:00:00Z"), commented(BOT, major, "2026-10-18T09:59:58Z"), labeled(BOT, "2026-10-18T10:00:00Z")],
+    });
+    await run(w);
+    assert.deepEqual(w.writes(), [], prior.split("\n")[0]);
+  }
+});
+
 test("a needs-human a person added beside a pr-merge escalation at an old head is kept", async () => {
   const w = world({ timeline: [commented(BOT, verifyBody(OLD), "2026-10-18T09:59:58Z"), labeled(OWNER, "2026-10-18T10:00:00Z")] });
   await run(w);
