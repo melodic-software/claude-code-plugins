@@ -65,7 +65,7 @@ their defaults:
 | The session first reaches a worse zone this cycle | once per zone, "acceptable zone (2 of 3)." |
 | The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold; where a token band edge decides the crossing, within that many points of the window in tokens | once per boundary, "acceptable zone (2 of 3), nearing dumb." |
 | The session passes a `zones.json` threshold | once per threshold, "past an operator threshold", with the threshold's action |
-| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once, only when it is past `smart`; after a compaction it is `dumb zone (3 of 3, compacted)` |
+| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once, only when it is past `smart`; after a compaction it is `dumb zone (3 of 3, compacted)` once figures arrive, and until then a session with no figures gets "the context reading is unavailable after the compaction, until the next API response" |
 | When the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict, once, only when it is past `smart` |
 | After `/clear` | nothing: the new session starts in `smart` and a fresh cycle |
 
@@ -426,7 +426,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `context_guard_hooks_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED` | Runs the module's zone lines and toasts and the PostCompact marker hook. On by default; off, none of them acts. Snapshot writes continue either way. |
-| `model_notices` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_MODEL_NOTICES` | Sends Claude one line when the session crosses into a worse context zone, approaches a boundary, or passes a zones.json threshold, and restates the zone after a compaction, a resume or a reload. Off by default; the toast, transcript line, band row, status tool and snapshot work either way. |
+| `model_notices` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_MODEL_NOTICES` | Sends Claude one line when the session crosses into a worse context zone, approaches a boundary, or passes a zones.json threshold, and restates the zone after a compaction (once figures arrive; until then it says the reading is unavailable), a resume or a reload. Off by default; the toast, transcript line, band row, status tool and snapshot work either way. |
 | `zone_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_ZONE_REPORT_MODE` | Acts only with model_notices on. automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
 | `zone_line_data` | string | `"zone"` | `CLAUDE_PLUGIN_OPTION_ZONE_LINE_DATA` | Comma list of what a line carries beside its zone, which every line has: percent, tokens and window. Default zone. |
 | `context_guard_band` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_BAND` | Draws the context figure and zone in a row above the prompt. Off by default. Turn it on in /config, or for one session with /context-guard band on. |
