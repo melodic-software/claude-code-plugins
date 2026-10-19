@@ -138,8 +138,20 @@ wit_map_gh_error() {
   esac
 }
 
+# wit_require_graphql_session <feature> — exit 3 when the session's GitHub proxy refuses
+# GraphQL, for verbs with no REST form (sub-issue and dependency edges, blockedBy reads).
+wit_require_graphql_session() {
+  if wit_gh_session_refuses_graphql; then
+    printf '%s: %s is unavailable in this Claude Code cloud session: its GitHub proxy refuses GraphQL and this has no REST form\n' \
+      "$(basename "${BASH_SOURCE[${#BASH_SOURCE[@]} - 1]}")" "$1" >&2
+    exit "$EX_CONFIG"
+  fi
+}
+
 # wit_run_gh <writer:write|read> <gh-args…> — run gh (routed by writer), capture
 # stdout to WIT_GH_OUT; on failure print stderr and exit with the mapped code.
+# With WIT_GH_NATIVE_TRY set (wit_run_gh_native) the proxy's GraphQL refusal returns 10
+# instead, so the caller can retry the operation over REST. Other failures still exit.
 wit_run_gh() {
   local writer="$1" err rc errfile
   shift
@@ -153,10 +165,19 @@ wit_run_gh() {
   err="$(<"$errfile")"
   rm -f "$errfile"
   if ((rc != 0)); then
+    if [[ -n "${WIT_GH_NATIVE_TRY:-}" && "$err" == *"$WIT_GH_GRAPHQL_REFUSAL_PREFIX"* ]]; then
+      return 10
+    fi
     printf '%s\n' "$err" >&2
     exit "$(wit_map_gh_error "$err")"
   fi
   WIT_GH_OUT="$(printf '%s' "$WIT_GH_OUT" | wit_strip_cr)"
+}
+
+# wit_run_gh_native <writer> <gh-args…> — wit_run_gh for a GraphQL-backed call with a
+# REST twin; returns 10 when the proxy refused GraphQL, 0 on success.
+wit_run_gh_native() {
+  WIT_GH_NATIVE_TRY=1 wit_run_gh "$@"
 }
 
 # wit_resolve_repo <--repo value or empty> — echo owner/repo (explicit override or
@@ -348,15 +369,19 @@ wit_gh_annotate_blocker_reasons() {
 # wont_do_labels label, and closed blockers whose reason could not be read;
 # blocked_by_wont_do_count counts the won't-do ones.
 # gh >= 2.94 reads through `gh issue view --json` (issueType/blockedBy/parent).
-# Older gh reads REST, the path sandboxed sessions need (README "View item"), and maps
-# the REST shape onto the same fields; type comes from .type, and parent and
-# blockers have no REST field there, so they emit as null and 0.
+# Older gh, a Claude Code cloud session (CLAUDE_CODE_REMOTE=true), and a native read the
+# proxy refuses with its GraphQL 403 all read REST, the path sandboxed sessions need
+# (README "View item"), and map the REST shape onto the same fields; type comes from
+# .type, and parent and blockers have no REST field there, so they emit as null and 0.
 wit_emit_item() {
-  local owner="$1" repo="$2" number="$3"
+  local owner="$1" repo="$2" number="$3" native=0
   local rest_to_view='{number, title, state, assignees, labels, issueType: .type, url: .html_url, createdAt: .created_at}'
   if wit_gh_has_native_surface; then
-    wit_run_gh read issue view "$number" -R "$owner/$repo" \
-      --json number,title,state,assignees,labels,issueType,blockedBy,parent,url,createdAt
+    wit_run_gh_native read issue view "$number" -R "$owner/$repo" \
+      --json number,title,state,assignees,labels,issueType,blockedBy,parent,url,createdAt &&
+      native=1
+  fi
+  if ((native)); then
     wit_gh_load_wont_do_labels
     printf '%s' "$WIT_GH_OUT" | wit_gh_annotate_blocker_reasons |
       jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ"

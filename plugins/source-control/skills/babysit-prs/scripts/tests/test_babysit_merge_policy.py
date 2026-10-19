@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import dataclasses
+import io
 import json
 import os
 import pathlib
@@ -42,7 +44,9 @@ del _leaked_git_var
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_gh  # noqa: E402
 import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
+import babysit_postmerge  # noqa: E402
 
 REPO = "owner/repo"
 SHA = "a" * 40
@@ -245,6 +249,43 @@ class ReadConfigAt(unittest.TestCase):
         self.assertIn(
             ["api", f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"], gh.calls
         )
+
+    def test_max_in_flight_defaults_to_one_and_reads_a_count(self) -> None:
+        for text, expected, noted in (
+            (PIPELINE, 1, False),
+            (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 5\n"), 5, False),
+            (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 0\n"), 1, True),
+            (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: two\n"), 1, True),
+        ):
+            with self.subTest(expected=expected, noted=noted):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.max_in_flight, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(any("max-in-flight" in n for n in config.notes), noted)
+
+    def test_max_queue_ejections_defaults_to_two_and_reads_a_count(self) -> None:
+        def with_cap(value: str) -> str:
+            return PIPELINE.replace(
+                "merge:\n", f"merge:\n  max-queue-ejections: {value}\n"
+            )
+
+        for text, expected, noted in (
+            (PIPELINE, 2, False),
+            (with_cap("3"), 3, False),
+            (with_cap(str(policy.MAX_QUEUE_EJECTIONS_LIMIT)), 20, False),
+            (with_cap("0"), 2, True),
+            (with_cap(str(policy.MAX_QUEUE_EJECTIONS_LIMIT + 1)), 2, True),
+            (with_cap("two"), 2, True),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.max_queue_ejections, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(
+                    any("max-queue-ejections" in n for n in config.notes), noted
+                )
 
     def test_a_parse_error_is_off(self) -> None:
         config_fake(self, "merge:\n  rung: [C2\n")
@@ -1536,6 +1577,24 @@ class EntryHold(unittest.TestCase):
         self.fake(labels={"totalCount": 1, "nodes": [{"name": "Do-Not-Merge"}]})
         self.assertEqual(self.hold(), "do-not-merge")
 
+    def test_the_needs_human_label(self) -> None:
+        # A queued entry that gains the human-gated label leaves the queue.
+        self.fake(labels={"totalCount": 1, "nodes": [{"name": "Needs-Human"}]})
+        self.assertEqual(self.hold(), "needs-human")
+
+    def test_a_remapped_human_gated_label(self) -> None:
+        self.fake(labels={"totalCount": 1, "nodes": [{"name": "Human-Review"}]})
+        with mock.patch.object(
+            babysit_postmerge, "_role_label", return_value="human-review"
+        ):
+            self.assertEqual(self.hold(), "human-review")
+
+    def test_an_unreadable_human_gated_label_is_a_hold(self) -> None:
+        self.fake()
+        failed = babysit_postmerge.PostMergeReadError("tracker: HTTP 502")
+        with mock.patch.object(babysit_postmerge, "_role_label", side_effect=failed):
+            self.assertEqual(self.hold(), "unreadable: tracker: HTTP 502")
+
     def test_a_body_hold(self) -> None:
         self.fake(body="Please do not merge until the release")
         self.assertEqual(self.hold(), "body-hold")
@@ -1775,6 +1834,78 @@ class InFlight(unittest.TestCase):
         )
         self.assertEqual(self.flight().reason, "identity-entry-queued:#3")
 
+    def capped(self, cap: int | None, queued: int, unverified: int) -> Any:
+        """In flight: `queued` identity entries and `unverified` lane merges,
+        under `max_in_flight=cap` (None: the default)."""
+        queue_fake(
+            self,
+            [
+                {"enqueuer": bot("agent-lanes"), "pullRequest": {"number": 10 + i}}
+                for i in range(queued)
+            ],
+            [merged(20 + i, bot("agent-lanes"), None) for i in range(unverified)],
+        )
+        cap_kwargs = {} if cap is None else {"max_in_flight": cap}
+        return policy.in_flight(
+            REPO,
+            agent_identity=IDENTITY,
+            permission=HUMANS,
+            merged_since=FLOOR,
+            lane_merges_only=True,
+            **cap_kwargs,
+        )
+
+    def test_a_cap_of_five_admits_four_in_flight_and_refuses_five(self) -> None:
+        admitted = self.capped(5, 2, 2)
+        self.assertEqual((admitted.clear, admitted.reason), (True, None))
+        self.assertEqual(admitted.unverified, 2)
+        self.assertEqual(self.capped(5, 3, 2).reason, "unverified-auto-merge:#21")
+        self.assertEqual(self.capped(5, 5, 0).reason, "identity-entry-queued:#14")
+
+    def test_the_default_cap_refuses_one_in_flight_as_before(self) -> None:
+        for cap in (None, 1):
+            with self.subTest(cap=cap):
+                self.assertEqual(
+                    self.capped(cap, 1, 1).reason, "identity-entry-queued:#10"
+                )
+                self.assertEqual(
+                    self.capped(cap, 0, 1).reason, "unverified-auto-merge:#20"
+                )
+                self.assertTrue(self.capped(cap, 0, 0).clear)
+
+    def test_an_unknown_enqueuer_refuses_under_any_cap(self) -> None:
+        queue_fake(
+            self,
+            [
+                {"enqueuer": bot("agent-lanes"), "pullRequest": {"number": 3}},
+                {"enqueuer": None, "pullRequest": {"number": 4}},
+            ],
+            [],
+        )
+        result = policy.in_flight(
+            REPO,
+            agent_identity=IDENTITY,
+            permission=HUMANS,
+            merged_since=FLOOR,
+            max_in_flight=5,
+        )
+        self.assertEqual(result.reason, "entry-enqueuer-unknown:#4")
+
+    def test_the_queue_read_names_every_entry_or_none(self) -> None:
+        queue_fake(
+            self,
+            [
+                {"enqueuer": user(OPERATOR), "pullRequest": {"number": 3}},
+                {"enqueuer": bot("agent-lanes"), "pullRequest": {"number": 4}},
+            ],
+            [],
+        )
+        result = self.flight()
+        self.assertEqual(result.reason, "identity-entry-queued:#4")
+        self.assertEqual(result.queued, frozenset({3, 4}))
+        queue_fake(self, [{"enqueuer": user(OPERATOR), "pullRequest": {}}], [])
+        self.assertIsNone(self.flight().queued)
+
     def test_a_non_human_enqueue_is_an_auto_merge_that_must_be_verified(self) -> None:
         for name, actor, enqueuer in (
             ("app actor, null enqueuer", bot("agent-lanes"), None),
@@ -1811,6 +1942,28 @@ class InFlight(unittest.TestCase):
         human = merged(2, user(OPERATOR), user(OPERATOR))
         gh.graphql["PolicyRecentMerges"] = merge_pages([[human]], endless=True)
         self.assertEqual(self.flight().reason, "merged-history-truncated")
+
+    def test_an_unreadable_queue_or_truncated_history_refuses_under_a_cap_of_five(
+        self,
+    ) -> None:
+        def capped_flight() -> Any:
+            return policy.in_flight(
+                REPO,
+                agent_identity=IDENTITY,
+                permission=HUMANS,
+                merged_since=FLOOR,
+                max_in_flight=5,
+            )
+
+        gh = queue_fake(self, [], [])
+        gh.graphql["PolicyMergeQueue"] = {
+            "repository": {"mergeQueue": {"entries": {"totalCount": 2, "nodes": []}}}
+        }
+        self.assertEqual(capped_flight().reason, "merge-queue-unreadable")
+        gh = queue_fake(self, [], [])
+        human = merged(2, user(OPERATOR), user(OPERATOR))
+        gh.graphql["PolicyRecentMerges"] = merge_pages([[human]], endless=True)
+        self.assertEqual(capped_flight().reason, "merged-history-truncated")
 
     def test_the_read_stops_at_the_merged_since_floor(self) -> None:
         gh = queue_fake(self, [], [])
@@ -1908,6 +2061,9 @@ class Assess(unittest.TestCase):
             "head": {"ref": "feat", "sha": "e" * 40},
         }
         gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
+        # The default branch head is the base, so the in-flight cap is the
+        # base config's.
+        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": SHA}
         return gh
 
     def readable(self) -> GhFake:
@@ -1996,6 +2152,76 @@ class Assess(unittest.TestCase):
         self.assertIs(flight.call_args.kwargs["verified"], verified)
         self.assertEqual(result.reason, "in-flight:x")
         self.assertIs(result.enabled, True)
+
+    def test_an_in_flight_refusal_off_the_queue_reads_nothing_after_it(self) -> None:
+        self.readable()
+        later = mock.Mock(side_effect=AssertionError("read after the refusal"))
+        flight = policy.InFlight(False, "identity-entry-queued:#3", frozenset({3}))
+        with (
+            mock.patch.object(policy, "in_flight", return_value=flight),
+            mock.patch.object(policy, "eligibility", later),
+            mock.patch.object(policy, "lane_eligibility", later),
+            mock.patch.object(policy, "dependabot_eligibility", later),
+        ):
+            result = self.assess(post_merge=lambda floor, who: gate(), promotion=later)
+        later.assert_not_called()
+        self.assertEqual(result.reason, "in-flight:identity-entry-queued:#3")
+        self.assertIs(result.enabled, True)
+        self.assertNotIn("eligibility", result.inputs)
+
+    def test_a_rung_off_outranks_an_in_flight_refusal_off_the_queue(self) -> None:
+        self.readable()
+        flight = policy.InFlight(False, "x", frozenset({3}))
+        ineligible = policy.Eligibility(False, "fork")
+        with (
+            mock.patch.object(policy, "in_flight", return_value=flight),
+            mock.patch.object(
+                policy, "rung_cap", return_value=policy.RungCap("off", "cap-set")
+            ),
+            mock.patch.object(policy, "eligibility", return_value=ineligible) as read,
+        ):
+            result = self.assess(
+                post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
+            )
+        self.assertTrue(result.reason.startswith("rung-off:"), result.reason)
+        self.assertTrue(read.called)
+        self.assertEqual(result.inputs["own_refusal"], "ineligible:fork")
+
+    def test_the_in_flight_refusal_matches_the_full_judgment(self) -> None:
+        # None: the queue was not read whole, so the pull request is read in
+        # full; its own queued entry (#1) is read in full too, and refused.
+        self.readable()
+        ineligible = policy.Eligibility(False, "fork")
+        seen = []
+        for queued in (None, frozenset({1, 3}), frozenset({3})):
+            flight = policy.InFlight(False, "identity-entry-queued:#3", queued)
+            with (
+                mock.patch.object(policy, "in_flight", return_value=flight),
+                mock.patch.object(
+                    policy, "eligibility", return_value=ineligible
+                ) as read,
+            ):
+                result = self.assess(
+                    post_merge=lambda floor, who: gate(),
+                    promotion=lambda s: PROMOTED,
+                )
+            seen.append(
+                (
+                    result.reason,
+                    result.enabled,
+                    read.called,
+                    result.inputs.get("own_refusal"),
+                )
+            )
+        reason = "in-flight:identity-entry-queued:#3"
+        self.assertEqual(
+            seen,
+            [
+                (reason, True, True, "ineligible:fork"),
+                (reason, True, True, "ineligible:fork"),
+                (reason, True, False, None),
+            ],
+        )
 
     def test_a_human_clear_of_a_demotion_record_restarts_the_floor(self) -> None:
         self.readable()
@@ -2367,6 +2593,149 @@ class LocalEnabledSince(unittest.TestCase):
         self.assertEqual(
             policy.enabled_since(REPO, base),
             policy.datetime.fromisoformat("2026-09-01T00:00:00Z"),
+        )
+
+    def test_a_partial_clone_falls_back_to_the_api(self) -> None:
+        # Its older blobs are not local, and the read never lazy-fetches.
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        base = self.pipeline(PIPELINE + "# edit\n", "2026-10-11T00:00:00Z")
+        self.git(self.clone, "config", "uploadpack.allowFilter", "true")
+        partial = self.tmp / "partial"
+        self.git(
+            self.tmp,
+            "clone",
+            "-q",
+            "--no-checkout",
+            "--filter=blob:none",
+            self.clone.as_uri(),
+            str(partial),
+        )
+        self.fake(
+            [self.commit_record(base, "2026-09-01T00:00:00Z")],
+            {base: PIPELINE},
+            base=base,
+            clones=(partial,),
+        )
+        self.assertEqual(
+            policy.enabled_since(REPO, base),
+            policy.datetime.fromisoformat("2026-09-01T00:00:00Z"),
+        )
+
+    def cut_history(self) -> tuple[str, Any]:
+        """Three pipeline commits and a base; returns the middle commit and
+        `_local_history` of the base before anything cuts the history."""
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        middle = self.pipeline(PIPELINE + "# a\n", "2026-10-11T00:00:00Z")
+        self.pipeline(PIPELINE + "# b\n", "2026-10-12T00:00:00Z")
+        self.base = self.commit("README.md", "unrelated", "2026-10-13T00:00:00Z")
+        self.local()
+        whole = policy._local_history(self.base)
+        assert whole is not None and len(whole[1]) == 3
+        return middle, whole
+
+    def test_a_graft_file_does_not_cut_the_history(self) -> None:
+        # Grafted parentless, the middle commit would end the walk there.
+        middle, whole = self.cut_history()
+        (self.clone / ".git" / "info").mkdir(exist_ok=True)
+        (self.clone / ".git" / "info" / "grafts").write_text(f"{middle}\n")
+        self.assertEqual(policy._local_history(self.base), whole)
+
+    def test_a_replace_ref_does_not_cut_the_history(self) -> None:
+        middle, whole = self.cut_history()
+        self.git(self.clone, "replace", "--graft", middle)
+        self.assertEqual(policy._local_history(self.base), whole)
+
+    def test_the_base_config_comes_from_the_clone(self) -> None:
+        # Before the clone read: two contents-API calls per candidate.
+        self.commit(policy.SOURCE_CONTROL_PATH, SOURCE_CONTROL, "2026-10-01T00:00:00Z")
+        base = self.pipeline(PIPELINE, "2026-10-02T00:00:00Z")
+        gh = self.local()
+        config = policy.read_config_at(REPO, base)
+        self.assertEqual(
+            (config.authority, config.agent_identity, config.loop_merge),
+            ("local-babysit", IDENTITY, "c2-mechanical"),
+        )
+        self.assertEqual(gh.calls, [])
+
+    def test_a_symlinked_config_reads_the_api_as_before(self) -> None:
+        # The contents API follows an in-repository symlink to a file; the
+        # clone read hands such a path to it rather than refusing it.
+        self.commit("docs/source-control.md", SOURCE_CONTROL, "2026-10-01T00:00:00Z")
+        (self.clone / policy.SOURCE_CONTROL_PATH).parent.mkdir(exist_ok=True)
+        (self.clone / policy.SOURCE_CONTROL_PATH).symlink_to(
+            "../docs/source-control.md"
+        )
+        self.git(self.clone, "add", policy.SOURCE_CONTROL_PATH)
+        base = self.pipeline(PIPELINE, "2026-10-02T00:00:00Z")
+        gh = self.local()
+        api = f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={base}"
+        gh.rest[api] = file_payload(SOURCE_CONTROL)
+        config = policy.read_config_at(REPO, base)
+        self.assertEqual(config.loop_merge, "c2-mechanical")
+        self.assertEqual(gh.calls, [["api", api]])
+
+    def test_a_base_missing_from_the_clone_reads_the_api_not_no_config(
+        self,
+    ) -> None:
+        self.pipeline(DISABLED, "2026-10-01T00:00:00Z")
+        gh = self.fake([], {SHA: PIPELINE}, clones=(self.scripts,))
+        config = policy.read_config_at(REPO, SHA)
+        self.assertEqual(
+            (config.authority, config.agent_identity), ("local-babysit", IDENTITY)
+        )
+        self.assertIn(
+            ["api", f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"], gh.calls
+        )
+
+    def test_changed_file_modes_come_from_the_clone(self) -> None:
+        # Before the clone read: one trees-API call per side.
+        base = self.commit("tool.sh", "echo\n", "2026-10-01T00:00:00Z")
+        (self.clone / "tool.sh").chmod(0o755)
+        self.git(self.clone, "add", "tool.sh")
+        self.git(self.clone, "commit", "-q", "-m", "x", date="2026-10-02T00:00:00Z")
+        head = self.git(self.clone, "rev-parse", "HEAD")
+        gh = self.local()
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = [
+            {
+                "filename": "tool.sh",
+                "status": "modified",
+                "additions": 0,
+                "deletions": 0,
+            }
+        ]
+        pr = {
+            "number": 7,
+            "changed_files": 1,
+            "head": {"sha": head},
+            "base": {"sha": base},
+        }
+        files, complete = policy.changed_files(REPO, pr)
+        self.assertTrue(complete)
+        self.assertEqual(
+            [(f.path, f.mode, f.previous_mode) for f in files],
+            [("tool.sh", "100755", "100644")],
+        )
+        self.assertEqual(
+            gh.calls,
+            [
+                [
+                    "api",
+                    f"repos/{REPO}/pulls/7/files?per_page=100",
+                    "--paginate",
+                    "--slurp",
+                ]
+            ],
+        )
+
+    def test_a_tree_missing_from_the_clone_reads_the_api(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        gh = self.fake([], {}, clones=(self.scripts,))
+        gh.rest[f"repos/{REPO}/git/trees/{SHA}?recursive=1"] = {
+            "truncated": False,
+            "tree": [{"path": "docs/a.md", "mode": "100644"}],
+        }
+        self.assertEqual(
+            policy._tree_modes("owner", "repo", SHA), {"docs/a.md": "100644"}
         )
 
     def test_a_clone_without_the_base_falls_back_to_the_api(self) -> None:
@@ -2943,6 +3312,92 @@ NEWEST_CONFIG = (
 )
 
 
+class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
+    """`merge.max-in-flight` caps the one merge queue, so every candidate of
+    a run reads it at the default branch head, not at its own base; a failed
+    head read falls back to the base's and is never shared."""
+
+    readable = LaneAssess.readable
+    fake = Assess.fake
+    assess = Assess.assess
+    lane_assess = LaneAssess.lane_assess
+    lane_clear = LaneAssess.lane_clear
+    HEAD_CONFIG = f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={MAIN_SHA}"
+
+    def moved(self, head_config: Any) -> GhFake:
+        """Main has moved past the base (whose config has no cap) to a head
+        whose config read answers `head_config`."""
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+        gh.rest[self.HEAD_CONFIG] = head_config
+        return gh
+
+    def cap(self) -> tuple[int, dict[str, Any]]:
+        self.lane_clear()
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        (call,) = policy.in_flight.call_args_list
+        return call.kwargs["max_in_flight"], result.details["inFlight"]
+
+    def test_the_heads_cap_governs_a_base_without_one(self) -> None:
+        for base in (
+            LANE_PIPELINE,
+            LANE_PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 1\n"),
+        ):
+            with self.subTest(base=base):
+                gh = self.moved(
+                    file_payload(
+                        LANE_PIPELINE.replace(
+                            "merge:\n", "merge:\n  max-in-flight: 5\n"
+                        )
+                    )
+                )
+                gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = (
+                    file_payload(base)
+                )
+                cap, details = self.cap()
+                self.assertEqual(cap, 5)
+                self.assertEqual(details["cap"], 5)
+                self.assertEqual(details["capSource"], "default-branch")
+
+    def test_an_unreadable_head_config_falls_back_to_the_bases_cap(self) -> None:
+        """Pins the fallback only: the base's cap is what the gate read before
+        this change, so this guards no regression from it."""
+        for answer in (502, file_payload("merge: [unclosed\n")):
+            with self.subTest(answer=answer):
+                gh = self.moved(answer)
+                gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = (
+                    file_payload(
+                        LANE_PIPELINE.replace(
+                            "merge:\n", "merge:\n  max-in-flight: 3\n"
+                        )
+                    )
+                )
+                cap, details = self.cap()
+                self.assertEqual(cap, 3)
+                self.assertEqual(details["capSource"], "base")
+
+    def test_the_heads_cap_is_shared_per_cache_window_and_a_failure_never(
+        self,
+    ) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {"BABYSIT_RUN_CACHE": str(pathlib.Path(tmp.name, "run.json"))}
+        patcher = mock.patch.dict("os.environ", env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        gh = self.moved(502)
+        for _ in range(2):
+            self.lane_clear()
+            self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertEqual(gh.calls.count(["api", self.HEAD_CONFIG]), 2)
+        gh.rest[self.HEAD_CONFIG] = file_payload(
+            LANE_PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 5\n")
+        )
+        for _ in range(2):
+            self.assertEqual(self.cap()[0], 5)
+        self.assertEqual(gh.calls.count(["api", self.HEAD_CONFIG]), 3)
+
+
 class SharedPostMergeAnswer(unittest.TestCase):
     """`assess(shared=...)`: the pr-merge run's one demotion, floor and
     post-merge answer stands in for each candidate's own reads only while it
@@ -2958,6 +3413,11 @@ class SharedPostMergeAnswer(unittest.TestCase):
     def bound(self) -> GhFake:
         gh = self.readable()
         gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+        # The in-flight cap's read at the head this class moves main to.
+        for sha in (MAIN_SHA, "f" * 40):
+            gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={sha}"] = (
+                file_payload(LANE_PIPELINE)
+            )
         gh.rest[NEWEST_CONFIG] = [{"sha": CONFIG_SHA}]
         self.computed_at = policy.datetime.now(policy.UTC)
         gh.rest[self.issues_since()] = []
@@ -3004,6 +3464,12 @@ class SharedPostMergeAnswer(unittest.TestCase):
         details = {
             k: v for k, v in (result.details or {}).items() if k != "postMergeShared"
         }
+        # Where the cap was read is provenance, not a decision: an unreadable
+        # head falls back to the base's cap.
+        if isinstance(details.get("inFlight"), dict):
+            details["inFlight"] = {
+                k: v for k, v in details["inFlight"].items() if k != "capSource"
+            }
         return result.reason, result.enabled, result.promoted, details
 
     def test_a_bound_answer_decides_as_the_fresh_reads_do(self) -> None:
@@ -3206,6 +3672,380 @@ class SharedPostMergeAnswer(unittest.TestCase):
         self.assertIsNone(result.reason)
 
 
+def lane_gate(verified: bool, failed: bool = False) -> policy.PostMergeGate:
+    """The check's answer on lane merge #8040: its verifying run passed,
+    is still pending, or failed."""
+    return babysit_postmerge.gate_from_report(
+        {
+            "ok": not failed,
+            "readable": True,
+            "autoMerges": [{"number": 8040, "verified": verified}],
+            "failures": [{"signal": "full-run", "number": 8040}] if failed else [],
+        }
+    )
+
+
+class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
+    """A shared answer that still waits on a lane merge's verifying run is
+    read again once `SHARED_UNVERIFIED_MAX_AGE` old, and each recompute is
+    handed back (`share`) for the next candidate. A recompute decides as a
+    from-scratch run at that moment does: only a passed verification clears."""
+
+    readable = LaneAssess.readable
+    fake = Assess.fake
+    assess = Assess.assess
+    lane_assess = LaneAssess.lane_assess
+    bound = SharedPostMergeAnswer.bound
+    issues_since = SharedPostMergeAnswer.issues_since
+    shared = SharedPostMergeAnswer.shared
+    decided = SharedPostMergeAnswer.decided
+    moved = SharedPostMergeAnswer.moved
+
+    def judged_flight(self) -> None:
+        """`in_flight` as the post-merge answer judges #8040, with the
+        eligibility reader clear."""
+
+        def judge(repo: str, **kwargs: Any) -> policy.InFlight:
+            verified = kwargs["verified"]
+            if verified is not None and verified(mock.Mock(number=8040)):
+                return policy.InFlight(True, None, frozenset())
+            return policy.InFlight(False, "unverified-auto-merge:#8040", frozenset())
+
+        for name, kwargs in (
+            ("in_flight", {"side_effect": judge}),
+            (
+                "lane_eligibility",
+                {"return_value": policy.Eligibility(True, None, "C2")},
+            ),
+        ):
+            patcher = mock.patch.object(policy, name, **kwargs)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def aged(self, minutes: float) -> GhFake:
+        """Bound, with the answer computed `minutes` ago."""
+        gh = self.bound()
+        self.computed_at -= policy.timedelta(minutes=minutes)
+        gh.rest[self.issues_since()] = []
+        return gh
+
+    def test_a_stale_unverified_answer_decides_as_a_from_scratch_run(self) -> None:
+        # Pending at the shared read; by now the run passed, is still pending,
+        # or failed. Only a pass clears the in-flight refusal.
+        for fresh, expected in (
+            (lane_gate(True), None),
+            (lane_gate(False), "in-flight:unverified-auto-merge:#8040"),
+            (lane_gate(False, failed=True), "post-merge:failure:full-run#8040"),
+        ):
+            with self.subTest(expected=expected):
+                self.bound()
+                self.judged_flight()
+                scratch = self.lane_assess(post_merge=lambda floor, who: fresh)
+                self.aged(3)
+                self.judged_flight()
+                seen: list[Any] = []
+                shared: list[policy.SharedPostMerge] = []
+                refreshed = self.lane_assess(
+                    post_merge=lambda floor, who: seen.append(floor) or fresh,
+                    shared=self.shared(lane_gate(False)),
+                    share=shared.append,
+                )
+                self.assertEqual(
+                    refreshed.details["postMergeShared"], "unused:unverified-stale"
+                )
+                self.assertEqual(seen, [policy.datetime.fromisoformat(ENABLED_AT)])
+                self.assertEqual(refreshed.reason, expected)
+                self.assertEqual(self.decided(refreshed), self.decided(scratch))
+                self.assertEqual(len(shared), 1)
+
+    def test_the_candidate_that_refreshed_proceeds_through_the_rest_of_the_gate(
+        self,
+    ) -> None:
+        # Judged against the fresh answer in the same invocation: no in-flight
+        # refusal, and every later read runs as a from-scratch run's does.
+        self.aged(3)
+        self.judged_flight()
+        refreshed = self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True),
+            shared=self.shared(lane_gate(False)),
+            share=lambda answer: None,
+        )
+        self.assertEqual(
+            refreshed.details["inFlight"],
+            {"clear": True, "reason": None, "cap": 1, "capSource": "default-branch"},
+        )
+        self.assertIsNone(refreshed.reason)
+        self.assertTrue(refreshed.enabled)
+        self.assertIn("eligibility", refreshed.details)
+
+    def test_the_refreshed_in_flight_read_carries_the_configured_cap(
+        self,
+    ) -> None:
+        self.aged(3)
+        self.judged_flight()
+        read = policy.read_config_at
+        with mock.patch.object(
+            policy,
+            "read_config_at",
+            side_effect=lambda *a, **k: dataclasses.replace(
+                read(*a, **k), max_in_flight=5
+            ),
+        ):
+            self.lane_assess(
+                post_merge=lambda floor, who: lane_gate(False),
+                shared=self.shared(lane_gate(False)),
+                share=lambda answer: None,
+            )
+        (call,) = policy.in_flight.call_args_list
+        self.assertEqual(call.kwargs["max_in_flight"], 5)
+
+    def test_a_stale_answer_with_every_merge_verified_is_reused(self) -> None:
+        self.aged(3)
+        self.judged_flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        share = mock.Mock()
+        result = self.lane_assess(
+            post_merge=never, shared=self.shared(lane_gate(True)), share=share
+        )
+        self.assertEqual(result.details["postMergeShared"], "used")
+        self.assertIsNone(result.reason)
+        share.assert_not_called()
+
+    def test_a_fresh_unverified_answer_is_reused(self) -> None:
+        self.aged(1.5)
+        self.judged_flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        result = self.lane_assess(
+            post_merge=never, shared=self.shared(lane_gate(False)), share=mock.Mock()
+        )
+        self.assertEqual(result.details["postMergeShared"], "used")
+        self.assertEqual(result.reason, "in-flight:unverified-auto-merge:#8040")
+
+    def test_a_recompute_is_handed_back_bound_to_what_it_read(self) -> None:
+        self.aged(3)
+        self.judged_flight()
+        before = policy.datetime.now(policy.UTC)
+        fresh = lane_gate(True)
+        shared: list[policy.SharedPostMerge] = []
+        self.lane_assess(
+            post_merge=lambda floor, who: fresh,
+            shared=self.shared(lane_gate(False)),
+            share=shared.append,
+        )
+        (answer,) = shared
+        self.assertEqual(
+            (answer.main_sha, answer.config_sha, answer.identity, answer.floor),
+            (MAIN_SHA, CONFIG_SHA, IDENTITY, policy.datetime.fromisoformat(ENABLED_AT)),
+        )
+        self.assertIs(answer.gate, fresh)
+        self.assertTrue(answer.lane_merges_only)
+        self.assertGreaterEqual(answer.computed_at, before)
+
+    def test_the_next_candidate_reuses_the_written_recompute(self) -> None:
+        self.aged(3)
+        self.judged_flight()
+        path = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path /= "post-merge.json"
+        share = lambda answer: babysit_postmerge.write_shared(str(path), answer)  # noqa: E731
+        first = self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True),
+            shared=self.shared(lane_gate(False)),
+            share=share,
+        )
+        reread = babysit_postmerge.read_shared(str(path))
+        assert reread is not None
+        gh = self.bound()
+        self.computed_at = reread.computed_at
+        gh.rest[self.issues_since()] = []
+        self.judged_flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        written = mock.Mock()
+        second = self.lane_assess(post_merge=never, shared=reread, share=written)
+        self.assertEqual(second.details["postMergeShared"], "used")
+        self.assertEqual(self.decided(second), self.decided(first))
+        written.assert_not_called()
+
+    def test_a_failed_write_back_keeps_the_verdict(self) -> None:
+        self.bound()
+        self.judged_flight()
+        scratch = self.lane_assess(post_merge=lambda floor, who: lane_gate(True))
+        self.aged(3)
+        self.judged_flight()
+        missing = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        missing /= "gone/post-merge.json"
+        refreshed = self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True),
+            shared=self.shared(lane_gate(False)),
+            share=lambda answer: babysit_postmerge.write_shared(str(missing), answer),
+        )
+        self.assertFalse(missing.exists())
+        self.assertEqual(self.decided(refreshed), self.decided(scratch))
+
+    def test_a_new_merge_refusal_also_hands_back_its_recompute(self) -> None:
+        lane_merge = merge_pages([[merged(7, bot("agent-lanes"), None)]])
+        self.moved(lane_merge)
+        self.judged_flight()
+        shared: list[policy.SharedPostMerge] = []
+        result = self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True),
+            shared=self.shared(lane_gate(True)),
+            share=shared.append,
+        )
+        self.assertEqual(result.details["postMergeShared"], "unused:new-merge:#7")
+        self.assertEqual([answer.main_sha for answer in shared], ["f" * 40])
+
+    def test_the_binding_is_read_before_the_check(self) -> None:
+        # A lane merge landing during the check moves the head after the
+        # binding read, so the next candidate lists merges rather than taking
+        # the unchanged-head shortcut on an answer that never judged it.
+        gh = self.aged(3)
+        self.judged_flight()
+        called: list[Any] = []
+
+        def check(floor: Any, who: str) -> policy.PostMergeGate:
+            called.append(policy.datetime.now(policy.UTC))
+            gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": "e" * 40}
+            return lane_gate(True)
+
+        shared: list[policy.SharedPostMerge] = []
+        self.lane_assess(
+            post_merge=check, shared=self.shared(lane_gate(False)), share=shared.append
+        )
+        (answer,) = shared
+        self.assertEqual(answer.main_sha, MAIN_SHA)
+        self.assertLessEqual(answer.computed_at, called[0])
+
+    def test_an_answer_bound_to_another_candidate_is_not_overwritten(self) -> None:
+        # Not a fresher answer, only a different one: writing it back would
+        # send the candidates that match the run's answer to their own reads.
+        other_floor = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
+        for overrides, rest, reason in (
+            (
+                {"floor": other_floor},
+                {NEWEST_CONFIG: [{"sha": "f" * 40}]},
+                "floor-differs",
+            ),
+            ({"identity": "other[bot]"}, {}, "identity-differs"),
+            ({"self_logins": frozenset({"x[bot]"})}, {}, "self-logins-differ"),
+            ({"lane_merges_only": False}, {}, "lane-differs"),
+        ):
+            with self.subTest(reason=reason):
+                self.bound().rest.update(rest)
+                self.judged_flight()
+                share = mock.Mock()
+                result = self.lane_assess(
+                    post_merge=lambda floor, who: lane_gate(True),
+                    shared=self.shared(lane_gate(True), **overrides),
+                    share=share,
+                )
+                self.assertEqual(result.details["postMergeShared"], f"unused:{reason}")
+                share.assert_not_called()
+
+    def test_an_unreadable_config_history_writes_nothing_back(self) -> None:
+        # The binding check could not read the base's config history; the
+        # reads after it can succeed, but the floor they compute may be
+        # another one, which later candidates would refuse as floor-differs.
+        self.bound()
+        self.judged_flight()
+        share = mock.Mock()
+        reads = mock.Mock(side_effect=[policy.PolicyReadError("502"), CONFIG_SHA])
+        with mock.patch.object(policy, "newest_config_commit", reads):
+            result = self.lane_assess(
+                post_merge=lambda floor, who: lane_gate(True),
+                shared=self.shared(lane_gate(True)),
+                share=share,
+            )
+        self.assertEqual(result.details["postMergeShared"], "unused:config-unreadable")
+        self.assertIsNone(result.reason)
+        share.assert_not_called()
+
+    def test_another_floor_on_a_stale_answer_leaves_the_runs_answer(self) -> None:
+        # The binding is checked before the age: a candidate on another floor
+        # is refused as bound elsewhere and writes nothing back, so the next
+        # main-floor candidate refreshes the run's answer and the one after
+        # reuses it. Every verdict is a from-scratch run's.
+        other_floor = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
+        path = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path /= "post-merge.json"
+        late = policy.datetime.now(policy.UTC) - policy.timedelta(minutes=31)
+        self.bound()
+        babysit_postmerge.write_shared(
+            str(path), self.shared(lane_gate(True), computed_at=late)
+        )
+        share = lambda answer: babysit_postmerge.write_shared(str(path), answer)  # noqa: E731
+
+        def candidate(floor: Any, expected: str) -> None:
+            """One candidate, from scratch and then on the run's file."""
+            with contextlib.ExitStack() as stack:
+                if floor is not None:
+                    stack.enter_context(
+                        mock.patch.object(
+                            policy, "merged_since_floor", return_value=floor
+                        )
+                    )
+                for shared in (None, babysit_postmerge.read_shared(str(path))):
+                    gh = self.bound()
+                    if floor is not None:
+                        gh.rest[NEWEST_CONFIG] = [{"sha": "f" * 40}]
+                    if shared is not None:
+                        self.computed_at = shared.computed_at
+                        gh.rest[self.issues_since()] = []
+                    self.judged_flight()
+                    result = self.lane_assess(
+                        post_merge=lambda floor, who: lane_gate(True),
+                        shared=shared,
+                        share=share if shared is not None else None,
+                    )
+                    if shared is None:
+                        scratch = result
+                self.assertEqual(result.details["postMergeShared"], expected)
+                self.assertEqual(self.decided(result), self.decided(scratch))
+
+        before = path.read_bytes()
+        candidate(other_floor, "unused:floor-differs")
+        self.assertEqual(path.read_bytes(), before)
+        candidate(None, "unused:stale")
+        candidate(None, "used")
+
+    def test_the_age_is_the_recorded_computed_at_not_the_files_mtime(self) -> None:
+        # Written just now, but its answer was computed 3 minutes ago with
+        # #8040 unverified: read again.
+        path = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path /= "post-merge.json"
+        self.aged(3)
+        babysit_postmerge.write_shared(str(path), self.shared(lane_gate(False)))
+        reread = babysit_postmerge.read_shared(str(path))
+        assert reread is not None
+        self.judged_flight()
+        result = self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True),
+            shared=reread,
+            share=mock.Mock(),
+        )
+        self.assertEqual(result.details["postMergeShared"], "unused:unverified-stale")
+
+    def test_an_unreadable_shared_answer_is_recomputed_and_handed_back(self) -> None:
+        self.bound()
+        self.judged_flight()
+        shared: list[policy.SharedPostMerge] = []
+        self.lane_assess(
+            post_merge=lambda floor, who: lane_gate(True), share=shared.append
+        )
+        self.assertEqual(len(shared), 1)
+
+    def test_an_unreadable_recompute_is_not_handed_back(self) -> None:
+        self.aged(3)
+        self.judged_flight()
+        share = mock.Mock()
+        result = self.lane_assess(
+            post_merge=lambda floor, who: gate("unreadable"),
+            shared=self.shared(lane_gate(False)),
+            share=share,
+        )
+        self.assertEqual(result.reason, "post-merge:unreadable")
+        share.assert_not_called()
+
+
 class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
     """`babysit_merge.py --merge` with the token acting as the configured
     `merge.agent-identity`, read from a real pipeline file through the config
@@ -3297,6 +4137,22 @@ class DependabotConfig(unittest.TestCase):
                     text += f"  dependabot:\n    mode: {written}\n"
                 config_fake(self, text)
                 self.assertEqual(policy.read_config_at(REPO, SHA).dependabot_mode, mode)
+
+    def test_majors_hold_unless_set_to_review(self) -> None:
+        for written, majors in (
+            (None, "hold"),
+            ("hold", "hold"),
+            ("review", "review"),
+            ("merge", "hold"),
+        ):
+            with self.subTest(written=written):
+                text = LANE_PIPELINE + "  dependabot:\n    mode: enforce\n"
+                if written is not None:
+                    text += f"    majors: {written}\n"
+                config_fake(self, text)
+                self.assertEqual(
+                    policy.read_config_at(REPO, SHA).dependabot_majors, majors
+                )
 
 
 class DependabotEligibility(unittest.TestCase):
@@ -3414,7 +4270,7 @@ class DependabotEligibility(unittest.TestCase):
             **fields,
         }
 
-    def eligibility(self, title: str = "build(deps): bump x") -> Any:
+    def eligibility(self, title: str = "build(deps): bump x", **options: Any) -> Any:
         pr = {
             "number": 7,
             "title": title,
@@ -3425,7 +4281,9 @@ class DependabotEligibility(unittest.TestCase):
             "head": {"sha": self.HEAD, "ref": "dependabot/npm_and_yarn/x-1.3.0"},
             "user": {"login": "dependabot[bot]", "type": "Bot"},
         }
-        return policy.dependabot_eligibility(REPO, 7, pr=pr, agent_identity=IDENTITY)
+        return policy.dependabot_eligibility(
+            REPO, 7, pr=pr, agent_identity=IDENTITY, **options
+        )
 
     def marker(
         self, head: str | None = None, verdict: str = "merge", login: str = IDENTITY
@@ -3486,6 +4344,14 @@ class DependabotEligibility(unittest.TestCase):
         )
         self.assertEqual(result.dependabot.tier, "review")
 
+    def test_a_candidate_scope_reads_the_commits_once(self) -> None:
+        gh = self.fake(commits=[dependabot_commit(sha=self.HEAD)])
+        with babysit_gh.candidate_reads():
+            first, again = self.eligibility(), self.eligibility()
+        self.assertEqual(first, again)
+        self.assertTrue(first.eligible, first.reason)
+        self.assertEqual(sum(self.COMMITS in call for call in gh.calls), 1)
+
     def test_an_unreadable_registry_waits_for_a_review(self) -> None:
         self.fake(registry={})
         self.assertEqual(
@@ -3496,7 +4362,7 @@ class DependabotEligibility(unittest.TestCase):
     def test_a_review_tier_bump_spends_no_registry_read(self) -> None:
         self.fake(commits=[dependabot_commit("semver-major")], registry={})
         self.assertEqual(
-            self.eligibility().reason,
+            self.eligibility(hold_majors=False).reason,
             "dependabot-review:major:x;review-verdict-missing",
         )
         self.assertEqual(self.registry_calls, [])
@@ -3515,16 +4381,85 @@ class DependabotEligibility(unittest.TestCase):
 
     def test_a_major_bump_is_tier_review_and_waits_for_the_verdict(self) -> None:
         self.fake(commits=[dependabot_commit("semver-major")])
-        result = self.eligibility()
+        result = self.eligibility(hold_majors=False)
         self.assertFalse(result.eligible)
         self.assertEqual(
             result.reason, "dependabot-review:major:x;review-verdict-missing"
         )
         self.assertEqual(result.dependabot.tier, "review")
 
-    def test_a_merge_verdict_at_the_current_head_on_green_ci_is_eligible(self) -> None:
+    def test_a_major_bump_is_held_for_a_human_despite_a_merge_verdict(self) -> None:
         self.fake(commits=[dependabot_commit("semver-major")], comments=[self.marker()])
         result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:x")
+        self.assertIsNone(result.dependabot.approved)
+
+    SHA_PIN = dependabot_commit(
+        message=(
+            "build(deps): bump x\n\n---\nupdated-dependencies:\n"
+            f"- dependency-name: x\n  dependency-version: {'a' * 40}\n"
+            "  dependency-type: direct:production\n...\n"
+        )
+    )
+
+    def test_a_sha_pin_bump_is_held_despite_a_merge_verdict(self) -> None:
+        # Fail closed: an unreadable version may be a major.
+        self.fake(commits=[self.SHA_PIN], comments=[self.marker()])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:x(unreadable)")
+        self.assertEqual(result.dependabot.reasons, ("unparsed-version:x",))
+
+    def test_sources_that_disagree_are_held_despite_a_merge_verdict(self) -> None:
+        # The metadata says minor, the title says major.
+        self.fake(comments=[self.marker()])
+        result = self.eligibility(title="build(deps): bump x from 1.2.0 to 2.0.0")
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:x(disagree)")
+        self.assertIn("sources-disagree", result.dependabot.reasons)
+
+    def test_no_readable_update_is_held_despite_a_merge_verdict(self) -> None:
+        # Fail closed: neither the title nor the commit names an update.
+        self.fake(
+            commits=[dependabot_commit(message="build(deps): update dependencies")],
+            comments=[self.marker()],
+        )
+        result = self.eligibility(title="build(deps): update dependencies")
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:updates(unreadable)")
+        self.assertIsNone(result.dependabot.approved)
+
+    def test_with_majors_review_the_verdict_path_is_unchanged(self) -> None:
+        for commit, why in (
+            (dependabot_commit("semver-major"), "major:x"),
+            (self.SHA_PIN, "unparsed-version:x"),
+        ):
+            with self.subTest(why=why):
+                self.fake(commits=[commit])
+                self.assertEqual(
+                    self.eligibility(hold_majors=False).reason,
+                    f"dependabot-review:{why};review-verdict-missing",
+                )
+                self.fake(commits=[commit], comments=[self.marker()])
+                result = self.eligibility(hold_majors=False)
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.dependabot.approved, "55-1")
+
+    def test_a_minor_bump_still_merges_while_majors_are_held(self) -> None:
+        self.fake()
+        result = self.eligibility(hold_majors=True)
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.tier, "auto")
+        # A non-major review-tier bump still merges on the verdict.
+        self.fake(review_only=[self.entry()], comments=[self.marker()])
+        result = self.eligibility(hold_majors=True)
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.approved, "55-1")
+
+    def test_a_merge_verdict_at_the_current_head_on_green_ci_is_eligible(self) -> None:
+        self.fake(commits=[dependabot_commit("semver-major")], comments=[self.marker()])
+        result = self.eligibility(hold_majors=False)
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual(result.work_class, "C2")
         self.assertEqual(
@@ -3541,7 +4476,7 @@ class DependabotEligibility(unittest.TestCase):
                 self.fake(
                     commits=[dependabot_commit("semver-major")], comments=[comment]
                 )
-                result = self.eligibility()
+                result = self.eligibility(hold_majors=False)
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.reason, f"dependabot-review:major:x;{why}")
 
@@ -3551,7 +4486,9 @@ class DependabotEligibility(unittest.TestCase):
             comments=[self.marker()],
             ci=[{"status": "in_progress", "conclusion": None}],
         )
-        self.assertEqual(self.eligibility().reason, "ci-status:pending")
+        self.assertEqual(
+            self.eligibility(hold_majors=False).reason, "ci-status:pending"
+        )
 
     def test_the_lanes_app_fix_commit_counts_only_after_a_review(self) -> None:
         fix = dependabot_commit(
@@ -3565,7 +4502,10 @@ class DependabotEligibility(unittest.TestCase):
         gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
             "files": [{"filename": "src/x.js"}]
         }
-        self.assertEqual(self.eligibility().reason, f"commit-not-dependabot:{'e' * 12}")
+        self.assertEqual(
+            self.eligibility(hold_majors=False).reason,
+            f"commit-not-dependabot:{'e' * 12}",
+        )
         pushes = [
             {
                 "activity_type": "push",
@@ -3586,7 +4526,7 @@ class DependabotEligibility(unittest.TestCase):
         gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
             "files": [{"filename": "src/x.js"}]
         }
-        result = self.eligibility()
+        result = self.eligibility(hold_majors=False)
         self.assertTrue(result.eligible, result.reason)
         # A fix commit may not touch .github/.
         gh = self.fake(
@@ -3596,7 +4536,7 @@ class DependabotEligibility(unittest.TestCase):
             "files": [{"filename": ".github/workflows/ci.yml"}]
         }
         self.assertEqual(
-            self.eligibility().reason,
+            self.eligibility(hold_majors=False).reason,
             "dependabot-fix-content:.github/workflows/ci.yml",
         )
 
@@ -3839,6 +4779,20 @@ class DependabotAssess(unittest.TestCase):
         self.assertEqual(result.reason, "ineligible:dependabot-merge-off")
         self.read.assert_not_called()
 
+    def test_the_majors_setting_reaches_the_eligibility_read(self) -> None:
+        for written, hold in ((None, True), ("hold", True), ("review", False)):
+            with self.subTest(written=written):
+                pipeline = LANE_PIPELINE + "  dependabot:\n    mode: enforce\n"
+                if written is not None:
+                    pipeline += f"    majors: {written}\n"
+                result = self.assess_mode(None, pipeline=pipeline)
+                self.assertIsNone(result.reason)
+                self.assertIs(self.read.call_args.kwargs["hold_majors"], hold)
+                self.assertEqual(
+                    result.report()["dependabot"]["majors"],
+                    "hold" if hold else "review",
+                )
+
     def test_tier_review_is_refused(self) -> None:
         tier = policy.dependabot.Classification("review", ("major:x",))
         result = self.assess_mode(
@@ -3964,6 +4918,113 @@ class OneRunSharesItsCredentialReads(unittest.TestCase):
             clock[0] += policy.run_cache.MAX_AGE + timedelta(seconds=1)
             policy.permission_reader(REPO)(OPERATOR)
         self.assertEqual(gh.calls.count(["api", endpoint]), 2)
+
+
+# The tracker's human-gated label read an autonomous gate makes: stubbed so
+# no test reads GitHub.
+_role_label = mock.patch.object(
+    babysit_postmerge, "_role_label", return_value="needs-human"
+)
+
+
+def setUpModule() -> None:
+    _role_label.start()
+
+
+def tearDownModule() -> None:
+    _role_label.stop()
+
+
+class CapabilityContents(unittest.TestCase):
+    """The floor's capability check reads each changed capability file once
+    per side, at the pull request's base and head SHAs."""
+
+    PR = {"base": {"sha": "b" * 40}, "head": {"sha": "h" * 40}}
+
+    def setUp(self) -> None:
+        policy._TEXT_AT.clear()
+        self.addCleanup(policy._TEXT_AT.clear)
+
+    def changed(self, path: str, **kw: Any) -> policy.ChangedFile:
+        fields = {
+            "previous_path": None, "status": "modified", "additions": 1,
+            "deletions": 0, "has_patch": True, "mode": "100644", **kw,
+        }  # fmt: skip
+        return policy.ChangedFile(path=path, **fields)
+
+    def read(self, files, texts):
+        calls = []
+
+        def file_at(owner, name, path, sha):
+            calls.append((path, sha))
+            found = texts[(path, sha)]
+            if isinstance(found, Exception):
+                raise found
+            return found
+
+        with mock.patch.object(policy, "_file_at", side_effect=file_at):
+            out = policy.with_capability_contents("o/r", self.PR, tuple(files))
+        return out, calls
+
+    def test_each_side_is_read_once_and_cached(self) -> None:
+        skill = self.changed("p/skills/s/SKILL.md")
+        texts = {
+            ("p/skills/s/SKILL.md", "b" * 40): "old",
+            ("p/skills/s/SKILL.md", "h" * 40): "new",
+        }
+        out, calls = self.read([skill, skill, self.changed("docs/x.md")], texts)
+        self.assertEqual([f.contents for f in out[:2]], [("old", "new")] * 2)
+        self.assertIsNone(out[2].contents)
+        self.assertEqual(len(calls), 2)
+
+    def test_a_rename_reads_the_base_at_its_previous_path(self) -> None:
+        moved = self.changed(
+            "p/agents/a.md", status="renamed", previous_path="p/notes/a.md"
+        )
+        texts = {("p/notes/a.md", "b" * 40): "old", ("p/agents/a.md", "h" * 40): "new"}
+        out, _ = self.read([moved], texts)
+        self.assertEqual(out[0].contents, ("old", "new"))
+
+    def test_an_added_file_reads_only_its_head(self) -> None:
+        added = self.changed("p/commands/go.md", status="added")
+        out, calls = self.read([added], {("p/commands/go.md", "h" * 40): "new"})
+        self.assertEqual((out[0].contents, len(calls)), ((None, "new"), 1))
+
+    def test_a_path_is_quoted_so_it_cannot_pick_another_ref(self) -> None:
+        odd = self.changed("p/x?ref=main#/SKILL.md")
+        quoted = "p/x%3Fref%3Dmain%23/SKILL.md"
+        out, calls = self.read(
+            [odd], {(quoted, "b" * 40): "a", (quoted, "h" * 40): "a"}
+        )
+        self.assertEqual({path for path, _ in calls}, {quoted})
+
+    def test_any_exception_is_carried_with_its_type(self) -> None:
+        skill = self.changed("p/skills/s/SKILL.md")
+        texts = {("p/skills/s/SKILL.md", "b" * 40): TypeError("bad payload")}
+        out, _ = self.read([skill], texts)
+        self.assertIsNone(out[0].contents)
+        self.assertIn("TypeError", out[0].contents_error)
+
+    def test_the_logged_path_cannot_start_a_workflow_command(self) -> None:
+        # Review thread L2597: a newline in a changed path must stay escaped.
+        path = "p/agents/a\n::set-output name=dispatch::true\nb.md"
+        texts = {(path, "b" * 40): TypeError("bad\n::error::x")}
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.read([self.changed(path)], texts)
+        self.assertTrue(err.getvalue())
+        self.assertFalse(
+            [line for line in err.getvalue().splitlines() if line.startswith("::")]
+        )
+
+    def test_a_read_error_is_carried_for_the_scorer(self) -> None:
+        skill = self.changed("p/skills/s/SKILL.md")
+        texts = {
+            ("p/skills/s/SKILL.md", "b" * 40): policy.PolicyReadError("status 502")
+        }
+        out, _ = self.read([skill], texts)
+        self.assertIsNone(out[0].contents)
+        self.assertIn("502", out[0].contents_error)
 
 
 if __name__ == "__main__":

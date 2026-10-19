@@ -24,6 +24,7 @@
     "add-sub-item": true,
     "list-items": true,
     "label-provenance": false,
+    "set-fields": false,
     "list-sub-items": true,
     "capabilities": true,
     "change-link": true

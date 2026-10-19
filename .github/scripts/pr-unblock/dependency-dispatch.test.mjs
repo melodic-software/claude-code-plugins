@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
+import { emptyRecord, markHandled } from "./dispatch-record.mjs";
 
 const CHECK = "pr-unblock / review-dependency";
 
@@ -28,16 +29,18 @@ const DEPENDABOT_COMMIT_AUTHOR = { name: "dependabot[bot]", email: "49699333+dep
 const SIGNED = { committer: { email: "noreply@github.com" }, verification: { verified: true, reason: "valid" } };
 
 function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new Map(), commits = new Map() } = {}) {
-  const calls = { dispatch: [], checks: [] };
+  const calls = { dispatch: [], checks: [], commits: [], files: [] };
   return {
     calls,
     async listPullCommits(number) {
+      calls.commits.push(number);
       return commits.get(number) ?? [{ sha: "d".repeat(40), commit: { message: "bump", author: DEPENDABOT_COMMIT_AUTHOR, ...SIGNED } }];
     },
     async getCommit(sha) {
       return { sha, files: [] };
     },
     async listPullFiles(number) {
+      calls.files.push(number);
       return files.get(number) ?? [];
     },
     async listOpenPulls() {
@@ -167,4 +170,55 @@ test("dispatches at most the cap, lowest number first", async () => {
   const api = fakeApi({ nodes: [pr(23), pr(21), pr(22)] });
   const { dispatched } = await run(api, { maxDispatch: 2 });
   assert.deepEqual(dispatched.map((d) => d.number), [21, 22]);
+});
+
+// Reads spent only where they change the decision. Each count beside the
+// assertion is what the dispatcher read before it skipped them.
+const RED_CI = [{ id: 1, app: { slug: "github-actions" }, status: "completed", conclusion: "failure" }];
+
+test("a red ci-status is review without reading the commits or files", async () => {
+  const node = pr(8, { title: "bump x from 1.0.0 to 1.0.1" });
+  const api = fakeApi({ nodes: [node], ci: new Map([[node.headRefOid, RED_CI]]) });
+  assert.deepEqual((await run(api)).dispatched, [{ number: 8, workflowRunId: "7008" }]);
+  // Before: one commits and one files listing.
+  assert.deepEqual(api.calls.commits, []);
+  assert.deepEqual(api.calls.files, []);
+});
+
+test("once the cap is reached the rest are left unread", async () => {
+  const api = fakeApi({ nodes: [pr(24), pr(23), pr(21), pr(22)] });
+  const lines = [];
+  const { dispatched } = await run(api, { maxDispatch: 2, log: (line) => lines.push(line) });
+  assert.deepEqual(dispatched.map((d) => d.number), [21, 22]);
+  // Before: 8 check-run reads and 4 commits listings, for the same two dispatches.
+  assert.equal(api.calls.checks.length, 4);
+  assert.deepEqual(api.calls.commits, [21, 22]);
+  assert.ok(lines.includes("defer #23: 2 review dispatches this run; left for a later run unread"));
+});
+
+test("a reviewed head is recorded, and the next run reads nothing for it", async () => {
+  const node = pr(10);
+  const checks = new Map([[node.headRefOid, [{ status: "completed", conclusion: "success", output: { title: "Reviewed" } }]]]);
+  const record = emptyRecord();
+  const first = fakeApi({ nodes: [node], checks });
+  assert.deepEqual((await run(first, { record })).dispatched, []);
+  assert.equal(first.calls.checks.length, 2);
+  assert.ok(record.handled.get(CHECK).has(node.headRefOid));
+  const second = fakeApi({ nodes: [node], checks });
+  assert.deepEqual((await run(second, { record })).dispatched, []);
+  assert.deepEqual([second.calls.checks, second.calls.commits, second.calls.files], [[], [], []]);
+});
+
+test("a review run still going, or an untrusted-trigger skip, is not recorded", async () => {
+  const a = pr(12);
+  const b = pr(13);
+  const checks = new Map([
+    [a.headRefOid, [{ status: "in_progress", conclusion: null }]],
+    [b.headRefOid, [{ status: "completed", conclusion: "neutral", output: { title: "Skipped: untrusted-trigger" } }]],
+  ]);
+  const record = emptyRecord();
+  await run(fakeApi({ nodes: [a, b], checks }), { record });
+  assert.equal(record.handled.get(CHECK), undefined);
+  markHandled(record, CHECK, a.headRefOid);
+  assert.deepEqual((await run(fakeApi({ nodes: [a, b], checks }), { record })).dispatched.map((d) => d.number), [13]);
 });

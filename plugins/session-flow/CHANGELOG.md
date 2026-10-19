@@ -1,5 +1,22 @@
 # Changelog: session-flow plugin
 
+## [0.59.0] - 2026-10-18
+
+### Added
+
+- The shared off-thread work reference names nested subagents and workflow agents as a kind and has inventory descend through every level the harness exposes, reporting any level it cannot enumerate. A keep-going eval covers a subagent that spawned its own subagent.
+
+### Changed
+
+- The running-retro observer decodes transcript lines through the shared `transcript_reader.decode_line`, so it no longer carries its own JSONL decode; its events, `mid` tagging and turn-boundary rule are unchanged, and the status `parse_errors` count now includes non-object lines.
+- `transcript_reader` gains `decode_line(line, stats)`, the one-line entry point `iter_records` is now built on.
+
+### Fixed
+
+- The observer's comment on bare strings in a user content list no longer claims the canonical parser counts them as human messages.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.58.3] - 2026-10-17
 
 ### Changed

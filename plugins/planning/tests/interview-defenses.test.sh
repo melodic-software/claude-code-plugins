@@ -3,7 +3,7 @@
 # synthesize-directly paths, from the course lane 4 audit in
 # docs/upstream/aihero-course.md "Lane 4: plan mode / asset rush":
 #
-#   Case A — STOP-on-gap. `lock` skips Q&A, so the only thing standing between it and a
+#   Case A — STOP-on-gap. `lock` asks at most its one problem question, so the only thing standing between it and a
 #            Brief that fudges an unknown is the rule that a gap surfacing mid-synthesis
 #            HALTS the run.
 #   Case B — the auto-guard. `auto`'s synthesize-directly path may close facts and
@@ -445,21 +445,23 @@ declares_both_fixtures B "$CASE_B"
 
 # Both defenses are body prose, each covered by its own section digest below; no
 # frontmatter key states or qualifies either. `argument-hint` is the slot list
-# `[me|lock|scope] [topic]`, with the invocation examples in the body's `Arguments.` line.
+# `[me|lock|scope|share] [topic]`, with the invocation examples in the body's `Arguments.` line.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "2e53b9942730509a6e02349e032fdd9e4329c16ad6130a4ea61929d757b0216c"
+  "c7cdb6ad399bfc71c4645d8448ab54e040588034d97fa617ffc895c97ba5120a"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
 # the top of SKILL.md, where a compaction's re-attach still reaches (#5332;
 # reattach-slice.test.sh holds it there). It is a twin of the full rules in Step 1.5, the
 # Action Router and Step 3, so it is digested and each line is pinned once inside it: an
 # unpinned twin could be inverted while the originals stand.
+# The `lock` gate line now says `lock` confirms the problem with one question; it adds a
+# question and keeps the halt, so neither the confirmation nor STOP-on-gap is loosened.
 pin_section "SKILL.md Gates section is unchanged (the early twin of the three gates)" \
   "$SKILL" \
   "## Gates" \
   "## Action Router" \
-  "4f5ffb070ea46ed9297523d92e104885d09f4d041c10289091e221b33fc5d31d"
+  "cd618af97c7791d2b0572655efa01b2ed7e53ec954ed6f2c124b02346c959fae"
 for gate_line in \
   "**The user's decisions are never synthesized.**" \
   "**A gap during \`lock\` synthesis halts the run.**" \
@@ -495,11 +497,14 @@ done
 # The yes-accepts-recommendation rule words a negative recommendation as "Should X stay out of
 # this change?" so "Q<N> yes" and "accept all" mean the recommended answer. It changes how a
 # question is phrased, not what resolves it: an unanswered question still resolves nothing.
+# The surface sentence now names the lane table instead of the two "Question surface" rules; it only names where a round is asked.
+# The emoji paragraph states its setting once with an inline fallback for an unexpanded token;
+# it changes how the option is read, not what any round resolves.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "12c191a46a7f6ca741eb8d81ad08fce1a89bbb29aa3190698bde9d1abd6cea05"
+  "4e257051ae23cc252fc57d3eef8b7cc47cdc276a3c24d1bc5a91a6755cc665dc"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -521,26 +526,32 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # runs with the same flags.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The exit-1 line also names `brief=unconfirmed` and the fresh-Confirm rule; it adds a halt.
+# The no-question line drops `lock` from the runs that ask nothing: `lock` asks its problem
+# question, so it always writes a register the gate grades; an unattended pre-confirmed item
+# writes that row `answered` citing the label (problem-framing.md "Pre-confirmed").
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "b29d5fca451e1f1fcee7fc75d1c8bff84fb11cebc4779c331c0e3c894b89fb0c"
+  "b848ba47dd1806383cf7ee7d908d816009dbcbd6c670804a7e35c67d32b0eb2a"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
-# confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
+# confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
 # second home that can be inverted while the pinned original stands.
+# The twin now reads that the restatement opens with the problem and `lock` confirms the
+# problem with one registered question; it adds a confirmation and keeps STOP-on-gap.
 pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate exemption)" \
   "$LOOP" \
   "## Step 3. Recognize the stop condition" \
   "## Step 4. Section guidance for the Brief" \
-  "4a2684f1f61182e43f8343d7a9d6582e59f02cd327402d1bce8b4e86b28c85eb"
+  "6b0f094c39b858d405dd5c41418c9c28bde87f9cdd3bac774524fcb31149e228"
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
+# The Problem, Work size and general-session entries point at context/problem-framing.md; they add Brief fields and touch no arbiter rule.
 pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arbiter guidance)" \
   "$LOOP" \
   "## Step 4. Section guidance for the Brief" \
   "## Brief" \
-  "770c3afb78e4a79f729750c96994a9ad0221f5ba9f3aab834ba598b5861ae440"
+  "12fb15b012ac1707d98278319f165f3ce2a23d45e1b4a6cb28c7e0329d7511a3"
 
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The resume branch runs `round.sh doctor` before the first resumed round; it reports and resolves nothing.
@@ -560,30 +571,40 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # The cross-check names `brief=unconfirmed` and the fresh-Confirm rule; it adds a halt and retires no row.
 # The start-fresh line names the scope-change note as the Brief's only history; it touches no assumption, gap or Brief rule.
 # The `me`-mode persistence line routes a pause through /session-flow:workflow; it touches no assumption, gap or Brief rule.
+# The cross-check and section schema name nine headings, Problem and Work size added; the gate requires more and retires no row.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "001f96abad59f9243bf22a102c7a2e671339c478bcce679eab5206a0a827e158"
+  "24345865fa0f8200906a8635127237bee6c00bdac4728b6178d0ede76ea97567"
+# The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
+# question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
   "### Step 2. Drive the frontier-rounds loop" \
-  "622c2becabb3a7e8315758acf56681dbeb1f52278c4ab8b8030155610e820acf"
+  "eba42e92c8cc1d48d2510d28ab146b8ed019790b34e226fb60c40e84bc0598c9"
+# The "Problem first" paragraph makes `lock` ask one registered problem question and sends a
+# solution-shaped goal to rethink-or-accept; it adds a question and leaves the STOP line byte-identical.
+# An unattended pre-confirmed item counts as accept for rethink-or-accept, per problem-framing.md "Pre-confirmed"; STOP-on-gap is unchanged.
 pin_section "loop.md Step 1.5 section is unchanged (loop's auto-guard + \`lock\` STOP line live here)" \
   "$LOOP" \
   "## Step 1.5. Auto-detect: gap analysis without asking" \
   "## Step 2. Drive the decision tree" \
-  "b0da60d8745a07a969b6fe428cc5f201ec796662d5d258547a7178e2fc79e5f9"
+  "6c1565b7b7b28cb9a9d6bed6fbb7522b5c3657309189f1a7ecc5ec7afe4fd205"
+# The problem-confirmation paragraph puts the unattended confirmation under rung 3 as a
+# `blocked` USER-RESERVED row; a pre-confirmed item writes that row `answered` citing the label, so the register still gates. Rungs 3-5 are byte-identical.
 pin_section "loop.md Unattended path section is unchanged (the ladder lives here)" \
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "ddbd75a97ad5e2bb4a97215dd7d52b18bb9775d9c26964d7e5a22cdd17287cbb"
+  "07f44c97d6115b9d6e9016bd6c511ca4ab9b89ca37a21de65b9db10e60cdb304"
 
+# Case A's exemption expectation now names `lock`'s one problem question and its invocation
+# confirming the rest; it still says invoking `lock` does not license guessing, and the halt expectations stand.
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \
-  "2f9db80a10e17b2c37e8623680755b5857fadefa87fdf8a0e54af1e145548c2e"
+  "6b70dca686448add3ffcc435f3026a1ea0635a94e8675b123fbff2f92648e257"
 # The page paragraph now opens with the configured surface value in bold and says a `page`
 # value starts the page before the first round, with no round asked inline. It only names
 # where a round is asked; the `lock` row and its reading are unchanged and no defense weakened.
@@ -594,20 +615,25 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # The page paragraph writes the register's `open` rows with `round.sh sync-ledger` in the same step as `add-round`, and a forced wrap-up reports what it skipped; the `lock` row is unchanged.
 # The substitution record cites the live manifest-reference page in place of the retired plugins-reference page and moves its as-of date; the `lock` row is unchanged.
 # The opt-in AskUserQuestion paragraph bounds a card round by one call's question limit, cited to the live Agent SDK page, in place of a hard-coded count; the `lock` row is unchanged.
+# The page-lane text moved to context/lane-page.md, a lane table was added, and the router gained the `share [<topic>]` row; the `lock` row is byte-identical.
+# The `lock` row now confirms the one-line problem with one question before synthesis; its STOP-on-gap clause is unchanged.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "0d4ad21f4beb486a89babbce668f70a8e827ef97d87b46852f825b065b758430"
+  "cf71745426cb4e6b3def423ba3ff8c75eda4ee2a797bef9c39d36278f7792273"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
 # The `--brief` note names `brief=unconfirmed`, another exit-1 halt, and the fresh-Confirm rule; the gate and the `lock` exemption are unchanged.
+# The `lock` exemption became one registered problem question, and the no-question carve-out no
+# longer names `lock`; both bring `lock` under the gate and keep STOP-on-gap. The carve-out
+# says `lock` always writes its problem row, so its register always gates.
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "bcc5cd31acf1f4150736961451d305ab4f8fcf7a91ef38574bada852a1552980"
+  "8f439fd3dd258d3121768851a155733657dae22d7c687de1468d3b3440264717"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
@@ -641,11 +667,12 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The page bullet names the page's option labels, and the "Continue on signal" bullet routes a pause through /session-flow:workflow, then resolves the surface again and runs `round.sh doctor`; neither changes which rows a reply may close.
+# The section's pointers now name context/lane-page.md and context/question-shape.md; a pointer changes no rule.
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "52eb0051adfbb7b7a7fbc99bab854138ff52eae7f5ad1d1c8e78993d0d7862c8"
+  "ac4456c25873fde66592daa3202789a242c15b7bea34b50cde9076a6864bbed2"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "9fd949249c01cdd3217765208d694a960453762c2d7067d6a224ea49aead9c7d"
@@ -676,8 +703,12 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Case 26 (scope returns resolved and unresolved rows, writes no PLAN.md) grades a `blocked`
 # `USER-RESERVED` row that is returned and never assumed, so it agrees with cases 15 and 16.
 # Case 27 (a resumed recommendation re-grounded against a later constraint) grades a re-check before a round is shown; it resolves no row, so it agrees with cases 15 and 16.
+# Case 30 (shared-session-starts-share-before-first-round) grades that a shared session starts `share` before the first round; it resolves no row, so it agrees with cases 15 and 16.
+# Case 31 (ship-it-drops-questions-not-gates) moves the open rows to deferred as `USER-RESERVED` on the user's own ship-it, never answered with an invented answer, and keeps the confirmation gate, so it agrees with cases 15 and 16.
+# Cases 32-34 (wayfind-trigger-needs-two-rounds-running, declined-wayfind-not-repeated-until-escalation, never-switches-to-wayfind-on-its-own) grade only when wayfind is recommended and that the switch waits for the user; they resolve no row, so they agree with cases 15 and 16.
+# Case 35 (ship-it-confirmed-writes-deferred-brief) starts after the user confirmed and grades that the Brief keeps the deferred rows `USER-RESERVED` with no invented answer and that the handoff waits on the cross-check, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "ce373643629fb2678996c3069ab0bbe5a4408cc924a4a683b4a14c7080012eb1"
+  "be9aac7e306b1066ea3d97eb65ca4f056c08a625d3de9a9460a17cafb9332d30"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
@@ -688,12 +719,14 @@ pin_case_set "the eval-case roster is unchanged (no sibling case added that cont
 pin_case_digest "sibling case 2 still forbids folding a user choice into the Brief" \
   "auto-guard-never-folds-user-choice" \
   "73ef5bcb0cef36ff7f5523d93a4f3d8906285e9552f5e38be042b42376b367a7"
+# Case 3 adds the one-line problem question and, for its solution-shaped prompt, rethink-or-accept; its no-fudge expectations stand.
 pin_case_digest "sibling case 3 still forbids fudging a gap in \`lock\` mode" \
   "lock-mode-does-not-fudge-gap" \
-  "2ebe05ff4d99547ad9ce80a720fb8f0d807dfc72ceb16040d5fbc992eaaa376d"
+  "514f6a7c3dff3378cd22d99af4dcca604400338227d2e3b038d02cccc636e866"
+# Case 13 adds the unconfirmed problem as a `blocked` USER-RESERVED row; every named-blocker expectation stands.
 pin_case_digest "sibling case 13 still requires named blockers instead of assumptions" \
   "unattended-run-emits-named-blockers-not-assumptions" \
-  "1e82d5cddc52989a95d1847fd78a89280c73a6d026c1c841da47b1d374378a77"
+  "f838f1b1591a5a39bdeed80a52baa1c01c5ddfe1c8f48df42ae8c7de580b5a4e"
 # Three more cases rest on the same fact-vs-decision line the auto-guard draws, or on the
 # no-silent-resolution rule. Case 8 was rewritten in place — "where a decision has a
 # defensible conventional default, the skill resolves it on the user's behalf and records
@@ -769,9 +802,10 @@ pin_once "\"does NOT do\" list names the fudge prohibition" "$SKILL" \
 pin "the fudge prohibition names the halt and the fallback, not just the ban" "$SKILL" \
   "STOP and surface it. Fall back to \`auto\` or \`me\` instead of guessing"
 
-# A5. The confirmation-gate exemption must not be readable as a STOP-on-gap exemption.
+# A5. `lock`'s confirmation must not be readable as a STOP-on-gap exemption. It now confirms
+#     the problem with one question and takes its invocation as confirming the rest.
 pin "confirmation-gate exemption preserves STOP-on-gap" "$SKILL" \
-  "\`lock\` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies)"
+  "its invocation confirms the rest (its STOP-on-gap rule still applies)"
 
 # A6. loop.md carries the operative STOP wording the case grades the offer against.
 pin "loop.md carries the STOP-and-surface offer" "$LOOP" \
@@ -843,8 +877,8 @@ pin "loop.md: the confirmation restate lists every hedged row" "$LOOP" \
   "lists every row carrying \`hedged:\`, and every \`free-text:\` row whose answer is hedged, for explicit confirmation"
 pin "loop.md: a hedged own answer typed on the page gets the same echo" "$LOOP" \
   "A hedged \"Own answer\" typed on the page gets the same echo on its wake"
-pin "SKILL.md: the Stance names both question-surface rules" "$SKILL" \
-  "The surface follows the two \"Question surface\" rules above"
+pin "SKILL.md: the Stance names the lane table that carries the question-surface rules" "$SKILL" \
+  "The surface follows the lane table above"
 pin "SKILL.md: on the page, commitment parts are \`commits\` entries" "$SKILL" \
   "on the page, its parts are the question's \`commits\` entries"
 pin "loop.md defines commitment parts on the page" "$LOOP" \
@@ -902,8 +936,8 @@ pin "SKILL.md: the confirmation restatement carries a recap generated from the r
   "generated from the register on disk, never from the transcript, so it survives a compaction"
 pin "SKILL.md: each recap line carries the question text, not only its id and resolution" "$SKILL" \
   "shaped \`Q<N> <status>: <question text> (<resolution>)\`"
-pin "SKILL.md: the Step 4 cross-check names the seven Brief template headings it requires" "$SKILL" \
-  "the Brief carries all seven template headings"
+pin "SKILL.md: the Step 4 cross-check names the nine Brief template headings it requires" "$SKILL" \
+  "the Brief carries all nine template headings"
 pin "SKILL.md: the procedure check is cited by exit code, not by the model's account" "$SKILL" \
   "cite its exit code and \`procedure=\` field as the evidence that the procedure ran, never your own account of it"
 pin "SKILL.md: a non-zero procedure exit halts the confirmation request" "$SKILL" \
@@ -943,12 +977,14 @@ pin "surface.md lists the accept-audit event kind" "$PLUGIN_DIR/skills/interview
 # A8. Whole-line pins — the five lines that ARE the STOP-on-gap defense. These catch the
 #     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of
 #     them ("in practice a gap counts as real only when …") changes the line and fails here.
+#     The router row and the confirmation-gate line now give `lock` one problem question; each
+#     keeps its STOP-on-gap clause word for word.
 pin_exact "router \`lock\` row is byte-identical to the pinned defense" "$SKILL" \
-  '| `lock` | **Force synthesis, no Q&A** | "Stop asking, just write it", "I'"'"'m clear, lock the brief". Skip auto-detect, synthesize directly. If a real gap surfaces during synthesis, STOP and surface it (do not fudge) |'
+  '| `lock` | **Force synthesis, one problem question** | "Stop asking, just write it", "I'"'"'m clear, lock the brief". Skip auto-detect, confirm the one-line problem with one question, synthesize directly. If a real gap surfaces during synthesis, STOP and surface it (do not fudge) |'
 pin_exact "Step 1.5 \`lock\` routing line is byte-identical to the pinned defense" "$SKILL" \
   'For `lock`: skip Step 1.5 AND Step 2, synthesize directly. If a gap surfaces mid-synthesis, STOP and surface; do not fudge.'
 pin_exact "the confirmation-gate paragraph is byte-identical to the pinned defense" "$SKILL" \
-  '**Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient. Before persisting the contract or handing off, restate the shared understanding and get the user'"'"'s explicit confirmation that it is reached. Do not act on the interview'"'"'s output until they confirm. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies).'
+  '**Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient. Before persisting the contract or handing off, restate the shared understanding, opening with the one-line problem, and get the user'"'"'s explicit confirmation that it is reached. Do not act on the interview'"'"'s output until they confirm. `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest (its STOP-on-gap rule still applies).'
 pin_exact "the fudge-prohibition bullet is byte-identical to the pinned defense" "$SKILL" \
   '- **Does not fudge gaps in `lock` mode**. If a true unknown surfaces during synthesis, STOP and surface it. Fall back to `auto` or `me` instead of guessing'
 pin_exact "loop.md's \`lock\` STOP-on-gap line is byte-identical to the pinned defense" "$LOOP" \

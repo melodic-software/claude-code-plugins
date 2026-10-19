@@ -3,6 +3,24 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.17.0] - 2026-10-18
+
+### Added
+
+- `/harness-ops:morning-brief` gains a Lanes section: per lane workflow over the last 7 days, runs, failures by class (rate-limit, max-turns, auth, other), limit stops, restarts and items with 3 or more limit stops (an item is a pull request run's head, else the event and the `#N` that ends the run title), then turn headroom (max and p90 turns against the max-turns cap) with a `CHECK` line and run links when a run hit max-turns or the p90 is at or above 80% of the cap. A run the action stopped for exceeding its turn cap counts as max-turns whatever class the lane record gives. New flags: `--lane-workflows`, `--lane-read-limit`, and the fixture flags `--lane-runs-json` and `--lane-annotations-json`.
+
+- `/harness-ops:morning-brief`'s Lanes section gains a model-usage table, a baseline before model routing changes anything: per activity and profile over the runs that carry a lane record, runs, passes, median turns, max-turns hits and the models the lane records name (`models=`), with no sizes or costs. A pipeline lane's activity comes from its job's name in the jobs read the section already makes; the profile is the record's `profile=`, else `unknown`. New flag `--max-turns-hits N`: a row whose max-turns hits exceed it gets a `RECOMMENDED` line; unset by default, and the table then says no threshold is set.
+
+- **`/harness-ops:audit-mod-posture`**: a read-only inventory of the mods this Claude Code can run. Installed mods are found by `modules` in `hooks/hooks.json` (or an inline hooks object) and read with `claude plugin validate`, which does not load them or change their directory; built-in mods come from an `/harness-ops:inventory` report, with whether each can be turned off read from the live mods overview. Each row's tier is its install scope (managed, local, project or user) or builtin, and a built-in reads on only when its setting is on and it is not gated (a gated one reads off when a listed gate flag is false, else unknown). It states whether the built-in guard is seated (managed settings, or a Team or Enterprise plan) and scores M1-M5. It prints names only, never settings, env or account values. Runtime impact: on demand only, no hook. The installed tier takes about 3.5 s (five mods on the measured host: validate per mod plus one cached docs fetch); the inventory report the built-in tier reads took about 41 s and is produced only when built-ins are wanted. Without it, a footer says built-in mods were not read.
+
+### Fixed
+
+- `/harness-ops:plugins` no longer trusts the cwd to pick the project-scope record when sibling worktrees hold a record of the same id. `converge` Step 4 now checks that the intended record moved and reports a misfire as its own row. `sync` reads a project or local version only from the `currentProject` record, and reports an update that moved another record as a failed row.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
+- `prerequisites.json` declares the Claude Code 2.1.287 floor the hooks module needs, so the prerequisites report names an older Claude Code instead of the module silently not loading.
+
 ## [3.16.2] - 2026-10-16
 
 ### Fixed

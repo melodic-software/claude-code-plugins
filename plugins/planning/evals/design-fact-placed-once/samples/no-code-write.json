@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/upload-cap/design/design-threads.md",
+            "content": "# Design threads\n"
+          }
+        }
+      ],
+      "why": "a design artifact is allowed"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "uploads/limits.py",
+            "content": "MAX_UPLOAD_BYTES = 25 * 1024 * 1024\n"
+          }
+        }
+      ],
+      "why": "wrote code"
+    }
+  ]
+}

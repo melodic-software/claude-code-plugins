@@ -1,0 +1,7 @@
+{
+  "name": "log-api-budget",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

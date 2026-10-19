@@ -14,7 +14,7 @@ graders:
     target: last_message
   - name: advancing-reply-literal
     type: regex
-    pattern: '\b(?:tell me|reply(?: with)?|respond(?: with)?|say|type|send(?: me)?|answer)\b[^\n`\"“”]{0,40}[`\"“][^`\"“”\n]{2,40}[`\"”]|\b(?:tell me|reply(?: with)?|respond(?: with)?|say|type|send(?: me)?|answer)\b[^\n`]{0,40}:[ \t]*\n+[ \t]*```(?!(?:powershell|pwsh|ps1|bash|sh|shell|cmd|console)\b)[\w-]*[ \t]*\n[ \t]*[^\n`]{2,40}\n[ \t]*```'
+    pattern: '\b(?:tell me|reply(?: with)?|respond(?: with)?|say|type|send(?: me)?|answer)\b[^\n`\"“”]{0,40}[`\"“][^`\"“”\n]{2,40}[`\"”]|\b(?:tell me|reply(?: with)?|respond(?: with)?|say|type|send(?: me)?|answer)\b[^\n]{0,120}:[ \t]*\n+[ \t]*```(?!(?:powershell|pwsh|ps1|bash|sh|shell|cmd|console)\b)[\w-]*[ \t]*\n[ \t]*[^\n`]{2,40}\n[ \t]*```'
     flags: 'i'
     target: last_message
   - name: expected-result-stated
@@ -24,6 +24,6 @@ graders:
     target: last_message
   - name: performer-labeled
     type: regex
-    pattern: '\((?:you|me|I|claude|assistant)\)|\[(?:you|me|I|claude|assistant)\]|\b(?:performer|performed by|done by|who acts|who)\b[ \t]*\**[ \t]*[:—–|-]|\*\*(?:you|me|I|claude|assistant)\*\*[ \t]*[:—–-]?|^[ \t]*(?:\d+[.)][ \t]*)?\**(?:you|me|claude)\**[ \t]*:'
+    pattern: '(?<![\s\S])(?![\s\S]*?^[ \t]*\d+[.)][ \t]+(?![(\[](?:you|me|I|claude|assistant)[)\]]|\*\*(?:you|me|I|claude|assistant)\b|(?:you|me|I|claude|assistant)\*{0,2}[ \t]*[:—–-])\S)(?![\s\S]*?^[ \t]*\|[ \t]*\d+[ \t]*\|[ \t]*(?!\**(?:you|me|I|claude|assistant)\b)\S)(?=[\s\S]*?(?:\((?:you|me|I|claude|assistant)\)|\[(?:you|me|I|claude|assistant)\]|\b(?:performer|performed by|done by|who acts|who)\b[ \t]*\**[ \t]*[:—–|-]|\*\*(?:you|me|I|claude|assistant)\*\*[ \t]*[:—–-]?|^[ \t]*(?:\d+[.)][ \t]*)?\**(?:you|me|claude)\**[ \t]*:))'
     flags: 'mi'
     target: last_message
