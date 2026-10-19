@@ -7,13 +7,24 @@ name: pr-unblock-dispatch
 # PRs raises one push, so the listing reads main as it is now, not the push.
 # The same run dispatches review-dependency for each open Dependabot PR the
 # classifier sorts `review` whose head has no review-dependency check run yet
-# (.github/scripts/pr-unblock/dependency-dispatch.mjs). No schedule: the
-# broker accepts a dispatcher run started by a push or a listed human only.
+# (.github/scripts/pr-unblock/dependency-dispatch.mjs), and fix-ci for each
+# open lanes App PR whose head's ci-status failed and has no fix-ci run yet,
+# at most limits.fix-ci-per-run per run, from one GraphQL query whose
+# rateLimit.cost it logs (.github/scripts/pr-unblock/fix-ci-dispatch.mjs). No
+# schedule: the broker accepts a dispatcher run started by a push or a listed
+# human only.
 #
 # No model and no App token: the job's GITHUB_TOKEN can only read and start
 # workflow runs. A run started by hand, or a re-run of a push run, must come
 # from a listed trusted human. The dispatched lane runs its own trigger gate,
-# kill switch and config, so this job adds no label or author filter.
+# kill switch and config. Only the fix-ci listing filters by author and hold
+# label, to spend no model run on a PR the lane would skip.
+#
+# The token's budget is logged at the start and end of the job
+# (.github/actions/log-api-budget), and the script logs its own call counts.
+# The heads whose check runs already handle them for good are carried from
+# run to run in the Actions cache (dispatch-record.mjs), so a later run skips
+# their reads. A run only skips work on the record, never dispatches on it.
 
 on:
   push:
@@ -22,21 +33,23 @@ on:
 
 permissions: {}
 
-# A newer push replaces a waiting listing: the newest listing supersedes it.
-concurrency:
-  group: pr-unblock-dispatch
-  cancel-in-progress: false
-
 jobs:
   dispatch:
     # A dispatch on another branch would run that branch's copy of this file.
     if: github.ref == 'refs/heads/main'
+    # A burst of pushes collapses into one listing: a newer run cancels the
+    # one waiting or going, since the newest listing reads main as it is
+    # now. The record steps run on cancel too (always()), so a run cancelled
+    # after a dispatch still records it.
+    concurrency:
+      group: pr-unblock-dispatch
+      cancel-in-progress: true
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read # check out main
       pull-requests: read # list open PRs and their mergeable state
-      checks: read # skip a PR whose head already has a pr-unblock check run
+      checks: read # skip a PR whose head already has a pr-unblock check run; read ci-status
       actions: write # list and dispatch pr-unblock.yml runs
     steps:
       - name: Check out the default branch tip
@@ -54,6 +67,14 @@ jobs:
         with:
           node-version-file: .base/.node-version
           package-manager-cache: false
+
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
 
       - name: Check the kill switch
         id: kill
@@ -96,25 +117,64 @@ jobs:
           echo "::error::${REASON:-untrusted-actor}: this run was not started by a listed trusted human"
           exit 1
 
-      - name: Dispatch pr-unblock for conflicting PRs and review-tier Dependabot PRs
+      # dispatch.mjs reads the base config's `limits` through the base's
+      # resolve-config, which needs its dependencies.
+      - name: Install resolve-config's dependencies
+        if: >-
+          steps.kill.outputs.proceed == 'true'
+          && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      # The newest record a run of this workflow saved; none on the first run.
+      - name: Restore the dispatch record
+        if: >-
+          steps.kill.outputs.proceed == 'true'
+          && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/pr-unblock-dispatch-record.json
+          key: pr-unblock-dispatch-record-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pr-unblock-dispatch-record-
+
+      - name: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs
         id: dispatch
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # fix-ci starts only on PRs the lanes App opened, matched by this id.
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          RUN_IDS_FILE: ${{ runner.temp }}/pr-unblock-run-ids
+          DISPATCH_RECORD: ${{ runner.temp }}/pr-unblock-dispatch-record.json
         run: node .base/.github/scripts/pr-unblock/dispatch.mjs
+
+      - name: Save the dispatch record
+        if: always() && steps.dispatch.outputs.record-changed == 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/pr-unblock-dispatch-record.json
+          key: pr-unblock-dispatch-record-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The record of which runs this run dispatched: an artifact only steps of
       # this run can upload, named with every id so a reader needs one list
       # call and no download. It outlives the 10-minute dispatch window and
-      # runs after a partial dispatch failure, which still sent the others.
+      # runs after a partial dispatch failure, which still sent the others,
+      # and after a cancel mid-dispatch: dispatch.mjs appends each id to the
+      # file as soon as its dispatch returns.
       - name: Name the dispatched-runs record
         id: record
-        if: always() && steps.dispatch.outputs.run-ids != ''
+        if: always() && steps.dispatch.outcome != 'skipped'
         env:
-          RUN_IDS: ${{ steps.dispatch.outputs.run-ids }}
+          RUN_IDS_FILE: ${{ runner.temp }}/pr-unblock-run-ids
         run: |
+          RUN_IDS=$(tr '\n' ' ' <"$RUN_IDS_FILE" 2>/dev/null | sed 's/ *$//') || RUN_IDS=""
+          if [ -z "$RUN_IDS" ]; then
+            echo "no run dispatched"
+            exit 0
+          fi
           if [[ ! "$RUN_IDS" =~ ^[1-9][0-9]{0,14}(\ [1-9][0-9]{0,14})*$ ]]; then
             echo "::error::run-ids is not a list of run ids"
             exit 1
@@ -125,7 +185,7 @@ jobs:
 
       - name: Record the dispatched runs
         if: >-
-          always() && steps.dispatch.outputs.run-ids != ''
+          always() && steps.record.outputs.name != ''
           && steps.record.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -133,3 +193,12 @@ jobs:
           path: ${{ runner.temp }}/pr-unblock-dispatched.json
           retention-days: 1
           if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}

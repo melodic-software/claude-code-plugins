@@ -1,0 +1,18 @@
+# Skill files that already used a `${user_config.KEY}` token as the subject of
+# a condition with no inline fallback ("When `${user_config.x}` is true") when
+# check 31 of check-skill.sh became a FAIL.
+#
+# Read by check-skill.sh by default; CHECK_SKILL_SETTINGS_TOKEN_BASELINE
+# overrides the path. A listed file WARNs while its hit count holds; a new hit
+# in it, or any hit in an unlisted file, FAILs.
+#
+# The list can only SHRINK: the checker FAILs on a row whose count is now lower
+# (lower the row) or zero, or whose file is gone (remove the row). Never add a
+# row or raise a count because CI is red on a sentence you just wrote: state the
+# fallback in that sentence instead, e.g. "(unexpanded, empty, or any other
+# value means `false`)".
+#
+# Format: `<repo-relative path> <hit count>`, optionally followed by `# note`.
+# Blank lines and `#` lines are ignored.
+
+plugins/evals/skills/plugin-eval/SKILL.md 1

@@ -64,7 +64,10 @@ the adapter's own bound (or a bound no real file reaches when there is no
 cap) so the pre-filter is the only gate on either major. Every skip is
 reported as one line to the file named by CODE_METRICS_PARTIAL_REASON_FILE
 (the dispatcher's channel for a `partial` run row), or to stderr when that
-variable is unset. `statistics.total.sources` in the jscpd report counts token
+variable is unset. A file whose name is not valid UTF-8 is left out the same
+way and named (bad bytes escaped) in that line: jscpd 5.x fails the whole run
+with no report on such a name and 4.x silently drops the file, so the adapter
+never hands one over. `statistics.total.sources` in the jscpd report counts token
 sources, not files, and is not read for this purpose.
 
 jscpd's own exit code is not read for success: it exits non-zero when a
@@ -208,26 +211,57 @@ def prefilter(
     return kept, skipped
 
 
+def split_invalid_names(files: list[str]) -> tuple[list[str], list[str]]:
+    """Split `files` into names jscpd can be handed and names it cannot.
+
+    `files_from` keeps a non-UTF-8 byte as a lone surrogate (`surrogateescape`),
+    which does not encode back to UTF-8. Neither major can take such a name:
+    5.x fails the whole run with no report, and 4.x decodes it with
+    replacement and silently drops the file. The second list holds each
+    unusable name with its bad bytes escaped (`\\xff`).
+    """
+    usable: list[str] = []
+    invalid: list[str] = []
+    for path in files:
+        try:
+            path.encode("utf-8")
+        except UnicodeEncodeError:
+            raw = path.encode("utf-8", "surrogateescape")
+            invalid.append(raw.decode("utf-8", "backslashreplace"))
+            continue
+        usable.append(path)
+    return usable, invalid
+
+
 def report_skips(
     skipped: list[tuple[str, int, int | None]],
+    invalid: list[str],
     total: int,
     size_text: str,
     lines_text: str,
 ) -> None:
-    """One line naming how many files a cap left out, and the largest one."""
-    if not skipped:
+    """One line naming what a cap or a non-UTF-8 name left out of the scan."""
+    parts: list[str] = []
+    if skipped:
+        path, size, lines = max(skipped, key=lambda entry: entry[1])
+        if lines is None:
+            try:
+                lines = count_lines(path)
+            except OSError:
+                lines = 0
+        parts.append(
+            f"{len(skipped)} of {total} files skipped by duplication.max_size "
+            f"{size_text or 'none'} / max_lines {lines_text or 'none'}; "
+            f"largest: {relative_to_cwd(path)} ({size} bytes, {lines} lines)"
+        )
+    if invalid:
+        parts.append(
+            f"{len(invalid)} of {total} files skipped, name is not valid UTF-8: "
+            + ", ".join(invalid)
+        )
+    if not parts:
         return
-    path, size, lines = max(skipped, key=lambda entry: entry[1])
-    if lines is None:
-        try:
-            lines = count_lines(path)
-        except OSError:
-            lines = 0
-    reason = (
-        f"{len(skipped)} of {total} files skipped by duplication.max_size "
-        f"{size_text or 'none'} / max_lines {lines_text or 'none'}; "
-        f"largest: {relative_to_cwd(path)} ({size} bytes, {lines} lines)"
-    )
+    reason = "; ".join(parts)
     target = os.environ.get("CODE_METRICS_PARTIAL_REASON_FILE")
     if target:
         try:
@@ -338,8 +372,9 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     except ValueError as exc:
         print(f"jscpd.py: {exc}", file=sys.stderr)
         return 2
-    kept, skipped = prefilter(files, size_cap, line_cap)
-    report_skips(skipped, len(files), size_text.strip(), lines_text.strip())
+    usable, invalid = split_invalid_names(files)
+    kept, skipped = prefilter(usable, size_cap, line_cap)
+    report_skips(skipped, invalid, len(files), size_text.strip(), lines_text.strip())
     if not kept:
         # Nothing left to scan is a measurement of zero, not a failure; the
         # skip line above says what was left out.

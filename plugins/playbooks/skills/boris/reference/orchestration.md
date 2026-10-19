@@ -21,7 +21,14 @@ Tips from Boris Cherny's Parts 13–15 threads + the Thariq/Sid workflows deep-d
 
 ## 78. Opus 4.8: Strongest Coding Model Yet
 
-Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](https://www.anthropic.com/news/claude-opus-4-8#opus-48s-capabilities): SWE-Bench Pro 64.3 → 69.2; Terminal-Bench 2.1 66.1 → 74.6. The bigger shift is honesty: it tells you when it's unsure and catches its own bugs instead of declaring victory early. A model that overclaims at step 4 wastes the next 40 steps, so honesty is what makes async work (`/goal`, workflows) actually finish. Also shipped: Fast mode for Opus 4.8 (research preview, ~2.5× speed, toggle `/fast`) and effort control on claude.ai.
+Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](https://www.anthropic.com/news/claude-opus-4-8#opus-48s-capabilities): SWE-Bench Pro 64.3 → 69.2; Terminal-Bench 2.1 66.1 → 74.6. The bigger shift is honesty: it tells you when it's unsure and catches its own bugs instead of declaring victory early. A model that overclaims at step 4 wastes the next 40 steps, so honesty is what makes async work (`/goal`, workflows) actually finish. Also shipped: Fast mode for Opus 4.8 (research preview, toggle `/fast`) and effort control on claude.ai.
+
+- **Pointer**: the speedup, supported models and rates have changed since launch and are not restated
+  here; for what fast mode is and how to toggle it, fetch
+  [Toggle fast mode](https://code.claude.com/docs/en/fast-mode#toggle-fast-mode) live.
+- **As of**: 2026-10-18
+- **Recheck trigger**: that section changes how fast mode is toggled, or a Claude Code release note
+  touches it.
 
 > **Superseded (Jun 9, 2026):** Fable 5 is now the strongest coding model (Section 94). Opus 4.8 details remain accurate for that release.
 
@@ -47,17 +54,37 @@ Research preview (May 28, 2026) for tasks too big for one pass. Trigger: say **"
 
 From Thariq Shihipar + Sid Bidasaria (the engineers who built them): the default harness plans AND executes in one context window, and long single-window work develops (1) **agentic laziness**, declaring done after partial progress; (2) **self-preferential bias**, preferring its own results when judging; (3) **goal drift**, where lossy compaction quietly drops "don't do X" constraints. A workflow orchestrates separate Claudes, each with its own context window and one focused goal: laziness loses to a deterministic loop, bias loses to a different judge, drift loses because small goals never get summarized away.
 
+- **Pointer**: the three failure modes are defined in the blog post's
+  [Why dynamic workflows](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#why-dynamic-workflows).
+- **As of**: 2026-10-18 (post published 2026-06-02)
+- **Recheck trigger**: that section adds, renames or removes a failure mode.
+
 ## 82. Workflow Primitives, and Dynamic vs Static
 
 A dynamic workflow is a JavaScript file built from `agent()`, `parallel()` (barrier: waits for all) and `pipeline()` (no barrier: items stream through stages independently). For the current primitives and `agent()` options, see [What the saved script looks like](https://code.claude.com/docs/en/workflows#what-the-saved-script-looks-like) and the bundled `/workflow-authoring` skill (as of 2026-10-02; recheck when that section adds or renames a primitive). Workflows are resumable: interrupt and resume picks up where it left off. Dynamic beats static (Agent SDK / `claude -p`): static harnesses must handle every edge case so they end up generic; Opus 4.8+ writes a custom harness tailor-made for the case.
+
+- **Pointer**: for the dynamic-versus-static argument, see the blog post's
+  [Dynamic vs static workflows](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#dynamic-vs-static-workflows).
+- **As of**: 2026-10-18
+- **Recheck trigger**: that section changes the comparison or the model it names.
 
 ## 83. The Six Workflow Patterns Claude Composes
 
 1. **Classify-and-act**: classifier routes to different agents/behavior. 2. **Fan-out-and-synthesize**: parallel agents, barrier, merge. 3. **Adversarial verification**: a separate agent verifies each output against a rubric (kills self-preferential bias). 4. **Generate-and-filter**: many ideas, filter by rubric, return the tested few. 5. **Tournament**: N agents compete, judge pairwise (comparative judgment beats absolute scoring). 6. **Loop-until-done**: keep spawning agents until a stop condition, not a fixed pass count. Claude mixes and nests them; knowing the names helps you nudge via prompt.
 
+- **Pointer**: for the pattern list, see the blog post's
+  [Helpful patterns when using dynamic workflows](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#helpful-patterns-when-using-dynamic-workflows).
+- **As of**: 2026-10-18
+- **Recheck trigger**: that section adds, renames or removes a pattern.
+
 ## 84. Workflow Use Cases: Often Better for Non-Coding Work
 
 Thariq: sometimes more useful for non-technical work. Migrations/refactors (Bun's Zig→Rust rewrite used workflows); deep research + the inverse, deep verification ("verify every technical claim in my blog draft against the codebase"); sorting 1,000+ items via tournament/pairwise pipeline; memory/rule adherence (one verifier per rule + a skeptic persona); root-cause investigation (independent hypotheses, each facing refuters); triage/taste/evals/routing (quarantine pattern for untrusted content).
+
+- **Pointer**: for the use-case list, see the blog post's
+  [Use cases](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#use-cases).
+- **As of**: 2026-10-18
+- **Recheck trigger**: that section adds, renames or removes a use case.
 
 ## 85. Pair Workflows with /goal, /loop, and Token Budgets
 

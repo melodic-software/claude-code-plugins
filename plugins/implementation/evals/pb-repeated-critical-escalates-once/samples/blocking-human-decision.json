@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "- 2026-10-18T14:02Z human-decision (blocking): Phase 4 `Review: security` re-review rates `api/search.py:42` CRITICAL again (SQL built by concatenating `q`). Fix tried: `escape_like()` in 9c2e5d71. Needs a person: parameterize the query, accept the risk, or replan.\n\nNext: Phase 4 stays unmarked and the run parks with a handoff.",
+      "why": "typed and marked on one line"
+    },
+    {
+      "answer": "### human-decision\nPhase: 4 (security)\nFinding: api/search.py:42 concatenates q into SQL, CRITICAL on the re-review too.\nBlocking: the run cannot continue without a person.",
+      "why": "type and blocking marker on separate lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "- deviation: plan said Phase 4 passes review; found api/search.py:42 CRITICAL twice; chose to continue; revisit at PR review.",
+      "why": "logged as a plain deviation, not a blocking human-decision"
+    },
+    {
+      "answer": "- human-decision (non-blocking): api/search.py:42 still CRITICAL after the escape_like fix; revisit at PR time.",
+      "why": "marked non-blocking"
+    }
+  ]
+}

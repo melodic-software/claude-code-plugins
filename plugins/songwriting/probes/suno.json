@@ -1,0 +1,132 @@
+{
+  "skill": "songwriting:suno",
+  "plugin": "songwriting",
+  "skill_dir": "plugins/songwriting/skills/suno",
+  "ranking_note": "Authored from the before descriptions at commit 11a25e8bb3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling songwriting skills the near-miss negatives aim at; one or two negatives are adjacent non-songwriting requests.",
+  "competitors": [
+    "songwriting:song-form",
+    "songwriting:diagnose",
+    "songwriting:rhyme",
+    "songwriting:workflow",
+    "songwriting:meter-prosody",
+    "songwriting:co-write"
+  ],
+  "competitor_dirs": {
+    "songwriting:song-form": "plugins/songwriting/skills/song-form",
+    "songwriting:diagnose": "plugins/songwriting/skills/diagnose",
+    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
+    "songwriting:workflow": "plugins/songwriting/skills/workflow",
+    "songwriting:meter-prosody": "plugins/songwriting/skills/meter-prosody",
+    "songwriting:co-write": "plugins/songwriting/skills/co-write"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write me a style box description for Suno, gritty 70s soul with horns."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Suno keeps mumbling the words in my second verse. How do I stop that?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Format my lyrics with section tags so Suno sings them right."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What tempo and vocal descriptors should I use for a lo-fi bedroom pop track in Suno?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can I use my own voice in Suno? How does that work?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn this verse and chorus into something I can paste into Suno."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What's new in Suno 5.5 that I should be using?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Research what makes a good Suno prompt for Afrobeats."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My Suno track keeps adding an intro I didn't ask for."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where should my title go in the chorus?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review my lyric draft."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rhymes for 'midnight'."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I want to write a song from scratch, where do I begin?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a Midjourney prompt for an album cover."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Scan this line for stresses."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me 20 song titles."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Help me mix the vocals in my DAW."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a prompt for Udio, a different AI music app."
+    }
+  ]
+}

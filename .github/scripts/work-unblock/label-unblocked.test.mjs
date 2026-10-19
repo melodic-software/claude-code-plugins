@@ -66,7 +66,11 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // gives the blocking list of closed issues other than number 10.
 // `openReady` is what the sweep's open agent-ready listing answers.
 // `runs` is every work-resolve-issue run; the listing answers those created in
-// the `created` range it is asked for. `blobs` maps a path to its blob SHA on main.
+// the `created` range it is asked for; `jobs` are per run id. `openLanePrs` is
+// how many open lanes-App PRs, none held, the search lists; null makes the
+// listing fail. `mergedLanePrs` is the search's merged count in the window
+// (24 by default: a WIP cap of 2), null makes it fail.
+// `blobs` maps a path to its blob SHA on main.
 // `timeline` and `pulls` are per issue and per pull request number.
 function world({
   blocking,
@@ -78,6 +82,9 @@ function world({
   comments = {},
   events = {},
   runs = [],
+  jobs = {},
+  openLanePrs = 0,
+  mergedLanePrs = 24,
   blobs = {},
   timeline = {},
   pulls = {},
@@ -103,6 +110,25 @@ function world({
       const [from, to] = params.get("created").split("..").map(Date.parse);
       const inRange = runs.filter((run) => Date.parse(run.created_at) >= from && Date.parse(run.created_at) <= to);
       return { workflow_runs: listed(inRange) };
+    }
+    if (method === "GET" && route === "/search/issues") {
+      const q = new URL(path, "https://x").searchParams.get("q");
+      if (q === `repo:${REPO} is:pr is:open author:app/melodic-automation-lanes`) {
+        if (openLanePrs === null) {
+          throw new Error(`${method} ${path} failed with status 403`);
+        }
+        const open = Array.from({ length: openLanePrs }, () => ({ labels: [], body: "", created_at: STAMP }));
+        return { total_count: openLanePrs, incomplete_results: false, items: open.slice((page - 1) * 100, page * 100) };
+      }
+      assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/melodic-automation-lanes (merged|created):>=\S+$/);
+      if (q.includes("is:merged") && mergedLanePrs === null) {
+        throw new Error(`${method} ${path} failed with status 403`);
+      }
+      return { total_count: q.includes("is:merged") ? mergedLanePrs : 0, incomplete_results: false, items: [] };
+    }
+    if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/actions/runs/(\\d+)/jobs$`)))) {
+      assert.equal(new URL(path, "https://x").searchParams.get("filter"), "latest");
+      return { jobs: jobs[match[1]] ?? [] };
     }
     if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/pulls/(\\d+)$`))) && pulls[match[1]]) {
       return pulls[match[1]];
@@ -871,6 +897,143 @@ test("a third limit stop since a person added agent-ready adds needs-human with 
   assert.deepEqual(writes(reset.calls), restarted(30));
 });
 
+// The sweep reads the resolved config's `limits` (hours and counts) from the
+// file resolve-config wrote.
+const withLimits = (limits) => {
+  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-limits-")), "resolved-config.json");
+  writeFileSync(path, JSON.stringify({ limits }));
+  return { RESOLVED_CONFIG: path };
+};
+
+// Restarts after a turn cap (plan: turn-cap resume, PR 2): report-outcome
+// keeps agent-ready and leaves the turn-cap marker while
+// limits.turn-cap-restarts allows one, and the sweep restarts the issue at
+// once, the way it restarts a limit stop, with no reset to wait for. More
+// turn-cap markers since a person added agent-ready than the limit allows
+// (a forged or stale one) restart nothing.
+const capNote = (at, run = 7) => ({
+  id: 33,
+  body: `<!-- work-resolve-issue outcome=turn-cap cap=75 run=${run} -->\nThe work-resolve-issue lane stopped on this issue: turn cap 75 reached.`,
+  user: LANES_BOT,
+  created_at: at,
+});
+
+test("an issue the turn cap stopped is restarted while the limit allows it", async () => {
+  const { github, calls } = stopped({ comments: [note(), capNote("2026-10-16T11:55:00Z")] });
+  assert.equal(await sweep({ github }, withLimits({ "turn-cap-restarts": 1 })), 0);
+  assert.deepEqual(writes(calls), restarted(30));
+});
+
+test("turn-cap stops past the limit, or any with the limit at 0, restart nothing", async () => {
+  for (const [limits, comments] of [
+    [{ "turn-cap-restarts": 0 }, [note(), capNote("2026-10-16T11:55:00Z")]],
+    [{ "turn-cap-restarts": 1 }, [note(), capNote("2026-10-16T08:00:00Z", 6), capNote("2026-10-16T11:55:00Z")]],
+  ]) {
+    // An unlisted account's agent-ready between the stops resets nothing.
+    const { github, calls } = stopped({ comments, events: [added("2026-10-16T05:00:00Z", OWNER), added("2026-10-16T09:00:00Z", MAINTAINER)] });
+    assert.equal(await sweep({ github }, withLimits(limits)), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(limits));
+  }
+});
+
+test("the App's remove-and-re-add after a turn-cap stop is a restart, not a stop", async () => {
+  const unlabeled = { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
+  const { github, calls } = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note(), capNote("2026-10-16T06:00:00Z")] },
+    events: { 20: [unlabeled, added("2026-10-16T07:00:01Z")] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+// A funding stop (ci-workflows#781): report-outcome keeps agent-ready and
+// leaves a funding marker with the regain date, if one was stated. The sweep
+// restarts the issue after that date, never before, and never without one;
+// funding stops count toward limits.limit-stops-per-issue, not turn-cap-restarts.
+const fundingNote = (resets, at, run = 7) => ({
+  id: 34,
+  body: `<!-- work-resolve-issue outcome=funding${resets ? ` resets=${resets}` : ""} run=${run} -->\nStopped on the lane's funding.`,
+  user: LANES_BOT,
+  created_at: at,
+});
+
+test("a funding-stopped issue past its regain date is restarted", async () => {
+  const { github, calls } = stopped({ comments: [note(), fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), restarted(30));
+});
+
+test("a funding-stopped issue before its regain date, or with none, waits", async () => {
+  for (const resets of ["2026-10-17T00:00:00Z", ""]) {
+    const { github, calls } = stopped({ comments: [note(), fundingNote(resets, "2026-10-16T06:00:00Z")] });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], resets);
+  }
+});
+
+// Funding and limit stops share limits.limit-stops-per-issue, so an outage
+// that outlasts the reset clamp hands the issue to a person, not a loop.
+test("a third funding or limit stop since a person added agent-ready goes to a person", async () => {
+  const comments = [
+    note(),
+    fundingNote("2026-10-16T02:00:00Z", "2026-10-16T01:00:00Z", 4),
+    limitedNote("2026-10-16T04:00:00Z", "2026-10-16T03:00:00Z"),
+    fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z", 6),
+  ];
+  const { github, calls } = stopped({ comments, events: [added("2026-10-16T00:30:00Z", OWNER)] });
+  assert.equal(await sweep({ github }), 0);
+  const written = writes(calls);
+  assert.ok(written[0].includes("<!-- work-unblock escalated -->"), written[0]);
+  assert.deepEqual(written.slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+});
+
+test("a funding stop under the bound is restarted after its date", async () => {
+  const comments = [note(), fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z", 6)];
+  const { github, calls } = stopped({ comments, events: [added("2026-10-16T00:30:00Z", OWNER)] });
+  assert.equal(await sweep({ github }, withLimits({ "limit-stops-per-issue": 2 })), 0);
+  assert.deepEqual(writes(calls), restarted(30));
+});
+
+test("the App's remove-and-re-add after a funding stop is a restart, not a stop", async () => {
+  const unlabeled = { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
+  const { github, calls } = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note(), fundingNote("2026-10-16T06:30:00Z", "2026-10-16T06:00:00Z")] },
+    events: { 20: [unlabeled, added("2026-10-16T07:00:01Z")] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+test("the resolved limits set the sweep's restarts per run, limit stops per issue and fallback reset", async () => {
+  const numbers = [31, 32, 33, 34];
+  const many = world({
+    openReady: numbers.map((n) => ready(n)),
+    comments: Object.fromEntries(numbers.map((n) => [n, [note(), limitedNote(`2026-10-16T0${n - 30}:00:00Z`, "2026-10-16T00:30:00Z")]])),
+    events: Object.fromEntries(numbers.map((n) => [n, [added("2026-10-16T00:00:00Z")]])),
+  });
+  assert.equal(await sweep({ github: many.github }, withLimits({ "restarts-per-run": 2 })), 0);
+  assert.deepEqual(writes(many.calls), [31, 32].flatMap(restarted));
+
+  const stops = [limitedNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z"), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")];
+  const second = stopped({ comments: [note(), ...stops] });
+  assert.equal(await sweep({ github: second.github }, withLimits({ "limit-stops-per-issue": 2 })), 0);
+  assert.deepEqual(writes(second.calls).slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+
+  // No stated reset, stopped at 06:00: five hours has passed at 12:00, seven has not.
+  const bare = stopped({ resets: "" });
+  assert.equal(await sweep({ github: bare.github }), 0);
+  assert.deepEqual(writes(bare.calls), restarted(30));
+  const later = stopped({ resets: "" });
+  assert.equal(await sweep({ github: later.github }, withLimits({ "fallback-reset": 7 })), 0);
+  assert.deepEqual(writes(later.calls), []);
+});
+
 // After the DELETE, a failed re-add is tried once more; a second failure is an
 // ::error naming the issue and fails the run.
 test("a failed re-add after the removal is retried once, then reported", async (t) => {
@@ -1081,6 +1244,182 @@ test("a re-fire record and the App's re-add in the same second, on unchanged wor
 // only that PR merging lifts. Only a PR the lanes App opened from
 // the issue's lane branch (report-outcome's `work-resolve-issue/issue-<n>-
 // <run>-<attempt>`), with head and base in this repository, counts.
+// The pump: a run that minted no lane token did no work, either because its
+// `Request the lane token` step failed (GitHub's rate limit past the retry
+// budget, say) or because the WIP cap skipped resolve-issue. It is re-fired
+// with the usual record, past once per workflow version, an hour after the
+// run ended (the broker's Retry-After is at most an hour, so the reset has
+// passed) and only while the WIP cap check does not pause the issue lane.
+const pickSlot = { name: "pick-slot", conclusion: "success", steps: [{ name: "Check the WIP cap", conclusion: "success" }] };
+const MINT_FAILED = [
+  pickSlot,
+  { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
+];
+const WIP_CAPPED = [pickSlot, { name: "resolve-issue", conclusion: "skipped", steps: [] }];
+function stalledRun({
+  number = 30,
+  jobs = MINT_FAILED,
+  conclusion = jobs === WIP_CAPPED ? "success" : "failure",
+  ended = "2026-10-16T10:05:00Z",
+  openLanePrs = 10,
+  mergedLanePrs = 24,
+  comments = [note()],
+  events = [added(LABELED_AT, OWNER)],
+  blobs = BLOBS,
+} = {}) {
+  const fake = world({
+    openReady: [ready(number)],
+    comments: { [number]: comments },
+    events: { [number]: events },
+    runs: [{ ...laneRun({ number, conclusion }), updated_at: ended }],
+    jobs: { [5000 + number]: jobs },
+    openLanePrs,
+    mergedLanePrs,
+    blobs,
+  });
+  return { ...fake, actions: fake.github };
+}
+
+test("a run whose lane token request failed is re-fired an hour after it ended, with no needs-human", async () => {
+  const { github, actions, calls } = stalledRun();
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.ok(!calls.some((call) => call.includes("needs-human")));
+});
+
+test("a run that did no work waits until an hour after it ended, past any rate-limit reset", async () => {
+  const { github, actions, calls } = stalledRun({ ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+// The sweep reads the resolved config's `limits` and `wip`; a past pause-from
+// lets the issue lane pause over its cap.
+const withConfig = (config) => {
+  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-config-")), "resolved-config.json");
+  writeFileSync(path, JSON.stringify(config));
+  return { RESOLVED_CONFIG: path };
+};
+const PAUSING = withConfig({ wip: { "pause-from": "2026-10-01" } });
+
+test("a run the WIP cap skipped is re-fired once the issue lane is under its cap", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 1 });
+  assert.equal(await sweep({ github, actions }, PAUSING), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("while the issue lane is paused over its cap nothing is re-fired", async () => {
+  for (const openLanePrs of [2, 3]) {
+    for (const jobs of [WIP_CAPPED, MINT_FAILED]) {
+      const { github, actions, calls } = stalledRun({ jobs, openLanePrs });
+      assert.equal(await sweep({ github, actions }, PAUSING), 0);
+      assert.deepEqual(writes(calls), [], `${openLanePrs} open`);
+    }
+  }
+});
+
+test("over the cap with no pause-from the lane only alerts, so the run is re-fired", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 60 });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("a WIP read that fails re-fires: the read error blocks no lane work", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: null });
+  assert.equal(await sweep({ github, actions }, PAUSING), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("with the search rate limit spent the sweep makes no WIP read and re-fires", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 3 });
+  assert.equal(await sweep({ github, actions, rate: { remaining: () => 0 } }, PAUSING), 0);
+  assert.ok(!calls.some((call) => call.includes("/search/issues")));
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("with no merged count the resolved limits.wip-cap sets the cap", async () => {
+  const config = withConfig({ limits: { "wip-cap": 20 }, wip: { "pause-from": "2026-10-01" } });
+  const at = stalledRun({ openLanePrs: 20, mergedLanePrs: null });
+  assert.equal(await sweep({ github: at.github, actions: at.actions }, config), 0);
+  assert.deepEqual(writes(at.calls), []);
+  const under = stalledRun({ openLanePrs: 19, mergedLanePrs: null });
+  assert.equal(await sweep({ github: under.github, actions: under.actions }, config), 0);
+  assert.deepEqual(writes(under.calls), refired(30));
+});
+
+// Each earlier re-fire left its record and the App's remove and re-add.
+const earlierPumps = (count) => {
+  const comments = [note()];
+  const events = [added("2026-10-16T05:00:00Z", OWNER)];
+  for (let hour = 6; hour < 6 + count; hour += 1) {
+    const at = `2026-10-16T0${hour}:00:00Z`;
+    comments.push(refireNote(KEY, at));
+    events.push({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
+    events.push(added(hour === 5 + count ? LABELED_AT : `2026-10-16T0${hour}:00:01Z`));
+  }
+  return { comments, events };
+};
+
+// limits.limit-stops-per-issue (3) bounds failed-mint re-fires per version of
+// the lane workflow files; a WIP cap skip made no mint attempt and has none.
+test("a failed mint is re-fired again on the same workflow files up to the bound, and never counts as a limit stop", async () => {
+  const { github, actions, calls } = stalledRun(earlierPumps(2));
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.ok(!calls.some((call) => call.includes("needs-human")));
+});
+
+test("a failed mint stops after limit-stops-per-issue re-fires on the same workflow files, with no needs-human", async () => {
+  const { github, actions, calls } = stalledRun(earlierPumps(3));
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+  const lower = stalledRun(earlierPumps(1));
+  assert.equal(await sweep({ github: lower.github, actions: lower.actions }, withLimits({ "limit-stops-per-issue": 1 })), 0);
+  assert.deepEqual(writes(lower.calls), []);
+});
+
+test("a failed mint past the bound is re-fired again once the lane workflow files change", async () => {
+  const { github, actions, calls } = stalledRun({ ...earlierPumps(3), blobs: { ...BLOBS, ".github/workflows/work-resolve-issue.yml": "3".repeat(40) } });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30, `${WRITE_SHA}-${"3".repeat(40)}`));
+});
+
+test("a run the WIP cap skipped keeps re-firing past the failed-mint bound", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, ...earlierPumps(3) });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.ok(!calls.some((call) => call.includes("needs-human")));
+});
+
+test("a run another gate stopped before its mint, with no WIP cap skip, is not re-fired", async () => {
+  const jobs = [pickSlot, { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "skipped" }] }];
+  const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("a run that minted its token and failed later keeps the once-per-version re-fire", async () => {
+  const jobs = [pickSlot, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const { github, actions, calls } = stalledRun({ jobs, ...earlierPumps(1) });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("re-fires of runs that did no work share the restarts-per-run cap", async () => {
+  const numbers = [31, 32, 33, 34, 35, 36];
+  const fake = world({
+    openReady: numbers.map((n) => ready(n)),
+    comments: Object.fromEntries(numbers.map((n) => [n, [note()]])),
+    events: Object.fromEntries(numbers.map((n) => [n, [added(LABELED_AT, OWNER)]])),
+    runs: numbers.map((n) => ({ ...laneRun({ number: n }), updated_at: "2026-10-16T10:05:00Z" })),
+    jobs: Object.fromEntries(numbers.map((n) => [5000 + n, MINT_FAILED])),
+    openLanePrs: 10,
+    blobs: BLOBS,
+  });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github }), 0);
+  assert.deepEqual(writes(fake.calls), numbers.slice(0, 5).flatMap((n) => refired(n)));
+});
+
 const PR_HEAD = "7f2a5812a65a663ce0b3381312e1cb94b063fd4e";
 const lanePull = ({
   pr = 7805,

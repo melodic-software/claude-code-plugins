@@ -28,29 +28,50 @@ function runScript() {
   return body.map((l) => l.slice(indent)).join("\n");
 }
 
-// curl: the broker POST (it has -w) logs its --data-binary body to $BODY_LOG,
-// writes $FAKE_RESPONSE to its -o file and prints 200; the OIDC GET prints a
-// token; anything else (a revoke) prints 204.
+// curl: the Nth broker POST (it has --data-binary) logs its body to $BODY_LOG
+// and its Authorization line to $AUTH_LOG, writes $ANSWERS/N.json to its -o
+// file and $ANSWERS/N.headers to its -D file, and prints $ANSWERS/N.status;
+// past the last answer it repeats the last one. A GET of a /compare/ URL logs
+// the URL and its Authorization line to $COMPARE_LOG and writes $COMPARE to
+// its -o file, or exits 22 (curl --fail on an HTTP error) when $COMPARE is
+// absent. The Mth OIDC GET prints token oidc-token-M; anything else (a
+// revoke) prints 204.
 const FAKE_CURL = `#!/usr/bin/env bash
-cat >/dev/null
-out="" data="" write=""
+stdin=$(cat)
+out="" data="" write="" dump="" url=""
 while [ $# -gt 0 ]; do
   case "$1" in
+    https://*) url=$1 ;;
     -o) out=$2; shift ;;
+    -D) dump=$2; shift ;;
     -w) write=1; shift ;;
     --data-binary) data=$2; shift ;;
   esac
   shift
 done
 if [ -n "$data" ]; then
+  printf '%s\\n' "$stdin" >>"$AUTH_LOG"
   printf '%s' "$data" >"$BODY_LOG"
-  cat "$FAKE_RESPONSE" >"$out"
-  printf '%s' "\${FAKE_STATUS:-200}"
+  n=$(($(wc -l <"$AUTH_LOG")))
+  [ -e "$ANSWERS/$n.status" ] || n=$(ls "$ANSWERS" | grep -c '\\.status$')
+  cat "$ANSWERS/$n.json" >"$out"
+  if [ -n "$dump" ]; then cat "$ANSWERS/$n.headers" >"$dump"; fi
+  cat "$ANSWERS/$n.status"
+elif [[ $url == */compare/* ]]; then
+  printf '%s %s\\n' "$url" "$stdin" >>"$COMPARE_LOG"
+  [ -e "$COMPARE" ] || exit 22
+  cat "$COMPARE" >"$out"
 elif [ -n "$write" ]; then
   printf 204
 else
-  printf '{"value":"oidc-token"}'
+  echo x >>"$OIDC_LOG"
+  printf '{"value":"oidc-token-%s"}' "$(($(wc -l <"$OIDC_LOG")))"
 fi
+`;
+
+// sleep: logs its argument and returns at once.
+const FAKE_SLEEP = `#!/usr/bin/env bash
+printf '%s\\n' "$1" >>"$SLEEP_LOG"
 `;
 
 let root;
@@ -62,18 +83,26 @@ before(() => {
   mkdirSync(bin);
   writeFileSync(path.join(bin, "curl"), FAKE_CURL);
   chmodSync(path.join(bin, "curl"), 0o755);
+  writeFileSync(path.join(bin, "sleep"), FAKE_SLEEP);
+  chmodSync(path.join(bin, "sleep"), 0o755);
 });
 
 after(() => rmSync(root, { recursive: true, force: true }));
 
-// `denial` makes the broker answer that HTTP status with that JSON body.
-function request(inputs, denial) {
+// Each answer makes the broker's next reply that HTTP status, with that JSON
+// body (the mint below when absent) and that header block; the last repeats.
+// No answer is one 200 mint.
+// A `compare` input is the GitHub compare response the action reads; absent,
+// the compare request fails.
+function request({ compare, ...inputs }, ...answers) {
   const dir = mkdtempSync(path.join(root, "run-"));
-  const files = Object.fromEntries(
-    ["output", "summary", "response.json"].map((name) => [name, path.join(dir, name)]),
-  );
+  const files = Object.fromEntries(["output", "summary"].map((name) => [name, path.join(dir, name)]));
   writeFileSync(files.output, "");
   writeFileSync(files.summary, "");
+  const answersDir = path.join(dir, "answers");
+  mkdirSync(answersDir);
+  const logs = Object.fromEntries(["auth", "oidc", "sleep", "compare"].map((name) => [name, path.join(dir, `${name}.log`)]));
+  for (const log of Object.values(logs)) writeFileSync(log, "");
   const env = {
     // The action's `mode` input defaults to token.
     MODE: "token",
@@ -89,21 +118,30 @@ function request(inputs, denial) {
     PULL_REQUESTS: "read",
     ISSUES: "read",
     SUPERSEDED_OK: "false",
+    PR_WORKFLOW_CHANGE_OK: "false",
+    HEAD_SHA: "",
+    DEFAULT_BRANCH: "",
+    API_TOKEN: "",
     ...inputs,
   };
-  writeFileSync(
-    files["response.json"],
-    JSON.stringify(denial?.body ?? {
-      token: "ghs_lane",
-      expires_at: "2026-10-11T13:00:00Z",
-      mint_id: "5550001-1",
-      effect: env.EFFECT,
-      permissions: { contents: env.CONTENTS, pull_requests: env.PULL_REQUESTS, issues: env.ISSUES },
-      lane: env.LANE,
-      activity: env.ACTIVITY,
-      repository_ids: [Number(REPO_ID)],
-    }),
-  );
+  const mint = {
+    token: "ghs_lane",
+    expires_at: "2026-10-11T13:00:00Z",
+    mint_id: "5550001-1",
+    effect: env.EFFECT,
+    permissions: { contents: env.CONTENTS, pull_requests: env.PULL_REQUESTS, issues: env.ISSUES },
+    lane: env.LANE,
+    activity: env.ACTIVITY,
+    repository_ids: [Number(REPO_ID)],
+  };
+  (answers.length ? answers : [{}]).forEach((answer, i) => {
+    const base = path.join(answersDir, String(i + 1));
+    writeFileSync(`${base}.status`, answer.status ?? "200");
+    writeFileSync(`${base}.json`, JSON.stringify(answer.body ?? mint));
+    writeFileSync(`${base}.headers`, answer.headers ?? "HTTP/2 200\r\ncontent-type: application/json\r\n\r\n");
+  });
+  const compareFile = path.join(dir, "compare.json");
+  if (compare !== undefined) writeFileSync(compareFile, JSON.stringify(compare));
   const bodyLog = path.join(dir, "body.json");
   const result = spawnSync("bash", ["-e", "-c", runScript()], {
     encoding: "utf8",
@@ -113,22 +151,212 @@ function request(inputs, denial) {
       ACTIONS_ID_TOKEN_REQUEST_URL: "https://oidc.example.net/token?api-version=2.0",
       ACTIONS_ID_TOKEN_REQUEST_TOKEN: "request-token",
       GITHUB_API_URL: "https://api.github.com",
+      GITHUB_REPOSITORY: "melodic-software/claude-code-plugins",
       GITHUB_REPOSITORY_ID: REPO_ID,
       GITHUB_OUTPUT: files.output,
       GITHUB_STEP_SUMMARY: files.summary,
       RUNNER_TEMP: dir,
       BODY_LOG: bodyLog,
-      FAKE_RESPONSE: files["response.json"],
-      FAKE_STATUS: denial?.status ?? "200",
+      AUTH_LOG: logs.auth,
+      OIDC_LOG: logs.oidc,
+      SLEEP_LOG: logs.sleep,
+      COMPARE_LOG: logs.compare,
+      COMPARE: compareFile,
+      ANSWERS: answersDir,
     },
   });
+  const lines = (log) => readFileSync(log, "utf8").split("\n").filter(Boolean);
   return {
     status: result.status,
     stdout: result.stdout,
     body: existsSync(bodyLog) ? readFileSync(bodyLog, "utf8") : null,
     output: readFileSync(files.output, "utf8"),
+    summary: readFileSync(files.summary, "utf8"),
+    auth: lines(logs.auth),
+    compares: lines(logs.compare),
+    sleeps: lines(logs.sleep).map(Number),
   };
 }
+
+// The 503 run 39092207020 logged when about 40 issue lanes asked at once.
+const GITHUB_UNAVAILABLE = {
+  status: "503",
+  body: { error: "unavailable", reason: "github-unavailable", detail: "GET /repos/melodic-software/claude-code-plugins failed with status 403" },
+};
+const ISSUE_LANE = { LANE: "work-resolve-issue", ACTIVITY: "resolve-issue", PR_NUMBER: "", ISSUE_NUMBER: "77" };
+// The brief's backoff: 60 s, 120 s and 240 s, each with up to 20 s of jitter,
+// at most 8 minutes of waiting in all.
+const BACKOFF = [60, 120, 240];
+const JITTER = 20;
+const BUDGET = 480;
+
+function assertBackoff(sleeps, count) {
+  assert.equal(sleeps.length, count, `sleeps: ${sleeps}`);
+  sleeps.forEach((s, i) => {
+    assert.ok(s >= BACKOFF[i] && s <= BACKOFF[i] + JITTER, `sleep ${i + 1} is ${s}`);
+  });
+  assert.ok(sleeps.reduce((a, b) => a + b, 0) <= BUDGET);
+}
+
+test("a 503 github-unavailable is retried after backoff, with a fresh OIDC token, until the mint", () => {
+  const run = request(ISSUE_LANE, GITHUB_UNAVAILABLE, GITHUB_UNAVAILABLE, {});
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(run.auth.length, 3);
+  assert.deepEqual(run.auth, ["Authorization: Bearer oidc-token-1", "Authorization: Bearer oidc-token-2", "Authorization: Bearer oidc-token-3"]);
+  assertBackoff(run.sleeps, 2);
+  assert.match(run.output, /^mint-id=5550001-1$/m);
+  assert.doesNotMatch(run.stdout, /::error::/);
+});
+
+test("a 503 github-unavailable on every attempt fails red after three retries", () => {
+  const run = request(ISSUE_LANE, GITHUB_UNAVAILABLE);
+  assert.equal(run.status, 1);
+  assert.equal(run.auth.length, 4);
+  assertBackoff(run.sleeps, 3);
+  assert.equal(
+    run.output,
+    "failure-reason=lane-token-denied: the broker answered 503 with reason github-unavailable: GET /repos/melodic-software/claude-code-plugins failed with status 403\n",
+  );
+});
+
+test("a Retry-After header longer than the backoff sets the wait", () => {
+  const run = request(ISSUE_LANE, { ...GITHUB_UNAVAILABLE, headers: "HTTP/2 503\r\nRetry-After: 200\r\n\r\n" }, {});
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.sleeps, [200]);
+});
+
+test("a Retry-After with a leading zero is read as decimal seconds", () => {
+  const run = request(ISSUE_LANE, { ...GITHUB_UNAVAILABLE, headers: "HTTP/2 503\r\nRetry-After: 090\r\n\r\n" }, {});
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.sleeps, [90]);
+});
+
+test("a Retry-After past the 8-minute budget fails red at once", () => {
+  const run = request(ISSUE_LANE, { ...GITHUB_UNAVAILABLE, headers: "HTTP/2 503\r\nretry-after: 600\r\n\r\n" }, {});
+  assert.equal(run.status, 1);
+  assert.equal(run.auth.length, 1);
+  assert.deepEqual(run.sleeps, []);
+  assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 503 with reason github-unavailable/m);
+});
+
+// The broker's github-rate-limited answer (deny.mjs, http.mjs in azure-iac
+// src/lanes-token-broker): a Retry-After header of GitHub's wait, clamped to
+// 1-3600 s, and the limit, resource and retry_after in the body.
+const rateLimited = (retryAfter) => ({
+  status: "503",
+  body: {
+    error: "unavailable",
+    reason: "github-rate-limited",
+    detail: "GET /repos/melodic-software/claude-code-plugins failed with status 403",
+    limit: "secondary",
+    resource: "core",
+    retry_after: retryAfter,
+  },
+  headers: `HTTP/2 503\r\nRetry-After: ${retryAfter}\r\ncontent-type: application/json\r\n\r\n`,
+});
+
+// GitHub: with a retry-after header, do not retry until that many seconds
+// have passed. Below the 60 s ladder step, so the ladder would wait longer.
+test("a 503 github-rate-limited waits its Retry-After plus jitter, not the backoff ladder", () => {
+  const run = request(ISSUE_LANE, rateLimited(30), {});
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.auth, ["Authorization: Bearer oidc-token-1", "Authorization: Bearer oidc-token-2"]);
+  assert.equal(run.sleeps.length, 1);
+  assert.ok(run.sleeps[0] >= 30 && run.sleeps[0] <= 30 + JITTER, `sleep is ${run.sleeps[0]}`);
+  assert.match(run.output, /^mint-id=5550001-1$/m);
+});
+
+test("a 503 github-rate-limited on every attempt fails red after three retries", () => {
+  const run = request(ISSUE_LANE, rateLimited(30));
+  assert.equal(run.status, 1);
+  assert.equal(run.auth.length, 4);
+  assert.equal(run.sleeps.length, 3);
+  assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 503 with reason github-rate-limited: GET \/repos/m);
+});
+
+// GitHub's guidance without a retry-after header: wait at least one minute.
+test("a 503 github-rate-limited with no Retry-After waits a minute plus jitter", () => {
+  const run = request(ISSUE_LANE, { ...rateLimited(30), headers: "HTTP/2 503\r\n\r\n" }, {});
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(run.sleeps.length, 1);
+  assert.ok(run.sleeps[0] >= 60 && run.sleeps[0] <= 60 + JITTER, `sleep is ${run.sleeps[0]}`);
+});
+
+test("a github-rate-limited wait that ends inside the 8-minute budget is taken, its jitter cut to fit", () => {
+  const run = request(ISSUE_LANE, rateLimited(470), {});
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(run.sleeps.length, 1);
+  assert.ok(run.sleeps[0] >= 470 && run.sleeps[0] <= BUDGET, `sleep is ${run.sleeps[0]}`);
+});
+
+test("a github-rate-limited Retry-After past the 8-minute budget fails at once, naming the limit and its reset", () => {
+  const before = Math.floor(Date.now() / 1000);
+  const run = request(ISSUE_LANE, rateLimited(BUDGET + 1), {});
+  const afterRun = Math.ceil(Date.now() / 1000);
+  assert.equal(run.status, 1);
+  assert.equal(run.auth.length, 1);
+  assert.deepEqual(run.sleeps, []);
+  const match =
+    /^failure-reason=lane-token-denied: the broker answered 503 with reason github-rate-limited: GET \/repos\/melodic-software\/claude-code-plugins failed with status 403; GitHub's secondary rate limit \(core\) resets at (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ), past the 8-minute retry budget$/m.exec(
+      run.output,
+    );
+  assert.ok(match, run.output);
+  const reset = Date.parse(match[1]) / 1000;
+  assert.ok(reset >= before + BUDGET + 1 && reset <= afterRun + BUDGET + 1, `reset ${match[1]}`);
+});
+
+// mint-unavailable comes after the broker reserved the job's one mint.
+test("a 503 mint-unavailable is not retried and fails red saying it is final", () => {
+  const run = request(ISSUE_LANE, { status: "503", body: { error: "unavailable", reason: "mint-unavailable", detail: "d" } }, {});
+  assert.equal(run.status, 1);
+  assert.equal(run.auth.length, 1);
+  assert.deepEqual(run.sleeps, []);
+  assert.match(
+    run.output,
+    /^failure-reason=lane-token-denied: the broker answered 503 with reason mint-unavailable: d; final: the broker had reserved this job's one mint, so no retry can mint it$/m,
+  );
+});
+
+// The broker reserves the job's mint before it mints, so any retry after the
+// reservation is denied already-minted. The failure keeps the 503 that started it.
+test("an already-minted after a retried github-unavailable fails red naming both", () => {
+  const run = request(ISSUE_LANE, GITHUB_UNAVAILABLE, { status: "403", body: { error: "denied", reason: "already-minted", detail: "check run 1 already received its mint" } });
+  assert.equal(run.status, 1);
+  assert.equal(run.auth.length, 2);
+  assert.match(
+    run.output,
+    /^failure-reason=lane-token-denied: the broker answered 403 with reason already-minted: check run 1 already received its mint, after 503 with reason github-unavailable: GET \/repos/m,
+  );
+});
+
+for (const [status, reason] of [
+  ["503", "store-unavailable"],
+  ["503", "key-unavailable"],
+  ["403", "github-unavailable"],
+  ["403", "workflow-modified"],
+  ["403", "untrusted-actor"],
+  ["403", "lane-mismatch"],
+  ["500", "internal"],
+]) {
+  test(`a ${status} ${reason} is not retried`, () => {
+    const run = request(ISSUE_LANE, { status, body: { reason, detail: "d" } }, {});
+    assert.equal(run.status, 1);
+    assert.equal(run.auth.length, 1);
+    assert.deepEqual(run.sleeps, []);
+    assert.match(run.output, new RegExp(`^failure-reason=lane-token-denied: the broker answered ${status} with reason ${reason}: d$`, "m"));
+  });
+}
+
+test("check mode retries a 503 github-unavailable too", () => {
+  const run = request(
+    { MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "" },
+    GITHUB_UNAVAILABLE,
+    { body: { decision: "allow", lane: "pr-unblock", activity: "resolve-conflicts" } },
+  );
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(run.auth.length, 2);
+  assertBackoff(run.sleeps, 1);
+});
 
 // The 403 shape pr-merge run 39074050115 logged when pr-merge.yml changed on
 // main while it was queued.
@@ -161,6 +389,129 @@ test("without superseded-ok, a 403 workflow-modified still fails red", () => {
     run.output,
     "failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-merge.yml differs from refs/heads/main\n",
   );
+});
+
+// #7732: the refusal fix-docs got on #7717, a PR that changes a workflow file.
+// The detail's shape is the broker's, as SUPERSEDED above records it.
+const HEAD = "a".repeat(40);
+const REFINE_MODIFIED = {
+  status: "403",
+  body: { reason: "workflow-modified", detail: ".github/workflows/pr-refine.yml differs from refs/heads/main" },
+};
+const PR_CHANGE = {
+  LANE: "pr-refine",
+  ACTIVITY: "fix-docs",
+  PR_WORKFLOW_CHANGE_OK: "true",
+  HEAD_SHA: HEAD,
+  DEFAULT_BRANCH: "main",
+  API_TOKEN: "ghs_job",
+};
+// GitHub's compare response: `files[]` with `filename`, and `previous_filename`
+// on a rename (docs.github.com/en/rest/commits/commits#compare-two-commits).
+const changes = (...files) => ({ status: "ahead", files });
+const COMPARE_URL = `https://api.github.com/repos/melodic-software/claude-code-plugins/compare/main...${HEAD}`;
+
+test("with pr-workflow-change-ok, a workflow-modified refusal of a file the PR changes skips green, naming the reason and file", () => {
+  const run = request(
+    { ...PR_CHANGE, compare: changes({ filename: "docs/a.md", status: "modified" }, { filename: ".github/workflows/pr-refine.yml", status: "modified" }) },
+    REFINE_MODIFIED,
+  );
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(run.output, "skip-reason=workflow-modified\n");
+  assert.match(run.summary, /workflow-modified because this pull request changes \.github\/workflows\/pr-refine\.yml/);
+  assert.doesNotMatch(run.stdout, /::error::/);
+  assert.deepEqual(run.compares, [`${COMPARE_URL} Authorization: Bearer ghs_job`]);
+});
+
+test("with pr-workflow-change-ok, a PR that renamed the named file away also skips", () => {
+  const run = request(
+    { ...PR_CHANGE, compare: changes({ filename: ".github/workflows/pr-refine-old.yml", previous_filename: ".github/workflows/pr-refine.yml", status: "renamed" }) },
+    REFINE_MODIFIED,
+  );
+  assert.equal(run.status, 0, run.stdout);
+  assert.match(run.output, /^skip-reason=workflow-modified$/m);
+});
+
+test("with pr-workflow-change-ok, a workflow-modified refusal of a file the PR does not change fails red", () => {
+  const run = request({ ...PR_CHANGE, compare: changes({ filename: ".github/workflows/pr-merge.yml", status: "modified" }) }, REFINE_MODIFIED);
+  assert.equal(run.status, 1);
+  assert.equal(
+    run.output,
+    `failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-refine.yml differs from refs/heads/main; not skipped: the pull request's diff at ${HEAD} does not change .github/workflows/pr-refine.yml\n`,
+  );
+  assert.equal(run.compares.length, 1);
+});
+
+test("with pr-workflow-change-ok, a compare that cannot be read fails red", () => {
+  const run = request(PR_CHANGE, REFINE_MODIFIED);
+  assert.equal(run.status, 1);
+  assert.match(run.output, new RegExp(`; not skipped: the compare of main\\.\\.\\.${HEAD} could not be read\\n$`));
+  assert.doesNotMatch(run.output, /^skip-reason=/m);
+});
+
+for (const [name, detail] of [
+  ["no detail", undefined],
+  ["a detail that names no workflow file", "the workflow file changed"],
+  ["a path outside .github/workflows", "scripts/x.yml differs from refs/heads/main"],
+  ["another branch", ".github/workflows/pr-refine.yml differs from refs/heads/release"],
+  ["trailing text", ".github/workflows/pr-refine.yml differs from refs/heads/main; and more"],
+]) {
+  test(`with pr-workflow-change-ok, a workflow-modified refusal with ${name} fails red without a compare`, () => {
+    const run = request(
+      { ...PR_CHANGE, compare: changes({ filename: ".github/workflows/pr-refine.yml", status: "modified" }) },
+      { status: "403", body: { reason: "workflow-modified", ...(detail === undefined ? {} : { detail }) } },
+    );
+    assert.equal(run.status, 1);
+    assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified.*; not skipped: the refusal names no workflow file against refs\/heads\/main$/m);
+    assert.deepEqual(run.compares, []);
+  });
+}
+
+for (const [status, reason] of [
+  ["403", "already-minted"],
+  ["403", "untrusted-actor"],
+  ["503", "workflow-modified"],
+  ["403", "Workflow-Modified"],
+]) {
+  test(`with pr-workflow-change-ok, a ${status} ${reason} still fails red without a compare`, () => {
+    const run = request(
+      { ...PR_CHANGE, compare: changes({ filename: ".github/workflows/pr-refine.yml", status: "modified" }) },
+      { status, body: { reason, detail: ".github/workflows/pr-refine.yml differs from refs/heads/main" } },
+    );
+    assert.equal(run.status, 1);
+    assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered /m);
+    assert.doesNotMatch(run.output, /^skip-reason=/m);
+    assert.deepEqual(run.compares, []);
+  });
+}
+
+test("a broker answer that is not JSON fails red even with pr-workflow-change-ok", () => {
+  const run = request({ ...PR_CHANGE, compare: changes({ filename: ".github/workflows/pr-refine.yml" }) }, { status: "403", body: "not json" });
+  assert.equal(run.status, 1);
+  assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 403 with reason unknown/m);
+  assert.deepEqual(run.compares, []);
+});
+
+for (const [name, inputs] of [
+  ["no head SHA", { HEAD_SHA: "" }],
+  ["a short head SHA", { HEAD_SHA: "abc123" }],
+  ["no default branch", { DEFAULT_BRANCH: "" }],
+  ["no token", { API_TOKEN: "" }],
+  ["no PR number", { PR_NUMBER: "", ISSUE_NUMBER: "77" }],
+]) {
+  test(`pr-workflow-change-ok with ${name} fails before the broker request`, () => {
+    const run = request({ ...PR_CHANGE, ...inputs });
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /::error::pr-workflow-change-ok needs token mode, a PR number, a head SHA, the default branch and a GitHub token/);
+    assert.equal(run.body, null);
+  });
+}
+
+test("a pr-workflow-change-ok other than true or false fails before the broker request", () => {
+  const run = request({ PR_WORKFLOW_CHANGE_OK: "yes" });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::pr-workflow-change-ok must be true or false/);
+  assert.equal(run.body, null);
 });
 
 test("a superseded-ok other than true or false fails before the broker request", () => {
