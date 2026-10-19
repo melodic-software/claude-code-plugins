@@ -7,6 +7,10 @@
     {
       "answer": "const x = useSpring(0);\nx.set(open ? 0 : -320);",
       "why": "a spring retargets with its current velocity"
+    },
+    {
+      "answer": "@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }\n.panel { translate: -100% 0; transition: translate 300ms var(--ease-out); }\n.panel.is-open { translate: 0 0; animation: fade-in 150ms; }",
+      "why": "an opacity-only keyframe does not move the panel; the transition still retargets its position"
     }
   ],
   "fail": [
