@@ -239,11 +239,25 @@ jobs:
             echo "::warning::the re-run of run $RUN_ID was refused; the next run tries again"
             exit 0
           fi
-          for wait in 0 5 10; do
+          # The re-run started, so a read that fails or still shows attempt 1
+          # is retried for about three minutes, and a step that cannot confirm
+          # attempt 2 fails instead of leaving that attempt unrecorded.
+          for wait in 0 5 10 20 30 45 60; do
             sleep "$wait"
-            attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt) || attempt=
-            [ "$attempt" = 1 ] || [ -z "$attempt" ] || break
+            if attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt); then
+              [ "$attempt" = 1 ] || break
+            else
+              attempt=
+            fi
           done
+          if [ -z "$attempt" ]; then
+            echo "::error::the re-run of run $RUN_ID started, but its attempt could not read back; nothing recorded"
+            exit 1
+          fi
+          if [ "$attempt" = 1 ]; then
+            echo "::error::the re-run of run $RUN_ID started, but the run still reads attempt 1; nothing recorded"
+            exit 1
+          fi
           if [ "$attempt" != 2 ]; then
             echo "::warning::run $RUN_ID reads attempt $attempt after the re-run, not 2; nothing recorded"
             exit 0

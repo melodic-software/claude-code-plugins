@@ -13,4 +13,5 @@ bump: patch
   was refused with exit 5, and no demotion record existed for a human to close until a person
   re-ran it. The lanes App gets no new permission. The re-run step runs only when the check
   could judge (exit 0, 1 or 5), after the full-run dispatch, and a failure in either leaves the
-  other to run.
+  other to run. Once the re-run starts, the step retries reading its attempt for about three
+  minutes, and fails with an error rather than finishing quietly when it cannot confirm attempt 2.

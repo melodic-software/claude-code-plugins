@@ -526,7 +526,8 @@ test("the early check names only a lane-dispatched run awaiting its re-run", () 
 });
 
 // Runs the re-run step against a fake gh that answers `attempts` in turn for
-// the run read and fails the re-run POST when `refuse`.
+// the run read, failing a read whose entry is "x", and fails the re-run POST
+// when `refuse`.
 const runRerun = (attempts, { refuse = false, runId = "11" } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-rerun-"));
   try {
@@ -537,7 +538,8 @@ const runRerun = (attempts, { refuse = false, runId = "11" } = {}) => {
       `#!/usr/bin/env bash\necho "$*" >>"${dir}/calls"\n` +
         `if [ "$3" = POST ]; then ${refuse ? 'echo "HTTP 403" >&2; exit 1' : "exit 0"}; fi\n` +
         `n=$(($(cat "${dir}/reads" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/reads"\n` +
-        `a=(${attempts.join(" ")})\necho "\${a[$((n - 1))]:-\${a[-1]}}"\n`,
+        `a=(${attempts.join(" ")})\nv="\${a[$((n - 1))]:-\${a[-1]}}"\n` +
+        `if [ "$v" = x ]; then echo "HTTP 502" >&2; exit 1; fi\necho "$v"\n`,
     );
     writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
     chmodSync(join(bin, "gh"), 0o755);
@@ -597,13 +599,43 @@ test("the re-run step records nothing when the re-run is refused or lands past a
   for (const [attempts, options] of [
     [[1], { refuse: true }],
     [[1, 3], {}],
-    [[1, 1, 1, 1], {}],
   ]) {
     const run = runRerun(attempts, options);
     assert.equal(run.status, 0);
     assert.equal(run.record, "");
     assert.doesNotMatch(run.output, /recorded=true/);
     assert.match(run.stdout, /^::warning::/m);
+  }
+});
+
+test("the re-run step rides out failed reads after the re-run and records attempt 2", () => {
+  const run = runRerun([1, "x", "x", "x", 2]);
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(
+    run.calls.filter((c) => c.includes("POST")),
+    [POST],
+  );
+  assert.deepEqual(JSON.parse(run.record), { rerunner_run_id: 700, run_id: 11, attempt: 2 });
+  assert.match(run.output, /^recorded=true$/m);
+});
+
+test("the re-run step fails visibly when it cannot confirm attempt 2 after the re-run", () => {
+  for (const [attempts, reason] of [
+    [[1, "x"], /could not read/],
+    [[1, 1], /still reads attempt 1/],
+  ]) {
+    const run = runRerun(attempts);
+    assert.equal(run.status, 1, run.stdout);
+    assert.equal(run.record, "");
+    assert.doesNotMatch(run.output, /recorded=true/);
+    assert.match(run.stdout, /^::error::.*/m);
+    assert.match(run.stdout, reason);
+    // The POST is not repeated, and the reads stop after a bounded number of tries.
+    assert.deepEqual(
+      run.calls.filter((c) => c.includes("POST")),
+      [POST],
+    );
+    assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 1 + 7);
   }
 });
 
