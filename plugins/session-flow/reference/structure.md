@@ -740,7 +740,7 @@ absent field.
 **Carrying the goal forward: read it off disk, never out of memory.** With `--previous`, `new`
 opens that file and reproduces its `Original goal` verbatim quote and every recorded amendment
 into this handoff unchanged, then the five cumulative sections and the `## Prior sessions` rows.
-Rebuilding the goal from the conversation is the drift vector itself: the conversation is what
+Rebuilding the goal from the conversation is how the drift starts: the conversation is what
 already lost it, and each rebuild is individually plausible, which is why the loss is invisible
 until many hops later. The prior file is on disk and one read away. A writer that did not open it
 has not carried the goal forward, whatever its text ends up saying. Same rule as the live
