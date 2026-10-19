@@ -110,7 +110,8 @@
     const view = {
       ...structuredClone(DEFAULTS), // its own maps: a question whose last answer, lock, suggestion or result went must lose its key
       schemaVersion: s.schemaVersion, rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", ended: !!s.ended, serverTime: s.serverTime,
-      settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always" },
+      // reviewAnswers: absent (a session from before the setting) reviews every answer, as those sessions always did.
+      settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always", reviewAnswers: settings.reviewAnswers !== false },
       people, ownerPid: "host",
       leaders: live.filter(p => p.role === "leader").map(p => p.pid), trusted: live.filter(p => p.trusted && p.pid !== "host").map(p => p.pid),
       removed: (s.removed || []).map(p => p.pid),
@@ -227,11 +228,13 @@
           // A guest's own Claude names its own tools in `used`; the label never repeats them.
           skill: x.by?.kind === "guest-claude" ? "their own Claude" : (x.used || []).map(u => u.name).join(", ") || "Claude", why: x.why || "", published: x.published !== false,
           own: x.by?.kind === "guest-claude", // the requester's own Claude answered it (Connect your Claude), not the host's
+          // Unshared and out to its asker (a Just me answer, or one the owner took down), and taken down by the owner.
+          private: !!x.private, takenDown: !!x.takenDown, ...(r?.audience === "me" ? { justMe: true } : {}),
           ...(r ? { ask: plain(r.text) } : {}), ...(by ? { byCid: by, by: nameOf(by) } : {}) };
       });
     }
     const req = r => ({ id: r.id, qid: r.qid || "", kind: r.kind, text: plain(r.text), edited: r.edited, cid: r.pid, name: nameOf(r.pid), ts: r.at,
-      status: r.status.kind, runner: r.runner, ...(r.status.reason ? { reason: r.status.reason } : {}) });
+      status: r.status.kind, runner: r.runner, ...(r.audience === "me" ? { justMe: true } : {}), ...(r.status.reason ? { reason: r.status.reason } : {}) });
     view.requests = (s.requests || []).map(req);
     view.myRequests = (s.myRequests || []).map(req);
     // The Inbox: my own requests with the status I see, and for the owner what waits on them; the server decides both.
@@ -590,8 +593,12 @@
     },
     setPurpose: (qid, purpose) => act("/api/question/purpose", { qid, purpose }),
     sendRound: () => act("/api/round/send", {}),
-    /** runner "self": the request runs on my own Claude (Connect your Claude); only I see it. */
-    request: (qid, kind, text, _extra, runner) => act("/api/request", { ...(qid === Core.GENERAL ? { scope: qid } : { qid }), kind, text, ...(runner === "self" ? { runner } : {}) }),
+    /** runner "self": the request runs on my own Claude (Connect your Claude); only I see it. audience "me" (Just me):
+     *  its answer shows to me and the host until one of us shares it. */
+    request: (qid, kind, text, _extra, runner, audience) => act("/api/request", { ...(qid === Core.GENERAL ? { scope: qid } : { qid }), kind, text,
+      ...(runner === "self" ? { runner } : {}), ...(audience === "me" ? { audience } : {}) }),
+    /** My own Just me answer, shared with everyone (the owner may share any). */
+    shareResult: id => act("/api/result/share", { id }),
     /** My own Claude's side of a self request: claim it, post its answer ({summary, sources, report, used, why}), or give up. */
     myClaim: id => act("/api/mine/requests/claim", { id }),
     myResult: (id, body) => act("/api/mine/requests/result", { id, ...body }),
@@ -601,7 +608,7 @@
     newWatcherKey: () => act("/api/watcher", {}).then(j => j.token),
     revokeWatcher: () => act("/api/watcher/revoke", {}),
     later: (id, reason) => act("/api/proposal/act", { id, action: "later", reason }),
-    /** Owner: edit | decline | fail | rerun one request, publish | discard a result; runRequests runs the given ids still pending. */
+    /** Owner: edit | decline | fail | rerun one request, publish | discard | takedown a result; runRequests runs the given ids still pending. */
     requestAct: (id, action, text) => (action === "run" ? Core.runRequests([id])
       : act("/api/request/act", { id, action, ...(text != null ? { text } : {}) })),
     /** The given ids still waiting show as running at once; a refusal puts them back. */
@@ -716,7 +723,7 @@
     "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree", "/api/pass",
     "/api/go-with", "/api/notifications/read", "/api/inbox/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail",
     "/api/upload/offer", "/api/upload/act", "/api/upload/chunk", "/api/discussion", "/api/discussion/edit", "/api/discussion/delete",
-    "/api/discussion/hide", "/api/discussion/react", "/api/discussion/read"]);
+    "/api/discussion/hide", "/api/discussion/react", "/api/discussion/read", "/api/result/share"]);
   const GAP = 1050; // ms: the server's one-a-second limit, plus a margin for clock rounding
   const lanes = new Map(); // path -> {tail: promise of the last write, done: when it answered}
   const wait = ms => new Promise(res => setTimeout(res, Math.max(0, ms)));

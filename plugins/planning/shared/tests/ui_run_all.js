@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The owner's request queue shows a started run at once, against `share.sh ensure-running` with the fake cloudflared.
+// The owner's review view (the Inbox's Waiting on you) shows a started run at once, against `share.sh ensure-running` with the fake cloudflared.
 // Four guests each ask Claude on a question; every /api/request/act call of the owner's page waits 600 ms first, as
 // over a quick tunnel. After Run all shown, every started row must read "Running" with no Run button left enabled,
 // and Run all must be hidden, in under 100 ms and still so once the server answers. The same holds for one row's Run.
@@ -66,7 +66,8 @@ async function main() {
     await ask("Di", "Q1", DI);
     await ask("Ev", "Q2", EV);
     await until(owner, () => (window.Core.state.requests || []).filter(r => r.status === "pending").length === 4);
-    await owner.click(".vf-proprow:has-text('Requests')");
+    await owner.click(".vf-bell"); // the review view: the Inbox's Waiting on you
+    await owner.locator("button.vf-seg-btn", { hasText: "Waiting on you" }).click();
     const shown = texts => until(owner, t => window.__waiting(t), texts);
     ok("the queue lists the waiting requests, each with Run, and Run all shown", await shown([BO, CY, DI, EV]),
       await owner.evaluate(t => JSON.stringify(window.__rows(t)), [BO, CY, DI, EV]));
