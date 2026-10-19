@@ -840,6 +840,8 @@ catalog_plugin "$case_dir" market1 alpha 0.2.0
 catalog_plugin "$case_dir" market1 beta 0.2.0
 ppath=$(norm_path "$case_dir")
 printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/.git"
+mkdir -p "$case_dir/main/.git/worktrees/wt"
+printf '../..\n' >"$case_dir/main/.git/worktrees/wt/commondir"
 write "$case_dir/installed_plugins.json" "{
   \"version\": 1,
   \"plugins\": {
