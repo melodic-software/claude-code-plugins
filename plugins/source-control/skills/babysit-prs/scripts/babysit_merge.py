@@ -2974,8 +2974,11 @@ def score_unattended(
         files, complete = merge_policy.changed_files(repo, pr)
     except merge_policy.PolicyReadError:
         files, complete = (), False
+    if config.high_path_floor:
+        # The capability check compares base and head text (the floor only).
+        files = merge_policy.with_capability_contents(repo, pr, files)
     # The pr-merge lane's switches (owner decision Q624); the local lane
-    # keeps the floor, both caps and the C2 contradictions.
+    # keeps HIGH_FLOOR, both caps and the C2 contradictions.
     lane_switches = (
         {
             "high_floor": config.high_path_floor,
@@ -2994,6 +2997,10 @@ def score_unattended(
             files_complete=complete,
             max_changed_lines=config.max_changed_lines,
             high_paths=config.denied_paths,
+            floor_paths=config.floor_paths,
+            floor_script_scopes=config.floor_script_scopes,
+            # The floor additions follow the switch in every lane.
+            floor_extensions=config.high_path_floor,
             lanes=lanes,
             blast_radius=None,
             **lane_switches,
@@ -3087,6 +3094,18 @@ def _first_line(text: Any) -> str:
     return str(text or "").split("\n", 1)[0].rstrip("\r")
 
 
+def _floor_held(risk: babysit_risk.RiskResult) -> bool:
+    """Whether the HIGH floor holds the pull request: a `high-` reason (a
+    floor or configured path, a capability change, a script file). An unsafe
+    path scores HIGH with the floor off, so it is not a floor hold."""
+    return any(
+        r.severity is babysit_risk.Risk.HIGH
+        and r.code.startswith("high-")
+        and r.code != babysit_risk.UNSAFE_PATH_CODE
+        for r in risk.reasons
+    )
+
+
 def _marker_lines(text: Any) -> list[str]:
     """The first two lines, where a lane comment carries its markers."""
     return [line.rstrip("\r") for line in str(text or "").split("\n", 2)[:2]]
@@ -3095,10 +3114,16 @@ def _marker_lines(text: Any) -> list[str]:
 def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     """The reasons comment: a function of the score, the reasons and the head
     only, so an unchanged assessment renders the same body."""
+    wait = (
+        "A floor path or capability change holds it: a human merges it in "
+        "person, never an agent or a lane."
+        if _floor_held(risk)
+        else "This pull request waits for one."
+    )
     lines = [
         RISK_MARKER,
         f"Unattended merge: risk **{risk.score.name}** at head `{head}`. Only LOW "
-        "merges without a human; this pull request waits for one.",
+        f"merges without a human. {wait}",
         "",
         "```text",
     ]

@@ -16,6 +16,7 @@
 - [Funding](#funding)
 - [Loop caps](#loop-caps)
 - [Limits](#limits)
+- [WIP cap](#wip-cap)
 - [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
 - [Outside this repository](#outside-this-repository)
@@ -480,7 +481,9 @@ that fails counts as a refusal.
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
 - **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
-  `merge.diff-check.denied-paths` and matched case-insensitively. A diff that touches any of them
+  `merge.diff-check.denied-paths` and, while `high-path-floor` is true, `floor-paths`,
+  `floor-script-scopes` and the capability check (see the pr-merge lane), matched
+  case-insensitively. A diff that touches any of them
   scores HIGH and is never merged unattended.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
@@ -527,16 +530,34 @@ except six:
   `verifier-verdict-not-required` unless `merge.require-verifier-verdict` is true, and the schema
   rejects such a config. The lane starts with `merge.report-only: true`; the owner reads its
   reports and sets `false` to let it merge.
-- **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent, and
-  this repository leaves every one off (owner decision, 2026-10-17): `denied-paths` (an empty
-  list denies no path), `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH),
-  `c2-contradictions` (true scores a removed, renamed or copied file, a schema change or more
-  than one plugin MED), `max-changed-files` and `max-changed-lines` (absent is no cap). The local
-  babysit lane ignores these switches and keeps every check. The review evidence and the
-  security lane's findings still count.
+- **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
+  `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
+  `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH, and a SKILL.md,
+  agents/**/*.md or commands/**/*.md file whose head text, compared with its base text, gains or
+  changes `hooks`, `allowed-tools`, `tools`, `permissionMode`, `mcpServers`, `memory` or another
+  frontmatter key `babysit_risk.py` lists, adds or changes a `!` backtick command, gains a
+  ```` ```! ```` block,
+  changes a line inside a ```` ```! ```` block, has changed frontmatter the strict reader cannot
+  follow, or cannot be read, and a rename or copy into such a path), `floor-paths` (globs joined to
+  that floor while it applies; a HIGH pull request waits for a human), `floor-script-scopes`
+  (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file scores HIGH with
+  the floor), `c2-contradictions` (true
+  scores a removed, renamed or copied file, a schema change or more than one plugin MED),
+  `max-changed-files` and `max-changed-lines` (absent is no cap). This repository lists
+  `floor-paths` and `floor-script-scopes` and sets `high-path-floor: true` (owner decision
+  2026-10-18, reversing Q661: lanes may edit runnable plugin files and fix-ci's patch guard
+  covers only `.github/**` and agent instruction paths), so a lane pull request on the floor waits for a human; the non-author verifier
+  verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
+  leaves the rest off (owner decision,
+  2026-10-17). The local babysit lane ignores the other switches and keeps the rest of
+  the fixed floor, both caps and the C2 contradictions, but `high-path-floor` governs it too:
+  false leaves out `floor-paths`, `floor-script-scopes`, the capability check and the floor
+  entries for plugin monitors and workflows. The review evidence and the security lane's findings
+  still count.
 
-  What is left with them off: a lane pull request may change the merge gate, the workflows and
-  their tokens, these lane rules, skills, hooks, agent instructions and CI checks, at any size.
+  What is left with every switch off: a lane pull request may change the merge gate, the
+  workflows and their tokens, these lane rules, skills, hooks, agent instructions and CI checks,
+  at any size.
   The brakes that remain are the verifier verdict, the kill switch, the fork and Dependabot
   refusals, lane authorship with one closing issue, the review evidence and the demotion stop;
   setting `merge.report-only` back to true stops every merge. A verdict reads the diff only and runs no changed code, and a pull request
@@ -1005,7 +1026,7 @@ with defaults.
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
 | `limit-stops-per-issue` | 3 | Limit stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
-| `wip-cap` | 60 | Open lanes-App pull requests at or above which work-resolve-issue starts no run and work-unblock re-fires none; at most 500. |
+| `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `admission-window-hours` | 24 | Hours of issue-lane admissions the admitted backlog (open issues labeled `agent-ready`) may hold before new `agent-ready` labels pause. |
@@ -1015,12 +1036,57 @@ report-outcome and the work-unblock sweep read them from resolve-config's output
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
 the WIP cap check fails open and starts the run. This repository sets `wip-cap`, the two
-fix-ci limits and the two admission limits.
+fix-ci limits, the two admission limits and the `wip` block.
 
 `node .github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are
 open: the admitted backlog is under `admission-factor` times lane merges per hour (the last 24
 hours) times `admission-window-hours`. It prints one line and exits 0 open, 1 held, 2 on error.
 No lane reads it yet.
+
+## WIP cap
+
+The optional `wip` block sizes the issue lane's work in progress from the lane merge rate. The WIP
+cap check (`.github/actions/check-wip-cap`) runs before work-resolve-issue takes a slot, and
+work-unblock's sweep runs it before a re-fire. It reads, one request at a time and none once
+`x-ratelimit-remaining` reaches 0, the lanes App's open pull requests, those merged in the window
+and those opened in it.
+
+| Key | Default | What it sets |
+|---|---|---|
+| `target-lead-time-hours` | 2 | Target open-to-merge hours. The WIP cap is merged lane PRs per hour times this, rounded up, at least `min-cap`. |
+| `min-cap` | 1 | Floor under the computed WIP cap, so a day with few merges cannot shrink the cap until the lane stalls. This repository sets 12. |
+| `merge-rate-window-hours` | 24 | Rolling window for the merged and opened counts. |
+| `opened-to-merged-ratio` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. Not `limits.admission-factor`, which sizes the agent-ready backlog. |
+| `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap. |
+| `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
+| `pause-from` | empty | UTC date or date-time from which the lane pauses over a cap; empty never pauses. |
+
+A held lane PR carries `needs-human` or `do-not-merge`, or has a body line exactly
+`Hold: a human merges this`. Held PRs never count against the WIP cap; countable PRs are the open
+lane PRs that are not held. Over the WIP cap (countable at or above it), over the held cap, over
+the admission share, or with a held PR past the alarm age, the check writes a warning annotation.
+Over either cap on or after `pause-from` it pauses the lane: work-resolve-issue starts no run and
+work-unblock re-fires none. A read that fails never caps; without a merged count the cap is
+`limits.wip-cap`. A held PR's age runs from when it opened.
+
+The check publishes its status as one flat JSON object: the step output `wip`, the step summary
+and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane pauses.
+
+| Field | Meaning |
+|---|---|
+| `countable_lane_prs` | Open lane PRs not held; null when the listing failed. |
+| `held_lane_prs` | Open lane PRs held. |
+| `held_oldest_age_hours` | Hours since the oldest held PR opened; null with none. |
+| `held_over_alarm_count` | Held PRs older than `held-alarm-hours`. |
+| `wip_cap` | The WIP cap in effect. |
+| `wip_cap_source` | `computed` from the merge rate, or `config` (`limits.wip-cap`). |
+| `wip_min_cap` | The floor under the computed cap. |
+| `held_cap`, `held_alarm_hours` | The held buffer's cap and alarm age. |
+| `merged_lane_prs_window`, `merge_rate_per_hour`, `merge_rate_window_hours`, `target_lead_time_hours` | The merge rate and its inputs. |
+| `admitted_lane_prs_window`, `admission_cap`, `opened_to_merged_ratio` | Lane PRs opened in the window and their cap. |
+| `wip_over`, `held_over`, `admission_over`, `held_alarm` | Which limit is crossed. |
+| `alert` | Any of the four. |
+| `pause_from`, `paused` | The pause date and whether the lane pauses now. |
 
 ## Planning lane work
 
