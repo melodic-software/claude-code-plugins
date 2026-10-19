@@ -782,7 +782,7 @@ class Reader:
                 if not head_ref or recorded != head_ref:
                     continue
             verdicts.append(Verdict(sha, verdict, run_id))
-            if sha == head:
+            if sha == head and verdict == "fail":
                 head_fails.append((run_id, name))
         fails = [v for v in verdicts if v.verdict == "fail"]
         refusal: str | None

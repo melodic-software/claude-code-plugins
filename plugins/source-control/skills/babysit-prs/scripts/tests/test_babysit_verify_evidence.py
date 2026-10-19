@@ -308,6 +308,17 @@ class VerdictAtTheCurrentHead(unittest.TestCase):
         self.assertEqual(evidence.head_fail, (5, newer))
         self.assertEqual(self.summary(fake, 5, newer), "Spec item 2 is unmet.")
 
+    def test_a_newer_head_pass_is_never_the_fail_to_quote(self) -> None:
+        fail, passed = named(HEAD, "fail"), named(HEAD, "pass", 99)
+        fake = FakeGitHub(
+            [artifact(passed, 5), artifact(fail, 2)],
+            {2: run(2), 5: run(5)},
+            {passed: record(99)},
+        )
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(evidence.head_fail, (2, fail))
+
     def test_an_unreadable_or_foreign_record_quotes_no_summary(self) -> None:
         name = named(HEAD, "fail")
         fake = FakeGitHub([artifact(name, 1)], {1: run(1)})
