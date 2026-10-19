@@ -526,9 +526,11 @@ to `$RUNNER_TEMP/base-script` before the head checkout and checked against its r
 ### Patch output mode
 
 Read file only, chosen by the caller's `output-mode: patch` input. It lets an activity run head
-code with no write token and hand its change to a separate job that holds one. The config states
-the same fact as the skill's `applied-by.patch`, naming the `prepare: apply-patch` script that
-applies it ([README.md, Activities](README.md#activities)); the read file passes
+code with no write token and hand its change to a separate job that holds one. The read file
+collects the change as a patch only when the caller passes `output-mode: patch`. The config's
+`applied-by.patch` is to state the same fact and name the `prepare: apply-patch` script that
+applies it ([README.md, Activities](README.md#activities)); no activity sets `applied-by` today.
+The read file passes
 `applied-by-supported: patch` to `resolve-config`, so a leaf whose `applied-by` sets any other
 key fails red before the head checkout. A `gating: gate` leaf cannot set `applied-by`. The steps:
 

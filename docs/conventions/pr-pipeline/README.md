@@ -292,8 +292,9 @@ Each leaf declares:
   whose `needs` names the producer. A runner hands on only the keys it passes as
   `applied-by-supported` to `resolve-config` (`pr-run-activity-read.yml` passes `patch`); an
   applying leaf with any other key fails red before the head checkout. A skill that hands on a
-  patch gets the same edit tools as a write skill and commits nothing: the runner collects its
-  uncommitted change. Those edit tools and the `changed-paths` filter key on "an effect other than
+  patch gets the same edit tools as a write skill and commits nothing. The read runner collects
+  its uncommitted change as a patch only when the caller passes `output-mode: patch`; no activity
+  sets `applied-by` today. Those edit tools and the `changed-paths` filter key on "an effect other than
   `read`, or `applied-by.patch`"; the effect half goes once the last skill leaves
   `pr-run-activity-write.yml`.
 - `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
@@ -328,8 +329,10 @@ Each leaf declares:
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a
   `read` activity that leaves the working tree dirty unless it hands its change on as a patch. An
   activity that runs head code (tests, linters, builds) takes effect `read`, because a
-  write-effect activity must not execute head code; to change the branch it hands its change on
-  through `applied-by.patch` to a `prepare: apply-patch` script with no model and no head code.
+  write-effect activity must not execute head code. To change the branch it hands its change on
+  to a `prepare: apply-patch` script with no model and no head code: today fix-ci does this
+  through its caller's `output-mode: patch` and `apply-ci-fix`; the target state names the script
+  in the skill's `applied-by.patch`.
 - `gating`: `gate` feeds `ci-status`; `advisory` is reported only. `ci-status` stays the only
   required check. A `gate` skill activity must not execute head code, since its verdict is read
   in the same job after the skill ran; tests, linters and builds that gate run as a `script`

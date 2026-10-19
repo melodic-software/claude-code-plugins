@@ -67,9 +67,10 @@ The step fails and writes no file when:
 14. The patch rules or their schema are missing, fail the schema, or a row does not refuse the
     universal set, commits with the base as a parent with an `allow` other than exactly
     `[merge-result]`, or a patch-producing activity's prepare mode has no row (`patch-rules`). The
-    action checks this right after the config itself loads (rejections 1-13), before it gathers any
-    fact or resolves a slot, for every lane; `loadConfig` and `resolveGrant` do not,
-    so the token broker never reads these files.
+    action checks this right after `loadConfig` (rejections 1-11, 13 and 16) and before it gathers
+    any fact or resolves a slot, for every lane; rejections 12 and 15 come after the slot
+    resolves. `loadConfig` and `resolveGrant` do not check the patch rules, so the token broker
+    never reads these files.
 15. The selected leaf applies and its `applied-by` sets a key `applied-by-supported` does not name
     (`applied-by-unsupported`). The action checks this; `resolveGrant` does not.
 16. `models.default-profile` or a route names a profile `models.profiles` does not define
