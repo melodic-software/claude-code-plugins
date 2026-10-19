@@ -388,7 +388,11 @@ _bfr_segment() {
     ((${HOOK_SEG_REDIR_OPAQUE[j]:-0})) && continue
     case "${HOOK_SEG_REDIR_OP[j]}" in
     '<') _BFR_AUX_FILES+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
-    '>' | '>>' | '>|' | '<>') [[ "${HOOK_SEG_REDIR_TARGET[j]}" == /dev/* ]] || _BFR_WTARGETS+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
+    '>' | '>>' | '>|' | '<>')
+      # Only the sinks; /dev/shm and /dev/../ are ordinary files.
+      [[ "${HOOK_SEG_REDIR_TARGET[j]}" =~ ^/dev/(null|stdout|stderr|tty|fd/[0-9]+)$ ]] ||
+        _BFR_WTARGETS+=("${HOOK_SEG_REDIR_TARGET[j]}")
+      ;;
     '<<<') _BFR_AUX_TEXTS+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
     *) ;;
     esac
@@ -537,7 +541,7 @@ fi
 
 # The body may sit anywhere in the command when a posting command reads
 # stdin or expands a variable or substitution, when it posts a body file and
-# the command writes a file (a redirect other than to /dev, or cp, mv, ln,
+# the command writes a file (a redirect other than to a /dev sink, or cp, mv, ln,
 # install, rsync, tee: `printf ... > x && mv x b.md && gh pr comment 1 -F b.md`),
 # when a body file does not exist yet, or on PowerShell (whose quoting the
 # bash tokenizer only approximates): then read all of it. A backtick may open a substitution too,

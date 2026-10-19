@@ -180,6 +180,7 @@ deny "body file written by printf in the same command" "printf '%s\\n' '$P' > ne
 deny "existing body file overwritten in the same command" "printf '%s\\n' '$P' > plain.md && gh pr comment 12 -F plain.md"
 deny "body file written, then moved over an existing one" "printf '%s\\n' '$P' > x.tmp && mv x.tmp plain.md && gh pr comment 12 -F plain.md"
 deny "existing body file overwritten by cp of a file holding the phrase" "cp body.md plain.md && gh pr comment 12 -F plain.md"
+deny "body file rewritten through a /dev/.. path" "printf '%s\\n' '$P' > /dev/..$WD/plain.md && gh pr comment 12 -F /dev/..$WD/plain.md"
 deny "body file written by a heredoc in the same command" "cat > new2.md <<'EOF'
 $P
 EOF
@@ -211,6 +212,7 @@ quiet "git log --grep of the phrase, then a post from a plain file" "git log --o
 quiet "grep of the phrase, then a post with stderr to /dev/null" "grep -c \"$P\" notes.md; gh pr comment 12 --body \"Thanks.\" 2>/dev/null"
 quiet "git log --grep of the phrase into a file, then an unrelated post" "git log --oneline --grep \"$P\" > hits.txt; gh pr comment 12 --body \"Thanks, fixed.\""
 quiet "grep of the phrase, then a post with stderr to a log" "grep -c \"$P\" notes.md; gh pr comment 12 --body \"Thanks.\" 2>err.log"
+quiet "grep of the phrase, then a body-file post with stderr to /dev/null" "grep -c \"$P\" notes.md; gh pr comment 12 -F plain.md 2>/dev/null"
 quiet_plain "git show" "git show HEAD -- .github/scripts/pr-unblock/address-feedback.mjs"
 quiet_plain "gh pr view" "gh pr view 12 --comments"
 
