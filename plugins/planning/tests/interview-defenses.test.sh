@@ -448,10 +448,10 @@ declares_both_fixtures B "$CASE_B"
 
 # Both defenses are body prose, each covered by its own section digest below; no
 # frontmatter key states or qualifies either. `argument-hint` is the slot list
-# `[me|lock|scope] [topic]`, with the invocation examples in the body's `Arguments.` line.
+# `[me|lock|scope|share] [topic]`, with the invocation examples in the body's `Arguments.` line.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "2e53b9942730509a6e02349e032fdd9e4329c16ad6130a4ea61929d757b0216c"
+  "c7cdb6ad399bfc71c4645d8448ab54e040588034d97fa617ffc895c97ba5120a"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
 # the top of SKILL.md, where a compaction's re-attach still reaches (#5332;
@@ -498,13 +498,14 @@ done
 # The yes-accepts-recommendation rule words a negative recommendation as "Should X stay out of
 # this change?" so "Q<N> yes" and "accept all" mean the recommended answer. It changes how a
 # question is phrased, not what resolves it: an unanswered question still resolves nothing.
+# The surface sentence now names the lane table instead of the two "Question surface" rules; it only names where a round is asked.
 # The emoji paragraph states its setting once with an inline fallback for an unexpanded token;
 # it changes how the option is read, not what any round resolves.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "5c682a7afc2b40cfd482b04e4aff5ac822782c2c0e6262811f090a27e92f6616"
+  "4e257051ae23cc252fc57d3eef8b7cc47cdc276a3c24d1bc5a91a6755cc665dc"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -599,11 +600,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # The page paragraph writes the register's `open` rows with `round.sh sync-ledger` in the same step as `add-round`, and a forced wrap-up reports what it skipped; the `lock` row is unchanged.
 # The substitution record cites the live manifest-reference page in place of the retired plugins-reference page and moves its as-of date; the `lock` row is unchanged.
 # The opt-in AskUserQuestion paragraph bounds a card round by one call's question limit, cited to the live Agent SDK page, in place of a hard-coded count; the `lock` row is unchanged.
+# The page-lane text moved to context/lane-page.md, a lane table was added, and the router gained the `share [<topic>]` row; the `lock` row is byte-identical.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "0d4ad21f4beb486a89babbce668f70a8e827ef97d87b46852f825b065b758430"
+  "6ccdebddf3fe761b04239f6d4255634d2a3cc8b08507ecd66ac9ba31fe3a4262"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -646,11 +648,12 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The page bullet names the page's option labels, and the "Continue on signal" bullet routes a pause through /session-flow:workflow, then resolves the surface again and runs `round.sh doctor`; neither changes which rows a reply may close.
+# The section's pointers now name context/lane-page.md and context/question-shape.md; a pointer changes no rule.
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "52eb0051adfbb7b7a7fbc99bab854138ff52eae7f5ad1d1c8e78993d0d7862c8"
+  "ac4456c25873fde66592daa3202789a242c15b7bea34b50cde9076a6864bbed2"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "9fd949249c01cdd3217765208d694a960453762c2d7067d6a224ea49aead9c7d"
@@ -681,8 +684,9 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Case 26 (scope returns resolved and unresolved rows, writes no PLAN.md) grades a `blocked`
 # `USER-RESERVED` row that is returned and never assumed, so it agrees with cases 15 and 16.
 # Case 27 (a resumed recommendation re-grounded against a later constraint) grades a re-check before a round is shown; it resolves no row, so it agrees with cases 15 and 16.
+# Case 30 (shared-session-starts-share-before-first-round) grades that a shared session starts `share` before the first round; it resolves no row, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "ce373643629fb2678996c3069ab0bbe5a4408cc924a4a683b4a14c7080012eb1"
+  "fce1604293d686a19172cd4bb5f005199e51257749147f495e28b4f42690210a"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
@@ -848,8 +852,8 @@ pin "loop.md: the confirmation restate lists every hedged row" "$LOOP" \
   "lists every row carrying \`hedged:\`, and every \`free-text:\` row whose answer is hedged, for explicit confirmation"
 pin "loop.md: a hedged own answer typed on the page gets the same echo" "$LOOP" \
   "A hedged \"Own answer\" typed on the page gets the same echo on its wake"
-pin "SKILL.md: the Stance names both question-surface rules" "$SKILL" \
-  "The surface follows the two \"Question surface\" rules above"
+pin "SKILL.md: the Stance names the lane table that carries the question-surface rules" "$SKILL" \
+  "The surface follows the lane table above"
 pin "SKILL.md: on the page, commitment parts are \`commits\` entries" "$SKILL" \
   "on the page, its parts are the question's \`commits\` entries"
 pin "loop.md defines commitment parts on the page" "$LOOP" \

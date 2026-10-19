@@ -64,6 +64,10 @@ Measuring broken code is meaningless, and a baseline captured on a broken tree p
 - **Does not capture baselines after the fact**, a post-change "baseline" is not a baseline. Missing baseline → honest "cannot quantify", plus a current-state measurement for the record.
 - **Does not run the mechanical pass**. `/toolchain:check` owns build+test+lint; this skill only requires its result to be green.
 
+## Next
+
+/verification:confirm. The outcome report takes the comparison table as its evidence.
+
 ## Gotchas
 
 - **Baseline BEFORE the change, compared under the SAME conditions after.** Condition drift invalidates the comparison, the run/warm-up/conditions methodology is owned by [context/performance.md](context/performance.md).

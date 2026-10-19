@@ -117,6 +117,8 @@ test("live config: pr-unblock runs its slots in order", () => {
       "publish-feedback",
       "review-dependency",
       "apply-dependency-verdict",
+      "fix-ci",
+      "apply-ci-fix",
       "report-escalation",
     ],
   );
@@ -135,11 +137,31 @@ test("live config: address-feedback applies to a ready PR with comments --ci and
   );
 });
 
-test("live config: address-feedback waits for a human on a hold label and skips a draft", () => {
-  for (const label of ["do-not-merge", "needs-human"]) {
-    assert.equal(skipReason("pr-unblock", "address-feedback", { labels: [label] }), "awaiting-human");
+test("live config: address-feedback waits for a human on do-not-merge and skips a draft", () => {
+  for (const labels of [["do-not-merge"], ["do-not-merge", "needs-human"]]) {
+    assert.equal(skipReason("pr-unblock", "address-feedback", { labels }), "awaiting-human");
   }
   assert.equal(skipReason("pr-unblock", "address-feedback", { draft: true }), "not-applicable");
+});
+
+// needs-human does not skip the slot: the review-threads select step holds a
+// needs-human PR unless a write-access trusted person asked for the fix
+// (address-feedback.mjs isFixRequest).
+test("live config: address-feedback applies to a needs-human PR", () => {
+  assert.equal(
+    selected("pr-unblock", "address-feedback", { mergeable: "clean", labels: ["needs-human"] }).applies,
+    true,
+  );
+});
+
+test("live config: every other PR activity still waits on needs-human", () => {
+  for (const [lane, activity, facts] of [
+    ["pr-unblock", "resolve-conflicts", {}],
+    ["pr-unblock", "review-dependency", { mergeable: "clean" }],
+    ["pr-refine", "fix-docs", {}],
+  ]) {
+    assert.equal(skipReason(lane, activity, { ...facts, labels: ["needs-human"] }), "awaiting-human", activity);
+  }
 });
 
 test("live config: publish-feedback runs the reply script after address-feedback, granted publish-artifact only", () => {
@@ -162,7 +184,24 @@ test("live config: report-escalation follows every other pr-unblock activity", (
     "publish-feedback",
     "review-dependency",
     "apply-dependency-verdict",
+    "fix-ci",
+    "apply-ci-fix",
   ]);
+});
+
+test("live config: fix-ci holds no write token and its push job may only write its branch", () => {
+  const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
+  assert.deepEqual(grant("fix-ci"), { effect: "read", grant: { contents: "read", "pull-requests": "read", issues: "read" } });
+  assert.deepEqual(grant("apply-ci-fix"), {
+    effect: "mutate-branch",
+    grant: { contents: "write", "pull-requests": "read", issues: "read" },
+  });
+  const fix = selected("pr-unblock", "fix-ci");
+  assert.equal(fix.prepare, "ci-context");
+  assert.equal(fix.args, "ci --ci");
+  assert.equal(selected("pr-unblock", "apply-ci-fix").prepare, "apply-patch");
+  assert.equal(selected("pr-unblock", "apply-ci-fix").applies, true);
+  assert.equal(selected("pr-unblock", "fix-ci", { labels: ["needs-human"] }).applies, false);
 });
 
 test("live config: review-dependency may only write its branch; its verdict job may only write PRs and issues", () => {

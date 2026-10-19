@@ -37,6 +37,21 @@ describe("isCookieProfileRetryableError", () => {
     ).toBe(false);
   });
 
+  it("advances on yt-dlp's stderr failure for an unreadable browser profile", () => {
+    expect(
+      isCookieProfileRetryableError(
+        'ERROR: could not find chrome cookies database in "/tmp/noprofile"',
+        NO_PATTERNS,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not advance on the stdout progress line alone", () => {
+    expect(isCookieProfileRetryableError("Extracting cookies from chrome", NO_PATTERNS)).toBe(
+      false,
+    );
+  });
+
   it("does not advance on unrelated failures", () => {
     expect(
       isCookieProfileRetryableError("HTTP Error 429: Too Many Requests", youtubeAdapter.errorPatterns),
