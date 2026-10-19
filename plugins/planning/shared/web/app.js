@@ -1822,7 +1822,7 @@
         at: () => composer },
       { h: "Everyone's answers", t: "Once you have answered, other people's answers show here, and you can vote for the ones you agree with.",
         at: () => ansPane },
-      { h: "Chat with people", t: "The chat is for talking with the others here. It is not sent to Claude and does not count as an answer.",
+      { h: "Chat with people", t: "The chat is for talking with the others here, and does not count as an answer. Start a message with @Claude to ask Claude.",
         at: () => fab },
       { h: "Help is here", t: "Open Help to take this tour again or see the keyboard shortcuts.",
         at: () => (phone.matches ? tabBtns.more : keysBtn) },
@@ -3882,7 +3882,7 @@
         for (const u of S.uploads || []) if (u.status === "offered" && !isMe(u.cid)) note("uo:" + u.id, "seen", `${disp(u.by)} offered a file: ${u.file}.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); }, isNew: true });
         // What urgently waits on me pops up once when it arrives, those arriving together as one.
         const fresh = [];
-        for (const i of S.inbox || []) if (i.group === "waiting" && !(("iw:" + i.key) in seen) && urgent().includes(i.kind)) { seen["iw:" + i.key] = "seen"; if (!first) fresh.push(i.key); }
+        for (const i of S.inbox || []) if (i.group === "waiting" && !(("iw:" + i.key) in seen) && urgent().includes(i.kind) && !isMe(i.byCid)) { seen["iw:" + i.key] = "seen"; if (!first) fresh.push(i.key); }
         hostAlerts(fresh);
       }
       // Item 11: a toast when Claude answers one of my requests, once I can open the answer.
@@ -3905,7 +3905,7 @@
     /** The pop-up for what urgently waits on the host now: one item in its own words, several as one count with
      *  Open Inbox. Items that no longer wait drop out; with none left, null. */
     function alertToast() {
-      const live = new Map(inbox().filter(i => i.group === "waiting" && urgent().includes(i.kind)).map(i => [i.key, i]));
+      const live = new Map(inbox().filter(i => i.group === "waiting" && urgent().includes(i.kind) && !isMe(i.byCid)).map(i => [i.key, i])); // never the host's own report
       ui.alertKeys = (ui.alertKeys || []).filter(k => live.has(k));
       const items = ui.alertKeys.map(k => live.get(k));
       if (!items.length) return null;
@@ -6635,7 +6635,7 @@
         const nQ = inCur.length || S.questions.length, hostName = disp(nameOf(S.ownerPid, "The host"));
         orH.textContent = me.name ? `Welcome, ${me.name}` : "Welcome";
         orGoal.textContent = S.goal ? `Goal: ${S.goal}` : ""; orGoal.hidden = !S.goal;
-        const how = "On each one, pick an option, or type your answer in the box under the question. The chat is only for talking with people.";
+        const how = "On each one, pick an option, or type your answer in the box under the question. Chat is for people; start a message with @Claude to ask Claude.";
         // On a phone the how-to sentence folds in with the intro, so the card stays short.
         orAsk.textContent = `${hostName} asks you to answer ${nQ} question${nQ === 1 ? "" : "s"}.${phone.matches ? "" : " " + how}`;
         orStart.textContent = `Start here: question ${Math.max(1, inCur.indexOf(target) + 1)}`; orStart._q = target?.id;
