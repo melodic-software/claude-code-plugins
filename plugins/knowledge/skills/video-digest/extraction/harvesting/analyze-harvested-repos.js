@@ -87,16 +87,76 @@ function cloneWithHome(url, destDir, spawnFn, timeoutMs, home) {
         GIT_LFS_SKIP_SMUDGE: "1",
       },
     });
+    const untrack = trackCloneGroup(child);
     const timer = setTimeout(() => killProcessTree(child), timeoutMs);
     child.on("close", (code) => {
       clearTimeout(timer);
+      untrack();
       resolve(code === 0);
     });
     child.on("error", () => {
       clearTimeout(timer);
+      untrack();
       resolve(false);
     });
   });
+}
+
+/** Live detached clone children, whose groups the parent kills if it dies first. */
+const liveCloneGroups = new Set();
+
+/** The signals whose default exit a listener would remove. */
+const HANDLED_SIGNALS = /** @type {const} */ (["SIGHUP", "SIGINT", "SIGTERM"]);
+
+function killLiveCloneGroups() {
+  for (const child of liveCloneGroups) killProcessTree(child);
+  liveCloneGroups.clear();
+}
+
+/** @param {NodeJS.Signals} signal */
+function exitOnSignal(signal) {
+  killLiveCloneGroups();
+  // A signal listener removes Node's default exit, so drop ours and re-raise the
+  // signal: the parent then dies the conventional way (128 + signal number).
+  removeParentHandlers();
+  process.kill(process.pid, signal);
+}
+
+/** @type {Array<[NodeJS.Signals, () => void]>} */
+const signalListeners = HANDLED_SIGNALS.map((signal) => [signal, () => exitOnSignal(signal)]);
+
+function installParentHandlers() {
+  process.on("exit", killLiveCloneGroups);
+  for (const [signal, listener] of signalListeners) process.on(signal, listener);
+}
+
+function removeParentHandlers() {
+  process.off("exit", killLiveCloneGroups);
+  for (const [signal, listener] of signalListeners) process.off(signal, listener);
+}
+
+/**
+ * Track a detached clone's process group so an abnormal parent exit (a signal or
+ * `process.exit`) kills it instead of leaving it running. Windows clones are not
+ * detached and are left alone. The handlers exist only while a clone is live, so
+ * the default signal behavior returns once the last one ends.
+ *
+ * @param {import("node:child_process").ChildProcess} child
+ * @returns {() => void} Stop tracking the clone.
+ */
+function trackCloneGroup(child) {
+  if (process.platform === "win32") return () => {};
+  if (liveCloneGroups.size === 0) installParentHandlers();
+  liveCloneGroups.add(child);
+  return () => {
+    liveCloneGroups.delete(child);
+    if (liveCloneGroups.size === 0) removeParentHandlers();
+  };
+}
+
+/** @returns {number} How many clone process groups are currently tracked. */
+export function liveCloneGroupCount() {
+  return liveCloneGroups.size;
 }
 
 /**

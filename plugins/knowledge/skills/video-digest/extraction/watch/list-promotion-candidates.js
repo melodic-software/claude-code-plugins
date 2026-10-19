@@ -117,5 +117,10 @@ if (isMainModule(import.meta.url)) {
     writeStderr("Usage: node watch/list-promotion-candidates.js <slice-dir>");
     process.exit(2);
   }
-  writeStdout(JSON.stringify(listPromotionCandidates(sliceDir), null, 2));
+  try {
+    writeStdout(JSON.stringify(listPromotionCandidates(sliceDir), null, 2));
+  } catch (error) {
+    writeStderr(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }

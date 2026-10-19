@@ -127,6 +127,7 @@ on stdout.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import time
@@ -2203,7 +2204,7 @@ def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
     ]
     if is_json_object(entry):
         # An entry is a live enqueue even beside errors: reported enqueued so
-        # it is recorded and checked against the one-in-flight rule.
+        # it is recorded and checked against the merge.max-in-flight cap.
         record["status"] = "enqueued"
         record["success"] = True
         record["mergeQueue"] = {
@@ -2990,6 +2991,7 @@ def assess_unattended(
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
     shared: merge_policy.SharedPostMerge | None = None,
+    share: Callable[[merge_policy.SharedPostMerge], object] | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -3024,6 +3026,7 @@ def assess_unattended(
         lane_kill_switch=lane_kill_switch,
         lane_rung_cap=lane_rung_cap,
         shared=shared,
+        share=share,
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -3350,10 +3353,11 @@ def unattended_enqueue(
     kill switch and the opt-in label are read again; the pin comment is
     posted before the enqueue and the enqueue goes nowhere without it; after
     the enqueue the queue is
-    re-read and, when another identity entry was enqueued earlier, this one
-    dequeues itself. In the pr-merge lane the kill switch "read again" is the
-    value the workflow passed at the start of its run, so a flip during the
-    run does not stop this enqueue."""
+    re-read and, when the identity entries enqueued earlier and the unverified
+    lane merges already fill `merge.max-in-flight`, this one dequeues itself.
+    In the pr-merge lane the kill switch "read again" is the value the
+    workflow passed at the start of its run, so a flip during the run does not
+    stop this enqueue."""
     inputs = policy.inputs or {}
     identity, branch = str(inputs["identity"]), str(inputs["branch"])
     pin = str(result.get("headRefOid") or "")
@@ -3455,9 +3459,20 @@ def unattended_enqueue(
     entries = _identity_queue_entries(repo, branch, identity)
     numbers = [json_object(e.get("pullRequest")).get("number") for e in entries or []]
     step["identityEntries"] = numbers
-    if entries is None or not numbers or numbers[0] != number:
-        # Another host's entry came first, or the order cannot be read: this
-        # entry leaves so only one unattended merge is in flight.
+    # Room for queued entries: `merge.max-in-flight`, read again uncached at
+    # the default branch head, less the unverified lane merges the policy
+    # counted. A failed read keeps the lower of the base's cap and the one
+    # the assessment applied, so a cap lowered on main still holds.
+    cap, source = merge_policy._run_max_in_flight(
+        repo, branch, None, inputs["config"], shared=False
+    )
+    if source == "base":
+        cap = min(cap, inputs.get("flight_cap", cap))
+    room = cap - inputs["flight"].unverified
+    if entries is None or number not in numbers[: max(room, 0)]:
+        # Earlier entries (another host's) fill the room, or the order cannot
+        # be read: this entry leaves so no more than `merge.max-in-flight`
+        # unattended merges are in flight.
         mine = next(
             (
                 e
@@ -3475,7 +3490,7 @@ def unattended_enqueue(
             postmerge.DEQUEUE_MUTATION, node_id
         )
         why = (
-            "another unattended merge is in flight"
+            "the merge.max-in-flight cap is full"
             if entries is not None
             else "the queue could not be re-read whole"
         )
@@ -3927,6 +3942,14 @@ def main() -> int:
                 lane_kill_switch=args.lane_kill_switch,
                 lane_rung_cap=args.lane_rung_cap,
                 shared=shared,
+                # Each recompute goes back to the file for the next candidate.
+                share=(
+                    None
+                    if args.postmerge_result is None
+                    else functools.partial(
+                        postmerge.write_shared, args.postmerge_result
+                    )
+                ),
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)

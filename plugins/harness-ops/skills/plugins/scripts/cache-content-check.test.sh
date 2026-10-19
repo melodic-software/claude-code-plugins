@@ -437,15 +437,19 @@ assert_contains "unknown argument: names --help" "$out" "(see --help)"
 # must still name the missing tool.
 nojq_bin="$case_dir/nojq-bin"
 mkdir -p "$nojq_bin"
-ln -s "$(command -v bash)" "$nojq_bin/bash"
-out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --help 2>&1)
-rc=$?
-assert_exit "--help without jq or git: exit 0" 0 "$rc"
-assert_contains "--help lists the exit codes" "$out" "Exit: 0 ran to completion"
-out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --all 2>&1)
-rc=$?
-assert_exit "run without jq: exit 2" 2 "$rc"
-assert_contains "run without jq: actionable notice" "$out" "jq required"
+ln -s "$(command -v bash)" "$nojq_bin/bash" 2>/dev/null
+if [[ -L "$nojq_bin/bash" ]] && [[ "$(env PATH="$nojq_bin" "$nojq_bin/bash" -c 'echo ok' 2>/dev/null)" == "ok" ]]; then
+  out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --help 2>&1)
+  rc=$?
+  assert_exit "--help without jq or git: exit 0" 0 "$rc"
+  assert_contains "--help lists the exit codes" "$out" "Exit: 0 ran to completion"
+  out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --all 2>&1)
+  rc=$?
+  assert_exit "run without jq: exit 2" 2 "$rc"
+  assert_contains "run without jq: actionable notice" "$out" "jq required"
+else
+  printf 'SKIP: no-jq cases — ln -s cannot make a runnable link on this host (Windows without the symlink privilege)\n' >&2
+fi
 
 # ============================================================================
 # Case: --all sweeps every marketplace, and a per-marketplace failure is
