@@ -3215,6 +3215,48 @@ class TestSupersedeResolve(DirCase):
             self.edit("resolve", q, "restore")
         self.assertEqual(self.ledger.read_bytes(), self.LEDGER.encode("utf-8"))
 
+    def named_ledger(self):
+        import exporters
+
+        self.ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Which store? | "
+            + exporters.encode({"answer": "accepted: Postgres"}, None)
+            + "\n- Q2 | answered | round 1 | Which queue? | "
+            + exporters.encode({"answer": "accepted: SQS", "note": "n; m"}, None)
+            + "\n\n## Deferred questions\n\nNone.\n",
+            encoding="utf-8",
+        )
+
+    def test_an_exporter_written_row_keeps_the_bare_answer_as_was(self):
+        import exporters
+
+        self.named_ledger()
+        before = self.ledger.read_bytes()
+        self.edit("supersede", "Q1", "--proposes", "x")
+        res = self.row(1).split("|", 4)[4].strip()
+        fields = exporters.parse_named(res, "t")[0]
+        self.assertEqual(fields["was"], "accepted: Postgres")
+        self.edit("resolve", "Q1", "reconfirm")
+        res = self.row(1).split("|", 4)[4].strip()
+        self.assertEqual(
+            exporters.parse_named(res, "t")[0]["was"], "accepted: Postgres"
+        )
+        self.ledger.write_bytes(before)
+        self.edit("supersede", "Q1", "--proposes", "x")
+        self.edit("resolve", "Q1", "restore")
+        self.assertEqual(self.ledger.read_bytes(), before)
+
+    def test_a_named_row_with_a_note_is_refused(self):
+        self.named_ledger()
+        before = self.ledger.read_bytes()
+        rc, out, err = self.cmd(
+            "supersede", "Q2", "--proposes", "x", "--ledger", str(self.ledger)
+        )
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("refused", err)
+        self.assertEqual(self.ledger.read_bytes(), before)
+
     def test_restore_keeps_crlf_endings(self):
         crlf = self.LEDGER.replace("\n", "\r\n").encode("utf-8")
         self.ledger.write_bytes(crlf)

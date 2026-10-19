@@ -1303,9 +1303,36 @@ def split_lead(res):
     return (m.group(1), m.group(2)) if m else ("", res)
 
 
+ANSWER_FIELD = re.compile(r"\b(?:hold|answer|note|aside|commitments)::")
+
+
+def displaced_answer(old, qid, where):
+    """The bare answer a superseded row's `was` holds, as export_ledger writes it: `old` itself
+    for a plain resolution, the `answer` field of a named-field one. A named row carrying more
+    than its answer is refused, since `was` has no place for it."""
+    named = parse_named(old, where)
+    if not named:
+        return old
+    fields, marked = named
+    if set(fields) != {"answer"} or marked:
+        raise SystemExit(
+            f"refused: {qid} carries more than an answer ({', '.join(fields)}), which the "
+            f"superseded row cannot hold; edit it by hand in {where}"
+        )
+    return fields["answer"]
+
+
+def decision_shaped(old):
+    """True when `old` reads as an answer field's value (module docstring)."""
+    return old.startswith(("accepted: ", "hedged: ", "free-text: ", "deferred")) or bool(
+        ALT.match(old)
+    )
+
+
 def supersede_row(text, qid, proposes, where):
     """`text` with the answered row `qid` set to superseded-by-plan, `proposal:: E(proposes);
-    was:: E(its resolution)`, escaped as export_ledger escapes a superseded row."""
+    was:: E(its answer)`, escaped as export_ledger escapes a superseded row. A named-field
+    resolution keeps only its answer in `was`, so resolve_row restore rebuilds that form."""
     if not proposes.strip():
         raise SystemExit("refused: --proposes is empty")
 
@@ -1316,6 +1343,7 @@ def supersede_row(text, qid, proposes, where):
                 f"superseded, in {where}"
             )
         lead, old = split_lead(res)
+        old = displaced_answer(old, qid, where)
         return "superseded-by-plan", lead + encode({"proposal": proposes, "was": old}, None)
 
     return edit_row(text, qid, where, change)
@@ -1324,7 +1352,10 @@ def supersede_row(text, qid, proposes, where):
 def resolve_row(text, qid, how, note, where):
     """`text` with the superseded-by-plan row `qid` cleared: `reconfirm` writes the answered
     `proposal:: ...; was:: ...; answer:: accepted: ...` row, `restore` the resolution the row had
-    before supersede_row, character for character."""
+    before supersede_row, character for character. A ledger already in the named grammar (an
+    `answer::`, `hold::`, `note::`, `aside::` or `commitments::` field in a row beside this one)
+    gets the named `answer:: E(was)` form back for an answer-shaped `was`, since `was` holds the
+    bare answer whichever form the row had; any other ledger gets the plain cell."""
     if how not in ("reconfirm", "restore"):
         raise SystemExit(f"refused: unknown resolution {how!r} (reconfirm or restore)")
     if note and how == "restore":
@@ -1351,6 +1382,10 @@ def resolve_row(text, qid, how, note, where):
                 raise SystemExit(f"refused: unreadable plan proposal {rest!r} in {where}")
             new, old = older.groups()
         if how == "restore":
+            if decision_shaped(old) and len(ANSWER_FIELD.findall(text)) > len(
+                ANSWER_FIELD.findall(res)
+            ):
+                return "answered", lead + encode({"answer": old}, None)
             return "answered", lead + old
         fields = {
             "proposal": new,
