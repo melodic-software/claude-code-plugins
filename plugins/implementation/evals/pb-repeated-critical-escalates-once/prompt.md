@@ -23,4 +23,4 @@ What has happened at this boundary:
 
 1. The first `/review:quality-gate security` call returned one CRITICAL finding: `api/search.py:42` builds the SQL query by concatenating the `q` request parameter.
 2. One fix brief went out under Phase 4's fence. The worker's fix passes `q` through `escape_like()` and still concatenates; it passed the build/test gate and was committed as `9c2e5d71f4a08b36e1d9c7a2f5b40e83d6a1c2f7`.
-3. The one re-review, with `--base` set to the reviewed head, rates the same finding CRITICAL again: `api/search.py:42` still concatenates `q` into the SQL text.
+3. The one re-review, with the same `--base` as the first call, rates the same finding CRITICAL again: `api/search.py:42` still concatenates `q` into the SQL text.

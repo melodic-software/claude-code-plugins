@@ -218,7 +218,7 @@ In-session task state lives in the harness and does not survive a context clear.
 | `code-design` | `/review:quality-gate code-design` |
 | `concurrency` | `/review:quality-gate slice concurrency` |
 
-Each call passes `--base <previous phase-boundary commit>` and `--report-only`, plus `--quality-bar <value>` only when the plan has a `Quality bar:` line, and carries no rationale: the gate's fresh-context reviewer gets the phase diff, the tag and that line. Sequence: review, fix inside the phase fence, one re-review scoped to the fixed hunks, then item 1's verdict last. A finding rated CRITICAL again on the re-review goes to `DEVIATIONS.md` as a blocking `human-decision` entry and is escalated once; it never loops. Inputs, fixes, the re-review and the escalation: [context/phase-review.md](context/phase-review.md).
+Each call passes `--base <previous phase-boundary commit>` and `--report-only`, plus `--quality-bar <value>` only when the plan has a `Quality bar:` line, and carries no rationale: the gate's fresh-context reviewer gets the phase diff, the tag and that line. Sequence: review, fix inside the phase fence, one re-review against the same base, then item 1's verdict last. Any CRITICAL on the re-review goes to `DEVIATIONS.md` as a blocking `human-decision` entry and is escalated once; it never loops. Inputs, fixes, the re-review and the escalation: [context/phase-review.md](context/phase-review.md).
 
 **At every phase boundary** (the phase's sanity check passes), perform this ritual atomically:
 

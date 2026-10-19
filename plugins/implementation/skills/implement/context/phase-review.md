@@ -26,17 +26,21 @@ verdict and the commit. SKILL.md Step 4 holds the tag-to-mode table; this file h
    A finding whose fix needs a file outside the phase is a divergence (Step 3), not a fix.
    SUGGESTION findings are reported, not fixed. With no CRITICAL or IMPORTANT finding, skip to
    step 4.
-3. **Re-review, once.** Rerun only the tags whose findings were fixed. When the reviewed head was a
-   commit, pass that SHA as `--base`, so the diff is the fixed hunks alone; when it was `dirty`,
-   keep the phase base and judge only findings on the fixed hunks. There is no second re-review.
+3. **Re-review, once.** Rerun only the tags whose findings were fixed, with the same `--base` as
+   the first call. The whole phase diff stays in scope, so a fix that missed its finding still
+   rates it, and a defect the fix added rates too. The gate takes no list of earlier findings:
+   match its findings to the first call's by file and defect yourself. There is no second
+   re-review.
 4. **Verdict.** Step 4 item 1 runs last, on the fixed tree.
 
-## A repeated CRITICAL
+## A CRITICAL on the re-review
 
-A re-review that rates the same finding (same file and defect) CRITICAL again stops the loop:
+Any CRITICAL the re-review rates stops the loop: the original finding the fix left in place, a
+regression the fix introduced, or a defect the first call missed.
 
 - Append a `human-decision` entry marked blocking to `DEVIATIONS.md` in the memory slice: the tag,
-  the finding with its `file:line`, the fix that was tried, and the head SHA.
+  the finding with its `file:line`, whether it repeats a first-call finding, the fix that was
+  tried, and the head SHA.
 - Escalate once. Interactive: put the finding to the user with the options (fix another way,
   accept the risk, replan). Unattended: the entry is the escalation; leave the phase unmarked and
   park the run, which is blocked on a call only a person can make.
