@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -25,6 +26,21 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_skip as skip
 import babysit_verify_evidence as verify_evidence
+
+# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
+# fixtures' identity writes into the caller's repository
+# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
 
 NOW = datetime(2026, 10, 19, 12, 0, tzinfo=UTC)
 HEAD = "a" * 40
