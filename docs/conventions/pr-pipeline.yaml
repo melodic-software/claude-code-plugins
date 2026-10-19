@@ -433,6 +433,13 @@ merge:
   # The merge queue tests each PR against the latest base plus the PRs ahead
   # of it.
   max-in-flight: 5
+  # Minutes pr-merge's gate loop runs before it starts no further candidate;
+  # the next run starts after the last one reached. Runs 39190604942,
+  # 39187691831 and 39183126369 (the last three scheduled sweeps that ran
+  # the gate) checked 37-39 candidates each: median 30-39 s, longest
+  # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
+  # candidate included, inside the 15 minutes between scheduled runs.
+  gate-budget-minutes: 10
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane
