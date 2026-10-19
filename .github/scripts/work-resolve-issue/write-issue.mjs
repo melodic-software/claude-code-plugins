@@ -40,10 +40,9 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
-const DECISION = /^\*\*Decision recorded\.\*\*(\s|$)/;
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
 // out the body.
 export const MAX_OTHER_COMMENTS = 20;
@@ -196,13 +195,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
         continue;
       }
       const human = humans.has(comment.user.id);
-      // A decision is a human's own text: not posted through an App, and
-      // never edited or last edited by a human.
-      const decision =
-        human &&
-        comment.performed_via_github_app == null &&
-        (lastEditedAt === null || humans.has(lastEditorId)) &&
-        DECISION.test(firstLine(comment.body));
+      const decision = isDecisionComment({ comment, lastEditedAt, lastEditorId }, humans);
       comments.push({
         author_login: comment.user.login,
         author_kind: human ? "human" : "bot",
