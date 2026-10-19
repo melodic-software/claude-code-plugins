@@ -15,8 +15,8 @@ is never checked out. Any doubt (no such clone, a failed fetch or merge-base)
 answers `unknown`, and the gate enqueues as it would without this check.
 
 An input in `SCOPED_INPUTS` counts as changed only for a pull request whose
-own changes since the merge base touch a path it registers, read at the base
-tip: the shared-copy check compares each registered copy with its canonical,
+own changes since the merge base touch it or a path it registers, read at
+the base tip: the shared-copy check compares each registered copy with its canonical,
 so a pull request touching neither merges cleanly whatever the base
 registered. Every other input counts for every pull request.
 """
@@ -146,12 +146,14 @@ def changed_since_merge_base(
                 "reason": "the head's changes could not be listed",
             }
         touched = set(_names(own))
-        # A registry absent or unreadable at the tip registers nothing, so
-        # the doubt falls toward enqueuing.
+        # The PR editing the registry itself overlaps whatever the base
+        # changed there. A registry absent or unreadable at the tip registers
+        # nothing, so the doubt falls toward enqueuing.
         skipped = [
             p
             for p in scoped
-            if not touched
+            if p not in touched
+            and not touched
             & SCOPED_INPUTS[p](_git(root, "cat-file", "blob", f"{tip}:{p}") or "")
         ]
         changed = [p for p in changed if p not in skipped]

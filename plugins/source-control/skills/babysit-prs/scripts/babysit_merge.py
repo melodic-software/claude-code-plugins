@@ -3599,7 +3599,6 @@ def update_error(proc: Any) -> dict[str, Any]:
     """The status and message of a refused `update-branch` call: whether the
     lane token may write a merge that brings in base workflow changes is
     learned from these."""
-    status = re.search(r"\(HTTP (\d{3})\)", proc.stderr or "")
     message = ""
     try:
         body = json.loads(proc.stdout or "")
@@ -3608,7 +3607,7 @@ def update_error(proc: Any) -> dict[str, Any]:
     except ValueError:
         pass
     return {
-        "status": int(status.group(1)) if status else None,
+        "status": gh_http_status(proc.stderr or ""),
         "message": (message or (proc.stderr or "").strip())[:500],
     }
 

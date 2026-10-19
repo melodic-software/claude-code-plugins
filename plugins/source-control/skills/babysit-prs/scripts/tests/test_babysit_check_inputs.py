@@ -119,6 +119,22 @@ class ChangedSinceMergeBase(unittest.TestCase):
         self.assertEqual(out["changed"], [])
         self.assertEqual(out["notApplicable"], [REGISTRY])
 
+    def test_a_registry_change_is_stale_for_a_pr_editing_the_registry(self) -> None:
+        # Main retired what the PR now registers: only the PR's own registry
+        # line names it, so the tip's registry alone would miss the overlap.
+        edit = self.branch("edit", REGISTRY)
+        out = self.read((REGISTRY,), edit)
+        self.assertEqual(out["state"], "stale")
+        self.assertEqual(out["changed"], [REGISTRY])
+
+    def test_a_registry_absent_at_the_tip_registers_nothing(self) -> None:
+        git(self.origin, "rm", "-q", REGISTRY)
+        git(self.origin, "commit", "-q", "-m", "retire")
+        git(self.clone, "fetch", "-q", "origin")
+        out = self.read((REGISTRY,), self.k)
+        self.assertEqual(out["state"], "current")
+        self.assertEqual(out["notApplicable"], [REGISTRY])
+
     def test_an_unscoped_input_is_stale_for_every_pr(self) -> None:
         commit(self.origin, ALLOWLIST, "docs/**\n")
         git(self.clone, "fetch", "-q", "origin")
