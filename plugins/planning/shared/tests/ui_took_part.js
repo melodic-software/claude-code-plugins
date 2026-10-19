@@ -110,7 +110,8 @@ async function main() {
     await until(cy, () => [...document.querySelectorAll(".vf-alist .vf-card")].some(c => /The refund reason/.test(c.textContent) && c.querySelector(".vf-react")), null, 10000);
     await cy.locator(".vf-alist .vf-card", { hasText: "The refund reason" }).locator('.vf-react[data-r="heart"]').click();
     await until(cy, () => document.querySelector('.vf-react[data-r="heart"][aria-pressed="true"]'), null, 10000);
-    await cy.waitForTimeout(400);
+    // Read once the server's answer holds the ❤️, not only the page's own guess: the check is what it does to Q4.
+    await until(cy, pid => Object.entries(window.Core.snapshot()?.me?.reactions?.Q4 || {}).some(([ref, rs]) => ref.startsWith(`p:${pid}`) && rs.includes("heart")), boPid, 10000);
     ok("  a ❤️ alone leaves it open for Cy, never optional", (await statOf(cy, T.f)) === "", await statOf(cy, T.f));
     await cy.locator(".vf-passbtn").click();
     await cy.locator(".vf-passform button[type=submit]").click();

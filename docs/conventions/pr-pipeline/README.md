@@ -167,6 +167,19 @@ and never merges; the pr-merge lane merges on its `verdict=merge` marker at the 
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
 [ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
+`pr-unblock`'s `fix-ci` runs in three jobs of `pr-unblock.yml`, so no model holds a write token:
+`fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
+the pull request to a person once `loop.fix-ci-rounds` fixes were pushed; `fix-ci` (a `read`
+skill in [patch output mode](pr-run-activity.md#patch-output-mode)) runs
+`source-control:pull-request ci --ci`, which reruns, fixes and reruns the checks; and
+`apply-ci-fix` (a `mutate-branch` script, no model, no head code) pushes the patch as one commit
+without force, refusing the whole patch on any change to `.github/**`, an agent instruction path
+(`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a plugin's `hooks/`, `.mcp.json`,
+`.gitmodules`, `CODEOWNERS`), a symbolic link or a gitlink
+([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
+[`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
+unappliable patch, or a check the model escalated, goes to `report-escalation`.
+
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
 Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
@@ -443,7 +456,10 @@ that fails counts as a refusal.
   It holds the rung at `off` until a human closes it directly. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
   force. The wrapper finds these issues by author (the agent identity or `github-actions[bot]`), so
-  removing the marker or the label does not clear one.
+  removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
+  that no merge the failing run covers was enqueued by the agent identity, it files a
+  post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
+  also `needs-human`. That record does not hold the rung off.
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
@@ -454,10 +470,12 @@ that fails counts as a refusal.
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.
 - **Merges in flight.** `merge.max-in-flight` (default 1) caps the identity's merge-queue entries
-  plus its merged pull requests that have not passed the post-merge check. The wrapper refuses at
-  the cap, and an entry enqueued past it (another host's came first) dequeues itself. A red full
-  run or canary run charges every unverified merge whose commit it contains, so a breakage found
-  with several in flight demotes the rung and fails the post-merge check for all of them.
+  plus its merged pull requests that have not passed the post-merge check. It is read at the default
+  branch head once per cache window, not at the pull request's base (the base's value when that
+  read fails), and read again uncached after an enqueue. The wrapper
+  refuses at the cap, and an entry enqueued past it (another host's came first) dequeues itself. A
+  red full run or canary run charges every unverified merge whose commit it contains, so a breakage
+  found with several in flight demotes the rung and fails the post-merge check for all of them.
 - **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
   pr-merge lane owns Dependabot pull requests (below).
 
@@ -919,13 +937,14 @@ One counter per PR, in the findings store, is shared by every lane. After `loop.
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
 escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
 rounds have run. The default is 2; this repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
-escalates.
+escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
+App may push to one PR; the next fix-ci run hands it to a person before any model turn.
 
 ## Limits
 
 The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
 are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
-typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all seven
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all nine
 with defaults.
 
 | Key | Default | What it sets |
@@ -937,11 +956,14 @@ with defaults.
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
 | `limit-stops-per-issue` | 3 | Limit stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
 | `wip-cap` | 60 | Open lanes-App pull requests at or above which work-resolve-issue starts no run and work-unblock re-fires none; at most 500. |
+| `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
+| `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
-the WIP cap check fails open and starts the run. This repository sets `wip-cap` only.
+the WIP cap check fails open and starts the run. This repository sets `wip-cap` and the two
+fix-ci limits.
 
 ## Planning lane work
 

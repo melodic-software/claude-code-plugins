@@ -1,5 +1,45 @@
 # Changelog for the PR pipeline convention
 
+## 2.14.0 - 2026-10-18
+
+`prepare` gains `ci-context`, the one mode for a `read` skill, and `apply-patch`, the one mode for
+a script, a `mutate-branch` one. `pr-run-activity-read.yml` performs `ci-context`: it downloads a
+base job's `ci-context-<attempt>` artifact, checks its SHA-256 and head, and gives the skill that
+file plus Bash, Edit and Write; it takes `ci-context-attempt` and `ci-context-sha256` and gains a
+`reply-attempt` output. `pr-run-activity-write.yml` performs `apply-patch` with the new
+`patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity` and
+`reply-attempt` inputs ([pr-run-activity.md](pr-run-activity.md#prepare-apply-patch)). The
+pr-unblock lane adds `fix-ci` and `apply-ci-fix`, which refuses the whole patch on a change to
+`.github/**` or an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a
+plugin's `hooks/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), and `report-escalation` takes six `ci-fix-*`
+reasons. New config: `loop.fix-ci-rounds` (3), `limits.fix-ci-per-run` (2) and
+`limits.fix-ci-restarts` (1). `version` stays 2.
+
+## 2.13.0 - 2026-10-18
+
+`pr-run-activity-read.yml` gains an `output-mode` input. The default, `clean-tree`, keeps failing a
+run that leaves the tree changed. `patch` instead uploads what the activity changed against the
+gated head as the artifact `patch-<lane>-<activity>-<run attempt>` (one `patch.diff`) and sets the
+new `patch-state`, `patch-sha256` and `patch-attempt` outputs, beside a new `head-sha` output. An
+empty change is `patch-state` `empty` and a success check titled `Passed: no changes`
+([pr-run-activity.md](pr-run-activity.md#patch-output-mode)). `version` stays 2.
+
+## 2.12.5 - 2026-10-18
+
+The unattended merge gate reads `merge.max-in-flight` at the default branch head instead of at each
+pull request's base, once per cache window; when the head's config cannot be read, the base's value
+applies, and the post-enqueue room check keeps the lower of that and the cap the assessment applied. Every other `merge.` key is still read at the base.
+`version` stays 2.
+
+## 2.12.4 - 2026-10-18
+
+`pr-run-activity-read.yml` takes a `dispatcher-run-id` input and passes it to its trigger gate with
+`dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml` and
+`dispatched-workflow: .github/workflows/pr-unblock.yml`, so a read activity that
+`pr-unblock-dispatch.yml` sent to `pr-unblock.yml` runs; any other `github-actions[bot]` dispatch
+still stops with `untrusted-actor`. With the id set, the skill step also admits `github-actions` in
+`allowed_bots`. No caller passes it yet. `version` stays 2.
+
 ## 2.12.3 - 2026-10-18
 
 `pr-unblock` `address-feedback` widens a kept thread's scope from its path alone to also a file in

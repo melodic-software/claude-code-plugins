@@ -28,6 +28,13 @@ function loadPlaywright() {
 }
 
 const freePort = () => new Promise((res, rej) => { const s = net.createServer(); s.unref(); s.on("error", rej); s.listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => res(port)); }); });
+/** run(port) on a spare port. A port is spare when asked for and can be taken (by another suite, or a browser's own
+ *  connection) before the server binds it, so a clash tries a new one, three times at most. */
+async function upOnSparePort(run) {
+  for (let tries = 1; ; tries++) {
+    try { return run(await freePort()); } catch (e) { if (tries === 3 || !/Address already in use|is busy/.test(String(e.message))) throw e; }
+  }
+}
 const fake = path.join(here, "fixtures", process.platform === "win32" ? "fake_cloudflared.py" : "fake-cloudflared.sh");
 
 /** A suite's run: a temp folder, sessions it starts (stopped at the end), and PASS/FAIL lines. */
@@ -43,7 +50,7 @@ function suite(name) {
   /** A fresh session on a spare port: {dir, localUrl, ownerUrl}. */
   async function start(slug) {
     const dir = path.join(tmp, "topic", "shared", slug); dirs.push(dir);
-    const up = share(dir, "ensure-running", "--guest-port", String(await freePort()));
+    const up = await upOnSparePort(port => share(dir, "ensure-running", "--guest-port", String(port)));
     return { dir, localUrl: up.localUrl, ownerUrl: fs.readFileSync(up.ownerLinkFile, "utf8").trim() };
   }
   /** Save bytes in the session's staging folder and add them as an asset; returns its id. */
@@ -120,4 +127,4 @@ function png(w, h, [y0, y1] = [-1, -1]) {
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
 }
 
-module.exports = { loadPlaywright, suite, recorder, until, snap, joinAs, png };
+module.exports = { loadPlaywright, suite, recorder, until, snap, joinAs, png, upOnSparePort };

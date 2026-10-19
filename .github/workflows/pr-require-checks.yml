@@ -1,7 +1,9 @@
 name: pr-require-checks
 
 on:
-  # A dispatch runs the full contract corpus.
+  # A dispatch runs the full contract corpus. pr-merge.yml's
+  # `dispatch-full-run` starts one on main after every merge, whoever merged,
+  # collapsing a burst of merges into one run of the newest tip.
   workflow_dispatch:
   # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
   # repository's merge-queue ruleset, with the org `pull_request` rule and no
