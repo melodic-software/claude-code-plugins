@@ -8,11 +8,9 @@ name: maintenance-check-upstream-drift
 # and no secret, and it never opens an issue or a pull request; applying an
 # update stays a reviewed maintainer step through each skill's update action.
 #
-# The scripts do not share one exit-code contract, so each matrix row names how
-# its script reports drift: `exit:<n>` for an exit code, `line:<text>` for a
-# report line, or `text:<heading>` for a "Drift detected" line inside one
-# report section. A CLI that is not installed on the runner is not drift: the
-# rows match only upstream-content signals.
+# Every script follows one exit-code contract: 0 no drift, 1 upstream drift,
+# 2 unverifiable (a prerequisite, the network, or usage). A CLI that is not
+# installed on the runner is reported but is not drift.
 #
 # Monday 10:29 UTC sits clear of the other scheduled runs.
 
@@ -37,45 +35,27 @@ jobs:
           - skill: playwright:playwright
             script: plugins/playwright/skills/playwright/scripts/update.sh
             args: --check
-            drift: "exit:1"
-            unverifiable: "exit:2"
-          # Its exit 1 also fires when the firecrawl CLI is not installed, so
-          # only the upstream-content line counts here.
           - skill: firecrawl:update
             script: plugins/firecrawl/skills/update/scripts/update.sh
             args: --check
-            drift: "line:upstream content changed"
-            unverifiable: "exit:2"
           - skill: playbooks:boris
             script: plugins/playbooks/skills/boris/scripts/update.sh
             args: --check
-            drift: "exit:1"
-            unverifiable: "exit:2"
           - skill: playbooks:skill-authoring
             script: plugins/playbooks/skills/skill-authoring/scripts/update.sh
             args: --check
-            drift: "exit:1"
-            unverifiable: "exit:2"
           - skill: dometrain:sync
             script: plugins/dometrain/skills/sync/scripts/update.sh
             args: report
-            drift: "exit:2"
-            unverifiable: "exit:1"
           - skill: context7:lookup
             script: plugins/context7/skills/lookup/scripts/update.sh
             args: ""
-            drift: "text:=== Upstream skill"
-            unverifiable: "exit:2"
           - skill: user-interface:write-css
             script: plugins/user-interface/scripts/check-good-css-drift.sh
             args: --check
-            drift: "exit:1"
-            unverifiable: "exit:2"
           - skill: user-interface:write-animation
             script: plugins/user-interface/scripts/check-emilkowalski-drift.sh
             args: --check
-            drift: "exit:1"
-            unverifiable: "exit:2"
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -90,21 +70,12 @@ jobs:
           SKILL: ${{ matrix.skill }}
           SCRIPT: ${{ matrix.script }}
           ARGS: ${{ matrix.args }}
-          DRIFT: ${{ matrix.drift }}
-          UNVERIFIABLE: ${{ matrix.unverifiable }}
         run: |
           set +e
           # shellcheck disable=SC2086 # ARGS is empty or one word from the matrix
           bash "$SCRIPT" $ARGS >report.txt 2>&1
           code=$?
           set -e
-          drifted=false
-          case "$DRIFT" in
-            exit:*) [ "$code" = "${DRIFT#exit:}" ] && drifted=true ;;
-            line:*) grep -qF -- "${DRIFT#line:}" report.txt && drifted=true ;;
-            # context7 prints each upstream skill's section and a "Drift detected" line inside it.
-            text:*) awk -v head="${DRIFT#text:}" 'index($0, head) == 1 { s = 1; next } /^===/ { s = 0 } s && /Drift detected/ { found = 1 } END { exit !found }' report.txt && drifted=true ;;
-          esac
           {
             echo "### ${SKILL}"
             echo
@@ -114,10 +85,15 @@ jobs:
             head -c 60000 report.txt
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
-          if [ "$drifted" = true ]; then
-            echo "::error title=Upstream drift::${SKILL} has drifted from its upstream. Run its update action to review and apply."
-            exit 1
-          fi
-          if [ "$code" = "${UNVERIFIABLE#exit:}" ]; then
-            echo "::warning title=Drift unverifiable::${SKILL} could not be checked (prerequisite or network failure, exit ${code})."
-          fi
+          case "$code" in
+            0) ;;
+            1)
+              echo "::error title=Upstream drift::${SKILL} has drifted from its upstream. Run its update action to review and apply."
+              exit 1
+              ;;
+            2) echo "::warning title=Drift unverifiable::${SKILL} could not be checked (prerequisite, network or usage failure, exit 2)." ;;
+            *)
+              echo "::error title=Drift check failed::${SKILL} exited ${code}, outside the 0/1/2 drift-check contract."
+              exit 1
+              ;;
+          esac

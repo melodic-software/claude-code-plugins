@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "No task tools here, so .work/workflow-checklist.md is the only tracker.",
+      "why": "short path after the branch's own negation"
+    },
+    {
+      "answer": "This session has no task tools, so the checklist file is the only tracker: .work/report-currency/workflow-checklist.md.",
+      "why": "names the file as the tracker"
+    },
+    {
+      "answer": "Progress is ticked in `.work/currency-filter/workflow-checklist.md`.\nNext stage: 4. Contract.",
+      "why": "path in backticks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty answer"
+    },
+    {
+      "answer": "Next stage: 4. Contract. Lock the goal, constraints and acceptance criteria first.",
+      "why": "answers a different question: no tracking mentioned"
+    },
+    {
+      "answer": "I created a task for each stage in the task list.",
+      "why": "the task-tools branch's wording"
+    },
+    {
+      "answer": "There is no workflow-checklist.md yet and I will not write one.",
+      "why": "negated"
+    }
+  ]
+}

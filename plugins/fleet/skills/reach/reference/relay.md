@@ -73,8 +73,17 @@ A headless receiver is a `-p` turn with a name and inbound messages switched on:
 claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing instructions>" < /dev/null
 ```
 
-- Without `crossSessionInbound: accept`, a `-p` turn does not take messages unattended. An
-  interactive session in default or auto mode accepts by default and needs no setting.
+- Without `crossSessionInbound: accept`, a `-p` turn does not take messages unattended: it cannot
+  show the approval dialog, so a message the default holds waits for `dialogExpiry` (five minutes
+  unless set) and is then dropped. An interactive session in default or auto mode delivers by
+  default and needs no setting, except that it holds a message from a sender that identifies itself
+  as bypassing permission prompts.
+  - **Pointer**: [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages)
+    and [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
+    fetched live.
+  - **As of**: 2026-10-18
+  - **Recheck trigger**: either section changes the default for a held message, the `dialogExpiry`
+    default, or what `crossSessionInbound` accepts.
 - The receiver lives as long as its turn. Its standing instructions say what to do with each
   message and when to stop.
 - Inside an outer single-quoted remote command, the JSON's single quotes would close the outer
@@ -137,8 +146,13 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
   continues a finished one.
 - `claude --bg --exec '<cmd>'` runs a shell job the same way, for a script that must survive the
   hop. Untested.
-- Agent view is a research preview. Basis: <https://code.claude.com/docs/en/agent-view>, fetched
-  2026-09-29 against 2.1.284; recheck when a release note names `--bg` or `claude agents`.
+- Agent view is a research preview, and its background sessions run on the local machine and stop
+  if it shuts down.
+  - **Pointer**: [Agent view: Limitations](https://code.claude.com/docs/en/agent-view#limitations),
+    fetched live.
+  - **As of**: 2026-10-18
+  - **Recheck trigger**: that section drops the research-preview label or changes its limits, or a
+    release note names `--bg` or `claude agents`.
 
 ## Mechanisms not used here
 
