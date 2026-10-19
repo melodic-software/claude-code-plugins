@@ -46,7 +46,8 @@ activities:
     # reviewer bot opened on a reviewed head, left by it alone or answered by
     # a trusted person after the lane escalated them, hands the pull request to a
     # person when it changes .github/ or `loop.review-rounds` rounds already
-    # ran, and gives the skill the review-thread tool.
+    # ran (a write-access fix request newer than the last round still runs
+    # one more round on its threads), and gives the skill the review-thread tool.
     prepare: review-threads
     # Pushes its fixes to the pull request's branch, nothing else.
     effect: mutate-branch

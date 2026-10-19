@@ -1106,7 +1106,9 @@ role's token as the run's credential.
 One counter per PR, in the findings store, is shared by every lane. After `loop.review-rounds`
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
 escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
-rounds have run. The default is 2; this repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
+rounds have run, unless a write-access trusted person asked for a fix on a thread after the
+newest round: that runs one more round, on the requested threads only. The default is 2; this
+repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
 App may push to one PR; the next fix-ci run hands it to a person before any model turn.
 

@@ -665,11 +665,15 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    those replies is such a fix request by a write-access human, and
    reports `fix-requested=true`, which lifts only the human-gated hold for the run. No kept thread
    skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
-   `.github/**` escalates `feedback-protected-path`, and two earlier rounds escalate
-   `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR commits
-   carrying a `github-actions` `pr-unblock / address-feedback` check run that ended `success` or
-   `failure` (a round whose reply job was refused still counts). Both skip `awaiting-human` with
-   nothing minted. Otherwise
+   `.github/**` escalates `feedback-protected-path`, and `loop.review-rounds` earlier rounds
+   escalate `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR
+   commits carrying a `github-actions` `pr-unblock / address-feedback` check run that ended
+   `success` or `failure` (a round whose reply job was refused still counts). At the cap, a kept
+   thread with a write-access human's fix request created after the newest counted round (its
+   latest marker, or the completion of a model check run that ended `success`, `failure`,
+   `cancelled` or `timed_out`) still runs one more round, on those threads only; a
+   round with no readable time grants none. Both escalations skip `awaiting-human` with nothing
+   minted. Otherwise
    it writes `$RUNNER_TEMP/lane-feedback/threads.json`.
 2. `collect-base-activity` makes that directory read-only and stages a wrapper over the base's
    `feedback-thread.sh` there. The skill keeps the commit tool and gets `Bash(<wrapper> *)`; Edit

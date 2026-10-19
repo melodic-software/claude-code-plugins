@@ -10,7 +10,8 @@
 //           a trusted person with write access asked the lane to fix it, or
 //           a trusted person answered the lane's escalation, then decides
 //           skip (no such thread), escalate (the PR changes .github/**, or
-//           the configured number of rounds already ran) or proceed, writing the thread file
+//           the configured number of rounds already ran and no write-access
+//           fix request came after the newest one) or proceed, writing the thread file
 //           the skill's review-thread tool reads. On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
@@ -57,15 +58,23 @@ export function countRounds(issueComments, appId) {
 // or broker refusal after the push moved the head); a forged one only stops
 // the lane sooner.
 export const MODEL_CHECK = "pr-unblock / address-feedback";
+const isModelRun = (run, conclusions) =>
+  run.name === MODEL_CHECK && run.app?.slug === "github-actions" && conclusions.includes(run.conclusion);
 export function countCheckRounds(checkRunsByCommit) {
-  return checkRunsByCommit.filter((runs) =>
-    runs.some(
-      (run) =>
-        run.name === MODEL_CHECK &&
-        run.app?.slug === "github-actions" &&
-        ["success", "failure"].includes(run.conclusion),
-    ),
-  ).length;
+  return checkRunsByCommit.filter((runs) => runs.some((run) => isModelRun(run, ["success", "failure"]))).length;
+}
+
+// When the newest round ended: the latest of the round markers' creation and
+// the model check runs' completion, a cancelled or timed-out one included so
+// one fix request cannot start a round again after such a run. NaN when any of
+// them has no readable time, so no fix request counts as newer.
+export function lastRoundAt(issueComments, appId, checkRunsByCommit) {
+  const ended = ["success", "failure", "cancelled", "timed_out"];
+  const times = [
+    ...issueComments.filter((comment) => isRoundMarker(comment, appId)).map((comment) => comment.created_at),
+    ...checkRunsByCommit.flat().filter((run) => isModelRun(run, ended)).map((run) => run.completed_at),
+  ].map((time) => Date.parse(time ?? ""));
+  return times.some(Number.isNaN) ? Number.NaN : Math.max(...times);
 }
 
 export function reviewedHeads(issueComments) {
@@ -327,15 +336,34 @@ export async function select({
   const commits = await api.listPullCommits(pr);
   const checkRuns = await Promise.all(commits.map((commit) => api.listCheckRuns(commit.sha, MODEL_CHECK)));
   const rounds = Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns));
+  let worked = kept;
   if (rounds >= maxRounds) {
-    return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
+    // Past the cap, a trusted person with write access who asked for a fix
+    // after the newest round grants one more round, for the threads they
+    // asked about only.
+    const since = lastRoundAt(issueComments, appId, checkRuns);
+    const rows = new Map(reviewComments.map((row) => [row.id, row]));
+    worked = kept.filter((thread) =>
+      thread.comments.some((comment) => {
+        const row = rows.get(comment.id);
+        return (
+          comment.author === "trusted-human" &&
+          fixers.has(row.user?.id) &&
+          isFixRequest(comment.body) &&
+          Date.parse(row.created_at ?? "") > since
+        );
+      }),
+    );
+    if (worked.length === 0) {
+      return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
+    }
   }
   return {
     decision: "proceed",
     rounds,
     fixRequested: gated,
-    threads: kept,
-    file: { version: 1, repository, pr, head_sha: headSha, lane_branch: laneBranch, threads: kept },
+    threads: worked,
+    file: { version: 1, repository, pr, head_sha: headSha, lane_branch: laneBranch, threads: worked },
   };
 }
 
