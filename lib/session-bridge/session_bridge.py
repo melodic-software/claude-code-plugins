@@ -1009,10 +1009,14 @@ def read_registry(hive):
                 timeout=15,
                 stdin=subprocess.DEVNULL,
             )
-        except (OSError, subprocess.SubprocessError):
+        except OSError:
             return None  # no reg.exe to run: no Windows policy is shown to exist
+        except subprocess.SubprocessError:
+            return UNREADABLE  # a hung or failed reg.exe may hide a policy
         if r.returncode != 0:
-            return UNREADABLE if "denied" in (r.stdout + r.stderr).lower() else None
+            # Only reg.exe's English not-found message shows the policy is absent; any other
+            # failure, a localized not-found included, may hide one, so it fails closed.
+            return None if "unable to find" in (r.stdout + r.stderr).lower() else UNREADABLE
         m = re.search(r"^\s*Settings\s+REG_(?:EXPAND_)?SZ\s+(.*)$", r.stdout, re.M)
         if not m:
             return UNREADABLE

@@ -769,6 +769,44 @@ class TestManagedPolicy(unittest.TestCase):
         self.assertEqual(self.policy(), ("server-managed settings", {"model": "opus"}))
 
 
+@unittest.skipIf(os.name == "nt", "the reg.exe reader runs on WSL; Windows reads through winreg")
+class TestRegExeReader(unittest.TestCase):
+    """read_registry on WSL, with reg.exe stubbed at subprocess.run."""
+
+    def read(self, result=None, raises=None):
+        def run(*args, **kwargs):
+            if raises is not None:
+                raise raises
+            return subprocess.CompletedProcess(args[0], *result)
+
+        with unittest.mock.patch.dict(os.environ, {"WSL_DISTRO_NAME": "Ubuntu"}), \
+                unittest.mock.patch.object(sb.subprocess, "run", run):
+            return sb.read_registry("HKLM")
+
+    def test_the_settings_value_parses_to_its_dict(self):
+        out = (
+            "\r\nHKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\ClaudeCode\r\n"
+            '    Settings    REG_SZ    {"channelsEnabled": true}\r\n\r\n'
+        )
+        self.assertEqual(self.read((0, out, "")), {"channelsEnabled": True})
+
+    def test_a_key_or_value_not_found_is_absent(self):
+        err = "ERROR: The system was unable to find the specified registry key or value.\r\n"
+        self.assertIsNone(self.read((1, "", err)))
+
+    def test_no_reg_exe_to_run_is_absent(self):
+        self.assertIsNone(self.read(raises=FileNotFoundError("reg.exe")))
+
+    def test_a_timeout_is_unreadable(self):
+        self.assertIs(
+            self.read(raises=subprocess.TimeoutExpired("reg.exe", 15)), sb.UNREADABLE
+        )
+
+    def test_any_other_failure_is_unreadable_whatever_its_language(self):
+        for err in ("FEHLER: Zugriff verweigert\r\n", "ERROR: Access is denied.\r\n", ""):
+            self.assertIs(self.read((1, "", err)), sb.UNREADABLE, err)
+
+
 class TestChannelServer(BridgeCase):
     """`session_bridge.py relay` copied beside session-bridge.conf, driven over stdio as Claude
     Code drives a channel server, against the toy page server."""
