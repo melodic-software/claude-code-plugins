@@ -485,12 +485,12 @@ def _capability_triggers(patch: str) -> list[str]:
     a capability key, and YAML a line-by-line read cannot follow all count
     (fail closed)."""
     found: list[str] = []
-    region, key, bang = "unknown", None, False
+    region, key, bang = "unknown", None, None
     for line in patch.split("\n"):
         if line.startswith("@@"):
             hunk = _HUNK.match(line)
             region = "start" if hunk and hunk.group(1) == "1" else "unknown"
-            key, bang = None, False
+            key, bang = None, None
             continue
         if not line or line[0] not in " +-":
             continue  # "\ No newline at end of file"
@@ -503,16 +503,24 @@ def _capability_triggers(patch: str) -> list[str]:
 def _read_line(sign, text, region, key, bang, found):
     """One YAML line of `_capability_triggers`: the next region, key and
     `!` fence state, with any trigger appended to `found`. The fence state
-    follows the new file, so a removed line leaves it as it is."""
+    follows the new file, so a removed line leaves it as it is: None before
+    the hunk's first fence, "added" once a line was added before it, True
+    inside a ```! block, False outside one. A bare fence first in its hunk
+    after an added line may close a ```! block opened above the hunk, so it
+    counts (fail closed)."""
     if sign == "+" and "!`" in text:
         found.append("adds a !` command")
     if sign != "-" and _FENCE.match(text):
         opens = bool(_BANG_FENCE.match(text))
         if opens and sign == "+":
             found.append("adds a ```! block")
-        bang = opens and not bang
-    elif bang and sign == "+":
+        elif bang == "added" and not text.strip().strip("`~"):
+            found.append("adds a line before a fence its hunk does not open")
+        bang = opens and bang is not True
+    elif bang is True and sign == "+":
         found.append("adds a line to a ```! block")
+    elif bang is None and sign == "+":
+        bang = "added"
     if text.rstrip() == "---":
         if sign != " ":
             found.append("moves a --- delimiter")
