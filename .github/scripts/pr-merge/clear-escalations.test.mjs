@@ -12,7 +12,7 @@ import { main } from "./clear-escalations.mjs";
 const REPO = "melodic-software/claude-code-plugins";
 const BOT = { login: "melodic-automation-lanes[bot]", type: "Bot" };
 const OWNER = { login: "kyle-sexton", type: "User" };
-const REVIEWER = { login: "claude[bot]", type: "Bot" };
+const ACTIONS_BOT = { login: "github-actions[bot]", type: "Bot" };
 const MAIN = "a".repeat(40);
 const HEAD = "b".repeat(40);
 const KEY = "c".repeat(40);
@@ -26,7 +26,7 @@ const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10
 
 // One open PR #7 labeled needs-human; `timeline` is its timeline and
 // `mainFiles` the files main changed since its merge base with the head.
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [] }) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
@@ -45,6 +45,9 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${HEAD}...${MAIN}`) {
       return { files: mainFiles };
+    }
+    if (method === "GET" && route === `/repos/${REPO}/pulls/7/files`) {
+      return path.endsWith("page=1") ? pullFiles : [];
     }
     if (method === "POST" || method === "DELETE") {
       return null;
@@ -115,17 +118,38 @@ test("an escalation marker a person wrote is never read for a reason", async () 
   assert.deepEqual(w.writes(), []);
 });
 
-test("a person's comment after the escalation keeps the label; a bot's does not", async () => {
-  const held = world({
-    timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), commented(OWNER, "Leave this for me.", "2026-10-18T12:00:00Z")],
+test("a person's or another bot's comment after the label keeps it; the lanes App's own does not", async () => {
+  for (const user of [OWNER, ACTIONS_BOT]) {
+    const held = world({
+      timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), commented(user, "Leave this for a person.", "2026-10-18T12:00:00Z")],
+    });
+    await run(held);
+    assert.deepEqual(held.writes(), [], user.login);
+  }
+  const own = world({
+    timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), commented(BOT, "A lane note.", "2026-10-18T12:00:00Z")],
   });
-  await run(held);
-  assert.deepEqual(held.writes(), []);
-  const bot = world({
-    timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), commented(REVIEWER, "Review finished.", "2026-10-18T12:00:00Z")],
+  await run(own);
+  assert.equal(own.writes().length, 2);
+});
+
+test("an earlier escalation a person decides keeps the label when a later one would clear", async () => {
+  const w = world({
+    timeline: [
+      labeled(BOT, "2026-10-18T10:00:00Z"),
+      escalated("feedback-disputed"),
+      escalated("feedback-protected-path", { at: "2026-10-18T14:00:00Z" }),
+    ],
+    pullFiles: [{ filename: "README.md" }],
   });
-  await run(bot);
-  assert.equal(bot.writes().length, 2);
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("an App label with no escalation right after it is kept", async () => {
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("workflow-staged", { at: "2026-10-18T11:00:00Z" })] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
 });
 
 test("a reason a person decides is never cleared", async () => {

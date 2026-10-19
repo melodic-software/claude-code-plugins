@@ -352,8 +352,9 @@ while that label is on the PR; a human removes the label, then dispatches the la
 
 A pr-unblock escalation whose reason repository state can settle is also cleared without a
 person. On its schedule, `pr-merge` rechecks each open PR into main carrying the human-gated
-label and removes it, after one comment naming the reason and the head, when the reason recorded
-in the lanes App's newest escalation comment no longer holds at the current head:
+label and removes it, after one comment naming the reason and the head, when every reason the
+lanes App's escalation comments recorded since the label went on no longer holds at the current
+head:
 
 | Reason | Cleared when |
 |---|---|
@@ -362,7 +363,7 @@ in the lanes App's newest escalation comment no longer holds at the current head
 | `feedback-protected-path` | the PR changes nothing under `.github/` |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
-when an account other than a bot commented or reviewed after the escalation. Every other reason
+when any account but the lanes App commented or reviewed since that event. Every other reason
 (`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
 `ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
 `labels-absent` reads only whether a label is present, not who set or removed it: it is a hold, not

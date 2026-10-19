@@ -5,15 +5,17 @@
 //
 // Only a label the lanes App set is ever removed, and only when all of these hold:
 // - The newest `labeled` event for the label on the PR's timeline has the lanes
-//   App bot as its actor, and it is no later than the App's newest escalation
-//   comment (report-escalation.sh writes the label, then the comment).
-// - That comment is the App's: its author is the bot login and a Bot account,
-//   its first line is the pr-unblock escalation marker, its second the
-//   resume-key line, and its `- Reason:` line names one of CHECKS. Text anyone
-//   else writes, a marker included, is never read for a reason.
-// - No account other than a bot commented or reviewed after that comment: a
-//   person who spoke since may be asking the lane to wait.
-// - The recorded reason no longer holds at the current head:
+//   App bot as its actor, and the App's first escalation comment after it
+//   came within PAIRED_MS (report-escalation.sh writes the label, then the
+//   comment).
+// - Every escalation comment since that label event is the App's: its author
+//   is the bot login and a Bot account, its first line is the pr-unblock
+//   escalation marker, its second the resume-key line, and its `- Reason:`
+//   line names one of CHECKS. A later escalation adds no label event, so each
+//   one counts. Text anyone else writes, a marker included, is never read.
+// - No account but the lanes App commented or reviewed since the label went
+//   on: a person, or another bot asking for one, may want the lane to wait.
+// - Every recorded reason no longer holds at the current head:
 //     workflow-staged          main changed nothing under .github/workflows/
 //                              since its merge base with the head, so merging
 //                              main into the head stages no workflow change
@@ -54,6 +56,9 @@ const SHA = /^[0-9a-f]{40}$/;
 // The compare API lists at most 300 files, the PR files API at most 3000.
 const COMPARE_CAP = 300;
 const FILES_CAP = 3000;
+// report-escalation.sh writes the label, then the comment, retrying the
+// comment for up to 15 seconds; a minute covers that (judgment).
+const PAIRED_MS = 60_000;
 // Each clear lets the lanes run on the PR again (judgment).
 export const CLEARS_PER_RUN = 5;
 
@@ -91,7 +96,7 @@ function mergeable(pull) {
 }
 
 export const clearedComment = (reason, head, why, label) =>
-  `${clearedMarker(reason, head)}\nThe pr-unblock lane escalated this pull request as \`${reason}\`, and that no longer holds at \`${head}\`: ${why}. pr-merge removed \`${label}\`, so the lanes run on it again. To keep a person on it, add \`${label}\` back: a label a person adds is never removed.`;
+  `${clearedMarker(reason, head)}\nThe pr-unblock lane escalated this pull request as \`${reason.replaceAll(",", "`, `")}\`, and that no longer holds at \`${head}\`: ${why}. pr-merge removed \`${label}\`, so the lanes run on it again. To keep a person on it, add \`${label}\` back: a label a person adds is never removed.`;
 
 // When a timeline item was written, and by whom, for a comment or review.
 function spoken(item) {
@@ -110,30 +115,30 @@ function spoken(item) {
 // What to clear on `number`, or { reason } saying why nothing is.
 async function verdict({ github, repo, number, label, bot, mainSha }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
-  const escalation = timeline
-    .filter((item) => item.event === "commented" && isApp(item.user, bot))
-    .map((item) => ({ item, body: lines(item.body), at: Date.parse(item.created_at) }))
-    .filter(({ body, at }) => body[0] === ESCALATION && RESUME_KEY.test(body[1] ?? "") && Number.isFinite(at))
-    .at(-1);
-  if (escalation === undefined) {
-    return { reason: "no pr-unblock escalation by the lanes App" };
-  }
-  const recorded = REASON.exec(escalation.body.join("\n"))?.[1];
-  if (!Object.hasOwn(CHECKS, recorded ?? "")) {
-    return { reason: `its escalation reason ${recorded ?? "(none)"} is one a person decides` };
-  }
   const labeled = timeline.filter((item) => item.event === "labeled" && same(item.label?.name, label)).at(-1);
   if (!isApp(labeled?.actor, bot)) {
     return { reason: `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App` };
   }
-  if (!(Date.parse(labeled.created_at) <= escalation.at)) {
-    return { reason: `${label} was added after the escalation comment` };
+  const since = Date.parse(labeled.created_at);
+  // Every escalation since the label went on: a later one posts no new label
+  // event, so each reason it recorded must have cleared.
+  const escalations = timeline
+    .filter((item) => item.event === "commented" && isApp(item.user, bot))
+    .map((item) => ({ body: lines(item.body), at: Date.parse(item.created_at) }))
+    .filter(({ body, at }) => body[0] === ESCALATION && RESUME_KEY.test(body[1] ?? "") && at >= since);
+  if (escalations.length === 0 || !(escalations[0].at - since <= PAIRED_MS)) {
+    return { reason: `no pr-unblock escalation by the lanes App right after it added ${label}` };
   }
-  const speaker = timeline
-    .flatMap(spoken)
-    .find(({ user, at }) => !(at <= escalation.at) && user?.type !== "Bot");
+  const reasons = [...new Set(escalations.map(({ body }) => REASON.exec(body.join("\n"))?.[1]))];
+  const decided = reasons.find((reason) => !Object.hasOwn(CHECKS, reason ?? ""));
+  if (reasons.length === 0 || decided !== undefined || reasons.includes(undefined)) {
+    return { reason: `an escalation reason since the label (${decided ?? "none"}) is one a person decides` };
+  }
+  // Only the lanes App's own comments are exempt: a person, or another bot
+  // asking for a person, keeps the label.
+  const speaker = timeline.flatMap(spoken).find(({ user, at }) => !(at <= since) && !isApp(user, bot));
   if (speaker !== undefined) {
-    return { reason: `${speaker.user?.login ?? "an account"} commented or reviewed after the escalation` };
+    return { reason: `${speaker.user?.login ?? "an account"} commented or reviewed after ${label} went on` };
   }
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
   if (pull?.state !== "open" || pull.base?.ref !== "main" || !SHA.test(String(pull.head?.sha))) {
@@ -142,15 +147,20 @@ async function verdict({ github, repo, number, label, bot, mainSha }) {
   if (!(pull.labels ?? []).some((item) => same(item.name, label))) {
     return { reason: `${label} is no longer on it` };
   }
-  const why = await CHECKS[recorded]({ github, repo, pull, mainSha });
-  if (why === null) {
-    return { reason: `${recorded} still holds at ${pull.head.sha}` };
+  const why = [];
+  for (const reason of reasons) {
+    const cleared = await CHECKS[reason]({ github, repo, pull, mainSha });
+    if (cleared === null) {
+      return { reason: `${reason} still holds at ${pull.head.sha}` };
+    }
+    why.push(cleared);
   }
+  const recorded = reasons.join(",");
   const marker = clearedMarker(recorded, pull.head.sha);
   const explained = timeline.some(
-    (item) => item.event === "commented" && isApp(item.user, bot) && Date.parse(item.created_at) >= escalation.at && lines(item.body)[0] === marker,
+    (item) => item.event === "commented" && isApp(item.user, bot) && Date.parse(item.created_at) >= since && lines(item.body)[0] === marker,
   );
-  return { reason: null, recorded, head: pull.head.sha, why, explained };
+  return { reason: null, recorded, head: pull.head.sha, why: why.join("; "), explained };
 }
 
 export async function main({ env = process.env, github } = {}) {
