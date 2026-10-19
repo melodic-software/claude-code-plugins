@@ -24,8 +24,14 @@ refused, with its earlier verdict marked carried, and is never enqueued.
   reader saves for the gate's first candidate (`Reader.listing`), so the read
   is not added;
 - the default branch's blob or tree ids of the gate's config, trusted list,
-  tracker config, the pr-merge workflow and the gate's scripts, read from the
-  `.base` clone, and `CLAUDE_LANES_MERGE_RUNG_CAP`.
+  tracker config, the pr-merge workflow, the config resolver that picks the
+  gate's script and flags, and the gate's scripts, read from the `.base`
+  clone, and `CLAUDE_LANES_MERGE_RUNG_CAP`.
+
+The key is read before the gate runs, so a first refusal that posts its
+reasons comment changes the comments and `updatedAt`; the next run gates
+again (the gate leaves the comment unchanged) and only the one after can
+skip. Keep comments in the key: a skip must not miss a new one.
 
 A candidate is skipped only when the stored refusal is one of `SKIPPABLE`,
 names the same key and head, was judged less than `max-minutes` ago and has
@@ -92,6 +98,7 @@ MAIN_PATHS = (
     ".github/standards/trusted-actors/trusted-actors.json",
     ".work-item-tracker.json",
     ".github/workflows/pr-merge.yml",
+    ".github/actions/resolve-config",
     "plugins/source-control/scripts",
     "plugins/source-control/skills/babysit-prs/scripts",
     "plugins/source-control/skills/babysit-loop/scripts",
@@ -517,6 +524,11 @@ def run_filter(args: argparse.Namespace) -> int:
             print(
                 f"::warning::merge.skip-unchanged.{name} is not a whole number; no candidate is skipped"
             )
+    if max_minutes <= 0 or max_skips <= 0:
+        # Off: read nothing and leave every candidate for the gate. With no
+        # keys file, `record` stores nothing.
+        print("skip-unchanged: off, every candidate is gated")
+        return 0
     reader = verify_evidence.Reader(args.repo, args.branch)
     try:
         keys, cost = keys_for(
@@ -530,17 +542,14 @@ def run_filter(args: argparse.Namespace) -> int:
         print(f"::warning::no candidate is skipped: {exc}")
         return 1
     store = json_object(json_object(_load(args.store)).get(SECTION))
-    if max_minutes <= 0 or max_skips <= 0:
-        kept, rows, carried = candidates, [], {}
-    else:
-        kept, rows, carried = select(
-            candidates,
-            keys,
-            store,
-            at=at,
-            max_minutes=max_minutes,
-            max_skips=max_skips,
-        )
+    kept, rows, carried = select(
+        candidates,
+        keys,
+        store,
+        at=at,
+        max_minutes=max_minutes,
+        max_skips=max_skips,
+    )
     # A record still good for its own key, kept for a candidate the loop may
     # not reach; a stale or malformed one is dropped.
     earlier = {}

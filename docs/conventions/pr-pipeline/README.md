@@ -638,7 +638,10 @@ refusal was judged, or `max-skips` (default 3) runs in a row, the candidate is g
 either turns skipping off. When every candidate would be skipped, the first is gated, and any read
 that fails or comes back incomplete gates the candidate (`babysit_merge_skip.py`). The refusals live
 in the same `actions/cache` entry as the carried verdict reads, so a forged entry can only repeat a
-refusal, for at most `max-minutes` from the judgment time it names.
+refusal, for at most `max-minutes` from the judgment time it names. A change the key does not cover,
+such as a demotion record, a ruleset, an edit to a comment older than the newest 50 or a gate import
+outside the keyed paths, delays re-gating by at most those limits; a skip never merges, enqueues or
+drops an escalation.
 
 ### Dependabot pull requests
 

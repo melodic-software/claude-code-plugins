@@ -13,6 +13,7 @@ from __future__ import annotations
 import copy
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -565,7 +566,7 @@ class FilterThenRecordEndToEnd(unittest.TestCase):
 
     def setUp(self) -> None:
         self.dir = pathlib.Path(tempfile.mkdtemp())
-        self.addCleanup(subprocess.run, ["rm", "-rf", str(self.dir)], check=False)
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
         base = self.dir / "base"
         (base / "docs/conventions").mkdir(parents=True)
         (base / "docs/conventions/pr-pipeline.yaml").write_text("merge: {}\n")
@@ -696,6 +697,42 @@ class FilterThenRecordEndToEnd(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertEqual(json.loads(self.candidates.read_text()), [_candidate(7)])
         self.assertFalse((self.dir / "skipped.json").exists())
+
+    def test_a_limit_of_zero_reads_nothing_and_keeps_every_candidate(self) -> None:
+        def unread(*_args, **_kwargs):
+            raise AssertionError("read while skipping is off")
+
+        for flag in ("--max-minutes", "--max-skips"):
+            with self.subTest(flag=flag):
+                self.candidates.write_text(json.dumps([_candidate(7), _candidate(8)]))
+                with (
+                    mock.patch.object(skip, "gh_json", unread),
+                    mock.patch.object(verify_evidence.Reader, "listing", unread),
+                    mock.patch.object(skip, "main_inputs", unread),
+                ):
+                    code = skip.main(
+                        [
+                            "filter",
+                            "--repo",
+                            "o/r",
+                            "--base",
+                            str(self.base),
+                            "--candidates",
+                            str(self.candidates),
+                            "--out-keys",
+                            str(self.dir / "keys.json"),
+                            "--out-skipped",
+                            str(self.dir / "skipped.json"),
+                            flag,
+                            "0",
+                        ]
+                    )
+                self.assertEqual(code, 0)
+                self.assertEqual(
+                    json.loads(self.candidates.read_text()),
+                    [_candidate(7), _candidate(8)],
+                )
+                self.assertFalse((self.dir / "keys.json").exists())
 
     def test_the_main_inputs_name_each_path_or_absent(self) -> None:
         inputs = skip.main_inputs(self.base)

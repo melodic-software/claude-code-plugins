@@ -1530,7 +1530,8 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         claim=(
             "Reads GitHub (one GraphQL query per 20 candidates, the artifact "
             "listing) and writes only the local files its arguments name: the "
-            "kept candidates, the skipped rows, the keys and the refusal store. "
+            "kept candidates, the skipped rows, the keys and the refusal store, "
+            "plus the artifact listing `BABYSIT_VERIFY_LISTING` names. "
             "No GitHub write on any path."
         ),
         backed_by=(),
