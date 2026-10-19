@@ -651,6 +651,24 @@ assert_eq "latch: the second failure in a session is quiet" "" "$GUARD_OUT"
 assert_eq "a resolver failure writes no cache entry" "" \
   "$(find "$pdn/convention-pattern" -type f 2>/dev/null | head -1)"
 
+# One latch per check: a PR-title failure in a session does not hide a later
+# commit-subject failure in the same session.
+pdx="$TEST_TMPDIR/pdata-notice-cross"
+rm -rf "$pdx"
+fail_env=(-- "CLAUDE_PROJECT_DIR=$r" "CLAUDE_PLUGIN_DATA=$pdx" STUB_RC=1
+  "STUB_ERR=resolve-convention-pattern: broken pointer" STUB_OUT=)
+guard_invoke --hook "$STUB_HOOK" --payload "$(jq -n --arg c "gh pr create --title 'junk title'" --arg d "$r" \
+  '{session_id:"conv-notice-cross",tool_name:"Bash",tool_input:{command:$c},cwd:$d}')" "${fail_env[@]}"
+assert_notice "latch per check: the PR-title failure" "broken pointer" PR-title
+guard_invoke --hook "$STUB_HOOK" --payload "$(jq -n --arg c "$BAD_COMMIT" --arg d "$r" \
+  '{session_id:"conv-notice-cross",tool_name:"Bash",tool_input:{command:$c},cwd:$d}')" "${fail_env[@]}"
+assert_notice "latch per check: a later commit-subject failure still notices" "broken pointer"
+
+# The PR-title notice fires only when a title was found to check.
+stub_run "$r" 1 "resolve-convention-pattern: broken pointer" "" "gh pr create --web"
+assert_exit "title resolver fails, gh pr create --web: the call goes through" 0 "$GUARD_RC"
+assert_eq "title resolver fails, gh pr create --web: no notice" "" "$GUARD_OUT"
+
 # --- NUL in payload must fail closed (#2136) ----------------------------------
 r="$(newrepo "$TICKET")"
 nul_rc=0
