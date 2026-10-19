@@ -232,16 +232,21 @@ paths = ["vendor/lib.py", "vendor/deep/lib.py", "vendor", "x/vendor/lib.py", "ge
          "gen/sub/out.py", "src/app.py", "app.py", "a1.py", "b1.py", "src/generated/x.py",
          "generated/x.py", "docs/a/b.md", "docs", "lib.py", "src/sub/lib.py", "src/app.py.bak"]
 bad = []
+checked = 0
 for g in globs:
     ours = scanner.glob_regex(g)
     theirs = re.compile(pathglob.translate(g))
     for p in paths:
         if bool(ours.match(p)) != bool(theirs.match(p)):
             bad.append("%s vs %s" % (g, p))
+        checked += 1
 print("\n".join(bad))
+print("checked %d pairs" % checked)
 PYEOF
 )"
-assert_eq "the scanner's glob matcher agrees with pathglob.py on every glob/path pair" "" "$drift"
+# The last line proves the script ran to the end: a crash leaves it out, so an
+# empty mismatch list can't pass for agreement.
+assert_eq "the scanner's glob matcher agrees with pathglob.py on every glob/path pair" "checked 221 pairs" "$drift"
 
 out="$(cd "$EXC" && "$PY" "$SCANNER" --exclude '[z-a]' 2>/dev/null)"
 assert_eq "an unusable glob exits 2 with nothing on stdout" "2:" "$?:$out"
