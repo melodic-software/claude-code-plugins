@@ -170,8 +170,9 @@ fallback), then:
    scrubbed the prompt by this point; this exposure is one more reason secrets never belong in
    save-point output on ANY path.
 3. Report the launch result: the command's output, the agent name, the `claude agents`
-   management hint, and any launched-session behavior the resumed work depends on (next
-   section). Verify the agent actually appeared. A zero-exit launch can still be invisible if
+   management hint, any launched-session behavior the resumed work depends on (next
+   section), and that auto mode may deny an action and where a denied action is reported is
+   unverified, never a promise of the final hand-off. Verify the agent actually appeared. A zero-exit launch can still be invisible if
    the persistence override is ever unrecognized. Confirm by listing sessions non-interactively this
    turn when the CLI offers a way, and otherwise telling the user explicitly: "confirm it
    appears in `claude agents`". The `/clear`-then-paste instruction is replaced by this report.
@@ -295,7 +296,8 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   the between-rails text of the resume region of `save_point.py emit <file>` on the full path
   (validated first, exit 0 quoted; a goal region, when present, excluded) or the emitted block on
   prompt-only, and the launch result reported (including any non-inherited flags mirrored or worth
-  flagging), OR the non-zero exit reported with fallback to
+  flagging, and that auto mode may deny an action and where a denied action is reported is
+  unverified), OR the non-zero exit reported with fallback to
   `/clear`-then-paste
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
