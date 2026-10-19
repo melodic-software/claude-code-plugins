@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/invoice-export-timeout/interview-checklist.md", "content": "- Q1 | open | round 1 | Is the problem right? |\n"}}], "why": "registers the problem row in the ledger, not the Brief"},
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/invoice-export-timeout/interview-checklist.md", "content": "- [ ] Step 4: Persist the contract (PLAN.md Brief)\n"}}], "why": "the checklist names PLAN.md in its content; the target path is the checklist"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/invoice-export-timeout/PLAN.md", "content": "## Brief\n"}}], "why": "wrote the Brief before the problem was confirmed"}
+  ]
+}

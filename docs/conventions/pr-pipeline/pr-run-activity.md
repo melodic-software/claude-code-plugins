@@ -191,7 +191,8 @@ the broker request, and no other permission; it never holds `checks: write` or `
    SHA, and the lane must run the tip's config and actions and merge the tip. The checked-out SHA
    is the `base-sha` output either way, and the merge's second parent in
    [`prepare: merge-base`](#prepare-merge-base).
-5. `resolve-config`, with the gated `head-sha` and `prepare-supported: true`. The read file then
+5. `resolve-config`, with the gated `head-sha` and `prepare-supported: true`; the read file also
+   passes `applied-by-supported: patch` ([Patch output mode](#patch-output-mode)). The read file then
    fails red for any `prepare` but [`ci-context`](#prepare-ci-context), and for `ci-context`
    without `output-mode: patch`.
    An invalid config fails the step red and the check is a failure, never a skip. A config skip
@@ -305,7 +306,8 @@ input, by those paths as further words. `resolve-config` computes them from the 
 predicate when it has one, with a name of letters, digits and `_ @ + . -` only, no `.` or `..`
 segment, no segment starting with `-` and no leading `@`, which would read as a file mention.
 The paths are the job's scope, what the skill is asked to work on, not a limit on what it can
-touch. For any effect but `read` they leave out instruction surfaces (`CLAUDE.md`,
+touch. For an activity that edits (any effect but `read`, or a skill whose `applied-by` sets
+`patch`) they leave out instruction surfaces (`CLAUDE.md`,
 `CLAUDE.local.md`, `AGENTS.md` at any depth, case-insensitive, and anything under a `.claude`,
 `.claude-plugin`, `skills`, `agents`, `commands`, `hooks`, `output-styles` or `prompts`
 directory) and every path the base `.github/CODEOWNERS` lists, owned or not, so a lane is not
@@ -330,7 +332,9 @@ it the skill cannot read its own reference files. Commits go through the API, si
 (`use_commit_signing`), on a lane branch (`CLAUDE_BRANCH`) the job makes at the gated head SHA
 when the grant can commit.
 
-A skill with any effect but `read` also gets what it needs to do its job: `Edit`, `Write`, `Agent`
+A skill with any effect but `read`, or a `read` skill whose `applied-by` sets `patch` (other than
+in [`ci-context`](#prepare-ci-context), which has its own set), also gets what it needs to do its
+job: `Edit`, `Write`, `Agent`
 (for subagents such as a fix flow's semantic-diff check or a rubric fan-out) and
 `mcp__github_file_ops__commit_files` and `mcp__github_file_ops__delete_files`, the action's
 signed-commit tools on `CLAUDE_BRANCH` (the second carries a rename's old path or a removal), and a
@@ -341,7 +345,8 @@ every file it changed, and delete every committed path it renamed or removed, wi
 skill leaves its edits uncommitted and the lane moves nothing. `commit_files` takes each file's
 mode from disk, and `Write` creates a file without the executable bit, so that grant also allows
 `Bash(chmod +x *)` and the sentence says to run `chmod +x` first on every new or changed file that
-starts with `#!` or ends in `.sh`. A `prepare: merge-base` skill
+starts with `#!` or ends in `.sh`. A `read` skill that hands on a patch gets neither tool, and its
+sentence says to leave every change uncommitted for the runner to collect. A `prepare: merge-base` skill
 gets neither tool nor those sentences: it stages its resolution and the runner commits
 ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
@@ -521,7 +526,13 @@ to `$RUNNER_TEMP/base-script` before the head checkout and checked against its r
 ### Patch output mode
 
 Read file only, chosen by the caller's `output-mode: patch` input. It lets an activity run head
-code with no write token and hand its change to a separate job that holds one:
+code with no write token and hand its change to a separate job that holds one. The read file
+collects the change as a patch only when the caller passes `output-mode: patch`. The config's
+`applied-by.patch` is to state the same fact and name the `prepare: apply-patch` script that
+applies it ([README.md, Activities](README.md#activities)); no activity sets `applied-by` today.
+The read file passes
+`applied-by-supported: patch` to `resolve-config`, so a leaf whose `applied-by` sets any other
+key fails red before the head checkout. A `gating: gate` leaf cannot set `applied-by`. The steps:
 
 1. Before the head checkout, the base's
    [`collect-patch.sh`](../../../.github/scripts/read-patch/collect-patch.sh) is copied to
@@ -657,7 +668,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), whose review may be on any
    head, so a request on a thread from an earlier review is worked; or the lanes App's last
    comment is a reply the reply job left open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and
-   every comment after it is by such a `human` (any permission), created after it. A human's
+   every comment after it is by such a `human` (any permission), created after it, whose review
+   may also be on any head. A human's
    comment counts only when never edited or last edited by such a human. Every other comment must
    be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. The
    thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
@@ -668,11 +680,15 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    those replies is such a fix request by a write-access human, and
    reports `fix-requested=true`, which lifts only the human-gated hold for the run. No kept thread
    skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
-   `.github/**` escalates `feedback-protected-path`, and two earlier rounds escalate
-   `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR commits
-   carrying a `github-actions` `pr-unblock / address-feedback` check run that ended `success` or
-   `failure` (a round whose reply job was refused still counts). Both skip `awaiting-human` with
-   nothing minted. Otherwise
+   `.github/**` escalates `feedback-protected-path`, and `loop.review-rounds` earlier rounds
+   escalate `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR
+   commits carrying a `github-actions` `pr-unblock / address-feedback` check run that ended
+   `success` or `failure` (a round whose reply job was refused still counts). At the cap, a kept
+   thread with a write-access human's fix request created after the newest counted round (its
+   latest marker, or the completion of a model check run that ended `success`, `failure`,
+   `cancelled` or `timed_out`) still runs one more round, on those threads only; a
+   round with no readable time grants none. Both escalations skip `awaiting-human` with nothing
+   minted. Otherwise
    it writes `$RUNNER_TEMP/lane-feedback/threads.json`.
 2. `collect-base-activity` makes that directory read-only and stages a wrapper over the base's
    `feedback-thread.sh` there. The skill keeps the commit tool and gets `Bash(<wrapper> *)`; Edit
@@ -862,7 +878,9 @@ holds a write token: a base job, a read model job in this mode, and an
    at most 10. For each it writes the name, the workflow file that defines the job (or `null`),
    at most 20 annotations of at most 500 characters, and the last 80 lines, at most 3,000
    characters, of the job log, as `context.json`, uploaded as `ci-context-<run attempt>` with its
-   SHA-256 as a job output. A closed pull request or a head with no such check skips the rest.
+   SHA-256 as a job output. A closed pull request or a head with no such check skips the rest,
+   and a scripted job posts the fix-ci check neutral `not-applicable` on that head with
+   `report-check-run`'s `not-run-reason`, so the dispatcher counts the head as handled.
 2. The read file, before the head checkout, downloads that artifact and fails red unless it
    holds exactly one regular `context.json` of at most 1 MiB, with that SHA-256, written for the
    head this run gated.
@@ -912,6 +930,13 @@ passes the model job's `patch-state`, `patch-sha256`, `patch-attempt`, `head-sha
 
 The run's `escalation-reason` output is the script's reason, else the select step's. The runner
 accepts the script's three reasons only in this mode.
+
+The rules each producer's patch is to be held to are registered in
+[`patch-rules.json`](../../../.github/actions/resolve-config/patch-rules.json), one row per
+producer prepare mode ([README.md, Patch rules](README.md#patch-rules)): the refusals every row
+carries, what else a path must meet, a file cap, the producer output required, the commit's
+parents, message and trailer, and the row's escalation reasons. `apply-ci-fix` above keeps its
+own fixed refusal and does not read the registry.
 
 ## The summary job
 

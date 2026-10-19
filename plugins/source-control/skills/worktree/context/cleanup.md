@@ -150,16 +150,17 @@ installed plugin behind, permanently. Removing the directory is the last moment 
 records are both identifiable and provably dead, so removal is where they are removed too:
 
 ```bash
-# Run FROM INSIDE the candidate, after both guards above have cleared (for a locked
-# candidate, including the `stale` proof exiting 0) and the file-lock release has run.
-cd <path> && bash "<scripts-dir>/reap-project-plugin-records.sh" --worktree-path <path>
+# Run after both guards above have cleared (for a locked candidate, including the `stale`
+# proof exiting 0) and the file-lock release has run; the caller's cwd does not matter.
+bash "<scripts-dir>/reap-project-plugin-records.sh" --worktree-path <path>
 ```
 
-The `cd` is not incidental. `claude plugin uninstall <id> -s project` has **no path flag**: it
-resolves strictly against the current directory (measured in [fixtures/README.md](../fixtures/README.md)
+`claude plugin uninstall <id> -s project` has **no path flag**: it resolves strictly against the
+current directory (measured in [fixtures/README.md](../fixtures/README.md)
 § `project-scope-reap-probe.sh`, Claude Code 2.1.240, re-run unchanged on 2.1.241). The helper
-enforces the same thing from the other side: it refuses unless `--worktree-path` names the directory
-it is already standing in, so it structurally cannot act on any path but its own.
+therefore enters `--worktree-path` itself, so a session that cannot keep a `cd` between commands
+still runs it. It refuses a main working tree (its `.git` is a directory, or its git dir is its common dir) before entering, so it
+cannot reach the main checkout's records.
 
 The helper leaves the worktree's `.claude/settings.json` as it found it: when git tracks it there
 and it was unmodified before the pass, the helper restores it from git and prints an `info:` line
