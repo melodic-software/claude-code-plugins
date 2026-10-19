@@ -4,15 +4,19 @@
 // an Attach button, and a picture pasted into each (a ClipboardEvent carrying an image File) becomes a thumbnail chip
 // reading "Waiting for the host", never text in the field; sending waits until the host accepts it; once accepted and
 // received, the picture shows as a tile to another guest who sees what carries it and opens in the viewer, while a
-// proposal, a request and a hidden comment keep theirs from that guest.
+// proposal, a request and a hidden comment keep theirs from that guest. Drafts stay on their own question; a declined
+// file leaves the form at Send; taking a pasted chip off withdraws it; a picked JPEG reaches the host redrawn, with
+// no EXIF; the host's own paste, the question's ask box and Suggest take pictures too; and the host removes one.
 //   node plugins/planning/shared/tests/ui_attach_paste.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved spec (attach and paste on every text input; accepted pictures shown to
 // everyone who sees their item) and the texts this suite writes, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
+const fs = require("node:fs");
+const path = require("node:path");
+const { loadPlaywright, suite, recorder, until, snap, joinAs, openClaude } = require("./browser_harness");
 
-const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "gather", format: { kind: "text" } });
+const q = (id, text, purpose = "gather") => ({ id, text, alternatives: [], dependsOn: [], purpose, format: { kind: "text" } });
 const DESK = { context: { viewport: { width: 1440, height: 900 } } };
 
 // Each place people write: how to open it, its field, its form (where the Attach button and the chips sit), how to send.
@@ -57,7 +61,7 @@ async function main() {
   const s = suite("ui_attach_paste"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("attach-paste");
-    s.apply(A.dir, [{ op: "set-title", title: "Checkout" }, { op: "open-round", questions: [q("Q1", "Where should the order summary sit?")] }]);
+    s.apply(A.dir, [{ op: "set-title", title: "Checkout" }, { op: "open-round", questions: [q("Q1", "Where should the order summary sit?"), q("Q2", "Which default should the cart use?", "decide")] }]);
     const owner = await rec.open(A.ownerUrl, DESK);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     const ann = await rec.open(A.localUrl, DESK);
@@ -73,8 +77,17 @@ async function main() {
     ok("and a pasted picture makes no chip and offers nothing", (await chips(ann, ".vf-chat")).length === 0 && (await snap(ann)).myUploads.length === 0);
     await closeAll(ann);
 
+    // Bo opens Propose while Uploads is off; the host turns it on meanwhile.
+    ok("Bo's Propose form opens", await opens.propose(bo));
     await owner.evaluate(() => window.Core.saveSettings({ uploads: true }));
     await until(ann, () => window.Core.state.settings.uploads === true);
+    await until(bo, () => window.Core.state.settings.uploads === true);
+    await paste(bo, FORMS.propose.field);
+    ok("a picture pasted into a Propose form opened before Uploads was on still becomes a chip", await until(bo, () => document.querySelectorAll(".vf-proposepop .vf-attdraft .vf-ref").length === 1, null, 10000));
+    const boPasted = await until(bo, () => (window.Core.snapshot().myUploads || []).length === 1) && (await snap(bo)).myUploads[0].id;
+    await bo.locator(".vf-proposepop .vf-attdraft .vf-ref-x").click();
+    ok("taking the pasted chip off withdraws its upload", await until(bo, id => window.Core.snapshot().myUploads.find(u => u.id === id)?.status.kind === "withdrawn", boPasted));
+    await closeAll(bo);
 
     // ---------- on: Attach on every form, and a pasted picture becomes a thumbnail chip waiting for the host ----------
     const ids = {};
@@ -124,8 +137,22 @@ async function main() {
     }, ids, 15000);
     ok("each form sent its picture with what it posted", sent, JSON.stringify(ids));
 
-    // ---------- Bo sees the pictures where he sees their items, as tiles that open the viewer ----------
+    // ---------- received, a guest's picture waits for the host's approval before Bo sees it ----------
     await openChat(bo);
+    ok("before the host approves, Bo sees a placeholder reading \"Waiting for the host\" on the chat message, not the picture", await until(bo, t => {
+      const m = [...document.querySelectorAll(".vf-chat .vf-msg")].find(li => li.textContent.includes(t));
+      return !!m && /Waiting for the host/.test(m.querySelector(".vf-uppic-wait")?.textContent || "") && !m.querySelector(".vf-uppic img[src^='data:']");
+    }, FORMS.chat.text, 10000));
+    ok("and the server refuses him the picture", await bo.evaluate(id => window.Core.uploadImage(id).then(() => false, e => e.status === 404), ids.chat));
+    for (const name of ["answer", "ask", "discussion", "propose"]) await owner.evaluate(id => window.Core.uploadAct(id, "approve"), ids[name]);
+    const approveRow = owner.locator(".vf-queue .vf-uprow", { has: owner.locator(".vf-upapprove:visible") });
+    ok("the host's queue lists the received picture with Approve picture, showing what arrived", await until(owner, () => {
+      const rows = [...document.querySelectorAll(".vf-queue .vf-uprow")].filter(r => r.querySelector(".vf-upapprove") && !r.querySelector(".vf-upapprove").hidden);
+      return rows.length === 1 && rows[0].querySelector(".vf-upthumb:not([hidden]) img")?.getAttribute("src")?.startsWith("data:image/") && !rows[0].querySelector(".vf-upremove").hidden;
+    }, null, 10000));
+    await approveRow.locator(".vf-upapprove").click();
+
+    // ---------- Bo sees the pictures where he sees their items, as tiles that open the viewer ----------
     const tile = (page, scope, text) => until(page, ([sc, t]) => [...document.querySelectorAll(sc)].some(li => li.textContent.includes(t)
       && li.querySelector(".vf-uppic img")?.getAttribute("src")?.startsWith("data:image/")), [scope, text], 10000);
     ok("Bo sees Ann's chat picture as a tile", await tile(bo, ".vf-chat .vf-msg", FORMS.chat.text));
@@ -144,6 +171,85 @@ async function main() {
     await owner.evaluate(c => window.Core.hideComment("Q1", c, true), cid);
     ok("hidden, the comment's picture leaves Bo's page", await until(bo, id => !(id in (window.Core.snapshot().files || {})), ids.discussion));
     ok("and the server refuses it to him", await bo.evaluate(id => window.Core.uploadImage(id).then(() => false, e => e.status === 404), ids.discussion));
+
+    // ---------- drafts stay on their question ----------
+    const railQ = (page, qid) => page.locator(".vf-q", { hasText: qid === "Q1" ? "Where should" : "Which default" }).first();
+    await openDisc(ann);
+    await paste(ann, FORMS.discussion.field);
+    ok("a picture pasted into Q1's Discussion makes a chip there", await until(ann, () => document.querySelectorAll(".vf-disc-form .vf-attdraft .vf-ref").length === 1, null, 10000));
+    const q1Draft = (await snap(ann)).myUploads.at(-1).id;
+    await railQ(ann, "Q2").click();
+    await openDisc(ann);
+    ok("on Q2 the Discussion shows no chip", await until(ann, () => document.querySelector(".vf-disc-form .vf-attdraft").hidden));
+    await ann.fill(".vf-disc-ta", "A comment on the cart.");
+    await ann.waitForTimeout(1100);
+    await ann.evaluate(() => document.querySelector(".vf-disc-form").requestSubmit());
+    ok("posted on Q2, the comment carries no file", await until(ann, () => (window.Core.snapshot().discussions?.Q2 || []).some(c => c.text === "A comment on the cart." && !c.attachments)));
+    await railQ(ann, "Q1").click();
+    await openDisc(ann);
+    ok("back on Q1 the chip is still there", await until(ann, id => document.querySelectorAll(".vf-disc-form .vf-attdraft .vf-ref").length === 1
+      && window.Core.state.myUploads.some(u => u.id === id && u.status === "offered"), q1Draft));
+
+    // ---------- a file the host declines leaves the form at Send ----------
+    await owner.evaluate(id => window.Core.uploadAct(id, "decline"), q1Draft);
+    await until(ann, id => window.Core.state.myUploads.some(u => u.id === id && u.status === "declined"), q1Draft);
+    await ann.fill(".vf-disc-ta", "Posting after the decline.");
+    await ann.evaluate(() => document.querySelector(".vf-disc-form").requestSubmit());
+    ok("Send names the declined file and takes it off", await until(ann, () => /^pasted-\d{14}\.(webp|jpg) is no longer available, so it was taken off\. Send again\.$/.test(document.querySelector(".vf-toast.vf-on span")?.textContent || "")
+      && document.querySelector(".vf-disc-form .vf-attdraft").hidden));
+    ok("and posts nothing", !((await snap(ann)).discussions?.Q1 || []).some(c => c.text === "Posting after the decline."));
+
+    // ---------- a picked JPEG is redrawn: no EXIF reaches the host ----------
+    const exifJpeg = Buffer.from(await ann.evaluate(async () => {
+      const c = document.createElement("canvas"); c.width = 2400; c.height = 1600;
+      const g = c.getContext("2d"); g.fillStyle = "#c44"; g.fillRect(0, 0, 2400, 1600);
+      const jpg = new Uint8Array(await (await new Promise(r => c.toBlob(r, "image/jpeg", 0.95))).arrayBuffer());
+      const tiff = [0x4d, 0x4d, 0, 0x2a, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0], note = [...new TextEncoder().encode("GPS-SECRET-51.5N-0.1W")];
+      const body = [...new TextEncoder().encode("Exif\0\0"), ...tiff, ...note], len = body.length + 2;
+      return [...jpg.slice(0, 2), 0xff, 0xe1, len >> 8, len & 255, ...body, ...jpg.slice(2)];
+    }));
+    ok("the test JPEG carries an EXIF segment with a GPS note", exifJpeg.includes(Buffer.from("Exif\0\0")) && exifJpeg.includes(Buffer.from("GPS-SECRET")));
+    await railQ(ann, "Q2").click();
+    await ann.locator(".vf-composer .vf-attach").click();
+    await ann.waitForSelector("dialog.vf-attdlg[open]");
+    await ann.locator("dialog.vf-attdlg .vf-rpfield:not([hidden]) input[type=file]").setInputFiles({ name: "street.jpg", mimeType: "image/jpeg", buffer: exifJpeg });
+    await ann.locator("dialog.vf-attdlg button[type=submit]").click();
+    ok("the picked picture is offered under its own name, redrawn", await until(ann, () => (window.Core.snapshot().myUploads || []).some(u => /^street\.(webp|jpg)$/.test(u.file)), null, 10000));
+    const street = (await snap(ann)).myUploads.find(u => /^street\./.test(u.file));
+    await owner.evaluate(id => window.Core.uploadAct(id, "accept"), street.id);
+    ok("it arrives", await until(ann, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), street.id, 20000));
+    const saved = fs.readdirSync(path.join(A.dir, "uploads", "accepted")).find(n => n.includes(street.id));
+    const bytes = saved ? fs.readFileSync(path.join(A.dir, "uploads", "accepted", saved)) : Buffer.alloc(0);
+    ok("the host's copy holds no EXIF and no GPS note, at most 512 KB", bytes.length > 0 && bytes.length <= 512 * 1024 && !bytes.includes(Buffer.from("Exif\0\0")) && !bytes.includes(Buffer.from("GPS-SECRET")), `${saved} ${bytes.length}`);
+    await closeAll(ann);
+
+    // ---------- the host's own paste, the question's ask box, and Suggest ----------
+    await openChat(owner);
+    await paste(owner, ".vf-minput");
+    ok("the host's own pasted picture shows as a received picture in the chip", await until(owner, () => [...document.querySelectorAll(".vf-chat .vf-attdraft .vf-uppic img")].some(i => i.getAttribute("src")?.startsWith("data:image/")), null, 20000));
+    await closeAll(owner);
+    await railQ(ann, "Q1").click();
+    await openClaude(ann);
+    await ann.click(".vf-askbtn");
+    await until(ann, () => !!document.querySelector("#vf-ask-ta")?.offsetParent);
+    await paste(ann, "#vf-ask-ta");
+    ok("a picture pasted into the question's ask box makes a chip", await until(ann, () => [...document.querySelectorAll(".vf-askform .vf-attdraft .vf-ref")].some(li => li.textContent.includes("Waiting for the host")), null, 10000));
+    await bo.evaluate(() => window.Core.answerCiting("Q2", "Keep the cart open by default.", []));
+    const lockErr = await owner.evaluate(pid => window.Core.lock("Q2", pid).then(() => "", e => JSON.stringify(e)), (await snap(bo)).me.pid);
+    ok("the host locks Q2 on Bo's answer", !lockErr, lockErr);
+    await railQ(ann, "Q2").click();
+    await until(ann, () => !!window.Core.lockOf("Q2"));
+    await ann.locator("button", { hasText: "Suggest a change" }).first().click();
+    await until(ann, () => !document.querySelector(".vf-sugform").hidden);
+    await paste(ann, ".vf-sugform textarea");
+    ok("a picture pasted into Suggest makes a chip", await until(ann, () => [...document.querySelectorAll(".vf-sugform .vf-attdraft .vf-ref")].some(li => li.textContent.includes("Waiting for the host")), null, 10000));
+
+    // ---------- the host removes a received picture ----------
+    await openChat(owner);
+    await owner.locator(".vf-chat .vf-msg", { hasText: FORMS.chat.text }).locator(".vf-upremove").click();
+    await owner.locator("dialog[open] button", { hasText: "Remove picture" }).click();
+    ok("removed, the picture leaves Bo's chat", await until(bo, t => { const m = [...document.querySelectorAll(".vf-chat .vf-msg")].find(li => li.textContent.includes(t)); return !!m && !m.querySelector(".vf-uppic"); }, FORMS.chat.text));
+    ok("and Ann's own file reads Removed", await until(ann, id => window.Core.snapshot().myUploads.find(u => u.id === id)?.status.kind === "removed", ids.chat));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));

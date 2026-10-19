@@ -250,14 +250,14 @@
     // files answers carry. No path ever reaches the page.
     const upView = u => ({ id: u.id, cid: u.pid, by: nameOf(u.pid), qid: u.qid || "", file: u.file, ext: u.ext, size: u.size, ts: u.at,
       total: u.chunks, chunkSize: u.chunkSize, status: u.status.kind, received: u.status.received || 0, bytes: u.status.bytes || 0,
-      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}), ...(u.image ? { image: true } : {}) });
+      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}), ...(u.image ? { image: true } : {}), ...(u.shown ? { shown: true } : {}) });
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
     view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, asked: !!r.asked, ts: r.ts, adds: r.adds || [] }));
     // My own problem reports (Your reports): their words, additions and status, never the page context.
     view.myReports = (s.myReports || []).map(r => ({ id: r.id, text: r.text, image: r.image, status: r.status, ts: r.ts, adds: r.adds || [] }));
-    view.files = s.files || {};
+    view.files = { ...held.files, ...(s.files || {}) };
     // Passes and their reasons (owner only): qid -> pid -> {reason?, ts}.
     view.passes = s.passes || {};
     // Present people are active or away (with since when); a person with no heartbeat for a while is absent: offline.
@@ -1079,7 +1079,7 @@
   // Every message this page has read stays while it is open, so one that leaves the window stays under a reader
   // scrolled up to it. `linked` holds the ids whose next older message is loaded too (or that have none); a message
   // outside it shows a Load earlier control above it. A change of name masking or role starts over.
-  const held = { chat: new Map(), linked: new Set(), key: "", touched: 0 };
+  const held = { chat: new Map(), linked: new Set(), key: "", touched: 0, files: {} }; // files: what held older messages carry
   const seqOf = id => Number(String(id).replace(/\D+/g, "")) || 0;
   function keepChat(run, before, below) {
     run.forEach((m, i) => { held.chat.set(m.id, m); if (i || !before) held.linked.add(m.id); });
@@ -1089,11 +1089,12 @@
     const r = await fetch(`/api/chat?${new URLSearchParams(query)}`, { headers: ident() });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw { status: r.status, ...j };
+    Object.assign(held.files, j.files || {});
     return j;
   }
   function keepWindow(s) {
     const key = `${s.settings?.names}|${s.me.role}`;
-    if (key !== held.key) { held.chat.clear(); held.linked.clear(); held.key = key; }
+    if (key !== held.key) { held.chat.clear(); held.linked.clear(); held.files = {}; held.key = key; }
     const win = s.chat || [], skipped = !!s.chatBefore && win.length > 0 && held.chat.size > 0 && !held.chat.has(win[0].id);
     const touched = (s.chatTouched || 0) !== held.touched && held.chat.size > win.length;
     held.touched = s.chatTouched || 0;
