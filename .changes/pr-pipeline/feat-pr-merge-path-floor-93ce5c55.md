@@ -14,9 +14,9 @@ bump: minor
   either side or changed frontmatter cannot be read. `merge.diff-check.floor-script-scopes` (a list
   of globs) holds a `.ps1` or `.cjs` file, or one with git mode 100755, inside one of them or at the
   top level the same way. This repository lists `bin/`, `.lsp.json`, `settings*.json` and the
-  scripts of the plugins the CI lanes load as floor paths, with the scripts a SessionStart or
-  PreToolUse hook runs by path outside its plugin's `hooks/` (`pydeps.py`, `arm_observer.py`,
-  disk-hygiene's `skills/clean/scripts/**`), and those plugins as script scopes
+  scripts of the plugins the CI lanes load as floor paths, with the directories of the scripts a
+  SessionStart or PreToolUse hook runs by path outside its plugin's `hooks/` (`pydeps.py`,
+  `arm_observer.py`, `destructive_guard.py`), held whole so a sibling module cannot shadow an import, and those plugins as script scopes
   (Q646), and sets `high-path-floor: true` (owner decision 2026-10-18, reversing Q661), so its
   pr-merge lane holds such a pull request for a human, and the scorer's fixed HIGH floor
   (`.github/**`, `docs/conventions/**`, agent instructions, hooks, `lib/`, `scripts/`, package

@@ -463,7 +463,12 @@ _CAPABILITY_KEYS = frozenset(
 _HUNK = re.compile(r"@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@")
 _FRONT_KEY = re.compile(r"([A-Za-z][A-Za-z0-9_-]*)[ \t]*:(?:[ \t]|$)")
 # Anchors, aliases, tags and merge keys let one entry change another's value.
-_INDIRECT = re.compile(r"(?:^|[\s:\[{,-])[&*!][^\s,\]}]|<<")
+# YAML reads them only where a node starts (line start, after `key: `, `- `,
+# or `[`, `{` or `,` in a flow collection), so `Bash(git *)` and `x:*` stay
+# text.
+_INDIRECT = re.compile(
+    r"(?:^[ \t]*(?:-[ \t]+)?|:[ \t]+|[\[{,][ \t]*)[&*!][^\s,\]}]|^[ \t]*<<[ \t]*:"
+)
 # Unanchored, so a ```! after a quote marker, a list marker or text counts.
 _FENCED_BANG = re.compile(r"(?:`{3,}|~{3,})[ \t]*!")
 # A closing fence starts its line, so a quoted fence inside a block never

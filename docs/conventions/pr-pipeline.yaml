@@ -441,14 +441,15 @@ merge:
       - "plugins/testing/skills/*/scripts/**"
       - "plugins/autonomy/scripts/**"
       - "plugins/autonomy/skills/*/scripts/**"
-      # Scripts a SessionStart or PreToolUse hook runs by path, outside the
-      # plugin's hooks/ (the clean scripts whole, so a sibling module cannot
-      # shadow an import of destructive_guard.py).
-      - "plugins/animation/scripts/pydeps.py"
-      - "plugins/explainer-video/scripts/pydeps.py"
-      - "plugins/speech/scripts/pydeps.py"
-      - "plugins/playwright/skills/demo-video/scripts/pydeps.py"
-      - "plugins/session-flow/skills/running-retro/scripts/arm_observer.py"
+      # The directories of the scripts a SessionStart or PreToolUse hook runs
+      # by path, outside the plugin's hooks/, held whole so a sibling module
+      # cannot shadow one of their imports (pydeps.py, arm_observer.py,
+      # destructive_guard.py).
+      - "plugins/animation/scripts/**"
+      - "plugins/explainer-video/scripts/**"
+      - "plugins/speech/scripts/**"
+      - "plugins/playwright/skills/demo-video/scripts/**"
+      - "plugins/session-flow/skills/running-retro/scripts/**"
       - "plugins/disk-hygiene/skills/clean/scripts/**"
     # Owner decision Q646 (2026-10-18): a .ps1 or .cjs file, or one with git
     # mode 100755, holds the same way in the plugins the CI lanes load and,

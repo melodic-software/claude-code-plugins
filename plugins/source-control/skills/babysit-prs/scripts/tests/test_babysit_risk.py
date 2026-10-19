@@ -1298,7 +1298,13 @@ class LanePathFloorTests(unittest.TestCase):
         "plugins/speech/scripts/pydeps.py",
         "plugins/playwright/skills/demo-video/scripts/pydeps.py",
         "plugins/session-flow/skills/running-retro/scripts/arm_observer.py",
-        # A sibling module could shadow destructive_guard.py's stdlib import.
+        # A sibling module could shadow a stdlib import of the script a hook
+        # runs (review thread L451), so each directory is held whole.
+        "plugins/animation/scripts/json.py",
+        "plugins/explainer-video/scripts/re.py",
+        "plugins/speech/scripts/shlex.py",
+        "plugins/playwright/skills/demo-video/scripts/json.py",
+        "plugins/session-flow/skills/running-retro/scripts/json.py",
         "plugins/disk-hygiene/skills/clean/scripts/json.py",
     )
 
@@ -1326,6 +1332,8 @@ class LanePathFloorTests(unittest.TestCase):
                 if not rel.startswith("hooks/") and ".." not in rel:
                     if (REPO_ROOT / path).is_file():
                         found.add(path)
+                        # A sibling module shadowing one of its imports.
+                        found.add(path.rsplit("/", 1)[0] + "/json.py")
         self.assertTrue(found)
         for path in sorted(found):
             with self.subTest(path):
@@ -1698,10 +1706,33 @@ class CapabilityTriggerTests(unittest.TestCase):
         )
         self.assertEqual(score(_input(files=(changed,))).score, Risk.LOW)
 
-    def test_a_description_with_an_asterisk_edit_reads_as_unfollowable(self):
-        # Fail closed: a value that may hold an alias is not read.
-        changed = _edit(SKILL, _front("description: a"), _front("description: see *b"))
-        self.assertIn("high-capability", _codes(score(_input(files=(changed,)))))
+    def test_an_alias_at_a_value_start_reads_as_unfollowable(self):
+        # Fail closed: an alias, anchor or tag at a node start is not read.
+        for value in ("*b", "&b x", "!!str x"):
+            with self.subTest(value):
+                changed = _edit(
+                    SKILL, _front("description: a"), _front(f"description: {value}")
+                )
+                self.assertIn(
+                    "high-capability", _codes(score(_input(files=(changed,))))
+                )
+
+    def test_a_description_edit_beside_wildcard_tool_grants_is_not_held(self):
+        # Review thread L466: `*` inside a plain or quoted scalar is text.
+        for grant in (
+            "allowed-tools: Bash(playwright-cli:*)",
+            "allowed-tools: Bash(git *)",
+            'allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/x.sh:*)"]',
+            "description2: see *b and & c!",
+        ):
+            with self.subTest(grant):
+                changed = _edit(
+                    SKILL,
+                    _front(grant, "description: Old."),
+                    _front(grant, "description: New."),
+                )
+                result = score(_input(files=(changed,)))
+                self.assertEqual(result.score, Risk.LOW, _codes(result))
 
     def test_plugin_monitors_and_workflows_are_on_the_floor(self):
         for path in (
