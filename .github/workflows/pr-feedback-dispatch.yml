@@ -14,6 +14,13 @@ name: pr-feedback-dispatch
 # head SHA, start time) from the event file and reads every PR fact back from
 # the API; no event field reaches a shell but the run id, checked below. The
 # dispatched lane runs its own trigger gate, kill switch, config and round cap.
+#
+# Every completed review run at a head starts this file, so a run leaves a
+# record for the next one at that head in the Actions cache
+# (dispatch-record.mjs): a head already handled for good is skipped before
+# any read, and one whose dispatched run is still going after one. The
+# token's budget is logged at the start and end of the job
+# (.github/actions/log-api-budget).
 
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
@@ -57,6 +64,14 @@ jobs:
           node-version-file: .base/.node-version
           package-manager-cache: false
 
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
+
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -79,6 +94,18 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
+      # The newest record an earlier run at this head saved, if any. The key
+      # names the event's head SHA, which reaches no shell; the script checks
+      # every entry it reads (dispatch-record.mjs).
+      - name: Restore the dispatch record for this head
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
+          key: pr-feedback-dispatch-record-${{ github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pr-feedback-dispatch-record-${{ github.event.workflow_run.head_sha }}-
+
       - name: Dispatch address-feedback
         id: dispatch
         if: steps.kill.outputs.proceed == 'true'
@@ -86,7 +113,16 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          DISPATCH_RECORD: ${{ runner.temp }}/pr-feedback-dispatch-record.json
         run: node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
+
+      - name: Save the dispatch record for this head
+        if: always() && steps.dispatch.outputs.record-changed == 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
+          key: pr-feedback-dispatch-record-${{ github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The record of the run this run dispatched and the review run that
       # started it: an artifact only steps of this run can upload, read by the
@@ -116,3 +152,12 @@ jobs:
           path: ${{ runner.temp }}/pr-feedback-dispatched.json
           retention-days: 1
           if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}

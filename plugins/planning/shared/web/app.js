@@ -5,7 +5,6 @@
     const Core = window.Core, root = document.getElementById("app");
     const E = Core.el;
     const phone = matchMedia("(max-width: 720px)");
-    const wide = matchMedia("(min-width: 1200px)"); // Answers and the Claude thread side by side
     const drawerSheet = matchMedia("(max-width: 1023px)"); // the Ask Claude panel is a bottom sheet below this
     const lightOS = matchMedia("(prefers-color-scheme: light)");
     const store = {
@@ -21,7 +20,7 @@
       resClosed: new Set(), askOpen: false, askKind: "research", exp: new Set(), pcard: null, mergeFrom: "", mergeTo: "",
       bumped: false, heard: {}, renaming: false, tie: null,
       // round 8
-      revealed: new Set(), threadTab: "answers", cites: {}, hostFilter: "all", treeClosed: new Set(),
+      revealed: new Set(), clOpen: new Map(), cites: {}, hostFilter: "all", treeClosed: new Set(),
       askPanel: false, askMode: "ask", askQ: "", askSelf: false, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
       more: {}, peopleFilter: "all", peopleFind: "", unreadOnly: false,
     };
@@ -1058,20 +1057,30 @@
     protoInfo.append(protoMeta, protoOpen);
     protoBox.append(protoTile, protoInfo);
     fmtBox.append(fmtHint, protoBox, optGrid, multiList, scaleBox, rankList, confirmFig, cfRow, otherBox, fmtActs, fmtNote, fmtRes);
-    // Q77: Answers | Claude (N). Side by side from 1200px; tabs below that.
-    const split = E("div", "vf-split");
-    const splitTabs = E("div", "vf-seg vf-splittabs"); splitTabs.setAttribute("role", "tablist"); splitTabs.setAttribute("aria-label", "Answers or Claude");
-    const tabAns = btn("vf-seg-btn", "Answers"), tabTh = btn("vf-seg-btn");
-    for (const [b, k] of [[tabAns, "answers"], [tabTh, "claude"]]) { b.setAttribute("role", "tab"); b.onclick = () => { ui.threadTab = k; render(); }; splitTabs.append(b); }
+    // Layout A: Answers, then "Claude on this question", one column at every width. The Claude section starts folded to its
+    // head and opens by itself when this person has a new result on the question; opening pushes the page, hiding nothing.
     const ansPane = E("section", "vf-anspane"); ansPane.setAttribute("aria-label", "Answers"); ansPane.id = "vf-anspane";
-    const thPane = E("section", "vf-thpane"); thPane.setAttribute("aria-label", "Claude thread"); thPane.id = "vf-thpane";
-    tabAns.setAttribute("aria-controls", ansPane.id); tabTh.setAttribute("aria-controls", thPane.id);
-    const thHead = E("div", "vf-thhead");
-    thHead.append(claudeAv(20), E("h2", "vf-h2 vf-th-title", "Claude"), reqChip);
     const ansMore = showMore("ans", 12, { all: true });
     ansPane.append(lockBox, ansHead, claudeBar, aList, ansMore.foot, aEmpty, closedBox);
-    thPane.append(thHead, thList, thEmpty, tools, askForm);
-    split.append(ansPane, thPane);
+    const clSec = E("section", "vf-clsec"); clSec.setAttribute("aria-label", "Claude on this question");
+    const clHead = E("div", "vf-clhead"), clH = E("h2", "vf-h2 vf-clh");
+    const clToggle = btn("vf-cltoggle"); clToggle.setAttribute("aria-controls", "vf-clbody");
+    const clNew = E("span", "vf-chip vf-chip-new vf-clnew"), clCounts = E("span", "vf-meta vf-clcounts");
+    clToggle.append(claudeAv(20), E("span", "vf-cltitle", "Claude on this question"), clNew, clCounts, icon("chevD", "vf-i vf-chev"));
+    clH.append(clToggle);
+    clHead.append(clH, reqChip, tools);
+    const clBody = E("div", "vf-clbody"); clBody.id = "vf-clbody";
+    clBody.append(thList, thEmpty, askForm);
+    clSec.append(clHead, clBody);
+    const clIsOpen = () => !!ui.cur && ui.clOpen.get(ui.cur) === true;
+    function paintCl() {
+      const open = clIsOpen();
+      clSec.dataset.open = String(open); clBody.hidden = !open;
+      clToggle.setAttribute("aria-expanded", String(open));
+    }
+    /** Opening keeps the section in view: its head moves to the top of the scroll area, the answers stay above it. */
+    function keepClInView() { requestAnimationFrame(() => clSec.scrollIntoView({ block: "start", behavior: smooth() })); }
+    clToggle.onclick = () => { const open = !clIsOpen(); ui.clOpen.set(ui.cur, open); if (!open) ui.askOpen = false; render(); if (open) keepClInView(); };
     // Q84: References under the question: screenshots with a marked area, quoted excerpts with their source, titled links.
     const refBox = E("section", "vf-refs"); refBox.setAttribute("aria-label", "References");
     const refHead = E("div", "vf-refs-head");
@@ -1148,7 +1157,7 @@
     };
     passUndo.onclick = () => Core.pass(ui.cur, "", false).then(() => flash("Pass taken back.")).catch(fail);
     // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
-    scroll.append(orient, qMeta, forBox, qText, refBox, reviewRow, onIt, fmtBox, composer, passBox, splitTabs, split);
+    scroll.append(orient, qMeta, forBox, qText, refBox, reviewRow, onIt, fmtBox, composer, passBox, ansPane, clSec);
     focusV.append(scroll);
 
     // Compare view
@@ -1672,7 +1681,7 @@
       { h: "Your answer box", t: "Type your answer, or a comment on your pick, right under the question, then send it. You can change it until the host locks the question.",
         at: () => composer },
       { h: "Everyone's answers", t: "Once you have answered, other people's answers show here, and you can vote for the ones you agree with.",
-        at: () => (shown(splitTabs) ? splitTabs : split) },
+        at: () => ansPane },
       { h: "Chat with people", t: "The chat is for talking with the others here. It is not sent to Claude and does not count as an answer.",
         at: () => fab },
       { h: "Help is here", t: "Open Help to take this tour again or see the keyboard shortcuts.",
@@ -1992,7 +2001,7 @@
     // or "att" (the pictures attached to one answer, message, request or suggestion, passed in as items).
     const LB = { kind: null, qid: null, i: 0, s: 1, x: 0, y: 0, from: null, vKey: null, cur: null, items: null, meta: "" };
     const optCard = (qid, id) => Core.answersFor(qid).find(a => a.option && a.cid === id);
-    const chose = n => (n ? `${n} ${n === 1 ? "person" : "people"} chose this` : "No one has chosen this yet");
+    const chose = n => (n ? `${n} ${n === 1 ? "person" : "people"} chose this` : "No picks yet");
     function lbItems() {
       if (LB.kind === "att") return LB.items || [];
       const q = qById(LB.qid);
@@ -3784,8 +3793,6 @@
     });
     const mqOff = () => { closePop(); closeSheet(); render(); syncModal(); };
     phone.addEventListener("change", mqOff); offs.push(() => phone.removeEventListener("change", mqOff));
-    const wideOff = () => render();
-    wide.addEventListener("change", wideOff); offs.push(() => wide.removeEventListener("change", wideOff));
 
     // ---------- requests ----------
     async function saveOpenEdit(li) {
@@ -3793,6 +3800,8 @@
       if (ui.reqEditing.has(r.id) && val && val !== r.text) await Core.requestAct(r.id, "edit", val);
       ui.reqEditing.delete(r.id);
     }
+    // A refused run says why in the session's own words ("None of these requests is still waiting.").
+    const runFail = e => (e?.error === "wrong-status" && e.message ? flash(`Not run: ${e.message}`) : fail(e));
     async function runAllShown() {
       const items = [...RQ.list.children].filter(li => li._r?.status === "pending" && ui.reqSeen.has(li._r.id));
       if (!items.length) return;
@@ -3802,7 +3811,7 @@
         const ids = items.map(li => li._r.id);
         const r = await Core.runRequests(ids);
         flash(`Running ${r.ran?.length ?? ids.length} request${ids.length > 1 ? "s" : ""}.`);
-      } catch (e) { fail(e); }
+      } catch (e) { runFail(e); }
       finally { runAllBtn.disabled = false; render(); }
     }
     function makeReq() {
@@ -3840,7 +3849,7 @@
       decline.onclick = () => { Core.requestAct(li._r.id, "decline").then(() => flash("Request declined.")).catch(fail); };
       run.onclick = async () => {
         run.disabled = true;
-        try { await saveOpenEdit(li); await Core.requestAct(li._r.id, "run"); flash("Running. The result shows on the question."); } catch (e) { fail(e); }
+        try { await saveOpenEdit(li); await Core.runRequests([li._r.id]); flash("Running. The result shows on the question."); } catch (e) { runFail(e); }
         finally { run.disabled = false; render(); }
       };
       return li;
@@ -4099,8 +4108,9 @@
         : ro ? `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Suggest a change above." : ""}`
         : lockedQ ? (Core.canModerate() ? "This question is locked. Edit or unlock it above." : "This question is locked. Suggest a change above.")
         : ownOpt ? "Your own option is your answer here. Change it above."
-        : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option first, then add a comment if you like."
-          : q?.format === "rank" ? "Save your ranking first, then add a comment if you like." : "Pick first, then add a comment if you like.")
+        // A phone's composer is one line: the first half alone, so it is never cut mid-word.
+        : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option first" : q?.format === "rank" ? "Save your ranking first" : "Pick first")
+          + (phone.matches ? "" : ", then add a comment if you like.")
         : q?.format === "choice" ? (picked ? "Add a comment (optional)…" : "Pick an option, or write your own answer…")
         : isFormat(q) ? "Add a comment (optional)…"
         : q?.format === "confirm" ? (picked && q.purpose === "poll" ? "Add a comment (optional)…" : "Not exactly? Say what you meant…")
@@ -4115,6 +4125,7 @@
       counter(cCount, ta, 1);
     }
     function renderAsk() {
+      if (ui.askOpen && ui.cur && !clIsOpen()) { ui.clOpen.set(ui.cur, true); paintCl(); }
       askForm.hidden = !ui.askOpen;
       askBtn.setAttribute("aria-expanded", String(ui.askOpen));
       for (const [k, b] of Object.entries(askKinds)) b.setAttribute("aria-pressed", String(k === ui.askKind));
@@ -4223,6 +4234,9 @@
       const notes = (S.annotations || []).filter(a => a.qid === q.id).map(a => ({ t: "note", id: "a:" + a.id, ts: a.ts, a }));
       return [...rq, ...res, ...notes].sort((a, b) => a.ts - b.ts);
     }
+    /** New to me: the answer to my own request while its "is done" notice is unread, or anyone else's result since my last visit. */
+    const doneUnread = qid => notes().some(n => !n.read && n.kind === "request" && n.qid === qid && / is done\.$/.test(n.title || ""));
+    const resNew = (x, q) => (isMe(x.byCid) ? doneUnread(q.id) : ui.seenAt != null && x.ts > ui.seenAt);
     /** Q98: a note someone pinned on a variant of this prototype, with a link to it on the prototype's page. */
     function makeThNote() {
       const li = E("li", "vf-thnote");
@@ -4247,10 +4261,14 @@
       const li = E("li", "vf-res");
       const head = btn("vf-res-head");
       const ttl = E("span", "vf-res-title"), via = E("span", "vf-via"), tm = E("span", "vf-card-time");
-      head.append(icon("search"), ttl, via, tm, icon("chevD", "vf-i vf-chev"));
+      const isNew = E("span", "vf-chip vf-chip-new vf-res-new", "New");
+      head.append(icon("search"), ttl, via, isNew, tm, icon("chevD", "vf-i vf-chev"));
       const bodyR = E("div", "vf-res-body");
-      const ask = E("div", "vf-res-ask");
-      const sum = clampBox();
+      // Soft rule: "<Name> asked" and the ask, a thin line, then "Claude" and the answer, both at one text size.
+      const ask = E("div", "vf-res-ask vf-qa-ask");
+      const ans = E("div", "vf-qa-ans"), ansLbl = E("div", "vf-qa-lbl");
+      ansLbl.append(claudeAv(18), E("span", null, "Claude"));
+      const sum = clampBox("vf-qa-txt");
       const srcs = E("ul", "vf-sources"); srcs.setAttribute("aria-label", "Sources");
       const full = lbtn("vf-btn vf-btn-ghost vf-btn-sm", "doc", "Full report");
       const citedBy = E("div", "vf-citedby");
@@ -4266,11 +4284,12 @@
         () => Core.requestAct(li._x.id, "discard").then(() => flash("Discarded.")).catch(fail));
       takeDown.onclick = guarded({ title: "Take this answer down?", ok: "Take down", body: "Nobody sees it any more, and the person whose Claude wrote it hears it was not shared." },
         () => Core.requestAct(li._x.id, "discard").then(() => flash("Taken down.")).catch(fail));
-      bodyR.append(share, ask, sum, srcs, full, citedBy);
+      ans.append(ansLbl, sum, srcs, full, citedBy);
+      bodyR.append(share, ask, ans);
       li.append(head, bodyR);
       head.onclick = () => { const id = li._x.id; ui.resClosed.has(id) ? ui.resClosed.delete(id) : ui.resClosed.add(id); render(); };
       full.onclick = () => openReader(`${KIND_LABEL[li._x.kind] || "Research"} report`, `${li._x.skill}, ${li._q.id}: ${li._q.text}`, li._x.report, full);
-      li._k = { head, ttl, via, tm, bodyR, ask, sum, srcs, full, citedBy, share, shareNote, discard, publish, takeDown };
+      li._k = { head, ttl, via, isNew, tm, bodyR, ask, sum, srcs, full, citedBy, share, shareNote, discard, publish, takeDown };
       return li;
     }
     function fillRes(li, x, q) {
@@ -4294,6 +4313,7 @@
       k.takeDown.hidden = !(owner && !draft && x.own);
       li.classList.toggle("vf-res-draft", draft);
       k.tm.textContent = ago(x.ts);
+      k.isNew.hidden = !resNew(x, q);
       k.head.setAttribute("aria-expanded", String(open));
       k.bodyR.hidden = !open;
       const askKey = [x.ask, x.by, x.byCid].join("|");
@@ -4301,14 +4321,15 @@
         k.ask._key = askKey;
         k.ask.replaceChildren();
         if (x.ask) {
-          const who = E("span", "vf-res-who");
-          if (x.byCid) who.append(av(x.byCid, x.by || "Someone", 16, true));
+          const who = E("div", "vf-res-who vf-qa-lbl");
+          if (x.byCid) who.append(av(x.byCid, x.by || "Someone", 18, true));
           who.append(E("span", null, x.by ? `${disp(x.by)}${isMe(x.byCid) ? " (you)" : ""} asked` : "Asked"));
-          const t = clampBox("vf-res-asktxt"); fillClamp(t, "xa:" + x.id, x.ask, `What ${x.by ? disp(x.by) : "someone"} asked`, `${q.id}: ${q.text}`);
+          const t = clampBox("vf-res-asktxt vf-qa-txt"); fillClamp(t, "xa:" + x.id, x.ask, `What ${x.by ? disp(x.by) : "someone"} asked`, `${q.id}: ${q.text}`);
           k.ask.append(who, t);
         }
       }
       k.ask.hidden = !x.ask;
+      li.classList.toggle("vf-qa-noask", !x.ask);
       fillClamp(k.sum, "x:" + x.id, x.summary, k.ttl.textContent, `${x.skill}, ${q.id}: ${q.text}`);
       const sk = JSON.stringify(x.sources);
       if (k.srcs._sk !== sk) {
@@ -4345,19 +4366,27 @@
       const head = E("div", "vf-rhead2");
       const kind = E("span", "vf-chip"), who = E("span", "vf-pfrom"), status = E("span", "vf-thstat");
       head.append(kind, E("span", "vf-spacer"), status);
-      const text = clampBox();
+      const text = clampBox("vf-qa-txt");
+      // Under the ask: Claude's label row and, while it waits or runs, the progress line.
+      const ans = E("div", "vf-qa-ans"), ansLbl = E("div", "vf-qa-lbl"), prog = E("div", "vf-runline");
+      ansLbl.append(claudeAv(18), E("span", null, "Claude"));
+      const progTxt = E("span", "vf-runline-t");
+      prog.append(E("span", "vf-runbar"), progTxt);
+      ans.append(ansLbl, prog);
       const acts = E("div", "vf-acts");
       const run = lbtn("vf-btn vf-btn-primary vf-btn-sm", "play", "Run"), decline = btn("vf-btn vf-btn-ghost vf-btn-sm", "Decline");
       const failB = btn("vf-btn vf-btn-ghost vf-btn-sm", "Mark failed"), rerun = lbtn("vf-btn vf-btn-ghost vf-btn-sm", "restore", "Run again");
       acts.append(decline, run, failB, rerun);
       li._self = makeSelfActs();
-      li.append(head, who, text, acts, li._self);
+      who.classList.add("vf-qa-lbl");
+      const askPart = E("div", "vf-qa-ask"); askPart.append(who, text);
+      li.append(head, askPart, ans, acts, li._self);
       li._att = attRowEl(); text.after(li._att);
-      run.onclick = () => Core.requestAct(li._r.id, "run").then(() => flash("Running. The result shows here.")).catch(fail);
+      run.onclick = () => Core.requestAct(li._r.id, "run").then(() => flash("Running. The result shows here.")).catch(runFail);
       decline.onclick = () => Core.requestAct(li._r.id, "decline").then(() => flash("Request declined.")).catch(fail);
       failB.onclick = () => Core.requestAct(li._r.id, "fail").then(() => flash("Marked failed. The requester sees it.")).catch(fail);
       rerun.onclick = () => Core.requestAct(li._r.id, "rerun").then(() => flash("Running again.")).catch(fail);
-      li._k = { kind, who, status, text, acts, run, decline, failB, rerun };
+      li._k = { kind, who, status, text, ans, prog, progTxt, acts, run, decline, failB, rerun };
       return li;
     }
     function fillThReq(li, r, q) {
@@ -4366,9 +4395,12 @@
       k.kind.textContent = KIND_REQ[r.kind] || r.kind;
       k.kind.className = "vf-chip " + (r.kind === "research" ? "vf-chip-accent" : "vf-chip-quiet");
       const wk = r.cid + "|" + r.name + "|" + r.ts;
-      if (k.who._k !== wk) { k.who._k = wk; k.who.replaceChildren(av(r.cid, r.name, 16), E("span", null, `${isMe(r.cid) ? "You" : disp(r.name)}`), E("span", "vf-card-time", ago(r.ts))); }
+      if (k.who._k !== wk) { k.who._k = wk; k.who.replaceChildren(av(r.cid, r.name, 18), E("span", null, `${isMe(r.cid) ? "You" : disp(r.name)} asked`), E("span", "vf-card-time", ago(r.ts))); }
       k.status.textContent = `${rstat(r)}${r.edited ? ", edited by host" : ""}${r.reason ? `: ${r.reason}` : ""}`;
       li.dataset.stat = r.status;
+      k.ans.hidden = r.status !== "running" && r.status !== "pending";
+      k.progTxt.textContent = rstat(r);
+      k.prog.dataset.run = String(r.status === "running");
       if (r.runner === "self" && isMe(r.cid)) fillSelfActs(li._self, r, q); else li._self.hidden = true;
       fillClamp(k.text, "tr:" + r.id, r.text, `${KIND_REQ[r.kind] || "Request"} from ${isMe(r.cid) ? "you" : disp(r.name)}`, `${q.id}: ${q.text}`);
       fillAtts(li._att, r.att || (Core.state.myRequests || []).find(x => x.id === r.id)?.att, `Request from ${isMe(r.cid) ? "you" : disp(r.name)}`);
@@ -4387,11 +4419,17 @@
       const others = Math.max(0, (S.requestCounts?.byQ?.[q.id] || 0) - (Core.me.isOwner ? (S.requests || []).filter(r => r.qid === q.id && (r.status === "pending" || r.status === "running")).length : mineOpen));
       reqChip.textContent = others ? `${others} more open with the host` : "";
       reqChip.hidden = !others;
-      tabTh.textContent = `Claude (${items.length})`;
-      return items.length;
+      const res = items.filter(i => i.t === "res"), reqs = items.filter(i => i.t === "req"), nNotes = items.length - res.length - reqs.length;
+      const nNew = res.filter(i => resNew(i.x, q)).length;
+      const nRun = reqs.filter(i => i.r.status === "running").length, nWait = reqs.filter(i => i.r.status === "pending").length;
+      const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+      clNew.textContent = nNew ? `${nNew} new` : ""; clNew.hidden = !nNew;
+      clCounts.textContent = [res.length && plural(res.length, "answer"), nRun && `${nRun} running`, nWait && `${nWait} waiting`, nNotes && plural(nNotes, "note")]
+        .filter(Boolean).join(" · ") || "Nothing asked yet";
+      return nNew;
     }
     function showResult(qid, xid) {
-      ui.threadTab = "claude"; ui.resClosed.delete(xid);
+      ui.resClosed.delete(xid); ui.clOpen.set(qid, true);
       if (ui.cur !== qid) select(qid, { manual: true });
       render();
       requestAnimationFrame(() => {
@@ -4402,7 +4440,6 @@
       });
     }
     function focusAnswer(qid, cid) {
-      ui.threadTab = "answers";
       if (claudeHidden(qid)) ui.revealed.add(qid);
       render();
       requestAnimationFrame(() => {
@@ -4515,7 +4552,9 @@
           k.n.textContent = o.other ? (owns.length ? `${owns.length} wrote their own, in Answers` : "Write your own option") : hideResults ? "" : chose(votes.length);
           const vk = o.other ? "" : voterKey(a);
           if (k.vKey !== vk) { k.vKey = vk; avStack(k.voters, (vk ? vk.split(",") : []).map(c => ({ cid: c, name: nameOf(c) })), 3, 20); }
-          k.foot.hidden = !k.n.textContent && !k.tag.textContent && !vk; // nothing to show before I pick: no empty row
+          // Item 12: the foot always takes its row, so every Choose button in a grid row lines up; empty (Answer first) it stays
+          // blank, and on a phone, one card per row, an empty foot takes no room.
+          k.foot.dataset.empty = String(!k.n.textContent && !k.tag.textContent && !vk);
           const label = o.other ? (mine ? "Your own option: edit it" : rec?.pick ? "Write your own instead" : "Write your own")
             : mine ? "Your choice" : rec?.pick ? "Choose this instead" : "Choose this";
           if (k.mine !== mine) { k.mine = mine; k.choose.replaceChildren(radioDot(), E("span", null, label)); }
@@ -4986,7 +5025,7 @@
         li._self = makeSelfActs();
         li.append(head, qref, text, li._self);
         li._att = attRowEl(); text.after(li._att);
-        qref.onclick = () => { const r = li._r; closePop(); ui.threadTab = "claude"; focusQuestion(r.qid); };
+        qref.onclick = () => { const r = li._r; closePop(); ui.clOpen.set(r.qid, true); focusQuestion(r.qid); };
         li._k = { kind, status, qref, text };
         return li;
       }, (li, r) => {
@@ -5090,7 +5129,7 @@
       const a = [];
       if (it.t === "request" && owner) {
         if (it.r.status === "pending") a.push(qAct("Decline", "vf-btn-ghost", () => Core.requestAct(it.r.id, "decline").then(() => flash("Request declined.")).catch(fail)),
-          qAct("Run", "vf-btn-primary", () => Core.requestAct(li._it.r.id, "run").then(() => flash("Running. The result shows on the question.")).catch(fail)));
+          qAct("Run", "vf-btn-primary", () => Core.requestAct(li._it.r.id, "run").then(() => flash("Running. The result shows on the question.")).catch(runFail)));
         else if (it.r.status === "running") a.push(qAct("Mark failed", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "fail").catch(fail)));
         else a.push(qAct("Run again", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "rerun").catch(fail)));
         a.push(qAct("Edit in Requests", "vf-btn-ghost", () => openPanel(RQ.pop, reqRow.offsetParent ? reqRow : li)));
@@ -5550,6 +5589,7 @@
       runAllBtn.lastChild.textContent = `Run all shown (${runnable})`;
       runAllBtn.setAttribute("aria-disabled", String(!runnable));
       runAllBtn.disabled = !runnable;
+      runAllBtn.hidden = !pending.length;
       proposeBtn.hidden = (!!S.ended && !me.isOwner) || !!S.youRemoved;
       if (proposeBtn.hidden && ui.pop === proposePop) closePop();
       railFoot.hidden = propRow.hidden && myProp.hidden && reqRow.hidden && proposeBtn.hidden;
@@ -5715,22 +5755,17 @@
         qOnIt.setAttribute("aria-label", onItTxt.textContent);
         if (others.length) qOnIt.removeAttribute("aria-hidden"); else qOnIt.setAttribute("aria-hidden", "true");
 
-        // format, Claude thread, citations, and the Answers | Claude split
+        // format, Claude thread, citations
         renderFormat(S, q);
         if (!lb.hidden) paintLb();
         askBtn.hidden = (!!S.ended && !me.isOwner) || !!S.youRemoved;
         if (askBtn.hidden && ui.pop === askMenu) closePop();
         renderAsk();
-        renderThread(S, q);
+        // A new result for me on this question opens the Claude section once; after that it stays as the person left it.
+        if (renderThread(S, q) && !ui.clOpen.has(q.id)) ui.clOpen.set(q.id, true);
+        paintCl();
         renderCite(S, q);
-        const cols = wide.matches;
-        split.hidden = false;
-        split.dataset.layout = cols ? "cols" : "tabs";
-        split.dataset.tab = ui.threadTab;
-        splitTabs.hidden = cols;
-        tabAns.setAttribute("aria-selected", String(ui.threadTab === "answers")); tabTh.setAttribute("aria-selected", String(ui.threadTab === "claude"));
-        tabAns.setAttribute("aria-pressed", String(ui.threadTab === "answers")); tabTh.setAttribute("aria-pressed", String(ui.threadTab === "claude"));
-        if (cols) { ansPane.removeAttribute("role"); thPane.removeAttribute("role"); } else { ansPane.setAttribute("role", "tabpanel"); thPane.setAttribute("role", "tabpanel"); }
+        ansPane.hidden = false; clSec.hidden = false;
         // my files on this question
         const myUps = (S.myUploads || []).filter(u => u.qid === q.id && !["withdrawn"].includes(u.status)).sort((a, b) => a.ts - b.ts);
         sync(upStrip, myUps, u => u.id, () => makeUpRow(false), fillUpRow);
@@ -5817,7 +5852,6 @@
         claudeBar.setAttribute("aria-label", nP ? `Show the answers so far: ${waitingC.length}. They show by themselves once you answer or vote.`
           : `Show Claude's take: ${nC} card${nC === 1 ? "" : "s"}. They show by themselves once you answer or vote.`);
         ansTitle.textContent = lk ? "All answers" : "Answers";
-        tabAns.textContent = `Answers (${all.filter(a => !a.claude).length})`;
         // Answered counts everyone who joined (Claude's cards are not people); who is here is a separate number.
         const joinedN = Math.max(Object.keys(S.people || {}).filter(p => !(S.removed || []).includes(p)).length, here.length);
         const answeredN = all.filter(a => !a.claude).length;
@@ -5860,7 +5894,7 @@
         qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = true; qText.textContent = "No questions yet";
         qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
         onItTxt.textContent = ""; ansCount.textContent = ""; aEmpty.hidden = true; lockBox.hidden = true; lockBtn.hidden = true;
-        reviewRow.hidden = true; tools.hidden = true; fmtBox.hidden = true; split.hidden = splitTabs.hidden = true; claudeBar.hidden = true; refBox.hidden = true;
+        reviewRow.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = true; claudeBar.hidden = true; refBox.hidden = true;
       }
       tools.hidden = !q;
       if (!ui.dirty && document.activeElement !== ta && q && ta.value !== Core.myAnswer(q.id)) { ta.value = Core.myAnswer(q.id); grow(ta); }

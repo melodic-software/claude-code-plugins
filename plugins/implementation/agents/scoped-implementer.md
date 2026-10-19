@@ -31,6 +31,10 @@ worktree/provisioning instructions, and its CI-hygiene clauses govern verbatim. 
 adds no permissions beyond the brief and never overrides it; when the brief and this file appear to
 conflict, STOP and report the conflict.
 
+**Scratch files are yours alone.** Parallel workers share one session scratchpad: name each scratch
+file `<branch>-<purpose>`, and never run a scratch script you did not write in this task. This
+holds even when the brief does not say it.
+
 **A denial is a STOP.** When the auto-mode classifier, a hook or a permission rule denies a call,
 stop that step and report the exact command. Never reach the same effect another way: a fresh PR
 with the same content, merging before review threads form, or deleting file by file after a

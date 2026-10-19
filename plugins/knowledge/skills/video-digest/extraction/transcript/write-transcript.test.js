@@ -478,6 +478,69 @@ so I opened clawed code today
     expect(files[path.join(sliceDir, "source", "transcript.txt")]).toContain("spoken words");
   });
 
+  it("the asr rung runs without an initialPrompt (the lexicon is repair-only)", async () => {
+    /** @type {Record<string, unknown> | undefined} */
+    let seenOptions;
+    const options = asrCandidateOptions();
+    const result = await writeEnvelopeTranscriptArtifacts(
+      {
+        ...options,
+        envelope: createAcquisitionEnvelope({
+          entries: [entry({ mediaPath: "/w/a.mp4" })],
+          metadata: { ...metadata, title: "Building with Pstack", description: "Claude Code tips" },
+          workDir: "/w",
+        }),
+        transcriptStrategy: "captions",
+      },
+      fakeIo(
+        {},
+        {
+          readFile: async () => "",
+          detectAsr: asrDetected,
+          runAsr: async (/** @type {Record<string, unknown>} */ asrOptions) => {
+            seenOptions = asrOptions;
+            return { success: true, cues: [{ startSec: 0, endSec: 2, text: "hello" }], words: [] };
+          },
+        },
+      ),
+    );
+
+    expect(result.transcripts[0].strategy).toBe("asr");
+    expect(seenOptions).toBeDefined();
+    expect(seenOptions).not.toHaveProperty("initialPrompt");
+  });
+
+  it("asr cues pass through repairCues and repairedTermCount counts the repairs", async () => {
+    /** @type {Record<string, string>} */
+    const files = {};
+    const options = asrCandidateOptions();
+    const result = await writeEnvelopeTranscriptArtifacts(
+      {
+        ...options,
+        envelope: createAcquisitionEnvelope({
+          entries: [entry({ mediaPath: "/w/a.mp4" })],
+          metadata: { ...metadata, description: "Claude Code ships today" },
+          workDir: "/w",
+        }),
+      },
+      fakeIo(files, {
+        readFile: async () => "",
+        detectAsr: asrDetected,
+        runAsr: async () => ({
+          success: true,
+          cues: [{ startSec: 0, endSec: 2, text: "so I opened clawed code today" }],
+          words: [],
+        }),
+      }),
+    );
+
+    expect(result.transcripts[0].strategy).toBe("asr");
+    expect(result.transcripts[0].repairedTermCount).toBe(1);
+    const transcript = files[path.join(sliceDir, "source", "transcript.txt")];
+    expect(transcript).toContain("Claude Code");
+    expect(transcript).not.toContain("clawed code");
+  });
+
   it("caption-absent + capability absent degrades explicitly in the named provenance field", async () => {
     const result = await writeEnvelopeTranscriptArtifacts(
       asrCandidateOptions(),

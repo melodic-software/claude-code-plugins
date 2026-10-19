@@ -68,15 +68,15 @@ fi
 printf '%s\n' "$*" >>"${GH_STUB_DIR:?}/calls.log"
 case "$1" in
 issue)
-  if [[ "${GH_STUB_VERSION:-2.45.0}" == 2.94.0 ]]; then
+  if [[ "${GH_STUB_VERSION:-2.45.0}" == 2.94.0 && -z "${GH_STUB_REFUSE:-}" ]]; then
     printf '{"number":1,"title":"t","state":"OPEN","assignees":[],"labels":[],"url":"https://github.com/o/r/issues/1"}\n'
     exit 0
   fi
-  printf 'HTTP 403: GitHub GraphQL is not available\n' >&2
+  printf 'HTTP 403: GitHub GraphQL is not available from Claude Code sessions\n' >&2
   exit 1
   ;;
 repo)
-  printf 'HTTP 403: GitHub GraphQL is not available\n' >&2
+  printf 'HTTP 403: GitHub GraphQL is not available from Claude Code sessions\n' >&2
   exit 1
   ;;
 api)
@@ -128,6 +128,24 @@ EOF
   assert_contains "wit_emit_item on gh 2.94 requests parent" "$CALLS" "parent"
   assert_contains "wit_emit_item on gh 2.94 requests issueType" "$CALLS" "issueType"
   assert_contains "wit_emit_item on gh 2.94 requests createdAt" "$CALLS" "createdAt"
+
+  : >"$EMIT_STUB/calls.log"
+  OUT="$(CLAUDE_CODE_REMOTE=true GH_STUB_DIR="$EMIT_STUB" GH_STUB_VERSION=2.94.0 PATH="$EMIT_STUB:$PATH" wit_emit_item o r 1)"
+  assert_eq "wit_emit_item on gh 2.94 in a remote session → id" "github:o/r#1" "$(jq -r '.id' <<<"$OUT")"
+  assert_not_contains "wit_emit_item on gh 2.94 in a remote session skips issue view" \
+    "$(<"$EMIT_STUB/calls.log")" "issue view"
+
+  : >"$EMIT_STUB/calls.log"
+  OUT="$(GH_STUB_REFUSE=1 GH_STUB_DIR="$EMIT_STUB" GH_STUB_VERSION=2.94.0 PATH="$EMIT_STUB:$PATH" wit_emit_item o r 1)"
+  assert_eq "wit_emit_item on a refused gh 2.94 read falls back → id" "github:o/r#1" "$(jq -r '.id' <<<"$OUT")"
+  CALLS="$(<"$EMIT_STUB/calls.log")"
+  assert_contains "wit_emit_item on a refused gh 2.94 read tries issue view first" "$CALLS" "issue view"
+  assert_contains "wit_emit_item on a refused gh 2.94 read then reads REST" "$CALLS" "api repos/o/r/issues/1"
+
+  (CLAUDE_CODE_REMOTE=true wit_require_graphql_session "--parent" >/dev/null 2>&1)
+  assert_eq "wit_require_graphql_session exits 3 in a remote session" "3" "$?"
+  (CLAUDE_CODE_REMOTE='' wit_require_graphql_session "--parent" >/dev/null 2>&1)
+  assert_eq "wit_require_graphql_session passes in a local session" "0" "$?"
 
   : >"$EMIT_STUB/calls.log"
   REPO="$(GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "")"

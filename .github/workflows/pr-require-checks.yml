@@ -594,7 +594,9 @@ jobs:
       # reusable ran in SARIF mode and gated on `fail-on-severity: low`; the
       # github format exits non-zero on any finding, which is the same
       # threshold. GH_TOKEN comes from the job's read-only workflow token, for
-      # the online audits.
+      # the online audits. scripts/run-zizmor.sh runs the offline audits first,
+      # then the online ones, where only a GitHub API network error (403, 429,
+      # 5xx, no response) becomes a warning instead of a failure.
       #
       # Every `uses: ./.github/actions/download-full-history` in this repository
       # carries `# zizmor: ignore[self-repository]`. zizmor 1.30 added that
@@ -614,7 +616,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash scripts/run-hygiene-gate.sh zizmor {0}
-        run: zizmor --format=github --persona=regular --color=never -- .
+        run: scripts/run-zizmor.sh
 
       # The rate-limit guard's operable floor is INLINED into six surfaces on
       # purpose: an installed plugin cannot read a sibling plugin's files at
@@ -2897,11 +2899,21 @@ jobs:
 
       # resolve-config has pinned dependencies (yaml, ajv) that
       # run-outside-node-suites.sh never installs, so it installs and tests here.
+      #
+      # This suite and the next print `::error` lines on purpose, from fixtures
+      # that exercise a script's own failure messages, so each runs with
+      # workflow commands stopped: a green run raises no failure annotations.
+      # Pinned by scripts/ci-test-node-stop-commands.test.sh.
       - name: Test resolve-config
         run: |
           [[ " $PACKAGES " == *" .github/actions/resolve-config "* ]] || exit 0
           npm ci --ignore-scripts --prefix .github/actions/resolve-config
-          npm test --prefix .github/actions/resolve-config
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          rc=0
+          npm test --prefix .github/actions/resolve-config || rc=$?
+          echo "::$token::"
+          exit "$rc"
 
       # The packages of scripts/outside-node-packages.txt, each through its own
       # `npm test` (#3703); the runner takes a package directory as a path
@@ -2914,7 +2926,12 @@ jobs:
             echo "The plan names none of these packages."
             exit 0
           fi
-          scripts/run-outside-node-suites.sh --paths "$RUNNER_TEMP/outside-node-paths.txt"
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          rc=0
+          scripts/run-outside-node-suites.sh --paths "$RUNNER_TEMP/outside-node-paths.txt" || rc=$?
+          echo "::$token::"
+          exit "$rc"
       - name: Save the npm cache
         if: github.ref == 'refs/heads/main' && steps.npm_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
