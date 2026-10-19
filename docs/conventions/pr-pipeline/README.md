@@ -1056,8 +1056,10 @@ its role and secrets, and the runner policy admits them. This repository's map: 
 `claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
 
 `intake` and `pr-verify` run on `run-claude-cli` today. Every other entry is the role its lane
-takes when it moves there: until then it runs claude-code-action with an OAuth token alone, and it
-never gets an API key, since claude-code-action runs are not paid from API credits.
+takes when it moves there: until then it runs claude-code-action with its role's OAuth token alone,
+and it never gets an API key, since claude-code-action runs are not paid from API credits. A lane
+on pr-run-activity-write.yml passes its role as the `role` input, and the lane record names that
+role's token as the run's credential.
 
 ## Loop caps
 

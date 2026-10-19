@@ -69,6 +69,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: resolve-conflicts
       pr-number: ${{ inputs.pr-number }}
@@ -91,6 +92,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: address-feedback
       pr-number: ${{ inputs.pr-number }}
@@ -117,6 +119,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: publish-feedback
       pr-number: ${{ inputs.pr-number }}
@@ -197,6 +200,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: review-dependency
       pr-number: ${{ inputs.pr-number }}
@@ -218,6 +222,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: apply-dependency-verdict
       pr-number: ${{ inputs.pr-number }}
@@ -351,6 +356,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: apply-ci-fix
       pr-number: ${{ inputs.pr-number }}
@@ -428,6 +434,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: report-escalation
       pr-number: ${{ inputs.pr-number }}
