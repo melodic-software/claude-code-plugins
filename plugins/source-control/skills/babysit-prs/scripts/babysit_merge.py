@@ -3143,23 +3143,10 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     return "\n".join(lines)
 
 
-def upsert_marker_comment(
-    repo: str,
-    number: int,
-    identity: str,
-    body: str,
-    comments: list[dict[str, Any]] | None,
-    marker: str = RISK_MARKER,
-    keep_prefix: str | None = None,
-) -> str:
-    """Post or rewrite the identity's one comment whose first or second line
-    is `marker` (the reasons comment, Design T14, by default): `unchanged` when
-    the newest one already says this or starts with `keep_prefix`, else
-    `updated` or `created`. Raises `RuntimeError` on a failed read or write."""
-    if comments is None:
-        comments = fetch_paginated_api(
-            f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
-        )
+def _newest_marker_comment(
+    comments: list[dict[str, Any]], identity: str, marker: str
+) -> dict[str, Any] | None:
+    """The identity's newest comment whose first or second line is `marker`."""
     mine = [
         c
         for c in comments
@@ -3172,10 +3159,30 @@ def upsert_marker_comment(
         == identity.casefold()
         and marker in _marker_lines(c.get("body"))
     ]
-    if mine:
-        newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
-        current = str(newest.get("body") or "")
-        if current == body or (keep_prefix and current.startswith(keep_prefix)):
+    if not mine:
+        return None
+    return max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
+
+
+def upsert_marker_comment(
+    repo: str,
+    number: int,
+    identity: str,
+    body: str,
+    comments: list[dict[str, Any]] | None,
+    marker: str = RISK_MARKER,
+) -> str:
+    """Post or rewrite the identity's one comment whose first or second line
+    is `marker` (the reasons comment, Design T14, by default): `unchanged` when
+    the newest one already says this, else
+    `updated` or `created`. Raises `RuntimeError` on a failed read or write."""
+    if comments is None:
+        comments = fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
+        )
+    newest = _newest_marker_comment(comments, identity, marker)
+    if newest is not None:
+        if str(newest.get("body") or "") == body:
             return "unchanged"
         args = [
             "api",
@@ -3245,21 +3252,9 @@ def _carried_quote(
     """The (head, text) the identity's newest verify escalation quotes, read
     back verbatim so a rerun that cannot read the summary renders the same
     body, and an earlier-fail keeps the reason of the fail before it."""
-    mine = [
-        c
-        for c in comments
-        if merge_policy.actor_key(
-            {
-                "__typename": json_object(c.get("user")).get("type"),
-                "login": json_object(c.get("user")).get("login"),
-            }
-        )
-        == identity.casefold()
-        and VERIFY_ESCALATION_MARKER in _marker_lines(c.get("body"))
-    ]
-    if not mine:
+    newest = _newest_marker_comment(comments, identity, VERIFY_ESCALATION_MARKER)
+    if newest is None:
         return None
-    newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
     match = _QUOTE_RE.search(str(newest.get("body") or ""))
     return (match[1], match[2]) if match else None
 

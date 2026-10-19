@@ -126,12 +126,13 @@ test("a check run by another name is never rewritten", async () => {
   assert.equal(write.body.name, "pr-merge / gate");
 });
 
-test("a head whose listing may be cut gets a new check, not a guessed one", async () => {
+test("a head whose listing may be cut is left as it is, so no sweep adds a duplicate", async () => {
   const w = world([row(7, sha("a"), { reason: "risk:MED" })], {
-    [sha("a")]: { checkSuites: { totalCount: 11, nodes: [suite(checkRun(5, "risk:HIGH"))] } },
+    [sha("a")]: { checkSuites: { totalCount: 51, nodes: [suite(checkRun(5, "risk:HIGH"))] } },
   });
-  await w.run();
-  assert.equal(w.writes()[0].method, "POST");
+  assert.equal(await w.run(), 0);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(w.logs.includes("gate-check: sweep: 0 written, 0 unchanged, 0 skipped, 1 unread, 0 failed"));
 });
 
 test("a failed read writes nothing and fails the step", async () => {
@@ -170,4 +171,29 @@ test("each sweep logs one line with its written and unchanged counts", async () 
   await w.run();
   assert.equal(w.logs.filter((line) => line.startsWith("gate-check: sweep")).length, 1);
   assert.ok(w.logs.includes("gate-check: sweep: 1 written, 1 unchanged, 0 skipped, 0 unread, 0 failed"));
+});
+
+test("candidates past one read's chunk are read again and matched to their own heads", async () => {
+  const heads = Array.from({ length: 51 }, (_, i) => i.toString(16).padStart(40, "0"));
+  const last = heads[50];
+  const w = world(
+    heads.map((head, i) => row(i + 1, head, { reason: "risk:MED" })),
+    Object.fromEntries(heads.map((head) => [head, listed(suite(checkRun(5, "risk:MED")))]).concat([[last, listed(suite(checkRun(77, "verify:fail")))]])),
+  );
+  await w.run();
+  assert.equal(w.calls.filter((call) => call.path === "/graphql").length, 2);
+  assert.deepEqual(w.writes().map((call) => [call.method, call.path]), [["PATCH", `/repos/${REPO}/check-runs/77`]]);
+});
+
+test("the same title with another conclusion is rewritten", async () => {
+  const w = world([row(7, sha("a"), { reason: "risk:MED" })], { [sha("a")]: listed(suite(checkRun(5, "risk:MED", "SUCCESS"))) });
+  await w.run();
+  assert.equal(w.writes()[0].method, "PATCH");
+  assert.equal(w.writes()[0].body.conclusion, "neutral");
+});
+
+test("a ready candidate not enqueued is titled with the gate's reason when it gives one", async () => {
+  const w = world([row(7, sha("a"), { ready: true, reason: "merge-queue entry armed, not yet queued" }), row(8, sha("b"), { ready: true })]);
+  await w.run();
+  assert.deepEqual(w.writes().map((call) => call.body.output.title), ["merge-queue entry armed, not yet queued", "ready, not enqueued this run"]);
 });

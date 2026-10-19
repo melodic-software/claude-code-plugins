@@ -11,7 +11,8 @@
 //
 //   refused, held, or not judged   neutral, titled with the top refusal: the
 //                                  gate's reason, else its first blocker
-//   ready but not enqueued         neutral, titled with why
+//   ready but not enqueued         neutral, titled with the gate's reason,
+//                                  else its first blocker, else that
 //   enqueued or merged             success, written only over an existing
 //                                  check run at that head: with none there is
 //                                  no refusal on show to replace
@@ -23,7 +24,8 @@
 // otherwise that check run is updated in place, or a new one created. The
 // summary lists the blockers of the sweep that set the title. A row the gate
 // did not judge in this run (`carried`) is left as it is. A failed read leaves
-// its chunk's checks as they are. Each sweep logs one line of counts, so a
+// its chunk's checks as they are, and so does a head whose listing may be
+// cut short, rather than add a duplicate every sweep. Each sweep logs one line of counts, so a
 // reason whose text changes every sweep shows as a write every sweep.
 //
 // Every workflow's GITHUB_TOKEN posts as that same Actions app, so the app
@@ -78,7 +80,10 @@ export function render(row) {
     conclusion = "success";
     title = row.merged ? "merged" : "in the merge queue at this head";
   } else if (row.ready) {
-    title = row.reportOnly === true ? "ready; report-only, so not enqueued" : "ready, but the enqueue failed";
+    title =
+      row.reportOnly === true
+        ? "ready; report-only, so not enqueued"
+        : flat(row.reason ?? blockers[0] ?? "", TITLE_CHARS) || "ready, not enqueued this run";
   } else {
     title = flat(row.reason ?? blockers[0] ?? "not ready", TITLE_CHARS) || "not ready";
   }
@@ -96,7 +101,7 @@ export function render(row) {
 }
 
 export const READ_QUERY = (heads) =>
-  "query($o:String!,$r:String!,$n:String!){rateLimit{cost} repository(owner:$o,name:$r){" +
+  "query($o:String!,$r:String!,$n:String!){repository(owner:$o,name:$r){" +
   heads
     .map(
       (sha, i) =>
@@ -151,6 +156,7 @@ export async function main({ env = process.env, github, now = () => new Date() }
     let unchanged = 0;
     let skipped = 0;
     let unread = 0;
+    let readFailed = false;
     for (let start = 0; start < heads.length; start += CHUNK) {
       const chunk = heads.slice(start, start + CHUNK);
       let found;
@@ -159,12 +165,18 @@ export async function main({ env = process.env, github, now = () => new Date() }
         if (!found) throw new Error("no repository in the answer");
       } catch (error) {
         unread += chunk.length;
+        readFailed = true;
         console.log(`::warning title=gate-check::${chunk.length} heads not read, their checks left as they are: ${escapeCommand(error?.message ?? error)}`);
         continue;
       }
       for (const [i, head] of chunk.entries()) {
         const { pr, conclusion, title, summary } = wanted.get(head);
         const current = existing(found[`h${i}`]);
+        if (current === undefined) {
+          unread += 1;
+          console.log(`::warning title=gate-check::#${pr}: over ${SUITES} check suites at ${head}, its check left as it is`);
+          continue;
+        }
         if (current && current.title === title && String(current.conclusion).toLowerCase() === conclusion) {
           unchanged += 1;
           continue;
@@ -197,7 +209,7 @@ export async function main({ env = process.env, github, now = () => new Date() }
       }
     }
     console.log(`gate-check: sweep: ${written} written, ${unchanged} unchanged, ${skipped} skipped, ${unread} unread, ${failed} failed`);
-    return failed === 0 && unread === 0 ? 0 : 1;
+    return failed === 0 && !readFailed ? 0 : 1;
   } catch (error) {
     console.log(`::error title=gate-check::${escapeCommand(error?.message ?? error)}`);
     return 1;
