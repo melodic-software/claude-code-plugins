@@ -9,10 +9,14 @@ import {
   fetchDeckAttachments,
   isNonPublicAddress,
   MAX_REDIRECT_HOPS,
+  pinnedLookup,
 } from "./fetch-deck-attachments.js";
 
 /** Resolve every host to a public address so tests never touch real DNS. */
 const publicLookup = async () => [{ address: "93.184.216.34" }];
+
+/** Transport that delegates to the stubbed global fetch, recording the pinned address. */
+const fetchTransport = (url, address) => fetch(url, { redirect: "manual", address });
 
 /**
  * @param {string} location
@@ -72,7 +76,7 @@ describe("fetchDeckAttachments", () => {
     writeLinks([{ type: "attachment", url: "https://example.com/spec.pdf" }]);
     stubFetch(async () => fakeResponse(Buffer.from("hello world"), { contentLength: "11" }));
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(1);
     expect(result.skipped).toHaveLength(0);
@@ -87,7 +91,7 @@ describe("fetchDeckAttachments", () => {
     const fetchMock = vi.fn(async () => fakeResponse(Buffer.from("x"), { contentLength: "1" }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped).toHaveLength(2);
@@ -99,7 +103,7 @@ describe("fetchDeckAttachments", () => {
     writeLinks([{ type: "deck", url: "https://example.com/deck.pdf", sessionSlug: "keynote-2026" }]);
     stubFetch(async () => fakeResponse(Buffer.from("deck"), { contentLength: "4" }));
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toEqual([
       path.join(sliceDir, "source", "decks", "keynote-2026", "deck.pdf"),
@@ -110,7 +114,7 @@ describe("fetchDeckAttachments", () => {
     writeLinks([{ type: "attachment", url: "https://example.com/huge.zip" }]);
     stubFetch(async () => fakeResponse(Buffer.from("x".repeat(50)), { contentLength: "9999999" }));
 
-    const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10, lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10, lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped[0]).toMatch(/too large/);
@@ -121,7 +125,7 @@ describe("fetchDeckAttachments", () => {
     // No content-length header — the byte-counting cap must catch it mid-stream.
     stubFetch(async () => fakeResponse(Buffer.from("x".repeat(100))));
 
-    const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10, lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10, lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped[0]).toMatch(/exceeded 10 bytes/);
@@ -139,7 +143,7 @@ describe("fetchDeckAttachments", () => {
     // Retry that overruns the cap mid-stream — must not clobber the good file.
     stubFetch(async () => fakeResponse(Buffer.from("x".repeat(100))));
 
-    const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10, lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10, lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(fs.readFileSync(destPath, "utf8")).toBe("previously-good-content");
@@ -149,7 +153,7 @@ describe("fetchDeckAttachments", () => {
     writeLinks([{ type: "attachment", url: "https://example.com/missing.pdf" }]);
     stubFetch(async () => fakeResponse(Buffer.from(""), { ok: false, status: 404 }));
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped[0]).toMatch(/HTTP 404/);
@@ -164,7 +168,7 @@ describe("fetchDeckAttachments", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped).toHaveLength(3);
@@ -193,7 +197,7 @@ describe("fetchDeckAttachments", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped[0]).toMatch(/blocked: non-public address/);
@@ -207,6 +211,7 @@ describe("fetchDeckAttachments", () => {
 
     const result = await fetchDeckAttachments(sliceDir, {
       lookup: async () => [{ address: "93.184.216.34" }, { address: "10.0.0.5" }],
+      transport: fetchTransport,
     });
 
     expect(result.fetched).toHaveLength(0);
@@ -219,7 +224,7 @@ describe("fetchDeckAttachments", () => {
     const fetchMock = vi.fn(async () => redirectResponse("https://169.254.169.254/secret"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped[0]).toMatch(/blocked: non-public address 169\.254\.169\.254/);
@@ -230,7 +235,7 @@ describe("fetchDeckAttachments", () => {
     writeLinks([{ type: "attachment", url: "https://example.com/a.pdf" }]);
     stubFetch(async () => redirectResponse("//10.0.0.1/x"));
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped[0]).toMatch(/blocked: non-public address 10\.0\.0\.1/);
@@ -241,7 +246,7 @@ describe("fetchDeckAttachments", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: async () => [] });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: async () => [], transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped[0]).toMatch(/did not resolve/);
@@ -253,7 +258,7 @@ describe("fetchDeckAttachments", () => {
     const cancel = vi.fn(async () => {});
     stubFetch(async () => ({ ok: false, status: 503, headers: new Headers(), body: { cancel } }));
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.skipped[0]).toMatch(/HTTP 503/);
     expect(cancel).toHaveBeenCalledTimes(1);
@@ -263,7 +268,7 @@ describe("fetchDeckAttachments", () => {
     writeLinks([{ type: "attachment", url: "https://example.com/a.pdf" }]);
     stubFetch(async () => redirectResponse("http://example.com/a.pdf", 301));
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped[0]).toMatch(/not allowed \(https only\)/);
@@ -277,11 +282,33 @@ describe("fetchDeckAttachments", () => {
       .mockResolvedValueOnce(fakeResponse(Buffer.from("ok"), { contentLength: "2" }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(1);
     expect(fetchMock.mock.calls[1][0]).toBe("https://example.com/real/a.pdf");
-    expect(fetchMock.mock.calls[0][1]).toEqual({ redirect: "manual" });
+    expect(fetchMock.mock.calls[0][1]).toEqual({
+      redirect: "manual",
+      address: "93.184.216.34",
+    });
+  });
+
+  it("pins each hop to the address it resolved, not a later DNS answer", async () => {
+    writeLinks([{ type: "attachment", url: "https://example.com/a.pdf" }]);
+    const answers = ["93.184.216.34", "93.184.216.35"];
+    const lookup = vi.fn(async () => [{ address: answers.shift() }]);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(redirectResponse("/b.pdf"))
+      .mockResolvedValueOnce(fakeResponse(Buffer.from("ok"), { contentLength: "2" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchDeckAttachments(sliceDir, { lookup, transport: fetchTransport });
+
+    expect(fetchMock.mock.calls.map((call) => call[1].address)).toEqual([
+      "93.184.216.34",
+      "93.184.216.35",
+    ]);
+    expect(lookup).toHaveBeenCalledTimes(2);
   });
 
   it("gives up after the redirect hop cap", async () => {
@@ -289,7 +316,7 @@ describe("fetchDeckAttachments", () => {
     const fetchMock = vi.fn(async () => redirectResponse("https://example.com/loop"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped[0]).toMatch(/more than \d+ redirects/);
@@ -302,10 +329,24 @@ describe("fetchDeckAttachments", () => {
       throw new Error("network down");
     });
 
-    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup });
+    const result = await fetchDeckAttachments(sliceDir, { lookup: publicLookup, transport: fetchTransport });
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped[0]).toMatch(/network down/);
+  });
+});
+
+describe("pinnedLookup", () => {
+  it("answers every lookup with the vetted address", () => {
+    const callback = vi.fn();
+    pinnedLookup("93.184.216.34")("rebind.example", {}, callback);
+    expect(callback).toHaveBeenCalledWith(null, "93.184.216.34", 4);
+  });
+
+  it("answers an all-records lookup with only the vetted address", () => {
+    const callback = vi.fn();
+    pinnedLookup("2606:4700:4700::1111")("rebind.example", { all: true }, callback);
+    expect(callback).toHaveBeenCalledWith(null, [{ address: "2606:4700:4700::1111", family: 6 }]);
   });
 });
 

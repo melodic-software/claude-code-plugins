@@ -7,6 +7,7 @@
 
 import dns from "node:dns/promises";
 import fs from "node:fs";
+import https from "node:https";
 import net from "node:net";
 import path from "node:path";
 import { Readable, Transform } from "node:stream";
@@ -175,10 +176,12 @@ export function isNonPublicAddress(address) {
 
 /**
  * Throw unless `url` is https and its host resolves only to public addresses.
+ * Returns the vetted address the connection must be pinned to, or null for an
+ * IP-literal host (nothing to resolve).
  *
  * @param {string} url
  * @param {(host: string) => Promise<Array<{ address: string }>>} lookup
- * @returns {Promise<void>}
+ * @returns {Promise<string | null>}
  */
 async function assertPublicHttpsUrl(url, lookup) {
   let parsed;
@@ -195,7 +198,7 @@ async function assertPublicHttpsUrl(url, lookup) {
     if (isNonPublicAddress(host)) {
       throw new Error(`blocked: non-public address ${host}`);
     }
-    return;
+    return null;
   }
   const records = await lookup(host);
   if (records.length === 0) {
@@ -206,6 +209,63 @@ async function assertPublicHttpsUrl(url, lookup) {
       throw new Error(`blocked: ${host} resolves to non-public address ${address}`);
     }
   }
+  return records[0].address;
+}
+
+/**
+ * A `net` lookup that always answers with the already-vetted address, so the
+ * socket cannot connect to a second, unchecked DNS answer (DNS rebinding).
+ *
+ * @param {string} address
+ * @returns {(hostname: string, options: { all?: boolean }, callback: Function) => void}
+ */
+export function pinnedLookup(address) {
+  const family = net.isIP(address);
+  return (_hostname, options, callback) => {
+    if (options?.all) {
+      callback(null, [{ address, family }]);
+      return;
+    }
+    callback(null, address, family);
+  };
+}
+
+/**
+ * @typedef {{ ok: boolean, status: number, headers: Headers, body: ReadableStream<Uint8Array> | null }} TransportResponse
+ * @typedef {(url: string, address: string | null) => Promise<TransportResponse>} Transport
+ */
+
+/**
+ * GET `url` over node:https with the socket pinned to the vetted `address`. TLS
+ * still verifies the certificate and SNI against the original hostname. Redirects
+ * are not followed; the caller re-vets every hop.
+ *
+ * @type {Transport}
+ */
+function httpsTransport(url, address) {
+  return new Promise((resolve, reject) => {
+    const request = https.request(
+      new URL(url),
+      { method: "GET", ...(address ? { lookup: pinnedLookup(address) } : {}) },
+      (res) => {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(res.headers)) {
+          for (const item of Array.isArray(value) ? value : [value]) {
+            if (item !== undefined) headers.append(name, item);
+          }
+        }
+        const status = res.statusCode ?? 0;
+        resolve({
+          ok: status >= 200 && status < 300,
+          status,
+          headers,
+          body: /** @type {ReadableStream<Uint8Array>} */ (Readable.toWeb(res)),
+        });
+      },
+    );
+    request.on("error", reject);
+    request.end();
+  });
 }
 
 /** @param {string} host */
@@ -213,17 +273,19 @@ const defaultLookup = (host) => dns.lookup(host, { all: true });
 
 /**
  * Fetch with https-only, public-host enforcement on the first URL and on every
- * redirect hop (redirects are followed manually, up to MAX_REDIRECT_HOPS).
+ * redirect hop (redirects are followed manually, up to MAX_REDIRECT_HOPS). Each
+ * connection is pinned to the address that passed the public-host check.
  *
  * @param {string} url
  * @param {(host: string) => Promise<Array<{ address: string }>>} lookup
- * @returns {Promise<Response>}
+ * @param {Transport} transport
+ * @returns {Promise<TransportResponse>}
  */
-async function safeFetch(url, lookup) {
+async function safeFetch(url, lookup, transport) {
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop += 1) {
-    await assertPublicHttpsUrl(current, lookup);
-    const response = await fetch(current, { redirect: "manual" });
+    const address = await assertPublicHttpsUrl(current, lookup);
+    const response = await transport(current, address);
     if (response.status < 300 || response.status >= 400) {
       return response;
     }
@@ -254,12 +316,12 @@ function slugFromUrl(url) {
 
 /**
  * @param {string} sliceDir
- * @param {{ dryRun?: boolean, maxBytes?: number, lookup?: (host: string) => Promise<Array<{ address: string }>> }} [options]
+ * @param {{ dryRun?: boolean, maxBytes?: number, lookup?: (host: string) => Promise<Array<{ address: string }>>, transport?: Transport }} [options]
  * @returns {Promise<{ fetched: string[], skipped: string[] }>}
  */
 export async function fetchDeckAttachments(
   sliceDir,
-  { dryRun = false, maxBytes = MAX_ATTACHMENT_BYTES, lookup = defaultLookup } = {},
+  { dryRun = false, maxBytes = MAX_ATTACHMENT_BYTES, lookup = defaultLookup, transport = httpsTransport } = {},
 ) {
   const absSlice = path.resolve(sliceDir);
   const linksPath = lanePath(absSlice, LANES.source, "harvested-links.json");
@@ -304,7 +366,7 @@ export async function fetchDeckAttachments(
 
     fs.mkdirSync(destRoot, { recursive: true });
     try {
-      const response = await safeFetch(url, lookup);
+      const response = await safeFetch(url, lookup, transport);
       if (!response.ok) {
         await response.body?.cancel();
         skipped.push(`${url}: HTTP ${response.status}`);
