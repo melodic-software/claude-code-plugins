@@ -178,6 +178,8 @@ EOF
 gh pr comment 12 --body \"\$BODY\""
 deny "body file written by printf in the same command" "printf '%s\\n' '$P' > new.md && gh pr comment 12 -F new.md"
 deny "existing body file overwritten in the same command" "printf '%s\\n' '$P' > plain.md && gh pr comment 12 -F plain.md"
+deny "body file written, then moved over an existing one" "printf '%s\\n' '$P' > x.tmp && mv x.tmp plain.md && gh pr comment 12 -F plain.md"
+deny "existing body file overwritten by cp of a file holding the phrase" "cp body.md plain.md && gh pr comment 12 -F plain.md"
 deny "body file written by a heredoc in the same command" "cat > new2.md <<'EOF'
 $P
 EOF

@@ -25,8 +25,8 @@
 # The body is read from the posting command's own words (a quoted
 # `$(cat <<EOF ...)` stays in its word, and a quoted `$(cat file)` is read) and
 # every file it names as a body. When a posting command reads stdin or expands
-# a variable or substitution, when the command redirects into a body file it
-# posts or names one that does not exist yet, or on PowerShell, the whole
+# a variable or substitution, when it posts a body file and the command writes
+# a file or the body file does not exist yet, or on PowerShell, the whole
 # command text (heredocs, pipes, assignments), here-strings and every file fed
 # through `cat` or `<` are read too. Relative paths resolve against the
 # payload's cwd. A `bash -c`/`sh -c` operand and an `eval` are read as commands
@@ -54,8 +54,8 @@
 # (`Invoke-RestMethod`) that posts; a wrapper this guard does not step over
 # (`xargs`, `sudo` with an option other than -u/-g/-C/-D); a relative body
 # file after a `cd` in the same command, which resolves against the payload's
-# cwd instead; a body file another program writes or copies in the same
-# command (`cp`, a script) with no redirect; a body file past 1 MiB is read to
+# cwd instead; a body file written in the same command by a program other than
+# a redirect, cp, mv, ln, install, rsync or tee (a script, `sed -i`); a body file past 1 MiB is read to
 # that point only.
 #
 # Escape: the `block_fix_request_post_enabled` userConfig option (true or false;
@@ -219,7 +219,7 @@ _BFR_FILES=()     # body files of posting segments
 _BFR_STDIN=0      # a posting segment reads stdin
 _BFR_SUBST=0      # a posting word expands something (`$`, or a split `$(`)
 _BFR_WRITES=0     # the command writes a body file before posting it
-_BFR_WTARGETS=()  # files the command redirects output to
+_BFR_WTARGETS=()  # files the command writes: redirects, and cp/mv/ln/tee runs
 _BFR_AUX_TEXTS=() # here-strings, read only when the whole command is
 _BFR_AUX_FILES=() # `cat` operands and `<` targets, likewise
 
@@ -388,7 +388,7 @@ _bfr_segment() {
     ((${HOOK_SEG_REDIR_OPAQUE[j]:-0})) && continue
     case "${HOOK_SEG_REDIR_OP[j]}" in
     '<') _BFR_AUX_FILES+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
-    '>' | '>>' | '>|' | '<>') _BFR_WTARGETS+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
+    '>' | '>>' | '>|' | '<>') [[ "${HOOK_SEG_REDIR_TARGET[j]}" == /dev/* ]] || _BFR_WTARGETS+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
     '<<<') _BFR_AUX_TEXTS+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
     *) ;;
     esac
@@ -422,6 +422,15 @@ _bfr_segment() {
   case "$cmd" in
   eval)
     hook::bash_parse_segments "$*" _bfr_segment
+    return 0
+    ;;
+  # A file copied, moved or linked into place may be the body a later post
+  # names; its sources are read like `cat` operands.
+  cp | mv | ln | install | rsync | tee)
+    _BFR_WTARGETS+=("$cmd")
+    for j in "$@"; do
+      [[ "$j" == -* ]] || _BFR_AUX_FILES+=("$j")
+    done
     return 0
     ;;
   cat | type | get-content | gc)
@@ -527,20 +536,19 @@ if [[ -z "$_BFR_POST" ]]; then
 fi
 
 # The body may sit anywhere in the command when a posting command reads
-# stdin or expands a variable or substitution, when the command redirects
-# into a body file it posts (`printf ... > b.md && gh pr comment 1 -F b.md`),
-# when a body file does not exist yet, or on PowerShell (whose quoting the bash tokenizer only
-# approximates): then read all of it. A backtick may open a substitution too,
+# stdin or expands a variable or substitution, when it posts a body file and
+# the command writes a file (a redirect other than to /dev, or cp, mv, ln,
+# install, rsync, tee: `printf ... > x && mv x b.md && gh pr comment 1 -F b.md`),
+# when a body file does not exist yet, or on PowerShell (whose quoting the
+# bash tokenizer only approximates): then read all of it. A backtick may open a substitution too,
 # but ``` in a fenced body is one as well, so it adds only the files `cat` and
 # `<` name. Otherwise only the posting command's words and files are read, so
 # a grep of the phrase beside an unrelated post stays quiet.
 _bfr_c=""
 for _bfr_f in ${_BFR_FILES[@]+"${_BFR_FILES[@]}"}; do
-  # A body file the command itself redirects into holds what the command
-  # writes, not what is on disk now. Matched by name, so doubt reads more.
-  for _bfr_t in ${_BFR_WTARGETS[@]+"${_BFR_WTARGETS[@]}"}; do
-    [[ "${_bfr_t##*/}" == "${_bfr_f##*/}" ]] && _BFR_WRITES=1
-  done
+  # A body file may hold what the command itself writes (a redirect, or a
+  # cp, mv or ln into its name), not what is on disk now.
+  ((${#_BFR_WTARGETS[@]})) && _BFR_WRITES=1
   if _bfr_read_to _bfr_c "$_bfr_f"; then
     _bfr_carries "$_bfr_c" && block "$_BFR_POST, from $_bfr_f"
   else
