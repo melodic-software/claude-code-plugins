@@ -169,6 +169,19 @@ deny "unquoted \$(cat file) as the body" "gh pr comment 12 --body \$(cat body.md
 deny "backtick cat as the body" "gh pr comment 12 --body \`cat body.md\`"
 deny "here-string fed to --input -" "gh api repos/o/r/issues/1/comments --input - <<< '{\"body\":\"$P\"}'"
 
+# --- 3c. A body held outside the posting words (review on #8448) -------------
+deny "body in a variable" "B='$P'; gh pr comment 12 --body \"\$B\""
+deny "body in a variable set from a heredoc" "BODY=\$(cat <<'EOF'
+$P
+EOF
+)
+gh pr comment 12 --body \"\$BODY\""
+deny "body file written by printf in the same command" "printf '%s\\n' '$P' > new.md && gh pr comment 12 -F new.md"
+deny "body file written by a heredoc in the same command" "cat > new2.md <<'EOF'
+$P
+EOF
+gh pr comment 12 --body-file new2.md"
+
 # --- 4. The GitHub MCP server's write tools -------------------------------------
 mcp "MCP add_issue_comment" mcp__github__add_issue_comment "{\"owner\":\"o\",\"repo\":\"r\",\"issue_number\":1,\"body\":\"$P\"}" 2
 mcp "MCP add_reply_to_pull_request_comment, plugin server" mcp__plugin_github_github__add_reply_to_pull_request_comment "{\"body\":\"Done.\\n$P\"}" 2
@@ -192,6 +205,7 @@ quiet "curl to another host" "curl -s https://example.com/hook -d 'body=$P'"
 quiet "curl GET of a GitHub search" "curl -s -G https://api.github.com/search/issues --data-urlencode 'q=$P'"
 quiet "rg of the phrase, then an unrelated post (review on #8448)" "rg -n \"$P\" .github/scripts/pr-unblock/address-feedback.mjs; gh pr comment 12 --body \"Thanks, fixed.\""
 quiet "git log --grep of the phrase, then a post from a plain file" "git log --oneline --grep \"$P\" && gh pr comment 12 --body-file plain.md"
+quiet "grep of the phrase, then a post with stderr to /dev/null" "grep -c \"$P\" notes.md; gh pr comment 12 --body \"Thanks.\" 2>/dev/null"
 quiet_plain "git show" "git show HEAD -- .github/scripts/pr-unblock/address-feedback.mjs"
 quiet_plain "gh pr view" "gh pr view 12 --comments"
 

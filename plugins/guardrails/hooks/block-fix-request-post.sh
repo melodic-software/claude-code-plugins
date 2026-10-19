@@ -24,10 +24,11 @@
 #   MCP         the tool's `body`, and a review's `comments`.
 # The body is read from the posting command's own words (a quoted
 # `$(cat <<EOF ...)` stays in its word, and a quoted `$(cat file)` is read) and
-# every file it names as a body. When a posting command reads stdin, holds an
-# unquoted substitution, or runs on PowerShell, the whole command text
-# (heredocs, pipes), here-strings and every file fed through `cat` or `<` are
-# read too. Relative paths resolve against the payload's cwd. A `bash -c`/
+# every file it names as a body. When a posting command reads stdin or expands
+# a variable or substitution, when the command writes a file or names a body
+# file that does not exist yet, or on PowerShell, the whole command text
+# (heredocs, pipes, assignments), here-strings and every file fed through
+# `cat` or `<` are read too. Relative paths resolve against the payload's cwd. A `bash -c`/
 # `sh -c` operand and an `eval` are read as commands too.
 #
 # HOW A BODY IS READ. Case-insensitively, as FIX_REQUEST is, and line by line:
@@ -213,8 +214,9 @@ _BFR_POST=""      # the form of the first posting segment
 _BFR_TEXTS=()     # words of posting segments
 _BFR_FILES=()     # body files of posting segments
 _BFR_STDIN=0      # a posting segment reads stdin
-_BFR_SUBST=0      # a posting segment holds an unquoted substitution
-_BFR_AUX_TEXTS=() # here-strings, read only when stdin or a substitution is
+_BFR_SUBST=0      # a posting word expands something (`$`, or a split `$(`)
+_BFR_WRITES=0     # some segment redirects output to a file
+_BFR_AUX_TEXTS=() # here-strings, read only when the whole command is
 _BFR_AUX_FILES=() # `cat` operands and `<` targets, likewise
 
 # _bfr_file_operand <value>: record a body file, or stdin for `-`.
@@ -382,6 +384,7 @@ _bfr_segment() {
     ((${HOOK_SEG_REDIR_OPAQUE[j]:-0})) && continue
     case "${HOOK_SEG_REDIR_OP[j]}" in
     '<') _BFR_AUX_FILES+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
+    '>' | '>>' | '>|' | '<>') [[ "${HOOK_SEG_REDIR_TARGET[j]}" == /dev/* ]] || _BFR_WRITES=1 ;;
     '<<<') _BFR_AUX_TEXTS+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
     *) ;;
     esac
@@ -452,10 +455,11 @@ _bfr_segment() {
   [[ -n "$_BFR_POST" ]] || _BFR_POST="$form"
   local w rest
   _BFR_TEXTS+=("$@")
-  # An unquoted `$(` or backtick splits the segment there, so its text sits
-  # outside these words: a word left ending in `$` marks one.
+  # A variable or substitution brings its text from elsewhere in the command
+  # (`B=...; gh ... --body "$B"`); an unquoted `$(` splits the segment and
+  # leaves a word ending in `$`.
   for w in "$@"; do
-    [[ "$w" == *'$' ]] && _BFR_SUBST=1
+    [[ "$w" == *'$'* ]] && _BFR_SUBST=1
   done
   # A quoted `$(cat file)` or `$(<file)` stays inside its word, unparsed.
   # shellcheck disable=SC2016  # a regex: `$(` is matched, not expanded
@@ -518,12 +522,24 @@ if [[ -z "$_BFR_POST" ]]; then
   exit 0
 fi
 
-# Stdin, a `$(` substitution split out of the posting words, or PowerShell
-# (whose quoting the bash tokenizer only approximates): the body may sit
-# anywhere in the command, so read all of it. A backtick may open a
-# substitution too, but ``` in a fenced body is one as well, so it adds only
-# the files `cat` and `<` name.
-if ((_BFR_STDIN || _BFR_SUBST)) || [[ "$TOOL_NAME" == PowerShell ]]; then
+# The body may sit anywhere in the command when a posting command reads
+# stdin or expands a variable or substitution, when the command writes a file
+# (`printf ... > b.md && gh pr comment 1 -F b.md`), when a body file does not
+# exist yet, or on PowerShell (whose quoting the bash tokenizer only
+# approximates): then read all of it. A backtick may open a substitution too,
+# but ``` in a fenced body is one as well, so it adds only the files `cat` and
+# `<` name. Otherwise only the posting command's words and files are read, so
+# a grep of the phrase beside an unrelated post stays quiet.
+_bfr_c=""
+for _bfr_f in ${_BFR_FILES[@]+"${_BFR_FILES[@]}"}; do
+  if _bfr_read_to _bfr_c "$_bfr_f"; then
+    _bfr_carries "$_bfr_c" && block "$_BFR_POST, from $_bfr_f"
+  else
+    _BFR_WRITES=1
+  fi
+done
+_BFR_FILES=()
+if ((_BFR_STDIN || _BFR_SUBST || _BFR_WRITES)) || [[ "$TOOL_NAME" == PowerShell ]]; then
   _bfr_carries "$COMMAND" && block "$_BFR_POST"
   _BFR_TEXTS+=(${_BFR_AUX_TEXTS[@]+"${_BFR_AUX_TEXTS[@]}"})
   _BFR_FILES+=(${_BFR_AUX_FILES[@]+"${_BFR_AUX_FILES[@]}"})
@@ -533,7 +549,6 @@ fi
 for _bfr_t in ${_BFR_TEXTS[@]+"${_BFR_TEXTS[@]}"}; do
   _bfr_carries "$_bfr_t" && block "$_BFR_POST"
 done
-_bfr_c=""
 for _bfr_f in ${_BFR_FILES[@]+"${_BFR_FILES[@]}"}; do
   _bfr_read_to _bfr_c "$_bfr_f" && _bfr_carries "$_bfr_c" && block "$_BFR_POST, from $_bfr_f"
 done
