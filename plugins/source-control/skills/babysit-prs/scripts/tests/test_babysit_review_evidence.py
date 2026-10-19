@@ -303,7 +303,9 @@ class LostEvidenceTests(Base):
         runs = [whole(lane, S) for lane in LANES] + [whole("claude-review", S0, n=2)]
         comments = [marker("claude-review", S0), *both_markers()]
         result = self.bind(runs, comments)
-        self.assertEqual(result["claude-review"].open_findings, 2)
+        self.assertTrue(result["claude-review"].bound)
+        # The whole review at S covers the head and reports none of S0's two.
+        self.assertEqual(result["claude-review"].open_findings, 0)
 
 
 class RunSelectionTests(Base):
@@ -641,7 +643,7 @@ class IncrementalTests(Base):
 
 
 class CountTests(Base):
-    def test_summary_findings_sum_over_every_completed_run(self) -> None:
+    def test_summary_findings_sum_over_the_covering_chain(self) -> None:
         runs = [
             run("claude-review", S0, "findings=3 inline=1 scope=whole"),
             run(
@@ -917,7 +919,9 @@ class CountTests(Base):
         del runs[-1]["attempts"][0]["jobs"][0]["started_at"]
         pusher = {"__typename": "User", "login": "pusher"}
         threads = [
-            thread(resolved=True, resolved_by=MAINTAINER, created="2026-01-01T00:30:00Z"),
+            thread(
+                resolved=True, resolved_by=MAINTAINER, created="2026-01-01T00:30:00Z"
+            ),
             thread(
                 resolved=True,
                 resolved_by=pusher,
@@ -977,6 +981,145 @@ class CountTests(Base):
         result = self.bind([earlier, whole("claude-review", S)])
         self.assertTrue(result["claude-review"].bound)
         self.assertEqual(result["claude-review"].open_findings, 0)
+
+
+class CoveringReviewTests(Base):
+    """A finding is closed when the lane's newest review covering the pinned
+    head no longer reports it (owner decision 2026-10-18): the reviewer
+    clears findings, not the agent that resolved a thread."""
+
+    PUSHER = {"__typename": "User", "login": "pusher"}
+
+    def two_reviews(
+        self, earlier: str, latest: str, *, earlier_sha: str = S0
+    ) -> list[dict[str, Any]]:
+        # An earlier review in the 00:00-01:00 window, the latest in 02:00-03:00.
+        runs = [
+            run("claude-review", earlier_sha, earlier, created="2026-01-01T00:00:00Z"),
+            run("claude-review", S, latest, created="2026-01-01T02:00:00Z"),
+        ]
+        job = runs[1]["attempts"][0]["jobs"][0]
+        job["started_at"], job["completed_at"] = (
+            "2026-01-01T02:00:00Z",
+            "2026-01-01T03:00:00Z",
+        )
+        return runs
+
+    def agent_resolved(self) -> list[dict[str, Any]]:
+        return [thread(resolved=True, resolved_by=self.PUSHER)]
+
+    # (1) Summary findings come only from the chain covering the head.
+
+    def test_summary_findings_of_a_superseded_whole_review_drop(self) -> None:
+        runs = self.two_reviews(
+            "findings=3 inline=0 scope=whole", "findings=0 inline=0 scope=whole"
+        )
+        self.assertEqual(self.bind(runs)["claude-review"].open_findings, 0)
+
+    def test_summary_findings_of_an_older_run_at_the_same_head_drop(self) -> None:
+        runs = self.two_reviews(
+            "findings=2 inline=0 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            earlier_sha=S,
+        )
+        self.assertEqual(self.bind(runs)["claude-review"].open_findings, 0)
+
+    def test_summary_findings_the_covering_review_reports_still_count(
+        self,
+    ) -> None:
+        runs = self.two_reviews(
+            "findings=3 inline=0 scope=whole", "findings=1 inline=0 scope=whole"
+        )
+        self.assertEqual(self.bind(runs)["claude-review"].open_findings, 1)
+
+    # (2) An agent-resolved thread closes only on a clean covering review.
+
+    def test_agent_resolved_thread_closes_when_the_covering_review_is_clean(
+        self,
+    ) -> None:
+        runs = self.two_reviews(
+            "findings=1 inline=1 scope=whole", "findings=0 inline=0 scope=whole"
+        )
+        result = self.bind(runs, threads=self.agent_resolved())
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_agent_resolved_thread_stays_open_when_the_covering_review_reports_one(
+        self,
+    ) -> None:
+        runs = self.two_reviews(
+            "findings=1 inline=1 scope=whole", "findings=1 inline=0 scope=whole"
+        )
+        result = self.bind(runs, threads=self.agent_resolved())
+        # The covering review's summary finding plus the agent-resolved thread.
+        self.assertEqual(result["claude-review"].open_findings, 2)
+
+    def test_clean_incremental_over_a_whole_review_with_findings_does_not_clear(
+        self,
+    ) -> None:
+        runs = self.two_reviews(
+            "findings=1 inline=1 scope=whole",
+            f"findings=0 inline=0 scope=incremental since={S0}",
+        )
+        result = self.bind(runs, threads=self.agent_resolved())
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    # (3) Unchanged behavior.
+
+    def test_human_resolved_thread_stays_closed(self) -> None:
+        runs = self.two_reviews(
+            "findings=1 inline=1 scope=whole", "findings=1 inline=0 scope=whole"
+        )
+        threads = [thread(resolved=True, resolved_by=MAINTAINER)]
+        self.assertEqual(
+            self.bind(runs, threads=threads)["claude-review"].open_findings, 1
+        )
+
+    def test_unresolved_thread_stays_open_under_a_clean_covering_review(
+        self,
+    ) -> None:
+        runs = self.two_reviews(
+            "findings=1 inline=1 scope=whole", "findings=0 inline=0 scope=whole"
+        )
+        self.assertEqual(
+            self.bind(runs, threads=[thread()])["claude-review"].open_findings, 1
+        )
+
+    def test_no_review_covering_the_head_is_not_closed(self) -> None:
+        clean_earlier = whole("claude-review", S0)
+        failed = run(
+            "claude-review",
+            S,
+            attempts=[attempt("claude-review", S, 1, [OTHER_FAILURE], "failure")],
+        )
+        for runs in ([clean_earlier], [clean_earlier, failed]):
+            with self.subTest(len(runs)):
+                result = self.bind(runs, threads=self.agent_resolved())
+                self.assertFalse(result["claude-review"].bound)
+                self.assertIsNone(result["claude-review"].open_findings)
+
+    def test_resolving_alone_never_closes(self) -> None:
+        runs = [whole("claude-review", S, n=1, k=1)]
+        self.assertEqual(
+            self.bind(runs, threads=self.agent_resolved())[
+                "claude-review"
+            ].open_findings,
+            1,
+        )
+
+    def test_clean_review_of_another_head_does_not_clear(self) -> None:
+        # A newer clean review of an earlier head does not cover the pinned one.
+        runs = [
+            run("claude-review", S, "findings=1 inline=1 scope=whole"),
+            run(
+                "claude-review",
+                S0,
+                "findings=0 inline=0 scope=whole",
+                created="2026-01-02T00:00:00Z",
+            ),
+        ]
+        result = self.bind(runs, threads=self.agent_resolved())
+        self.assertEqual(result["claude-review"].open_findings, 1)
 
 
 class FailClosedTests(Base):
