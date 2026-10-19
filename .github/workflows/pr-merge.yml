@@ -225,10 +225,12 @@ jobs:
       group: pr-merge
       queue: max
     runs-on: ubuntu-24.04
-    # A sweep of about 40 candidates at about 40 s each needs over 30
-    # minutes. Runs wait in line, so a longer limit adds no gate calls per
-    # hour.
-    timeout-minutes: 55
+    # A ceiling above the gate's time budget (merge.gate-budget-minutes, 10),
+    # which is what ends a long sweep: the budget stops between candidates,
+    # a timeout can stop one between its check and its merge-queue write.
+    # 30 leaves the budget, about a minute before the loop, the longest
+    # measured candidate (about 3 minutes) and the closing steps well inside.
+    timeout-minutes: 30
     permissions:
       contents: read # check out main
       pull-requests: read # list the open PRs
@@ -365,6 +367,7 @@ jobs:
             echo "report-only=$report_only"
             echo "dependabot=$dependabot"
             echo "live=$live"
+            echo "gate-budget-minutes=$(yq '.merge."gate-budget-minutes" // ""' "$config")"
           } >>"$GITHUB_OUTPUT"
 
       # Swaps this job's GitHub identity proof for a short-lived token of the
@@ -475,6 +478,19 @@ jobs:
           jq -c .held "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/held.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
 
+      # The gate loop below can stop at its time budget, so it starts after
+      # the last candidate the previous loop reached (the
+      # pr-merge-gate-cursor artifact) and wraps round: every candidate is
+      # reached across runs. The cursor sets only the order; any error
+      # leaves the listing order. Rules: .github/scripts/pr-merge/rotation.mjs.
+      - name: Start after the candidate the last run reached
+        if: steps.candidates.outcome == 'success'
+        continue-on-error: true
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          CANDIDATES_PATH: ${{ runner.temp }}/candidates.json
+        run: node .base/.github/scripts/pr-merge/rotation.mjs
+
       # The post-merge check, read-only, on every run whether or not any PR is
       # a candidate: after the queue lands the last lane PR there is none, yet
       # that merge still needs its full CI run to be verified. It looks only
@@ -520,6 +536,11 @@ jobs:
       # CLAUDE_LANES_MERGE_RUNG_CAP variable from here: a person can set it to
       # `off` (or `C2`) to lower how far the lane may go; left unset, there is
       # no extra limit.
+      # Once the loop has run merge.gate-budget-minutes, it starts no further
+      # candidate and ends; the candidate in progress finishes first, so no
+      # gate stops between its check and its merge-queue write. The rest wait
+      # for the next run, which starts after the last one reached here
+      # (cursor.json, uploaded below). No setting: no budget.
       - name: Run the merge gate on each candidate
         id: gate
         if: steps.candidates.outcome == 'success'
@@ -545,8 +566,18 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
+          BUDGET_MINUTES: ${{ steps.mode.outputs.gate-budget-minutes }}
         run: |
           set -euo pipefail
+          budget=${BUDGET_MINUTES:-}
+          if [[ -n $budget && ! $budget =~ ^[1-9][0-9]*$ ]]; then
+            echo "::warning::merge.gate-budget-minutes is not a whole number of minutes ($budget); the gate runs with no budget"
+            budget=
+          fi
+          cursor="$RUNNER_TEMP/gate-cursor/cursor.json"
+          mkdir -p "${cursor%/*}"
+          started=$(date +%s)
+          reached=0
           # The script and its flags come from the merge-pr activity on main.
           read -ra args < <(jq -r '.selected.args // ""' "$RUNNER_TEMP/resolved-config.json")
           results="$RUNNER_TEMP/results.jsonl"
@@ -568,6 +599,12 @@ jobs:
           save() { jq -s . "$results" >"$summary.tmp" && mv "$summary.tmp" "$summary"; }
           save
           while read -r number head updated; do
+            if [ -n "$budget" ] && (($(date +%s) - started >= budget * 60)); then
+              stop="the ${budget}-minute gate budget is used after $reached of $(jq length "$RUNNER_TEMP/candidates.json") candidates; the next run starts after #$(jq .last "$cursor" 2>/dev/null || echo none)"
+              echo "::notice::$stop"
+              echo "budget-stop: $stop" >>"$GITHUB_STEP_SUMMARY"
+              break
+            fi
             out="$RUNNER_TEMP/gate-$number.json"
             code=0
             ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
@@ -587,13 +624,27 @@ jobs:
                dispatched: .unattended.dispatched, blockers: (.blockers // [])}
             ' "$out" >>"$results"
             save
+            reached=$((reached + 1))
+            echo "{\"last\":$number}" >"$cursor"
           done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt)"' "$RUNNER_TEMP/candidates.json")
           lane_after=$(rate)
           verify_after=$(GH_TOKEN=$BABYSIT_VERIFY_GH_TOKEN rate)
           echo "rate after the gate: lane $lane_after github.token $verify_after"
-          echo "sweep-cost=$(cost "$lane_before" "$lane_after") github-token-cost=$(cost "$verify_before" "$verify_after") candidates=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_STEP_SUMMARY"
+          echo "sweep-cost=$(cost "$lane_before" "$lane_after") github-token-cost=$(cost "$verify_before" "$verify_after") candidates=$(jq length "$RUNNER_TEMP/candidates.json") reached=$reached" >>"$GITHUB_STEP_SUMMARY"
           dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$summary")
           echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
+
+      # The next run's starting point (rotation.mjs reads it), uploaded even
+      # when the job is cancelled, since cursor.json is rewritten after each
+      # candidate.
+      - name: Record where the gate stopped
+        if: always() && steps.gate.outcome != 'skipped'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-gate-cursor
+          path: ${{ runner.temp }}/gate-cursor/cursor.json
+          retention-days: 7
+          if-no-files-found: ignore
 
       # The run's report: every candidate with its verdict, whether a full CI
       # run is started (or, in report-only mode, would have been), then the
