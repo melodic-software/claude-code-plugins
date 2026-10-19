@@ -422,6 +422,23 @@ for (const [label, compare] of [
   });
 }
 
+test("a VALID fix that also adds a file in its thread's plugin lands; another plugin's file does not", async () => {
+  const caseRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: "plugins/p/evals/c/case.yaml" }] });
+  for (const [sample, landed] of [
+    ["plugins/p/evals/c/samples/new.json", true],
+    ["plugins/p/evals/other/samples/new.json", true],
+    ["plugins/q/evals/c/samples/new.json", false],
+  ]) {
+    const api = fakeApi({
+      compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: "plugins/p/evals/c/case.yaml" }, { filename: sample }] },
+      commits: { [FIX]: { files: [{ filename: "plugins/p/evals/c/case.yaml" }, { filename: sample }] } },
+    });
+    const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })), caseRun);
+    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", sample);
+    assert.equal(api.posted().length, landed ? 1 : 0, sample);
+  }
+});
+
 test("feedback-not-landed, nothing posted: a VALID fix commit that does not change its own thread's path", async () => {
   const api = fakeApi({
     compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: "docs/b.md" }] },

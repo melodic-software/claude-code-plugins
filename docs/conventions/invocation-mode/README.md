@@ -333,6 +333,34 @@ Fleet after this flip (2026-08-21): 222 top-level skills = 165 `false` / 0 missi
 = 48 `*:setup` plus 9 non-setup. **Every non-setup `true` skill in the fleet now carries a verdict
 in the table above**, and the table's two flips are the only entries that are not KEEP.
 
+## Fleet grade, 2026-10-18 (the six ungraded human-only skills, #7974)
+
+Bounding question: *do the six non-setup `disable-model-invocation: true` skills added after the
+2026-08-17 grade fall into an exception class?* The population is exactly the six skills below;
+the `setup` skills (class (ii) by contract) and the nine skills the 2026-08-17 table graded KEEP are
+not re-swept, per [ADR 0005](../../adr/0005-bound-instruction-surface-work-by-question-not-population.md).
+Grading follows the owner's 2026-10-05 direction on
+[#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): model-invocable by
+default, so a skill whose mutating step already asks for approval is graded FLIP, since the
+approval is the gate and hiding the skill adds nothing. A write that is additive (never
+overwrites), uncommitted and undone by deleting the new files is not a side effect "whose timing
+must be a deliberate human choice" either. This item records grades only; it changes no
+`SKILL.md`, and the flips are the sibling item's.
+
+| Skill | Class | Evidence from the skill's own body | Verdict |
+|---|---|---|---|
+| `discipline:be-ambitious` | (i) trigger is human-internal | "Typed by the user who suspects they asked for less than they want; only the user knows that." (description); "only the user knows they want more than they asked, so the model never fires it" (body). The trigger is a private suspicion, the same shape as `discipline:wait-what`. It has no side effect of its own: it "Write[s] no file, run[s] no command and invoke[s] no skill until I answer." | KEEP `true` |
+| `docs-naming:generate-file-name-gate` | none | Its only mutation is emitting new files: "Refuses to overwrite without --force" (description) and "A refused run writes nothing at all." It does not wire what it emits ("Wire the gate into CI, a registry, or a decision record. It names each one and stops.") and does "Commit, stage, or push" nothing. Additive, uncommitted, inert until the operator wires it, so its timing is not a human-only call; not setup, not maintainer-only, and its triggers ("generate the file-name gate", "add a CI check for doc filenames") are utterances. | **FLIP → `false`** |
+| `playbooks:repo-sweep` | none | Each mutating step already asks for approval: `plan` "open[s] the selection page" before it creates the branch and draft PR; `next` runs "audit, review findings with the user, fix, one commit, tick"; `review` will "audit and file each problem after approval". The sweep opens a draft PR, never merges, and its triggers ("sweep this repo", "next sweep step") are utterances. Not setup, not maintainer-only. | **FLIP → `false`** (approval-gated mutation) |
+| `repo-fleet-hygiene:sync` | none | The mutation is approval-gated twice over: "Bare invocation prints a dry-run plan. Mutation requires --apply and one confirmation." (description); "`--yes` skips the script's prompt, not the user. Pass it only after you have shown the user the dry-run plan ... and the user has explicitly said to go ahead." Dirty work is parked, not deleted, and "The script does not reset a branch." Not setup, not maintainer-only. The 2026-08-17 KEEP of `repo-fleet-hygiene:apply` is an owner-decision sibling and is not revisited here. | **FLIP → `false`** (approval-gated mutation) |
+| `session-flow:tidy-work` | none | Removal and moves are approval-gated: "Does not delete or move anything without `--apply` and a confirmation naming the paths."; "Ask one confirmation covering exactly the listed paths. A refusal, or silence, ends the run with nothing changed."; the `--apply` call "is not pre-approved, so it goes through the normal permission flow." The "Nothing runs unless the user invokes this skill" line says it is opt-in, which is not a class. Not setup, not maintainer-only. | **FLIP → `false`** (approval-gated mutation) |
+| `testing:map-features` | none | "This skill writes files into the repository and commits nothing. It writes a new map; it never overwrites one." Where a `SKILL.md` already exists it "stop[s] and write[s] nothing." Additive and uncommitted, and it proves the map by invoking `/testing:run-e2e`, which is `false`, so the invariant does not block that call; a flipped `map-features` could itself be chained to, though `refresh-feature-map` and `run-e2e` only name it for the human to type. Its description's "User-invoked only." states the current flag, not a class. Not setup, not maintainer-only, and its triggers ("map the features of this app", "write a feature map") are utterances. | **FLIP → `false`** |
+
+Result: one KEEP (`discipline:be-ambitious`, class (i)) and five FLIPs. Fleet-wide, the non-setup
+`true` population after the 2026-08-21 grade (9) plus these six is 15 skills, of which this section
+grades the six that had no recorded class; the five flips take effect when the sibling item edits
+their frontmatter, and until then they remain `true`.
+
 ## Cross-references
 
 - plugin-philosophy: setup contract (class ii source), Instruction economy (listing-cost

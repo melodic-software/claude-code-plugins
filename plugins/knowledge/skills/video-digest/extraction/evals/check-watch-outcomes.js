@@ -175,6 +175,28 @@ export function densificationCoverage({ windows, promotedTimestampsSec, visualGa
 }
 
 /**
+ * Session names that `visual-gaps.md` logs as talking-head-only. A row is a table line with one
+ * first cell `talking-head-only` and a second cell equal to the session name from
+ * `research/claim-inventory.md` (case-insensitive), e.g. `| talking-head-only | Closing | webcam only |`.
+ *
+ * @param {string} visualGapsBody
+ * @returns {Set<string>}
+ */
+export function parseTalkingHeadOnlySessions(visualGapsBody) {
+  const names = new Set();
+  for (const line of visualGapsBody.split("\n")) {
+    if (!line.trimStart().startsWith("|")) continue;
+    const [kind, session] = line
+      .trim()
+      .slice(1)
+      .split("|")
+      .map((c) => c.trim().toLowerCase());
+    if (kind === "talking-head-only" && session) names.add(session);
+  }
+  return names;
+}
+
+/**
  * @typedef {object} WatchOutcomeSlice
  * @property {string} sliceDir
  * @property {object} watch
@@ -341,11 +363,15 @@ function pushSessionCoverageChecks(checks, slice) {
     severity: "fail",
   });
 
+  // A logged talking-head-only gap stands in for the frame the synthesis contract rejects.
+  const talkingHeadOnly = parseTalkingHeadOnlySessions(visualGapsBody);
   const sessionFrameCounts = sessions.map((session) => {
     const end = session.endSec ?? durationSec;
+    const gapLogged = talkingHeadOnly.has(session.name.trim().toLowerCase());
+    const promoted = promotedTs.filter((ts) => ts >= session.startSec && ts <= end).length;
     return {
       name: session.name,
-      frameCount: promotedTs.filter((ts) => ts >= session.startSec && ts <= end).length,
+      frameCount: gapLogged ? Math.max(promoted, floors.minPerSession) : promoted,
     };
   });
 

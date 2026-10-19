@@ -56,9 +56,17 @@ python3 "<skill-dir>/scripts/check-snippets.py" \
   --digest <work-root>/digests/01-….md \
   --digest <work-root>/digests/02-….md
 
+python3 "<skill-dir>/scripts/check-sources-parity.py" <work-root>
+
 python3 "<skill-dir>/scripts/check-html-rows.py" \
   <work-root>/source.html <work-root>/digests/01-….md <work-root>/digests/02-….md
 ```
+
+`check-sources-parity.py` takes the work root and reads `source.md` (else `source.txt`),
+`SOURCES.md` and `digests/`. It lists every heading of the source (`#` lines and `<h1>`-`<h6>`
+tags carrying an `id`, outside code fences), and fails on a mismatch with the `## Headings`
+table, a gap, overlap or uncovered tail in the `## Digest map` ranges, a unit that starts off
+line 1 or an H2, or unequal digest-map, `digests/` and `## Status` rows.
 
 Run `check-html-rows.py` only when the slice keeps a `source.html` and a digest
 carries `**FN.**` rows quoted from it; name each such digest. Its zero-row exit 1
@@ -72,7 +80,8 @@ section is a failure, never a skip.
 **A gate is a claim that needs its own evidence.** Do not believe a PASS until
 that gate's negative-control suite has failed the known-bad fixtures. For these
 gates the evidence is `scripts/test_check_fences_exact.py`,
-`scripts/test_check_snippets.py` and `scripts/test_check_html_rows.py` (empty input, zero-parse, indented fence,
+`scripts/test_check_snippets.py`, `scripts/test_check_sources_parity.py` and
+`scripts/test_check_html_rows.py` (empty input, zero-parse, indented fence,
 stripped trailing space, blockquote/inline substitutes, fabricated
 quote/snippet). A newly written gate is not a required artifact until that
 suite is green. The ordering is the one `SKILL.md` already states.

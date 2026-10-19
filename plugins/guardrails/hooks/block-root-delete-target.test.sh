@@ -1571,9 +1571,19 @@ else
 fi
 
 # An entry that grants nothing is ignored; the rest of the list still works.
-rdt_ar 'a relative root grants nothing' 2 "rm -rf '$RDT_AR/child'" "${RDT_AR#/}"
+# The relative entry drops a drive prefix (Windows toplevel is `D:/...`) or a
+# leading slash, so it is relative on every host.
+rdt_rel="$RDT_AR"
+if [[ "$rdt_rel" =~ ^[A-Za-z]:/ ]]; then rdt_rel="${rdt_rel:3}"; else rdt_rel="${rdt_rel#/}"; fi
+rdt_ar 'a relative root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$rdt_rel"
 rdt_ar "the root '/' grants nothing" 2 "rm -rf '$RDT_AR/child'" /
-rdt_ar "the root '/' does not allow a top-level path" 2 'rm -rf /opt/rdt-allowed-x/y' /
+# Under MSYS `/` is the Git install directory, not a volume root, so /opt lies under it.
+rdt_slash=$(cygpath -m / 2>/dev/null || true)
+if [[ -z "$rdt_slash" || "$rdt_slash" =~ ^([A-Za-z]:)?/$ ]]; then
+  rdt_ar "the root '/' does not allow a top-level path" 2 'rm -rf /opt/rdt-allowed-x/y' /
+else
+  rdt_skip "'/' is $rdt_slash here, not a volume root (1 case)"
+fi
 rdt_ar 'an empty entry grants nothing' 2 "rm -rf '$RDT_AR/child'" ","
 rdt_ar 'a root equal to HOME grants nothing' 2 "rm -rf '$RDT_AH/x'" "$RDT_AH"
 rdt_ar 'HOME with a trailing slash grants nothing' 2 "rm -rf '$RDT_AH/x'" "$RDT_AH/"
