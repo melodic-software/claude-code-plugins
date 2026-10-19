@@ -139,7 +139,8 @@ async function main() {
     // ---------- with chat off, the page says the answer shows in Ask Claude ----------
     await owner.evaluate(() => window.Core.saveSettings({ chat: false }));
     await until(owner, () => window.Core.state.settings.chat === false);
-    await owner.keyboard.press("Escape");
+    // the first Escape takes an urgent pop-up away when one shows (Q39); Ask Claude closes on the next
+    for (let i = 0; i < 3 && await owner.evaluate(() => !document.querySelector(".vf-drawer").hidden); i++) await owner.keyboard.press("Escape");
     await owner.click(".vf-asktop");
     await owner.selectOption(".vf-apq select", "session");
     ok("about the whole session Ask Claude starts on Just me", await until(owner, () => document.querySelector(".vf-apform .vf-aud [aria-pressed=true]")?.textContent === "Just me"));
