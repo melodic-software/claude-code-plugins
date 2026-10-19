@@ -14758,10 +14758,12 @@ class TrustedManagedFileTests(unittest.TestCase):
 
     PATH = Path("/etc/claude-code/managed-settings.json")
 
-    def trusted(self, mode: int, uid: int = 0, writable: bool = False) -> bool:
+    def trusted(
+        self, mode: int, uid: int = 0, writable: bool = False, euid: int = 1000
+    ) -> bool:
         file_stat = os.stat_result((mode, 0, 0, 1, uid, 0, 0, 0, 0, 0))
         with (
-            mock.patch.object(guard.killswitch_config.os, "geteuid", lambda: 1000),
+            mock.patch.object(guard.killswitch_config.os, "geteuid", lambda: euid),
             mock.patch.object(
                 guard.killswitch_config.os,
                 "access",
@@ -14789,6 +14791,9 @@ class TrustedManagedFileTests(unittest.TestCase):
 
     def test_non_regular_file_is_untrusted(self) -> None:
         self.assertFalse(self.trusted(0o010644))
+
+    def test_root_process_trusts_root_owned_file_it_can_write(self) -> None:
+        self.assertTrue(self.trusted(0o100644, writable=True, euid=0))
 
 
 class DirectReadKillSwitchTests(unittest.TestCase):
