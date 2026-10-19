@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Window bar: one fresh context window; integrates at least daily.",
+      "why": "no estimate"
+    },
+    {
+      "answer": "There is no hours estimate and never a day cap; it merges at least daily.",
+      "why": "negated mentions"
+    },
+    {
+      "answer": "It stays a three-file slice, so it merges at least daily.",
+      "why": "a number without hours"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Window bar: roughly 4 hours of work, merges at least daily.",
+      "why": "hours estimate"
+    },
+    {
+      "answer": "Window bar passes: a 2-hour slice, integrate at least daily.",
+      "why": "hyphenated hours"
+    },
+    {
+      "answer": "Window bar: about 6 hrs; merges at least daily.",
+      "why": "hrs abbreviation"
+    },
+    {
+      "answer": "Window bar passes; budget 8 hours, merge at least daily.",
+      "why": "budgeted hours"
+    }
+  ]
+}
