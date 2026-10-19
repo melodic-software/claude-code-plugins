@@ -38,10 +38,9 @@ name: pr-merge
 # whoever enqueued it, the push starts a full CI run of main (the
 # dispatch-full-run job), even while the switch or report-only is on, since it
 # merges nothing. That run raises no workflow_run event (GITHUB_TOKEN started
-# it), so post-merge-demotion-alert.yml never sees it. The merge job's
-# post-merge check files the demotion record only once it reads the run red:
-# after a human re-runs it, since a red attempt 1 with no re-run waits for one
-# the lanes App cannot start.
+# it), so post-merge-demotion-alert.yml never sees it. A red attempt 1 gets
+# its one re-run from the post-merge-dispatch job, which records it; the merge
+# job's post-merge check files the demotion record once it reads the run red.
 #
 # On its schedule it also gives a PR a new head, an empty commit, when a lane
 # run on its current head was refused by the token broker as
@@ -98,7 +97,8 @@ jobs:
   # started at once: not after the merge job's candidate listing, which can
   # fail on a GitHub 5xx, nor after its gate loop, which can take many
   # minutes. It reads with this job's own token, so the merge job's Actions
-  # token stays read-only. Same mechanics as
+  # token stays read-only. It also starts the one re-run of a red full run the
+  # lane dispatched, which the lanes App cannot start. Same mechanics as
   # dispatch-full-run: ref main, and the pr-merge-dispatched-<id> artifact the
   # post-merge check trusts. Not on pull_request_target, whose dispatch the
   # check does not trust; that event's merge job still runs the check.
@@ -174,6 +174,59 @@ jobs:
           esac
           needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
           echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
+          rerun=$(jq -r '[.reruns[]? | select(.laneDispatched == true) | .runId][0] // ""' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || true)
+          echo "lane-rerun=$rerun" >>"$GITHUB_OUTPUT"
+
+      # A red attempt 1 of a full run this workflow dispatched waits for its
+      # one re-run, and the lanes App holds no Actions permission to start it.
+      # This job starts it with its own token, one run per job, and records it
+      # as pr-merge-rerun-<id>-attempt-2, which the post-merge check needs
+      # before it counts a github-actions[bot] attempt 2 of a lane-dispatched
+      # run. The record is uploaded only after this job's own re-run made
+      # attempt 2, so a re-run anyone else started never gets one.
+      - name: Re-run a red lane-dispatched full run
+        id: rerun
+        if: steps.post-merge.outputs.lane-rerun != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ steps.post-merge.outputs.lane-rerun }}
+        run: |
+          set -euo pipefail
+          if [[ ! $RUN_ID =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::the post-merge check named no run id to re-run: $RUN_ID"
+            exit 1
+          fi
+          attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt)
+          if [ "$attempt" != 1 ]; then
+            echo "::notice::run $RUN_ID is at attempt $attempt; no re-run started or recorded"
+            exit 0
+          fi
+          if ! gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
+            echo "::warning::the re-run of run $RUN_ID was refused; the next run tries again"
+            exit 0
+          fi
+          for wait in 0 5 10; do
+            sleep "$wait"
+            attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt) || attempt=
+            [ "$attempt" = 1 ] || [ -z "$attempt" ] || break
+          done
+          if [ "$attempt" != 2 ]; then
+            echo "::warning::run $RUN_ID reads attempt $attempt after the re-run, not 2; nothing recorded"
+            exit 0
+          fi
+          echo "re-ran run $RUN_ID as attempt 2"
+          echo "{\"rerunner_run_id\":$GITHUB_RUN_ID,\"run_id\":$RUN_ID,\"attempt\":2}" >"$RUNNER_TEMP/rerun.json"
+          echo "recorded=true" >>"$GITHUB_OUTPUT"
+
+      - name: Record the re-run
+        if: steps.rerun.outputs.recorded == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-rerun-${{ steps.post-merge.outputs.lane-rerun }}-attempt-2
+          path: ${{ runner.temp }}/rerun.json
+          retention-days: 90
+          if-no-files-found: error
 
       - name: Start the full CI run on main
         id: dispatch
@@ -533,7 +586,8 @@ jobs:
       # comments on it, reopening it on a new sighting) and dequeues the
       # lane's merge-queue entries. The lane token holds no Actions
       # permission, so the re-run and dispatch --remediate also attempts fail
-      # here and are reported as a write failure (exit 4). Live mode only.
+      # here and are reported as a write failure (exit 4); the
+      # post-merge-dispatch job starts those. Live mode only.
       - name: Record a failed lane merge
         if: steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
         env:

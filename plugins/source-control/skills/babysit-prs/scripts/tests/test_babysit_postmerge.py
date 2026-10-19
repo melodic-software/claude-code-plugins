@@ -722,6 +722,143 @@ class LaneDispatch(CheckCase):
         self.assertFalse(self.check(pinned=None).merges[0].verified)
 
 
+class LaneRerun(LaneDispatch):
+    """The owner's decision on #8399 (option B): pr-merge.yml's
+    post-merge-dispatch job starts the one re-run of a red lane-dispatched full
+    run under GITHUB_TOKEN and records it as `pr-merge-rerun-<id>-attempt-2`.
+    That github-actions[bot] attempt 2 counts only with the record, uploaded by
+    a pr-merge.yml run on main; a person's attempt 2 still reads red."""
+
+    BOT = by("github-actions[bot]")
+    RERUN_RUN = 600
+
+    def lane_rerun(
+        self,
+        conclusion: str,
+        *,
+        triggered_by: dict[str, Any] | None = None,
+        record: str | None = "pr-merge-rerun-11-attempt-2",
+        **sender: Any,
+    ) -> None:
+        self.lane_dispatch()
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(
+                11,
+                conclusion,
+                run_attempt=2,
+                actor=self.BOT,
+                triggering_actor=triggered_by or self.BOT,
+            )
+        ]
+        self.gh.attempts[(11, 1)] = dispatch_run(
+            11, "failure", actor=self.BOT, triggering_actor=self.BOT
+        )
+        if record is None:
+            return
+        self.gh.artifacts[record] = [
+            {"id": 10, "name": record, "workflow_run": {"id": self.RERUN_RUN}}
+        ]
+        rerunner = {
+            "id": self.RERUN_RUN,
+            "path": ".github/workflows/pr-merge.yml",
+            "event": "schedule",
+            "head_branch": "main",
+            "repository": {"full_name": REPO},
+        }
+        rerunner.update(sender)
+        self.gh.run_records[self.RERUN_RUN] = rerunner
+
+    def test_a_recorded_bot_rerun_that_passes_is_a_flake(self) -> None:
+        self.lane_rerun("success")
+        verdict = self.check(pinned=None)
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.flakes, (f"{RUN_URL}/11",))
+        self.assertTrue(verdict.merges[0].verified)
+
+    def test_a_recorded_bot_rerun_that_fails_is_red(self) -> None:
+        self.lane_rerun("failure")
+        verdict = self.check(pinned=None)
+        self.assertEqual(
+            [(f.signal, f.run_url) for f in verdict.failures],
+            [("dispatch", f"{RUN_URL}/11/attempts/2")],
+        )
+
+    def test_a_bot_rerun_without_the_record_is_red(self) -> None:
+        self.lane_rerun("success", record=None)
+        self.assertEqual(
+            [f.signal for f in self.check(pinned=None).failures], ["dispatch"]
+        )
+
+    def test_a_record_for_another_run_or_attempt_is_red(self) -> None:
+        for record in ("pr-merge-rerun-12-attempt-2", "pr-merge-rerun-11-attempt-3"):
+            with self.subTest(record=record):
+                self.setUp()
+                self.lane_rerun("success", record=record)
+                self.assertEqual(
+                    [f.signal for f in self.check(pinned=None).failures], ["dispatch"]
+                )
+
+    def test_a_record_not_uploaded_by_pr_merge_on_main_is_red(self) -> None:
+        # A pull request's own workflow, a branch's copy of pr-merge.yml, or a
+        # pull_request_target run (the base branch's copy) cannot forge it.
+        for sender in (
+            {"path": ".github/workflows/pr-refine.yml"},
+            {"head_branch": "feature"},
+            {"event": "pull_request_target"},
+            {"repository": {"full_name": "example-org/other"}},
+        ):
+            with self.subTest(sender=sender):
+                self.setUp()
+                self.lane_rerun("success", **sender)
+                self.assertEqual(
+                    [f.signal for f in self.check(pinned=None).failures], ["dispatch"]
+                )
+
+    def test_a_human_rerun_is_red_even_with_the_record(self) -> None:
+        self.lane_rerun("success", triggered_by=by("maintainer"))
+        verdict = self.check(pinned=None)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+        self.assertIn("not triggered by the agent identity", verdict.failures[0].detail)
+
+    def test_an_unreadable_rerun_record_fails_closed(self) -> None:
+        self.lane_rerun("success")
+        self.gh.fail_reads.add("name=pr-merge-rerun-11-attempt-2")
+        verdict = self.check(pinned=None)
+        self.assertFalse(verdict.readable)
+        self.assertFalse(verdict.ok)
+        self.assertEqual(pm.verdict_exit(verdict), pm.EXIT_UNREADABLE)
+
+    def test_a_red_lane_dispatch_awaiting_its_rerun_is_marked_for_the_lane(
+        self,
+    ) -> None:
+        self.lane_dispatch()
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(11, "failure", actor=self.BOT, triggering_actor=self.BOT)
+        ]
+        report = self.check(pinned=None).report()
+        self.assertEqual(
+            report["reruns"],
+            [
+                {
+                    "runId": 11,
+                    "url": f"{RUN_URL}/11",
+                    "signal": "dispatch",
+                    "laneDispatched": True,
+                }
+            ],
+        )
+
+    def test_a_red_identity_dispatch_is_not_marked_for_the_lane(self) -> None:
+        self.gh.add_runs(
+            "pr-require-checks.yml", "workflow_dispatch", dispatch_run(11, "failure")
+        )
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        report = self.check(pinned=None).report()
+        self.assertEqual(
+            [(r["runId"], r["laneDispatched"]) for r in report["reruns"]], [(11, False)]
+        )
+
+
 class Attribution(CheckCase):
     def setUp(self) -> None:
         super().setUp()

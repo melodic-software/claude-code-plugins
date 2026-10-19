@@ -17,7 +17,9 @@ run on such a SHA, and a matching read-back all exist, and no red full run or
 canary run counted against it first. Only an enqueue by the identity has a
 pinned SHA to read back; any other enqueue verifies on the dispatch and canary
 runs alone. A red full run is attributed after one `rerun-failed-jobs` the
-wrapper triggers: red again is a failure, green is a flake. It counts only
+wrapper triggers: red again is a failure, green is a flake. A red full run the
+pr-merge lane dispatched gets that one re-run from pr-merge.yml's own
+`post-merge-dispatch` job, which records it (`_Context.lane_rerun`). It counts only
 for checks that were not already failing on the newest completed run of the
 same event before the merge (`_Context.regressions`); with none left it is
 reported as unattributed and passes like a green run.
@@ -79,6 +81,10 @@ CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml"
 LANE_DISPATCH_WORKFLOW = ".github/workflows/pr-merge.yml"
 LANE_DISPATCH_ARTIFACT = "pr-merge-dispatched-"
 LANE_DISPATCH_ACTOR = "github-actions[bot]"
+# Its post-merge-dispatch job starts the one re-run of a red lane-dispatched
+# full run, also under GITHUB_TOKEN, and records it in an artifact named
+# `<prefix><run id>-attempt-2`; `_Context.lane_rerun` reads it.
+LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
 DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
 DEFAULT_ROLE_LABEL = "needs-human"
@@ -152,6 +158,9 @@ class Rerun:
     run_id: int
     url: str
     signal: str
+    # The pr-merge lane dispatched it, so its post-merge-dispatch job starts
+    # the re-run: the lanes App and so the lane's `--remediate` cannot.
+    lane: bool = False
 
 
 @dataclass(frozen=True)
@@ -225,7 +234,12 @@ class PostMergeVerdict:
                 for f in self.failures
             ],
             "reruns": [
-                {"runId": r.run_id, "url": r.url, "signal": r.signal}
+                {
+                    "runId": r.run_id,
+                    "url": r.url,
+                    "signal": r.signal,
+                    "laneDispatched": r.lane,
+                }
                 for r in self.reruns
             ],
             "flakes": list(self.flakes),
@@ -514,7 +528,7 @@ class _Context:
     # Full runs whose red verdict came from the wrapper's re-run (attempt 2).
     red_on_rerun: set[int] = field(default_factory=set)
     branch: str = ""
-    lane_cache: dict[int, bool] = field(default_factory=dict)
+    lane_cache: dict[str, bool] = field(default_factory=dict)
     checks_cache: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
     # Full-history clones `contains` asks first; None until first resolved.
     local_clones: list[Path] | None = None
@@ -631,29 +645,42 @@ class _Context:
     def lane_dispatched(self, run: Run) -> bool:
         """Whether the pr-merge lane sent this github-actions[bot] dispatch:
         its `pr-merge-dispatched-<id>` artifact was uploaded by a run of
-        pr-merge.yml in this repository on the branch. Only steps of a run can
-        upload its artifacts, and a pull_request_target run is not counted, as
-        it runs the PR base branch's copy of the file."""
-        if run.actor != LANE_DISPATCH_ACTOR:
-            return False
-        if run.id not in self.lane_cache:
+        pr-merge.yml in this repository on the branch."""
+        return run.actor == LANE_DISPATCH_ACTOR and self._lane_record(
+            f"{LANE_DISPATCH_ARTIFACT}{run.id}"
+        )
+
+    def lane_rerun(self, run: Run) -> bool:
+        """Whether pr-merge.yml started attempt 2 of this lane-dispatched run:
+        its post-merge-dispatch job uploads `pr-merge-rerun-<id>-attempt-2`
+        only after its own `rerun-failed-jobs` call made that attempt."""
+        return self.lane_dispatched(run) and self._lane_record(
+            f"{LANE_RERUN_ARTIFACT}{run.id}-attempt-2"
+        )
+
+    def _lane_record(self, artifact: str) -> bool:
+        """Whether a run of pr-merge.yml in this repository on the branch
+        uploaded an artifact named `artifact`. Only steps of a run can upload
+        its artifacts, and a pull_request_target run is not counted, as it runs
+        the PR base branch's copy of the file. A failed read raises, so the
+        verdict is unreadable rather than the record taken as present."""
+        if artifact not in self.lane_cache:
             repo = f"{self.owner}/{self.name}"
             listing = _read(
                 [
                     "api",
-                    f"repos/{repo}/actions/artifacts?name="
-                    f"{LANE_DISPATCH_ARTIFACT}{run.id}&per_page=100",
+                    f"repos/{repo}/actions/artifacts?name={artifact}&per_page=100",
                 ],
-                f"dispatch record of run {run.id}",
+                f"record {artifact}",
             )
             senders = {
                 json_object(a.get("workflow_run")).get("id")
                 for a in map(
                     json_object, json_array(json_object(listing).get("artifacts"))
                 )
-                if a.get("name") == f"{LANE_DISPATCH_ARTIFACT}{run.id}"
+                if a.get("name") == artifact
             }
-            self.lane_cache[run.id] = any(
+            self.lane_cache[artifact] = any(
                 isinstance(sender, int)
                 and _lane_run(
                     json_object(
@@ -667,7 +694,7 @@ class _Context:
                 )
                 for sender in senders
             )
-        return self.lane_cache[run.id]
+        return self.lane_cache[artifact]
 
     def contains(self, ancestor: str, sha: str) -> bool:
         """Whether `sha` is `ancestor` or has it in its history: from a local
@@ -755,12 +782,13 @@ class _Context:
         if second is None:
             return RERUN, f"attempt 1 {first.conclusion}; awaiting the wrapper's re-run"
         # A re-run by anyone else (a person re-running until green) cannot
-        # clear a red attempt 1. The one other re-run that can is
-        # post-merge-demotion-alert.yml's single re-run under GITHUB_TOKEN,
-        # and that workflow re-runs no run the bot started.
+        # clear a red attempt 1. Two github-actions[bot] re-runs can:
+        # post-merge-demotion-alert.yml's single re-run, which re-runs no run
+        # the bot started, and for a run the pr-merge lane dispatched, the one
+        # its post-merge-dispatch job recorded.
         if second.triggering_actor != self.identity and not (
             second.triggering_actor == LANE_DISPATCH_ACTOR
-            and first.triggering_actor != LANE_DISPATCH_ACTOR
+            and (first.triggering_actor != LANE_DISPATCH_ACTOR or self.lane_rerun(run))
         ):
             return (
                 RED,
@@ -896,7 +924,12 @@ def _judge(
             else:
                 tally.unattributed[ctx.sighting(run)] = None
         elif state == RERUN:
-            tally.reruns[run.id] = Rerun(run.id, run.url, signal)
+            tally.reruns[run.id] = Rerun(
+                run.id,
+                run.url,
+                signal,
+                lane=signal == SIGNAL_DISPATCH and ctx.lane_dispatched(run),
+            )
             pending.append(f"attribution-pending:{run.id}")
         elif state == FLAKE:
             tally.flakes[run.url] = None
