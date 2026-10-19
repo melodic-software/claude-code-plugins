@@ -863,7 +863,9 @@ holds a write token: a base job, a read model job in this mode, and an
    at most 10. For each it writes the name, the workflow file that defines the job (or `null`),
    at most 20 annotations of at most 500 characters, and the last 80 lines, at most 3,000
    characters, of the job log, as `context.json`, uploaded as `ci-context-<run attempt>` with its
-   SHA-256 as a job output. A closed pull request or a head with no such check skips the rest.
+   SHA-256 as a job output. A closed pull request or a head with no such check skips the rest,
+   and a scripted job posts the fix-ci check neutral `not-applicable` on that head with
+   `report-check-run`'s `not-run-reason`, so the dispatcher counts the head as handled.
 2. The read file, before the head checkout, downloads that artifact and fails red unless it
    holds exactly one regular `context.json` of at most 1 MiB, with that SHA-256, written for the
    head this run gated.
