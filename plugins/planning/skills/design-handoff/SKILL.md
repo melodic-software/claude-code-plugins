@@ -59,8 +59,10 @@ counts as TAGGED-DEFERRED. Stumble: the gate judged only the threads present, so
 never weighed principles or reversibility passed.
 
 A thread that is unresolved AND untagged, or a required thread that is missing, is a silent gap →
-**FAIL**: list the offending or missing thread(s), route back by invoking `/planning:design` via the Skill tool (its design-threads and
-discussion rounds) to resolve or tag, and do NOT hand off. Read the verdict off
+**FAIL**: open the reply with the verdict sentence (`Gate: FAIL`, naming each offending or missing
+thread) and the coverage table, then route back by invoking `/planning:design` via the Skill tool
+(its design-threads and discussion rounds) to resolve or tag, and do NOT hand off. Stumble: routing
+first let the design round replace the verdict, so the reply never said the gate failed. Read the verdict off
 `design-threads.md`, never from a "did we cover enough?" recap of your own: a producing model
 rubber-stamps its own recap.
 
@@ -72,7 +74,7 @@ FAIL: no design evidence; route back by invoking `/planning:design` via the Skil
 
 ## Coverage report (advisory)
 
-After the verdict sentence, and on a FAIL after the routing sentence too, emit one table reporting
+After the verdict sentence (on a FAIL, before routing back), emit one table reporting
 coverage across the six dimensions a design answers: what, how, where, who, when, why. Emit it on
 PASS and on FAIL alike. It never contributes to the pass/fail determination, it never blocks a
 handoff, no flag makes it block, and the table is never written to disk.
