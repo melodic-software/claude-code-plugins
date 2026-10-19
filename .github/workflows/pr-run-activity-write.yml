@@ -142,6 +142,44 @@ on:
         required: false
         type: string
         default: ""
+      patch-state:
+        description: >-
+          For a prepare: apply-patch script, the model job's patch-state
+          output (written or empty); anything else escalates ci-fix-invalid.
+        required: false
+        type: string
+        default: ""
+      patch-sha256:
+        description: With patch-state written, the model job's patch-sha256 output.
+        required: false
+        type: string
+        default: ""
+      patch-attempt:
+        description: >-
+          With patch-state written, the model job's patch-attempt output: the
+          attempt whose patch-<lane>-<activity>-<attempt> artifact to download.
+        required: false
+        type: string
+        default: ""
+      patch-activity:
+        description: The activity that wrote the patch and the report, which names both artifacts.
+        required: false
+        type: string
+        default: ""
+      patch-head-sha:
+        description: >-
+          The model job's head-sha output: the head the patch was made on. A
+          gated head that differs skips superseded-sha.
+        required: false
+        type: string
+        default: ""
+      reply-attempt:
+        description: >-
+          The model job's reply-attempt output: the attempt whose skill-reply
+          artifact holds its report. Empty reads no report.
+        required: false
+        type: string
+        default: ""
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
@@ -160,7 +198,10 @@ on:
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-files-truncated, dependency-control-uncited,
           dependency-security-close or
-          dependency-escalate; empty otherwise.
+          dependency-escalate; for apply-patch, before the mint,
+          ci-fix-empty, ci-fix-invalid or ci-fix-escalated, and from its
+          script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
+          empty otherwise.
           Set only by runner steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
       head-sha:
@@ -263,7 +304,7 @@ jobs:
       escalation-reason: >-
         ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason
         || steps.feedback-select.outputs.escalation-reason || steps.dependency-select.outputs.escalation-reason
-        || steps.act-script.outputs.escalation-reason }}
+        || steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
       feedback-round: >-
         ${{ steps.config.outputs.prepare == 'review-threads'
         && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
@@ -360,6 +401,8 @@ jobs:
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited) ;;
+            ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
+            ci-fix-protected-path | ci-fix-not-applied) ;;
             *)
               echo "::error::the escalation-reason input is not a known escalation reason"
               exit 1
@@ -561,6 +604,48 @@ jobs:
           export DEPENDENCY_REVIEW_ROUNDS
           DEPENDENCY_FILE="$DEPENDENCY_DIR/dependency.json" node .base/.github/scripts/pr-unblock/review-dependency.mjs select
 
+      # apply-patch, before the mint: the patch and the report the read model
+      # job of this workflow run uploaded, each downloaded by that job's
+      # attempt, so a re-run of this job alone still finds them. A missing
+      # artifact leaves its directory empty: the select step refuses a missing
+      # patch and reads a missing report as no escalation.
+      - name: Download the patch
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-state == 'written' && inputs.patch-attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: patch-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-attempt }}
+          path: ${{ runner.temp }}/lane-patch
+
+      - name: Download the model job's report
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.reply-attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: skill-reply-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.reply-attempt }}
+          path: ${{ runner.temp }}/lane-patch-report
+
+      # apply-patch, before the mint and the head checkout, with no token:
+      # the base's apply-ci-fix.mjs checks the patch artifact against the
+      # model job's SHA-256 and head, and reads its report. A moved head skips
+      # superseded-sha; an empty or invalid patch escalates with nothing
+      # minted; an escalated check in the report escalates after the push.
+      - name: Select the patch
+        id: patch-select
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+        env:
+          PATCH_STATE: ${{ inputs.patch-state }}
+          PATCH_SHA256: ${{ inputs.patch-sha256 }}
+          PATCH_HEAD_SHA: ${{ inputs.patch-head-sha }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          PATCH_DIR: ${{ runner.temp }}/lane-patch
+          REPORT_DIR: ${{ runner.temp }}/lane-patch-report
+        run: node .base/.github/scripts/pr-unblock/apply-ci-fix.mjs select
+
       # A read activity belongs in pr-run-activity-read.yml, whose run holds no
       # App key; the caller chose the wrong file.
       - name: Assert the effect is not read
@@ -580,6 +665,7 @@ jobs:
           steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
           && steps.feedback-select.outputs.proceed != 'false'
           && steps.dependency-select.outputs.proceed != 'false'
+          && steps.patch-select.outputs.proceed != 'false'
           && steps.issue-prior.outputs.proceed != 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
@@ -793,7 +879,8 @@ jobs:
       - name: Read the hold labels from the base
         id: hold-label
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
+          steps.head-recheck.outputs.proceed == 'true'
+          && (steps.config.outputs.kind == 'skill' || steps.config.outputs.prepare == 'apply-patch')
           && inputs.issue-number == ''
         env:
           RESOLVED: ${{ runner.temp }}/resolved-config.json
@@ -1223,7 +1310,7 @@ jobs:
             ${{ steps.act-skill.outputs.execution_file
             || format('{0}/claude-execution-output.json', runner.temp) }}
           lane: ${{ inputs.lane }}
-          credential: CLAUDE_CODE_OAUTH_TOKEN
+          credential: AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN
           max-turns: ${{ steps.config.outputs.max-turns }}
 
       - name: Upload the skill's final reply
@@ -1871,6 +1958,12 @@ jobs:
           DEPENDENCY_VERDICT_DIR: ${{ inputs.dependency-verdict && format('{0}/dependency-verdict', runner.temp) || '' }}
           DEPENDENCY_RUN_SHA256: ${{ inputs.dependency-run-sha256 }}
           DEPENDENCY_RUN_ATTEMPT: ${{ inputs.dependency-run-attempt }}
+          # apply-patch only; empty otherwise. The select step checked the
+          # patch before the mint; the script checks its SHA-256 again.
+          PREPARE: ${{ steps.config.outputs.prepare }}
+          PATCH_FILE: ${{ steps.config.outputs.prepare == 'apply-patch' && format('{0}/lane-patch/patch.diff', runner.temp) || '' }}
+          PATCH_SHA256: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-sha256 || '' }}
+          HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
           ESCALATION_REASON_FILE: ${{ runner.temp }}/escalation-reason
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then
@@ -1905,14 +1998,17 @@ jobs:
             fi
           fi
           echo "skip-reason=$reason" >>"$GITHUB_OUTPUT"
-          # Only the reply and verdict scripts escalate from here, each with
-          # its own reasons.
+          # Only the reply, verdict and apply-patch scripts escalate from
+          # here, each with its own reasons.
           escalation=""
           if [ -s "$ESCALATION_REASON_FILE" ]; then
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
+              :ci-fix-invalid | :ci-fix-protected-path | :ci-fix-not-applied)
+                [ "$PREPARE" = apply-patch ] || { echo "::error::the escalation reason file holds no reason this script may give"; exit 1; }
+                ;;
               *)
                 # The verdict script's reasons, only in dependency-verdict mode.
                 case "$FEEDBACK_REPLIES_DIR:$DEPENDENCY_VERDICT_DIR:$escalation" in
@@ -1945,6 +2041,7 @@ jobs:
             || steps.act-script.outputs.skip-reason
             || steps.feedback-select.outputs.skip-reason
             || steps.dependency-select.outputs.skip-reason
+            || steps.patch-select.outputs.skip-reason
             || steps.issue-prior.outputs.skip-reason }}
           ACT_OUTCOME: >-
             ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
