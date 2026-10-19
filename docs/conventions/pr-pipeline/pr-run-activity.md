@@ -56,7 +56,7 @@ permissions, and passes no App key.
 | `pr-number` | `''` | The PR on `workflow_dispatch` |
 | `timeout-minutes` | `30` | The run job's timeout; the report job's is fixed at 10 |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3); in the write file also a `pr-feedback-dispatch.yml` run |
-| `trusted-base` | `pr-base` | Write file only: `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
+| `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-sha256` output |
@@ -185,7 +185,7 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `workflow_run`) it is read from the PR with the job's `GITHUB_TOKEN`. It then fails red unless
    the gate's `base-sha` is an ancestor of the default branch tip (`git merge-base --is-ancestor`),
    and checks that SHA out in `.base`. Nothing the PR's base branch chose runs before this check.
-   With the write file's `trusted-base: default-tip` (`mode: default-tip`) it checks out the
+   With `trusted-base: default-tip` (`mode: default-tip`) it checks out the
    default branch tip instead, after the same checks: a PR in merge conflict keeps a stale base
    SHA, and the lane must run the tip's config and actions and merge the tip. The checked-out SHA
    is the `base-sha` output either way, and the merge's second parent in
