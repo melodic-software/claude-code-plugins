@@ -250,6 +250,70 @@ test("a sweep stopped mid-loop keeps the verdicts it reached in the summary", ()
   );
 });
 
+// A failed lane merge holds the gate until a human closes its demotion
+// record, and only a `--remediate` run under the lanes App files one (pr-merge
+// run 39201629405 refused every candidate on a failure with no record).
+test("a failed lane merge reruns the check with --remediate under the lane token", () => {
+  const names = steps.map((s) => s.name);
+  const check = names.indexOf("Check earlier lane merges");
+  const record = names.indexOf("Record a failed lane merge");
+  assert.ok(check >= 0 && record === check + 1, "the record step follows the check");
+  assert.ok(record < names.indexOf("Run the merge gate on each candidate"));
+  const block = step("Record a failed lane merge");
+  assert.match(block, /\n {8}if: steps\.mode\.outputs\.live == 'true' && steps\.post-merge\.outputs\.code == '1'\n/);
+  assert.match(block, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
+  assert.match(runScript("Check earlier lane merges"), /^echo "code=\$code" >>"\$GITHUB_OUTPUT"$/m);
+});
+
+// Runs the record step against a fake python3 that saves its arguments,
+// prints `report` and exits `code`.
+const runRecord = (code, report = { remediation: { errors: [] } }) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-record-"));
+  try {
+    const bin = join(dir, "bin");
+    execFileSync("mkdir", [bin]);
+    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >"${dir}/args"\ncat <<'EOF'\n${JSON.stringify(report)}\nEOF\nexit ${code}\n`);
+    chmodSync(join(bin, "python3"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    const result = spawnSync("bash", ["-c", runScript("Record a failed lane merge")], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r" },
+    });
+    return { status: result.status, stdout: result.stdout, args: readFileSync(join(dir, "args"), "utf8").split("\n") };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("the record step passes --remediate and is quiet when the record was filed", () => {
+  const run = runRecord(1);
+  assert.equal(run.status, 0);
+  assert.ok(run.args.includes("--remediate"), run.args.join(" "));
+  assert.ok(run.args.includes("--lane-merges-only"));
+  assert.equal(run.args[run.args.indexOf("--agent-identity") + 1], "melodic-automation-lanes[bot]");
+  assert.doesNotMatch(run.stdout, /::(warning|error)::/);
+});
+
+// Exit 4 covers both the expected re-run and dispatch refusals and a failed
+// filing, so only the report's errors tell them apart.
+test("the record step warns on refused re-runs and errors when the record was not filed", () => {
+  const refused = runRecord(4, { remediation: { errors: ["re-run: HTTP 403", "dispatch: HTTP 403"] } });
+  assert.equal(refused.status, 0);
+  assert.match(refused.stdout, /^::warning::the post-merge remediation exited 4 /m);
+  assert.doesNotMatch(refused.stdout, /::error::/);
+  for (const error of ["demotion issue: HTTP 403", "dequeue: HTTP 502"]) {
+    const failed = runRecord(4, { remediation: { errors: ["re-run: HTTP 403", error] } });
+    assert.equal(failed.status, 0);
+    assert.match(failed.stdout, /^::error::the post-merge remediation could not file the demotion record/m);
+  }
+  for (const code of [1, 2, 3]) {
+    const crashed = runRecord(code, { reason: "unreadable" });
+    assert.equal(crashed.status, 0);
+    assert.match(crashed.stdout, new RegExp(`^::error::the post-merge remediation exited ${code} with no remediation report`, "m"));
+  }
+});
+
 // Runs the gate step over three candidates with a fake clock: `date +%s`
 // answers each value of `clock` in turn (the first is the loop's start).
 const runBudgetedGate = (budget, clock) => {
