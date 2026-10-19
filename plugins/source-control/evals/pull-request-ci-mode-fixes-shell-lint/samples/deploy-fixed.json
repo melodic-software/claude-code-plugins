@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Pushes a build to the target, trying up to three times.\nset -euo pipefail\n\nretries=3\ntarget=\"${1:?usage: deploy.sh <target>}\"\n\nfor ((attempt = 1; attempt <= retries; attempt++)); do\n  if bash scripts/push.sh \"$target\"; then\n    exit 0\n  fi\n  echo \"attempt $attempt failed\" >&2\ndone\nexit 1\n",
+      "why": "uses retries as the loop bound"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\n# Pushes a build to the target, trying up to three times.\nset -euo pipefail\n\ntarget=\"${1:?usage: deploy.sh <target>}\"\n\nfor attempt in 1 2 3; do\n  if bash scripts/push.sh \"$target\"; then\n    exit 0\n  fi\n  echo \"attempt $attempt failed\" >&2\ndone\nexit 1\n",
+      "why": "drops the unused variable"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "#!/usr/bin/env bash\n# Pushes a build to the target, trying up to three times.\nset -euo pipefail\n\nretries=3\ntarget=\"${1:?usage: deploy.sh <target>}\"\n\nfor attempt in 1 2 3; do\n  if bash scripts/push.sh \"$target\"; then\n    exit 0\n  fi\n  echo \"attempt $attempt failed\" >&2\ndone\nexit 1\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\n# Pushes a build to the target, trying up to three times.\nset -euo pipefail\n\n# shellcheck disable=SC2034\nretries=3\ntarget=\"${1:?usage: deploy.sh <target>}\"\n\nfor attempt in 1 2 3; do\n  if bash scripts/push.sh \"$target\"; then\n    exit 0\n  fi\n  echo \"attempt $attempt failed\" >&2\ndone\nexit 1\n",
+      "why": "suppressed"
+    }
+  ]
+}

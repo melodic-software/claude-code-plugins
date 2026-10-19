@@ -81,13 +81,13 @@ deleted worktree does, and every row must carry all three as its caveat, never "
 - a path on an **unmounted network share** or a **detached external volume**;
 - **another lane's live worktree whose main clone has been moved, deleted, or unmounted**: it still
   holds all its work and still carries its `.git` file, but `rev-parse` fails, which is the case
-  [cleanup.md](cleanup.md) Step 4b guards against;
+  [cleanup.md](cleanup.md) Step 4a guards against;
 - any directory whose contents nobody has accounted for.
 
 So before confirming a row, check it the way `cleanup` does. **Strip every trailing separator from
 the path first**, then: not a symlink, no `.git` entry, empty. The normalization is required, not
 cosmetic: `test -L "<path>/"` resolves through the link and answers about its target, so one trailing
-character turns the symlink check into a silent pass ([cleanup.md](cleanup.md) Step 4b carries the
+character turns the symlink check into a silent pass ([cleanup.md](cleanup.md) Step 4a carries the
 measurement). Strip it the way `cleanup` does, every trailing separator the platform recognizes,
 never a single `${path%/}` pass; off Windows a trailing `\` is a legal filename byte and must
 survive, or the checks and remedy point at a different sibling path:
@@ -194,4 +194,4 @@ Read-only: neither the scan nor this step removes anything.
   commands are in Step 2b, and they are yours to run, not the audit's.
 ```
 
-Stranded and unproven counts lead the health list and are reported even when zero: a class that only appears when non-zero cannot be distinguished from one that was never measured, and "the Work axis could not be computed" is exactly the answer an audit must not swallow. `in-progress` and `dirty` follow them for the same reason: both are classes `/worktree cleanup` refuses to act on, and `in-progress` is invisible to `git status --porcelain`, so nothing else in the audit surfaces it unless named here.
+Every stranded row contributes its unpushed commits to "commits at risk", including `superseded` and `unknown` rows, so the count and the figure are computed over the same rows; a row whose `unpushed` is `?` is named as unknown, never added as zero. Stranded and unproven counts lead the health list and are reported even when zero: a class that only appears when non-zero cannot be distinguished from one that was never measured, and "the Work axis could not be computed" is exactly the answer an audit must not swallow. `in-progress` and `dirty` follow them for the same reason: both are classes `/worktree cleanup` refuses to act on, and `in-progress` is invisible to `git status --porcelain`, so nothing else in the audit surfaces it unless named here.

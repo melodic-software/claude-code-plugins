@@ -65,14 +65,20 @@ async function run(text) {
   }
 }
 
+// The live config with one more line in its own `limits` block.
+const withLimit = (line) => {
+  assert.match(LIVE, /^limits:\n/m, "the live config has a limits block");
+  return LIVE.replace(/^limits:\n/m, `limits:\n  ${line}\n`);
+};
+
 test("the base config's limits.limit-stops-per-head decides whether a reset limit stop still holds the head", async () => {
   assert.deepEqual(await run(LIVE), { code: 0, dispatched: ["40"] });
-  assert.deepEqual(await run(`${LIVE}\nlimits:\n  limit-stops-per-head: 1\n`), { code: 0, dispatched: [] });
+  assert.deepEqual(await run(withLimit("limit-stops-per-head: 1")), { code: 0, dispatched: [] });
 });
 
 test("a base config the resolver refuses fails the run before any dispatch", async () => {
   const dispatched = [];
-  const base = baseWith(`${LIVE}\nlimits:\n  limit-stops-per-head: 0\n`);
+  const base = baseWith(withLimit("limit-stops-per-head: 0"));
   try {
     await assert.rejects(
       main(
