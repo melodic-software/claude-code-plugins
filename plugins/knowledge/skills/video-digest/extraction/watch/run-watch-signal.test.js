@@ -85,4 +85,49 @@ describe.skipIf(process.platform === "win32")("run-watch interrupted by a signal
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(await watchTempDirs()).toEqual([]);
   });
+
+  it("SIGTERM also ends a grandchild the yt-dlp child started", async () => {
+    const grandPid = path.join(sandbox, "grandchild.pid");
+    // A real yt-dlp runs ffmpeg as its own child; this one leaves a writer looping
+    // in the background, which outlives a SIGKILL sent to yt-dlp alone.
+    await fs.writeFile(
+      path.join(sandbox, "bin", "yt-dlp"),
+      `#!/bin/sh\n( while :; do\n  for d in "$TMPDIR"/video-extraction-*; do\n    [ -d "$d" ] && echo x >> "$d/merge.part"\n  done\n  sleep 0.05\ndone ) &\necho $! > "${grandPid}"\ntouch "${started}"\nwait\n`,
+      { mode: 0o755 },
+    );
+    const child = spawn(process.execPath, [RUN_WATCH, URL_UNDER_TEST], {
+      env: {
+        ...process.env,
+        PATH: `${path.join(sandbox, "bin")}${path.delimiter}${process.env.PATH}`,
+        TMPDIR: fakeTmp,
+        VIDEO_DIGEST_WORK_ROOT: path.join(sandbox, "work"),
+      },
+      stdio: "ignore",
+    });
+    const exited = new Promise((resolve) => child.on("exit", (code, sig) => resolve({ code, sig })));
+
+    await waitFor(() => existsSync(started));
+    const pid = Number(await fs.readFile(grandPid, "utf8"));
+    child.kill("SIGTERM");
+    expect(await exited).toEqual({ code: 143, sig: null });
+
+    const alive = () => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    try {
+      await waitFor(() => !alive(), 2_000).catch(() => {});
+      expect(alive()).toBe(false);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(await watchTempDirs()).toEqual([]);
+    } finally {
+      if (alive()) process.kill(pid, "SIGKILL");
+    }
+    // A surviving grandchild holds yt-dlp's pipes open, so the run waits out its
+    // settle window before exiting; the timeout leaves room for that failure.
+  }, 30_000);
 });

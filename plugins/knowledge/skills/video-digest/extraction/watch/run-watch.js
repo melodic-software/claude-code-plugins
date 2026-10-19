@@ -198,19 +198,39 @@ class InterruptedError extends Error {
  * Track every child the run spawns (yt-dlp, ffmpeg, ...) so a signal can end them.
  * The shared spawn helper keeps no handle on its children, so `spawn` is wrapped
  * for the life of the run; once interrupted, a child spawned late is ended at once.
+ * On POSIX each child leads its own process group and the whole group is killed,
+ * so yt-dlp's ffmpeg goes with it. On Windows only the direct child is killed, and
+ * a grandchild can outlive the interrupt.
  *
  * @param {TempDirs} temp
  */
 function trackChildren(temp) {
   const originalSpawn = childProcess.spawn;
+  const groups = process.platform !== "win32";
   /** @type {Set<import('node:child_process').ChildProcess>} */
   const live = new Set();
+  /** @param {import('node:child_process').ChildProcess} child */
+  const kill = (child) => {
+    if (groups && child.pid) {
+      try {
+        process.kill(-child.pid, "SIGKILL");
+        return;
+      } catch {
+        // The group is already gone; fall through to the direct kill.
+      }
+    }
+    child.kill("SIGKILL");
+  };
   childProcess.spawn = /** @type {typeof childProcess.spawn} */ (
-    function trackedSpawn(...args) {
-      const child = originalSpawn.apply(this, args);
+    function trackedSpawn(command, ...rest) {
+      if (groups) {
+        const at = rest[0] == null || Array.isArray(rest[0]) ? 1 : 0;
+        rest[at] = { ...rest[at], detached: true };
+      }
+      const child = originalSpawn.call(this, command, ...rest);
       live.add(child);
       child.once("close", () => live.delete(child));
-      if (temp.interrupted) child.kill("SIGKILL");
+      if (temp.interrupted) kill(child);
       return child;
     }
   );
@@ -218,7 +238,7 @@ function trackChildren(temp) {
   return {
     interrupt() {
       temp.interrupted = true;
-      for (const child of live) child.kill("SIGKILL");
+      for (const child of live) kill(child);
     },
     stop() {
       childProcess.spawn = originalSpawn;
