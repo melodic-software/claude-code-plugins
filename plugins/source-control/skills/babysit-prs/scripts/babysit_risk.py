@@ -186,6 +186,7 @@ HIGH_FLOOR: tuple[str, ...] = (
     "**/.gitmodules",
     "**/CLAUDE.local.md",
     "**/.mcp.json",
+    "**/.lsp.json",
     "**/AGENTS.override.md",
 )
 # Floor entries `merge.diff-check.high-path-floor` gates in every lane.

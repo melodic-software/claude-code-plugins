@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -20,11 +21,33 @@ import types
 import unittest
 from unittest import mock
 
+# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
+# fixtures' identity writes into the caller's repository
+# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-import babysit_merge as merge
-import babysit_merge_policy as policy
-from babysit_risk import ChangedFile, LaneEvidence, Risk, RiskInput, Rung, score
+import babysit_merge as merge  # noqa: E402  (follows the git-env clear above)
+import babysit_merge_policy as policy  # noqa: E402
+from babysit_risk import (  # noqa: E402
+    ChangedFile,
+    LaneEvidence,
+    Risk,
+    RiskInput,
+    Rung,
+    score,
+)
 
 MCP = json.dumps(
     {
@@ -260,6 +283,12 @@ class DeclaredExecutableTests(unittest.TestCase):
         result = _risk("plugins/example-plugin/bin/example-tool", declarations=())
         self.assertIs(result.score, Risk.HIGH)
         self.assertIn("high-path:plugins/*/bin/**", _codes(result))
+
+    def test_declared_executable_changed_lsp_declaration_scores_high(self):
+        # The declaration file itself, added or edited, with no base declaration.
+        result = _risk("plugins/x/.lsp.json", declarations=())
+        self.assertIs(result.score, Risk.HIGH)
+        self.assertIn("high-path:**/.lsp.json", _codes(result))
 
     def test_declared_executable_lsp_file_scores_high(self):
         declarations = _one(
