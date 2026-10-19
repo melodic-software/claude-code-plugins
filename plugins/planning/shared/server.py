@@ -192,6 +192,7 @@ ROUTES = {
     "/api/annotate": ("person", "annotate"),
     "/api/request": ("person", "request"),
     "/api/request/act": ("owner", "act_on_request"),
+    "/api/result/share": ("person", "share_result"),
     "/api/round/ready": ("moderator", "ready_round"),
     "/api/round/send": ("owner", "send_round"),
     "/api/round/cancel": ("owner", "cancel_round"),

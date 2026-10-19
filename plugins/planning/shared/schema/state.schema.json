@@ -192,6 +192,7 @@
         "uploads": {"type": "boolean"},
         "claudeTake": {"enum": ["answerFirst", "always"]},
         "approveJoins": {"description": "New joins wait for the owner's admit; absent is off.", "type": "boolean"},
+        "reviewAnswers": {"description": "Every answer waits for the owner's Share. A new session writes it off; absent (a session from before it) is on.", "type": "boolean"},
         "theme": {
           "type": "object",
           "required": ["mode", "accent"],
@@ -853,9 +854,10 @@
         "claude": {
           "description": "Claude's shared answer to a request about the whole session, written as the host's message.",
           "type": "object",
-          "required": ["result"],
-          "additionalProperties": false,
-          "properties": {"result": {"type": "string"}}
+          "oneOf": [
+            {"required": ["result"], "additionalProperties": false, "properties": {"result": {"type": "string"}}},
+            {"required": ["takenDown"], "additionalProperties": false, "properties": {"takenDown": {"const": true}}, "description": "The owner took the answer down; its text reads so."}
+          ]
         },
         "reactions": {
           "description": "emoji -> the people who put it on this message; at most 20 emoji, from the page's fixed set (session.CHAT_EMOJI).",
@@ -900,6 +902,7 @@
         "pid": {"$ref": "#/$defs/pid"},
         "qid": {"$ref": "#/$defs/qid"},
         "msg": {"type": "string", "description": "The chat message whose \"@Claude\" filed it."},
+        "audience": {"enum": ["me"], "description": "Just me: its answer shows to its asker and the owner until one of them shares it; absent asks for everyone."},
         "at": {"$ref": "#/$defs/ts"},
         "kind": {"$ref": "#/$defs/requestKind"},
         "text": {"$ref": "#/$defs/text"},
@@ -991,7 +994,9 @@
           ]
         },
         "published": {"type": "boolean"},
-        "publishedAt": {"$ref": "#/$defs/ts"}
+        "publishedAt": {"$ref": "#/$defs/ts"},
+        "private": {"const": true, "description": "Unshared, and its asker sees it: a Just me answer, or one the owner took down."},
+        "takenDown": {"type": "object", "required": ["at"], "additionalProperties": false, "properties": {"at": {"$ref": "#/$defs/ts"}}, "description": "The owner took it down; only the owner shares it again."}
       }
     },
     "upload": {
