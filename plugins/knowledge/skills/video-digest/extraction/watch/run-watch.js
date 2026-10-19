@@ -220,6 +220,13 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     entryCount: entries.length,
     videoDownloaded: Boolean(primary?.mediaPath),
     captionRung: primary?.caption?.rung ?? null,
+    primaryMedia: primary
+      ? {
+          video: primary.mediaPath ? path.basename(primary.mediaPath) : null,
+          infoJson: primary.metadataPath ? path.basename(primary.metadataPath) : null,
+          caption: primary.caption?.path ? path.basename(primary.caption.path) : null,
+        }
+      : null,
     ...(envelope.acquireMetrics ?? {}),
   });
 

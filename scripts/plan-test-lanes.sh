@@ -85,7 +85,7 @@ plugins/miro/server plugins/miro/
 plugins/ai-briefing/skills/generate/output/build plugins/ai-briefing/skills/generate/ plugins/ai-briefing/skills/generate/scripts/run-tests.sh
 plugins/knowledge/skills/video-digest/extraction plugins/knowledge/skills/video-digest/ plugins/knowledge/skills/video-digest/scripts/run-tests.sh
 plugins/knowledge/skills/course-digest/extraction plugins/knowledge/skills/course-digest/ plugins/knowledge/skills/course-digest/scripts/run-tests.sh
-.github/actions/resolve-config .github/actions/resolve-config/ docs/conventions/pr-pipeline/ docs/conventions/pr-pipeline.yaml .github/scripts/pr-unblock/feedback-dispatch.mjs"
+.github/actions/resolve-config .github/actions/resolve-config/ docs/conventions/pr-pipeline/ docs/conventions/pr-pipeline.yaml .github/scripts/pr-unblock/feedback-dispatch.mjs .github/scripts/pr-unblock/fix-ci-context.mjs"
 
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}" >&2

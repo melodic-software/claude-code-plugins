@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, dispatchFeedback, main } from "./feedback-dispatch.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
@@ -568,4 +569,93 @@ test("the API client reads review threads across pages through GraphQL", async (
     bodies.map((body) => body.variables.after),
     [null, "c1"],
   );
+});
+
+// The record one run leaves for the next at the same head. `counting` wraps
+// a fake so every API call is counted by method.
+function counting(api) {
+  const counts = {};
+  const wrapped = { calls: api.calls, upstream: api.upstream };
+  for (const [name, value] of Object.entries(api)) {
+    if (typeof value === "function") {
+      wrapped[name] = (...args) => {
+        counts[name] = (counts[name] ?? 0) + 1;
+        return value(...args);
+      };
+    }
+  }
+  return { api: wrapped, counts };
+}
+
+async function decideWith(api, record, resolved = resolvedLane()) {
+  const lines = [];
+  const result = await dispatchFeedback({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    upstream: api.upstream,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    resolveSlot: async () => resolved,
+    log: (line) => lines.push(line),
+    record,
+  });
+  return { result, lines };
+}
+
+test("a head a finished run handled is recorded, and a later run at that head reads nothing", async () => {
+  const handled = { id: 7, name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", output: { title: "Done" } };
+  const record = emptyRecord();
+  const first = counting(fakeApi({ checkRuns: [handled] }));
+  assert.equal((await decideWith(first.api, record)).result, null);
+  // Without a record: the PR, comments, threads, run listing and check runs.
+  assert.deepEqual(first.counts, { pullsForCommit: 1, listIssueComments: 1, listReviewThreads: 1, listWorkflowRuns: 1, listCheckRuns: 1 });
+  const later = counting(fakeApi({ checkRuns: [handled] }));
+  const { result, lines } = await decideWith(later.api, parseRecord(serializeRecord(record)));
+  assert.equal(result, null);
+  assert.deepEqual(later.counts, {});
+  assert.deepEqual(lines, [`skip: head ${HEAD} already has a pr-unblock / address-feedback check run (recorded)`]);
+});
+
+test("a limit-stopped run is not recorded", async () => {
+  const record = emptyRecord();
+  const stopped = failedRun("lane=pr-unblock activity=address-feedback class=rate-limit resets=2026-10-17T12:00:00Z");
+  await decideWith(fakeApi({ checkRuns: [stopped] }), record);
+  assert.equal(record.handled.size, 0);
+});
+
+test("a later run at a head whose dispatched run is still going skips after one read of that run", async () => {
+  const record = emptyRecord();
+  const first = await decideWith(fakeApi(), record);
+  assert.deepEqual(first.result, { number: 42, workflowRunId: "38779200001" });
+  assert.deepEqual(record.dispatched.get(HEAD), { number: 42, runId: "38779200001" });
+
+  const going = { id: 38779200001, status: "in_progress", display_title: TITLE_42, created_at: "2026-10-17T10:05:00Z" };
+  const run = { run_started_at: "2026-10-17T10:00:00Z" };
+  // Without the record the same run is found in the run listing: the same skip.
+  const full = counting(fakeApi({ run, workflowRuns: [going] }));
+  assert.equal((await decideWith(full.api, emptyRecord())).result, null);
+  assert.deepEqual(full.counts, { pullsForCommit: 1, listIssueComments: 1, listReviewThreads: 1, listWorkflowRuns: 1 });
+
+  const later = counting({ ...fakeApi({ run, workflowRuns: [going] }), getWorkflowRun: async () => going });
+  const { result, lines } = await decideWith(later.api, record);
+  assert.equal(result, null);
+  assert.deepEqual(later.counts, { pullsForCommit: 1, getWorkflowRun: 1 });
+  assert.ok(lines.at(-1).endsWith("is not done yet (recorded)"));
+});
+
+test("a recorded run that finished, started before this review, or cannot be read takes the full path", async () => {
+  const record = emptyRecord();
+  record.dispatched.set(HEAD, { number: 42, runId: "38779200001" });
+  const run = { run_started_at: "2026-10-17T10:00:00Z" };
+  for (const getWorkflowRun of [
+    async () => ({ id: 1, status: "completed", display_title: TITLE_42, created_at: "2026-10-17T10:05:00Z" }),
+    async () => ({ id: 1, status: "queued", display_title: TITLE_42, created_at: "2026-10-17T09:55:00Z" }),
+    async () => {
+      throw new Error("GET returned 404");
+    },
+  ]) {
+    const { result } = await decideWith({ ...fakeApi({ run }), getWorkflowRun }, record);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+  }
 });
