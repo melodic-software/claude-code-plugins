@@ -3793,6 +3793,8 @@
       if (ui.reqEditing.has(r.id) && val && val !== r.text) await Core.requestAct(r.id, "edit", val);
       ui.reqEditing.delete(r.id);
     }
+    // A refused run says why in the session's own words ("None of these requests is still waiting.").
+    const runFail = e => (e?.error === "wrong-status" && e.message ? flash(`Not run: ${e.message}`) : fail(e));
     async function runAllShown() {
       const items = [...RQ.list.children].filter(li => li._r?.status === "pending" && ui.reqSeen.has(li._r.id));
       if (!items.length) return;
@@ -3802,7 +3804,7 @@
         const ids = items.map(li => li._r.id);
         const r = await Core.runRequests(ids);
         flash(`Running ${r.ran?.length ?? ids.length} request${ids.length > 1 ? "s" : ""}.`);
-      } catch (e) { fail(e); }
+      } catch (e) { runFail(e); }
       finally { runAllBtn.disabled = false; render(); }
     }
     function makeReq() {
@@ -3840,7 +3842,7 @@
       decline.onclick = () => { Core.requestAct(li._r.id, "decline").then(() => flash("Request declined.")).catch(fail); };
       run.onclick = async () => {
         run.disabled = true;
-        try { await saveOpenEdit(li); await Core.requestAct(li._r.id, "run"); flash("Running. The result shows on the question."); } catch (e) { fail(e); }
+        try { await saveOpenEdit(li); await Core.runRequests([li._r.id]); flash("Running. The result shows on the question."); } catch (e) { runFail(e); }
         finally { run.disabled = false; render(); }
       };
       return li;
@@ -4353,7 +4355,7 @@
       li._self = makeSelfActs();
       li.append(head, who, text, acts, li._self);
       li._att = attRowEl(); text.after(li._att);
-      run.onclick = () => Core.requestAct(li._r.id, "run").then(() => flash("Running. The result shows here.")).catch(fail);
+      run.onclick = () => Core.requestAct(li._r.id, "run").then(() => flash("Running. The result shows here.")).catch(runFail);
       decline.onclick = () => Core.requestAct(li._r.id, "decline").then(() => flash("Request declined.")).catch(fail);
       failB.onclick = () => Core.requestAct(li._r.id, "fail").then(() => flash("Marked failed. The requester sees it.")).catch(fail);
       rerun.onclick = () => Core.requestAct(li._r.id, "rerun").then(() => flash("Running again.")).catch(fail);
@@ -5090,7 +5092,7 @@
       const a = [];
       if (it.t === "request" && owner) {
         if (it.r.status === "pending") a.push(qAct("Decline", "vf-btn-ghost", () => Core.requestAct(it.r.id, "decline").then(() => flash("Request declined.")).catch(fail)),
-          qAct("Run", "vf-btn-primary", () => Core.requestAct(li._it.r.id, "run").then(() => flash("Running. The result shows on the question.")).catch(fail)));
+          qAct("Run", "vf-btn-primary", () => Core.requestAct(li._it.r.id, "run").then(() => flash("Running. The result shows on the question.")).catch(runFail)));
         else if (it.r.status === "running") a.push(qAct("Mark failed", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "fail").catch(fail)));
         else a.push(qAct("Run again", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "rerun").catch(fail)));
         a.push(qAct("Edit in Requests", "vf-btn-ghost", () => openPanel(RQ.pop, reqRow.offsetParent ? reqRow : li)));
@@ -5550,6 +5552,7 @@
       runAllBtn.lastChild.textContent = `Run all shown (${runnable})`;
       runAllBtn.setAttribute("aria-disabled", String(!runnable));
       runAllBtn.disabled = !runnable;
+      runAllBtn.hidden = !pending.length;
       proposeBtn.hidden = (!!S.ended && !me.isOwner) || !!S.youRemoved;
       if (proposeBtn.hidden && ui.pop === proposePop) closePop();
       railFoot.hidden = propRow.hidden && myProp.hidden && reqRow.hidden && proposeBtn.hidden;

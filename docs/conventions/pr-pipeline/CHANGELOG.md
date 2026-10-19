@@ -1,14 +1,17 @@
 # Changelog for the PR pipeline convention
 
-## 2.16.0 - 2026-10-18
+## 2.15.1 - 2026-10-18
 
-`merge.dependabot.majors` (`hold` or `review`, default `hold`) decides a Dependabot pull request
-with a major update, or with an update whose version cannot be read (a SHA pin), which is marked
-`<name>(unreadable)`, or whose title and commit metadata disagree, marked `<name>(disagree)`. Under `hold` the pr-merge lane refuses it with the reason
-`dependabot-major-held:<names>` whatever the review verdict says, and escalates it once: a marked
-comment, then the tracker's human-gated role label. `review` keeps the earlier behavior, where the
-lanes App's `verdict=merge` marker merges it. This repository sets `hold`. Non-major tiers and the
-publisher rule are unchanged. `version` stays 2.
+`work-resolve-issue` no longer takes the model's word that its checks passed. A new `run-checks`
+job, on a fresh runner after `resolve-issue`, runs each of the activity's `checks` from the default
+branch tip's copy against a checkout of the lane branch whose `scripts/` is the base's, so
+`scripts/fragment-plugins.txt` comes from the base and only the branch's own files, such as
+`.changes/`, are checked. It hands the results (branch, tip, each check's exit status) to
+`report-outcome` as a job output, never through the outcome artifact that code the model started
+can rewrite, and only when `run-checks` succeeded. `report-outcome` lists those results under
+Verification and stops a done run whose checks failed, are missing, or ran on a tip the branch has
+since left, even when the outcome file's `not_done` is empty ([#7497](https://github.com/melodic-software/claude-code-plugins/issues/7497)).
+`version` stays 2.
 
 ## 2.15.0 - 2026-10-18
 
