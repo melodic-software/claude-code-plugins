@@ -565,7 +565,7 @@ for (const [label, overrides] of [
     dispatcher: { run_attempt: 2, triggering_actor: null },
   }],
   ["the dispatcher run has no run_started_at", { dispatcher: { run_started_at: null } }],
-  ["the dispatcher run has an unparseable updated_at", { dispatcher: { updated_at: "soon" } }],
+  ["the dispatcher run has an unparsable updated_at", { dispatcher: { updated_at: "soon" } }],
   ["the dispatcher run has no run_attempt", { dispatcher: { run_attempt: null } }],
   ["this run has no created_at", { self: { created_at: null } }],
 ]) {

@@ -92,7 +92,7 @@ condition 1 and the actor and author parts of condition 2).
   a first `completed` seen after the 24th wait refuses at once. Each wait logs
   `dispatcher record: absent, re-read N` with the two run ids.
 
-  A failed read, a missing or unparseable field, or any failed condition stops with
+  A failed read, a missing or unparsable field, or any failed condition stops with
   `untrusted-actor`. The re-runner of a dispatched run is read by id from this run's
   `triggering_actor`: `github-actions[bot]` on attempt 1, otherwise a listed id that is not
   denied, or the lane stops with `untrusted-rerunner`. The PR author check still applies.

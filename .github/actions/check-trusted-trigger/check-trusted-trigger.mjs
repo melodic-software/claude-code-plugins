@@ -366,7 +366,7 @@ async function verifyDispatcher({
   // and head_sha, so the branch and ancestry checks below hold for it too.
   const viaRun = dispatcher.event === "workflow_run";
   const expectedPath = viaRun ? runDispatcherWorkflow : dispatcherWorkflow;
-  // Comparisons with NaN are false, so a missing or unparseable time refuses.
+  // Comparisons with NaN are false, so a missing or unparsable time refuses.
   const trusted =
     own.path === dispatchedWorkflow &&
     own.event === "workflow_dispatch" &&
