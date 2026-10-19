@@ -84,6 +84,7 @@ MAX_OPEN_UPLOADS = 10
 MAX_RUN_IDS = 100
 NOTIFY_CAP = 500
 MAX_INBOX_READ = 100  # judgment: Inbox items one read marks; a person opens one at a time, "all" sends the unread ones
+INBOX_MARKS = ("waiting", "running", "answered", "unshared", "shared", "declined", "failed", "open")  # state.schema.json inboxSeen
 INBOX_STATUS = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}  # a request's Inbox status; done is answered, shared or unshared
 NOTIFY_SHOWN = 100
 # Presence (amendment "Presence", 2026-10-16; values are judgment). Offline after OFFLINE_AFTER with
@@ -3775,18 +3776,28 @@ class Session:
 
     def read_inbox(self, pid, body):
         """POST /api/inbox/read: `{keys}`, Inbox items this person opened, each read at its status now; allowed while
-        ended. Only keys of this person's own Inbox count, and marks of items no longer in it are dropped."""
-        keys = _body(body).get("keys")
+        ended; one write a second, like notifications/read. Only keys of this person's own Inbox count, marks of items
+        no longer in it are dropped, and a read that marks nothing writes nothing."""
+        keys, saw = _body(body).get("keys"), body.get("saw", {})
         if not (isinstance(keys, list) and 0 < len(keys) <= MAX_INBOX_READ and all(isinstance(k, str) for k in keys)):
             raise _bad("keys", f"Send keys: 1 to {MAX_INBOX_READ} Inbox item keys.")
-        with self._tx() as st:
+        # `saw`: the status the page showed for a key, so a read sent after the status moved again leaves that move unread
+        if not (isinstance(saw, dict) and len(saw) <= MAX_INBOX_READ and all(v in INBOX_MARKS for v in saw.values())):
+            raise _bad("saw", "saw maps an Inbox key to the status the page showed.")
+        with self._lock:
             self._person(pid)
+            self._throttle(pid, "inbox-read", self.now())
+            items = {i["key"]: i["status"] for i in self._inbox(pid)}
+            seen = self.state["inboxSeen"].get(pid, {})
+            if not any(k in items and seen.get(k) != saw.get(k, items[k]) for k in keys):
+                return {"read": 0}
+        with self._write_as(pid, "inbox-read", check=self._person) as st:
             items = {i["key"]: i["status"] for i in self._inbox(pid)}
             seen = {k: v for k, v in st["inboxSeen"].get(pid, {}).items() if k in items}
             n = 0
             for k in keys:
-                if k in items and seen.get(k) != items[k]:
-                    seen[k] = items[k]
+                if k in items and seen.get(k) != saw.get(k, items[k]):
+                    seen[k] = saw.get(k, items[k])
                     n += 1
             if seen:
                 st["inboxSeen"][pid] = seen

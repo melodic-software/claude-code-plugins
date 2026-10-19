@@ -2493,7 +2493,7 @@
     }
     function openInboxItem(i) {
       closePop();
-      if (i.unread) Core.readInbox([i.key]).catch(() => {});
+      if (i.unread) Core.readInbox([i.key], { [i.key]: i.status }).catch(() => {});
       const host = () => { setMode("host"); if (phone.matches) setTab("host"); };
       if (i.kind === "request" || i.kind === "run") {
         if (!qById(i.qid)) return;
@@ -2540,8 +2540,11 @@
     bellBtn.onclick = () => openBell(bellBtn);
     bpClose.onclick = () => { const a = bellPop._anchor; closePop(); a?.focus?.(); };
     bpAll.onclick = () => {
-      const keys = inbox().filter(i => i.unread).map(i => i.key);
-      if (keys.length) Core.readInbox(keys.slice(0, 100)).catch(fail);
+      const items = inbox().filter(i => i.unread);
+      for (let n = 0; n < items.length; n += 100) { // the server takes 100 a read
+        const part = items.slice(n, n + 100);
+        Core.readInbox(part.map(i => i.key), Object.fromEntries(part.map(i => [i.key, i.status]))).catch(fail);
+      }
       if (notes().some(n => !n.read)) Core.readNotifications("all").catch(fail);
     };
     muteBtn.onclick = () => { ui.muteOpen = !ui.muteOpen; render(); if (ui.muteOpen) muteBox.scrollIntoView({ block: "nearest", behavior: smooth() }); };

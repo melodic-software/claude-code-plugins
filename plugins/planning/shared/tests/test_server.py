@@ -848,6 +848,23 @@ class TestSnapshot(ServerCase):
         self.assertEqual(mine(ann), {req["id"]: False})
         self.assertEqual(self.post("/api/inbox/read", {"keys": [req["id"]]})[0], 401)
 
+    def test_inbox_reads_are_one_a_second_and_a_read_that_marks_nothing_writes_nothing(self):
+        self.open_round("Q1")
+        _, ann = self.join("Ann")
+        ids = []
+        for text in ("one", "two"):
+            ids.append(self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": text}, ann)[2]["id"])
+            time.sleep(1.05)
+        for rid in ids:
+            self.post("/api/request/act", {"action": "decline", "id": rid}, self.owner)
+        self.assertEqual(self.post("/api/inbox/read", {"keys": [ids[0]]}, ann)[0], 200)
+        code, _, out = self.post("/api/inbox/read", {"keys": [ids[1]]}, ann)
+        self.assertEqual((code, out["error"]), (429, "slow-down"))
+        time.sleep(1.05)
+        rev = self.app.session.state["rev"]
+        self.assertEqual(self.post("/api/inbox/read", {"keys": [ids[0]]}, ann)[2]["read"], 0)
+        self.assertEqual(self.app.session.state["rev"], rev)
+
     def test_the_owners_own_request_runs_and_shows_without_run_or_share(self):
         self.open_round("Q1")
         _, guest = self.join("Ann")

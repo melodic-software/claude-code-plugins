@@ -110,13 +110,21 @@ class TestMigrate(unittest.TestCase):
         self.assertEqual(notes, ["inbox: 4 requests of 2 people start read"])
 
     def test_v3_to_v4_reads_an_unshared_answer_as_unshared_and_the_hosts_own_as_answered(self):
-        doc = {"schemaVersion": 3, "requests": [
+        doc = {"schemaVersion": 3, "people": {"pidAnn001": {"status": {"kind": "active"}}}, "requests": [
             {"id": "R1", "pid": "pidAnn001", "status": {"kind": "done", "result": "X1"}},
             {"id": "R2", "pid": "host", "status": {"kind": "done", "result": "X2"}},
             {"id": "R3", "pid": "pidAnn001", "status": {"kind": "done", "result": "X3"}},
         ], "results": {"Q1": [{"id": "X1", "published": False, "by": {"kind": "host-claude"}}, {"id": "X2", "published": False, "by": {"kind": "host-claude"}},
                               {"id": "X3", "published": False, "by": {"kind": "guest-claude", "pid": "pidAnn001"}}]}}
         self.assertEqual(migrate.migrate(doc)["inboxSeen"], {"pidAnn001": {"R1": "unshared", "R3": "answered"}, "host": {"R2": "answered"}})
+
+
+class TestV3ToV4RemovedGuest(unittest.TestCase):
+    def test_a_removed_guests_own_claude_result_migrates_as_unshared_as_the_live_inbox_reads_it(self):
+        doc = {"schemaVersion": 3, "people": {"pidOld0004": {"status": {"kind": "removed"}}, "host": {"status": {"kind": "active"}}},
+               "requests": [{"id": "R1", "pid": "pidOld0004", "status": {"kind": "done", "result": "X1"}}],
+               "results": {"Q1": [{"id": "X1", "published": True, "by": {"kind": "guest-claude", "pid": "pidOld0004"}}]}}
+        self.assertEqual(migrate.migrate(doc)["inboxSeen"], {"pidOld0004": {"R1": "unshared"}})
 
 
 PROTO = FIXTURES / "state-v0-prototype.json"

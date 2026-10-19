@@ -119,6 +119,17 @@ async function main() {
     ok("the Waiting on you tab hides Your requests and Notifications", await until(owner, () => document.querySelector(".vf-ixmine").hidden && document.querySelector(".vf-ixnotes").hidden && !document.querySelector(".vf-ixwait").hidden));
     await owner.locator("button.vf-seg-btn", { hasText: "All" }).click();
 
+    // ---------- Mark all read sends every unread key, 100 a read (the server's cap) ----------
+    const batches = await owner.evaluate(() => {
+      const C = window.Core, real = C.readInbox, inbox = C.state.inbox, sent = [];
+      C.readInbox = keys => { sent.push(keys.length); return Promise.resolve({}); };
+      C.state.inbox = Array.from({ length: 250 }, (_, i) => ({ key: "R" + (1000 + i), group: "mine", unread: true }));
+      document.querySelector(".vf-inboxpop .vf-pp-head .vf-btn").click();
+      C.readInbox = real; C.state.inbox = inbox;
+      return sent;
+    });
+    ok("Mark all read with 250 unread items sends reads of 100, 100 and 50", batches.join() === "100,100,50", batches.join());
+
     // ---------- a guest never sees another person's request ----------
     const leak = await bo.evaluate(([a, b]) => ({ inbox: window.Core.state.inbox.map(i => i.key), text: JSON.stringify(window.Core.snapshot()), a, b }), [ASK2, BO_ASK]);
     ok("Bo's Inbox holds only his own request and nothing waiting", leak.inbox.length === 1 && !leak.text.includes(ASK2) && !leak.text.includes(ASK) && leak.text.includes(BO_ASK)

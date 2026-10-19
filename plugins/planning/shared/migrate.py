@@ -842,6 +842,7 @@ def _v3_to_v4(doc, ctx):
     """inboxSeen, with each person's own requests read at the status they have now, so the upgrade itself makes
     nothing unread; what waits on the owner starts unread."""
     results = {x.get("id"): x for lst in _dict(doc.get("results")).values() for x in _list(lst) if isinstance(x, dict)}
+    people = _dict(doc.get("people"))
     seen = collections.defaultdict(dict)
     for r in _list(doc.get("requests")):
         status = _dict(_dict(r).get("status"))
@@ -850,8 +851,11 @@ def _v3_to_v4(doc, ctx):
             continue
         if kind == "done":
             res = _dict(results.get(status.get("result")))
-            mine = pid == HOST or _dict(res.get("by")).get("pid") == pid
-            mark = "unshared" if not res or not (res.get("published") or mine) else "answered" if pid == HOST or not res.get("published") else "shared"
+            by = _dict(res.get("by"))
+            # session.py's rule: a removed guest's own-Claude result leaves every view
+            gone = by.get("kind") == "guest-claude" and _dict(_dict(people.get(by.get("pid"))).get("status")).get("kind") != "active"
+            visible = bool(res) and not gone and (res.get("published") or pid == HOST or by.get("pid") == pid)
+            mark = "unshared" if not visible else "answered" if pid == HOST or not res.get("published") else "shared"
         else:
             mark = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}.get(kind)
         if mark:

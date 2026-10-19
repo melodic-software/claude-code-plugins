@@ -2431,6 +2431,27 @@ class TestInbox(TestRequests):
         self.act("end_session", HOST, {"on": True})
         self.assertEqual(self.read(self.ann, rid), {"read": 1})
 
+    def test_a_second_read_within_a_second_is_throttled_and_a_read_that_marks_nothing_writes_nothing(self):
+        r1, r2 = self.ask(self.ann, "one"), self.ask(self.ann, "two")
+        self.act("act_on_request", HOST, {"action": "decline", "id": r1})
+        self.act("act_on_request", HOST, {"action": "decline", "id": r2})
+        self.assertEqual(self.read(self.ann, r1), {"read": 1})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.read_inbox(self.ann, {"keys": [r2]})  # same clock: under a second after the last
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+        rev, disk = self.s.state["rev"], self.path.read_text(encoding="utf-8")
+        self.assertEqual(self.read(self.ann, r1, "R99"), {"read": 0})
+        self.assertEqual((self.s.state["rev"], self.path.read_text(encoding="utf-8")), (rev, disk))
+
+    def test_a_read_at_the_status_the_page_showed_leaves_a_later_move_unread(self):
+        rid = self.ask(self.ann)
+        self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+        self.apply(self.result_op(rid))  # the page still showed Running when the person opened it
+        self.clock.tick()
+        self.assertEqual(self.s.read_inbox(self.ann, {"keys": [rid], "saw": {rid: "running"}}), {"read": 1})
+        self.assertEqual((self.inbox(self.ann)[rid]["status"], self.inbox(self.ann)[rid]["unread"]), ("unshared", True))
+        self.refused("bad-field", "read_inbox", self.ann, {"keys": [rid], "saw": {rid: "done"}}, http=400)
+
     def test_a_merge_keeps_the_absorbed_identitys_read_marks(self):
         rid = self.ask(self.bo)
         self.act("act_on_request", HOST, {"action": "decline", "id": rid})

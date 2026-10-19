@@ -496,8 +496,9 @@
         chat.push({ id, pid, text, at: s.serverTime, ...(to ? { replyTo: { id: to.id, pid: to.pid, excerpt: to.text } } : {}) });
       } }).then(r => { chatTypingUntil = 0; return r; });
     },
-    /** Inbox items I opened, by key: each reads at its status now. */
-    readInbox: keys => act("/api/inbox/read", { keys }, { key: "inbox:" + keys.join(","), patch: s => { for (const i of s.inbox || []) if (keys.includes(i.key)) i.unread = false; } }),
+    /** Inbox items I opened, by key: each reads at the status in `saw` (what the page showed), else at its status now. */
+    readInbox: (keys, saw) => act("/api/inbox/read", { keys, ...(saw ? { saw } : {}) }, { key: "inbox:" + keys.join(","),
+      patch: s => { for (const i of s.inbox || []) if (keys.includes(i.key) && (!saw || saw[i.key] === i.status)) i.unread = false; } }),
     readNotifications: ids => act("/api/notifications/read", ids === "all" ? { all: true } : { ids }),
     addReference: (qid, reference) => act("/api/question/reference", { qid, reference }),
     removeReference: (qid, index) => act("/api/question/reference", { qid, remove: index }),
@@ -679,7 +680,7 @@
   // than a second there.
   const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
     "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree", "/api/pass",
-    "/api/go-with", "/api/notifications/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail",
+    "/api/go-with", "/api/notifications/read", "/api/inbox/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail",
     "/api/upload/offer", "/api/upload/act", "/api/upload/chunk"]);
   const GAP = 1050; // ms: the server's one-a-second limit, plus a margin for clock rounding
   const lanes = new Map(); // path -> {tail: promise of the last write, done: when it answered}
