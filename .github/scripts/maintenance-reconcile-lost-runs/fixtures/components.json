@@ -1,0 +1,11 @@
+{
+  "page": { "name": "GitHub" },
+  "components": [
+    { "name": "Git Operations", "status": "operational", "group": false, "group_id": null },
+    { "name": "Webhooks", "status": "operational", "group": false, "group_id": null },
+    { "name": "API Requests", "status": "operational", "group": false, "group_id": null },
+    { "name": "Pull Requests", "status": "operational", "group": false, "group_id": null },
+    { "name": "Actions", "status": "operational", "group": false, "group_id": null },
+    { "name": "Packages", "status": "operational", "group": false, "group_id": null }
+  ]
+}
