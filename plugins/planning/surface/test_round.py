@@ -12,6 +12,7 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -1996,6 +1997,16 @@ class TestClaudeActivity(DirCase):
             self.doc()["restatement"]["sections"], {"outOfScope": "- no Windows"}
         )
 
+    def test_restate_takes_problem_and_work_size_sections(self):
+        sections = {
+            "problem": "- Gap: exports time out for large accounts",
+            "workSize": "- Size: Medium",
+        }
+        self.apply({"op": "restate", "sections": sections})
+        doc = self.doc()
+        self.assertEqual(doc["restatement"]["sections"], sections)
+        self.assertEqual(doc["restatements"][-1]["sections"], sections)
+
     def test_restate_refusals(self):
         for sections in (
             {},
@@ -3284,6 +3295,183 @@ class TestConfirmationRecap(DirCase):
         self.assertTrue(gone.startswith(head))
         self.assertTrue(gone.endswith(f"Q{self.LIVE + self.WITHDRAWN}"))
         self.assertNotIn("Q1 withdrawn", "\n".join(lines))
+
+
+class TestCliHygiene(DirCase):
+    """DX-4, DX-6, DX-8, DX-10, DX-14: --dir after any subcommand, --json, Python 3 probe, --open, help."""
+
+    def run_bare(self, *args, env=None):
+        p = subprocess.run(
+            [sys.executable, str(ROUND), *args],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env=env,
+        )
+        return p.returncode, p.stdout, p.stderr
+
+    def test_dir_is_accepted_after_every_subcommand(self):
+        names = re.findall(
+            r'sub\.add_parser\(\s*"([a-z-]+)"', ROUND.read_text(encoding="utf-8")
+        )
+        self.assertGreater(len(names), 15)
+        for name in names:
+            rc, out, err = self.run_bare(name, "--help")
+            self.assertEqual(rc, 0, out + err)
+            self.assertIn("--dir", out, name)
+
+    def test_dir_after_status_and_bump(self):
+        rc, out, err = self.run_bare("status", "--dir", str(self.dir))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("First group: 0 of 2 closed", out)
+        rc, out, err = self.run_bare("bump", "--dir", str(self.dir))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["rev"], 4)
+
+    def test_status_json(self):
+        rc, out, err = self.rp("status", "--json")
+        self.assertEqual(rc, 0, out + err)
+        data = json.loads(out)
+        self.assertEqual(data["rev"], 3)
+        self.assertEqual([g["id"] for g in data["groups"]], ["g1", "g2"])
+        g1 = data["groups"][0]
+        self.assertEqual(
+            (g1["total"], g1["closed"], g1["open"]), (2, 0, ["Q1", "Q2"])
+        )
+        self.assertEqual(data["unhandled"], [])
+        for key in ("pageSeq", "handledSeq", "roundDrift", "meta"):
+            self.assertIn(key, data)
+        rc, text, _ = self.rp("status")
+        self.assertIn("First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2", text)
+        self.assertFalse(text.lstrip().startswith("{"))
+
+    def test_status_json_gives_the_raw_wait(self):
+        doc = self.doc()
+        doc["questions"][2].update(waiting=True, waitsOn="research")
+        self.write_doc(doc)
+        rc, out, err = self.rp("status", "--json")
+        self.assertEqual(rc, 0, out + err)
+        g2 = json.loads(out)["groups"][1]
+        (wait,) = g2["waiting"]
+        self.assertEqual((wait["id"], wait["waitsOn"]), ("Q3", "research"))
+        self.assertTrue(wait["hold"])
+
+    def test_status_latency_json(self):
+        rc, out, err = self.rp("status", "--latency", "--json")
+        self.assertEqual(rc, 0, out + err)
+        stats = json.loads(out)["latency"]
+        self.assertEqual(stats["saveToDelivered"], {"n": 0, "p50": None, "p95": None})
+        self.assertEqual(stats["saveToReply"]["n"], 0)
+
+    def test_validate_json(self):
+        rc, out, err = self.rp("validate", "--json")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(json.loads(out)["valid"], True)
+        rc, text, _ = self.rp("validate")
+        self.assertEqual(
+            text.strip(),
+            "valid: questions.json, responses.json; rebuild from events matches",
+        )
+        (self.dir / "questions.json").write_text('{"questions": 5}', encoding="utf-8")
+        rc, out, err = self.rp("validate", "--json")
+        self.assertEqual(rc, 1, out + err)
+        bad = json.loads(out)
+        self.assertEqual(bad["valid"], False)
+        self.assertIn("questions.json", bad["error"])
+
+    def test_lease_json_is_accepted_and_a_stopped_server_still_refuses(self):
+        rc, out, err = self.rp("lease", "--json")
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("not running", err)
+
+    def test_doctor_json(self):
+        path = self.tmp / "ledger.md"
+        path.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n- Q1 | open |\n",
+            encoding="utf-8",
+        )
+        rc, out, err = self.rp("doctor", "--ledger", str(path), "--json")
+        self.assertEqual(rc, 1, out + err)
+        data = json.loads(out)
+        self.assertEqual(data["ok"], False)
+        self.assertTrue(any("## Constraint ledger" in m for m in data["missing"]))
+        self.assertIn("notChecked", data)
+        rc, text, _ = self.rp("doctor", "--ledger", str(path))
+        self.assertIn("missing: ", text)
+        self.assertNotIn('"ok"', text)
+
+    def test_round_sh_rejects_python_below_3(self):
+        bash = shutil.which("bash")
+        if not bash:
+            self.skipTest("bash is not on PATH")
+        fake = self.tmp / "fakebin"
+        fake.mkdir()
+        for name in ("python3", "python"):
+            stub = fake / name
+            # Runs the trivial probe, but reports Python 2 to a version check.
+            stub.write_text(
+                '#!/bin/sh\ncase "$2" in *version_info*) exit 1;; esac\nexit 0\n',
+                encoding="utf-8",
+            )
+            stub.chmod(0o755)
+        env = {**os.environ, "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}"}
+        p = subprocess.run(
+            [bash, str(HERE / "round.sh"), "--dir", str(self.dir), "status"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
+        )
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("missing prerequisite: python3", p.stderr)
+
+    def test_open_with_no_browser_prints_one_stderr_line(self):
+        self.addCleanup(run_round, self.dir, "stop")
+        settings = self.tmp / "settings.json"
+        settings.write_text(
+            json.dumps({"browserCommand": str(self.tmp / "no-such-browser")}),
+            encoding="utf-8",
+        )
+        rc, out, err = self.rp(
+            "ensure-running", "--port", "0", "--open", "--user-settings", str(settings)
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertTrue(out.startswith("http://127.0.0.1:"), out)
+        lines = [x for x in err.splitlines() if x.strip()]
+        self.assertEqual(len(lines), 1, err)
+        self.assertIn("could not open a browser", lines[0])
+        self.assertIn(out.strip(), lines[0])
+
+    def test_default_browser_failure_prints_one_stderr_line(self):
+        import round as r
+
+        original = r.webbrowser.open
+        r.webbrowser.open = lambda url: False
+        try:
+            import contextlib
+            import io
+
+            buf = io.StringIO()
+            with contextlib.redirect_stderr(buf):
+                r.open_browser("http://127.0.0.1:1/", None)
+        finally:
+            r.webbrowser.open = original
+        self.assertEqual(
+            buf.getvalue(),
+            "could not open a browser; open http://127.0.0.1:1/ yourself\n",
+        )
+
+    def test_help_has_examples_and_apply_lists_the_ops(self):
+        rc, out, err = self.run_bare("--help")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("examples:", out)
+        self.assertIn("round.sh --dir", out)
+        rc, out, err = self.run_bare("apply", "--help")
+        self.assertEqual(rc, 0, out + err)
+        import round as r
+
+        for op in r.OP_ARGS:
+            self.assertIn(op, out)
 
 
 if __name__ == "__main__":
