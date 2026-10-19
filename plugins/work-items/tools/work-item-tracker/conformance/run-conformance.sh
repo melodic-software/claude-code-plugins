@@ -203,6 +203,7 @@ wit_case_if_unsupported reclaim "$FAKE_ID"
 wit_case_if_unsupported link-blocks "$FAKE_ID" --blocked-by "$FAKE_ID"
 wit_case_if_unsupported add-sub-item "$FAKE_ID" --parent "$FAKE_ID"
 wit_case_if_unsupported label-provenance "$FAKE_ID" --label agent-ready
+wit_case_if_unsupported set-fields "$FAKE_ID" --field 1=2
 if ! verb_supported list-items; then
   wit_case "unsupported list-items gates list-frontier → exit 6" 6 list-frontier
 fi

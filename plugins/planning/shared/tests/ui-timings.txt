@@ -18,6 +18,7 @@ ui_presence_dots.js 98
 ui_proto.js 14
 ui_reactions.js 10
 ui_report.js 8
+ui_run_all.js 11
 ui_snappy.js 38
 ui_telemetry.js 16
 ui_uploads.js 19

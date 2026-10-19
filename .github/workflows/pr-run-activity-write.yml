@@ -59,6 +59,14 @@ on:
         required: false
         type: string
         default: ""
+      runner-checks:
+        description: >-
+          Issue mode, report-outcome: the caller's run-checks job output, the
+          activity's checks as the runner ran them, set only when that job
+          succeeded. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       timeout-minutes:
         description: The run job's timeout in minutes.
         required: false
@@ -1947,6 +1955,8 @@ jobs:
           # Checked against this issue's lane branch by the job's first step.
           REUSE_BRANCH: ${{ inputs.reuse-branch }}
           REUSE_SUMMARY_DIR: ${{ inputs.reuse-branch != '' && format('{0}/reuse-summary', runner.temp) || '' }}
+          # Parsed and checked against the lane branch by report-outcome.
+          RUNNER_CHECKS: ${{ inputs.runner-checks }}
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
