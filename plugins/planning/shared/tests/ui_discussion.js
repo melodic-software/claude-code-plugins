@@ -32,6 +32,8 @@ const post = async (page, text) => {
   return until(page, t => (window.Core.state.discussions.Q1 || []).some(c => c.text === t), text, 10000);
 };
 const cm = (page, text) => page.locator(".vf-disc-list > .vf-cm", { hasText: text });
+const railQ = (page, qid) => page.locator(".vf-q", { hasText: qid === "Q1" ? "Where should" : "Which default" }).first();
+const DRAFT = "@Claude a draft typed on Q1", ANN_ASK = "@Claude is a sticky bar common?";
 
 async function main() {
   const pw = loadPlaywright();
@@ -41,7 +43,7 @@ async function main() {
   const s = suite("ui_discussion"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("discussion");
-    s.apply(A.dir, [{ op: "set-title", title: "Discussion checks" }, { op: "open-round", questions: [q("Q1", "Where should the order summary sit?")] }]);
+    s.apply(A.dir, [{ op: "set-title", title: "Discussion checks" }, { op: "open-round", questions: [q("Q1", "Where should the order summary sit?"), q("Q2", "Which default should the cart use?")] }]);
     const desk = { context: { viewport: { width: 1440, height: 900 } } };
     const owner = await rec.open(A.ownerUrl, desk);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
@@ -134,6 +136,34 @@ async function main() {
     ok("an @Claude comment past the waiting cap still posts", await post(bo, FULL));
     ok("  and Bo is told it was not sent to Claude", await until(bo, () => /^Posted, but not sent to Claude/.test(document.querySelector(".vf-toast.vf-on span")?.textContent || "")));
     ok("  with no Sent to Claude line on it", (await shown(bo)).some(r => r.text === FULL && !r.became));
+
+    // ---------- a draft stays with the question it was typed on ----------
+    await openDisc(ann);
+    await ann.fill(".vf-disc-ta", DRAFT);
+    await railQ(ann, "Q2").click();
+    await until(ann, () => window.Core.state && document.querySelector(".vf-disc-head") && window.Core.snapshot());
+    await openDisc(ann);
+    ok("on Q2 the comment box is empty", await until(ann, () => document.querySelector(".vf-disc-ta").value === ""), await ann.inputValue(".vf-disc-ta"));
+    await ann.click(".vf-disc-post");
+    await ann.waitForTimeout(1500);
+    ok("  and Post on Q2 never sends Q1's draft", await ann.evaluate(t => ![...Object.values(window.Core.state.discussions || {})].flat().some(c => c.text === t), DRAFT));
+    await railQ(ann, "Q1").click();
+    ok("back on Q1 the draft is still there", await until(ann, t => document.querySelector(".vf-disc-ta").value === t, DRAFT), await ann.inputValue(".vf-disc-ta"));
+    await ann.fill(".vf-disc-ta", "");
+
+    // ---------- the author of a hidden comment sent to Claude can still delete it ----------
+    await ann.waitForTimeout(1100);
+    ok("Ann's @Claude comment posts", await post(ann, ANN_ASK));
+    await openDisc(owner);
+    await until(owner, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)), ANN_ASK);
+    await cm(owner, ANN_ASK).locator(".vf-cm-hide").click();
+    ok("hidden, Ann still sees Delete on it", await until(ann, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && !li.querySelector(".vf-cm-hidden").hidden
+      && [...li.querySelectorAll(".vf-cm-acts .vf-lbtn")].some(b => b.textContent === "Delete" && b.offsetParent !== null)), ANN_ASK), JSON.stringify(await shown(ann)));
+    if (await cm(ann, ANN_ASK).locator(".vf-lbtn", { hasText: "Delete" }).isVisible()) {
+      await cm(ann, ANN_ASK).locator(".vf-lbtn", { hasText: "Delete" }).click();
+      await ann.click("dialog.vf-cdlg[open] .vf-btn-danger-solid");
+    }
+    ok("  and deletes it", await until(ann, t => ![...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)), ANN_ASK));
 
     // ---------- 390 phone ----------
     const fit = await bo.evaluate(() => {

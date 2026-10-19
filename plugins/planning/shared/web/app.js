@@ -1101,7 +1101,7 @@
     discForm.append(discTa, discRow);
     discBody.append(discList, discEmpty, discForm);
     discSec.append(discH, discBody);
-    ui.discOpen = new Map(); ui.discFrom = new Map(); ui.discEdit = "";
+    ui.discOpen = new Map(); ui.discFrom = new Map(); ui.discEdit = ""; ui.discDrafts = new Map(); // qid -> the unsent comment typed on it
     const discIsOpen = () => !!ui.cur && ui.discOpen.get(ui.cur) === true;
     /** Opening: the new dots stay on what was new when I opened it, while the server marks it all read. */
     function setDisc(qid, open) {
@@ -1109,14 +1109,17 @@
       ui.discOpen.set(qid, open);
     }
     discToggle.onclick = () => { const open = !discIsOpen(); setDisc(ui.cur, open); render(); if (open) requestAnimationFrame(() => discSec.scrollIntoView({ block: "nearest", behavior: smooth() })); };
-    discTa.addEventListener("input", () => grow(discTa));
+    discTa.addEventListener("input", () => { ui.discDrafts.set(ui.cur, discTa.value); grow(discTa); });
     discTa.addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); discForm.requestSubmit(); } });
     discForm.onsubmit = e => {
       e.preventDefault();
       const qid = ui.cur, text = discTa.value.trim();
       if (!qid || !text || discPost.disabled) return;
       discPost.disabled = true;
-      Core.comment(qid, text).then(j => { discTa.value = ""; grow(discTa); if (j.request) flash("Posted, and sent to Claude."); else if (j.requestRefused) flash(j.message); })
+      Core.comment(qid, text).then(j => {
+        ui.discDrafts.delete(qid);
+        if (ui.cur === qid) { discTa.value = ""; grow(discTa); } // a question switched to meanwhile keeps its own draft
+        if (j.request) flash("Posted, and sent to Claude."); else if (j.requestRefused) flash(j.message); })
         .catch(fail).finally(() => { discPost.disabled = false; });
     };
     // Q84: References under the question: screenshots with a marked area, quoted excerpts with their source, titled links.
@@ -1903,8 +1906,9 @@
       if (manual && following() && Core.owner() && Core.owner().q !== qid) { setFollow(false); flash(`Stopped following ${disp(Core.owner().name)}.`); }
       if (qid === ui.cur) return;
       closeSheet();
-      if (ui.cur) { ui.drafts[ui.cur] = ta.value; markSeen(ui.cur); }
+      if (ui.cur) { ui.drafts[ui.cur] = ta.value; ui.discDrafts.set(ui.cur, discTa.value); markSeen(ui.cur); }
       ui.cur = qid;
+      discTa.value = ui.discDrafts.get(qid) ?? ""; grow(discTa);
       ui.seenAt = ui.seen[qid] ?? null;
       ta.value = ui.drafts[qid] ?? Core.myAnswer(qid);
       ui.dirty = qid in ui.drafts && ui.drafts[qid] !== Core.myAnswer(qid);
@@ -4694,7 +4698,7 @@
       k.edit.hidden ||= !!c.request; // its text went to Claude as sent: Delete only
       k.hide.hidden = !owner || ro;
       k.hide.textContent = c.hidden ? "Show" : "Hide";
-      k.acts.hidden = k.reactAdd.hidden && k.edit.hidden && k.hide.hidden;
+      k.acts.hidden = k.reactAdd.hidden && k.edit.hidden && k.del.hidden && k.hide.hidden;
     }
     function renderDisc(S, q) {
       const list = S.discussions?.[q.id] || [], seen = S.discussionSeen?.[q.id] || 0, open = discIsOpen();
