@@ -1,6 +1,6 @@
 {
   "name": "planning",
-  "version": "0.75.1",
+  "version": "0.76.0",
   "userConfig": {
     "surface": {
       "type": "string",
@@ -23,6 +23,12 @@
       "title": "Interview question emoji anchors",
       "description": "When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text.",
       "default": false
+    },
+    "shared_session_open_browser": {
+      "type": "boolean",
+      "title": "Open the shared interview page",
+      "description": "When on, starting a /planning:interview shared session opens the owner's page in the default browser. Turn off to open it yourself. Default: on.",
+      "default": true
     },
     "plan_store": {
       "type": "string",

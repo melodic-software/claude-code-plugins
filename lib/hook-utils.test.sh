@@ -3917,8 +3917,8 @@ rrp_case cygposix "a POSIX backslash is a filename character, not a separator" '
 
 # physical_path_to on Windows with realpath and readlink absent must stay
 # UNRESOLVED even when cygpath answers: cygpath does not follow symlinks, and
-# block-hook-bypass `_bbh_physical_path` and secret-pattern-detection step 7
-# refuse their temp exemption only because this returns 1. The target is a
+# secret-pattern-detection step 7 refuses its temp exemption only because this
+# returns 1. The target is a
 # temp symlink pointing into a repository, the #3727 bypass shape.
 mkdir -p "$RRP_DIR/repo" "$RRP_DIR/temp"
 ln -s "$RRP_DIR/repo" "$RRP_DIR/temp/to-repo"

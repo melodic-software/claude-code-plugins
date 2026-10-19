@@ -1,0 +1,48 @@
+[
+  {
+    "seq": 4, "at": "2026-10-16T11:00:00Z", "kind": "round-sent", "round": 2,
+    "digest": {
+      "round": 2,
+      "names": false,
+      "questions": [
+        {"id": "Q3", "text": "Is this the right spot for the promo code field?", "purpose": "decide", "format": "confirm",
+         "outcome": {"kind": "open", "top": [{"text": "Yes", "votes": 2, "source": "option"}, {"text": "No", "votes": 1, "source": "option"}]}},
+        {"id": "Q5", "text": "What slows you down on the payment step today?", "scope": "Payment step, every device", "purpose": "gather", "format": "text",
+         "outcome": {"kind": "gathered", "answers": [{"text": "Typing the card number.", "reactions": {"thumbs": 2, "down": 1, "heart": 0, "idea": 1}}]}},
+        {"id": "Q4", "text": "Which payment step prototype reads more clearly?", "purpose": "gather", "format": "prototype", "outcome": {"kind": "unanswered"}},
+        {"id": "Q6", "text": "Which payment methods should the step offer?", "purpose": "decide", "format": "multi",
+         "outcome": {"kind": "multi", "closed": false, "people": 2,
+                     "counts": [{"option": "Card", "picks": 2}, {"option": "PayPal", "picks": 0}, {"option": "Bank transfer", "picks": 1}],
+                     "others": [{"text": "Apple Pay.", "backers": 2}], "comments": []}},
+        {"id": "Q7", "text": "How often do you pay with a saved card?", "purpose": "poll", "format": "scale",
+         "outcome": {"kind": "scale", "closed": true, "people": 2, "min": 1, "max": 5, "labels": {"min": "Never", "max": "Always", "mid": "Sometimes"},
+                     "counts": [{"value": 1, "people": 0}, {"value": 2, "people": 0}, {"value": 3, "people": 1}, {"value": 4, "people": 1}, {"value": 5, "people": 0}],
+                     "mean": 3.5, "median": 3.5, "comments": [{"text": "Only on my own laptop."}]}},
+        {"id": "Q8", "text": "Order these checkout goals from most to least important.", "purpose": "decide", "format": "rank",
+         "disagreements": [{"text": "Speed", "reason": "Speed matters less than trust here."}],
+         "outcome": {"kind": "rank", "closed": false, "people": 2,
+                     "borda": [{"option": "Trust", "points": 3}, {"option": "Speed", "points": 2}, {"option": "Fewer fields", "points": 1}],
+                     "orders": [{"order": ["Trust", "Speed", "Fewer fields"], "people": 1}, {"order": ["Speed", "Fewer fields", "Trust"], "people": 1}],
+                     "others": [], "comments": []}},
+        {"id": "Q2", "text": "Which payment method should be selected by default?", "purpose": "poll", "format": "choice",
+         "outcome": {"kind": "poll", "closed": false, "counts": [{"option": "Card", "votes": 0}, {"option": "Saved method", "votes": 1}, {"option": "None", "votes": 0}, {"option": "Pay by bank app.", "votes": 2, "other": true}]}}
+      ],
+      "late": [{"id": "Q2", "round": 1, "text": "Saved method, it is what most of us use."}],
+      "needsReview": [
+        {"id": "Q3", "because": "Q1", "now": {"kind": "locked", "text": "Pin the summary in a right-hand column."}},
+        {"id": "Q3", "because": "Q1", "now": {"kind": "unlocked"}, "suggestion": "S1"}
+      ],
+      "results": [],
+      "proposals": [],
+      "annotations": [{"qid": "Q4", "variant": "v-1", "text": "This button is too small."}],
+      "people": {"joined": 3, "answered": 3},
+      "aboutYou": [{"name": "Bo", "techComfort": "low", "note": "Prefers phone"}]
+    }
+  },
+  {"seq": 5, "at": "2026-10-16T11:01:00Z", "kind": "round-cancelled", "round": 2, "sentSeq": 4},
+  {"seq": 6, "at": "2026-10-16T11:02:00Z", "kind": "request-cancelled", "request": "R3"},
+  {"seq": 7, "at": "2026-10-16T12:00:00Z", "kind": "session-ended", "later": [{"id": "P3", "text": "Talk about refunds.", "reason": "Out of scope for checkout."}]},
+  {"seq": 8, "at": "2026-10-16T12:01:00Z", "kind": "upload-received", "upload": "U2-4e5f6a7b", "file": "walkthrough.mp4", "stored": "uploads/accepted/2026-10-16-U2-walkthrough.mp4", "qid": null},
+  {"seq": 9, "at": "2026-10-17T09:30:00Z", "kind": "report-filed", "report": "F1", "qid": "Q1", "text": "The Send button does nothing on my phone."},
+  {"seq": 10, "at": "2026-10-17T10:15:00Z", "kind": "round-reset", "round": 2, "sentSeq": 4}
+]

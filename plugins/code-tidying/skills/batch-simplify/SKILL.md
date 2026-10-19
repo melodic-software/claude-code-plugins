@@ -314,6 +314,12 @@ off, live in
 [context/bundled-simplify.md](context/bundled-simplify.md#decision-records)
 (relay as of 2026-10-11; recheck when that table is renamed or moved).
 
+## Next
+
+/verification:confirm
+
+A simplification pass sits at review; verify proves the swept change still meets its intent.
+
 ## Edge cases
 
 - **No changes in time window**: report and exit cleanly

@@ -179,7 +179,7 @@ hook::emit_skip_notice() {
 # can act on a starved host; the same line goes to stderr next to
 # buffer_stdin's own diagnostic. <event> is accepted for the callers that pass
 # it and is not used. The caller exits 0 right after.
-#   hook::stdin_cut_short_notice PreToolUse "guardrails block-hook-bypass"
+#   hook::stdin_cut_short_notice PreToolUse "guardrails block-no-verify"
 hook::stdin_cut_short_notice() {
   local msg="$2: hook stdin was cut short, so this tool call ran unchecked. If it recurs, the host is starved; see the stdin_read_timeout option."
   echo "$msg" >&2
@@ -390,12 +390,10 @@ hook::raw_file_path() {
 # is all this class is for. Because the posture test derives membership from the
 # ceiling, the class cannot drift.
 #
-# DELIBERATELY NOT WIDENED. block-hook-bypass and block-noncanonical-commit also
-# exit 2, and block-hook-bypass carries the same "the only supported deliberate
-# bypass is the kill switch" sentence. They stay fail-open: they guard a FILE
-# WRITE or a message shape, both trivially reversible, and neither holds the
-# internal contradiction above. Severity is a slope; "already fails closed
-# elsewhere in the same script" is a line. If one of them grows a length ceiling
+# DELIBERATELY NOT WIDENED. block-noncanonical-commit also exits 2. It stays
+# fail-open: it guards a message shape, trivially reversible, and it does not
+# hold the internal contradiction above. Severity is a slope; "already fails
+# closed elsewhere in the same script" is a line. If it grows a length ceiling
 # it joins the class, and the posture test will say so.
 #
 # WHY TWO FUNCTIONS RATHER THAN ONE WITH A FLAG. A parameter's OMITTED value has
@@ -973,7 +971,7 @@ hook::_temp_win_spellings() {
 # spellings both compare. A POSIX host leaves it untouched: `\` is a filename
 # byte there, and folding it could make a root-level `tmp\x` compare as under
 # `/tmp`. Precondition: the target is already lexically normalized (as
-# block-hook-bypass's _norm_path produces) or physically resolved, with no `..`
+# a guard's own path normalizer produces) or physically resolved, with no `..`
 # segment; nothing here resolves `..`.
 #   hook::under_temp_root "$norm_path" && ...
 _HOOK_UTR_TARGET_PHYSICAL=0

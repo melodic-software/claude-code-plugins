@@ -178,6 +178,31 @@ else
   fail "live SKILL.md exposes metadata.upstream-version" "non-empty" "empty"
 fi
 
+# --- 9. run_check exit-code contract (0 no drift, 1 drift, 2 unverifiable) ----------
+# The registry is stubbed; the frontmatter is the section 4 fixture (0.1.13).
+
+FRONTMATTER_FILE="$FIXTURE_SKILL"
+stub_latest="0.1.13"
+npm_view_field() { [[ -n "$stub_latest" ]] && printf '%s' "$stub_latest"; }
+
+out=$(run_check 2>&1)
+assert_exit "frontmatter at npm latest: exit 0" 0 "$?"
+assert_contains "frontmatter at npm latest: reports no drift" "$out" "No drift"
+
+stub_latest="0.2.0"
+out=$(run_check 2>&1)
+assert_exit "npm latest moved: exit 1" 1 "$?"
+assert_contains "npm latest moved: names both versions" "$out" "0.1.13 → 0.2.0"
+
+FRONTMATTER_FILE="$FIXTURE_BARE"
+out=$(run_check 2>&1)
+assert_exit "no recorded upstream-version: exit 1" 1 "$?"
+FRONTMATTER_FILE="$FIXTURE_SKILL"
+
+stub_latest=""
+out=$(run_check 2>&1)
+assert_exit "registry unreachable: exit 2" 2 "$?"
+
 # --- Final report ---------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

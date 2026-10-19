@@ -606,6 +606,12 @@ from_epoch() {
   date -u '+%Y-%m-%dT%H:%MZ'
 }
 
+# Every date stamp the brief prints names its zone: the stamps are UTC (a `Z`
+# stamp is, and the clock is read with `date -u`), while a scheduler's own zone
+# differs (an Actions cron fires in UTC, `/loop` uses the machine's). The
+# bookmark file keeps the bare form `from_epoch` renders, so it stays parseable.
+utc_stamp() { printf '%s UTC' "$(from_epoch "$1")"; }
+
 # --- Clock --------------------------------------------------------------------
 if [[ -n "$NOW_ISO" ]]; then
   NOW_EPOCH="$(to_epoch "$NOW_ISO")"
@@ -1128,6 +1134,7 @@ print_telemetry() {
       else
         age_note="unparsable timestamp"
       fi
+      [[ -n "$then_epoch" ]] && last="$last UTC"
     else
       last="(none)"
       age_note="no last-cycle recorded"
@@ -1260,7 +1267,7 @@ print_stranded() {
       fi
     fi
   fi
-  echo "== Findings stranded on merged PRs (merged since $(from_epoch "$cutoff"): $window) =="
+  echo "== Findings stranded on merged PRs (merged since $(utc_stamp "$cutoff"): $window) =="
   local merged_file="$WORK/merged.json"
   if [[ -n "$MERGED_JSON" ]]; then
     merged_file="$MERGED_JSON"
@@ -1640,7 +1647,7 @@ print_telemetry >"$WORK/s4"
 print_stranded >"$WORK/s5"
 print_lanes >"$WORK/s6"
 
-printf 'Morning brief — %s — %s\n' "${REPO:-<fixtures>}" "$(from_epoch "$NOW_EPOCH")"
+printf 'Morning brief — %s — %s\n' "${REPO:-<fixtures>}" "$(utc_stamp "$NOW_EPOCH")"
 [[ "$REPO_SOURCE" == "git remote" ]] && echo "  repo resolved from the git origin remote (gh repo view unavailable)"
 [[ "$TRANSPORT" == "rest" ]] && echo "  transport: REST (this session does not serve the gh GraphQL queries)"
 if ((UNREADABLE > 0)); then
