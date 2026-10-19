@@ -368,7 +368,8 @@ head:
 | `feedback-protected-path` | the PR changes nothing under `.github/` |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
-when any account but the lanes App commented or reviewed since that event, or when an App comment
+when a person commented, reviewed or left a review comment since that event (a bot account, such
+as an AI review or another lane, does not count), or when an App comment
 written or edited since then carries any marker other than pr-unblock's escalation (pr-merge's
 own `babysit-merge-*` escalations, another lane's). Every other reason
 (`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and

@@ -3,7 +3,9 @@
 // comes off within one sweep once main stages no .github/workflows/ change into
 // the head, with one comment naming the reason and the head; a label a person
 // set, a reason that still holds, a label a person added back, a marker a
-// person wrote, and a person speaking after the escalation all keep it.
+// person wrote, and a person speaking after the escalation all keep it. Per the
+// owner decision on #8387, a bot account speaking after the label (AI review,
+// another lane) does not keep it.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -12,6 +14,8 @@ import { main } from "./clear-escalations.mjs";
 const REPO = "melodic-software/claude-code-plugins";
 const BOT = { login: "melodic-automation-lanes[bot]", type: "Bot" };
 const OWNER = { login: "kyle-sexton", type: "User" };
+const CLAUDE_BOT = { login: "claude[bot]", type: "Bot" };
+const CODEX_BOT = { login: "chatgpt-codex-connector[bot]", type: "Bot" };
 const ACTIONS_BOT = { login: "github-actions[bot]", type: "Bot" };
 const MAIN = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -118,19 +122,34 @@ test("an escalation marker a person wrote is never read for a reason", async () 
   assert.deepEqual(w.writes(), []);
 });
 
-test("a person's or another bot's comment after the label keeps it; the lanes App's own does not", async () => {
-  for (const user of [OWNER, ACTIONS_BOT]) {
-    const held = world({
-      timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), commented(user, "Leave this for a person.", "2026-10-18T12:00:00Z")],
-    });
-    await run(held);
-    assert.deepEqual(held.writes(), [], user.login);
+const reviewed = (user, at) => ({ event: "reviewed", user, state: "commented", body: "Review.", submitted_at: at });
+const lineCommented = (user, at) => ({ event: "line-commented", comments: [{ user, body: "Nit.", created_at: at }] });
+
+test("a person's comment, review, or review comment after the label keeps it", async () => {
+  for (const spoke of [
+    commented(OWNER, "Leave this for a person.", "2026-10-18T12:00:00Z"),
+    reviewed(OWNER, "2026-10-18T12:00:00Z"),
+    lineCommented(OWNER, "2026-10-18T12:00:00Z"),
+    commented(null, "Ghost author.", "2026-10-18T12:00:00Z"),
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), spoke] });
+    await run(w);
+    assert.deepEqual(w.writes(), [], spoke.event);
   }
-  const own = world({
-    timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), commented(BOT, "A lane note.", "2026-10-18T12:00:00Z")],
-  });
-  await run(own);
-  assert.equal(own.writes().length, 2);
+});
+
+test("an AI review or another bot's comment after the label does not keep it", async () => {
+  for (const spoke of [
+    reviewed(CLAUDE_BOT, "2026-10-18T12:00:00Z"),
+    lineCommented(CLAUDE_BOT, "2026-10-18T12:00:00Z"),
+    commented(CODEX_BOT, "Codex review: no issues.", "2026-10-18T12:00:00Z"),
+    commented(ACTIONS_BOT, "CI summary.", "2026-10-18T12:00:00Z"),
+    commented(BOT, "A lane note.", "2026-10-18T12:00:00Z"),
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), spoke] });
+    await run(w);
+    assert.equal(w.writes().at(-1)?.method, "DELETE", `${spoke.event} ${spoke.user?.login ?? spoke.comments?.[0].user.login}`);
+  }
 });
 
 test("an earlier escalation a person decides keeps the label when a later one would clear", async () => {
