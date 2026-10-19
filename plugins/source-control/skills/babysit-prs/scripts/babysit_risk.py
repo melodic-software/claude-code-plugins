@@ -16,8 +16,10 @@ could only come from a file a pull request can edit, and this module's own path
 is in the floor, so a pull request cannot change the rule it is judged by. The
 configured `merge.diff-check.denied-paths` and `floor-paths` are joined to the
 floor, never in place of it. With the floor, a SKILL.md, agents/**/*.md or
-commands/**/*.md patch that changes capability frontmatter or adds a `!` backtick
-command, or that has no patch text, rates HIGH as `high-capability`.
+commands/**/*.md file whose head text gains or changes a capability frontmatter
+key, adds a `!` command, or changes a line inside a ```! block, compared with
+its base text, or whose text could not be read, rates HIGH as
+`high-capability`.
 `floor_extensions` gates FLOOR_ADDITIONS, `floor-paths`, the script scopes and
 the capability check in every lane. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Claude.md` as
@@ -85,6 +87,10 @@ class ChangedFile:
     previous_mode: str | None = None
     # The files API's unified patch text, when it sent one (None otherwise).
     patch: str | None = None
+    # A capability file's (base, head) text, None for an absent side, read by
+    # the caller while the floor applies; contents_error says why it could not.
+    contents: tuple[str | None, str | None] | None = None
+    contents_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -454,143 +460,156 @@ _CAPABILITY_KEYS = frozenset(
     }
 )
 _HUNK = re.compile(r"@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@")
-_KEY = re.compile(r"""(["']?)([A-Za-z][A-Za-z0-9_-]*)\1\s*:""")
-# YAML a line-by-line read cannot follow: flow collections, tags, explicit
-# or merge keys, quoted keys with escapes, and anchors or aliases.
-_OPAQUE_START = re.compile(r"""[^A-Za-z#-]|-[^\s-]""")
-_ANCHOR = re.compile(r"(?:^|[\s:\[{,])[&*][^\s,\]}]")
-# A line YAML may read as a mapping entry, whatever its key looks like.
-_MAPPING = re.compile(r":(?:\s|$)")
-# Column-0 starts that can carry top-level YAML with no mapping colon on the
-# line: a sequence entry, a comment, an explicit key, a flow collection or its
-# continuation, an anchor or tag, a quoted scalar.
-_YAML_LEADS = frozenset(" \t-#?[{,]}&!\"'")
-# YAML breaks a line at \r\n, \r or \n; a unified diff splits only at \n.
-_YAML_BREAK = re.compile(r"\r\n?")
-# A fence that runs its lines as shell commands when the skill loads, and any
-# fence (a plain one closes it).
-_BANG_FENCE = re.compile(r"\s*(?:`{3,}|~{3,})\s*!")
-_FENCE = re.compile(r"\s*(?:`{3,}|~{3,})")
+_FRONT_KEY = re.compile(r"([A-Za-z][A-Za-z0-9_-]*)[ \t]*:(?:[ \t]|$)")
+# Anchors, aliases, tags and merge keys let one entry change another's value.
+_INDIRECT = re.compile(r"(?:^|[\s:\[{,-])[&*!][^\s,\]}]|<<")
+_INLINE_BANG = re.compile(r"!`")
+# Unanchored, so a ```! after a quote marker, a list marker or text counts.
+_FENCED_BANG = re.compile(r"(?:`{3,}|~{3,})[ \t]*!")
+_ANY_FENCE = re.compile(r"`{3,}|~{3,}")
 
 
-def _capability_triggers(patch: str) -> list[str]:
-    """What in a unified patch adds or changes a capability: a `!` backtick
-    command line added anywhere, an added ```! fence or a line added inside
-    one the hunk shows, or a changed frontmatter line under one of
-    `_CAPABILITY_KEYS`, or any added or removed `---` line, since moving a
-    delimiter moves lines in or out of the frontmatter. A hunk starting at
-    line 1 shows where the frontmatter ends; any other hunk is frontmatter
-    until a `---` line or a column-0 prose context line, and there a changed
-    indented line with no key above it in the hunk, a changed key line next to
-    a capability key, and YAML a line-by-line read cannot follow all count
-    (fail closed)."""
-    found: list[str] = []
-    region, key, bang = "unknown", None, None
-    for line in patch.split("\n"):
-        if line.startswith("@@"):
-            hunk = _HUNK.match(line)
-            region = "start" if hunk and hunk.group(1) == "1" else "unknown"
-            key, bang = None, None
+def is_capability_path(path: str) -> bool:
+    """Whether Claude Code reads this file's frontmatter as capability."""
+    return any(glob_match(g, path) for g in _CAPABILITY_FILES)
+
+
+def _front_block(text: str) -> tuple[str | None, bool]:
+    """The frontmatter text between the opening and closing `---` lines, and
+    whether its shape is one this reader follows: no BOM, no CR, the opening
+    and closing lines exactly `---`. No frontmatter is ("", True); a file whose
+    start only looks like frontmatter is (the whole text, False)."""
+    first, _, rest = text.partition("\n")
+    if first != "---":
+        if text.lstrip("\ufeff \t\r\n").startswith("---"):
+            return text, False
+        return "", True
+    lines = rest.split("\n")
+    end = next(
+        (i for i, line in enumerate(lines) if line.rstrip() in ("---", "...")), None
+    )
+    if end is None or lines[end] != "---":
+        return rest, False
+    block = "\n".join(lines[:end])
+    return block, "\r" not in block
+
+
+def _front_entries(block: str) -> dict[str, str] | None:
+    """Top-level frontmatter entries, each key (casefolded) to its lines, read
+    strictly: None for any shape a line-by-line read cannot follow."""
+    entries: dict[str, list[str]] = {}
+    key = None
+    for line in block.split("\n"):
+        if not line.strip() or line.startswith("#"):
+            if key is not None:
+                entries[key].append(line)
             continue
-        if not line or line[0] not in " +-":
-            continue  # "\ No newline at end of file"
-        sign = line[0]
-        for text in _YAML_BREAK.split(line[1:].removesuffix("\r")):
-            region, key, bang = _read_line(sign, text, region, key, bang, found)
+        if _INDIRECT.search(line):
+            return None
+        named = _FRONT_KEY.match(line)
+        if named:
+            key = named.group(1).casefold()
+            if key in entries:
+                return None
+            entries[key] = [line]
+        elif key is not None and (
+            line[0] in " \t" or line == "-" or line.startswith("- ")
+        ):
+            entries[key].append(line)
+        else:
+            return None
+    return {k: "\n".join(v).rstrip() for k, v in entries.items()}
+
+
+def _bang_lines(text: str) -> set[int]:
+    """The 1-based lines of `text` inside a ```! block, opener and closer
+    included; an unclosed block runs to the end."""
+    inside, found = False, set()
+    for number, line in enumerate(text.split("\n"), 1):
+        opener = None if inside else _FENCED_BANG.search(line)
+        if opener:
+            inside = not _ANY_FENCE.search(line, opener.end())
+            found.add(number)
+        elif inside:
+            found.add(number)
+            inside = not _ANY_FENCE.search(line)
     return found
 
 
-def _read_line(sign, text, region, key, bang, found):
-    """One YAML line of `_capability_triggers`: the next region, key and
-    `!` fence state, with any trigger appended to `found`. The fence state
-    follows the new file, so a removed line leaves it as it is: None before
-    the hunk's first fence, "added" once a line was added before it, True
-    inside a ```! block, False outside one. A bare fence first in its hunk
-    after an added line may close a ```! block opened above the hunk, so it
-    counts (fail closed)."""
-    if sign == "+" and "!`" in text:
-        found.append("adds a !` command")
-    if sign != "-" and _FENCE.match(text):
-        opens = bool(_BANG_FENCE.match(text))
-        if opens and sign == "+":
-            found.append("adds a ```! block")
-        elif bang == "added" and not text.strip().strip("`~"):
-            found.append("adds a line before a fence its hunk does not open")
-        bang = opens and bang is not True
-    elif bang is True and sign == "+":
-        found.append("adds a line to a ```! block")
-    elif bang is None and sign == "+":
-        bang = "added"
-    if text.rstrip() == "---":
-        if sign != " ":
-            found.append("moves a --- delimiter")
-        if sign != "-" or region == "start":
-            region = "front" if region == "start" else "body"
-            key = None
-        return region, key, bang
-    if region == "start":
-        region = "body"  # no frontmatter in this file
-    if region == "body":
-        return region, key, bang
-    if (
-        region == "unknown"
-        and sign == " "
-        and text.strip()
-        and text[0] not in _YAML_LEADS
-        and not _KEY.match(text)
-        and not _MAPPING.search(text)
-    ):
-        # A column-0 line with no mapping colon that cannot start top-level
-        # YAML (prose, a numbered list, a table, emphasis, a code fence) is
-        # body; anything else stays frontmatter (fail closed).
-        return "body", key, bang
-    stripped = text.lstrip(" \t")
-    if (
-        sign != " "
-        and stripped
-        and (_OPAQUE_START.match(stripped) or _ANCHOR.search(text))
-    ):
-        found.append("frontmatter YAML the scanner cannot read")
-    # A changed capability key at any indentation: indenting every key keeps
-    # it top-level YAML.
-    nested = _KEY.match(stripped) if sign != " " else None
-    if nested and nested.group(2).casefold() in _CAPABILITY_KEYS:
-        found.append(f"frontmatter {nested.group(2).casefold()}")
-    named = _KEY.match(text)
-    if named:
-        before, key = key, named.group(2).casefold()
-        if sign != " " and (
-            before in _CAPABILITY_KEYS or (before is None and region == "unknown")
-        ):
-            found.append(f"frontmatter key line next to {before or 'an unseen key'}")
-    elif text.strip() and text[0] not in " \t-":
-        key = ""  # a column-0 list item continues the key above it
-    if sign != " " and (
-        key in _CAPABILITY_KEYS
-        or (key is None and region == "unknown" and text.strip())
-    ):
-        found.append(f"frontmatter {key or 'line with no key in its hunk'}")
-    return region, key, bang
+def _changed_lines(patch: str) -> set[int]:
+    """Head-side line numbers a unified patch adds, and the head lines on
+    either side of each line it removes."""
+    changed: set[int] = set()
+    line_no = None
+    for line in patch.split("\n"):
+        hunk = _HUNK.match(line)
+        if hunk:
+            line_no = int(hunk.group(1))
+        elif line_no is not None and line and line[0] in " +-":
+            if line[0] == "-":
+                changed.update((line_no - 1, line_no))
+                continue
+            if line[0] == "+":
+                changed.add(line_no)
+            line_no += 1
+    return changed
+
+
+def _content_triggers(before: str, after: str, raw: Any) -> list[str]:
+    """What the head text gains over the base text: frontmatter capability
+    keys, `!` commands, and changes inside a ```! block (fail closed)."""
+    triggers = []
+    base_block, base_ok = _front_block(before)
+    head_block, head_ok = _front_block(after)
+    if base_block != head_block or base_ok != head_ok:
+        base = _front_entries(base_block or "") if base_ok else None
+        head = _front_entries(head_block or "") if head_ok else None
+        if base is None or head is None:
+            triggers.append("frontmatter the reader cannot follow")
+        else:
+            triggers += [
+                f"frontmatter {k}"
+                for k in sorted(_CAPABILITY_KEYS)
+                if base.get(k) != head.get(k)
+            ]
+    if len(_INLINE_BANG.findall(after)) > len(_INLINE_BANG.findall(before)):
+        triggers.append("adds a !` command")
+    if len(_FENCED_BANG.findall(after)) > len(_FENCED_BANG.findall(before)):
+        triggers.append("adds a ```! block")
+    block = _bang_lines(after)
+    if block and before != after:
+        patch = getattr(raw, "patch", None)
+        changed = _changed_lines(patch) if isinstance(patch, str) else set()
+        if not changed:
+            triggers.append(
+                "changes a file with a ```! block and no patch to place them"
+            )
+        elif changed & block:
+            triggers.append("changes a line inside a ```! block")
+    return triggers
 
 
 def _capability_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason]:
+    """A capability file the head gains capability in, compared by content:
+    `ChangedFile.contents` holds the base and head text, read by the caller."""
     hits = []
     for f, raw in zip(files, raw_files):
-        capable = [
-            any(glob_match(g, p) for g in _CAPABILITY_FILES) if p else False
-            for p in f.paths
-        ]
-        if not any(capable):
+        capable = [is_capability_path(p) if p else False for p in f.paths]
+        if f.status == "removed" or not capable[0]:
             continue
-        patch = getattr(raw, "patch", None)
-        if f.has_patch is not True or not isinstance(patch, str):
-            triggers = ["no patch text to read"]
-        else:
-            triggers = _capability_triggers(patch)
-        # Unchanged frontmatter shows only as context in a rename or copy.
-        if capable[0] and (
-            f.status == "copied" or (f.status == "renamed" and not all(capable))
+        contents = getattr(raw, "contents", None)
+        error = getattr(raw, "contents_error", None)
+        if error is not None or not (
+            isinstance(contents, tuple)
+            and len(contents) == 2
+            and all(c is None or isinstance(c, str) for c in contents)
         ):
+            triggers = [f"contents unreadable: {_show(error)}"]
+        else:
+            before, after = (c or "" for c in contents)
+            triggers = _content_triggers(before, after, raw)
+        # Unchanged frontmatter reads the same on both sides of a rename or copy.
+        if f.status == "copied" or (f.status == "renamed" and not all(capable)):
             triggers.append(f"{f.status} into a capability path")
         if triggers:
             hits.append(f"{f.path}: {', '.join(dict.fromkeys(triggers))}")

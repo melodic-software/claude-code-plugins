@@ -54,7 +54,7 @@ from babysit_gh import (
     gh_http_status,
     is_owner_repo_pair,
 )
-from babysit_risk import ChangedFile, glob_match
+from babysit_risk import ChangedFile, glob_match, is_capability_path
 from babysit_util import (
     is_json_array,
     is_json_object,
@@ -2512,6 +2512,50 @@ def changed_files(
     return _changed_files(
         owner, name, shaped, str(json_object(pr.get("base")).get("sha"))
     )
+
+
+# Capability file text by (owner, name, path, sha): a SHA pins the text, so a
+# run reads each side of each file once.
+_TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
+
+
+def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
+    key = (owner, name, path, sha)
+    if key not in _TEXT_AT:
+        # Quoted, so a `?` or `#` in a changed path cannot pick another ref.
+        _TEXT_AT[key] = _file_at(owner, name, quote(path, safe="/"), sha)
+    return _TEXT_AT[key]
+
+
+def with_capability_contents(
+    repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
+) -> tuple[ChangedFile, ...]:
+    """Each changed capability file (not removed) with its base text at the
+    base SHA, from its previous path on a rename or copy, and its head text
+    at the head SHA, or the reason either could not be read."""
+    owner, name = _split_repo(repo)
+    base = json_object(pr.get("base")).get("sha")
+    head = json_object(pr.get("head")).get("sha")
+    read = []
+    for changed in files:
+        if changed.status == "removed" or not is_capability_path(changed.path):
+            read.append(changed)
+            continue
+        try:
+            if not (isinstance(base, str) and base and isinstance(head, str) and head):
+                raise PolicyReadError(
+                    "the pull request record names no base or head SHA"
+                )
+            before = (
+                None
+                if changed.status == "added"
+                else _text_at(owner, name, changed.previous_path or changed.path, base)
+            )
+            after = _text_at(owner, name, changed.path, head)
+            read.append(replace(changed, contents=(before, after)))
+        except (PolicyReadError, RuntimeError, ValueError) as exc:
+            read.append(replace(changed, contents_error=str(exc)))
+    return tuple(read)
 
 
 # --- Promotion evidence -----------------------------------------------------------------------

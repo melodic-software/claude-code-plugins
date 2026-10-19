@@ -519,10 +519,11 @@ except six:
 - **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
   `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH, and a SKILL.md,
-  agents/**/*.md or commands/**/*.md change to `hooks`, `allowed-tools`, `tools`, `permissionMode` or
-  `mcpServers` or `memory` frontmatter at any indentation (and the other keys `babysit_risk.py` lists), YAML it cannot read line
-  by line, a moved `---` delimiter, a rename or copy into such a path, or a new
-  `!` backtick command line or ```` ```! ```` block), `floor-paths` (globs joined to
+  agents/**/*.md or commands/**/*.md file whose head text, compared with its base text, gains or
+  changes `hooks`, `allowed-tools`, `tools`, `permissionMode`, `mcpServers`, `memory` or another
+  frontmatter key `babysit_risk.py` lists, gains a `!` backtick command or ```` ```! ```` block,
+  changes a line inside a ```` ```! ```` block, has changed frontmatter the strict reader cannot
+  follow, or cannot be read, and a rename or copy into such a path), `floor-paths` (globs joined to
   that floor while it applies; a HIGH pull request waits for a human), `floor-script-scopes`
   (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file scores HIGH with
   the floor), `c2-contradictions` (true

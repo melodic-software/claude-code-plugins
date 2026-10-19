@@ -2911,6 +2911,9 @@ def score_unattended(
         files, complete = merge_policy.changed_files(repo, pr)
     except merge_policy.PolicyReadError:
         files, complete = (), False
+    if config.high_path_floor:
+        # The capability check compares base and head text (the floor only).
+        files = merge_policy.with_capability_contents(repo, pr, files)
     # The pr-merge lane's switches (owner decision Q624); the local lane
     # keeps HIGH_FLOOR, both caps and the C2 contradictions.
     lane_switches = (
