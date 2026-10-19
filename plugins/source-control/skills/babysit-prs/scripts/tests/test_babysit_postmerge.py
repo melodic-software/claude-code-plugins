@@ -43,6 +43,7 @@ MERGE_SHA = "3" * 40
 HEAD_SHA = "2" * 40
 LATER_SHA = "4" * 40
 OTHER_SHA = "5" * 40
+FORK_SHA = "f" * 40
 RUN_URL = f"https://github.com/{REPO}/actions/runs"
 # Phase 12's failure note (post-merge-demotion-alert.yml `again=`).
 AGAIN = "The post-merge check found this failure again: "
@@ -168,6 +169,8 @@ class FakeGh:
         self.attempts: dict[tuple[int, int], dict[str, Any]] = {}
         # SHAs main reached at or after MERGE_SHA; anything else does not contain it.
         self.descendants = {MERGE_SHA, LATER_SHA}
+        # Commits on main itself, which a compare against the branch name asks.
+        self.on_main = {MERGE_SHA, LATER_SHA}
         self.queue: list[dict[str, Any]] = []
         self.issues: list[dict[str, Any]] = []
         self.comments: dict[int, list[dict[str, Any]]] = {}
@@ -260,6 +263,10 @@ class FakeGh:
             base, head = endpoint.split("/compare/")[1].split("...")
             if head == base:
                 return completed({"status": "identical"})
+            if head == "main":
+                return completed(
+                    {"status": "ahead" if base in self.on_main else "diverged"}
+                )
             return completed(
                 {"status": "ahead" if head in self.descendants else "diverged"}
             )
@@ -679,7 +686,9 @@ class LaneDispatch(CheckCase):
             "path": ".github/workflows/pr-merge.yml",
             "event": "schedule",
             "head_branch": "main",
+            "head_sha": LATER_SHA,
             "repository": {"full_name": REPO},
+            "head_repository": {"full_name": REPO},
         }
         record.update(sender)
         self.gh.run_records[self.LANE_RUN] = record
@@ -705,6 +714,30 @@ class LaneDispatch(CheckCase):
 
     def test_dispatch_from_another_repository_does_not_verify(self) -> None:
         self.lane_dispatch(repository={"full_name": "example-org/other"})
+        self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+    def test_dispatch_from_the_push_job_on_main_verifies(self) -> None:
+        # dispatch-full-run records the run it starts on a push to main.
+        self.lane_dispatch(event="push")
+        self.assertTrue(self.check(pinned=None).merges[0].verified)
+
+    def test_dispatch_from_a_fork_pull_request_run_does_not_verify(self) -> None:
+        # A fork PR from its own `main` runs its own pr-merge.yml on the base
+        # repository, under that repository's name and the branch name `main`.
+        self.lane_dispatch(
+            event="pull_request",
+            head_sha=FORK_SHA,
+            head_repository={"full_name": "outsider/example-repo"},
+        )
+        self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+    def test_dispatch_from_a_tag_push_does_not_verify(self) -> None:
+        # A tag named `main` reads head_branch `main` on a commit off the branch.
+        self.lane_dispatch(event="push", head_sha=OTHER_SHA)
+        self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+    def test_dispatch_from_another_head_repository_does_not_verify(self) -> None:
+        self.lane_dispatch(head_repository={"full_name": "outsider/example-repo"})
         self.assertFalse(self.check(pinned=None).merges[0].verified)
 
     def test_github_actions_dispatch_without_the_record_does_not_verify(self) -> None:
@@ -763,7 +796,9 @@ class LaneRerun(LaneDispatch):
             "path": ".github/workflows/pr-merge.yml",
             "event": "schedule",
             "head_branch": "main",
+            "head_sha": LATER_SHA,
             "repository": {"full_name": REPO},
+            "head_repository": {"full_name": REPO},
         }
         rerunner.update(sender)
         self.gh.run_records[self.RERUN_RUN] = rerunner
@@ -800,12 +835,19 @@ class LaneRerun(LaneDispatch):
 
     def test_a_record_not_uploaded_by_pr_merge_on_main_is_red(self) -> None:
         # A pull request's own workflow, a branch's copy of pr-merge.yml, or a
-        # pull_request_target run (the base branch's copy) cannot forge it.
+        # pull_request_target run (the base branch's copy) cannot forge it, nor
+        # a fork's pull_request run, a tag push, or a push run, as only the
+        # schedule and workflow_dispatch job writes it.
+        fork = {"full_name": "outsider/example-repo"}
         for sender in (
             {"path": ".github/workflows/pr-refine.yml"},
             {"head_branch": "feature"},
             {"event": "pull_request_target"},
             {"repository": {"full_name": "example-org/other"}},
+            {"event": "pull_request", "head_sha": FORK_SHA, "head_repository": fork},
+            {"event": "push"},
+            {"head_sha": OTHER_SHA},
+            {"head_repository": fork},
         ):
             with self.subTest(sender=sender):
                 self.setUp()

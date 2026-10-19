@@ -85,6 +85,12 @@ LANE_DISPATCH_ACTOR = "github-actions[bot]"
 # full run, also under GITHUB_TOKEN, and records it in an artifact named
 # `<prefix><run id>-attempt-2`; `_Context.lane_rerun` reads it.
 LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
+# The events of the pr-merge.yml jobs that upload each record: dispatch-full-run
+# (push, and after the merge job) and post-merge-dispatch (schedule and
+# workflow_dispatch) write the dispatch record; only post-merge-dispatch writes
+# the re-run record.
+LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
+LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
 DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
 DEFAULT_ROLE_LABEL = "needs-human"
@@ -647,7 +653,7 @@ class _Context:
         its `pr-merge-dispatched-<id>` artifact was uploaded by a run of
         pr-merge.yml in this repository on the branch."""
         return run.actor == LANE_DISPATCH_ACTOR and self._lane_record(
-            f"{LANE_DISPATCH_ARTIFACT}{run.id}"
+            f"{LANE_DISPATCH_ARTIFACT}{run.id}", LANE_DISPATCH_EVENTS
         )
 
     def lane_rerun(self, run: Run) -> bool:
@@ -655,15 +661,14 @@ class _Context:
         its post-merge-dispatch job uploads `pr-merge-rerun-<id>-attempt-2`
         only after its own `rerun-failed-jobs` call made that attempt."""
         return self.lane_dispatched(run) and self._lane_record(
-            f"{LANE_RERUN_ARTIFACT}{run.id}-attempt-2"
+            f"{LANE_RERUN_ARTIFACT}{run.id}-attempt-2", LANE_RERUN_EVENTS
         )
 
-    def _lane_record(self, artifact: str) -> bool:
-        """Whether a run of pr-merge.yml in this repository on the branch
+    def _lane_record(self, artifact: str, events: frozenset[str]) -> bool:
+        """Whether a run of the branch's own pr-merge.yml (`_lane_sender`)
         uploaded an artifact named `artifact`. Only steps of a run can upload
-        its artifacts, and a pull_request_target run is not counted, as it runs
-        the PR base branch's copy of the file. A failed read raises, so the
-        verdict is unreadable rather than the record taken as present."""
+        its artifacts. A failed read raises, so the verdict is unreadable
+        rather than the record taken as present."""
         if artifact not in self.lane_cache:
             repo = f"{self.owner}/{self.name}"
             listing = _read(
@@ -682,19 +687,39 @@ class _Context:
             }
             self.lane_cache[artifact] = any(
                 isinstance(sender, int)
-                and _lane_run(
+                and self._lane_sender(
                     json_object(
                         _read(
                             ["api", f"repos/{repo}/actions/runs/{sender}"],
                             f"run {sender}",
                         )
                     ),
-                    repo,
-                    self.branch,
+                    events,
                 )
                 for sender in senders
             )
         return self.lane_cache[artifact]
+
+    def _lane_sender(self, record: dict[str, Any], events: frozenset[str]) -> bool:
+        """Whether workflow run `record` ran this repository's own pr-merge.yml
+        from the branch, on an event of the job that writes the record. A fork's
+        `pull_request` run carries the base repository as `repository` and its
+        own branch name, which can be the branch's, as `head_branch`, so the
+        head repository is checked and `head_sha`, the commit whose copy of
+        the file ran, must be on the branch: that also refuses a tag named
+        like the branch."""
+        repo = f"{self.owner}/{self.name}"
+        head_sha = record.get("head_sha")
+        return (
+            record.get("path") == LANE_DISPATCH_WORKFLOW
+            and record.get("event") in events
+            and record.get("head_branch") == self.branch
+            and json_object(record.get("repository")).get("full_name") == repo
+            and json_object(record.get("head_repository")).get("full_name") == repo
+            and isinstance(head_sha, str)
+            and _FULL_SHA.fullmatch(head_sha) is not None
+            and self.contains(head_sha, self.branch)
+        )
 
     def contains(self, ancestor: str, sha: str) -> bool:
         """Whether `sha` is `ancestor` or has it in its history: from a local
@@ -805,15 +830,6 @@ class _Context:
         """The failing attempt's URL, in the demotion workflow's form: a run's
         URL names no attempt, and a later failing attempt is a new sighting."""
         return f"{run.url}/attempts/{2 if run.id in self.red_on_rerun else 1}"
-
-
-def _lane_run(record: dict[str, Any], repo: str, branch: str) -> bool:
-    return (
-        record.get("path") == LANE_DISPATCH_WORKFLOW
-        and record.get("event") != "pull_request_target"
-        and record.get("head_branch") == branch
-        and json_object(record.get("repository")).get("full_name") == repo
-    )
 
 
 @dataclass

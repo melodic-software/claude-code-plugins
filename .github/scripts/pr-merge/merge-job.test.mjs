@@ -449,6 +449,8 @@ test("the early check names only a lane-dispatched run awaiting its re-run", () 
   assert.match(runEarlyReport({ reruns }), /^lane-rerun=11$/m);
   assert.match(runEarlyReport({ reruns: [reruns[0]] }), /^lane-rerun=$/m);
   assert.match(runEarlyReport({ reason: "unreadable" }), /^lane-rerun=$/m);
+  // The fake check exits 5; the re-run step's gate reads it.
+  assert.match(runEarlyReport({ reruns }), /^code=5$/m);
 });
 
 // Runs the re-run step against a fake gh that answers `attempts` in turn for
@@ -542,7 +544,11 @@ test("the re-run step refuses a run id that is not a number", () => {
 test("the re-run record is named by run and attempt, uploaded only after a recorded re-run", () => {
   const list = earlySteps();
   const rerun = step("Re-run a red lane-dispatched full run", list);
-  assert.match(rerun, /\n {8}if: steps\.post-merge\.outputs\.lane-rerun != ''\n/);
+  // Only a check that could judge (exit 0, 1 or 5) names a run to re-run.
+  assert.match(
+    rerun,
+    /\n {8}if: >-\n {10}contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n {10}&& steps\.post-merge\.outputs\.lane-rerun != ''\n/,
+  );
   assert.match(rerun, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   const upload = step("Record the re-run", list);
   assert.match(upload, /\n {8}if: steps\.rerun\.outputs\.recorded == 'true'\n/);

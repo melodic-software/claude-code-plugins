@@ -111,7 +111,7 @@ jobs:
     permissions:
       contents: read # check out main
       pull-requests: read # read lane merges and their merge-queue entries
-      actions: write # read full runs and their records; start pr-require-checks.yml on main
+      actions: write # read full runs and their records; start pr-require-checks.yml on main and re-run a red lane-dispatched run
       checks: read # read a failed full run's annotations
       issues: read # read the demotion records the merge floor depends on
     steps:
@@ -172,6 +172,7 @@ jobs:
           case $code in
             2 | 3 | 4) echo "::warning::the post-merge check exited $code (2 refused, 3 unreadable, 4 write failed); no full CI run started from it" ;;
           esac
+          echo "code=$code" >>"$GITHUB_OUTPUT"
           needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
           echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
           rerun=$(jq -r '[.reruns[]? | select(.laneDispatched == true) | .runId][0] // ""' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || true)
@@ -183,10 +184,13 @@ jobs:
       # as pr-merge-rerun-<id>-attempt-2, which the post-merge check needs
       # before it counts a github-actions[bot] attempt 2 of a lane-dispatched
       # run. The record is uploaded only after this job's own re-run made
-      # attempt 2, so a re-run anyone else started never gets one.
+      # attempt 2, so a re-run anyone else started never gets one. Only a
+      # check that could judge (exit 0, 1 or 5) names a run.
       - name: Re-run a red lane-dispatched full run
         id: rerun
-        if: steps.post-merge.outputs.lane-rerun != ''
+        if: >-
+          contains(fromJSON('["0","1","5"]'), steps.post-merge.outputs.code)
+          && steps.post-merge.outputs.lane-rerun != ''
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}

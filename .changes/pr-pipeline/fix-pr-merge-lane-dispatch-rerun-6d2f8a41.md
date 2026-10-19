@@ -11,4 +11,5 @@ bump: patch
   `pr-merge-rerun-<run id>-attempt-2`, which the post-merge check needs before it counts that
   attempt. Before this, such a run waited for a re-run the lanes App cannot start, every candidate
   was refused with exit 5, and no demotion record existed for a human to close until a person
-  re-ran it. The lanes App gets no new permission.
+  re-ran it. The lanes App gets no new permission. The re-run step runs only when the check
+  could judge (exit 0, 1 or 5).
