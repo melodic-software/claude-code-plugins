@@ -117,7 +117,8 @@ project, and a value the evidence does not settle is `unknown`, never a guess.
   at least one such command was found and none targets it. `unknown` with no workflow, a workflow that
   does not parse (no `jobs:` key, a tab indent), a variable, `.slnf` or continued command target, a
   `working-directory`, a local action (`uses: ./`, other than a reusable workflow) or a step that
-  starts a script, or no `dotnet` command at all.
+  starts a script, or no `dotnet` command at all. A script step or local action in any workflow makes
+  untargeted projects report `ci: unknown`, because the scan does not scope steps to jobs.
 - **`kind`**: `unit`, `integration`, `functional`, `architecture`, `live` or `operational`. A
   `project_kinds` entry (`<glob>=<kind>` against the repo-relative `.csproj` path, first match wins;
   quote an entry that starts with `*`) decides first. Otherwise the project path's name tokens
