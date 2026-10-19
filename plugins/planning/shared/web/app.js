@@ -3926,7 +3926,8 @@
       if (showing) {
         const r = alertToast();
         if (!r) { ui.alertOpen = false; hideToast(); return; }
-        toastAct.textContent = r[1].label; toastAct.onclick = () => { ui.alertOpen = false; hideToast(); r[1].run(); }; // the same words can name a newer item
+        toastAct.onclick = () => { ui.alertOpen = false; hideToast(); r[1].run(); }; // the same words can name a newer item
+        if (toastAct.textContent !== r[1].label) toastAct.textContent = r[1].label; // the live region changes only with its words
         if (toastTxt.textContent !== r[0]) { toastTxt.textContent = r[0]; placeToast(); }
       } else if (ui.alertOpen && !queued && !alertToast()) ui.alertOpen = false; // covered, and nothing waits any more
       else if (fresh.length && !queued && !ui.alertOpen) flash(alertToast, null, "alert");
