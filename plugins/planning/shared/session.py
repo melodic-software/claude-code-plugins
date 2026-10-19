@@ -3844,9 +3844,17 @@ class Session:
                 if not c["attachments"]:
                     c.pop("attachments")
 
+    def _touch_carriers(self, uid):
+        """An upload changed how it shows: chat messages carrying it are touched, so a page holding older ones reads
+        them again (chatTouched)."""
+        for m in self.state["chat"]:
+            if uid in m.get("attachments", ()):
+                self._touch_chat(m["id"])
+
     def _end_upload(self, u, status):
         """Give an upload its last status: its preview goes, and unless it arrived it leaves every answer. Returns its
         pending file, for the caller to delete once the transaction holds."""
+        self._touch_carriers(u["id"])
         doomed = self._pending_file(u)
         u["status"] = status
         u.pop("thumb", None)
@@ -3947,9 +3955,11 @@ class Session:
             doomed = None
             if action == "approve":
                 u["shown"] = True
+                self._touch_carriers(uid)
             if action == "remove":
                 stored = u["status"]["stored"]
                 self._end_upload(u, {"kind": "removed", "at": now, "by": pid})
+                self._event("upload-removed", upload=uid, file=u["file"])
                 doomed = self.path.parent / stored if STORED_PATH.fullmatch(stored) else None
             if action == "accept":
                 if not self._active(u["pid"]):

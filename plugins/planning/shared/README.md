@@ -454,8 +454,10 @@ self` (400 `bad-field`). A request filed by "@Claude" in chat or a comment carri
 files, a proposal forwarded from chat its message's, and `request-run` lists a request's
 `attachments`, and a proposal placed as a suggestion keeps its proposal's. Declining or withdrawing a
 file takes it off everything that carries it, and so does `remove` (`POST /api/upload/act`, the
-owner's or the uploader's, on a received file): its status becomes `removed` (`at`, `by`) and its
-file is deleted.
+owner's or the uploader's, on a received file): its status becomes `removed` (`at`, `by`), its
+file is deleted, and `upload-removed` (`upload`, `file`) tells Claude never to read it again. A file
+arriving, approved or ended touches the chat messages carrying it (`chatTouched`), so a page holding
+older messages reads them again.
 
 1. `POST /api/upload/offer` `{file, size, type, qid?, thumb?}` (96 KB) records the offer; the file
    stays in the browser (IndexedDB, or memory where a private window refuses it) until the owner

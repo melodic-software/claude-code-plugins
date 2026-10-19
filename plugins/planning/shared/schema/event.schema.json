@@ -10,7 +10,7 @@
     {"$ref": "#/$defs/request-run"},
     {"$ref": "#/$defs/request-cancelled"},
     {"$ref": "#/$defs/session-ended"},
-    {"$ref": "#/$defs/upload-received"}, {"$ref": "#/$defs/report-filed"}
+    {"$ref": "#/$defs/upload-received"}, {"$ref": "#/$defs/upload-removed"}, {"$ref": "#/$defs/report-filed"}
   ],
   "$defs": {
     "seq": {"type": "integer", "minimum": 1},
@@ -131,6 +131,20 @@
         "file": {"type": "string"},
         "stored": {"type": "string"},
         "qid": {"type": ["string", "null"]}
+      }
+    },
+    "upload-removed": {
+      "type": "object",
+      "description": "The owner or the uploader removed a received upload: its file is deleted.",
+      "required": ["seq", "at", "kind", "upload", "file"],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {"$ref": "#/$defs/seq"},
+        "at": {"$ref": "#/$defs/at"},
+        "deliveredAt": {"$ref": "#/$defs/at"},
+        "kind": {"enum": ["upload-removed"]},
+        "upload": {"type": "string"},
+        "file": {"type": "string"}
       }
     },
     "report-filed": {

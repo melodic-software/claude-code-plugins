@@ -5316,6 +5316,23 @@ class TestAttachmentsEverywhere(UploadCase):
         self.assertEqual(page["files"], {pic: {"file": "shot.png", "ext": "png", "size": 308, "status": "done", "image": True}})
         self.assertEqual(self.s.upload_image(self.bo, {"id": pic})["id"], pic)
 
+    def test_a_message_older_than_the_window_is_touched_when_its_picture_arrives_is_approved_or_removed(self):
+        uid = self.offered_and_accepted(self.ann, name="shot.png", data=PIC)
+        with mock.patch.object(session, "CHAT_WINDOW", 2):
+            self.act("chat", self.ann, {"text": "Old", "attachments": [uid]})
+            for i in range(2):
+                self.act("chat", self.bo, {"text": f"New {i}"})
+            touched = [self.s.snapshot(self.bo).get("chatTouched", 0)]
+            self.send_all(self.ann, uid, PIC)
+            touched.append(self.s.snapshot(self.bo).get("chatTouched", 0))
+            self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
+            touched.append(self.s.snapshot(self.bo).get("chatTouched", 0))
+            self.act("act_on_upload", HOST, {"id": uid, "action": "remove"})
+            touched.append(self.s.snapshot(self.bo).get("chatTouched", 0))
+        self.assertEqual(touched, [0, 1, 2, 3])
+        ev = self.events("upload-removed")
+        self.assertEqual([(e["upload"], e["file"]) for e in ev], [(uid, "shot.png")])
+
     def test_the_owner_or_the_uploader_removes_a_received_file(self):
         pic, own = self.sent_pic(self.ann), self.sent_pic(self.ann, name="b.png")
         self.act("chat", self.ann, {"text": "Look", "attachments": [pic, own]})
