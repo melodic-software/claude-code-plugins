@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Problem (inferred): webhook deliveries are lost when the endpoint fails briefly, because send() raises on the first error.", "why": "rating beside the problem"},
+    {"answer": "The gap this would fix: transient endpoint failures drop events. Evidence: inferred from src/webhooks/sender.py, no failure log found.", "why": "evidence line with the rating"},
+    {"answer": "Nothing in the repo shows lost deliveries, so this problem is inferred, not observed.", "why": "rating after the word problem"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "Q1: How many retries? My recommendation: 3 with exponential backoff.", "why": "goes straight to wrapper details, no rating"},
+    {"answer": "Problem: deliveries are lost when the endpoint fails briefly.", "why": "names the problem with no evidence rating"}
+  ]
+}

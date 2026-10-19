@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/webhook-retry/interview-checklist.md", "content": "- Q1 | open | round 1 | Is the problem right? |\n"}}], "why": "registers the problem row in the ledger, not the Brief"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/webhook-retry/PLAN.md", "content": "## Brief\n"}}], "why": "wrote the Brief before the problem was confirmed"}
+  ]
+}
