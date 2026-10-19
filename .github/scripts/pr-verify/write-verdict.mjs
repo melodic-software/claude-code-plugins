@@ -3,7 +3,8 @@
 // pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>. The output
 // must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
 // summary a string, notes an array of strings, none shaped like an Anthropic
-// key or OAuth token, since the verdict is uploaded. The file also records the head
+// key or OAuth token, since the verdict is uploaded; a run with any permission
+// denial writes none. The file also records the head
 // branch and the linked issues with their authors, as the resolver read them
 // (number, author and last body editor login, id and type, last_edited_at;
 // each nullable but the number), which the pr-merge
@@ -112,6 +113,13 @@ export function structuredOutput(messages) {
   const result = Array.isArray(messages) ? messages.findLast((message) => message?.type === "result") : undefined;
   if (result?.structured_output === undefined) {
     throw new Error("the run left no result with a structured output");
+  }
+  // A denied call means the model reached past its data files: no verdict.
+  // Only tool names are printed, never a call's input.
+  const denials = Array.isArray(result.permission_denials) ? result.permission_denials : [];
+  if (denials.length > 0) {
+    const names = [...new Set(denials.map((d) => (/^[A-Za-z0-9_*-]{1,64}$/.test(d?.tool_name ?? "") ? d.tool_name : "unnamed")))];
+    throw new Error(`the run hit ${denials.length} permission denial(s): ${names.join(", ")}`);
   }
   return result.structured_output;
 }

@@ -132,6 +132,31 @@ test("the structured output is the last result message's", () => {
   }
 });
 
+test("a result with permission denials throws, naming the tools and never their inputs", () => {
+  const messages = [
+    {
+      type: "result",
+      subtype: "success",
+      structured_output: { verdict: "pass", summary: "s", notes: [] },
+      permission_denials: [
+        { tool_name: "Read", tool_use_id: "t1", tool_input: { file_path: "/secret/path" } },
+        { tool_name: "Bash", tool_use_id: "t2", tool_input: { command: "env" } },
+        { tool_name: "Read", tool_use_id: "t3", tool_input: { file_path: "/other" } },
+      ],
+    },
+  ];
+  assert.throws(
+    () => structuredOutput(messages),
+    (error) => {
+      assert.match(error.message, /permission denial/);
+      assert.match(error.message, /Read, Bash/);
+      assert.doesNotMatch(error.message, /secret|env|other/);
+      return true;
+    },
+  );
+  assert.deepEqual(structuredOutput([{ ...messages[0], permission_denials: [] }]), messages[0].structured_output);
+});
+
 test("long model text is cut, not refused", () => {
   const built = buildVerdict({
     ...ids,
