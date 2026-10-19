@@ -54,13 +54,13 @@ From `$ARGUMENTS`:
   number per the adapter's "Resolve item ID" first). Verify it carries the binding-resolved
   container label (`config.container_label`, default `work-map`. Warn loudly when defaulting) and
   a body with the `**Execution shape:**` line decompose appends to every container it publishes
-  (wayfind maps share the label but never write that line). A labelled item without the line is
+  (wayfind maps share the label but never write that line). A labeled item without the line is
   reported as not a spec container, and only an item without the container label that has a
   native parent routes to that parent with a note.
 - `<topic-slug>` or empty. Read the topic's PLAN.md (`<memory_dir>/<slug>/PLAN.md`)
   for the `**Spec container:** <qualified-id>` line under `## Brief`. Fallback discovery: query the
   bound adapter for **open** items carrying the resolved container label (body citing the slug when
-  one is known) whose body carries the `**Execution shape:**` line; a labelled item without it
+  one is known) whose body carries the `**Execution shape:**` line; a labeled item without it
   is skipped and named in the report, never adopted. One hit → use it; several → list them and ask which journey to drive; none →
   report that no container exists and route to `/work-items:decompose` (which owns publishing one),
   invoked via the Skill tool.

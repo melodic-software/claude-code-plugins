@@ -98,7 +98,7 @@ coordination provider instead of publishing a spec that cannot travel.
   not survive to it. The fallback discovery path (no line found) is a tracker query for an
   open item carrying the binding-resolved container label whose body cites the topic slug and
   carries the `**Execution shape:**` line this skill appends to every container (wayfind maps
-  share the label but never write it). A labelled item without that line is skipped and named
+  share the label but never write it). A labeled item without that line is skipped and named
   in the report, never adopted.
 
 **Ship ritual, close at ship, archival by closure.** `/work-items:ship` is the macro router
