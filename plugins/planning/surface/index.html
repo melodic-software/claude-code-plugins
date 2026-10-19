@@ -1308,7 +1308,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const r = S.doc.restatement;
     return r ? events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn && e.contentRev === r.rev).pop() || null : null;
   }
-  const USECT = [["goal", "Goal"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
+  const USECT = [["problem", "Problem"], ["goal", "Goal"], ["workSize", "Work size"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
   function confirmedRev(){ // the newest earlier restatement whose newest live verdict is a Confirm
     const cur = S.doc.restatement, vs = events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn);
     return cur && (S.doc.restatements || []).filter(r => r.rev < cur.rev).reverse().find(r => (vs.filter(e => e.contentRev === r.rev).pop() || {}).alt === "confirm") || null;

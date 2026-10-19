@@ -370,6 +370,25 @@ a trust gate. An expedite label from a human with write access skips
 `refine`. A label counts only when the actor on its label event is a trusted human: a label the App
 set never resumes an item, expedites it, sets its work class or lifts a hold.
 
+A pr-unblock escalation whose reason repository state can settle is also cleared without a
+person. On its schedule, `pr-merge` rechecks each open PR into main carrying the human-gated
+label and removes it, after one comment naming the reason and the head, when every reason the
+lanes App's escalation comments recorded since the label went on no longer holds at the current
+head:
+
+| Reason | Cleared when |
+|---|---|
+| `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head |
+| `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
+| `feedback-protected-path` | the PR changes nothing under `.github/` |
+
+It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
+when any account but the lanes App commented or reviewed since that event, or when an App comment
+written or edited since then carries any marker other than pr-unblock's escalation (pr-merge's
+own `babysit-merge-*` escalations, another lane's). Every other reason
+(`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
+`ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
+
 ## Patch rules
 
 [`patch-rules.json`](../../../.github/actions/resolve-config/patch-rules.json) is the registry
@@ -883,11 +902,14 @@ login posts as that owner, so until agent sessions have their own GitHub identit
 acting as that account wrote it. The owner accepts that risk: unattended merge is on
 (`merge.report-only: false`) before that identity exists (#7711).
 
-`verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
-human. While `merge.report-only` is false the lane escalates such a refusal on the pull request
-([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it keeps one
-`<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, rewritten only
-when either changes, then adds the tracker's human-gated role label (`needs-human` unless
+`verify:fail`, `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and
+`verify:untrusted-spec` need a human. While `merge.report-only` is false the lane escalates such a
+refusal on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
+keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, and
+for `verify:fail` quoting as data the first 1500 characters of the `summary` in the newest head
+`fail` verdict when its record can be read and names this pull request. The comment is rewritten
+only when any of these changes, and a failed read of the record leaves a comment that already
+quotes a summary for the same refusal and head as it is; then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run; a rerun that
 finds both writes nothing. While it is true the refusal is only reported. The
