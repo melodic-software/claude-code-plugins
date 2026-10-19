@@ -215,8 +215,7 @@ export async function relayoutSlice({
       return typeof value === "string" && value === path.basename(value) && work.includes(value) ? value : null;
     };
     const recordedVideo = recordedName("video");
-    // Acquisition can record a bare `<id>.json` fallback; only an `.info.json` name yields a caption stem.
-    const recordedInfo = recordedName("infoJson")?.endsWith(".info.json") ? recordedName("infoJson") : null;
+    const recordedInfo = recordedName("infoJson");
     const videos = recordedVideo ? [recordedVideo] : work.filter((name) => VIDEO_FILE.test(name));
     const id = videos.length === 1 ? path.basename(videos[0], path.extname(videos[0])) : "";
     const infoName = recordedVideo && recordedInfo ? recordedInfo : `${id}.info.json`;
@@ -234,7 +233,10 @@ export async function relayoutSlice({
       return refuse(`the temp session's video is ${id}, not this slice's ${state.videoId}`);
     }
     plan.push({ from: path.join(workDir, videos[0]), to: `media/${state.videoId}${path.extname(videos[0])}` });
-    const stem = infoName.slice(0, -".info.json".length);
+    // Acquisition can record a bare `<id>.json` fallback; its caption stem is the video's basename.
+    const stem = infoName.endsWith(".info.json")
+      ? infoName.slice(0, -".info.json".length)
+      : path.basename(videos[0], path.extname(videos[0]));
     for (const name of work.filter((each) => each.startsWith(`${stem}.`) && each.endsWith(".vtt"))) {
       plan.push({ from: path.join(workDir, name), to: `transcript/${name.slice(stem.length + 1)}` });
     }

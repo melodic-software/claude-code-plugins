@@ -364,6 +364,23 @@ describe("relayoutSlice", () => {
       expect(fs.existsSync(path.join(fixture.targetDir, "transcript/en.vtt"))).toBe(true);
     });
 
+    it("reads the recorded <id>.json when the work dir holds no .info.json for it", async () => {
+      const fixture = makeTwoVideoFixture({
+        video: `${VIDEO_ID}.mp4`,
+        infoJson: `${VIDEO_ID}.json`,
+      });
+      const state = JSON.parse(read(fixture.sliceDir, "run-state/watch.json"));
+      const { workDir } = state.tempSession;
+      fs.rmSync(path.join(workDir, `${VIDEO_ID}.info.json`));
+      writeTree(workDir, { [`${VIDEO_ID}.json`]: JSON.stringify({ id: VIDEO_ID, title: "Recorded Only" }) });
+
+      const result = await relayoutSlice({ sliceDir: fixture.sliceDir, targetDir: fixture.targetDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(read(fixture.targetDir, "metadata/info.json")).title).toBe("Recorded Only");
+      expect(fs.existsSync(path.join(fixture.targetDir, "transcript/en.vtt"))).toBe(true);
+    });
+
     it("still refuses media mode when no primary entry is recorded", async () => {
       const { sliceDir, targetDir } = makeTwoVideoFixture(null);
 
