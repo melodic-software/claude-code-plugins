@@ -1,0 +1,4 @@
+---
+type: regex
+pattern: '^(?![\s\S]*(?:\|[ \t]*\**(?:CRITICAL|IMPORTANT)\**[ \t]*\||(?:^|\n)[ \t>]*(?:(?:[-*+]|\d+[.)])[ \t]+)?(?:#+[ \t]+)?\**(?:CRITICAL|IMPORTANT)\b(?![ \t]*\**[ \t]*\d)[^\n]*(?:upload\.py|form\.py|config\.py|MAX_UPLOAD_MB|\b25\b)|(?:\|[ \t]*\**(?:CRITICAL|IMPORTANT)\**[ \t]*\||[(\[][ \t]*\**(?:CRITICAL|IMPORTANT)\**[ \t]*[)\]]|\bSeverity\**[ \t]*[:=][ \t]*\**(?:CRITICAL|IMPORTANT)\b)[^\n]*(?:upload\.py|form\.py|config\.py|MAX_UPLOAD_MB|\b25\b)|(?:upload\.py|form\.py|config\.py|MAX_UPLOAD_MB|\b25\b)[^\n]*(?:\|[ \t]*\**(?:CRITICAL|IMPORTANT)\**[ \t]*\||[(\[][ \t]*\**(?:CRITICAL|IMPORTANT)\**[ \t]*[)\]]|\bSeverity\**[ \t]*[:=][ \t]*\**(?:CRITICAL|IMPORTANT)\b)))[\s\S]*(?:\bSUGGESTION\b[^\n]*(?:upload\.py|form\.py|config\.py|MAX_UPLOAD_MB|\b25\b)|(?:upload\.py|form\.py|config\.py|MAX_UPLOAD_MB|\b25\b)[^\n]*\bSUGGESTION\b)'
+---

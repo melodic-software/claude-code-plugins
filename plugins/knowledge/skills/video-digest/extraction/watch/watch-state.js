@@ -56,6 +56,9 @@ import {
  * @property {boolean} [skipResearch] - user passed --skip-research; research phase is recorded as skipped
  * @property {number} [maxFrameGapSec] - the coverage plan's maximum gap between timed frames for
  *   this run (`--max-frame-gap-sec` or the default), recorded at watch start so recovery reuses it
+ * @property {import('./duration-mismatch.js').DurationMismatch} [durationMismatch] - set only
+ *   when the metadata duration and the probed media duration differ by more than the
+ *   threshold; absent when they agree
  * @property {object} [frameSelection]
  * @property {number} [frameSelection.selectedCount]
  * @property {number} [frameSelection.targetMinFrames]

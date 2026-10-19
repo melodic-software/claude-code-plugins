@@ -273,6 +273,14 @@ test("live config: resolve-issue may run the changelog fragment check", () => {
   ]);
 });
 
+// #8310 (owner decision: option a): the run's own advisory check-affected over
+// its uncommitted work, which the runner's run-checks job never reruns.
+test("live config: resolve-issue self-checks its uncommitted work with check-affected", () => {
+  const leaf = selected("work-resolve-issue", "resolve-issue", ISSUE);
+  assert.deepEqual(leaf["self-checks"], ["scripts/check-affected.sh --uncommitted"]);
+  assert.ok(!leaf.checks.includes("scripts/check-affected.sh --uncommitted"), leaf.checks.join(" | "));
+});
+
 // #7597: the issue's done-when runs the can't-fail scan, a read-only checker.
 // #7685 and #7686: one test file at a time, and git mv and git rm, in the checkout.
 // #7840 (owner decision 2026-10-17): skill-quality's two checks; check-skill.sh
