@@ -119,12 +119,12 @@ Declared strategy default: `captions+repair`. Selection resolves per entry:
 The media conjunct is required: the `transcript` action never downloads media, so the ASR rung
 cannot run there at all. A caption-absent `transcript` run always degrades.
 
-`captions+repair` runs proper-noun repair over the platform VTT, using the post text
-(`description`) plus harvested links as the lexicon. The ASR rung is faster-whisper large-v3 at
-`batch_size=8`, an optional closed-by-default capability delivered as a documented prerequisite
-plus runtime detection, **never auto-installed**. The lexicon is repair-only: feeding it to ASR
-as an `initial_prompt` was probed and yielded no net proper-noun gain while worsening a
-hallucination, so the rung runs without one.
+`captions+repair` runs proper-noun repair over the platform VTT, using the title, the post text
+(`description`) and harvested links as the lexicon; ASR cues get the same repair. The ASR rung is
+faster-whisper large-v3 at `batch_size=8`, an optional closed-by-default capability delivered as a
+documented prerequisite plus runtime detection, **never auto-installed**. The lexicon is
+repair-only: feeding it to ASR as an `initial_prompt` was probed and yielded no net proper-noun gain
+while worsening a hallucination, so the rung runs without one.
 
 ## Failure patterns
 

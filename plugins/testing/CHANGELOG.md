@@ -3,6 +3,20 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.3] - 2026-10-18
+
+### Added
+
+- `/testing:audit` flags two more C# constant oracles as `rule-inert-assertion`: MSTest `Assert.IsNotNull(typeof(X))` and `Assert.IsNotNull(nameof(X))`, and `Assert.Equal`, `NotEqual` and `Same` (`AreEqual`, `AreNotEqual` and `AreSame` in MSTest and NUnit) when both operands are `typeof(...)`. A runtime operand such as `obj.GetType()` stays unflagged.
+
+### Changed
+
+- `/testing:cleanup` now records why its subagent briefs keep the rendered plugin root, with a pointer to the Claude Code docs section on cleanup of previous plugin versions, an as-of date and a recheck trigger.
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.27.2] - 2026-10-16
 
 ### Changed

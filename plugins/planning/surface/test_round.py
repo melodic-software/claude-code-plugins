@@ -338,6 +338,48 @@ class TestRefusals(DirCase):
             self.assertEqual(rc, 0, out + err)
             self.assertNotIn("restates", err)
 
+    def test_add_warns_on_a_recommendation_that_asks_the_user_something(self):
+        q = question(
+            "Q4",
+            recommendation="Yes, ship it. Also tell me which rung you intend.",
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q4 recommendation asks the user something", err)
+        self.assertEqual(self.q("Q4")["recommendation"], q["recommendation"])
+
+    def test_revise_warns_on_a_recommendation_that_asks_the_user_something(self):
+        rc, out, err = self.rp(
+            "revise",
+            "Q1",
+            "--rec",
+            "Ship it. Which rung do you intend?",
+            "--affects",
+            "none",
+            "--keep-alternatives",
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q1 recommendation asks the user something", err)
+
+    def test_ordinary_recommendation_draws_no_asks_the_user_warning(self):
+        rc, out, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("asks the user", err)
+
+    def test_question_mark_in_a_code_span_is_not_an_ask(self):
+        q = question("Q4", recommendation="Use `a?.b` for the lookup.")
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("asks the user", err)
+
+    def test_question_mark_in_a_bare_url_query_is_not_an_ask(self):
+        q = question(
+            "Q4", recommendation="See https://example.com/docs?page=2 for the limit."
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("asks the user", err)
+
     def test_bare_issue_ref_warns_without_meta_repo(self):
         q = question("Q4", title="Does #123 block the release?")
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
@@ -993,6 +1035,37 @@ class TestSupersedeRepoint(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertIn("repointed Q2, Q4 from Q1 to Q6", out)
         self.assertEqual(self.q("Q2")["dependsOn"], ["Q6"])
+
+
+class TestSupersedeShortAndDuplicateId(DirCase):
+    """A superseding question needs its own short title; a duplicate id refusal says nothing was written."""
+
+    def test_superseding_with_the_predecessors_short_is_refused(self):
+        short = self.q("Q1")["short"]
+        new = question("Q6", supersedes="Q1", short=f"  {short.upper()} ")
+        before = self.doc()
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": [{"op": "add", "question": new}]})
+        )
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("reuses its short title", out + err)
+        self.assertEqual(self.doc(), before)
+
+    def test_duplicate_id_says_nothing_was_written_and_names_the_first(self):
+        ops = {
+            "ops": [
+                {"op": "add", "question": question("Q7")},
+                {"op": "add", "question": question("Q1")},
+                {"op": "add", "question": question("Q2")},
+            ]
+        }
+        before = self.doc()
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("duplicate id: Q1", out + err)
+        self.assertNotIn("Q2 (", out + err)
+        self.assertIn("nothing was written", out + err)
+        self.assertEqual(self.doc(), before)
 
 
 class TestStatus(DirCase):

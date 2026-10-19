@@ -92,6 +92,25 @@ usability. Basis: judgment.
 - Label each LLM-found problem "candidate (LLM inspection)" until a human evaluator or a test
   confirms it. Basis: judgment.
 
+## Live-app checks
+
+Run these in an expert review of a live app, beside the heuristic pass. Each finding goes in the
+findings format below. Basis: judgment.
+
+- **Fold visibility**: walk each task at a phone, a tablet and a desktop screen size. Record per
+  step whether the primary action and the thing being asked about are on screen without
+  scrolling. A primary action that needs scrolling at any of the three sizes is a finding that
+  names the size and how far down the action sits. When no browser is available, say the check
+  was not run and name the access that would help.
+- **Ambiguous copy**: read every question, label and instruction the app shows people. Flag
+  words such as "this page", "here" or "this one" that could point at more than one view,
+  element or device, and say which readings are possible (for example, "what would you change
+  about this page?" in an app with three views).
+- **In-product pictures**: compare every screenshot or picture of the product shown inside the
+  product with the live screen and theme the viewer is on, and check each image's natural size
+  against its displayed size. An out-of-date picture (a retired toolbar, a badge the live screen
+  no longer has), a theme mismatch or an upscale is a finding.
+
 ## Findings format
 
 | Finding | Where | Heuristic or walkthrough question | Severity | Found by | Evidence | Recommendation |

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "No code-design issues found. src/handlers/index.js is the declared registry and src/lib/money.js is a move.\n\nCRITICAL 0, IMPORTANT 0, SUGGESTION 0",
+      "why": "clean report naming the files"
+    },
+    {
+      "answer": "| 1 | SUGGESTION | low | Shotgun Surgery | A handler needs its file and a registry line | src/handlers/index.js:7 | Optional: derive the registry |",
+      "why": "SUGGESTION only"
+    },
+    {
+      "answer": "Not CRITICAL: src/handlers/index.js is the declared registry and src/lib/money.js is a move.\n\nCRITICAL 0, IMPORTANT 0, SUGGESTION 0",
+      "why": "negated mention of CRITICAL beside a file name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | Duplicated Code | refund is named in two places | src/handlers/index.js:7 | Generate the registry |",
+      "why": "registry entry rated CRITICAL"
+    },
+    {
+      "answer": "src/lib/money.js duplicates src/util/money.js (CRITICAL).",
+      "why": "move treated as a copy"
+    },
+    {
+      "answer": "No issues.",
+      "why": "names no reviewed file"
+    }
+  ]
+}

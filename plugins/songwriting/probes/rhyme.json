@@ -1,0 +1,130 @@
+{
+  "skill": "songwriting:rhyme",
+  "plugin": "songwriting",
+  "skill_dir": "plugins/songwriting/skills/rhyme",
+  "ranking_note": "Authored from the before descriptions at commit 11a25e8bb3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling songwriting skills the near-miss negatives aim at; one or two negatives are adjacent non-songwriting requests.",
+  "competitors": [
+    "songwriting:meter-prosody",
+    "songwriting:co-write",
+    "songwriting:metaphor",
+    "songwriting:song-form",
+    "songwriting:suno"
+  ],
+  "competitor_dirs": {
+    "songwriting:meter-prosody": "plugins/songwriting/skills/meter-prosody",
+    "songwriting:co-write": "plugins/songwriting/skills/co-write",
+    "songwriting:metaphor": "plugins/songwriting/skills/metaphor",
+    "songwriting:song-form": "plugins/songwriting/skills/song-form",
+    "songwriting:suno": "plugins/songwriting/skills/suno"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What rhymes with 'orange' that isn't a joke?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My chorus pairs 'love' and 'above' and it feels lazy. Why?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need a multi-word rhyme for 'Philadelphia'."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me some near rhymes for 'home', ranked from closest to loosest."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How do I build those stacked internal rhymes rappers use?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is 'time' with 'mine' a perfect rhyme or just close?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Help me find something to pair with 'Saturday' at the end of a line."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My rhymes sound predictable. Which words should I avoid?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "List words in the same vowel family as 'night' for a lyric about driving."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Mark the stressed syllables in this line."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Give me 40 variations of my hook line, I don't care if they rhyme."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Generate metaphors for a broken phone."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "My second verse repeats the first."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find synonyms for 'important' for my report."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Can this verse work as common meter?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Brainstorm 20 title ideas for my song."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write Suno lyrics with tags for a pop song."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Translate this poem into French."
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".work/log-retention/PLAN.md",
+            "old_string": "## Plan\n",
+            "new_string": "## Plan\n\n<!-- reviewed -->\n"
+          }
+        }
+      ],
+      "why": "editing the plan is allowed"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "app/cleanup/job.py",
+            "old_string": "def ",
+            "new_string": "def changed_"
+          }
+        }
+      ],
+      "why": "edited existing source code"
+    }
+  ]
+}

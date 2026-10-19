@@ -297,7 +297,7 @@ export function transcriptFilename(entryIndex, primaryEntryIndex) {
  * @property {number} paragraphCount
  * @property {boolean} cleanedAutoCaptions
  * @property {TranscriptStrategy} strategy - the strategy that produced this transcript
- * @property {number} repairedTermCount - proper-noun repairs applied (`captions+repair`)
+ * @property {number} repairedTermCount - proper-noun repairs applied (`captions+repair` and `asr`)
  */
 
 /**
@@ -330,8 +330,9 @@ export function transcriptFilename(entryIndex, primaryEntryIndex) {
  * Per entry, the transcript strategy resolves from the adapter default and the
  * explicit pipeline override ({@link resolveTranscriptStrategy}): captions are
  * consumed as before, `captions+repair` layers proper-noun repair (lexicon =
- * post text + harvested links), and the `asr` rung runs the optional local
- * toolchain — detected at runtime, never auto-installed. A degraded entry
+ * title + post text + harvested links), and the `asr` rung runs the optional
+ * local toolchain, its cues repaired with the same lexicon — detected at
+ * runtime, never auto-installed. A degraded entry
  * (no transcript producible) is recorded in `transcriptDegradation`.
  *
  * @param {object} options
@@ -388,12 +389,10 @@ export async function writeEnvelopeTranscriptArtifacts(
     requested === "asr" || entries.some((entry) => !entry.caption && entry.mediaPath);
   const asrDetection = needAsrProbe ? await detectAsr() : null;
 
-  // The adapter default can also resolve as the asr-unavailable fallback, so
-  // the lexicon is built whenever either route can reach `captions+repair`.
-  const repairLexicon =
-    requested === "captions+repair" || transcriptStrategy === "captions+repair"
-      ? buildRepairLexicon(metadata.description, harvestedLinks)
-      : null;
+  // Every strategy gets the lexicon, repair-only: captions+repair and ASR cues
+  // are repaired against it. It is never fed to ASR as an initial prompt (the
+  // probe in reference/sources/x.md showed no gain and a worse hallucination).
+  const repairLexicon = buildRepairLexicon(metadata.description, harvestedLinks, metadata.title);
 
   /** @type {EnvelopeTranscriptEntry[]} */
   const transcripts = [];
@@ -435,14 +434,15 @@ export async function writeEnvelopeTranscriptArtifacts(
         });
         continue;
       }
-      const transcript = formatTranscript(asr.cues);
+      const repaired = repairCues(asr.cues, repairLexicon);
+      const transcript = formatTranscript(repaired.cues);
       built = {
         transcript,
         sourceCues: asr.cues.map(toWatchCue),
-        cueCount: asr.cues.length,
+        cueCount: repaired.cues.length,
         paragraphCount: countParagraphs(transcript),
         cleanedAutoCaptions: false,
-        repairedTermCount: 0,
+        repairedTermCount: repaired.replacementCount,
       };
     } else {
       const caption = /** @type {NonNullable<typeof entry.caption>} */ (entry.caption);
