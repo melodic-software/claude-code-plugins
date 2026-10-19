@@ -265,7 +265,7 @@ Stems, Sliders, Studio). Answer only the section the user asked about.
   better-supported route when one exists.
 - **OFF the ladder: first-hand writer observation.** Every rung above grades **second-hand**
   sourcing. A finding the writer produced by driving Suno directly is a different evidentiary axis,
-  so label it in place with `writer-observed, single session (date), n=1 — not externally
+  so label it in place with `writer-observed, single session (date), n=1, not externally
   corroborated` (dated per finding) and **invent no new rung for it**; name the gap instead.
   First-hand does **not** outrank MEDIUM: one unreproduced session is not consensus, and where the
   reading is flow-scoped or setup-scoped the label carries that scope. An observed **failure** is
