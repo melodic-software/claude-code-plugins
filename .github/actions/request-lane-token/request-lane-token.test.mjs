@@ -31,13 +31,17 @@ function runScript() {
 // curl: the Nth broker POST (it has --data-binary) logs its body to $BODY_LOG
 // and its Authorization line to $AUTH_LOG, writes $ANSWERS/N.json to its -o
 // file and $ANSWERS/N.headers to its -D file, and prints $ANSWERS/N.status;
-// past the last answer it repeats the last one. The Mth OIDC GET prints token
-// oidc-token-M; anything else (a revoke) prints 204.
+// past the last answer it repeats the last one. A GET of a /compare/ URL logs
+// the URL and its Authorization line to $COMPARE_LOG and writes $COMPARE to
+// its -o file, or exits 22 (curl --fail on an HTTP error) when $COMPARE is
+// absent. The Mth OIDC GET prints token oidc-token-M; anything else (a
+// revoke) prints 204.
 const FAKE_CURL = `#!/usr/bin/env bash
 stdin=$(cat)
-out="" data="" write="" dump=""
+out="" data="" write="" dump="" url=""
 while [ $# -gt 0 ]; do
   case "$1" in
+    https://*) url=$1 ;;
     -o) out=$2; shift ;;
     -D) dump=$2; shift ;;
     -w) write=1; shift ;;
@@ -53,6 +57,10 @@ if [ -n "$data" ]; then
   cat "$ANSWERS/$n.json" >"$out"
   if [ -n "$dump" ]; then cat "$ANSWERS/$n.headers" >"$dump"; fi
   cat "$ANSWERS/$n.status"
+elif [[ $url == */compare/* ]]; then
+  printf '%s %s\\n' "$url" "$stdin" >>"$COMPARE_LOG"
+  [ -e "$COMPARE" ] || exit 22
+  cat "$COMPARE" >"$out"
 elif [ -n "$write" ]; then
   printf 204
 else
@@ -84,14 +92,16 @@ after(() => rmSync(root, { recursive: true, force: true }));
 // Each answer makes the broker's next reply that HTTP status, with that JSON
 // body (the mint below when absent) and that header block; the last repeats.
 // No answer is one 200 mint.
-function request(inputs, ...answers) {
+// A `compare` input is the GitHub compare response the action reads; absent,
+// the compare request fails.
+function request({ compare, ...inputs }, ...answers) {
   const dir = mkdtempSync(path.join(root, "run-"));
   const files = Object.fromEntries(["output", "summary"].map((name) => [name, path.join(dir, name)]));
   writeFileSync(files.output, "");
   writeFileSync(files.summary, "");
   const answersDir = path.join(dir, "answers");
   mkdirSync(answersDir);
-  const logs = Object.fromEntries(["auth", "oidc", "sleep"].map((name) => [name, path.join(dir, `${name}.log`)]));
+  const logs = Object.fromEntries(["auth", "oidc", "sleep", "compare"].map((name) => [name, path.join(dir, `${name}.log`)]));
   for (const log of Object.values(logs)) writeFileSync(log, "");
   const env = {
     // The action's `mode` input defaults to token.
@@ -108,6 +118,10 @@ function request(inputs, ...answers) {
     PULL_REQUESTS: "read",
     ISSUES: "read",
     SUPERSEDED_OK: "false",
+    PR_WORKFLOW_CHANGE_OK: "false",
+    HEAD_SHA: "",
+    DEFAULT_BRANCH: "",
+    API_TOKEN: "",
     ...inputs,
   };
   const mint = {
@@ -126,6 +140,8 @@ function request(inputs, ...answers) {
     writeFileSync(`${base}.json`, JSON.stringify(answer.body ?? mint));
     writeFileSync(`${base}.headers`, answer.headers ?? "HTTP/2 200\r\ncontent-type: application/json\r\n\r\n");
   });
+  const compareFile = path.join(dir, "compare.json");
+  if (compare !== undefined) writeFileSync(compareFile, JSON.stringify(compare));
   const bodyLog = path.join(dir, "body.json");
   const result = spawnSync("bash", ["-e", "-c", runScript()], {
     encoding: "utf8",
@@ -135,6 +151,7 @@ function request(inputs, ...answers) {
       ACTIONS_ID_TOKEN_REQUEST_URL: "https://oidc.example.net/token?api-version=2.0",
       ACTIONS_ID_TOKEN_REQUEST_TOKEN: "request-token",
       GITHUB_API_URL: "https://api.github.com",
+      GITHUB_REPOSITORY: "melodic-software/claude-code-plugins",
       GITHUB_REPOSITORY_ID: REPO_ID,
       GITHUB_OUTPUT: files.output,
       GITHUB_STEP_SUMMARY: files.summary,
@@ -143,6 +160,8 @@ function request(inputs, ...answers) {
       AUTH_LOG: logs.auth,
       OIDC_LOG: logs.oidc,
       SLEEP_LOG: logs.sleep,
+      COMPARE_LOG: logs.compare,
+      COMPARE: compareFile,
       ANSWERS: answersDir,
     },
   });
@@ -152,7 +171,9 @@ function request(inputs, ...answers) {
     stdout: result.stdout,
     body: existsSync(bodyLog) ? readFileSync(bodyLog, "utf8") : null,
     output: readFileSync(files.output, "utf8"),
+    summary: readFileSync(files.summary, "utf8"),
     auth: lines(logs.auth),
+    compares: lines(logs.compare),
     sleeps: lines(logs.sleep).map(Number),
   };
 }
@@ -368,6 +389,129 @@ test("without superseded-ok, a 403 workflow-modified still fails red", () => {
     run.output,
     "failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-merge.yml differs from refs/heads/main\n",
   );
+});
+
+// #7732: the refusal fix-docs got on #7717, a PR that changes a workflow file.
+// The detail's shape is the broker's, as SUPERSEDED above records it.
+const HEAD = "a".repeat(40);
+const REFINE_MODIFIED = {
+  status: "403",
+  body: { reason: "workflow-modified", detail: ".github/workflows/pr-refine.yml differs from refs/heads/main" },
+};
+const PR_CHANGE = {
+  LANE: "pr-refine",
+  ACTIVITY: "fix-docs",
+  PR_WORKFLOW_CHANGE_OK: "true",
+  HEAD_SHA: HEAD,
+  DEFAULT_BRANCH: "main",
+  API_TOKEN: "ghs_job",
+};
+// GitHub's compare response: `files[]` with `filename`, and `previous_filename`
+// on a rename (docs.github.com/en/rest/commits/commits#compare-two-commits).
+const changes = (...files) => ({ status: "ahead", files });
+const COMPARE_URL = `https://api.github.com/repos/melodic-software/claude-code-plugins/compare/main...${HEAD}`;
+
+test("with pr-workflow-change-ok, a workflow-modified refusal of a file the PR changes skips green, naming the reason and file", () => {
+  const run = request(
+    { ...PR_CHANGE, compare: changes({ filename: "docs/a.md", status: "modified" }, { filename: ".github/workflows/pr-refine.yml", status: "modified" }) },
+    REFINE_MODIFIED,
+  );
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(run.output, "skip-reason=workflow-modified\n");
+  assert.match(run.summary, /workflow-modified because this pull request changes \.github\/workflows\/pr-refine\.yml/);
+  assert.doesNotMatch(run.stdout, /::error::/);
+  assert.deepEqual(run.compares, [`${COMPARE_URL} Authorization: Bearer ghs_job`]);
+});
+
+test("with pr-workflow-change-ok, a PR that renamed the named file away also skips", () => {
+  const run = request(
+    { ...PR_CHANGE, compare: changes({ filename: ".github/workflows/pr-refine-old.yml", previous_filename: ".github/workflows/pr-refine.yml", status: "renamed" }) },
+    REFINE_MODIFIED,
+  );
+  assert.equal(run.status, 0, run.stdout);
+  assert.match(run.output, /^skip-reason=workflow-modified$/m);
+});
+
+test("with pr-workflow-change-ok, a workflow-modified refusal of a file the PR does not change fails red", () => {
+  const run = request({ ...PR_CHANGE, compare: changes({ filename: ".github/workflows/pr-merge.yml", status: "modified" }) }, REFINE_MODIFIED);
+  assert.equal(run.status, 1);
+  assert.equal(
+    run.output,
+    `failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-refine.yml differs from refs/heads/main; not skipped: the pull request's diff at ${HEAD} does not change .github/workflows/pr-refine.yml\n`,
+  );
+  assert.equal(run.compares.length, 1);
+});
+
+test("with pr-workflow-change-ok, a compare that cannot be read fails red", () => {
+  const run = request(PR_CHANGE, REFINE_MODIFIED);
+  assert.equal(run.status, 1);
+  assert.match(run.output, new RegExp(`; not skipped: the compare of main\\.\\.\\.${HEAD} could not be read\\n$`));
+  assert.doesNotMatch(run.output, /^skip-reason=/m);
+});
+
+for (const [name, detail] of [
+  ["no detail", undefined],
+  ["a detail that names no workflow file", "the workflow file changed"],
+  ["a path outside .github/workflows", "scripts/x.yml differs from refs/heads/main"],
+  ["another branch", ".github/workflows/pr-refine.yml differs from refs/heads/release"],
+  ["trailing text", ".github/workflows/pr-refine.yml differs from refs/heads/main; and more"],
+]) {
+  test(`with pr-workflow-change-ok, a workflow-modified refusal with ${name} fails red without a compare`, () => {
+    const run = request(
+      { ...PR_CHANGE, compare: changes({ filename: ".github/workflows/pr-refine.yml", status: "modified" }) },
+      { status: "403", body: { reason: "workflow-modified", ...(detail === undefined ? {} : { detail }) } },
+    );
+    assert.equal(run.status, 1);
+    assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 403 with reason workflow-modified.*; not skipped: the refusal names no workflow file against refs\/heads\/main$/m);
+    assert.deepEqual(run.compares, []);
+  });
+}
+
+for (const [status, reason] of [
+  ["403", "already-minted"],
+  ["403", "untrusted-actor"],
+  ["503", "workflow-modified"],
+  ["403", "Workflow-Modified"],
+]) {
+  test(`with pr-workflow-change-ok, a ${status} ${reason} still fails red without a compare`, () => {
+    const run = request(
+      { ...PR_CHANGE, compare: changes({ filename: ".github/workflows/pr-refine.yml", status: "modified" }) },
+      { status, body: { reason, detail: ".github/workflows/pr-refine.yml differs from refs/heads/main" } },
+    );
+    assert.equal(run.status, 1);
+    assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered /m);
+    assert.doesNotMatch(run.output, /^skip-reason=/m);
+    assert.deepEqual(run.compares, []);
+  });
+}
+
+test("a broker answer that is not JSON fails red even with pr-workflow-change-ok", () => {
+  const run = request({ ...PR_CHANGE, compare: changes({ filename: ".github/workflows/pr-refine.yml" }) }, { status: "403", body: "not json" });
+  assert.equal(run.status, 1);
+  assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 403 with reason unknown/m);
+  assert.deepEqual(run.compares, []);
+});
+
+for (const [name, inputs] of [
+  ["no head SHA", { HEAD_SHA: "" }],
+  ["a short head SHA", { HEAD_SHA: "abc123" }],
+  ["no default branch", { DEFAULT_BRANCH: "" }],
+  ["no token", { API_TOKEN: "" }],
+  ["no PR number", { PR_NUMBER: "", ISSUE_NUMBER: "77" }],
+]) {
+  test(`pr-workflow-change-ok with ${name} fails before the broker request`, () => {
+    const run = request({ ...PR_CHANGE, ...inputs });
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /::error::pr-workflow-change-ok needs token mode, a PR number, a head SHA, the default branch and a GitHub token/);
+    assert.equal(run.body, null);
+  });
+}
+
+test("a pr-workflow-change-ok other than true or false fails before the broker request", () => {
+  const run = request({ PR_WORKFLOW_CHANGE_OK: "yes" });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::pr-workflow-change-ok must be true or false/);
+  assert.equal(run.body, null);
 });
 
 test("a superseded-ok other than true or false fails before the broker request", () => {

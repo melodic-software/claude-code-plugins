@@ -682,8 +682,11 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # `USER-RESERVED` row that is returned and never assumed, so it agrees with cases 15 and 16.
 # Case 27 (a resumed recommendation re-grounded against a later constraint) grades a re-check before a round is shown; it resolves no row, so it agrees with cases 15 and 16.
 # Case 30 (shared-session-starts-share-before-first-round) grades that a shared session starts `share` before the first round; it resolves no row, so it agrees with cases 15 and 16.
+# Case 31 (ship-it-drops-questions-not-gates) moves the open rows to deferred as `USER-RESERVED` on the user's own ship-it, never answered with an invented answer, and keeps the confirmation gate, so it agrees with cases 15 and 16.
+# Cases 32-34 (wayfind-trigger-needs-two-rounds-running, declined-wayfind-not-repeated-until-escalation, never-switches-to-wayfind-on-its-own) grade only when wayfind is recommended and that the switch waits for the user; they resolve no row, so they agree with cases 15 and 16.
+# Case 35 (ship-it-confirmed-writes-deferred-brief) starts after the user confirmed and grades that the Brief keeps the deferred rows `USER-RESERVED` with no invented answer and that the handoff waits on the cross-check, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "fce1604293d686a19172cd4bb5f005199e51257749147f495e28b4f42690210a"
+  "be9aac7e306b1066ea3d97eb65ca4f056c08a625d3de9a9460a17cafb9332d30"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten

@@ -23,8 +23,10 @@ const FILES = {
   laneRules: json("./lane-rules.json"),
   effectGrants: json("./effect-grants.json"),
   activityRules: json("./activity-rules.json"),
+  trustedActors: json("../../standards/trusted-actors/trusted-actors.json"),
 };
-// A conflicting, ready, unlabeled PR that changed one Markdown file.
+// A conflicting, ready, unlabeled PR that changed one Markdown file; as an
+// issue, a listed human set it Small, Low and Known (the org's option ids).
 const FACTS = {
   event: "dispatch",
   changedPaths: ["docs/guide.md"],
@@ -33,6 +35,12 @@ const FACTS = {
   workClasses: [],
   mergeable: "conflicting",
   draft: false,
+  fieldValues: [
+    { field: 15462270, option: 27053568 },
+    { field: 48625720, option: 85127651 },
+    { field: 48625721, option: 85127654 },
+  ],
+  fieldSetters: { 15462270: 153232337, 48625720: 153232337, 48625721: 153232337 },
 };
 const selected = (lane, activity, facts = {}) =>
   resolve(FILES, {
@@ -271,6 +279,14 @@ test("live config: resolve-issue may run the changelog fragment check", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE).checks, [
     "scripts/check-changelog-fragments.sh --check",
   ]);
+});
+
+// #8310 (owner decision: option a): the run's own advisory check-affected over
+// its uncommitted work, which the runner's run-checks job never reruns.
+test("live config: resolve-issue self-checks its uncommitted work with check-affected", () => {
+  const leaf = selected("work-resolve-issue", "resolve-issue", ISSUE);
+  assert.deepEqual(leaf["self-checks"], ["scripts/check-affected.sh --uncommitted"]);
+  assert.ok(!leaf.checks.includes("scripts/check-affected.sh --uncommitted"), leaf.checks.join(" | "));
 });
 
 // #7597: the issue's done-when runs the can't-fail scan, a read-only checker.

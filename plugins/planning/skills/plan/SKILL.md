@@ -40,7 +40,7 @@ For multi-step planning (almost always steps 1-5), copy `templates/checklist.md`
 
 **Skip when:** the one-sentence skip (Purpose) applied, so no plan is written. On a mid-flight `review` replan, append a dated scope-change note and revise the PLAN phases instead; do not spawn a second checklist file.
 
-For **non-trivial / multi-layer** plans, Step 2 walks its design-default checklist **against the plan**: confirm the plan carries the resolved threads in PLAN.md's `## Design` section (and the design artifacts behind it) rather than re-deriving the axes. Configurability, extension points, observability, and testability are design threads owned by `/planning:design`'s "Design defaults"; type-collaboration shape is its type modeling. Audit that the plan carries their resolutions, don't re-open them. Magic-literal hygiene stays plan's own review check against the consuming project's review conventions when it declares them.
+For **non-trivial / multi-layer** plans, Step 2 walks its design-default checklist **against the plan**: confirm the plan carries the resolved threads in PLAN.md's `## Design` section (and the design artifacts behind it) rather than re-deriving the axes. Configurability, extension points, observability, and testability are design threads owned by `/planning:design`'s "Design defaults"; type-collaboration shape is its type modeling. The principle and lifecycle-and-reversibility threads `/planning:design-handoff` requires are audited the same way: resolved, directional or tagged-deferred (at quality bar `prototype`, named as deferred); a missing one routes back through `/planning:design-handoff`, except under an early-exit `design-resolution.md`, which carries neither. Audit that the plan carries their resolutions, don't re-open them. When a phase is tagged for a phase-boundary review, confirm the Brief carries a `Quality bar:` line: that review rates at it ([context/plan-template.md](context/plan-template.md) "Phase Review tags"). Magic-literal hygiene stays plan's own review check against the consuming project's review conventions when it declares them.
 
 ## Action Router
 
@@ -80,7 +80,7 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" <PLAN.md>` and r
 
 Checked by reading, or by their own script:
 
-- **Every brief scope-item maps to a phase**. No scope-item silently dropped, no in-scope phase missing.
+- **Every brief acceptance criterion maps to a phase, and no phase does Out-of-scope work**. Walk the Brief's Acceptance criteria and Out-of-scope sections: each criterion lands in at least one phase, and no phase does work the Brief lists as Out-of-scope.
 - **Each tag has its own row**. Every tagged decision appears in that table with its what-it-changes column filled; below-bar decisions were interviewed, not decided. The script maps only tags that carry an id; a bare tag passes with a `warning=bare-tag` line, so map those by reading.
 - **Displaced answers are listed at Step 5**. When an interview ledger exists, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>`. It passes when the verdict reports `open=0` and `superseded=N` (exit 1 is expected when N > 0) and every id on the ledger's `| superseded-by-plan |` rows (the verdict prints only the count) appears in the Step 5 "Displaced answers and new external effects" block.
 

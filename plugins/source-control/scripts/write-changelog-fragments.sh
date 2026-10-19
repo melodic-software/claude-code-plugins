@@ -8,7 +8,8 @@
 #   write-changelog-fragments.sh [--base <ref>] [--level major|minor|patch|none] < message
 #
 # The message on stdin is a commit message (subject, blank line, body) or a pull
-# request title. Touched plugins are the plugins/<name>/ paths in the index
+# request title. Touched plugins are the plugins/<name>/ paths (and the
+# docs/conventions/<name>/ paths of a listed convention) in the index
 # (git diff --cached), or with --base the paths changed on the branch
 # (git diff <ref>...HEAD).
 #
@@ -94,9 +95,20 @@ done < <(tr -d '\r' <"$list")
 declare -A seen=()
 plugins=()
 while IFS= read -r path; do
-  [[ "$path" == plugins/*/* ]] || continue
-  name="${path#plugins/}" name="${name%%/*}"
-  [[ -n "${listed[$name]:-}" && -z "${seen[$name]:-}" && -f "plugins/$name/.claude-plugin/plugin.json" ]] || continue
+  # A listed name with no plugin and a docs/conventions/<name>/CHANGELOG.md is a
+  # convention in fragment mode.
+  case "$path" in
+  plugins/*/*)
+    name="${path#plugins/}" name="${name%%/*}"
+    [[ -f "plugins/$name/.claude-plugin/plugin.json" ]] || continue
+    ;;
+  docs/conventions/*/*)
+    name="${path#docs/conventions/}" name="${name%%/*}"
+    [[ ! -f "plugins/$name/.claude-plugin/plugin.json" && -f "docs/conventions/$name/CHANGELOG.md" ]] || continue
+    ;;
+  *) continue ;;
+  esac
+  [[ -n "${listed[$name]:-}" && -z "${seen[$name]:-}" ]] || continue
   seen["$name"]=1
   plugins+=("$name")
 done <<<"$paths"

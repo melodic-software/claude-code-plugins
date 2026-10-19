@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/address-validation/design/design-threads.md",
+            "content": "# Design threads\n"
+          }
+        }
+      ],
+      "why": "a design artifact is allowed"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/checkout/address.js",
+            "content": "export async function validate(address) {}\n"
+          }
+        }
+      ],
+      "why": "wrote code"
+    }
+  ]
+}

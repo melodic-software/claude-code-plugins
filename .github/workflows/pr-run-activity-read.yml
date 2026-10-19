@@ -58,6 +58,13 @@ on:
         required: false
         type: string
         default: ""
+      trusted-base:
+        description: >-
+          pr-base trusts the PR's base SHA; default-tip trusts the default
+          branch tip, for a lane whose PR keeps a stale base.
+        required: false
+        type: string
+        default: pr-base
       ci-context-attempt:
         description: >-
           For a prepare: ci-context activity, the run attempt whose
@@ -297,6 +304,7 @@ jobs:
         with:
           base-sha: ${{ steps.gate.outputs.base-sha }}
           pr-number: ${{ steps.gate.outputs.pr-number }}
+          mode: ${{ inputs.trusted-base }}
 
       - name: Resolve the config
         id: config
@@ -491,7 +499,7 @@ jobs:
       - name: Run the skill activity
         id: act-skill
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
-        uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967 # v1.0.252
+        uses: anthropics/claude-code-action@5eb090f3c3afd701a0672cd32981197ca27688f6 # v1.0.253
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -520,7 +528,7 @@ jobs:
           # A workflow_run after a lanes App push runs as the App, and a
           # dispatcher-sent run as github-actions; the trigger gate has
           # already admitted both, so the action's own bot check only needs
-          # them listed (the App as in pr-verify.yml).
+          # them listed (the App pushes the lane's PRs).
           allowed_bots: >-
             ${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions'
             || 'melodic-automation-lanes[bot]' }}

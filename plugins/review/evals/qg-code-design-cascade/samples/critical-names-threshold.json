@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | CRITICAL | high | Duplicated Code | banner.js and summary.js hardcode 50, a copy of FREE_SHIPPING_THRESHOLD | src/cart/banner.js:2 | Import the constant |",
+      "why": "CRITICAL row naming the threshold"
+    },
+    {
+      "answer": "Copying the threshold 50 into banner.js is CRITICAL: changing pricing.js leaves it stale.",
+      "why": "prose finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| 1 | SUGGESTION | medium | Duplicated Code | 50 hardcoded in banner.js | src/cart/banner.js:2 | Import FREE_SHIPPING_THRESHOLD |",
+      "why": "rated below CRITICAL"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | high | Duplicated Code | threshold 50 copied | src/checkout/summary.js:4 | Import it |",
+      "why": "rated IMPORTANT"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | Missing Tests | The new free-shipping threshold banner has no test | src/cart/banner.js:2 | Add a test |",
+      "why": "CRITICAL about something else that only mentions the threshold"
+    },
+    {
+      "answer": "No code-design issues found.\n\nCRITICAL 0, IMPORTANT 0, SUGGESTION 0",
+      "why": "approves"
+    }
+  ]
+}

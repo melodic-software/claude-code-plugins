@@ -144,11 +144,9 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   `disk-hygiene:clean` and `repo-hygiene:clean`, except the shell-form rows named under "Scope",
   carries `args` and `"command": "node"`. Option gates
   that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`).
-  Two more flags skip the bash start on a row whose script would exit at once:
-  `--skip-if-all-false A,B,...` skips only when every named option is exactly `false` (no row
-  uses it since the guardrails verify rows moved to a git hook), and
+  Another flag skips the bash start on a row whose script would exit at once:
   `--skip-unless-stdin-contains TEXT` buffers stdin and skips a payload without TEXT (the testing
-  `Bash` row). `--skip-unless-stdin-contains` is advisory-only and must never gate a blocking
+  `Bash` row). It is advisory-only and must never gate a blocking
   guard row: a stdin stall past the idle bound exits 0 without running the script, so a guard
   behind it would fail open. The flag list is in the header of
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs). Two

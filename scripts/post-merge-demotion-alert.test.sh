@@ -97,6 +97,7 @@ if [[ "$method" != GET ]]; then
   exit 0
 fi
 [[ "${STUB_FAIL_READ:-}" != 1 ]] || exit 1
+[[ "${STUB_FAIL_LANE_READ:-}" != 1 || "$endpoint" != *creator=melodic-automation-lanes* ]] || exit 1
 case "$endpoint" in
   */comments*) fixture="$STUB_DIR/comments.json" ;;
   */jobs*)
@@ -203,7 +204,7 @@ run_step() {
   local graphql="${GRAPHQL:-}"
   printf '%s\n' "${graphql:-null}" >"$TMP_ROOT/stub/graphql.json"
   : >"$TMP_ROOT/stub/log"
-  OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" \
+  OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
@@ -514,7 +515,7 @@ fields="$(post_fields)"
 body="${fields#*body=}"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == "<!-- post-merge-failure sha=$SHA signal=dispatch -->"$'\n'* &&
   "$fields" != *babysit-merge-demotion* && "$fields" == *"title=Post-merge dispatch failure after #1234: lane not demoted"* &&
-  "$body" == *"the lane is NOT demoted"* && "$body" != *"rung off until"* &&
+  "$body" == *"the lane is NOT demoted"* && "$body" != *"rung off while any demotion record is open"* &&
   "$body" == *"- Pull request: https://github.com/o/r/pull/1234, by octocat"* && "$OUT" == *"cost 1 remaining 4999"* ]] &&
   grep -qx 'labels\[\]=needs-human' <<<"$fields" && [[ "$(grep -cx 'GET graphql' <<<"$LOG")" -eq 1 ]] &&
   grep -q 'p1234: pullRequest(number: 1234)' "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
@@ -540,7 +541,7 @@ demotes() {
   local fields
   fields="$(post_fields 2>/dev/null)"
   if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "${fields#*body=}" == "<!-- babysit-merge-demotion sha=$SHA signal="* &&
-    "$fields" == *": unattended merging demoted"* && "$fields" == *"rung off until"* ]]; then
+    "$fields" == *": unattended merging demoted"* && "$fields" == *"rung off while any demotion record is open"* ]]; then
     ok "$1"
   else
     fail "$1: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
@@ -573,7 +574,7 @@ fi
 
 PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User)")" ATTEMPT=1 run_step "$CANARY" push failure main o/r "$SHA" '[]'
 demotes "a canary failure demotes even with a human-only lookup available"
-if grep -qE 'GET (graphql|repos/o/r/contents/)' <<<"$LOG"; then
+if grep -qx 'GET graphql' <<<"$LOG"; then
   fail "a canary made the lookup: log='$LOG'"
 fi
 
@@ -762,6 +763,30 @@ if [[ "$RC" -ne 0 && -z "$LOG" ]]; then
   ok "a run attempt that is not a positive integer fails without a call"
 else
   fail "bad attempt: rc=$RC log='$LOG'"
+fi
+
+# The lanes App files the same record from pr-merge.yml, keyed on the merge
+# commit rather than the run's head, so a record of either filer that names
+# this run is this run's record.
+LANE_RECORD="<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->"$'\n\n'"- Failing run: $RUN_URL/attempts/1"$'\n'
+PIPELINE="$PIPE" run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 52 "$LANE_RECORD")]"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/52/comments' <<<"$LOG" &&
+  grep -qx 'GET repos/o/r/issues?state=all&creator=melodic-automation-lanes%5Bbot%5D&per_page=100' <<<"$LOG"; then
+  ok "a lane record naming this run under another SHA gets a comment, not a second issue"
+else
+  fail "lane record of the same run: rc=$RC log='$LOG' out='$OUT'"
+fi
+PIPELINE="$PIPE" files "a lane record of another run is not this run's record" schedule "$FULL" schedule \
+  "[$(issue 52 "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->"$'\n\n'"- Failing run: ${RUN_URL}0/attempts/1")]"
+
+# Only a demotion record stands in by its failing run: any other issue a
+# filer opened that names the run holds nothing.
+PIPELINE="$PIPE" files "a non-demotion issue naming this run is not its record" schedule "$FULL" schedule \
+  "[$(issue 53 "triage note"$'\n\n'"- Failing run: $RUN_URL/attempts/1")]"
+# A failed read of the identity's records still files this workflow's own.
+FAIL_LANE_READ=1 PIPELINE="$PIPE" files "an unreadable lane record list still files" schedule "$FULL" schedule '[]'
+if [[ "$OUT" != *"could not read melodic-automation-lanes[bot]'s records"* ]]; then
+  fail "an unreadable lane record list did not warn: out='$OUT'"
 fi
 
 test_harness::report

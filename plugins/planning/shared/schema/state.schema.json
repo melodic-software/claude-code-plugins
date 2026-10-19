@@ -7,12 +7,12 @@
   "required": [
     "schemaVersion", "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
     "questions", "cards", "votes", "reactions", "locks", "suggestions", "suggestionVotes", "proposals",
-    "chat", "requests", "results", "uploads", "annotations", "prefs", "notifications", "mergeRequests",
-    "aboutYou", "log"
+    "chat", "requests", "results", "uploads", "annotations", "prefs", "notifications", "inboxSeen",
+    "discussions", "discussionSeen", "mergeRequests", "aboutYou", "log"
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": {"enum": [3]},
+    "schemaVersion": {"enum": [5]},
     "pluginVersion": {"type": "string"},
     "writtenBy": {"type": "string"},
     "rev": {"type": "integer", "minimum": 0},
@@ -39,13 +39,35 @@
     "proposals": {"type": "array", "items": {"$ref": "#/$defs/proposal"}},
     "chat": {"type": "array", "items": {"$ref": "#/$defs/chatMessage"}},
     "requests": {"type": "array", "items": {"$ref": "#/$defs/request"}},
-    "results": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/result"}}},
+    "results": {
+      "description": "qid -> its results; `session` -> the results about the whole session, which carry no qid.",
+      "type": "object",
+      "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/result"}}
+    },
     "uploads": {"type": "array", "items": {"$ref": "#/$defs/upload"}},
     "annotations": {"type": "array", "items": {"$ref": "#/$defs/annotation"}},
     "prefs": {"type": "object", "additionalProperties": {"$ref": "#/$defs/prefs"}},
     "notifications": {
       "type": "object",
       "additionalProperties": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/notification"}}
+    },
+    "inboxSeen": {
+      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join: and an id for the owner) and the status each had then; an item whose status moved since is unread.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {"enum": ["waiting", "running", "answered", "unshared", "shared", "declined", "failed", "open"]}
+      }
+    },
+    "discussions": {
+      "description": "Each question's Discussion, qid -> its comments oldest first.",
+      "type": "object",
+      "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/comment"}}
+    },
+    "discussionSeen": {
+      "description": "Per person, qid -> the time of the newest comment they saw when they last opened that question's Discussion; others' comments after it are new to them.",
+      "type": "object",
+      "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ts"}}
     },
     "mergeRequests": {"type": "array", "items": {"$ref": "#/$defs/mergeRequest"}},
     "aboutYou": {"type": "object", "additionalProperties": {"$ref": "#/$defs/aboutYou"}},
@@ -99,6 +121,7 @@
     "url": {"type": "string", "maxLength": 2000, "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://\\S+$"},
     "assetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg)$"},
     "cardRef": {"type": "string"},
+    "attachments": {"description": "Upload ids, each an accepted upload of the record's author.", "type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}},
     "svgAssetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.svg$"},
     "reaction": {"enum": ["thumbs", "down", "heart", "idea"]},
     "rect": {
@@ -150,7 +173,8 @@
             "U": {"type": "integer", "minimum": 0},
             "N": {"type": "integer", "minimum": 0},
             "A": {"type": "integer", "minimum": 0},
-            "F": {"type": "integer", "minimum": 0}
+            "F": {"type": "integer", "minimum": 0},
+            "D": {"type": "integer", "minimum": 0}
           }
         }
       }
@@ -169,6 +193,7 @@
         "uploads": {"type": "boolean"},
         "claudeTake": {"enum": ["answerFirst", "always"]},
         "approveJoins": {"description": "New joins wait for the owner's admit; absent is off.", "type": "boolean"},
+        "reviewAnswers": {"description": "Every answer waits for the owner's Share. A new session writes it off; absent (a session from before it) is on.", "type": "boolean"},
         "theme": {
           "type": "object",
           "required": ["mode", "accent"],
@@ -620,6 +645,17 @@
         "image": {"type": "string"},
         "status": {"enum": ["open", "seen", "resolved"]},
         "asked": {"$ref": "#/$defs/ts", "description": "When the owner asked Claude about the report, which wrote `report-filed`; absent until then."},
+        "adds": {
+          "description": "Lines and screenshots the reporter added while the report was open, oldest first; absent until the first.",
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "required": ["ts"],
+            "additionalProperties": false,
+            "properties": {"text": {"$ref": "#/$defs/text"}, "image": {"type": "string"}, "ts": {"$ref": "#/$defs/ts"}}
+          }
+        },
         "ts": {"$ref": "#/$defs/ts"}
       }
     },
@@ -710,6 +746,7 @@
         "text": {"$ref": "#/$defs/text"},
         "note": {"$ref": "#/$defs/note"},
         "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
         "fromProposal": {"type": "string"},
         "status": {
           "oneOf": [
@@ -745,6 +782,7 @@
         "pid": {"$ref": "#/$defs/pid"},
         "text": {"$ref": "#/$defs/text"},
         "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
         "via": {
           "oneOf": [
             {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["direct"]}}},
@@ -808,15 +846,51 @@
         "pid": {"$ref": "#/$defs/pid"},
         "text": {"$ref": "#/$defs/text"},
         "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
         "replyTo": {
           "type": "object",
           "required": ["id", "pid", "excerpt"],
           "additionalProperties": false,
-          "properties": {"id": {"type": "string"}, "pid": {"$ref": "#/$defs/pid"}, "excerpt": {"type": "string", "maxLength": 140}}
+          "properties": {"id": {"type": "string"}, "pid": {"$ref": "#/$defs/pid"}, "excerpt": {"type": "string", "maxLength": 140}, "claude": {"enum": [true]}}
         },
         "proposed": {"type": "string"},
+        "request": {"type": "string", "description": "The request about the whole session its \"@Claude\" filed."},
+        "claude": {
+          "description": "Claude's shared answer to a request about the whole session, written as the host's message.",
+          "type": "object",
+          "oneOf": [
+            {"required": ["result"], "additionalProperties": false, "properties": {"result": {"type": "string"}}},
+            {"required": ["takenDown"], "additionalProperties": false, "properties": {"takenDown": {"const": true}}, "description": "The owner took the answer down; its text reads so."}
+          ]
+        },
         "reactions": {
           "description": "emoji -> the people who put it on this message; at most 20 emoji, from the page's fixed set (session.CHAT_EMOJI).",
+          "type": "object",
+          "additionalProperties": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pid"}}
+        }
+      }
+    },
+    "comment": {
+      "description": "One Discussion comment. `edited`: when its author last changed it. `hidden`: the owner hid it; only the owner and its author see it. `request`: the ask request its \"@Claude\" filed.",
+      "type": "object",
+      "required": ["id", "pid", "text", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "text": {"$ref": "#/$defs/text"},
+        "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
+        "edited": {"$ref": "#/$defs/ts"},
+        "hidden": {
+          "type": "object",
+          "required": ["by", "at"],
+          "additionalProperties": false,
+          "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
+        },
+        "request": {"type": "string"},
+        "reactions": {
+          "description": "emoji -> the people who put it on this comment, as on a chat message.",
           "type": "object",
           "additionalProperties": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pid"}}
         }
@@ -825,15 +899,19 @@
     "requestKind": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/event#/$defs/requestKind"},
     "request": {
       "type": "object",
-      "required": ["id", "pid", "qid", "at", "kind", "text", "edited", "runner", "status"],
+      "description": "No qid: a request about the whole session (a chat message's \"@Claude\", or Ask Claude's \"About the whole session\"), on the host's Claude only.",
+      "required": ["id", "pid", "at", "kind", "text", "edited", "runner", "status"],
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string"},
         "pid": {"$ref": "#/$defs/pid"},
         "qid": {"$ref": "#/$defs/qid"},
+        "msg": {"type": "string", "description": "The chat message whose \"@Claude\" filed it."},
+        "audience": {"enum": ["me"], "description": "Just me: its answer shows to its asker and the owner until one of them shares it; absent asks for everyone."},
         "at": {"$ref": "#/$defs/ts"},
         "kind": {"$ref": "#/$defs/requestKind"},
         "text": {"$ref": "#/$defs/text"},
+        "attachments": {"$ref": "#/$defs/attachments"},
         "edited": {"type": "boolean"},
         "runner": {"enum": ["host", "self"]},
         "status": {
@@ -895,11 +973,13 @@
     "report": {"type": "string", "maxLength": 60000},
     "result": {
       "type": "object",
-      "required": ["id", "qid", "at", "request", "kind", "used", "why", "summary", "sources", "report", "by", "published"],
+      "description": "No qid: the answer to a request about the whole session, kept under results.session. `msg`: the chat message that shows it once shared.",
+      "required": ["id", "at", "request", "kind", "used", "why", "summary", "sources", "report", "by", "published"],
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string"},
         "qid": {"$ref": "#/$defs/qid"},
+        "msg": {"type": "string"},
         "at": {"$ref": "#/$defs/ts"},
         "request": {"type": ["string", "null"]},
         "kind": {"$ref": "#/$defs/requestKind"},
@@ -920,7 +1000,9 @@
           ]
         },
         "published": {"type": "boolean"},
-        "publishedAt": {"$ref": "#/$defs/ts"}
+        "publishedAt": {"$ref": "#/$defs/ts"},
+        "private": {"const": true, "description": "Unshared, and its asker sees it: a Just me answer, or one the owner took down."},
+        "takenDown": {"type": "object", "required": ["at"], "additionalProperties": false, "properties": {"at": {"$ref": "#/$defs/ts"}}, "description": "The owner took it down; only the owner shares it again."}
       }
     },
     "upload": {
@@ -937,6 +1019,7 @@
         "mime": {"type": "string"},
         "size": {"type": "integer", "minimum": 0},
         "thumb": {"type": "string"},
+        "shown": {"const": true, "description": "The owner approved this guest's received picture: everyone who sees what carries it sees it."},
         "chunks": {"type": "integer", "minimum": 0},
         "status": {
           "oneOf": [
@@ -963,6 +1046,13 @@
               "required": ["kind", "stored", "sha256"],
               "additionalProperties": false,
               "properties": {"kind": {"enum": ["done"]}, "stored": {"type": "string"}, "sha256": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at", "by"],
+              "additionalProperties": false,
+              "description": "A received file its uploader or the owner removed: it left every record, and its file was deleted.",
+              "properties": {"kind": {"enum": ["removed"]}, "at": {"$ref": "#/$defs/ts"}, "by": {"$ref": "#/$defs/pid"}}
             },
             {
               "type": "object",
@@ -1026,7 +1116,8 @@
         "follow": {"$ref": "#/$defs/pref"},
         "mute": {"$ref": "#/$defs/pref"},
         "tour": {"$ref": "#/$defs/pref"},
-        "toolbar": {"$ref": "#/$defs/pref"}
+        "toolbar": {"$ref": "#/$defs/pref"},
+        "autoAdvance": {"$ref": "#/$defs/pref"}
       }
     },
     "notification": {
@@ -1035,7 +1126,7 @@
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string"},
-        "kind": {"enum": ["mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction", "report"]},
+        "kind": {"enum": ["mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction", "report", "discussion"]},
         "title": {"type": "string"},
         "at": {"$ref": "#/$defs/ts"},
         "read": {"type": "boolean"},
@@ -1043,6 +1134,7 @@
         "body": {"type": "string"},
         "qid": {"$ref": "#/$defs/qid"},
         "msg": {"type": "string"},
+        "comment": {"type": "string", "description": "The Discussion comment the notification is about, on question `qid`."},
         "rollup": {
           "type": "object",
           "required": ["key", "since", "n"],

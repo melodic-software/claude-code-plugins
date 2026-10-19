@@ -155,6 +155,34 @@ else
   ok "SKIP markdown copy cases (markdownlint-cli2 not installed)"
 fi
 
+# --uncommitted: the issue lane commits the files on disk through an API, with
+# each file's mode taken from disk, so the checks judge the work tree as that
+# commit, and the checkout itself is left untouched.
+state() {
+  git_test_config "$repo" rev-parse HEAD
+  git_test_config "$repo" status --porcelain --untracked-files=all
+  git_test_config "$repo" worktree list --porcelain
+}
+# shellcheck disable=SC2034  # read inside check's eval
+before="$(state)"
+printf '#!/usr/bin/env bash\necho hi\n' >"$repo/new-tool"
+run -- --uncommitted
+check "--uncommitted checks an untracked #! file's mode on disk" \
+  '[[ $RC == 1 && $ERR == *"FAIL exec-bit"* && $ERR == *"new-tool starts with #!"* ]]'
+chmod +x "$repo/new-tool"
+run -- --uncommitted
+check "--uncommitted passes once the file is executable on disk" \
+  '[[ $RC == 0 && $OUT == *"over 1 changed files"* ]]'
+mkdir -p "$repo/plugins/demo"
+printf 'x\n' >"$repo/plugins/demo/new.md"
+printf '#!/usr/bin/env bash\necho "validate-plugins ran: $*" >&2\nexit 1\n' >"$repo/scripts/validate-plugins.sh"
+chmod +x "$repo/scripts/validate-plugins.sh"
+run PATH="$tmp/bin:$PATH" -- --uncommitted
+check "--uncommitted validates a plugin that only untracked files touch" \
+  '[[ $RC == 1 && $ERR == *"FAIL validate-plugins"* && $ERR == *"validate-plugins ran: --only demo"* ]]'
+rm -rf "$repo/new-tool" "$repo/plugins" "$repo/scripts/validate-plugins.sh"
+check "--uncommitted leaves HEAD, the index and the worktree list as they were" '[[ $(state) == "$before" ]]'
+
 run -- --bogus
 check "an unknown flag is a usage error" '[[ $RC == 2 ]]'
 run -- --base no-such-ref
