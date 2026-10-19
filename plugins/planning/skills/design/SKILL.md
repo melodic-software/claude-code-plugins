@@ -113,6 +113,9 @@ artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
 
+Read the Brief's `### Problem` before decomposing; absent, establish it:
+[`${CLAUDE_PLUGIN_ROOT}/context/problem-framing.md`](../../context/problem-framing.md).
+
 Scan the whole problem space broadly before diving into any single capability. For each capability
 or concern:
 

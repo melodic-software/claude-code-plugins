@@ -39,6 +39,9 @@ stop).
 2. **Ground**. Fast breadth pass (`Glob`/`Grep`/targeted Read; survey the file landscape before
    reading anything in depth) over where the problem lives: entry points, existing mechanisms that
    already partially address it, prior art in the repo.
+   Before any candidate, read the Brief's `### Problem`; absent, establish it (problem fields, evidence
+   rating, restate-and-confirm; a prescribed solution gets rethink-or-accept):
+   [`${CLAUDE_PLUGIN_ROOT}/context/problem-framing.md`](../../context/problem-framing.md).
 3. **Diverge**. Generate the candidate list (default ~10; scale to the problem), ordered
    **cheapest → most ambitious**. Every candidate is codebase-grounded and names the
    files/mechanisms it would touch, one line each: what, where, effort tier, expected impact. Do
