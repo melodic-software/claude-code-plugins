@@ -68,7 +68,8 @@ cat >"$FIX/fixture.schema.json" <<'JSON'
         "large": { "type": "object", "additionalProperties": { "type": "string", "minLength": 1 } }
       }
     },
-    "weird": { "type": "array" }
+    "weird": { "type": "array" },
+    "code": { "type": "string", "pattern": "^a\\-b$" }
   }
 }
 JSON
@@ -320,6 +321,7 @@ check_warn() {
   assert_contains "$1: --check warns" "$out" "$3"
   assert_contains "$1: the other key keeps its PASS line" "$out" "PASS mode: fast"
   assert_eq "$1: no crash" "0" "$(printf '%s\n' "$out" | grep -c 'Cannot read')"
+  OUT="$out"
 }
 check_ok "a plain string" $'label: team-a\n' "PASS label: team-a"
 check_ok "a double-quoted string" $'label: "team-a"\n' "PASS label: team-a"
@@ -366,6 +368,38 @@ out="$(run --root "$R" --yes mode=fast)"
 assert_eq "apply beside a valid object: exits 0" "0" "$?"
 assert_eq "apply beside a valid object: the object is kept byte for byte" $'session:\n  uploads: true\nmode: fast' "$(cat "$(yaml_of "$R")")"
 refused "apply beside an invalid object" $'session:\n  uploads: maybe\n' mode=slow
+# A key name is read the way the parser reads it: '' in single quotes is one
+# quote, \" in double quotes is a quote.
+check_warn "a single-quoted nested key holding a doubled quote" $'session:\n  uploads: true\n  \'guest\'\'s\': yes\n' "session.guest's is not in the schema"
+check_warn "a double-quoted nested key holding an escaped quote" $'session:\n  "a\\"b": 1\n' 'session.a"b is not in the schema'
+# A block sequence may sit at its key's own indent; it is a list either way.
+seq_case() {
+  refused "a sequence at the indent of $1" "$2" "$3"
+  assert_contains "a sequence at the indent of $1: named" "$OUT" "$4"
+}
+seq_case strict $'strict:\n- true\n' strict=true 'strict holds a map or a list'
+seq_case mode $'mode:\n- fast\n' mode=slow 'mode holds a map or a list'
+seq_case workers $'workers:\n- 3\n' workers=3 'workers holds a map or a list'
+seq_case session $'session:\n- uploads\n' mode=slow 'session holds a list'
+# U+2028 in a trailing comment does not end the line or hide the key.
+check_warn "a line separator in a trailing comment" $'strict: bogus # a\xe2\x80\xa8b\n' 'strict=bogus is not one of true, false'
+check_warn "a line separator in a nested trailing comment" $'session:\n  uploads: maybe # a\xe2\x80\xa8b\n' 'session.uploads=maybe is not one of true, false'
+# A pattern JavaScript cannot compile with the u flag marks the key unchecked.
+check_warn "a schema pattern that does not compile" $'code: a-b\n' 'code uses a schema shape setup-apply does not check'
+out="$(run --root "$(new_root pattern-cli)" code=a-b)"
+assert_eq "code=a-b on the command line: exits 1" "1" "$?"
+one_line "code=a-b on the command line" "$out"
+check_ok "a whitespace-only string" $'note: "  "\n' 'PASS note: "  "'
+# Control characters from the file are printed escaped, never raw.
+check_warn "an escape character in a nested key" $'session:\n  "a\x1bb": 1\n' 'session.a\x1bb is not in the schema'
+assert_eq "an escape character in a nested key: no raw ESC is printed" "0" "$(printf '%s' "$OUT" | grep -c $'\x1b')"
+for bad in $'a\x01b' $'a\x7fb' $'a\xc2\x85b' $'a\xe2\x80\xa8b' $'a\xe2\x80\xa9b'; do
+  R="$(new_root "ctl-cli-$CASE_NUM")"
+  out="$(run --root "$R" "note=$bad")"
+  assert_eq "a control or separator character on the command line: exits 1" "1" "$?"
+  one_line "a control or separator character on the command line" "$out"
+  assert_eq "a control or separator character on the command line: writes nothing" "0" "$(exists "$(yaml_of "$R")")"
+done
 for pair in session=x weird=1; do
   out="$(run --root "$(new_root "obj-cli-$CASE_NUM")" "$pair")"
   assert_eq "$pair on the command line: exits 1" "1" "$?"
