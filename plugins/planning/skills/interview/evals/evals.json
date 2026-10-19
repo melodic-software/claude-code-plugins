@@ -31,10 +31,12 @@
       "id": 3,
       "name": "lock-mode-does-not-fudge-gap",
       "prompt": "/planning:interview lock the brief for adding webhook retries — I've told you enough.",
-      "expected_output": "In lock mode the skill synthesizes the Brief directly without Q&A, but if a true unknown surfaces mid-synthesis it STOPS and surfaces the gap rather than guessing a value to fill it.",
+      "expected_output": "In lock mode the skill restates the problem in one line and asks one confirmation question, recorded as a register row, before the Brief. The request names a solution (retries), so that problem is worked back out with an evidence rating and the same question offers rethink-or-accept. Otherwise it synthesizes the Brief directly with no further questions, but if a true unknown surfaces mid-synthesis it STOPS and surfaces the gap rather than guessing a value to fill it.",
       "files": [],
       "expectations": [
-        "Output synthesizes the Brief directly rather than running a full Q&A loop",
+        "Before the Brief, output restates the problem in one line and asks one confirmation question, recorded as a register row",
+        "Because the request prescribes a solution, the restated problem carries an evidence rating (observed, reported or inferred) and the question offers rethink-or-accept",
+        "Apart from that one question, output synthesizes the Brief directly rather than running a full Q&A loop",
         "If a true unknown surfaces during synthesis, the skill stops and surfaces it rather than fabricating a value",
         "Output does not fudge a gap to avoid interrupting the lock"
       ]
@@ -43,10 +45,12 @@
       "id": 4,
       "name": "brief-persisted-not-plan",
       "prompt": "/planning:interview lock a brief for adding a CSV export endpoint to the reports service.",
-      "expected_output": "The skill writes the Brief section (TLDR / Goal / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) into PLAN.md and leaves the Plan section for /planning:plan — it produces the WHAT contract, not an implementation approach.",
+      "expected_output": "After restating the problem in one line and getting one confirmation, the skill writes the Brief section (TLDR / Problem / Goal / Work size / Constraints / Acceptance criteria / Captured assumptions / Out-of-scope / Deferred questions) into PLAN.md and leaves the Plan section for /planning:plan — it produces the WHAT contract, not an implementation approach.",
       "files": [],
       "expectations": [
-        "Output writes a Brief with goal, constraints, and testable acceptance criteria",
+        "Output restates the problem in one line and asks one confirmation question before writing the Brief",
+        "Because the request prescribes a solution (a CSV export endpoint), that one question states the inferred problem with an evidence rating (observed, reported or inferred) and asks rethink-or-accept",
+        "Output writes a Brief with problem, goal, work size, constraints, and testable acceptance criteria",
         "Output does NOT draft an implementation plan / approach (that is /planning:plan's job)",
         "Output recommends a next step (explore, research, or /planning:plan) rather than starting to code"
       ]
@@ -167,12 +171,13 @@
       "id": 13,
       "name": "unattended-run-emits-named-blockers-not-assumptions",
       "prompt": "/planning:interview lock the brief for the notification-batching change. This is running unattended from our nightly workflow — there is no human on this session to answer anything.",
-      "expected_output": "The caller declared the run unattended (the skill does not attempt to detect it). Codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded as auto-resolved. A decision genuinely the user's — real tradeoffs, no codebase answer — is NOT captured as an assumption: it becomes a `blocked` register row, a Brief `### Deferred questions` entry tagged `arbiter: USER-RESERVED`, and a named blocker in the output. The run stops on its blockers and reports the contract as unconfirmed rather than idling for an answer or treating silence as confirmation.",
+      "expected_output": "The caller declared the run unattended (the skill does not attempt to detect it). Codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded as auto-resolved. A decision genuinely the user's — real tradeoffs, no codebase answer — is NOT captured as an assumption: it becomes a `blocked` register row, a Brief `### Deferred questions` entry tagged `arbiter: USER-RESERVED`, and a named blocker in the output. The problem confirmation takes the same path: `### Problem` opens `- Status: unconfirmed`, and the confirmation is a `blocked` register row tagged `arbiter: USER-RESERVED` and named as a blocker, while the Brief still locks. The run stops on its blockers and reports the contract as unconfirmed rather than idling for an answer or treating silence as confirmation.",
       "files": [],
       "expectations": [
         "The unattended condition comes from the caller's declaration, not from the skill claiming to detect a non-interactive environment",
         "A genuine user design decision is recorded as a named blocker (register `blocked` + a Brief deferred question leading with its Q<N> id and tagged arbiter USER-RESERVED), never as a silently captured assumption",
         "Codebase-resolvable or unambiguous-conventional decisions still resolve, recorded as auto-resolved",
+        "`### Problem` opens `- Status: unconfirmed`, and the problem confirmation is a `blocked` register row tagged arbiter USER-RESERVED and named as a blocker; the Brief still locks",
         "The run terminates on its blockers instead of waiting indefinitely, and reports the contract as unconfirmed rather than reading absence of objection as confirmation"
       ]
     },
@@ -180,7 +185,7 @@
       "id": 14,
       "name": "register-gate-halts-before-the-contract-locks",
       "prompt": "/planning:interview — we've covered enough, write the brief for the audit-log retention work.",
-      "expected_output": "The skill runs scripts/check-open-questions.sh twice, citing the exit code each time. At Step 3, before the contract is persisted, it passes --ledger and --procedure but no --brief — PLAN.md does not exist yet, and the gate exits 2 on a named-but-missing --brief. Then, immediately after Step 4 writes the Brief, it re-runs with --procedure --brief to prove every deferred/blocked row reached `### Deferred questions`, matched on the leading Q<N> id, and that the Brief carries all seven template headings. A non-zero exit halts either time: exit 1 means a question is still `open`, exit 2 means the register could not be graded (missing register, malformed row, gapped or leading-zero Q numbering, a retired row the Brief never records). Neither is a pass — the skill resolves or explicitly retires the row, or fixes the Brief, and re-runs rather than locking the contract over a failing check. A run that asked no question wrote no register and skips the gate entirely.",
+      "expected_output": "The skill runs scripts/check-open-questions.sh twice, citing the exit code each time. At Step 3, before the contract is persisted, it passes --ledger and --procedure but no --brief — PLAN.md does not exist yet, and the gate exits 2 on a named-but-missing --brief. Then, immediately after Step 4 writes the Brief, it re-runs with --procedure --brief to prove every deferred/blocked row reached `### Deferred questions`, matched on the leading Q<N> id, and that the Brief carries all nine template headings, Problem and Work size among them. A non-zero exit halts either time: exit 1 means a question is still `open`, exit 2 means the register could not be graded (missing register, malformed row, gapped or leading-zero Q numbering, a retired row the Brief never records). Neither is a pass — the skill resolves or explicitly retires the row, or fixes the Brief, and re-runs rather than locking the contract over a failing check. A run that asked no question wrote no register and skips the gate entirely.",
       "files": [],
       "expectations": [
         "The Step 3 run passes --ledger and --procedure; --brief is NOT named before Step 4 has written PLAN.md",
@@ -204,7 +209,7 @@
         "The run HALTS on that gap — no `## Brief` is written that carries a chosen disposition (neither purge-on-teardown nor a retention window), and no `### Captured assumptions` row records one as settled",
         "The gap is SURFACED with a choice, not narrated in passing: name the gap and offer to ask it, capture it as an explicit assumption with a revisit trigger, or switch to relentless `me` mode",
         "The decisions the survey DOES close are synthesized without a question (soft-delete column, membership cascade, `export_runs` rows following that same cascade, 202-and-enqueue teardown, owner-only 403) — the halt is scoped to the one open decision, the disposition of the object-storage artifacts themselves, and is not a refusal to lock anything",
-        "`lock`'s exemption from the Step 3 confirmation gate is not read as an exemption from STOP-on-gap: invoking `lock` confirms the contract, it does not license guessing a value to fill a gap",
+        "`lock`'s one problem question, and its invocation confirming the rest of the contract, are not read as an exemption from STOP-on-gap: invoking `lock` does not license guessing a value to fill a gap",
         "Because a question now exists, the open-question register exists and the Step 3 ledger gate applies — the no-question carve-out is not claimed for this run"
       ]
     },

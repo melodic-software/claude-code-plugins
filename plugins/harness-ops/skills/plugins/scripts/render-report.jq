@@ -120,6 +120,9 @@ def block($d):
          "In-repo: \(.in_repo.updated | length) project/local install(s) updated in \(.project_root)"
        end),
 
+      ((.in_repo.live_read // [])[] |
+         "  \(.id) (\(.scope)): read live from \(.path); project record pinned at \(.installed); the CLI will not update it (remove and re-add the project record if the pin matters)"),
+
       (if $audit then
          "Would update: \($would | length) plugin(s)",
          ($would[] | "  would run: claude plugin update \(.id) -s \(.scope) (installed \(.installed))"),

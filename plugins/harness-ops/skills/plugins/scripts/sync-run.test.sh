@@ -2124,6 +2124,57 @@ assert_contains "audit remedies: the project-scope enable remedy is unprefixed" 
   "  - project-scope enable gap: (cd \"/w/repo\" && claude plugin enable p@m -s project)"
 
 # ============================================================================
+# Case: audit, in-repo record of a marketplace whose directory source is the
+# repo the run stands in: read live, so no update is predicted. A git-sourced
+# marketplace with the same record still predicts one.
+# ============================================================================
+for self_source in directory github; do
+  CASE_NUM=$((CASE_NUM + 1))
+  case_dir=$(new_case_dir)
+  catalog_plugin "$case_dir" market1 alpha 0.2.0
+  proj=$(norm_path "$case_dir")
+  src_path="$case_dir"
+  command -v cygpath >/dev/null 2>&1 && src_path=$(cygpath -w "$src_path")
+  write "$case_dir/installed_plugins.json" "{
+    \"version\": 1,
+    \"plugins\": {\"alpha@market1\": [{\"scope\": \"project\", \"projectPath\": \"$proj\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"}]}
+  }"
+  if [[ "$self_source" == directory ]]; then
+    write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"directory\", \"path\": \"${src_path//\\/\\\\}\"}, \"installLocation\": \"${src_path//\\/\\\\}\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+  else
+    write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+  fi
+  write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+  write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+  setup_case "$case_dir"
+  EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1)
+  report_of "$case_dir" --marketplace market1 --audit --install-new none
+  assert_exit "self-sourced audit ($self_source): exit 0" 0 "$REPORT_RC"
+  assert_eq "self-sourced audit ($self_source): no update is issued" "0" \
+    "$(grep -c 'plugin update' "$case_dir/claude.log" || true)"
+  if [[ "$self_source" == directory ]]; then
+    assert_eq "self-sourced audit (directory): nothing in would_update" "0" \
+      "$(jq -r '.marketplaces[0].in_repo.would_update | length' <<<"$REPORT_DIGEST")"
+    assert_eq "self-sourced audit (directory): the record is reported as read live" \
+      '[{"id":"alpha@market1","scope":"project","installed":"0.1.0"}]' \
+      "$(jq -c '[.marketplaces[0].in_repo.live_read[] | del(.path)]' <<<"$REPORT_DIGEST")"
+    assert_contains "self-sourced audit (directory): the report names the live read and the pin" "$REPORT_TEXT" \
+      "alpha@market1 (project): read live from"
+    assert_contains "self-sourced audit (directory): and the pinned version" "$REPORT_TEXT" \
+      "project record pinned at 0.1.0; the CLI will not update it"
+    assert_eq "self-sourced audit (directory): the report predicts no in-repo update" "0" \
+      "$(grep -c 'would run: claude plugin update alpha@market1 -s project' <<<"$REPORT_TEXT" || true)"
+  else
+    assert_eq "self-sourced audit (github): the update is still predicted" "1" \
+      "$(jq -r '.marketplaces[0].in_repo.would_update | length' <<<"$REPORT_DIGEST")"
+    assert_contains "self-sourced audit (github): the report says would run" "$REPORT_TEXT" \
+      "would run: claude plugin update alpha@market1 -s project (installed 0.1.0)"
+    assert_eq "self-sourced audit (github): no live read" "0" \
+      "$(jq -r '.marketplaces[0].in_repo.live_read | length' <<<"$REPORT_DIGEST")"
+  fi
+done
+
+# ============================================================================
 if ((FAILED > 0)); then
   printf '\n%d test(s) failed\n' "$FAILED" >&2
   exit 1
