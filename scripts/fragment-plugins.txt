@@ -71,6 +71,7 @@ playgrounds
 playwright
 plugin-quality
 powershell-format
+pr-pipeline
 prototype
 rate-limit-guard
 repo-fleet-hygiene
