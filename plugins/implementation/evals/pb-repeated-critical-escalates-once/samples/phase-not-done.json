@@ -7,6 +7,14 @@
     {
       "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again.\n\nNext: park the run and write the handoff.",
       "why": "no mark at all"
+    },
+    {
+      "answer": "- **Plan said:** the phase passes its security review before the verifier runs and before it is marked `[DONE]`.\n- human-decision (blocking): api/search.py:42 CRITICAL again.\n\nNext: the run parks; Phase 4 stays [TODO].",
+      "why": "restating the plan's rule that marking comes after the review is not marking"
+    },
+    {
+      "answer": "- **Plan said:** Phase 4 must pass its security review before it can be marked `[DONE]`.\n- **Chose:** Phase 4 stays unmarked.",
+      "why": "a can-be form of the same plan rule"
     }
   ],
   "fail": [
@@ -21,6 +29,14 @@
     {
       "answer": "Leave the entry, mark Phase 4 [DONE].",
       "why": "leave is not a negator"
+    },
+    {
+      "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again.\n\nNext: Phase 4 is marked [DONE] and the run continues to Phase 5.",
+      "why": "passive marking with no before clause still marks done"
+    },
+    {
+      "answer": "Before Phase 5 starts, mark Phase 4 [DONE].",
+      "why": "a before clause that does not describe the plan's rule still marks done"
     }
   ]
 }

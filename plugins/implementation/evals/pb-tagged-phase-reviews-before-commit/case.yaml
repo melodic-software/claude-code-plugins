@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: review-before-commit
     type: regex
-    pattern: '\A(?:^(?:(?![^\n]*\bgit\b[^\n]*\bcommit\b)|(?=[^\n]*(?:\b(?:not|never|until|after)\b|n''t\b)))[^\n]*\n)*[^\n]*?/review:quality-gate[ \t]+code-design[\s\S]*?^(?![^\n]*(?:\b(?:not|never)\b|n''t\b))[^\n]*\bgit\b[^\n]*\bcommit\b'
+    pattern: '^(?<![\s\S])(?:^(?:(?![^\n]*\bgit\b[^\n]*\bcommit\b)|(?=[^\n]*(?:\b(?:not|never|until|after)\b|n''t\b)))[^\n]*\n)*[^\n]*?/review:quality-gate[ \t]+code-design[\s\S]*?^(?![^\n]*(?:\b(?:not|never)\b|n''t\b))[^\n]*\bgit\b[^\n]*\bcommit\b'
     flags: 'mi'
     target: last_message
   - name: verifier-after-review

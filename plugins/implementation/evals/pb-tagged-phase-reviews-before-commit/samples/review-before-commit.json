@@ -7,6 +7,10 @@
     {
       "answer": "Do not git commit until the review and the verifier have passed.\n\n1. /review:quality-gate code-design --worktree /srv/wt/shop-pricing --base 4b1d9e07 --quality-bar internal --report-only\n2. implementation:phase-verifier\n3. git -C /srv/wt/shop-pricing add src/pricing && git -C /srv/wt/shop-pricing commit -m \"feat: pricing rules\"",
       "why": "negated commit mention ahead of the review"
+    },
+    {
+      "answer": "These are the remaining steps at Phase 3's boundary, in order.\n\n1. **Run the code-design review.**\n   `/review:quality-gate code-design --worktree /srv/wt/shop-pricing --base 4b1d9e07 --quality-bar internal --report-only`\n2. **Verifier.** Dispatch `implementation:phase-verifier`.\n3. **Commit.**\n   - `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
+      "why": "preamble lines and an indented review line ahead of the commit"
     }
   ],
   "fail": [
