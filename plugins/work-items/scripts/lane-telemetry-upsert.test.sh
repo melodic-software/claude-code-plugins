@@ -393,6 +393,7 @@ check_rc 15 "$RC" "a malformed --app-slug exits 15"
 fresh_state
 FAKE_GH_FAIL=user
 export FAKE_GH_FAIL
+# shellcheck disable=SC2016 # the literal placeholder is the input under test
 run "$GOOD" --app-slug '${user_config.lane_app_slug}'
 check_rc 15 "$RC" "a placeholder --app-slug resolves as absent (unresolved identity, exit 15)"
 if grep -q 'must be a GitHub App slug' "$STDERR"; then
@@ -403,6 +404,7 @@ fi
 fresh_state
 FAKE_GH_FAIL="" FAKE_GH_LOGIN=lane-bot FAKE_GH_TYPE=User
 export FAKE_GH_FAIL FAKE_GH_LOGIN FAKE_GH_TYPE
+# shellcheck disable=SC2016 # the literal placeholder is the input under test
 run "$GOOD" --app-slug '${user_config.lane_app_slug}'
 check_rc 0 "$RC" "a placeholder --app-slug with a User login exits 0 as if no slug were given"
 
