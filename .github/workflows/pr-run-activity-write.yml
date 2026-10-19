@@ -1310,7 +1310,7 @@ jobs:
             ${{ steps.act-skill.outputs.execution_file
             || format('{0}/claude-execution-output.json', runner.temp) }}
           lane: ${{ inputs.lane }}
-          credential: CLAUDE_CODE_OAUTH_TOKEN
+          credential: AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN
           max-turns: ${{ steps.config.outputs.max-turns }}
 
       - name: Upload the skill's final reply
