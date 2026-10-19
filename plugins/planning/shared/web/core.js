@@ -9,6 +9,9 @@
   const get = k => { try { return store.getItem(k); } catch { return memory.get(k) ?? null; } };
   const put = (k, v) => { try { store.setItem(k, v); } catch { memory.set(k, v); } };
   const drop = k => { try { store.removeItem(k); } catch { /* storage gone */ } memory.delete(k); };
+  /** A record's upload ids as the page's attachment list, and what a write sends of one (nothing for none). */
+  const attOf = x => (x.attachments ? { att: x.attachments.map(id => ({ kind: "file", upload: id })) } : {});
+  const withAtt = extra => (extra?.attachments?.length ? { attachments: extra.attachments } : {});
 
   // The guest secret lives under the prototype's key ("secret"), so a guest the import carried over
   // keeps their identity after the cutover reload. It leaves this browser only as a header.
@@ -179,7 +182,7 @@
         const other = c.pick === "other" || (c.picks || []).includes("other") || (c.order || []).includes("other");
         return { ...base, name: nameOf(c.pid), text: plain(c.text || ""), ts: c.at, cites: c.cites || [], device: c.device,
           // C44: the files an answer or pick carries, each an upload the owner accepted.
-          ...(c.attachments ? { att: c.attachments.map(id => ({ kind: "file", upload: id })) } : {}),
+          ...attOf(c),
           ...(c.pick ? { pick: optIn(c.pick) } : {}), ...(c.picks ? { picks: c.picks.map(optIn) } : {}), ...("value" in c ? { value: c.value } : {}),
           ...(c.order ? { order: c.order.map(optIn) } : {}), ...(other ? { other: true } : {}),
           ...(c.editedAfterVotes ? { editedAfter: c.editedAfterVotes } : {}), ...(c.late ? { late: c.late } : {}),
@@ -199,21 +202,21 @@
         name: kind === "c" ? "Claude" : kind === "o" ? "Option" : kind === "p" ? nameOf(ref.split(":")[1]) : "", poll: src.kind === "poll" };
     }
     for (const [qid, lst] of Object.entries(s.suggestions || {})) {
-      view.suggestions[qid] = lst.map(x => ({ id: x.id, cid: x.pid, name: nameOf(x.pid), text: plain(x.text), note: plain(x.note || ""), ts: x.at, status: x.status.kind, votes: x.votes || [] }));
+      view.suggestions[qid] = lst.map(x => ({ id: x.id, cid: x.pid, name: nameOf(x.pid), text: plain(x.text), note: plain(x.note || ""), ts: x.at, status: x.status.kind, votes: x.votes || [], ...attOf(x) }));
     }
     view.ideas = proposals.map(p => ({ id: p.id, cid: p.pid, name: nameOf(p.pid), text: plain(p.text), ts: p.at,
       status: p.status.kind === "not-placed" ? "notplaced" : p.status.kind, qid: p.status.question || "", reason: p.status.reason || "",
-      ...(p.via?.kind === "chat" ? { via: nameOf(p.via.by) } : {}) }));
+      ...(p.via?.kind === "chat" ? { via: nameOf(p.via.by) } : {}), ...attOf(p) }));
     // Claude's shared answer to a request about the whole session is the host's message marked `claude`: it shows as Claude's.
     const byClaude = new Set((s.chat || []).filter(m => m.claude).map(m => m.id));
     const who = (pid, claude) => (claude ? { cid: "claude", name: "Claude" } : { cid: pid, name: nameOf(pid) });
     view.chat = (s.chat || []).map(m => ({ id: m.id, ...who(m.pid, m.claude), text: plain(m.text), ts: m.at, ...(m.gapAbove ? { gapAbove: true } : {}),
       ...(m.replyTo ? { replyTo: { id: m.replyTo.id, ...who(m.replyTo.pid, m.replyTo.claude || byClaude.has(m.replyTo.id)), text: plain(m.replyTo.excerpt) } } : {}),
       ...(m.proposed ? { forwarded: m.proposed } : {}), ...(m.claude ? { claude: true, result: m.claude.result } : {}), ...(m.request ? { request: m.request } : {}),
-      reactions: m.reactions || {} }));
+      reactions: m.reactions || {}, ...attOf(m) }));
     // Each question's Discussion, oldest first; `seen` is when I last opened it, so others' comments after it are new.
     view.discussions = Object.fromEntries(Object.entries(s.discussions || {}).map(([qid, lst]) => [qid, lst.map(c => ({ id: c.id, cid: c.pid, name: nameOf(c.pid),
-      text: plain(c.text), ts: c.at, edited: !!c.edited, hidden: !!c.hidden, request: c.request || "", reactions: c.reactions || {} }))]));
+      text: plain(c.text), ts: c.at, edited: !!c.edited, hidden: !!c.hidden, request: c.request || "", reactions: c.reactions || {}, ...attOf(c) }))]));
     view.discussionSeen = s.me?.discussionSeen || {};
     // Q98: notes pinned on prototype variants, oldest first.
     view.annotations = (s.annotations || []).map(a => ({ id: a.id, cid: a.pid, name: nameOf(a.pid), qid: a.qid, variant: a.variant, text: plain(a.text), ts: a.at,
@@ -234,7 +237,7 @@
       });
     }
     const req = r => ({ id: r.id, qid: r.qid || "", kind: r.kind, text: plain(r.text), edited: r.edited, cid: r.pid, name: nameOf(r.pid), ts: r.at,
-      status: r.status.kind, runner: r.runner, ...(r.audience === "me" ? { justMe: true } : {}), ...(r.status.reason ? { reason: r.status.reason } : {}) });
+      status: r.status.kind, runner: r.runner, ...(r.audience === "me" ? { justMe: true } : {}), ...(r.status.reason ? { reason: r.status.reason } : {}), ...attOf(r) });
     view.requests = (s.requests || []).map(req);
     view.myRequests = (s.myRequests || []).map(req);
     // The Inbox: my own requests with the status I see, and for the owner what waits on them; the server decides both.
@@ -247,7 +250,7 @@
     // files answers carry. No path ever reaches the page.
     const upView = u => ({ id: u.id, cid: u.pid, by: nameOf(u.pid), qid: u.qid || "", file: u.file, ext: u.ext, size: u.size, ts: u.at,
       total: u.chunks, chunkSize: u.chunkSize, status: u.status.kind, received: u.status.received || 0, bytes: u.status.bytes || 0,
-      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}) });
+      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}), ...(u.image ? { image: true } : {}) });
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
@@ -428,7 +431,7 @@
       const body = { qid, ...contractPick(fields), ...(other != null ? { other } : { comment: comment || "" }), ...(attachments ? { attachments } : {}), ...where() };
       return act("/api/pick", body, { key: "pick:" + qid, patch: (s, pid) => patchPick(s, pid, qid, body) }).then(r => { typingUntil = 0; return r; });
     },
-    idea: text => act("/api/propose", { text }).then(r => { typingUntil = 0; return r; }),
+    idea: (text, extra) => act("/api/propose", { text, ...withAtt(extra) }).then(r => { typingUntil = 0; return r; }),
     /** A vote on an answer card (its ref, or the page's id) or on a suggestion of that question. */
     vote: (qid, target, on) => {
       if ((Core.state.suggestions[qid] || []).some(s => s.id === target)) {
@@ -498,19 +501,19 @@
       throw e?.error === "tie" ? { ...e, tied: (e.tied || []).map(cidOf) } : e;
     }),
     unlock: qid => act("/api/unlock", { qid }),
-    suggest: (qid, text, note) => act("/api/suggest", { qid, text, note: note || "" }),
+    suggest: (qid, text, note, extra) => act("/api/suggest", { qid, text, note: note || "", ...withAtt(extra) }),
     useSuggestion: (qid, id) => act("/api/suggestion/act", { qid, id, action: "use" }),
     dismissSuggestion: (qid, id) => act("/api/suggestion/act", { qid, id, action: "dismiss" }),
     lockEdit: (qid, text, from) => act("/api/lock/edit", { qid, text, ...(from ? { from } : {}) }),
     /** My message shows at once; the server's copy (a message of mine with this text it did not hold before) replaces it. */
-    chat: (text, replyTo) => {
-      const before = new Set((withChat(snap)?.chat || []).map(m => m.id)), id = `sending-${++sends}`, body = { text, ...(replyTo ? { replyTo } : {}) };
+    chat: (text, replyTo, extra) => {
+      const before = new Set((withChat(snap)?.chat || []).map(m => m.id)), id = `sending-${++sends}`, body = { text, ...(replyTo ? { replyTo } : {}), ...withAtt(extra) };
       return act("/api/chat", body, { key: "chat:" + id, patch: (s, pid) => {
         s.chat ||= [];
         const chat = s.chat, text = body.text; // as act sent it: its mentions as tokens
         if (chat.some(m => m.pid === pid && m.text === text && !before.has(m.id))) return;
         const to = replyTo && chat.find(m => m.id === replyTo);
-        chat.push({ id, pid, text, at: s.serverTime, ...(to ? { replyTo: { id: to.id, pid: to.pid, excerpt: to.text } } : {}) });
+        chat.push({ id, pid, text, at: s.serverTime, ...(to ? { replyTo: { id: to.id, pid: to.pid, excerpt: to.text } } : {}), ...withAtt(extra) });
       } }).then(r => { chatTypingUntil = 0; return r; });
     },
     /** Inbox items I opened, by key: each reads at the status in `saw` (what the page showed), else at its status now. */
@@ -521,7 +524,7 @@
     removeReference: (qid, index) => act("/api/question/reference", { qid, remove: index }),
     forward: id => act("/api/chat/propose", { id }, { ok: j => patchKept(id, m => { m.proposed = j.proposal; }) }),
     /** The Discussion under a question: add, edit or delete my comment, the owner's Hide, an emoji, and having read it up to `at`. */
-    comment: (qid, text) => act("/api/discussion", { qid, text }),
+    comment: (qid, text, extra) => act("/api/discussion", { qid, text, ...withAtt(extra) }),
     editComment: (qid, id, text) => act("/api/discussion/edit", { qid, id, text }),
     deleteComment: (qid, id) => act("/api/discussion/delete", { qid, id }, { key: "disc-del:" + id, patch: s => {
       if (s.discussions?.[qid]) s.discussions[qid] = s.discussions[qid].filter(c => c.id !== id);
@@ -570,6 +573,13 @@
     reportAct: (id, action) => act("/api/report/act", { id, action }),
     /** The reporter: a line, a screenshot (a data: URL) or both added to their own report while it is not fixed. */
     addToReport: (id, text, image) => act("/api/report/add", { id, ...(text ? { text } : {}), ...(image ? { image } : {}) }),
+    /** A received picture an answer, message, request, suggestion, proposal or comment I can see carries, as a data: URL. */
+    uploadImage: async id => {
+      const r = await fetch(`/api/upload/image?${new URLSearchParams({ id })}`, { headers: ident() });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw { status: r.status, ...j };
+      return j.image;
+    },
     /** Owner: one report's picture, or its Nth addition's, as a data: URL. */
     reportImage: async (id, add) => {
       const r = await fetch(`/api/report/image?${new URLSearchParams({ id, ...(add ? { add } : {}) })}`, { headers: ident() });
@@ -595,8 +605,8 @@
     sendRound: () => act("/api/round/send", {}),
     /** runner "self": the request runs on my own Claude (Connect your Claude); only I see it. audience "me" (Just me):
      *  its answer shows to me and the host until one of us shares it. */
-    request: (qid, kind, text, _extra, runner, audience) => act("/api/request", { ...(qid === Core.GENERAL ? { scope: qid } : { qid }), kind, text,
-      ...(runner === "self" ? { runner } : {}), ...(audience === "me" ? { audience } : {}) }),
+    request: (qid, kind, text, extra, runner, audience) => act("/api/request", { ...(qid === Core.GENERAL ? { scope: qid } : { qid }), kind, text,
+      ...(runner === "self" ? { runner } : {}), ...(audience === "me" ? { audience } : {}), ...withAtt(extra) }),
     /** My own Just me answer, shared with everyone (the owner may share any). */
     shareResult: id => act("/api/result/share", { id }),
     /** My own Claude's side of a self request: claim it, post its answer ({summary, sources, report, used, why}), or give up. */
