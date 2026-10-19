@@ -118,13 +118,13 @@ function world({
           throw new Error(`${method} ${path} failed with status 403`);
         }
         const open = Array.from({ length: openLanePrs }, () => ({ labels: [], body: "", created_at: STAMP }));
-        return { total_count: openLanePrs, items: open.slice((page - 1) * 100, page * 100) };
+        return { total_count: openLanePrs, incomplete_results: false, items: open.slice((page - 1) * 100, page * 100) };
       }
       assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/melodic-automation-lanes (merged|created):>=\S+$/);
       if (q.includes("is:merged") && mergedLanePrs === null) {
         throw new Error(`${method} ${path} failed with status 403`);
       }
-      return { total_count: q.includes("is:merged") ? mergedLanePrs : 0, items: [] };
+      return { total_count: q.includes("is:merged") ? mergedLanePrs : 0, incomplete_results: false, items: [] };
     }
     if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/actions/runs/(\\d+)/jobs$`)))) {
       assert.equal(new URL(path, "https://x").searchParams.get("filter"), "latest");
