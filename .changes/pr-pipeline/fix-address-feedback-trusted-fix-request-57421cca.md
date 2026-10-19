@@ -10,4 +10,6 @@ bump: minor
   bot's or a trusted person's. The select step, the reply job's re-read and
   `pr-feedback-dispatch.yml` judge threads the same way
   ([README.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
-  The dispatcher still starts only when a review run completes. `version` stays 2.
+  A fix request posted after the head's review starts the round when a trusted person runs
+  `gh workflow run pr-unblock.yml -R melodic-software/claude-code-plugins -f pr-number=<n> -f activity=address-feedback`.
+  `version` stays 2.

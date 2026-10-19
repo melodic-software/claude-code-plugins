@@ -153,6 +153,16 @@ permission on the repository, never edited or last edited by a person on that li
 `>` line never matches). On a thread the lanes App never commented on, one fix request after the
 reviewer bot's finding makes the thread one `address-feedback` works, as long as every other
 comment is the reviewer bot's or a trusted person's; those people's comments are direction.
+`pr-feedback-dispatch.yml` runs only when a review run completes, so a fix request posted after
+the head's review starts nothing on its own. To start the round, a person on the trusted-actor
+list dispatches the lane directly:
+
+```bash
+gh workflow run pr-unblock.yml -R melodic-software/claude-code-plugins -f pr-number=<n> -f activity=address-feedback
+```
+
+That run names no dispatcher run, so the gate checks the person as the actor, and the select step
+judges the threads as above.
 
 On a PR carrying the human-gated role label (`needs-human` unless the base's
 `.work-item-tracker.json` names another), `address-feedback` works a thread only when it carries
