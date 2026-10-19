@@ -51,6 +51,83 @@
           "minimum": 1,
           "default": 2,
           "description": "review-dependency rounds on one Dependabot PR before the next one escalates to needs-human."
+        },
+        "fix-ci-rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "fix-ci commits the lanes App pushed to one PR before the next fix-ci run escalates to needs-human, before any model turn."
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "When the lanes restart work the usage limit stopped, and when they stop restarting it. Durations are whole hours.",
+      "properties": {
+        "fallback-reset": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 5,
+          "description": "Hours after a limit stop that names no reset time before its limit is taken to have reset."
+        },
+        "reset-clamp-min": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 1,
+          "description": "Fewest hours after a limit stop before a restart, whatever reset the stop names."
+        },
+        "reset-clamp-max": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 168,
+          "description": "Most hours after a limit stop before a restart, whatever reset the stop names."
+        },
+        "restarts-per-run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 5,
+          "description": "Issues one work-unblock sweep restarts or re-fires."
+        },
+        "limit-stops-per-head": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Limit stops on one PR head after which the pr-unblock dispatchers stop dispatching it again."
+        },
+        "limit-stops-per-issue": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Limit stops since a person last added agent-ready after which work-unblock hands the issue to a person."
+        },
+        "wip-cap": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 60,
+          "description": "Open pull requests by the lanes App at or above which work-resolve-issue starts no run and work-unblock re-fires none."
+        },
+        "fix-ci-per-run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 2,
+          "description": "fix-ci dispatches one pr-unblock-dispatch run sends at most."
+        },
+        "fix-ci-restarts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 1,
+          "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
         }
       }
     },
@@ -168,7 +245,8 @@
         "awaiting-human",
         "superseded-sha",
         "disabled-by-config",
-        "untrusted-trigger"
+        "untrusted-trigger",
+        "workflow-modified"
       ],
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
     },
@@ -200,13 +278,21 @@
       "required": ["effect", "gating", "reads-untrusted"],
       "oneOf": [{ "required": ["skill"] }, { "required": ["script"] }],
       "dependentRequired": {
-        "prepare": ["skill"],
         "checks": ["skill"],
         "verify-scripts": ["skill"],
         "web-access": ["skill"]
       },
       "dependentSchemas": {
-        "verify-scripts": { "properties": { "effect": { "not": { "const": "read" } } } }
+        "verify-scripts": { "properties": { "effect": { "not": { "const": "read" } } } },
+        "prepare": {
+          "oneOf": [
+            {
+              "required": ["skill"],
+              "properties": { "prepare": { "enum": ["merge-base", "review-threads", "dependency-review", "ci-context"] } }
+            },
+            { "required": ["script"], "properties": { "prepare": { "const": "apply-patch" } } }
+          ]
+        }
       },
       "if": {
         "required": ["web-access"],
@@ -218,8 +304,8 @@
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
-          "enum": ["merge-base", "review-threads", "dependency-review"],
-          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; move the PR branch only to commits that touch nothing under .github/ and carry [dependabot skip]; after it, upload the verdict, which a dependency-verdict script job validates and acts on."
+          "enum": ["merge-base", "review-threads", "dependency-review", "ci-context", "apply-patch"],
+          "description": "What the runner does around the activity. ci-context is the one mode for a read skill, apply-patch the one mode for a script (a mutate-branch one); the others need a skill with an effect other than read. ci-context: the read runner downloads the failing-check context file a base job wrote, checks its SHA-256 and head, makes it read-only and names it to the skill, which also gets Bash, Edit and Write; the run must use output-mode: patch. apply-patch: before the mint, check the patch artifact a ci-context run left (one patch.diff with its SHA-256, on the head it worked on) and read its report; the script applies it to the gated head, refuses the whole patch on any change to .github/**, an agent instruction path (CLAUDE.md, AGENTS.md, .claude/ or .claude-plugin/, a plugin's hooks/, .mcp.json, .gitmodules, CODEOWNERS), a symbolic link or a gitlink, and pushes it as one commit without force. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; move the PR branch only to commits that touch nothing under .github/ and carry [dependabot skip]; after it, upload the verdict, which a dependency-verdict script job validates and acts on."
         },
         "args": {
           "type": "string",
@@ -244,7 +330,7 @@
             "type": "string",
             "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
           },
-          "description": "Exact repository-relative paths of scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout with any arguments but a path outside it. Needs an effect other than read. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh and scripts/git-mv-rm.sh do."
+          "description": "Exact repository-relative paths of scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. Needs an effect other than read. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does."
         },
         "web-access": {
           "type": "object",
@@ -460,6 +546,12 @@
           "default": false,
           "description": "true: the pr-merge lane refuses a pull request, and dequeues a queued one, without a passing pr-verify verdict at its head (README.md, Verifier verdict). It is the lane's merge criterion, so an enabled pr-merge lane (agent-identity set) at a rung above off must set it true; the gate refuses `verifier-verdict-not-required` otherwise."
         },
+        "max-in-flight": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Lane merges allowed in flight at once: the agent identity's merge-queue entries plus its merged pull requests the post-merge check has not verified. The gate reads it at the default branch head, not the pull request's base, and refuses `in-flight:` at this count. A post-merge failure charges every unverified lane merge whose commit the red run contains, and any charge demotes the rung."
+        },
         "verify-authors": {
           "enum": ["lane", "any"],
           "default": "lane",
@@ -517,6 +609,11 @@
               "enum": ["off", "report", "enforce"],
               "default": "off",
               "description": "enforce: merge Dependabot pull requests whatever merge.report-only says. report: report each decision and write nothing. off: refuse every Dependabot pull request and leave them unlisted."
+            },
+            "majors": {
+              "enum": ["hold", "review"],
+              "default": "hold",
+              "description": "hold: refuse a pull request with a major update, one whose version cannot be read, or one whose title and commit metadata disagree, whatever the review verdict says, and escalate it to a human with the tracker's human-gated role label. review: a major update is tier review and merges on the lanes App's verdict=merge marker."
             }
           }
         }

@@ -53,11 +53,25 @@ export const MACHINE_PATTERNS = Object.freeze([
 // The builder's page stamp carries a 64-hex digest, which would otherwise pair with any 32-hex token.
 const STAMP = /<!-- rv-gen:[\w.-]+ sha256:[0-9a-f]{64} -->/g;
 
+const ENTITIES = Object.freeze({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " });
+const codePoint = (n) => (Number.isFinite(n) && n <= 0x10ffff ? String.fromCodePoint(n) : "");
+
+// The pages host scans a normalized copy beside the raw bytes: tags removed, entities
+// decoded, doubled backslashes folded. The same copy here, so a split, HTML-escaped or
+// JSON-escaped credential or path is caught before upload rather than refused after it.
+const normalize = (text) =>
+  text
+    .replace(/<[^<>]*>/g, "")
+    .replace(/&(?:#x([0-9a-f]+)|#(\d+)|(amp|lt|gt|quot|apos|nbsp));/gi, (_, hex, dec, name) =>
+      name ? ENTITIES[name.toLowerCase()] : codePoint(hex ? Number.parseInt(hex, 16) : Number.parseInt(dec, 10)),
+    )
+    .replace(/\\\\/g, "\\");
+
 const firstHit = (patterns, text) => {
-  const lines = String(text ?? "").split(/\r?\n/);
+  const lines = String(text ?? "").split(/\r?\n/).map((line) => line.replace(STAMP, ""));
+  const normalized = lines.map(normalize);
   for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i].replace(STAMP, "");
-    for (const [label, re] of patterns) if (re.test(line)) return [label, i + 1];
+    for (const [label, re] of patterns) if (re.test(lines[i]) || (normalized[i] !== lines[i] && re.test(normalized[i]))) return [label, i + 1];
   }
   return null;
 };

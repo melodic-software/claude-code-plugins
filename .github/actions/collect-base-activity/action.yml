@@ -47,7 +47,10 @@ inputs:
       thread file the runner wrote to $RUNNER_TEMP/lane-feedback. With
       `dependency-review` the skill gets read access to the context file the
       runner wrote to $RUNNER_TEMP/lane-dependency, made read-only, and must
-      end with the verdict JSON schema's structured output.
+      end with the verdict JSON schema's structured output. With `ci-context`
+      (effect read only) the skill gets Bash, Edit and Write and read access
+      to the context file the runner wrote to $RUNNER_TEMP/lane-ci, made
+      read-only.
     required: false
     default: ""
   resolved-path:
@@ -122,6 +125,7 @@ runs:
         FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
         FEEDBACK_STATE: ${{ runner.temp }}/lane-feedback-state
         DEPENDENCY_DIR: ${{ runner.temp }}/lane-dependency
+        CI_DIR: ${{ runner.temp }}/lane-ci
         WORKSPACE: ${{ github.workspace }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
       run: |
@@ -143,6 +147,7 @@ runs:
         case "$PREPARE" in
           "" | merge-base | review-threads) ;;
           dependency-review) [ "$GATING" = advisory ] || fail "dependency-review: the activity must be advisory, since its verdict is the structured output" ;;
+          ci-context) [ "$EFFECT" = read ] || fail "ci-context: the activity's effect must be read, since it runs head code" ;;
           *) fail "the activity's prepare mode is not a known mode" ;;
         esac
         # resolve-config already filtered these; a name outside this set
@@ -162,7 +167,22 @@ runs:
         disallowed=""
         system_prompt=""
         case "$EFFECT" in
-          read) ;;
+          read)
+            # ci-context: the job holds no write token, so the skill gets the
+            # tools to rerun the failing checks and fix them (Bash, Edit,
+            # Write), and read access to the context file the runner wrote,
+            # which its Edit and Write cannot reach. The runner turns its
+            # uncommitted edits into a patch.
+            if [ "$PREPARE" = ci-context ]; then
+              [[ $CI_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the CI context directory has a name a rule cannot carry"
+              [ -f "$CI_DIR/context.json" ] || fail "ci-context: the runner wrote no context file"
+              chmod -R a-w "$CI_DIR"
+              mkdir -p "$SCRATCH"
+              allowed="$allowed,Bash,Edit,Write,Agent,Read(/$CI_DIR/**),Edit(/$SCRATCH/**)"
+              disallowed="WebFetch,WebSearch,Edit(/$CI_DIR/**),Write(/$CI_DIR/**)"
+              system_prompt="You run unattended as a CI lane activity on $subject, and no one can answer a question. Run every step the skill instructions name. Your scratchpad directory is $SCRATCH: put every temporary or state file there. The context file is $CI_DIR/context.json. Leave every fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
+            fi
+            ;;
           mutate-branch | mutate-tracker | publish-artifact | merge)
             # What a write skill needs to do its job unattended: edit files,
             # run subagents, keep state files in a scratch directory (added
@@ -183,8 +203,10 @@ runs:
             system_prompt="You run unattended as a CI lane activity on $subject, and no one can answer a question. Run every step the skill instructions name. Your scratchpad directory is $SCRATCH: put every temporary or state file there."
             if [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
               # The slash command never says the edits reach the PR only as
-              # commits on CLAUDE_BRANCH.
-              system_prompt="$system_prompt A change to a repository file reaches the branch only as a commit: before you finish, commit every repository file you changed with the mcp__github_file_ops__commit_files tool, and delete every committed path you renamed or removed with the mcp__github_file_ops__delete_files tool. An uncommitted change is discarded when the run ends."
+              # commits on CLAUDE_BRANCH. commit_files takes each file's mode
+              # from disk, and Write creates a file without the executable bit.
+              allowed="$allowed,Bash(chmod +x *)"
+              system_prompt="$system_prompt A change to a repository file reaches the branch only as a commit: before you finish, run chmod +x on every new or changed file that starts with #! or ends in .sh, because the commit takes each file's mode from disk, then commit every repository file you changed with the mcp__github_file_ops__commit_files tool, and delete every committed path you renamed or removed with the mcp__github_file_ops__delete_files tool. An uncommitted change is discarded when the run ends."
             fi
             # The web stays off unless the activity sets web-access. On, the
             # skill may search, fetch the listed domains (`any`: every one)
@@ -271,8 +293,10 @@ runs:
             # so the files a script reads beside itself come along. Each runs
             # through a wrapper that starts in the checkout, refuses an
             # argument naming a path outside it (a script may print what it
-            # reads), and keeps git from loading system, global or hook and
-            # fsmonitor programs.
+            # reads), unsets GH_TOKEN and GITHUB_TOKEN in the script's own
+            # environment (an ancestor's /proc/<pid>/environ still holds
+            # them), and keeps git from loading system, global or
+            # hook and fsmonitor programs.
             mapfile -t verify < <(jq -r '.selected["verify-scripts"] // [] | .[]' "$RESOLVED")
             if ((${#verify[@]})); then
               [[ $VERIFY_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
@@ -310,8 +334,18 @@ runs:
                     '    esac' \
                     '  done' \
                     'done' \
+                    'unset GH_TOKEN GITHUB_TOKEN' \
                     'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
-                    'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null' \
+                    'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null'
+                  # check-skill.sh runs each skill's scripts/*.test.sh, and
+                  # the runner's ~/.claude is read-only, so it gets a fresh,
+                  # writable HOME and CLAUDE_CONFIG_DIR.
+                  if [ "$script" = plugins/skill-quality/scripts/check-skill.sh ]; then
+                    printf '%s\n' \
+                      'HOME=$(mktemp -d) && mkdir "$HOME/.claude" || exit 2' \
+                      'export HOME CLAUDE_CONFIG_DIR="$HOME/.claude"'
+                  fi
+                  printf '%s\n' \
                     'bash "$copy" "$@"' \
                     'status=$?' \
                     'echo "exit status: $status" >&2' \
@@ -323,7 +357,15 @@ runs:
               done
               chmod -R a-w "$VERIFY_DIR"
               disallowed="${disallowed:+$disallowed,}Edit(/$VERIFY_DIR/**),Write(/$VERIFY_DIR/**)"
-              system_prompt="$system_prompt To run one of these repository verification scripts, run its wrapper by exactly this path, with the script's own arguments and paths inside the checkout:${commands%;}. Run each verification wrapper as its own command, not chained to another; it prints the script's exit status."
+              # A Bash allow rule must match each subcommand of a compound
+              # command (https://code.claude.com/docs/en/permissions,
+              # "Compound commands"), so under dontAsk a chained, piped or
+              # interpreter command is denied; Read, Grep and Glob need no
+              # rule in a working directory (same page, "Permission modes").
+              system_prompt="$system_prompt To run one of these repository verification scripts, run its wrapper by exactly this path, with the script's own arguments and paths inside the checkout:${commands%;}. Bash runs only the wrappers named in these instructions, each as its own command (a verification wrapper prints the script's exit status): use Read, Grep and Glob to inspect files and Edit or Write to change them, never cd, ;, &&, a pipe or an interpreter one-liner."
+              if [ -e "$VERIFY_DIR/bin/git-mv-rm" ]; then
+                system_prompt="$system_prompt Rename or delete a file with $VERIFY_DIR/bin/git-mv-rm."
+              fi
               if [ -e "$VERIFY_DIR/bin/run-test-file" ]; then
                 system_prompt="$system_prompt Run a test file only through $VERIFY_DIR/bin/run-test-file <test file>, with the path from the checkout root: it picks the runner, vitest included, and a compound command such as cd <dir>; <command> is refused."
               fi

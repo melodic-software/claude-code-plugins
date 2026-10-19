@@ -109,7 +109,8 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "
 ```
 
 1. **Acquire**. Captions + info JSON (`--skip-download`)
-2. **Caption ladder**. Per-source rungs; STOP and surface if exhausted (see the source spoke)
+2. **Caption ladder**. Per-source rungs; STOP and surface if exhausted, since this action
+   downloads no media for `asr` to fall back on (see the source spoke)
 3. **Transcribe**. Strategy-driven: `captions` | `captions+repair` | `asr`. The source layer
    declares the per-source default; `--transcript-strategy <value>` overrides it. When the
    resolved strategy cannot run, the digest proceeds without a transcript and the reason is
@@ -258,7 +259,7 @@ patterns live in the source spokes.
 ## Prerequisites
 
 The skill needs **Git Bash on Windows** (its `shell: bash` invocation fails before any command
-runs without bash) and **Node 20.11 or newer**, or 21.2+ on the 21 line (the runner reads
+runs without bash) and **Node 22 or newer** (the runner reads
 `import.meta.dirname`). Pointers:
 [skills, injected commands](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
 [Node `import.meta.dirname`](https://github.com/nodejs/node/blob/main/doc/api/esm.md#importmetadirname),
@@ -317,7 +318,9 @@ that action. A source with no video at all (the 0-video X result above) is not a
 and keeps its text-only path.
 
 **Optional. Faster-whisper** (`large-v3`, `batch_size=8`): powers the `asr` transcript rung,
-selected automatically for caption-absent entries and available on request via
+selected automatically for caption-absent entries (a `watch` whose caption ladder is exhausted
+proceeds caption-less with the downloaded video; a failed or rate-limited caption download
+still stops) and available on request via
 `--transcript-strategy asr` even when captions exist. Either way it runs under `watch` only. ASR
 needs the media file and the `transcript` action never downloads media. Detected at runtime
 through the machine's Python (`python`, `python3`, or `py`. Whichever imports `faster_whisper`)

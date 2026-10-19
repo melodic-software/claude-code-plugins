@@ -148,9 +148,9 @@ the merge gate refuses it absent `--allow-dependency`, passed only on an explici
 
 **Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge"), or has a line
 starting `Hold:`, is held in ANY tier: the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
-label is held the same way: the gate blocks on that label unconditionally, and `--block-labels`
-adds further labels in the autopilot merge tier. The PR is reported and left unmerged. The
-hyphenated label name in a body is not a hold.
+label is held the same way: the gate blocks on that label unconditionally (an `--unattended` run or the autopilot merge
+tier also on the human-gated label, `needs-human` by default), and `--block-labels` adds further labels in the autopilot
+merge tier. The PR is reported and left unmerged. The hyphenated label name in a body is not a hold.
 
 **Draft policy (per tier).** Drafts enter evaluation scope in every tier. There is no blanket
 draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and

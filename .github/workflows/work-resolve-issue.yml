@@ -33,11 +33,62 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Picks the concurrency slot resolve-issue waits on (a run-time cap, not a
+  # lane slot in pr-pipeline.yaml): the issue number modulo SLOTS. Workflow
+  # expressions have no arithmetic operator, so a job computes it. A burst of
+  # admissions then waits in SLOTS queues instead of spending the lanes App's
+  # hourly API quota at once.
+  pick-slot:
+    if: github.event.label.name == 'agent-ready'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out the default branch for the WIP cap
+      pull-requests: read # count the lanes App's open pull requests
+    env:
+      # At most this many resolve-issue runs at once. The one place to change it.
+      SLOTS: 3
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+    outputs:
+      slot: ${{ steps.slot.outputs.slot }}
+      capped: ${{ steps.wip.outputs.capped }}
+    steps:
+      # At or over limits.wip-cap open lane PRs, resolve-issue is skipped: no
+      # slot, no token. work-unblock's sweep re-fires the issue once fewer are
+      # open. A check that fails starts the run.
+      - name: Check out the default branch tip
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Check the WIP cap
+        id: wip
+        continue-on-error: true
+        uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
+
+      - name: Pick the slot
+        id: slot
+        run: |
+          [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $SLOTS =~ ^[1-9][0-9]*$ ]] || exit 1
+          echo "slot=$((ISSUE_NUMBER % SLOTS))" >> "$GITHUB_OUTPUT"
+
   # The lanes App's agent-ready label (work-unblock's) starts a run like a
   # listed human's; the App's other labels never start one. No step of this
   # lane adds agent-ready, so a run cannot start another.
   resolve-issue:
-    if: github.event.label.name == 'agent-ready'
+    needs: pick-slot
+    if: github.event.label.name == 'agent-ready' && needs.pick-slot.outputs.capped != 'true'
+    # One run per slot at a time; the rest wait in line, holding no runner,
+    # and are never cancelled (`queue: max`). GitHub keeps at most 100 waiting
+    # per slot and cancels any more. report-outcome takes no slot, so it never
+    # waits behind another issue's whole run; it is short and follows one
+    # resolve-issue, so at most SLOTS of each run at once.
+    concurrency:
+      group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
+      queue: max
     permissions:
       contents: read
       pull-requests: read
@@ -50,7 +101,7 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      timeout-minutes: 50
+      timeout-minutes: 25
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
 
@@ -100,8 +151,138 @@ jobs:
           REPORT_RESULT: ${{ needs.report-outcome.result }}
         run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
 
-  report-outcome:
+  # The model's outcome file is its own word, so the runner runs the
+  # resolve-issue activity's `checks` itself, on a fresh runner no model ran
+  # on. Each check runs from the default branch tip's copy, in a checkout of
+  # the lane branch whose scripts/ is replaced by the base's, so the check's
+  # code and its data there (scripts/fragment-plugins.txt) are the base's and
+  # only the branch's own files (.changes/) are checked. The results, with the
+  # tip they checked, are this job's `checks` output, never the outcome
+  # artifact, which code the model started can rewrite. report-outcome gets
+  # them only when this job succeeded, and stops a done run whose checks
+  # failed, did not run, or ran on another tip.
+  run-checks:
     needs: resolve-issue
+    if: >-
+      ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
+      || needs.resolve-issue.outputs.reuse-branch != '') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read # resolve-config reads the issue's labels for labels-absent
+    outputs:
+      checks: ${{ steps.run-checks.outputs.checks }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # No activity selected: every slot's predicate is decided, which reads
+      # the issue's labels; only the resolve-issue slot's checks are used.
+      - name: Resolve the config
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: work-resolve-issue
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+
+      # For lane.json, which names the branch. A skill run always uploads the
+      # outcome; a reuse may have none.
+      - name: Download the issue outcome
+        continue-on-error: ${{ needs.resolve-issue.outputs.reuse-branch != '' }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: work-outcome-${{ github.event.issue.number }}
+          path: ${{ runner.temp }}/work-outcome
+
+      # The branch report-outcome opens the PR from: the reuse branch, else
+      # the one lane.json names, which must be this run's own.
+      - name: Pick the lane branch
+        id: branch
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RUN_ID: ${{ github.run_id }}
+          REUSE_BRANCH: ${{ needs.resolve-issue.outputs.reuse-branch }}
+          LANE_FILE: ${{ runner.temp }}/work-outcome/lane.json
+        run: |
+          [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $RUN_ID =~ ^[1-9][0-9]*$ ]] || exit 1
+          branch=$REUSE_BRANCH
+          shape="^work-resolve-issue/issue-$ISSUE_NUMBER-[1-9][0-9]*-[1-9][0-9]*$"
+          if [ -z "$branch" ]; then
+            if [ -f "$LANE_FILE" ]; then
+              branch=$(jq -r '.branch | strings' "$LANE_FILE" 2>/dev/null) || branch=""
+            fi
+            shape="^work-resolve-issue/issue-$ISSUE_NUMBER-$RUN_ID-[1-9][0-9]*$"
+          fi
+          if ! [[ $branch =~ $shape ]]; then
+            echo "No lane branch of this run to check"
+            branch=""
+          fi
+          echo "branch=$branch" >>"$GITHUB_OUTPUT"
+
+      - name: Check out the lane branch
+        if: steps.branch.outputs.branch != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.branch.outputs.branch }}
+          path: .lane
+          persist-credentials: false
+
+      - name: Run the activity's checks
+        id: run-checks
+        if: steps.branch.outputs.branch != ''
+        env:
+          BASE: ${{ github.workspace }}/.base
+          LANE: ${{ github.workspace }}/.lane
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          RESOLVED: ${{ runner.temp }}/resolved-config.json
+        run: |
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+          list=$(jq -r '[.lane.slots[] | select(.name == "resolve-issue")]
+            | if length == 1 then .[0].checks // [] | .[] else error("no single resolve-issue slot") end' "$RESOLVED") ||
+            fail "cannot read the resolve-issue checks from the resolved config"
+          mapfile -t checks < <(printf '%s' "$list")
+          tip=$(git -C "$LANE" rev-parse HEAD) || fail "cannot read the lane branch tip"
+          rm -rf "${LANE:?}/scripts"
+          cp -R "$BASE/scripts" "$LANE/scripts"
+          shape='^scripts/[A-Za-z0-9_-]+\.sh( --[a-z][a-z-]*)*$'
+          results='[]'
+          # A check prints what it reads from the branch, so none of its
+          # lines may run a workflow command.
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          for check in "${checks[@]}"; do
+            [[ $check =~ $shape ]] || { echo "::$token::"; fail "a check must be a scripts/ script with fixed flags"; }
+            script=${check%% *}
+            read -ra flags <<<"${check#"$script"}"
+            status=0
+            # A check gets none of the runner's file-command paths, so it
+            # cannot write this step's outputs.
+            (cd "$LANE" && env -u GITHUB_OUTPUT -u GITHUB_ENV -u GITHUB_PATH -u GITHUB_STEP_SUMMARY \
+              CHECK_DATA_ROOT="$LANE" bash "$BASE/$script" "${flags[@]}") || status=$?
+            echo "$check: exit status $status"
+            results=$(jq -c --arg check "$check" --argjson exit "$status" '. + [{check: $check, exit: $exit}]' <<<"$results")
+          done
+          echo "::$token::"
+          record=$(jq -nc --arg branch "$BRANCH" --arg tip "$tip" --argjson results "$results" \
+            '{version: 1, branch: $branch, tip: $tip, results: $results}')
+          echo "checks=$record" >>"$GITHUB_OUTPUT"
+
+  report-outcome:
+    needs: [resolve-issue, run-checks]
     # issue-run-started is set only by the write runner's own steps, once the
     # run got its token; a run that failed after that still reports.
     # reuse-branch, also runner-computed, names a lane branch an earlier run
@@ -125,3 +306,4 @@ jobs:
       trusted-base: default-tip
       app-label: agent-ready
       reuse-branch: ${{ needs.resolve-issue.outputs.reuse-branch }}
+      runner-checks: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}

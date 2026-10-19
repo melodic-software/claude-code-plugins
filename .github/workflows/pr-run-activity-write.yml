@@ -59,6 +59,14 @@ on:
         required: false
         type: string
         default: ""
+      runner-checks:
+        description: >-
+          Issue mode, report-outcome: the caller's run-checks job output, the
+          activity's checks as the runner ran them, set only when that job
+          succeeded. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       timeout-minutes:
         description: The run job's timeout in minutes.
         required: false
@@ -142,6 +150,44 @@ on:
         required: false
         type: string
         default: ""
+      patch-state:
+        description: >-
+          For a prepare: apply-patch script, the model job's patch-state
+          output (written or empty); anything else escalates ci-fix-invalid.
+        required: false
+        type: string
+        default: ""
+      patch-sha256:
+        description: With patch-state written, the model job's patch-sha256 output.
+        required: false
+        type: string
+        default: ""
+      patch-attempt:
+        description: >-
+          With patch-state written, the model job's patch-attempt output: the
+          attempt whose patch-<lane>-<activity>-<attempt> artifact to download.
+        required: false
+        type: string
+        default: ""
+      patch-activity:
+        description: The activity that wrote the patch and the report, which names both artifacts.
+        required: false
+        type: string
+        default: ""
+      patch-head-sha:
+        description: >-
+          The model job's head-sha output: the head the patch was made on. A
+          gated head that differs skips superseded-sha.
+        required: false
+        type: string
+        default: ""
+      reply-attempt:
+        description: >-
+          The model job's reply-attempt output: the attempt whose skill-reply
+          artifact holds its report. Empty reads no report.
+        required: false
+        type: string
+        default: ""
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
@@ -150,8 +196,8 @@ on:
       escalation-reason:
         description: >-
           Why the activity handed the PR to a person: for merge-base
-          protected-path-conflict, workflow-staged, repeat-cap or
-          unresolved-conflict; for review-threads, before any model turn,
+          protected-path-conflict, workflow-staged, unexpected-path-staged,
+          repeat-cap or unresolved-conflict; for review-threads, before any model turn,
           feedback-protected-path or feedback-round-cap; for the
           review-replies script feedback-uncertain, feedback-not-landed or
           feedback-invalid, feedback-partial, feedback-incomplete or
@@ -160,7 +206,10 @@ on:
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-files-truncated, dependency-control-uncited,
           dependency-security-close or
-          dependency-escalate; empty otherwise.
+          dependency-escalate; for apply-patch, before the mint,
+          ci-fix-empty, ci-fix-invalid or ci-fix-escalated, and from its
+          script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
+          empty otherwise.
           Set only by runner steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
       head-sha:
@@ -239,7 +288,10 @@ jobs:
     # or an output of a step that ran before any PR head code. act-outcome
     # reads steps that run after the skill: for a gate skill the verdict step,
     # so a gate skill must not execute head code; its promote, commit and
-    # turn terms only turn a success into a failure. merge-state and a
+    # turn terms only turn a success into a failure. The act-result step
+    # turns a failed skill step into a success only when the execution
+    # file's result message is a success over the turn cap, a shape the CLI
+    # writes and a finished run could report anyway. merge-state and a
     # pre-model escalation-reason come from the prepare step, before any
     # model turn; a post-model escalation-reason comes from post.sh after it,
     # and a forged one can only hand the PR to a person. In review-threads
@@ -260,7 +312,7 @@ jobs:
       escalation-reason: >-
         ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason
         || steps.feedback-select.outputs.escalation-reason || steps.dependency-select.outputs.escalation-reason
-        || steps.act-script.outputs.escalation-reason }}
+        || steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
       feedback-round: >-
         ${{ steps.config.outputs.prepare == 'review-threads'
         && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
@@ -278,8 +330,10 @@ jobs:
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       # The lane record, from steps that read the execution file after the
       # skill. A forged limit stop can only restart the lane after a reset
-      # limit-stop.mjs and report-outcome clamp to at least an hour away, at
-      # most MAX_LIMIT_STOPS times.
+      # limit-stop.mjs and report-outcome clamp to at least
+      # `limits.reset-clamp-min` hours away, at
+      # most `limits.limit-stops-per-head` (a PR) or
+      # `limits.limit-stops-per-issue` (an issue) times.
       lane-class: ${{ steps.lane-record.outputs.failure-class }}
       lane-resets: ${{ steps.lane-record.outputs.resets-at }}
       lane-turns: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.turns || '' }}
@@ -291,18 +345,19 @@ jobs:
       # the PR branch fails. In merge-base mode a clean merge skips the skill
       # and succeeds only once its commit is made and promoted (or post.sh
       # escalates), and a staged merge that post.sh cleared but that was not
-      # committed fails. The verdict step's ACT_OUTCOME repeats this
+      # committed fails. A skill step that failed only on the turn cap
+      # counts as succeeded (act-result). The verdict step's ACT_OUTCOME repeats this
       # expression: runner-policy refuses YAML aliases.
       act-outcome: >-
         ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
         && ((steps.post.outputs.escalation-reason != ''
         || steps.commit.outcome == 'success' && steps.promote.outcome == 'success') && 'success' || 'failure')
-        || steps.act-skill.outcome == 'success'
+        || steps.act-result.outputs.outcome == 'success'
         && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
         || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success'
         || steps.commit.outcome == 'failure'
         || steps.post.outputs.tree != '' && steps.commit.outcome != 'success') && 'failure'
-        || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
+        || steps.act-skill.outcome != 'skipped' && (steps.act-result.outputs.outcome || steps.act-skill.outcome)
         || steps.act-script.outcome }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
@@ -348,12 +403,14 @@ jobs:
             exit 1
           fi
           case $ESCALATION_REASON in
-            "" | protected-path-conflict | workflow-staged | repeat-cap | unresolved-conflict) ;;
+            "" | protected-path-conflict | workflow-staged | unexpected-path-staged | repeat-cap | unresolved-conflict) ;;
             feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited) ;;
+            ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
+            ci-fix-protected-path | ci-fix-not-applied) ;;
             *)
               echo "::error::the escalation-reason input is not a known escalation reason"
               exit 1
@@ -447,6 +504,38 @@ jobs:
           # commit steps below).
           prepare-supported: "true"
 
+      # Issue mode, skill run: a run that waited in its concurrency slot keeps
+      # the workflow files of its label event. The broker refuses the mint as
+      # workflow-modified when either file's blob at the run's commit differs
+      # from main's tip, so this checks the same rule against the default
+      # branch checkout first and fails red with no token request. The failed
+      # run leaves no outcome marker, so work-unblock's hourly sweep re-fires
+      # the issue on main's files. A commit the checkout cannot read is left to
+      # the broker. report-outcome is a script, exempt as a report job. This
+      # file is called by a local path, so it runs from the caller's commit.
+      - name: Check the run's workflow files against main
+        id: workflow-current
+        if: >-
+          inputs.issue-number != '' && steps.config.outputs.applies == 'true'
+          && steps.config.outputs.kind == 'skill'
+        env:
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          caller=${WORKFLOW_REF%%@*}
+          caller=.github/workflows/${caller##*/.github/workflows/}
+          if [[ $caller != .github/workflows/?* || ! $WORKFLOW_SHA =~ ^[0-9a-f]{40}$ ]] ||
+            ! git -C .base cat-file -e "$WORKFLOW_SHA^{commit}" 2>/dev/null; then
+            echo "::notice::cannot read the run's workflow commit; the token broker decides"
+            exit 0
+          fi
+          for path in "$caller" .github/workflows/pr-run-activity-write.yml; do
+            if [ "$(git -C .base rev-parse -q --verify "$WORKFLOW_SHA:$path")" != "$(git -C .base rev-parse -q --verify "HEAD:$path")" ]; then
+              echo "::error::workflow-stale: $path differs from main's tip, so the broker would refuse this run; nothing was requested, and work-unblock's sweep re-fires the issue on main's files"
+              exit 1
+            fi
+          done
+
       # Issue mode, skill run: before the mint and any model turn, with the
       # job's read-only token, skips the model when an earlier run already
       # did the work: a lanes-App PR from a lane branch is open, or the lanes
@@ -469,7 +558,9 @@ jobs:
       # on a head a review lane's marker confirms, left by it alone or answered
       # by a trusted person after the lane escalated them, then
       # skips (none), escalates (a .github/** diff, or the round cap) or
-      # writes the thread file the skill's review-thread tool reads.
+      # writes the thread file the skill's review-thread tool reads. It also
+      # copies out the base's thread-scope.mjs with its SHA-256, which the
+      # promote step checks before it imports the copy.
       - name: Select the review threads
         id: feedback-select
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'review-threads'
@@ -480,10 +571,15 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           LANE_BRANCH: ${{ format('lane-commits/{0}/{1}/{2}-{3}', inputs.lane, inputs.activity, github.run_id, github.run_attempt) }}
           FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
+          SCOPE_BIN: ${{ runner.temp }}/lane-feedback-bin
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRACKER_CONFIG: .base/.work-item-tracker.json
           RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
-          mkdir -p "$FEEDBACK_DIR"
+          mkdir -p "$FEEDBACK_DIR" "$SCOPE_BIN"
+          cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$SCOPE_BIN/thread-scope.mjs"
+          sum=$(sha256sum <"$SCOPE_BIN/thread-scope.mjs")
+          echo "scope-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
           REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
           export REVIEW_ROUNDS
           THREAD_FILE="$FEEDBACK_DIR/threads.json" node .base/.github/scripts/pr-unblock/address-feedback.mjs select
@@ -516,6 +612,48 @@ jobs:
           export DEPENDENCY_REVIEW_ROUNDS
           DEPENDENCY_FILE="$DEPENDENCY_DIR/dependency.json" node .base/.github/scripts/pr-unblock/review-dependency.mjs select
 
+      # apply-patch, before the mint: the patch and the report the read model
+      # job of this workflow run uploaded, each downloaded by that job's
+      # attempt, so a re-run of this job alone still finds them. A missing
+      # artifact leaves its directory empty: the select step refuses a missing
+      # patch and reads a missing report as no escalation.
+      - name: Download the patch
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-state == 'written' && inputs.patch-attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: patch-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-attempt }}
+          path: ${{ runner.temp }}/lane-patch
+
+      - name: Download the model job's report
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.reply-attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: skill-reply-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.reply-attempt }}
+          path: ${{ runner.temp }}/lane-patch-report
+
+      # apply-patch, before the mint and the head checkout, with no token:
+      # the base's apply-ci-fix.mjs checks the patch artifact against the
+      # model job's SHA-256 and head, and reads its report. A moved head skips
+      # superseded-sha; an empty or invalid patch escalates with nothing
+      # minted; an escalated check in the report escalates after the push.
+      - name: Select the patch
+        id: patch-select
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+        env:
+          PATCH_STATE: ${{ inputs.patch-state }}
+          PATCH_SHA256: ${{ inputs.patch-sha256 }}
+          PATCH_HEAD_SHA: ${{ inputs.patch-head-sha }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          PATCH_DIR: ${{ runner.temp }}/lane-patch
+          REPORT_DIR: ${{ runner.temp }}/lane-patch-report
+        run: node .base/.github/scripts/pr-unblock/apply-ci-fix.mjs select
+
       # A read activity belongs in pr-run-activity-read.yml, whose run holds no
       # App key; the caller chose the wrong file.
       - name: Assert the effect is not read
@@ -528,13 +666,14 @@ jobs:
       # the mint (GET /pulls can lag a push), and a moved branch skips it
       # neutral superseded-sha with nothing minted: the run the newer head
       # starts redoes it. Other effects never write the branch and proceed
-      # on the gated head. Every later step keys on proceed.
+      # on the gated head. The mint keys on proceed.
       - name: Re-read the PR head before the mint
         id: head-recheck
         if: >-
           steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
           && steps.feedback-select.outputs.proceed != 'false'
           && steps.dependency-select.outputs.proceed != 'false'
+          && steps.patch-select.outputs.proceed != 'false'
           && steps.issue-prior.outputs.proceed != 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
@@ -566,12 +705,22 @@ jobs:
       # The broker mints once per job, and this runs before any head checkout,
       # so a second request from this job is denied already-minted. It fails
       # red on an empty LANES_BROKER_URL or LANES_BROKER_AUDIENCE, on any
-      # answer but 200, and on a grant other than the one resolved above.
+      # answer but 200, and on a grant other than the one resolved above. One
+      # exception, on pull_request only (a dispatched run executes main's
+      # files, so its refusal means main moved): a workflow-modified refusal
+      # of a workflow file that GitHub's compare of the default branch with
+      # the gated head lists as changed by this PR ends it green with no token
+      # and skip reason workflow-modified, so every later step skips and the
+      # check is neutral. Every later step keys on the token.
       - name: Request the lane token
         id: lane-token
         if: steps.head-recheck.outputs.proceed == 'true'
         uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
+          pr-workflow-change-ok: ${{ inputs.issue-number == '' && github.event_name == 'pull_request' }}
+          head-sha: ${{ steps.gate.outputs.head-sha }}
+          default-branch: ${{ github.event.repository.default_branch }}
+          github-token: ${{ github.token }}
           broker-url: ${{ vars.LANES_BROKER_URL }}
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: ${{ inputs.lane }}
@@ -587,7 +736,7 @@ jobs:
 
       - name: Select the trusted PR text
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.reads-untrusted == 'true'
+          steps.lane-token.outputs.token != '' && steps.config.outputs.reads-untrusted == 'true'
           && inputs.issue-number == ''
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
@@ -600,7 +749,7 @@ jobs:
       # the base is copied out first.
       - name: Stage the activity from the base
         id: stage
-        if: steps.head-recheck.outputs.proceed == 'true'
+        if: steps.lane-token.outputs.token != ''
         uses: ./.base/.github/actions/collect-base-activity # zizmor: ignore[self-repository]
         with:
           kind: ${{ steps.config.outputs.kind }}
@@ -637,7 +786,7 @@ jobs:
       # checkout below replaces it.
       - name: Write the issue for the skill
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && inputs.issue-number != ''
+          steps.lane-token.outputs.token != '' && inputs.issue-number != ''
           && steps.config.outputs.kind == 'skill'
         env:
           GITHUB_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -655,7 +804,7 @@ jobs:
       # SHA-256, or `absent`, is checked by the script step.
       - name: Copy the tracker config from the base
         id: tracker-config
-        if: steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'script'
+        if: steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'script'
         env:
           COPY: ${{ runner.temp }}/base-script/.work-item-tracker.json
         run: |
@@ -675,7 +824,7 @@ jobs:
       # feedback-invalid after it still records the round.
       - name: Download the review-thread replies
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && inputs.review-replies
+          steps.lane-token.outputs.token != '' && inputs.review-replies
           && steps.config.outputs.kind == 'script' && inputs.review-run-attempt != ''
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -691,7 +840,7 @@ jobs:
       # the round.
       - name: Download the dependency verdict
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && inputs.dependency-verdict
+          steps.lane-token.outputs.token != '' && inputs.dependency-verdict
           && steps.config.outputs.kind == 'script' && inputs.dependency-run-attempt != ''
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -699,10 +848,13 @@ jobs:
           name: dependency-verdict-${{ inputs.dependency-run-attempt }}
           path: ${{ runner.temp }}/dependency-verdict
 
+      # Also issue mode: report-outcome trusts a merge: human label only from
+      # a listed human or the lanes App.
       - name: Copy the trusted actors for the reply script
         id: reply-actors
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && inputs.review-replies
+          steps.lane-token.outputs.token != ''
+          && (inputs.review-replies || inputs.issue-number != '')
           && steps.config.outputs.kind == 'script'
         env:
           COPY: ${{ runner.temp }}/base-script/.trusted-actors.json
@@ -715,7 +867,7 @@ jobs:
       # the resolved config now, before any head code could rewrite the file.
       - name: Copy the merge scripts from the base
         id: merge-bin
-        if: steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.prepare == 'merge-base'
+        if: steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'merge-base'
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           RESOLVED: ${{ runner.temp }}/resolved-config.json
@@ -738,14 +890,19 @@ jobs:
       # The labels the commit and promote steps treat as a hold, as a JSON
       # array: do-not-merge, the human-gated role label resolved from the base
       # the way report-escalation.sh does, and the activity's labels-absent
-      # list, all read before the head checkout replaces .base.
+      # list, all read before the head checkout replaces .base. The
+      # human-gated label is left out only when the review-threads select step
+      # kept nothing but threads a trusted person with write access asked the
+      # lane to fix on a PR carrying it, unless labels-absent lists it.
       - name: Read the hold labels from the base
         id: hold-label
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
+          steps.head-recheck.outputs.proceed == 'true' && steps.lane-token.outputs.token != ''
+          && (steps.config.outputs.kind == 'skill' || steps.config.outputs.prepare == 'apply-patch')
           && inputs.issue-number == ''
         env:
           RESOLVED: ${{ runner.temp }}/resolved-config.json
+          FIX_REQUESTED: ${{ steps.feedback-select.outputs.fix-requested }}
         run: |
           hold_label=needs-human
           if [ -f .base/.work-item-tracker.json ]; then
@@ -760,8 +917,9 @@ jobs:
             echo "::error::the human-gated role label is malformed"
             exit 1
           fi
-          labels=$(jq -ce --arg human "$hold_label" \
-            '["do-not-merge", $human] + [(.selected["applies-when"]["labels-absent"] // [])[] | strings] | unique' \
+          labels=$(jq -ce --arg human "$hold_label" --arg requested "$FIX_REQUESTED" \
+            '["do-not-merge"] + (if $requested == "true" then [] else [$human] end)
+              + [(.selected["applies-when"]["labels-absent"] // [])[] | strings] | unique' \
             "$RESOLVED") || {
             echo "::error::cannot read the activity's labels-absent list from the resolved config"
             exit 1
@@ -770,7 +928,7 @@ jobs:
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
-        if: steps.head-recheck.outputs.proceed == 'true'
+        if: steps.lane-token.outputs.token != ''
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: ${{ steps.config.outputs.kind == 'skill' }}
@@ -781,7 +939,7 @@ jobs:
       # predates the script skips the install.
       - name: Copy the dependency setup from the base
         id: setup-env
-        if: steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
+        if: steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
         env:
           DEST: ${{ runner.temp }}/setup-env
         run: |
@@ -798,7 +956,7 @@ jobs:
           echo "ready=true" >>"$GITHUB_OUTPUT"
 
       - name: Check out the PR head
-        if: steps.head-recheck.outputs.proceed == 'true'
+        if: steps.lane-token.outputs.token != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.issue-number != '' && steps.trusted-base.outputs.commit || steps.gate.outputs.head-sha }}
@@ -810,7 +968,7 @@ jobs:
 
       # The activity judges exactly the commit the check is posted on.
       - name: Assert the head is the gated SHA
-        if: steps.head-recheck.outputs.proceed == 'true'
+        if: steps.lane-token.outputs.token != ''
         env:
           HEAD_SHA: ${{ inputs.issue-number != '' && steps.trusted-base.outputs.commit || steps.gate.outputs.head-sha }}
         run: |
@@ -829,7 +987,7 @@ jobs:
       # that author name.
       - name: Start the merge of the trusted base
         id: prepare
-        if: steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.prepare == 'merge-base'
+        if: steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'merge-base'
         env:
           GIT_AUTHOR_NAME: melodic-automation-lanes[bot]
           GIT_AUTHOR_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
@@ -902,7 +1060,7 @@ jobs:
       - name: Make the lane's commit branch at the gated SHA
         id: lane-branch
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
+          steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
           && steps.config.outputs.can-commit == 'true'
           && steps.prepare.outputs.merge-state != 'escalate'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -948,13 +1106,16 @@ jobs:
             cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"
           done
 
-      # In merge-base mode only a conflicted merge needs the model.
+      # In merge-base mode only a conflicted merge needs the model. A failure
+      # does not stop the job here: the next step fails it unless the failure
+      # is only the turn cap on a successful result.
       - name: Run the skill activity
         id: act-skill
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
+          steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
           && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
-        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
+        continue-on-error: true
+        uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967 # v1.0.252
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -980,10 +1141,13 @@ jobs:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           github_token: ${{ steps.lane-token.outputs.token }}
           use_commit_signing: true
-          # A dispatcher-sent run is started by github-actions[bot]; the
-          # action refuses a bot actor unless it is listed. The trigger gate
-          # has already checked the dispatcher run this id names.
-          allowed_bots: ${{ inputs.dispatcher-run-id != '' && 'github-actions' || '' }}
+          # The action refuses a bot actor unless it is listed. The trigger
+          # gate has already decided both bot cases: the lanes App passes it
+          # only by applying the app-label in issue mode, and github-actions
+          # only on a dispatcher run it verified, whose id this names.
+          allowed_bots: >-
+            ${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions'
+            || 'melodic-automation-lanes[bot]' }}
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}
@@ -995,6 +1159,55 @@ jobs:
             --permission-mode dontAsk
             ${{ steps.config.outputs.claude-args }}
             ${{ steps.stage.outputs.claude-args }}
+
+      # claude-code-action fails the step on a `success` result whose
+      # num_turns is over --max-turns, after the CLI has finished the work
+      # (base-action/src/run-claude-sdk.ts:241-250 at the pinned SHA). Such a
+      # run counts as a success: the last result message in the execution
+      # file must say subtype `success`, is_error false, and num_turns over
+      # the cap. Any other failure, or a missing or unreadable file, fails
+      # the job here, as the skill step itself did before.
+      - name: Check the skill's failure is only the turn cap
+        id: act-result
+        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ACT_OUTCOME: ${{ steps.act-skill.outcome }}
+          EXECUTION_FILE: >-
+            ${{ steps.act-skill.outputs.execution_file
+            || format('{0}/claude-execution-output.json', runner.temp) }}
+          MAX_TURNS: ${{ steps.config.outputs.max-turns }}
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { ACT_OUTCOME, EXECUTION_FILE, MAX_TURNS } = process.env;
+            if (ACT_OUTCOME === 'success') {
+              core.setOutput('outcome', 'success');
+              return;
+            }
+            let result = null;
+            try {
+              const messages = JSON.parse(fs.readFileSync(EXECUTION_FILE, 'utf8'));
+              result = Array.isArray(messages) ? messages.filter((m) => m?.type === 'result').at(-1) ?? null : null;
+            } catch (error) {
+              core.setFailed(`the skill step failed and its execution file is not readable: ${error.code ?? error.name}`);
+              return;
+            }
+            const cap = /^[1-9][0-9]*$/.test(MAX_TURNS ?? '') ? Number(MAX_TURNS) : null;
+            const turns = result?.num_turns;
+            if (
+              result?.subtype === 'success' && result.is_error === false && cap !== null
+              && Number.isSafeInteger(turns) && turns > cap
+            ) {
+              core.notice(`the skill finished with a successful result after ${turns} turns, over the ${cap}-turn cap; counted as a success`);
+              core.setOutput('outcome', 'success');
+              return;
+            }
+            core.setFailed(
+              `the skill step failed: result subtype=${JSON.stringify(result?.subtype ?? null)} ` +
+                `is_error=${JSON.stringify(result?.is_error ?? null)} num_turns=${JSON.stringify(turns ?? null)} max-turns=${cap ?? 'unset'}`,
+            );
 
       # The reply is untrusted model text: it is read with jq and printed as
       # data, never interpolated into a command. The file path falls back to
@@ -1110,12 +1323,12 @@ jobs:
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@64fd515245f2bdeea8dedca1a3cea9ca39804bec # v0.43.0
         with:
-          outcome: ${{ steps.act-skill.outcome }}
+          outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
           execution-file: >-
             ${{ steps.act-skill.outputs.execution_file
             || format('{0}/claude-execution-output.json', runner.temp) }}
           lane: ${{ inputs.lane }}
-          credential: CLAUDE_CODE_OAUTH_TOKEN
+          credential: AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN
           max-turns: ${{ steps.config.outputs.max-turns }}
 
       - name: Upload the skill's final reply
@@ -1127,7 +1340,7 @@ jobs:
           path: |
             ${{ runner.temp }}/skill-reply/reply.txt
             ${{ runner.temp }}/skill-reply/act-turns.json
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: error
 
       # The verdict comes from the action's structured_output, read through env
@@ -1135,7 +1348,7 @@ jobs:
       # summary is model text, printed as data.
       - name: Check the gate skill's verdict
         id: skill-verdict
-        if: always() && steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
+        if: always() && steps.act-result.outputs.outcome == 'success' && steps.config.outputs.gating == 'gate'
         env:
           STRUCTURED_OUTPUT: ${{ steps.act-skill.outputs.structured_output }}
         run: |
@@ -1156,14 +1369,15 @@ jobs:
       # merge-base mode, after the skill (or straight after a clean merge):
       # post.sh checks prepare's saved copies and snapshot against their
       # hashes, repairs the sensitive paths the action reset, and escalates
-      # unresolved-conflict or workflow-staged; otherwise it writes the
-      # validated index as a tree, the only tree the commit step accepts.
+      # unresolved-conflict, workflow-staged or unexpected-path-staged;
+      # otherwise it writes the validated index as a tree, the only tree the
+      # commit step accepts.
       - name: Check the staged merge
         id: post
         if: >-
           steps.config.outputs.prepare == 'merge-base' && steps.prepare.outcome == 'success'
           && (steps.prepare.outputs.merge-state == 'clean'
-          || steps.act-skill.outcome == 'success' && steps.act-turns.outcome == 'success')
+          || steps.act-result.outputs.outcome == 'success' && steps.act-turns.outcome == 'success')
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           OUT: ${{ runner.temp }}/merge-base-out
@@ -1197,7 +1411,7 @@ jobs:
             "")
               [[ $tree =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || { echo "::error::post.sh printed no tree"; exit 1; }
               ;;
-            unresolved-conflict | workflow-staged)
+            unresolved-conflict | workflow-staged | unexpected-path-staged)
               tree="" skip=awaiting-human
               ;;
             *) echo "::error::post.sh printed an unknown escalation reason"; exit 1 ;;
@@ -1381,11 +1595,14 @@ jobs:
           MERGE_BASE: ${{ steps.config.outputs.prepare == 'merge-base' }}
           COMMIT_OUTCOME: ${{ steps.commit.outcome }}
           COMMIT_SHA: ${{ steps.commit.outputs.commit }}
-          # review-threads mode moves the PR branch only when the lane branch
-          # changes nothing but the kept threads' paths, none under .github/.
+          # review-threads mode moves the PR branch only when every path the
+          # lane branch changes is in the kept threads' scope, as the base's
+          # thread-scope.mjs decides, and none is under .github/.
           THREAD_FILE: >-
             ${{ steps.config.outputs.prepare == 'review-threads'
             && format('{0}/lane-feedback/threads.json', runner.temp) || '' }}
+          SCOPE_SCRIPT: ${{ runner.temp }}/lane-feedback-bin/thread-scope.mjs
+          SCOPE_SHA256: ${{ steps.feedback-select.outputs.scope-sha256 }}
           # dependency-review mode moves the PR branch only when the lane
           # branch changes nothing under .github/ and every commit's message
           # carries [dependabot skip], so Dependabot may still rebase the PR.
@@ -1402,6 +1619,7 @@ jobs:
           script: |
             const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA, THREAD_FILE } = process.env;
             const { DEPENDENCY_REVIEW, DEPENDENCY_OUTPUT, PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
+            const { SCOPE_SCRIPT, SCOPE_SHA256 } = process.env;
             core.setOutput('skip-reason', '');
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
@@ -1417,13 +1635,22 @@ jobs:
                 return;
               }
               if (THREAD_FILE) {
-                const paths = new Set(JSON.parse(require('fs').readFileSync(THREAD_FILE, 'utf8')).threads.map((t) => t.path));
+                const fs = require('fs');
+                const paths = new Set(JSON.parse(fs.readFileSync(THREAD_FILE, 'utf8')).threads.map((t) => t.path));
+                // Imported from the bytes just hashed, so a rewrite after the
+                // check cannot reach the import.
+                const scope = fs.readFileSync(SCOPE_SCRIPT);
+                if (!SCOPE_SHA256 || require('crypto').createHash('sha256').update(scope).digest('hex') !== SCOPE_SHA256) {
+                  core.setFailed("thread-scope.mjs does not match the base's copy; the PR branch is not moved");
+                  return;
+                }
+                const { inThreadScope } = await import(`data:text/javascript;base64,${scope.toString('base64')}`);
                 const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${HEAD_SHA}...${lane}` });
                 const bad = data.files.length >= 300 ? ['(300 or more files)'] : data.files
                   .flatMap((f) => [f.filename, f.previous_filename].filter(Boolean))
-                  .filter((p) => !paths.has(p) || /^\.github(\/|$)/i.test(p));
+                  .filter((p) => !inThreadScope(p, paths));
                 if (bad.length > 0) {
-                  core.setFailed(`The lane branch changes a path no kept thread names or under .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
+                  core.setFailed(`The lane branch changes a path outside the kept threads' scope or under .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
                   return;
                 }
               }
@@ -1689,7 +1916,7 @@ jobs:
           path: |
             ${{ runner.temp }}/work-outcome/lane.json
             ${{ runner.temp }}/work-outcome/work-outcome.json
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: error
           overwrite: true
 
@@ -1697,7 +1924,7 @@ jobs:
       # missing artifact leaves the directory empty, which reads as stopped.
       - name: Download the issue outcome
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && inputs.issue-number != ''
+          steps.lane-token.outputs.token != '' && inputs.issue-number != ''
           && steps.config.outputs.kind == 'script'
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1709,7 +1936,7 @@ jobs:
       # artifact leaves the directory empty, which keeps the fixed text.
       - name: Download the reused branch's summary
         if: >-
-          steps.head-recheck.outputs.proceed == 'true' && inputs.issue-number != ''
+          steps.lane-token.outputs.token != '' && inputs.issue-number != ''
           && steps.config.outputs.kind == 'script' && inputs.reuse-branch != ''
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1720,7 +1947,7 @@ jobs:
       # A script that gets GH_TOKEN must not execute code from the PR head.
       - name: Run the script activity
         id: act-script
-        if: steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'script'
+        if: steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'script'
         env:
           SCRIPT: ${{ steps.config.outputs.script }}
           RESOLVED: ${{ runner.temp }}/resolved-config.json
@@ -1738,10 +1965,12 @@ jobs:
           # Checked against this issue's lane branch by the job's first step.
           REUSE_BRANCH: ${{ inputs.reuse-branch }}
           REUSE_SUMMARY_DIR: ${{ inputs.reuse-branch != '' && format('{0}/reuse-summary', runner.temp) || '' }}
+          # Parsed and checked against the lane branch by report-outcome.
+          RUNNER_CHECKS: ${{ inputs.runner-checks }}
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
-          TRUSTED_ACTORS: ${{ inputs.review-replies && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
+          TRUSTED_ACTORS: ${{ (inputs.review-replies || inputs.issue-number != '') && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
           MODEL_RUN_ATTEMPT: ${{ inputs.review-run-attempt }}
@@ -1749,6 +1978,12 @@ jobs:
           DEPENDENCY_VERDICT_DIR: ${{ inputs.dependency-verdict && format('{0}/dependency-verdict', runner.temp) || '' }}
           DEPENDENCY_RUN_SHA256: ${{ inputs.dependency-run-sha256 }}
           DEPENDENCY_RUN_ATTEMPT: ${{ inputs.dependency-run-attempt }}
+          # apply-patch only; empty otherwise. The select step checked the
+          # patch before the mint; the script checks its SHA-256 again.
+          PREPARE: ${{ steps.config.outputs.prepare }}
+          PATCH_FILE: ${{ steps.config.outputs.prepare == 'apply-patch' && format('{0}/lane-patch/patch.diff', runner.temp) || '' }}
+          PATCH_SHA256: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-sha256 || '' }}
+          HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
           ESCALATION_REASON_FILE: ${{ runner.temp }}/escalation-reason
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then
@@ -1783,14 +2018,17 @@ jobs:
             fi
           fi
           echo "skip-reason=$reason" >>"$GITHUB_OUTPUT"
-          # Only the reply and verdict scripts escalate from here, each with
-          # its own reasons.
+          # Only the reply, verdict and apply-patch scripts escalate from
+          # here, each with its own reasons.
           escalation=""
           if [ -s "$ESCALATION_REASON_FILE" ]; then
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
+              :ci-fix-invalid | :ci-fix-protected-path | :ci-fix-not-applied)
+                [ "$PREPARE" = apply-patch ] || { echo "::error::the escalation reason file holds no reason this script may give"; exit 1; }
+                ;;
               *)
                 # The verdict script's reasons, only in dependency-verdict mode.
                 case "$FEEDBACK_REPLIES_DIR:$DEPENDENCY_VERDICT_DIR:$escalation" in
@@ -1818,22 +2056,24 @@ jobs:
           CONFIG_OUTCOME: ${{ steps.config.outcome }}
           SKIP_REASON: >-
             ${{ steps.config.outputs.skip-reason || steps.head-recheck.outputs.skip-reason
+            || steps.lane-token.outputs.skip-reason
             || steps.prepare.outputs.skip-reason || steps.post.outputs.skip-reason
             || steps.commit.outputs.skip-reason || steps.promote.outputs.skip-reason
             || steps.act-script.outputs.skip-reason
             || steps.feedback-select.outputs.skip-reason
             || steps.dependency-select.outputs.skip-reason
+            || steps.patch-select.outputs.skip-reason
             || steps.issue-prior.outputs.skip-reason }}
           ACT_OUTCOME: >-
             ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
             && ((steps.post.outputs.escalation-reason != ''
             || steps.commit.outcome == 'success' && steps.promote.outcome == 'success') && 'success' || 'failure')
-            || steps.act-skill.outcome == 'success'
+            || steps.act-result.outputs.outcome == 'success'
             && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
             || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success'
             || steps.commit.outcome == 'failure'
             || steps.post.outputs.tree != '' && steps.commit.outcome != 'success') && 'failure'
-            || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
+            || steps.act-skill.outcome != 'skipped' && (steps.act-result.outputs.outcome || steps.act-skill.outcome)
             || steps.act-script.outcome }}
           VERDICT_DIR: ${{ runner.temp }}/verdict
         run: |
@@ -1869,6 +2109,7 @@ jobs:
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict/verdict.json
+          retention-days: 1
           if-no-files-found: error
 
       # The token would live an hour; revoking it ends it now (probe P5 found
@@ -2057,7 +2298,7 @@ jobs:
         id: summary-run
         if: steps.isolate.outcome == 'success'
         continue-on-error: true
-        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
+        uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967 # v1.0.252
         env:
           # As in the run job's skill step.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -2065,6 +2306,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           github_token: ${{ github.token }}
+          # The run job's trigger gate admitted this run's actor, which on an
+          # App-labeled issue is the lanes App.
+          allowed_bots: melodic-automation-lanes[bot]
           prompt: ${{ steps.summary-prompt.outputs.prompt }}
           settings: ${{ steps.summary-models.outputs.settings-json }}
           claude_args: >-

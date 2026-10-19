@@ -4,6 +4,16 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.23.4] - 2026-10-18
+
+### Changed
+
+- `skill-authoring` pre-compute reference: the `$VAR`-without-git record now says acceptance is unsettled after a 2026-09-30 refusal contradicted the 2.1.257 fix, and points to the source-control accepted-shapes record ([#5673](https://github.com/melodic-software/claude-code-plugins/issues/5673)).
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.23.3] - 2026-10-16
 
 ### Changed

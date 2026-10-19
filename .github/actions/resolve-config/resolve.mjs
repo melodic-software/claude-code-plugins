@@ -208,10 +208,18 @@ function checkLeaves(activities, activityRules) {
     if (isComposite(activity)) {
       continue;
     }
-    if (activity.prepare !== undefined && activity.effect === "read") {
+    // ci-context is the read runner's one mode, apply-patch a branch-writing
+    // script's; every other mode needs a skill that can write.
+    const needs = { "ci-context": "read", "apply-patch": "mutate-branch" }[activity.prepare];
+    if (
+      activity.prepare !== undefined &&
+      (needs ? activity.effect !== needs : activity.effect === "read")
+    ) {
       throw new Rejection(
         "invalid-prepare",
-        `activity \`${name}\` sets prepare with effect read; prepare needs a skill that can write`,
+        needs
+          ? `activity \`${name}\` sets prepare: ${activity.prepare}, which needs effect ${needs}`
+          : `activity \`${name}\` sets prepare with effect read; prepare needs a skill that can write`,
       );
     }
     const rule = Object.hasOwn(activityRules, name)
@@ -709,6 +717,40 @@ function resolveMerge(merge = {}, configPath) {
   };
 }
 
+// The `limits` leaf with every default applied, in hours and counts; the lane
+// scripts' copy of these defaults is
+// .github/scripts/work-resolve-issue/limits.mjs.
+const limitsOf = (limits = {}) => ({
+  "fallback-reset": limits["fallback-reset"] ?? 5,
+  "reset-clamp-min": limits["reset-clamp-min"] ?? 1,
+  "reset-clamp-max": limits["reset-clamp-max"] ?? 168,
+  "restarts-per-run": limits["restarts-per-run"] ?? 5,
+  "limit-stops-per-head": limits["limit-stops-per-head"] ?? 3,
+  "limit-stops-per-issue": limits["limit-stops-per-issue"] ?? 3,
+  "wip-cap": limits["wip-cap"] ?? 60,
+  "fix-ci-per-run": limits["fix-ci-per-run"] ?? 2,
+  "fix-ci-restarts": limits["fix-ci-restarts"] ?? 1,
+});
+
+const loopOf = (loop = {}) => ({
+  "review-rounds": loop["review-rounds"] ?? 2,
+  "no-progress": loop["no-progress"] ?? 3,
+  "dependency-review-rounds": loop["dependency-review-rounds"] ?? 2,
+  "fix-ci-rounds": loop["fix-ci-rounds"] ?? 3,
+});
+
+// The resolved loop caps alone, after the same file checks as resolve(), for
+// a job that resolves no lane slot (pr-unblock.yml's fix-ci-context).
+export function resolveLoop(files, { configPath }) {
+  return loopOf(loadConfig(files, { configPath }).loop);
+}
+
+// The resolved limits alone, after the same file checks as resolve(), for a
+// run that resolves no lane slot (pr-unblock-dispatch.yml).
+export function resolveLimits(files, { configPath }) {
+  return limitsOf(loadConfig(files, { configPath }).limits);
+}
+
 export function resolve(
   files,
   { lane, activity, configPath, basePath, facts },
@@ -730,11 +772,8 @@ export function resolve(
       slots,
     },
     selected: index < 0 ? null : slots[index],
-    loop: {
-      "review-rounds": doc.loop?.["review-rounds"] ?? 2,
-      "no-progress": doc.loop?.["no-progress"] ?? 3,
-      "dependency-review-rounds": doc.loop?.["dependency-review-rounds"] ?? 2,
-    },
+    loop: loopOf(doc.loop),
+    limits: limitsOf(doc.limits),
     merge: resolveMerge(doc.merge, configPath),
   };
 }

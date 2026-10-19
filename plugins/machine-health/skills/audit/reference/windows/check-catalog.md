@@ -623,11 +623,12 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
     live Windows sessions in
     [#6036](https://github.com/melodic-software/claude-code-plugins/issues/6036). No docs page
     names this path as of 2026-10-04.
-  - **Pointer**: when deciding whether background-task output can still grow without bound, fetch
+  - **Pointer**: when deciding whether the running Claude Code version caps a background task's
+    output, fetch
     [Interactive mode, "How backgrounding works"](https://code.claude.com/docs/en/interactive-mode#how-backgrounding-works)
-    live. **As of**: 2026-10-04. **Recheck trigger**: that section names where task output is
-    written or changes what it says about output size, or a probe finds `.output` files outside
-    `tasks/`.
+    live. **As of**: 2026-10-18. **Recheck trigger**: that section names where task output is
+    written or changes what it says about capping output size, or a probe finds `.output` files
+    outside `tasks/`.
 
 - **Remediation:** none. `machine-health` removes nothing here; `detail.remediation_route` names
   `disk-hygiene:clean`, which owns removal behind its own snapshot, tier approval, and live-handle

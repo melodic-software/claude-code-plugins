@@ -106,6 +106,19 @@ Invoke via `@review:<agent>` or let Claude delegate.
   request (org-authored; built-in `/security-review` is unusable under Actions
   checkout).
 
+- **`/review:check`**. Read-only: reports whether node resolves and the connected-page guard
+  below is registered. Installs nothing.
+
+### Hook
+
+A PreToolUse hook on the `Artifact` tool denies a call that would publish an HTML page whose
+content security policy names a loopback `connect-src`: a connected page (built with
+`--connect`) works only on this machine and stays a local file. It reads the file content, so a
+connected page from any builder is caught, in `file_path` or in `files`. Every other Artifact
+call passes, as does a file it cannot read. Turn it off with `connected_page_guard_enabled`.
+It is not the approval-marker publish gate (#7956), and it does not cover
+`/visualization:present`'s `--argument artifact` flag.
+
 ### Workflows
 
 - **`/review:fanout-sweep`** (`workflows/fanout-sweep.js`). The leaf fan-out of
@@ -202,6 +215,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
+| `connected_page_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONNECTED_PAGE_GUARD_ENABLED` | Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page. |
 | `ratchet_offer` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATCHET_OFFER` | When on (default), /review:audit-enforceability stubs on a rung that counts violations offer /review:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's docs/conventions/review.yaml ratchet_offer wins over this option. |
 | `downstream_probe` | string | `"run"` | `CLAUDE_PLUGIN_OPTION_DOWNSTREAM_PROBE` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
 | `fanout_diversity` | string | `"lens"` | `CLAUDE_PLUGIN_OPTION_FANOUT_DIVERSITY` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: it sends one review prompt to each distinct fan-out model tier instead. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
@@ -216,7 +230,7 @@ Three supported routes:
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install review@<marketplace> -s <scope> --config ratchet_offer=<value>
+   claude plugin install review@<marketplace> -s <scope> --config connected_page_guard_enabled=<value>
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
@@ -240,7 +254,7 @@ Three supported routes:
      "pluginConfigs": {
        "review@<marketplace>": {
          "options": {
-           "ratchet_offer": <value>
+           "connected_page_guard_enabled": <value>
          }
        }
      }
