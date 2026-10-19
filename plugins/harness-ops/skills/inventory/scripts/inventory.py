@@ -4043,6 +4043,29 @@ def extract_builtin_agents(
     return out, notes
 
 
+def _tool_aliases(
+    src: str,
+    braces: BraceMap,
+    entry: tuple[str, int] | None,
+    index: dict[str, list[tuple[int, str]]],
+    open_i: int,
+) -> tuple[list[str], str | None]:
+    """A tool's `aliases` and how they were read: the names that resolved,
+    `literal` when every element did, `absent` when the field is missing,
+    `partial` when an element of the array did not (the list is a floor),
+    `unresolved` when the field is not an array literal. An unread alias is
+    never reported as a tool with none."""
+    if entry is None:
+        return [], "absent"
+    if entry[0] != "value" or not src.startswith("[", entry[1]):
+        return [], "unresolved"
+    try:
+        names, complete = _array_names(src, braces, entry[1], index, open_i)
+    except (ValueError, IndexError):
+        return [], "partial"
+    return names, "literal" if complete else "partial"
+
+
 def extract_builtin_tools(
     src: str, braces: BraceMap
 ) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
@@ -4101,12 +4124,10 @@ def extract_builtin_tools(
         ufn = resolve_field(src, braces, open_i, "userFacingName", methods=True)
         if ufn and ufn["value"] and ufn["value"] != name:
             rec["user_facing_name"] = ufn["value"]
-        aliases = fields.get("aliases")
-        rec["aliases"] = (
-            _array_names(src, braces, aliases[1], index, open_i)[0]
-            if aliases and aliases[0] == "value" and src.startswith("[", aliases[1])
-            else []
+        rec["aliases"], alias_source = _tool_aliases(
+            src, braces, fields.get("aliases"), index, open_i
         )
+        rec["aliases_source"] = alias_source
         rec["deferred"] = _literal_flag(src, fields, "shouldDefer", False)
         rec["always_load"] = _literal_flag(src, fields, "alwaysLoad", False)
         rec["flag_driven"] = [
