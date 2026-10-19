@@ -1006,9 +1006,9 @@ its role and secrets, and the runner policy admits them. This repository's map: 
 `pr-unblock`, `fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
 `claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
 
-Only `intake` runs on `run-claude-cli` today. Every other entry is the role its lane takes when it
-moves there: until then it runs claude-code-action with an OAuth token alone, and it never gets an
-API key, since claude-code-action runs are not paid from API credits.
+`intake` and `pr-verify` run on `run-claude-cli` today. Every other entry is the role its lane
+takes when it moves there: until then it runs claude-code-action with an OAuth token alone, and it
+never gets an API key, since claude-code-action runs are not paid from API credits.
 
 ## Loop caps
 
