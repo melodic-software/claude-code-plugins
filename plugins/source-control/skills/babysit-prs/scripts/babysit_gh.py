@@ -1058,7 +1058,13 @@ def fetch_pull_request_commits(
             f"{repo}#{number} commits",
         ),
     )
-    reported_total = (_CANDIDATE_TOTALS or {}).get(_candidate_key(repo, number, head))
+    # The record's count is for `head`; rows that do not end there were read
+    # after the head moved, so they need a count read alongside them.
+    reported_total = None
+    if rows and rows[-1].get("sha") == head:
+        reported_total = (_CANDIDATE_TOTALS or {}).get(
+            _candidate_key(repo, number, head)
+        )
     if reported_total is None:
         reported_total = gh_json(
             ["api", f"repos/{repo}/pulls/{number}", "--jq", ".commits"]

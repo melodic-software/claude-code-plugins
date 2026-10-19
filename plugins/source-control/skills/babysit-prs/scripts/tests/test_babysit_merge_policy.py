@@ -43,6 +43,7 @@ del _leaked_git_var
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_gh  # noqa: E402
 import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
 import babysit_postmerge  # noqa: E402
 
@@ -2632,6 +2633,23 @@ class LocalEnabledSince(unittest.TestCase):
         )
         self.assertEqual(gh.calls, [])
 
+    def test_a_symlinked_config_reads_the_api_as_before(self) -> None:
+        # The contents API follows an in-repository symlink to a file; the
+        # clone read hands such a path to it rather than refusing it.
+        self.commit("docs/source-control.md", SOURCE_CONTROL, "2026-10-01T00:00:00Z")
+        (self.clone / policy.SOURCE_CONTROL_PATH).parent.mkdir(exist_ok=True)
+        (self.clone / policy.SOURCE_CONTROL_PATH).symlink_to(
+            "../docs/source-control.md"
+        )
+        self.git(self.clone, "add", policy.SOURCE_CONTROL_PATH)
+        base = self.pipeline(PIPELINE, "2026-10-02T00:00:00Z")
+        gh = self.local()
+        api = f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={base}"
+        gh.rest[api] = file_payload(SOURCE_CONTROL)
+        config = policy.read_config_at(REPO, base)
+        self.assertEqual(config.loop_merge, "c2-mechanical")
+        self.assertEqual(gh.calls, [["api", api]])
+
     def test_a_base_missing_from_the_clone_reads_the_api_not_no_config(
         self,
     ) -> None:
@@ -4301,6 +4319,14 @@ class DependabotEligibility(unittest.TestCase):
             "dependabot-review:provenance-missing:x;review-verdict-missing",
         )
         self.assertEqual(result.dependabot.tier, "review")
+
+    def test_a_candidate_scope_reads_the_commits_once(self) -> None:
+        gh = self.fake(commits=[dependabot_commit(sha=self.HEAD)])
+        with babysit_gh.candidate_reads():
+            first, again = self.eligibility(), self.eligibility()
+        self.assertEqual(first, again)
+        self.assertTrue(first.eligible, first.reason)
+        self.assertEqual(sum(self.COMMITS in call for call in gh.calls), 1)
 
     def test_an_unreadable_registry_waits_for_a_review(self) -> None:
         self.fake(registry={})

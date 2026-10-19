@@ -2141,7 +2141,22 @@ class CandidateReadsOnce(unittest.TestCase):
     def test_a_list_not_ending_at_the_head_is_read_again(self) -> None:
         # Read while the head moved: no reader reuses it.
         endpoints = self.run_readers(self.signed("a" * 40, "c" * 40), scoped=True)
-        self.assertEqual(self.counts(endpoints)[0], 3)
+        # The record's count is for the head, so the signature check reads a
+        # count alongside rows that do not end there.
+        self.assertEqual(self.counts(endpoints), (3, 1, 1))
+
+    def test_a_moved_head_at_the_cap_is_refused_on_a_live_count(self) -> None:
+        # The record counted 249 at the head; the head moved to 260 commits
+        # and the list stops at 250. The old count would pass the cap check.
+        rows = self.signed(*(f"{n:040x}" for n in range(250)))
+        with (
+            gh.candidate_reads(),
+            mock.patch.object(gh, "fetch_paginated_api", return_value=rows),
+            mock.patch.object(gh, "gh_json", return_value=260),
+        ):
+            gh.record_pull_request_total("owner/repo", PR, HEAD, 249)
+            with self.assertRaisesRegex(RuntimeError, "walked 250 of 260"):
+                gh.fetch_pull_request_commits("owner/repo", PR, HEAD)
 
     def test_another_head_is_read_fresh(self) -> None:
         rows = self.signed(HEAD)

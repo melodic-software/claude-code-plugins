@@ -125,6 +125,11 @@ class PolicyReadError(RuntimeError):
     """A policy input could not be read; callers fail closed."""
 
 
+class _SymlinkAt(PolicyReadError):
+    """A clone holds a symlink where a file was asked for. The contents API
+    follows an in-repository symlink, so the caller reads it there instead."""
+
+
 @dataclass(frozen=True)
 class UnattendedPolicy:
     """The unattended merge policy for one pull request.
@@ -534,7 +539,10 @@ def read_config_at(
 
         def file_at(path: str, sha: str) -> str | None:
             if root is not None:
-                return _git_file_at(root, path, sha)
+                try:
+                    return _git_file_at(root, path, sha)
+                except _SymlinkAt:
+                    pass
             return _file_at(owner, name, path, sha)
 
     notes: list[str] = []
@@ -2352,7 +2360,9 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
     if not entry:
         return None
     mode, kind = entry.split(" ", 2)[:2]
-    if kind != "blob" or mode == "120000":
+    if mode == "120000":
+        raise _SymlinkAt(f"{path} at {sha} is a symlink")
+    if kind != "blob":
         raise PolicyReadError(f"{path} at {sha} is not a file")
     text = _git(root, "cat-file", "blob", f"{sha}:{path}")
     if text is None:
@@ -2513,7 +2523,7 @@ def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
 def _changed_files(
     owner: str, name: str, pr: dict[str, Any], base_sha: str
 ) -> tuple[tuple[ChangedFile, ...], bool]:
-    """The pull request's files with git modes from the trees API (the files
+    """The pull request's files with git modes from `_tree_modes` (the files
     API carries none): the head side at its head, the previous side at
     `base_sha`. Complete only when every listing reads to its end."""
     number, head = pr.get("number"), pr.get("headRefOid")
