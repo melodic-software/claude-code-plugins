@@ -311,9 +311,12 @@ Discipline: [the Discipline line above, verbatim]
 - `handoff`, the opening line above already fits a fresh session; emit as-is.
 - `worker`, insert as the FIRST line between the rails: `You are a spawned worker and did NOT
   inherit the parent session's context or the repo's conditional rules, these instructions are
-  your only copy.`
+  your only copy.` Then insert this waiting line directly after it, before the `ORCHESTRATION BRIEF` line,
+  in full and `compact` exports alike: `Waiting: poll in the foreground with a bounded loop, or
+  return what you have; never end your turn to wait on your own background job.`
 - `compact`. Emit only the seven numbered HEADLINES (`1. DELEGATE / FAN OUT`, `2. SPEC EVERY
-  SPAWN`, …) plus the closing Discipline line; drop every sub-clause.
+  SPAWN`, …) plus the closing Discipline line; drop every sub-clause. `worker compact` also keeps the
+  `worker` did-not-inherit and waiting lines; compact drops neither.
 
 ## What this skill does NOT do
 

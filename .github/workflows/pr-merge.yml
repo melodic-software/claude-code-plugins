@@ -225,7 +225,10 @@ jobs:
       group: pr-merge
       queue: max
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # A sweep of about 40 candidates at about 40 s each needs over 30
+    # minutes. Runs wait in line, so a longer limit adds no gate calls per
+    # hour.
+    timeout-minutes: 55
     permissions:
       contents: read # check out main
       pull-requests: read # list the open PRs
@@ -559,6 +562,11 @@ jobs:
             enqueued: false, merged: false, reportOnly: null, reason: "prefilter:\(.reason)",
             dispatched: null, blockers: ["prefilter: \(.reason), refused before the gate"]}' \
             "$RUNNER_TEMP/held.json" >"$results"
+          # Rewritten after each candidate, so a cancelled run still reports
+          # the verdicts it reached.
+          summary="$RUNNER_TEMP/pr-merge-summary.json"
+          save() { jq -s . "$results" >"$summary.tmp" && mv "$summary.tmp" "$summary"; }
+          save
           while read -r number head updated; do
             out="$RUNNER_TEMP/gate-$number.json"
             code=0
@@ -578,13 +586,13 @@ jobs:
                reportOnly: .unattended.reportOnly, reason: (.unattended.reason // .error),
                dispatched: .unattended.dispatched, blockers: (.blockers // [])}
             ' "$out" >>"$results"
+            save
           done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt)"' "$RUNNER_TEMP/candidates.json")
           lane_after=$(rate)
           verify_after=$(GH_TOKEN=$BABYSIT_VERIFY_GH_TOKEN rate)
           echo "rate after the gate: lane $lane_after github.token $verify_after"
           echo "sweep-cost=$(cost "$lane_before" "$lane_after") github-token-cost=$(cost "$verify_before" "$verify_after") candidates=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_STEP_SUMMARY"
-          jq -s . "$results" >"$RUNNER_TEMP/pr-merge-summary.json"
-          dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$RUNNER_TEMP/pr-merge-summary.json")
+          dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$summary")
           echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
 
       # The run's report: every candidate with its verdict, whether a full CI

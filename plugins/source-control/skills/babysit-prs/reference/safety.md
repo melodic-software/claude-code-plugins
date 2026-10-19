@@ -1025,11 +1025,17 @@ unpromoted for its class, on a base that is not the default branch, or scored ME
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
 head change. A pull request whose reads stopped at the in-flight refusal (step 3) gets neither
 that comment nor the verifier escalation in that run: it is not queued, so no entry of its own
-waits on them, and the first run that reads it in full below the cap writes both. A
+waits on them, and the first run that reads it in full below the cap writes both. In the
+pr-merge lane the verifier verdict is read before the review evidence and the score: a verifier
+refusal stands whatever the diff scores, so that run reads neither, reports the `verify:` reason,
+and leaves the risk comment to the first run the verifier passes. A
 ready LOW pull request on a merge-queue base is enqueued at the pinned head, only
 when that full SHA is the head the policy scored, after a
 second kill-switch read and a second read of the opt-in label (presence and provenance), after an
-armed auto-merge is disarmed and refused instead, and after a
+armed auto-merge is disarmed and refused instead, only while the merge queue has removed that head
+for failed checks fewer than `merge.max-queue-ejections` times (default 2) since it last changed
+(a refused head gets one `<!-- babysit-merge-queue-ejections -->` comment linking the failing
+`merge_group` runs), and after a
 `<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When the
 identity's earlier queue entries and its unverified merges already reach `merge.max-in-flight`
 (default 1), the new entry dequeues itself. The enqueue returns before

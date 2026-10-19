@@ -171,6 +171,14 @@ activities:
     # the lane branch with the base's scripts/, and report-outcome stops a done
     # run whose checks failed or did not run, whatever the outcome file says.
     checks: ["scripts/check-changelog-fragments.sh --check"]
+    # Runs the diff-scoped lint checks a push would face (markdown,
+    # shellcheck, exec bits, changelog fragments, plugin validation) in the
+    # run, so the skill fixes what they report before it commits and the PR
+    # does not open red. Advisory: unlike checks, the runner does not run
+    # these again, and a failure the skill cannot fix still opens the PR,
+    # named in its report. --uncommitted checks the work tree as the commit
+    # the API would make, since the lane commits through the API.
+    self-checks: ["scripts/check-affected.sh --uncommitted"]
     # Repository scripts the run may call with any arguments it chooses, to
     # check its work the way an issue's done-when says. Each runs from a
     # read-only copy of the base. A script that changes files, runs code from
@@ -349,6 +357,20 @@ models:
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
 
+# The funding role whose secrets pay for each Claude lane's runs (README.md,
+# Funding). A lane on ci-workflows' run-claude-cli action (today only intake)
+# passes its role with <ROLE>_CLAUDE_API_KEY and <ROLE>_CLAUDE_CODE_OAUTH_TOKEN,
+# role upper-snake; the others are the role each lane takes when it moves there.
+funding:
+  intake: automations
+  pr-unblock: automations
+  fix-ci: automations
+  pr-verify: automations
+  pr-refine: automations
+  claude-review: reviews
+  claude-security-review: reviews
+  work-resolve-issue: issue-lane
+
 loop:
   review-rounds: 3
   dependency-review-rounds: 2
@@ -371,6 +393,12 @@ limits:
   # target. Revisit after merge.max-in-flight (#8251) lands and merges per hour
   # are re-measured.
   wip-cap: 12
+  # Hours of issue-lane admissions the admitted backlog (open issues with
+  # agent-ready) may hold before new agent-ready labels pause.
+  admission-window-hours: 24
+  # Share of the lane's hourly merge rate admitted per hour; the release point
+  # is this factor times hourly merges times admission-window-hours.
+  admission-factor: 0.8
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as

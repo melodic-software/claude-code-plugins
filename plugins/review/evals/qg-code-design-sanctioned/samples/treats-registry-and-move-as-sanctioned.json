@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No code-design issues found. The refund line in src/handlers/index.js is an entry in the registry the README declares, and src/lib/money.js is src/util/money.js moved unchanged.",
+      "why": "both recognized"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| 1 | CRITICAL | high | Duplicated Code | src/lib/money.js and src/util/money.js are copies | src/lib/money.js:1 | Delete one |",
+      "why": "move treated as duplication"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | high | Duplicated Code | The handler name refund appears in refund.js and index.js | src/handlers/index.js:7 | Generate the registry |",
+      "why": "registry entry rated IMPORTANT"
+    }
+  ]
+}

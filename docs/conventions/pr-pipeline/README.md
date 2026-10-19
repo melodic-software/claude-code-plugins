@@ -13,6 +13,7 @@
 - [Trust-root paths](#trust-root-paths)
 - [The lane sweep](#the-lane-sweep)
 - [Models](#models)
+- [Funding](#funding)
 - [Loop caps](#loop-caps)
 - [Limits](#limits)
 - [Planning lane work](#planning-lane-work)
@@ -264,8 +265,13 @@ Each leaf declares:
   else an applying leaf that sets `prepare` fails red rather than running without it.
 - `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
   flags fixed, that a skill with an effect other than `read` may run. The write runner runs each
-  from the base copy against the checkout, so no head code runs
+  from the base copy against the checkout, so no head code runs, and tells the skill to fix what
+  a check reports before it reports done
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
+- `self-checks` (optional, `skill` only, not with `read`): the same shape as `checks`, run and
+  fixed by the skill through the same wrapper before it commits. Advisory: unlike `checks`, no
+  runner job reruns them, so a failure the skill cannot fix still opens the PR and is named in its
+  report. A script in both lists fails red.
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that a skill with an effect other than
   `read` may run with any arguments but a path outside the checkout; a `read` leaf cannot set it.
@@ -486,6 +492,12 @@ that fails counts as a refusal.
   refuses at the cap, and an entry enqueued past it (another host's came first) dequeues itself. A
   red full run or canary run charges every unverified merge whose commit it contains, so a breakage
   found with several in flight demotes the rung and fails the post-merge check for all of them.
+- **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the
+  wrapper enqueuing a head the merge queue has removed that many times for failed checks since the
+  head last changed; the queue would eject it again on the same commits. A push resets the count.
+  An unreadable timeline, or 20 timeline items with no head change among them, refuses the
+  enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment naming the
+  failing `merge_group` runs.
 - **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
   pr-merge lane owns Dependabot pull requests (below).
 
@@ -954,6 +966,21 @@ every skill activity's; `review` (`opus`, 60 turns, no effort), the verifier's; 
 30 turns), intake triage's and the [lane sweep](#the-lane-sweep)'s; and `summary` (`sonnet`, effort `medium`, 10 turns), the reuse
 summary pass's.
 
+## Funding
+
+`funding` maps each Claude lane or activity id to the funding role whose secrets pay for its runs:
+`reviews`, `automations` or `issue-lane`. A lane on ci-workflows' `run-claude-cli` action passes
+its role with the role's two secrets, `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`
+(role upper-snake, so `issue-lane` gives `ISSUE_LANE_`); the action tries the key first and the
+subscription token only after a credit stop. No workflow reads the map; each lane's workflow names
+its role and secrets, and the runner policy admits them. This repository's map: `intake`,
+`pr-unblock`, `fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
+`claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
+
+Only `intake` runs on `run-claude-cli` today. Every other entry is the role its lane takes when it
+moves there: until then it runs claude-code-action with an OAuth token alone, and it never gets an
+API key, since claude-code-action runs are not paid from API credits.
+
 ## Loop caps
 
 One counter per PR, in the findings store, is shared by every lane. After `loop.review-rounds`
@@ -967,7 +994,7 @@ App may push to one PR; the next fix-ci run hands it to a person before any mode
 
 The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
 are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
-typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all nine
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all eleven
 with defaults.
 
 | Key | Default | What it sets |
@@ -981,12 +1008,19 @@ with defaults.
 | `wip-cap` | 60 | Open lanes-App pull requests at or above which work-resolve-issue starts no run and work-unblock re-fires none; at most 500. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
+| `admission-window-hours` | 24 | Hours of issue-lane admissions the admitted backlog (open issues labeled `agent-ready`) may hold before new `agent-ready` labels pause. |
+| `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour; greater than 0, at most 1. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
-the WIP cap check fails open and starts the run. This repository sets `wip-cap` and the two
-fix-ci limits.
+the WIP cap check fails open and starts the run. This repository sets `wip-cap`, the two
+fix-ci limits and the two admission limits.
+
+`node .github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are
+open: the admitted backlog is under `admission-factor` times lane merges per hour (the last 24
+hours) times `admission-window-hours`. It prints one line and exits 0 open, 1 held, 2 on error.
+No lane reads it yet.
 
 ## Planning lane work
 
