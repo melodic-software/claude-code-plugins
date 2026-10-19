@@ -699,7 +699,7 @@ class TestSnapshot(ServerCase):
         _, guest = self.join("Ann")
         code, h, out = self.get("/api/state", guest)
         self.assertEqual(code, 200)
-        self.assertEqual(out["schemaVersion"], 4)
+        self.assertEqual(out["schemaVersion"], 5)
         self.assertIsInstance(out["rev"], int)
         self.assertEqual(out["build"], server.build_hash())
         self.assertEqual(h["X-Shared-Build"], out["build"])
@@ -1016,7 +1016,7 @@ class TestControl(ServerCase):
     def test_the_ping_reports_the_guest_port_and_schema(self):
         code, _, out = call(self.app.control_port, "GET", "/api/ping")
         self.assertEqual(code, 200)
-        self.assertEqual((out["guestPort"], out["schemaVersion"], out["build"]), (self.port, 4, server.build_hash()))
+        self.assertEqual((out["guestPort"], out["schemaVersion"], out["build"]), (self.port, 5, server.build_hash()))
 
     def test_a_sent_round_reaches_the_watcher_and_is_stamped_delivered(self):
         self.open_round("Q1")
@@ -1064,7 +1064,7 @@ class TestStart(unittest.TestCase):
         doc = json.loads((d / "state.json").read_text(encoding="utf-8"))
         doc["schemaVersion"] = 99
         (d / "state.json").write_text(json.dumps(doc), encoding="utf-8")
-        with self.assertRaisesRegex(server.StartRefused, "99.*newer than 4"):
+        with self.assertRaisesRegex(server.StartRefused, "99.*newer than 5"):
             server.App(d, watch_tunnel=False)
 
     def test_an_initial_state_file_seeds_a_new_session_through_migrate(self):
@@ -1395,7 +1395,7 @@ class TestOldPages(unittest.TestCase):
         for who in ({"X-Session-Secret": self.SECRET}, {"X-Owner-Token": self.OWNER}):
             code, _, out = self.poll("/api/state", who)
             self.assertEqual(code, 200)
-            self.assertEqual(out, {"schemaVersion": 4, "rev": self.app.session.state["rev"], "outdated": True, "title": "This page was updated: reload"})
+            self.assertEqual(out, {"schemaVersion": 5, "rev": self.app.session.state["rev"], "outdated": True, "title": "This page was updated: reload"})
 
     def test_the_payload_overrides_no_default_of_the_old_script_with_another_type(self):
         """fixtures/old-page-defaults.json is DEFAULTS from the prototype page's script
@@ -2027,6 +2027,152 @@ class TestUploads(ServerCase):
         self.assertFalse(stray.exists())
         self.assertEqual(len(self.files("pending")), 1)
         self.assertEqual(next(u for u in again.session.state["uploads"] if u["id"] == uid)["status"]["received"], 1)
+
+
+class TestDiscussion(ServerCase):
+    """A Discussion under each question: anyone who may write comments, its author edits or deletes their own, the
+    owner hides any, "@Claude" files an owner-gated ask, unread is per person, and the digest carries it."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_round("Q1", "Q2")
+        self.ann_pid, self.ann = self.join("Ann")
+        self.bo_pid, self.bo = self.join("Bo")
+
+    def say(self, who, text, qid="Q1"):
+        code, _, out = self.post("/api/discussion", {"qid": qid, "text": text}, who)
+        self.assertEqual(code, 200, out)
+        return out
+
+    def comments(self, who, qid="Q1"):
+        return self.get("/api/state", who)[2]["discussions"].get(qid, [])
+
+    def test_a_comment_shows_to_everyone_and_another_persons_cannot_be_edited_deleted_or_hidden_by_a_guest(self):
+        cid = self.say(self.ann, "Pinned on phones too?")["id"]
+        self.assertEqual([(c["id"], c["pid"], c["text"]) for c in self.comments(self.bo)], [(cid, self.ann_pid, "Pinned on phones too?")])
+        self.assertEqual([c["id"] for c in self.comments(self.owner)], [cid])
+        for path, body in (("/api/discussion/edit", {"text": "Bo's words"}), ("/api/discussion/delete", {})):
+            code, _, out = self.post(path, {"qid": "Q1", "id": cid, **body}, self.bo)
+            self.assertEqual((code, out["error"]), (404, "not-found"), path)
+        self.assertEqual(self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": True}, self.bo)[2]["error"], "owner-only")
+        self.assertEqual([c["text"] for c in self.comments(self.ann)], ["Pinned on phones too?"])
+        self.assertEqual(self.post("/api/discussion", {"qid": "Q9", "text": "x"}, self.bo)[0], 404)
+        self.assertEqual(self.post("/api/discussion", {"qid": "Q1", "text": "x" * 2001}, self.bo)[2]["error"], "too-long")
+        self.assertEqual(self.post("/api/discussion", {"qid": "Q1", "text": "hi"})[0], 401)
+
+    def test_its_author_edits_and_deletes_their_own_and_the_same_text_writes_nothing(self):
+        cid = self.say(self.ann, "First thought")["id"]
+        code, _, out = self.post("/api/discussion/edit", {"qid": "Q1", "id": cid, "text": "Second thought"}, self.ann)
+        self.assertEqual((code, out["edited"]), (200, True))
+        (c,) = self.comments(self.bo)
+        self.assertEqual(c["text"], "Second thought")
+        self.assertIn("edited", c)
+        time.sleep(1.05)
+        rev = self.app.session.state["rev"]
+        self.assertEqual(self.post("/api/discussion/edit", {"qid": "Q1", "id": cid, "text": "Second thought"}, self.ann)[2]["edited"], False)
+        self.assertEqual(self.app.session.state["rev"], rev)
+        self.assertEqual(self.post("/api/discussion/delete", {"qid": "Q1", "id": cid}, self.ann)[0], 200)
+        self.assertEqual(self.comments(self.bo), [])
+        self.assertEqual(self.post("/api/discussion/delete", {"qid": "Q1", "id": cid}, self.ann)[0], 429)  # one a second, then gone
+        time.sleep(1.05)
+        self.assertEqual(self.post("/api/discussion/delete", {"qid": "Q1", "id": cid}, self.ann)[0], 404)
+
+    def test_the_owner_hides_any_comment_its_author_sees_it_marked_and_no_one_else_sees_it(self):
+        cid = self.say(self.ann, "Off topic")["id"]
+        keep = self.say(self.bo, "On topic")["id"]
+        code, _, out = self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": True}, self.owner)
+        self.assertEqual((code, out["hidden"]), (200, True))
+        self.assertEqual([c["id"] for c in self.comments(self.bo)], [keep])
+        self.assertNotIn("Off topic", json.dumps(self.get("/api/state", self.bo)[2]))
+        self.assertEqual([(c["id"], "hidden" in c) for c in self.comments(self.owner)], [(cid, True), (keep, False)])
+        self.assertEqual([(c["id"], "hidden" in c) for c in self.comments(self.ann)], [(cid, True), (keep, False)])
+        time.sleep(1.05)
+        rev = self.app.session.state["rev"]
+        self.assertEqual(self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": True}, self.owner)[2]["hidden"], True)
+        self.assertEqual(self.app.session.state["rev"], rev)  # already hidden: nothing written
+        time.sleep(1.05)
+        self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": False}, self.owner)
+        self.assertEqual([c["id"] for c in self.comments(self.bo)], [cid, keep])
+
+    def test_each_route_takes_one_write_a_second_per_person(self):
+        self.say(self.ann, "one")
+        code, _, out = self.post("/api/discussion", {"qid": "Q1", "text": "two"}, self.ann)
+        self.assertEqual((code, out["error"]), (429, "slow-down"))
+        self.say(self.bo, "Bo's own limit")
+        self.assertEqual(len(self.comments(self.bo)), 2)
+
+    def test_reactions_use_the_chat_set_and_a_no_op_writes_nothing(self):
+        cid = self.say(self.ann, "React here")["id"]
+        self.assertEqual(self.post("/api/discussion/react", {"qid": "Q1", "id": cid, "emoji": "👍", "on": True}, self.bo)[0], 200)
+        self.assertEqual(self.comments(self.ann)[0]["reactions"], {"👍": [self.bo_pid]})
+        self.assertEqual(self.post("/api/discussion/react", {"qid": "Q1", "id": cid, "emoji": "🦄", "on": True}, self.bo)[0], 400)
+        time.sleep(1.05)
+        rev = self.app.session.state["rev"]
+        self.post("/api/discussion/react", {"qid": "Q1", "id": cid, "emoji": "👍", "on": True}, self.bo)
+        self.assertEqual(self.app.session.state["rev"], rev)
+
+    def test_new_counts_per_person_and_reading_marks_only_what_the_page_saw(self):
+        first = self.say(self.ann, "One")["id"]
+        self.assertEqual(self.get("/api/state", self.ann)[2]["me"]["discussionSeen"]["Q1"], self.app.session.state["discussions"]["Q1"][0]["at"])
+        self.assertEqual(self.get("/api/state", self.bo)[2]["me"]["discussionSeen"], {})
+        time.sleep(0.01)
+        self.say(self.owner, "Two")
+        at = {c["id"]: c["at"] for c in self.app.session.state["discussions"]["Q1"]}
+        self.assertEqual(self.post("/api/discussion/read", {"qid": "Q1", "at": at[first]}, self.bo)[2]["read"], True)
+        self.assertEqual(self.get("/api/state", self.bo)[2]["me"]["discussionSeen"], {"Q1": at[first]})  # "Two" is still new to Bo
+        time.sleep(1.05)
+        rev = self.app.session.state["rev"]
+        self.assertEqual(self.post("/api/discussion/read", {"qid": "Q1", "at": at[first]}, self.bo)[2]["read"], False)
+        self.assertEqual(self.app.session.state["rev"], rev)
+        time.sleep(1.05)
+        self.post("/api/discussion/read", {"qid": "Q1", "at": 9e12}, self.bo)  # never past the newest comment
+        self.assertEqual(self.get("/api/state", self.bo)[2]["me"]["discussionSeen"], {"Q1": max(at.values())})
+        self.assertEqual(self.post("/api/discussion/read", {"qid": "Q1", "at": "soon"}, self.bo)[0], 400)
+
+    def test_new_comments_notify_the_people_already_in_it_and_a_mention_notifies_once(self):
+        self.say(self.ann, "Start")
+        self.say(self.bo, "Reply, @Ann")
+        notes = self.get("/api/state", self.ann)[2]["me"]["notifications"]
+        self.assertEqual([(n["kind"], n["qid"]) for n in notes if n["kind"] in ("mention", "discussion")], [("mention", "Q1")])
+        self.say(self.owner, "Host here")
+        notes = self.get("/api/state", self.ann)[2]["me"]["notifications"]
+        disc = [n for n in notes if n["kind"] == "discussion"]
+        self.assertEqual([(n["title"], n["qid"]) for n in disc], [("1 new comment in the Discussion on question Q1.", "Q1")])
+        self.assertEqual([n["title"] for n in self.get("/api/state", self.bo)[2]["me"]["notifications"] if n["kind"] == "discussion"], ["1 new comment in the Discussion on question Q1."])
+
+    def test_at_claude_files_an_owner_gated_ask_and_the_hosts_runs_at_once(self):
+        out = self.say(self.ann, "@Claude what do other shops do on phones?")
+        rid = out["request"]
+        req = next(r for r in self.get("/api/state", self.owner)[2]["requests"] if r["id"] == rid)
+        self.assertEqual((req["kind"], req["runner"], req["status"]["kind"], req["pid"], req["qid"]), ("ask", "host", "pending", self.ann_pid, "Q1"))
+        self.assertEqual(self.comments(self.bo)[0]["request"], rid)
+        self.assertEqual([i["key"] for i in self.get("/api/state", self.ann)[2]["inbox"]], [rid])
+        self.assertNotIn("request", self.say(self.bo, "Claude without the at sign"))
+        host = self.say(self.owner, "@claude summarize this thread")
+        hreq = next(r for r in self.get("/api/state", self.owner)[2]["requests"] if r["id"] == host["request"])
+        self.assertEqual(hreq["status"]["kind"], "running")  # the host's own request skips Run
+
+    def test_the_digest_carries_each_questions_discussion_without_hidden_comments_names_only_with_digest_names(self):
+        self.say(self.ann, "Pin it on phones")
+        hidden = self.say(self.bo, "Off topic")["id"]
+        self.say(self.owner, "@Claude check the big shops")
+        self.post("/api/discussion/hide", {"qid": "Q1", "id": hidden, "on": True}, self.owner)
+        self.post("/api/round/send", {}, self.owner)
+        ev = next(e for e in self.app.session.state["log"]["events"] if e["kind"] == "round-sent")
+        q1 = next(q for q in ev["digest"]["questions"] if q["id"] == "Q1")
+        self.assertEqual(q1["discussion"], [{"text": "Pin it on phones"}, {"text": "@Claude check the big shops", "askedClaude": True}])
+        self.assertNotIn("discussion", next(q for q in ev["digest"]["questions"] if q["id"] == "Q2"))
+        self.assertEqual(self.post("/api/session/settings", {"digestNames": True}, self.owner)[0], 200)
+        named = next(q for q in self.app.session._digest(1)["questions"] if q["id"] == "Q1")["discussion"]
+        self.assertEqual([c.get("by") for c in named], ["Ann", self.app.session.state["people"]["host"]["name"]])
+
+    def test_a_merge_moves_comments_reactions_and_seen_marks_to_the_kept_person(self):
+        cid = self.say(self.bo, "Bo's comment")["id"]
+        self.post("/api/discussion/react", {"qid": "Q1", "id": cid, "emoji": "👍", "on": True}, self.ann)
+        self.assertEqual(self.post("/api/person/merge", {"from": self.bo_pid, "to": self.ann_pid}, self.owner)[0], 200)
+        (c,) = self.comments(self.ann)
+        self.assertEqual((c["pid"], c["reactions"]), (self.ann_pid, {"👍": [self.ann_pid]}))
+        self.assertIn("Q1", self.get("/api/state", self.ann)[2]["me"]["discussionSeen"])
 
 
 if __name__ == "__main__":

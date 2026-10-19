@@ -1081,6 +1081,44 @@
     /** Opening keeps the section in view: its head moves to the top of the scroll area, the answers stay above it. */
     function keepClInView() { requestAnimationFrame(() => clSec.scrollIntoView({ block: "start", behavior: smooth() })); }
     clToggle.onclick = () => { const open = !clIsOpen(); ui.clOpen.set(ui.cur, open); if (!open) ui.askOpen = false; render(); if (open) keepClInView(); };
+    // Item 10: the question's Discussion, below the Claude section and folded by default. Its head counts the comments and
+    // the ones new to me (others' since I last opened it); opening it marks them read on the server, on every device.
+    const discSec = E("section", "vf-disc"); discSec.setAttribute("aria-label", "Discussion");
+    const discToggle = btn("vf-disc-head"); discToggle.setAttribute("aria-controls", "vf-discbody");
+    const discCount = E("span", "vf-meta vf-disc-count"), discNew = E("span", "vf-chip vf-chip-new vf-disc-new");
+    discToggle.append(icon("chat"), E("span", "vf-disc-title", "Discussion"), discCount, discNew, icon("chevD", "vf-i vf-chev"));
+    const discH = E("h2", "vf-h2 vf-disc-h"); discH.append(discToggle);
+    const discBody = E("div", "vf-disc-body"); discBody.id = "vf-discbody";
+    const discList = E("ul", "vf-disc-list"); discList.setAttribute("role", "list");
+    const discEmpty = E("p", "vf-empty", "No comments yet.");
+    const discForm = E("form", "vf-disc-form");
+    const discTa = E("textarea", "vf-ta vf-disc-ta"); discTa.rows = 2; discTa.maxLength = 2000; discTa.id = "vf-disc-ta";
+    discTa.placeholder = "Add a comment"; discTa.setAttribute("aria-label", "Add a comment");
+    const discHint = E("span", "vf-hint vf-disc-hint", "Type @Claude to send it to Claude."); discHint.id = "vf-disc-hint";
+    discTa.setAttribute("aria-describedby", discHint.id);
+    const discPost = E("button", "vf-btn vf-btn-primary vf-btn-sm vf-disc-post", "Post"); discPost.type = "submit";
+    const discRow = E("div", "vf-crow"); discRow.append(discHint, E("span", "vf-spacer"), discPost);
+    discForm.append(discTa, discRow);
+    discBody.append(discList, discEmpty, discForm);
+    discSec.append(discH, discBody);
+    ui.discOpen = new Map(); ui.discFrom = new Map(); ui.discEdit = "";
+    const discIsOpen = () => !!ui.cur && ui.discOpen.get(ui.cur) === true;
+    /** Opening: the new dots stay on what was new when I opened it, while the server marks it all read. */
+    function setDisc(qid, open) {
+      if (open && !ui.discOpen.get(qid)) ui.discFrom.set(qid, Core.state.discussionSeen?.[qid] || 0);
+      ui.discOpen.set(qid, open);
+    }
+    discToggle.onclick = () => { const open = !discIsOpen(); setDisc(ui.cur, open); render(); if (open) requestAnimationFrame(() => discSec.scrollIntoView({ block: "nearest", behavior: smooth() })); };
+    discTa.addEventListener("input", () => grow(discTa));
+    discTa.addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); discForm.requestSubmit(); } });
+    discForm.onsubmit = e => {
+      e.preventDefault();
+      const qid = ui.cur, text = discTa.value.trim();
+      if (!qid || !text || discPost.disabled) return;
+      discPost.disabled = true;
+      Core.comment(qid, text).then(j => { discTa.value = ""; grow(discTa); if (j.request) flash("Posted, and sent to Claude."); })
+        .catch(fail).finally(() => { discPost.disabled = false; });
+    };
     // Q84: References under the question: screenshots with a marked area, quoted excerpts with their source, titled links.
     const refBox = E("section", "vf-refs"); refBox.setAttribute("aria-label", "References");
     const refHead = E("div", "vf-refs-head");
@@ -1157,7 +1195,7 @@
     };
     passUndo.onclick = () => Core.pass(ui.cur, "", false).then(() => flash("Pass taken back.")).catch(fail);
     // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
-    scroll.append(orient, qMeta, forBox, qText, refBox, reviewRow, onIt, fmtBox, composer, passBox, ansPane, clSec);
+    scroll.append(orient, qMeta, forBox, qText, refBox, reviewRow, onIt, fmtBox, composer, passBox, ansPane, clSec, discSec);
     focusV.append(scroll);
 
     // Compare view
@@ -1618,7 +1656,7 @@
     const NOTE_KINDS = [["mention", "Mentions of me", "at"], ["reply", "Replies to my messages", "reply"], ["request", "My requests to Claude", "sparkle"],
       ["proposal", "My proposals placed or not", "forward"], ["round", "New rounds", "list"], ["merge", "Merges I asked for", "merge"],
       ["role", "Made leader or trusted", "host"], ["votes", "Agreement with my answers, once an hour", "thumb"],
-      ["reaction", "Reactions to my chat messages", "chat"],
+      ["reaction", "Reactions to my chat messages", "chat"], ["discussion", "New comments in Discussions I am in", "chat"],
       ["queue", "New items in the host queue", "host"], ["ready", "A round marked ready", "check"], ["report", "The host read my problem reports", "help"]];
     const bellPop = E("div", "vf-pop vf-bellpop vf-inboxpop"); bellPop.setAttribute("role", "dialog"); bellPop.setAttribute("aria-labelledby", "vf-inbox-h"); bellPop.hidden = true;
     const bpHead = E("div", "vf-pp-head");
@@ -2353,7 +2391,7 @@
       b.onclick = () => {
         const m = ui.reactMsg; if (!m) return;
         const mine = (m.reactions?.[e] || []).includes(Core.me.cid);
-        closePop(); Core.chatReact(m.id, e, !mine).catch(fail);
+        closePop(); (ui.reactFn || Core.chatReact)(m.id, e, !mine).catch(fail);
       };
       return b;
     };
@@ -2362,15 +2400,16 @@
     rpMore.onclick = () => { rpGrid.hidden = !rpGrid.hidden; rpMore.setAttribute("aria-expanded", String(!rpGrid.hidden)); if (!rpGrid.hidden) rpGrid.firstChild.focus(); };
     reactPop.append(rpQuick, rpGrid);
     root.append(reactPop);
-    function openReactPop(m, anchor) {
+    /** react(id, emoji, on): a Discussion comment passes its own; a chat message uses Core.chatReact. */
+    function openReactPop(m, anchor, react = null) {
       if (!m) return;
-      ui.reactMsg = m; rpGrid.hidden = true; rpMore.setAttribute("aria-expanded", "false");
+      ui.reactMsg = m; ui.reactFn = react; rpGrid.hidden = true; rpMore.setAttribute("aria-expanded", "false");
       for (const b of reactPop.querySelectorAll(".vf-rp-e")) b.setAttribute("aria-pressed", String((m.reactions?.[b.dataset.e] || []).includes(Core.me.cid)));
       openPop(reactPop, anchor);
     }
     const cantReact = () => (!!Core.state.ended && !Core.me.isOwner) || !!Core.state.youRemoved;
     /** A message's reaction chips: emoji, count and who (as Show names allows); a tap adds or takes back mine. */
-    function fillReactChips(k, m) {
+    function fillReactChips(k, m, react = Core.chatReact) {
       const entries = Object.entries(m.reactions || {});
       const sig = JSON.stringify(entries) + Core.me.cid + st().showNames;
       k.reactAdd.hidden = cantReact();
@@ -2384,7 +2423,7 @@
         b.setAttribute("aria-pressed", String(mine));
         b.setAttribute("aria-label", `${e} ${pids.length}, from ${who.join(", ")}. ${mine ? "Take yours back" : "Add yours"}`);
         b.title = who.join(", ");
-        b.onclick = () => Core.chatReact(m.id, e, !mine).catch(fail);
+        b.onclick = () => react(m.id, e, !mine).catch(fail);
         return b;
       }));
     }
@@ -2462,6 +2501,7 @@
     function goNote(n) {
       closePop();
       if (!n.read) Core.readNotifications([n.id]).catch(() => {});
+      if (n.comment && n.qid && qById(n.qid)) return openComment(n.qid, n.comment);
       if (n.msg && st().chat) {
         setChat(true);
         goMsg(n.msg);
@@ -4395,6 +4435,7 @@
       const isNew = E("span", "vf-chip vf-chip-new vf-res-new", "New");
       head.append(icon("search"), ttl, via, isNew, tm, icon("chevD", "vf-i vf-chev"));
       const bodyR = E("div", "vf-res-body");
+      const fromDisc = btn("vf-lbtn vf-fromdisc", "from Discussion");
       // Soft rule: "<Name> asked" and the ask, a thin line, then "Claude" and the answer, both at one text size.
       const ask = E("div", "vf-res-ask vf-qa-ask");
       const ans = E("div", "vf-qa-ans"), ansLbl = E("div", "vf-qa-lbl");
@@ -4417,10 +4458,11 @@
         () => Core.requestAct(li._x.id, "discard").then(() => flash("Taken down.")).catch(fail));
       ans.append(ansLbl, sum, srcs, full, citedBy);
       bodyR.append(share, ask, ans);
+      ask.after(fromDisc);
       li.append(head, bodyR);
       head.onclick = () => { const id = li._x.id; ui.resClosed.has(id) ? ui.resClosed.delete(id) : ui.resClosed.add(id); render(); };
       full.onclick = () => openReader(`${KIND_LABEL[li._x.kind] || "Research"} report`, `${li._x.skill}, ${li._q.id}: ${li._q.text}`, li._x.report, full);
-      li._k = { head, ttl, via, isNew, tm, bodyR, ask, sum, srcs, full, citedBy, share, shareNote, discard, publish, takeDown };
+      li._k = { head, ttl, via, isNew, tm, bodyR, ask, sum, srcs, full, citedBy, share, shareNote, discard, publish, takeDown, fromDisc };
       return li;
     }
     function fillRes(li, x, q) {
@@ -4460,6 +4502,7 @@
         }
       }
       k.ask.hidden = !x.ask;
+      fillFromDisc(k.fromDisc, Core.state, q, x.requestId);
       li.classList.toggle("vf-qa-noask", !x.ask);
       fillClamp(k.sum, "x:" + x.id, x.summary, k.ttl.textContent, `${x.skill}, ${q.id}: ${q.text}`);
       const sk = JSON.stringify(x.sources);
@@ -4510,14 +4553,15 @@
       acts.append(decline, run, failB, rerun);
       li._self = makeSelfActs();
       who.classList.add("vf-qa-lbl");
-      const askPart = E("div", "vf-qa-ask"); askPart.append(who, text);
+      const fromDisc = btn("vf-lbtn vf-fromdisc", "from Discussion");
+      const askPart = E("div", "vf-qa-ask"); askPart.append(who, text, fromDisc);
       li.append(head, askPart, ans, acts, li._self);
       li._att = attRowEl(); text.after(li._att);
       run.onclick = () => Core.requestAct(li._r.id, "run").then(() => flash("Running. The result shows here.")).catch(runFail);
       decline.onclick = () => Core.requestAct(li._r.id, "decline").then(() => flash("Request declined.")).catch(fail);
       failB.onclick = () => Core.requestAct(li._r.id, "fail").then(() => flash("Marked failed. The requester sees it.")).catch(fail);
       rerun.onclick = () => Core.requestAct(li._r.id, "rerun").then(() => flash("Running again.")).catch(fail);
-      li._k = { kind, who, status, text, ans, prog, progTxt, acts, run, decline, failB, rerun };
+      li._k = { kind, who, status, text, ans, prog, progTxt, acts, run, decline, failB, rerun, fromDisc };
       return li;
     }
     function fillThReq(li, r, q) {
@@ -4533,6 +4577,7 @@
       k.progTxt.textContent = rstat(r);
       k.prog.dataset.run = String(r.status === "running");
       if (r.runner === "self" && isMe(r.cid)) fillSelfActs(li._self, r, q); else li._self.hidden = true;
+      fillFromDisc(k.fromDisc, Core.state, q, r.id);
       fillClamp(k.text, "tr:" + r.id, r.text, `${KIND_REQ[r.kind] || "Request"} from ${isMe(r.cid) ? "you" : disp(r.name)}`, `${q.id}: ${q.text}`);
       fillAtts(li._att, r.att || (Core.state.myRequests || []).find(x => x.id === r.id)?.att, `Request from ${isMe(r.cid) ? "you" : disp(r.name)}`);
       k.run.hidden = k.decline.hidden = !(owner && r.status === "pending");
@@ -4569,6 +4614,111 @@
         ring(li);
         li._k.head.focus({ preventScroll: true });
       });
+    }
+    // ---------- item 10: the Discussion ----------
+    /** The request a comment's @Claude filed, as this viewer knows it: its result if it shows here, else its card. */
+    function discReq(S, q, c) {
+      const x = (S.research?.[q.id] || []).find(r => r.requestId === c.request);
+      const r = (Core.me.isOwner ? S.requests || [] : []).concat(S.myRequests || []).find(r2 => r2.id === c.request);
+      return { x, r, label: x ? (x.published === false ? "Answered, waiting for the host to share" : "Answered") : r ? rstat(r) : "Waiting for the host" };
+    }
+    /** Show a comment: the question, its Discussion open, the comment in view. */
+    function openComment(qid, id) {
+      setDisc(qid, true);
+      if (ui.cur !== qid) select(qid, { manual: true });
+      setMode("focus"); if (phone.matches) setTab("answer");
+      render();
+      requestAnimationFrame(() => { const li = discList._map?.get(id); if (!li) return; li.scrollIntoView({ block: "nearest", behavior: smooth() }); ring(li); });
+    }
+    function makeComment() {
+      const li = E("li", "vf-cm");
+      const col = E("div", "vf-cm-col"), head = E("div", "vf-cm-head");
+      const name = E("b", "vf-cm-name"), tm = E("span", "vf-card-time"), edited = E("span", "vf-meta vf-cm-edited", "edited");
+      const hid = E("span", "vf-chip vf-chip-quiet vf-cm-hidden", "Hidden"), dot = E("span", "vf-ndot vf-cm-new"); dot.setAttribute("aria-label", "New");
+      head.append(name, tm, edited, hid, dot);
+      const text = E("div", "vf-rich vf-cm-txt");
+      const ed = E("form", "vf-cm-edit"); ed.hidden = true;
+      const edTa = E("textarea", "vf-ta"); edTa.rows = 2; edTa.maxLength = 2000; edTa.setAttribute("aria-label", "Edit your comment");
+      const edSave = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Save"); edSave.type = "submit";
+      const edCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
+      const edRow = E("div", "vf-crow"); edRow.append(E("span", "vf-spacer"), edCancel, edSave); ed.append(edTa, edRow);
+      const became = E("div", "vf-cm-became"), becameTxt = E("span", "vf-cm-became-t"), view = btn("vf-lbtn vf-cm-view", "View");
+      became.append(claudeAv(16), becameTxt, view);
+      const reactRow = E("div", "vf-mreacts"); reactRow.setAttribute("role", "group"); reactRow.setAttribute("aria-label", "Reactions");
+      const reactAdd = btn("vf-mreact-add vf-cm-react"); reactAdd.append(E("span", "vf-mreact-plus", "+"), E("span", "vf-mreact-face", "🙂"));
+      reactAdd.setAttribute("aria-haspopup", "dialog"); reactAdd.setAttribute("aria-label", "Add a reaction"); reactAdd.title = "Add a reaction";
+      const acts = E("div", "vf-cm-acts");
+      const edit = btn("vf-lbtn", "Edit"), del = btn("vf-lbtn", "Delete"), hide = btn("vf-lbtn vf-cm-hide");
+      acts.append(reactAdd, edit, del, hide);
+      col.append(head, text, ed, became, reactRow, acts);
+      li.append(E("span", "vf-cm-av"), col);
+      const react = (id, e, on) => Core.reactComment(li._q, id, e, on);
+      reactAdd.onclick = () => (ui.pop === reactPop && ui.reactMsg?.id === li._c?.id ? closePop() : openReactPop(li._c, reactAdd, react));
+      edit.onclick = () => { ui.discEdit = li._c.id; edTa.value = li._c.text; render(); requestAnimationFrame(() => { grow(edTa); edTa.focus(); }); };
+      edCancel.onclick = () => { ui.discEdit = ""; render(); edit.focus(); };
+      ed.onsubmit = e => {
+        e.preventDefault();
+        const t = edTa.value.trim(); if (!t || edSave.disabled) return;
+        edSave.disabled = true;
+        Core.editComment(li._q, li._c.id, t).then(() => { ui.discEdit = ""; render(); }).catch(fail).finally(() => { edSave.disabled = false; });
+      };
+      edTa.addEventListener("input", () => grow(edTa));
+      del.onclick = guarded({ title: "Delete your comment?", ok: "Delete", body: "It leaves the Discussion for everyone. A request it sent to Claude stays as it is." },
+        () => Core.deleteComment(li._q, li._c.id).then(() => flash("Comment deleted.")).catch(fail));
+      hide.onclick = () => { const on = !li._c.hidden; Core.hideComment(li._q, li._c.id, on).then(() => flash(on ? "Hidden. Only you and its author see it." : "Shown to everyone again.")).catch(fail); };
+      view.onclick = () => { const k = li._req; if (k?.x) showResult(li._q, k.x.id); else { ui.clOpen.set(li._q, true); render(); keepClInView(); } };
+      li._k = { name, tm, edited, hid, dot, text, ed, edTa, became, becameTxt, reactRow, reactAdd, acts, edit, del, hide };
+      return li;
+    }
+    function fillComment(li, c, q, S, from) {
+      const k = li._k, mine = isMe(c.cid), owner = Core.me.isOwner, ro = (!!S.ended && !owner) || !!S.youRemoved;
+      li._c = c; li._q = q.id;
+      const key = c.cid + "|" + disp(c.name);
+      if (li._av !== key) { li.firstChild.replaceChildren(av(c.cid, c.name, 22, true)); li._av = key; }
+      k.name.textContent = mine ? "You" : disp(c.name);
+      k.tm.textContent = ago(c.ts);
+      k.edited.hidden = !c.edited;
+      k.hid.hidden = !c.hidden;
+      li.classList.toggle("vf-cm-ishidden", c.hidden);
+      k.dot.hidden = mine || c.ts <= from;
+      setRich(k.text, c.text);
+      const editing = ui.discEdit === c.id && mine && !ro;
+      k.text.hidden = editing; k.ed.hidden = !editing;
+      li._req = c.request ? discReq(S, q, c) : null;
+      k.became.hidden = !li._req;
+      if (li._req) k.becameTxt.textContent = `Sent to Claude · ${li._req.label}`;
+      fillReactChips(k, c, (id, e, on) => Core.reactComment(q.id, id, e, on));
+      k.reactAdd.hidden = ro || c.hidden;
+      k.edit.hidden = k.del.hidden = !mine || ro || editing;
+      k.hide.hidden = !owner || ro;
+      k.hide.textContent = c.hidden ? "Show" : "Hide";
+      k.acts.hidden = k.reactAdd.hidden && k.edit.hidden && k.hide.hidden;
+    }
+    function renderDisc(S, q) {
+      const list = S.discussions?.[q.id] || [], seen = S.discussionSeen?.[q.id] || 0, open = discIsOpen();
+      const fresh = list.filter(c => !isMe(c.cid) && c.ts > seen).length;
+      discCount.textContent = list.length ? `${list.length} comment${list.length === 1 ? "" : "s"}` : "No comments yet";
+      discNew.textContent = fresh ? `${fresh} new` : ""; discNew.hidden = !fresh;
+      discSec.dataset.open = String(open); discBody.hidden = !open;
+      discToggle.setAttribute("aria-expanded", String(open));
+      discToggle.setAttribute("aria-label", `Discussion, ${discCount.textContent}${fresh ? `, ${fresh} new` : ""}`);
+      if (!open) return;
+      const newest = list.reduce((m, c) => Math.max(m, c.ts), 0);
+      if (newest > seen && ui.discSent?.[q.id] !== newest && !S.youRemoved) {
+        (ui.discSent ||= {})[q.id] = newest;
+        Core.readDiscussion(q.id, newest).catch(() => { delete ui.discSent[q.id]; });
+      }
+      if (discList._q !== q.id) { resetList(discList); discList._q = q.id; }
+      const from = ui.discFrom.get(q.id) ?? seen;
+      sync(discList, list, c => c.id, makeComment, (li, c) => fillComment(li, c, q, S, from));
+      discEmpty.hidden = list.length > 0;
+      discForm.hidden = (!!S.ended && !Core.me.isOwner) || !!S.youRemoved || notOpenYet(q);
+    }
+    /** "from Discussion" on a Claude card whose request a comment's @Claude filed. */
+    function fillFromDisc(b, S, q, rid) {
+      const c = rid && (S.discussions?.[q.id] || []).find(x => x.request === rid);
+      b.hidden = !c;
+      if (c) b.onclick = () => openComment(q.id, c.id);
     }
     function focusAnswer(qid, cid) {
       if (claudeHidden(qid)) ui.revealed.add(qid);
@@ -5896,8 +6046,9 @@
         // A new result for me on this question opens the Claude section once; after that it stays as the person left it.
         if (renderThread(S, q) && !ui.clOpen.has(q.id)) ui.clOpen.set(q.id, true);
         paintCl();
+        renderDisc(S, q);
         renderCite(S, q);
-        ansPane.hidden = false; clSec.hidden = false;
+        ansPane.hidden = false; clSec.hidden = false; discSec.hidden = false;
         // my files on this question
         const myUps = (S.myUploads || []).filter(u => u.qid === q.id && !["withdrawn"].includes(u.status)).sort((a, b) => a.ts - b.ts);
         sync(upStrip, myUps, u => u.id, () => makeUpRow(false), fillUpRow);
@@ -6026,7 +6177,7 @@
         qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = true; qText.textContent = "No questions yet";
         qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
         onItTxt.textContent = ""; ansCount.textContent = ""; aEmpty.hidden = true; lockBox.hidden = true; lockBtn.hidden = true;
-        reviewRow.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = true; claudeBar.hidden = true; refBox.hidden = true;
+        reviewRow.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = true;
       }
       tools.hidden = !q;
       if (!ui.dirty && document.activeElement !== ta && q && ta.value !== Core.myAnswer(q.id)) { ta.value = Core.myAnswer(q.id); grow(ta); }

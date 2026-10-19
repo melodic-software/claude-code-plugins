@@ -293,6 +293,25 @@ offers still count. The owner's own requests skip the queue: one starts running 
 sent, and Claude's result for it is shared at once. A guest's request, the owner's guest identity
 included, still waits for Run and Share.
 
+## Discussion
+
+Each question has a Discussion under its Claude section, folded by default; its head counts the
+comments and those new to the viewer. `state.json` keeps `discussions` (qid -> comments) and
+`discussionSeen` (pid -> qid -> the newest comment time they saw when they last opened it); others'
+comments after that mark are new. Routes, each one write a second per person and route, and each
+writing nothing when nothing would change:
+
+| Route | Body | Who and what |
+|---|---|---|
+| `/api/discussion` | `{qid, text}` | Anyone who may write. "@Claude" in the text also files an ask request with it (`request` on the comment), owner-gated like any guest request; the owner's own runs at once. People already in that Discussion get a rolled-up `discussion` notification; a mention notifies as usual |
+| `/api/discussion/edit`, `/delete` | `{qid, id, text?}` | The comment's author only; another person's comment reads as 404. A request it filed stays |
+| `/api/discussion/hide` | `{qid, id, on}` | Owner only. A hidden comment leaves every other snapshot and the digest; its author still sees it, with `hidden` |
+| `/api/discussion/react` | `{qid, id, emoji, on}` | The chat's emoji set and caps |
+| `/api/discussion/read` | `{qid, at}` | Marks the Discussion read up to `at`, never past its newest comment; allowed while ended |
+
+The round's digest lists each question's comments under `discussion` (`text`, `by` with
+`digestNames`, `edited`, `askedClaude`), hidden ones left out, the newest 50 at most.
+
 ## Connect your Claude
 
 A guest can run a request on their own Claude instead of the host's (R2-12; Brief C18-C20): in
