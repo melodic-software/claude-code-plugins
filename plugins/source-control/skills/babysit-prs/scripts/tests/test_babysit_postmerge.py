@@ -740,6 +740,20 @@ class LaneDispatch(CheckCase):
         self.lane_dispatch(head_repository={"full_name": "outsider/example-repo"})
         self.assertFalse(self.check(pinned=None).merges[0].verified)
 
+    def test_dispatch_from_a_same_repository_pull_request_run_does_not_verify(
+        self,
+    ) -> None:
+        # Every other field names pr-merge.yml on main; only the event is wrong.
+        self.lane_dispatch(event="pull_request")
+        self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+    def test_an_unreadable_sender_compare_fails_closed(self) -> None:
+        self.lane_dispatch()
+        self.gh.fail_reads.add(f"compare/{LATER_SHA}...main")
+        verdict = self.check(pinned=None)
+        self.assertFalse(verdict.readable)
+        self.assertEqual(pm.verdict_exit(verdict), pm.EXIT_UNREADABLE)
+
     def test_github_actions_dispatch_without_the_record_does_not_verify(self) -> None:
         self.lane_dispatch()
         self.gh.artifacts.clear()
