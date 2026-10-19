@@ -19,7 +19,8 @@
 // - both review lanes' newest reviewed-head markers, written by
 //   github-actions[bot], name that head;
 // - an unresolved review thread exists that address-feedback would work:
-//   every comment is the reviewer bot's, or a trusted person answered the
+//   every comment is the reviewer bot's, a trusted person with write access
+//   asked the lane to fix it (isFixRequest), or a trusted person answered the
 //   lane's escalation (address-feedback.mjs threadAuthors); on a PR carrying
 //   the human-gated label, only a thread where a trusted person with write
 //   access asked the lane to fix it (isFixRequest);
@@ -85,7 +86,7 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
 }
 
 // An unresolved thread, read in full, that threadAuthors accepts.
-export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, requesters = null }) {
+export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, requesters = null, fixers = requesters ?? new Set() }) {
   return threads.some(
     (thread) =>
       thread.isResolved === false &&
@@ -98,7 +99,7 @@ export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, r
           lastEditedAt: node.lastEditedAt,
           editorId: node.editor?.databaseId,
         })),
-        { reviewerId, appId, trustedHumans, requesters },
+        { reviewerId, appId, trustedHumans, requesters, fixers },
       ) !== null,
   );
 }
@@ -194,20 +195,19 @@ export async function dispatchFeedback({
   // A human-gated PR dispatches only for a thread a trusted person with
   // write access asked the lane to fix.
   const gated = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
-  const requesters = gated
-    ? await fixRequesters({
-        comments: threads.flatMap((thread) =>
-          thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, login: node.author?.login, body: node.body })),
-        ),
-        trustedHumans,
-        permission: api.getPermission,
-      })
-    : null;
-  if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans, requesters })) {
+  const fixers = await fixRequesters({
+    comments: threads.flatMap((thread) =>
+      thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, login: node.author?.login, body: node.body })),
+    ),
+    trustedHumans,
+    permission: api.getPermission,
+  });
+  const requesters = gated ? fixers : null;
+  if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans, requesters, fixers })) {
     return skip(
       gated
         ? `#${number} is labeled ${humanGatedLabel} and has no thread a trusted person with write access asked the lane to fix`
-        : `#${number} has no unresolved thread left by the reviewer bot alone or answered by a trusted person`,
+        : `#${number} has no unresolved thread left by the reviewer bot alone, asked to be fixed, or answered by a trusted person`,
     );
   }
   // Both review lanes finish on one head, and their dispatchers queue in one

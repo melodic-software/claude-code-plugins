@@ -646,17 +646,21 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
 1. After `resolve-config` and before the mint, the model job runs `address-feedback.mjs select`
    with the job's `GITHUB_TOKEN`. It keeps each unresolved thread whose first comment's review
    the reviewer bot (`claude[bot]` in the base's trusted-actors list, by id) submitted on a head
-   that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, when either every
-   comment is the reviewer bot's, or the lanes App's last comment is a reply the reply job left
-   open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and every comment after it is by a `human` on
-   that list, created after it, and never edited or last edited by such a human. Every other
-   comment must be the reviewer bot's, the lanes App's or such a human's, or the thread is left
-   alone. The thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and
-   marks the replies after the escalation `direction: true`, which the skill follows within the
-   same path rules. On a PR carrying the base's human-gated role label it keeps a thread only when
-   one of those replies is a fix request (a line starting `PR-fix lane: please fix this finding`,
-   any case, outside a fenced block) by a listed human whose permission on the repository reads
-   `write` or `admin` (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), and
+   that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, when every
+   comment is the reviewer bot's; or the lanes App never commented and one comment is a fix
+   request (a line starting `PR-fix lane: please fix this finding`, any case, outside a fenced
+   block) by a `human` on that list whose permission on the repository reads `write` or `admin`
+   (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`); or the lanes App's last
+   comment is a reply the reply job left open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and
+   every comment after it is by such a `human` (any permission), created after it. A human's
+   comment counts only when never edited or last edited by such a human. Every other comment must
+   be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. The
+   thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
+   `direction: true` the replies after the escalation, or with no escalation every human comment
+   from the first such fix request on,
+   which the skill follows within the same path rules. The reply job's re-read judges threads the
+   same way. On a PR carrying the base's human-gated role label it keeps a thread only when one of
+   those replies is such a fix request by a write-access human, and
    reports `fix-requested=true`, which lifts only the human-gated hold for the run. No kept thread
    skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
    `.github/**` escalates `feedback-protected-path`, and two earlier rounds escalate

@@ -567,8 +567,9 @@ jobs:
 
       # review-threads, before the mint and any model turn, with the job's
       # read-only token: keeps the unresolved threads the reviewer bot opened
-      # on a head a review lane's marker confirms, left by it alone or answered
-      # by a trusted person after the lane escalated them, then
+      # on a head a review lane's marker confirms, left by it alone, asked to be
+      # fixed by a trusted person with write access, or answered by a trusted
+      # person after the lane escalated them, then
       # skips (none), escalates (a .github/** diff, or the round cap) or
       # writes the thread file the skill's review-thread tool reads. It also
       # copies out the base's thread-scope.mjs with its SHA-256, which the
