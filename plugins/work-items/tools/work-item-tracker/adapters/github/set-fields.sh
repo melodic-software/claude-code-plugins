@@ -47,12 +47,11 @@ if [[ -n "$missing" ]]; then
   exit "$EX_NOT_FOUND"
 fi
 
-args=()
-while IFS=$'\t' read -r field value; do
-  args+=(-F "issue_field_values[][field_id]=$field" -f "issue_field_values[][value]=$value")
-done < <(jq -r '.[] | "\(.field_id)\t\(.value)"' <<<"$resolved")
+# The body goes as JSON on stdin: gh's -f/-F array-of-objects form splits each field id and value
+# into separate entries, which the API rejects.
+body="$(jq -c '{issue_field_values: map({field_id, value})}' <<<"$resolved")"
 wit_run_gh write api -X POST "${api_version[@]}" \
-  "repos/$WIT_ID_OWNER/$WIT_ID_REPO/issues/$WIT_ID_NUMBER/issue-field-values" "${args[@]}"
+  "repos/$WIT_ID_OWNER/$WIT_ID_REPO/issues/$WIT_ID_NUMBER/issue-field-values" --input - <<<"$body"
 
 jq -nc --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --argjson fields "$resolved" \
   '{schema_version: $sv, id: $id, fields: $fields}'

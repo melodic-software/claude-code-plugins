@@ -192,3 +192,60 @@ test("the summary does not call a full run unneeded when only the gate's dispatc
   assert.doesNotMatch(summary, /not needed/);
   assert.match(summary, /earlier lane merges are the post-merge-dispatch job's/);
 });
+
+// Runs the gate step with a fake gate whose second candidate kills the loop,
+// as a cancelled run would stop it mid-sweep.
+const runCancelledGate = () => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-gate-"));
+  try {
+    const bin = join(dir, "bin");
+    execFileSync("mkdir", ["-p", bin, join(dir, ".base")]);
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "5000/5000 reset=1"\n`);
+    writeFileSync(
+      join(dir, ".base", "gate"),
+      `#!/usr/bin/env bash\ncase "\${@: -1}" in *#2) kill -9 $PPID ;; esac\n` +
+        `echo '{"ready": false, "blockers": ["x"], "unattended": {"reason": "verify:missing"}}'\nexit 10\n`,
+    );
+    chmodSync(join(bin, "gh"), 0o755);
+    chmodSync(join(dir, ".base", "gate"), 0o755);
+    writeFileSync(join(dir, "resolved-config.json"), '{"selected": {"args": ""}}');
+    writeFileSync(join(dir, "held.json"), '[{"number": 9, "head": "c", "updatedAt": "u", "reason": "label"}]');
+    writeFileSync(
+      join(dir, "candidates.json"),
+      '[{"number": 1, "head": "a", "updatedAt": "u"}, {"number": 2, "head": "b", "updatedAt": "u"}]',
+    );
+    spawnSync("bash", ["-c", runScript("Run the merge gate on each candidate")], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        RUNNER_TEMP: dir,
+        GITHUB_OUTPUT: join(dir, "output"),
+        GITHUB_STEP_SUMMARY: join(dir, "step-summary"),
+        SCRIPT: "gate",
+        BABYSIT_VERIFY_GH_TOKEN: "t",
+        KILL_SWITCH: "proceed",
+        RUNG_CAP: "",
+        REPO: "o/r",
+        OWNER: "o",
+      },
+    });
+    const summary = join(dir, "pr-merge-summary.json");
+    return existsSync(summary) ? JSON.parse(readFileSync(summary, "utf8")) : null;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("a sweep stopped mid-loop keeps the verdicts it reached in the summary", () => {
+  const summary = runCancelledGate();
+  assert.ok(summary, "pr-merge-summary.json written before the loop ended");
+  assert.deepEqual(
+    summary.map((row) => [row.pr, row.reason]),
+    [
+      [9, "prefilter:label"],
+      [1, "verify:missing"],
+    ],
+  );
+});

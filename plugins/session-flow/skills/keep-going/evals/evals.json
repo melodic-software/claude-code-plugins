@@ -141,6 +141,34 @@
         "Reports each in the recovered / restarted / still-running / lost list",
         "Says so in the report if a nested level cannot be enumerated, rather than omitting it"
       ]
+    },
+    {
+      "id": 12,
+      "name": "rate-limited-subagents-resumed-or-restarted",
+      "prompt": "keep going — we hit the usage limit and it has since reset. Two subagents were mid-task when it hit: the docs-writer, whose agent id is still live in this session, and the tests-fixer, which was launched from a session that has since closed. Your live /usage reading shows headroom.",
+      "expected_output": "Both agents are singled out in the inventory as ended on a usage limit: the docs-writer by its last notification, the tests-fixer by the user's prompt and its trail, since its closed session's notifications are gone. After a live re-check shows headroom, the docs-writer is resumed with SendMessage to its live id; the tests-fixer's id no longer resolves, so it is restarted from its trail (branch, commits, worktree). Each is listed in the report with its partial-work evidence and one action.",
+      "files": [],
+      "expectations": [
+        "Singles out both subagents in the inventory as ended on a rate limit",
+        "Re-checks the live windows and reads each agent's partial work (branch, commits, worktree, files written) before acting",
+        "Resumes the docs-writer with SendMessage to its live id rather than spawning a fresh agent",
+        "Restarts the tests-fixer from its branch and commits because its session is gone and its id does not resolve",
+        "The report lists each rate-limited agent with its partial-work evidence and one action: resumed, restarted, or abandoned with a reason"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "rate-limited-worker-window-still-holds",
+      "prompt": "keep going — a worker subagent stopped on a rate-limit error, and the limit message says it resets in a few hours. Your live rate_limits reading for this account shows the window is still full.",
+      "expected_output": "The worker is singled out as rate-limited. The live re-check confirms the window still holds, so the skill does not resume it with SendMessage and does not spawn a replacement; it hands back through /session-flow:handoff and lists the worker in the report with its partial-work evidence and the reset it waits on.",
+      "files": [],
+      "expectations": [
+        "Singles out the worker as ended on a rate limit",
+        "Re-checks the live window and finds it still holds",
+        "Does not resume the worker with SendMessage and does not spawn a fresh agent in its place",
+        "Hands back by invoking /session-flow:handoff and stops, not busy-waiting",
+        "Lists the worker in the report with its partial-work evidence"
+      ]
     }
   ]
 }

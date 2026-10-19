@@ -1454,11 +1454,13 @@
 .app .vf-clhead { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 6px 10px 6px 6px; }
 .app .vf-clh { flex: 1 1 16em; min-width: 0; font-size: inherit; }
 .app .vf-cltoggle {
-  display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; inline-size: 100%; min-block-size: 44px; padding: 6px 8px;
-  border-radius: var(--r-md); text-align: start; color: var(--text);
+  /* A 20px first line inside 12px padding (44px for one line). When the counts wrap on a phone, the chevron stays
+     pinned to that first line, beside the title, rather than dropping to the wrapped line. */
+  position: relative; display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; inline-size: 100%; min-block-size: 44px;
+  padding: 12px 34px 12px 8px; border-radius: var(--r-md); text-align: start; color: var(--text);
 }
-.app .vf-cltitle { font-size: 14px; font-weight: 650; }
-.app .vf-cltoggle .vf-chev { margin-inline-start: auto; }
+.app .vf-cltitle { font-size: 14px; font-weight: 650; line-height: 20px; }
+.app .vf-cltoggle .vf-chev { position: absolute; inset-block-start: 14px; inset-inline-end: 10px; }
 .app .vf-clsec[data-open="true"] .vf-cltoggle .vf-chev { rotate: 180deg; }
 .app .vf-clhead > .vf-qtools { margin: 0; }
 .app .vf-clbody { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; padding: 0 14px 14px; }

@@ -33,6 +33,13 @@ Shape (Key claims):
 - Immediately after, a column-0 fence whose payload is the quote *bytes*:
   trailing spaces kept, no indent on the opener, no `.strip()` anywhere.
 
+Shape (Figure claims):
+
+- A `## Figure claims` heading directly after Key claims, present only when the unit has
+  `**FN.**` rows quoted from `source.html`.
+- One `**FN.**` label per row, then a column-0 fence. `check-fences-exact.py` stops Key claims at
+  the next H2, so these fences never reach it; `check-html-rows.py` checks them.
+
 Shape (Prompt snippets):
 
 - A `## Prompt snippets` (or `## Prompt snippets (exact)`) heading.
