@@ -85,7 +85,7 @@ run_test() { bash "$test_file" 2>&1; }
 out="$(run_test)"
 new="$(printf '%s\n' "$out" | tr -d '\r' | sed -n "s/.*(want $old, got \([0-9a-f]\{64\}\)).*/\1/p" | head -1)"
 if [[ -z "$new" ]]; then
-  stripped="$(sed -n "${call_line}p" "$test_file" | tr -d '\\')"
+  stripped="$(sed -n "${call_line}p" "$test_file" | tr -d "\\\\")"
   echo "$self: nothing to change for ${stripped}: the digest already matches, or the pin fails for a reason a new digest does not fix." >&2
   exit 4
 fi

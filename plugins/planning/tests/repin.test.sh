@@ -68,47 +68,47 @@ make_fixture "$STALE" "$BETA" "$t"
 cp "$t" "$WORK/stale.before"
 out="$(run_repin --test-file "$t" 'alpha file' 'Alpha text edited; the defense still holds.')"
 rc=$?
-[[ $rc -eq 0 ]] && ok "stale pin re-pinned: exit 0" || fail "stale pin: expected exit 0, got $rc: $out"
-[[ "$out" == *PASS* ]] && ok "prints PASS" || fail "no PASS in output: $out"
+if [[ $rc -eq 0 ]]; then ok "stale pin re-pinned: exit 0"; else fail "stale pin: expected exit 0, got $rc: $out"; fi
+if [[ "$out" == *PASS* ]]; then ok "prints PASS"; else fail "no PASS in output: $out"; fi
 changes="$(diff "$WORK/stale.before" "$t" | grep -c '^[<>]')"
-[[ "$changes" -eq 3 ]] && ok "exactly three lines differ: old sha, new sha, justification" || fail "expected 3 differing lines, got $changes"
-grep -qx "  \"$ALPHA\"" "$t" && ok "alpha sha rewritten" || fail "alpha sha not rewritten"
-grep -qx "  \"$BETA\"" "$t" && ok "beta pin left as it was" || fail "beta pin changed"
-grep -qx '# Alpha text edited; the defense still holds.' "$t" && ok "justification inserted" || fail "justification missing"
+if [[ "$changes" -eq 3 ]]; then ok "exactly three lines differ: old sha, new sha, justification"; else fail "expected 3 differing lines, got $changes"; fi
+if grep -qx "  \"$ALPHA\"" "$t"; then ok "alpha sha rewritten"; else fail "alpha sha not rewritten"; fi
+if grep -qx "  \"$BETA\"" "$t"; then ok "beta pin left as it was"; else fail "beta pin changed"; fi
+if grep -qx '# Alpha text edited; the defense still holds.' "$t"; then ok "justification inserted"; else fail "justification missing"; fi
 before_call="$(grep -n '^pin_file "alpha' "$t" | cut -d: -f1)"
-[[ "$(sed -n "$((before_call - 1))p" "$t")" == '# Alpha text edited; the defense still holds.' ]] && ok "justification sits beside the pin" || fail "justification not above the pin call"
+if [[ "$(sed -n "$((before_call - 1))p" "$t")" == '# Alpha text edited; the defense still holds.' ]]; then ok "justification sits beside the pin"; else fail "justification not above the pin call"; fi
 
 # --- a backslash in the justification is kept literally ----------------------------------
 make_fixture "$STALE" "$BETA" "$t"
 run_repin --test-file "$t" 'alpha file' 'Kept a\nliteral \\ backslash.' >/dev/null
-grep -qxF '# Kept a\nliteral \\ backslash.' "$t" && ok "backslashes in the justification stay literal" || fail "justification was mangled"
+if grep -qxF '# Kept a\nliteral \\ backslash.' "$t"; then ok "backslashes in the justification stay literal"; else fail "justification was mangled"; fi
 
 # --- matching digest is a no-op ----------------------------------------------------------
 make_fixture "$ALPHA" "$BETA" "$t"
 cp "$t" "$WORK/ok.before"
 out="$(run_repin --test-file "$t" 'alpha file' 'unused')"
 rc=$?
-[[ $rc -eq 4 ]] && ok "matching digest: exit 4" || fail "matching digest: expected exit 4, got $rc: $out"
-cmp -s "$WORK/ok.before" "$t" && ok "matching digest changed nothing" || fail "file changed on a no-op"
+if [[ $rc -eq 4 ]]; then ok "matching digest: exit 4"; else fail "matching digest: expected exit 4, got $rc: $out"; fi
+if cmp -s "$WORK/ok.before" "$t"; then ok "matching digest changed nothing"; else fail "file changed on a no-op"; fi
 
 # --- unknown and ambiguous labels are refused --------------------------------------------
 make_fixture "$STALE" "$STALE" "$t"
 cp "$t" "$WORK/refuse.before"
 out="$(run_repin --test-file "$t" 'gamma' 'unused')"
 rc=$?
-[[ $rc -eq 3 ]] && ok "unknown label: exit 3" || fail "unknown label: expected exit 3, got $rc: $out"
+if [[ $rc -eq 3 ]]; then ok "unknown label: exit 3"; else fail "unknown label: expected exit 3, got $rc: $out"; fi
 out="$(run_repin --test-file "$t" 'is unchanged' 'unused')"
 rc=$?
-[[ $rc -eq 3 ]] && ok "ambiguous label: exit 3" || fail "ambiguous label: expected exit 3, got $rc: $out"
-cmp -s "$WORK/refuse.before" "$t" && ok "refused labels changed nothing" || fail "file changed on a refusal"
+if [[ $rc -eq 3 ]]; then ok "ambiguous label: exit 3"; else fail "ambiguous label: expected exit 3, got $rc: $out"; fi
+if cmp -s "$WORK/refuse.before" "$t"; then ok "refused labels changed nothing"; else fail "file changed on a refusal"; fi
 
 # --- usage -------------------------------------------------------------------------------
 out="$(run_repin --test-file "$t" 'alpha file')"
 rc=$?
-[[ $rc -eq 2 ]] && ok "missing justification: exit 2" || fail "missing justification: expected exit 2, got $rc: $out"
+if [[ $rc -eq 2 ]]; then ok "missing justification: exit 2"; else fail "missing justification: expected exit 2, got $rc: $out"; fi
 out="$(run_repin --test-file "$t" 'alpha file' $'two\nlines')"
 rc=$?
-[[ $rc -eq 2 ]] && ok "multi-line justification: exit 2" || fail "multi-line justification: expected exit 2, got $rc: $out"
+if [[ $rc -eq 2 ]]; then ok "multi-line justification: exit 2"; else fail "multi-line justification: expected exit 2, got $rc: $out"; fi
 
 echo
 echo "passed: $PASS, failed: $FAIL"
