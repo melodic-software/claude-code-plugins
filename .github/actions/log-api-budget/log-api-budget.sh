@@ -6,10 +6,11 @@
 # (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
 # A `start` reading is kept in STATE_DIR; any later phase adds
 # used-since-start=N (or window-rolled when the reset moved) and writes one
-# step-summary line `<name>-cost=N ...` for all tokens. Never fails.
+# step-summary line `<name>-cost=N ...` for all tokens, also the `costs`
+# output. Never fails.
 #
 # Env: PHASE (start, end, ...), TOKENS (one "name token" pair per line),
-# STATE_DIR, GITHUB_STEP_SUMMARY.
+# STATE_DIR, GITHUB_STEP_SUMMARY, GITHUB_OUTPUT.
 set -uo pipefail
 
 summary=${GITHUB_STEP_SUMMARY:-/dev/null}
@@ -54,5 +55,6 @@ while read -r name token; do
 done <<<"${TOKENS:-}"
 if ((${#costs[@]} > 0)); then
   echo "${costs[*]}" >>"$summary"
+  echo "costs=${costs[*]}" >>"${GITHUB_OUTPUT:-/dev/null}"
 fi
 exit 0

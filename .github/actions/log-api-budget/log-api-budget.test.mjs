@@ -22,12 +22,21 @@ printf 'HTTP/2.0 200 OK\\r\\nX-Ratelimit-Limit: 5000\\r\\nX-Ratelimit-Remaining:
   );
   chmodSync(join(dir, "gh"), 0o755);
   const summary = join(dir, "summary");
+  const output = join(dir, "output");
   writeFileSync(summary, "", { flag: "a" });
+  writeFileSync(output, "");
   const stdout = execFileSync("bash", [SCRIPT], {
-    env: { PATH: `${dir}:${process.env.PATH}`, PHASE: phase, TOKENS: tokens, STATE_DIR: join(dir, "state"), GITHUB_STEP_SUMMARY: summary },
+    env: {
+      PATH: `${dir}:${process.env.PATH}`,
+      PHASE: phase,
+      TOKENS: tokens,
+      STATE_DIR: join(dir, "state"),
+      GITHUB_STEP_SUMMARY: summary,
+      GITHUB_OUTPUT: output,
+    },
     encoding: "utf8",
   });
-  return { stdout, summary: readFileSync(summary, "utf8") };
+  return { stdout, summary: readFileSync(summary, "utf8"), output: readFileSync(output, "utf8") };
 }
 
 test("prints pr-merge's rate line per token and the cost since start", () => {
@@ -59,6 +68,17 @@ test("skips an entry with no token or a bad name, and still exits 0", () => {
   try {
     const { stdout } = run({ phase: "start", tokens: "github-token\nBad_Name t0ken", used: 1, dir });
     assert.equal(stdout, "::warning::api-budget: skipped a token entry with no usable name or token\n".repeat(2));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("sets the costs output at a later phase, for every token, and none at start", () => {
+  const dir = mkdtempSync(join(tmpdir(), "log-api-budget-"));
+  try {
+    const tokens = "lane l4ne\ngithub-token t0ken";
+    assert.equal(run({ phase: "start", tokens, used: 100, dir }).output, "");
+    assert.equal(run({ phase: "end", tokens, used: 142, dir }).output, "costs=lane-cost=42 github-token-cost=42\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

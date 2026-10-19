@@ -1,7 +1,9 @@
 // pr-merge.yml's merge job: the post-merge check and its re-dispatch do not
 // wait on the candidate listing or the gate loop (#8299; a GraphQL 502 on the
 // listing once held back every re-dispatch), the listing retries a failed
-// `gh pr list` and fails with one clear error, and the gate logs its API cost.
+// `gh pr list` and fails with one clear error, the run logs its API cost
+// through the shared action, and the run cache carries the verdict reads that
+// never change to the next run.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -138,15 +140,86 @@ test("the listing fails with one clear error after three failed tries", () => {
   assert.doesNotMatch(run.stderr, /jq: error|Traceback/);
 });
 
-test("the gate logs both tokens' core rate limit around the loop and the sweep cost", () => {
-  const gate = step("Run the merge gate on each candidate");
-  assert.match(gate, /gh api rate_limit --jq '\.resources\.core \| "\\\(\.remaining\)\/\\\(\.limit\) reset=\\\(\.reset\)"'/);
-  const before = gate.indexOf('echo "rate before the gate: lane $lane_before github.token $verify_before"');
-  const loop = gate.indexOf("while read -r number head updated; do");
-  const after = gate.indexOf('echo "rate after the gate: lane $lane_after github.token $verify_after"');
-  assert.ok(before >= 0 && loop > before && after > loop);
-  assert.match(gate, /verify_before=\$\(GH_TOKEN=\$BABYSIT_VERIFY_GH_TOKEN rate\)/);
-  assert.match(gate, /echo "sweep-cost=.* candidates=.*" >>"\$GITHUB_STEP_SUMMARY"/);
+test("the API budget is logged through the shared action at mint and at job end, for both tokens", () => {
+  for (const [name, phase, condition] of [
+    ["Log the API budget at mint", "start", "steps.lane-token.outputs.token != ''"],
+    ["Log the API budget at job end", "end", "always() && steps.lane-token.outputs.token != ''"],
+  ]) {
+    const block = step(name);
+    assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
+    assert.match(block, new RegExp(`\\n {8}if: ${condition.replace(/[().|$]/g, "\\$&")}\\n`));
+    assert.match(block, /\n {8}continue-on-error: true\n/);
+    assert.match(block, new RegExp(`\\n {10}phase: ${phase}\\n`));
+    assert.match(block, /\n {12}lane \$\{\{ steps\.lane-token\.outputs\.token \}\}\n {12}github-token \$\{\{ github\.token \}\}\n/);
+  }
+  assert.doesNotMatch(job, /gh api rate_limit/);
+  const names = steps.map((s) => s.name);
+  assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Revoke the lane token"));
+});
+
+// Runs the sweep-cost step with the end reading's costs and a summary of
+// `reached` gate verdicts beside one held candidate.
+const runSweepCost = (costs, reached) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-cost-"));
+  try {
+    writeFileSync(join(dir, "held.json"), '[{"number": 9}]');
+    const rows = [{ pr: 9 }, ...Array.from({ length: reached }, (_, i) => ({ pr: i + 1 }))];
+    writeFileSync(join(dir, "pr-merge-summary.json"), JSON.stringify(rows));
+    const result = spawnSync("bash", ["-eo", "pipefail", "-c", runScript("Write the sweep cost")], {
+      encoding: "utf8",
+      env: { ...process.env, RUNNER_TEMP: dir, GITHUB_STEP_SUMMARY: join(dir, "step-summary"), COSTS: costs, CANDIDATES: "5" },
+    });
+    return { status: result.status, stdout: result.stdout, stepSummary: readFileSync(join(dir, "step-summary"), "utf8") };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("the sweep cost names both tokens' spend, the candidates and those reached, in the log and the summary", () => {
+  const run = runSweepCost("lane-cost=312 github-token-cost=41", 3);
+  assert.equal(run.status, 0);
+  const line = "sweep-cost=312 github-token-cost=41 candidates=5 reached=3\n";
+  assert.equal(run.stdout, line);
+  assert.equal(run.stepSummary, line);
+  // A rolled window, or no end reading, reads unknown.
+  assert.equal(runSweepCost("lane-cost=unknown", 0).stdout, "sweep-cost=unknown github-token-cost=unknown candidates=5 reached=0\n");
+  const block = step("Write the sweep cost");
+  assert.match(block, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
+  assert.match(block, /COSTS: \$\{\{ steps\.budget-end\.outputs\.costs \}\}/);
+  const names = steps.map((s) => s.name);
+  assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Write the sweep cost"));
+});
+
+test("the run cache starts from the last run's kept reads and saves this run's under a new key", () => {
+  const names = steps.map((s) => s.name);
+  const order = [
+    "Restore the verdict reads the last run kept",
+    "Start the run cache from them",
+    "Run the merge gate on each candidate",
+    "Keep the verdict reads that never change",
+    "Save them for the next run",
+  ].map((name) => names.indexOf(name));
+  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])), String(order));
+  const key = "pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}";
+  const carried = "${{ runner.temp }}/pr-merge-carried.json";
+  const runCache = "${{ runner.temp }}/babysit-run-cache.json";
+  const restore = step("Restore the verdict reads the last run kept");
+  assert.match(restore, /uses: actions\/cache\/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 /);
+  assert.ok(restore.includes(`key: ${key}\n`) && restore.includes("restore-keys: pr-merge-run-cache-\n"));
+  assert.ok(restore.includes(`path: ${carried}\n`));
+  const start = step("Start the run cache from them");
+  assert.ok(start.includes(`CARRY_FROM: ${carried}\n`) && start.includes(`CARRY_TO: ${runCache}\n`));
+  assert.ok(step("Run the merge gate on each candidate").includes(`BABYSIT_RUN_CACHE: ${runCache}\n`));
+  const keep = step("Keep the verdict reads that never change");
+  assert.ok(keep.includes(`CARRY_FROM: ${runCache}\n`) && keep.includes(`CARRY_TO: ${carried}\n`));
+  assert.match(keep, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
+  const save = step("Save them for the next run");
+  assert.match(save, /uses: actions\/cache\/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 /);
+  assert.ok(save.includes(`key: ${key}\n`) && save.includes(`path: ${carried}\n`));
+  assert.match(save, /\n {8}if: always\(\) && steps\.carry\.outputs\.carried == 'true'\n/);
+  for (const name of ["Restore the verdict reads the last run kept", "Start the run cache from them", "Keep the verdict reads that never change", "Save them for the next run"]) {
+    assert.match(step(name), /\n {8}continue-on-error: true\n/, name);
+  }
 });
 
 // Runs the early job's check against a fake python3 that prints a report and
@@ -386,7 +459,6 @@ test("the gate starts no candidate once the budget is used and records where it 
   );
   assert.match(run.stdout, /^::notice::the 1-minute gate budget is used after 2 of 3 candidates; the next run starts after #3$/m);
   assert.match(run.stepSummary, /^budget-stop: /m);
-  assert.match(run.stepSummary, / reached=2$/m);
 });
 
 test("with no budget, or an unreadable one, the gate checks every candidate", () => {
