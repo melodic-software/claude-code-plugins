@@ -6,21 +6,22 @@
 // every candidate is reached across runs.
 //
 // The previous position is the `pr-merge-gate-cursor` artifact each gate loop
-// uploads, `{"last": <PR number>}`. Only the newest one from a pr-merge.yml run
-// that ran main's copy of this workflow counts: a scheduled or hand-started run
-// on main, or a pull_request_target run, which always runs main's copy. The
-// cursor sets only the order, never a verdict. Any failure leaves the listing
-// order (ascending PR number) and warns.
+// uploads, `{"last": <PR number>}`. Only a scheduled or hand-started run of
+// pr-merge.yml on main counts; a pull_request_target run runs the PR base
+// branch's copy, so its cursor is not read. The newest such run holding a
+// cursor wins, found from the workflow's own run list, never the repository's
+// artifact list. The cursor sets only the order, never a verdict. Any failure
+// leaves the listing order (ascending PR number) and warns.
 //
 // Environment:
 //   ACTIONS_TOKEN        the job's GITHUB_TOKEN (actions: read)
 //   GITHUB_REPOSITORY    owner/repo
+//   GITHUB_RUN_ID        this run, which has no cursor yet
 //   CANDIDATES_PATH      candidates.json, rewritten in rotated order
 //   RUNNER_TEMP          where the cursor artifact is downloaded
-//   GITHUB_OUTPUT        receives last=<PR number> or last=
 //   GITHUB_API_URL
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -30,8 +31,10 @@ import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-
 export const CURSOR_ARTIFACT = "pr-merge-gate-cursor";
 const WORKFLOW_PATH = ".github/workflows/pr-merge.yml";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-// Artifacts read before giving up on finding a trusted cursor.
-const MAX_ARTIFACTS = 5;
+// Pages of main's runs listed, and trusted runs asked for a cursor, before
+// giving up on finding one.
+const MAX_PAGES = 2;
+const MAX_RUNS = 10;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
@@ -42,12 +45,12 @@ export function rotate(candidates, last) {
   return start <= 0 ? sorted : [...sorted.slice(start), ...sorted.slice(0, start)];
 }
 
-// A run of main's copy of pr-merge.yml.
+// A scheduled or hand-started run of main's copy of pr-merge.yml.
 export function trustedRun(run) {
   return (
     run?.path === WORKFLOW_PATH &&
-    (run.event === "pull_request_target" ||
-      ((run.event === "schedule" || run.event === "workflow_dispatch") && run.head_branch === "main"))
+    (run.event === "schedule" || run.event === "workflow_dispatch") &&
+    run.head_branch === "main"
   );
 }
 
@@ -63,25 +66,38 @@ function ghDownload({ repo, token, dir }) {
 }
 
 // The newest trusted cursor's PR number, or undefined when there is none.
-export async function readCursor({ repo, actions, download }) {
-  const listing = await actions("GET", `/repos/${repo}/actions/artifacts?name=${CURSOR_ARTIFACT}&per_page=${MAX_ARTIFACTS}`);
-  if (!Array.isArray(listing?.artifacts)) {
-    throw new Error("the cursor artifact listing has an unexpected shape");
-  }
-  const newest = listing.artifacts
-    .filter((a) => a?.expired === false && Number.isInteger(a.workflow_run?.id))
-    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
-    .slice(0, MAX_ARTIFACTS);
-  for (const artifact of newest) {
-    const run = await actions("GET", `/repos/${repo}/actions/runs/${artifact.workflow_run.id}`);
-    if (!trustedRun(run)) {
-      continue;
+export async function readCursor({ repo, runId, actions, download }) {
+  let asked = 0;
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const listing = await actions(
+      "GET",
+      `/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&exclude_pull_requests=true&per_page=100&page=${page}`,
+    );
+    if (!Array.isArray(listing?.workflow_runs)) {
+      throw new Error("the pr-merge run listing has an unexpected shape");
     }
-    const last = JSON.parse(download(artifact.workflow_run.id))?.last;
-    if (!Number.isInteger(last) || last < 1) {
-      throw new Error(`the cursor of run ${artifact.workflow_run.id} is not a PR number`);
+    // The API lists runs newest first.
+    for (const run of listing.workflow_runs) {
+      if (!trustedRun(run) || String(run.id) === runId) {
+        continue;
+      }
+      if (asked === MAX_RUNS) {
+        return undefined;
+      }
+      asked += 1;
+      const found = await actions("GET", `/repos/${repo}/actions/runs/${run.id}/artifacts?name=${CURSOR_ARTIFACT}`);
+      if (!Array.isArray(found?.artifacts) || !found.artifacts.some((a) => a?.expired === false)) {
+        continue;
+      }
+      const last = JSON.parse(download(run.id))?.last;
+      if (!Number.isInteger(last) || last < 1) {
+        throw new Error(`the cursor of run ${run.id} is not a PR number`);
+      }
+      return last;
     }
-    return last;
+    if (listing.workflow_runs.length < 100) {
+      return undefined;
+    }
   }
   return undefined;
 }
@@ -100,7 +116,7 @@ export async function main({ env = process.env, actions, download } = {}) {
     }
     actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP });
-    last = await readCursor({ repo, actions, download });
+    last = await readCursor({ repo, runId: String(env.GITHUB_RUN_ID), actions, download });
     const ordered = rotate(candidates, last);
     writeFileSync(`${path}.tmp`, JSON.stringify(ordered));
     renameSync(`${path}.tmp`, path);
@@ -111,10 +127,8 @@ export async function main({ env = process.env, actions, download } = {}) {
         : `the last run's gate reached #${last}; this run starts at ${first === undefined ? "no candidate" : `#${first}`}`,
     );
   } catch (error) {
-    last = undefined;
     console.log(`::warning title=rotation::${escapeCommand(error?.message ?? error)}; the gate runs in listing order`);
   }
-  appendFileSync(env.GITHUB_OUTPUT, `last=${last ?? ""}\n`);
   return 0;
 }
 

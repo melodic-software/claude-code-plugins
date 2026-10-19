@@ -334,7 +334,7 @@ test("with no budget, or an unreadable one, the gate checks every candidate", ()
   }
 });
 
-test("the budget is read from the pipeline config and the cursor is uploaded even after a cancel", () => {
+test("the budget comes from the pipeline config, rotation runs before the gate, and the upload step runs under always()", () => {
   assert.match(step("Read report-only"), /echo "gate-budget-minutes=\$\(yq '\.merge\."gate-budget-minutes" \/\/ ""' "\$config"\)"/);
   assert.match(step("Run the merge gate on each candidate"), /BUDGET_MINUTES: \$\{\{ steps\.mode\.outputs\.gate-budget-minutes \}\}/);
   const names = steps.map((s) => s.name);

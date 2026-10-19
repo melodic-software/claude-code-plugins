@@ -559,8 +559,9 @@ The workflow's gate loop starts no further candidate once it has run `merge.gate
 (absent: no budget); the candidate in progress finishes first, so the budget never stops a gate
 between its check and its enqueue. Each run starts after the last candidate the previous loop
 reached and wraps round to the lowest PR number, so every candidate is reached across runs. The
-position is the `pr-merge-gate-cursor` artifact, read only from a run of the default branch's copy
-of `pr-merge.yml`; it sets the order and never a verdict.
+position is the `pr-merge-gate-cursor` artifact, read only from a scheduled or hand-started
+`pr-merge.yml` run on the default branch, found through that workflow's run list; it sets the order
+and never a verdict.
 
 ### Dependabot pull requests
 

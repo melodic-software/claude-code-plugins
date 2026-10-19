@@ -484,7 +484,6 @@ jobs:
       # reached across runs. The cursor sets only the order; any error
       # leaves the listing order. Rules: .github/scripts/pr-merge/rotation.mjs.
       - name: Start after the candidate the last run reached
-        id: rotation
         if: steps.candidates.outcome == 'success'
         continue-on-error: true
         env:

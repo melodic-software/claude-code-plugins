@@ -1,8 +1,8 @@
 // Expected values come from the rotation rule in pr-merge.yml: the gate loop
 // starts after the last candidate the previous loop reached and wraps round to
-// the lowest PR number, and only a run of main's copy of pr-merge.yml (a
-// scheduled or hand-started run on main, or a pull_request_target run) sets
-// that position.
+// the lowest PR number, and only a scheduled or hand-started pr-merge.yml run
+// on main sets that position (a pull_request_target run runs the PR base
+// branch's copy). The cursor is found from the workflow's own run list.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -46,83 +46,85 @@ test("budgeted runs reach every candidate across runs", () => {
 });
 
 let n = 0;
-async function run({ artifacts = [], runs = {}, cursor = '{"last": 20}', fail } = {}) {
+// `pages` is the workflow's run listing, newest first, page by page; `cursors`
+// maps a run id to the cursor its artifact holds.
+async function run({ pages = [[]], cursors = {}, fail } = {}) {
   n += 1;
   const candidates = join(dir, `candidates-${n}.json`);
   writeFileSync(candidates, JSON.stringify(prs(30, 10, 20)));
-  const output = join(dir, `output-${n}`);
   const calls = [];
   const downloads = [];
   const actions = async (method, path) => {
     calls.push(path);
     if (fail) throw fail;
-    if (path.startsWith(`/repos/${REPO}/actions/artifacts?`)) return { artifacts };
-    const id = /\/actions\/runs\/(\d+)$/.exec(path)?.[1];
-    return runs[id];
+    const page = /\/actions\/workflows\/pr-merge\.yml\/runs\?branch=main&.*&page=(\d+)$/.exec(path)?.[1];
+    if (page) return { workflow_runs: pages[Number(page) - 1] ?? [] };
+    const id = /\/actions\/runs\/(\d+)\/artifacts\?name=pr-merge-gate-cursor$/.exec(path)?.[1];
+    assert.ok(id, `unexpected call ${path}`);
+    return { artifacts: id in cursors ? [{ expired: false }] : [] };
   };
   const download = (id) => {
     downloads.push(id);
-    return cursor;
+    return cursors[id];
   };
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(String(line));
   try {
-    await main({ env: { GITHUB_REPOSITORY: REPO, CANDIDATES_PATH: candidates, GITHUB_OUTPUT: output }, actions, download });
+    await main({ env: { GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: "999", CANDIDATES_PATH: candidates }, actions, download });
   } finally {
     console.log = log;
   }
-  return {
-    order: numbers(JSON.parse(readFileSync(candidates, "utf8"))),
-    output: readFileSync(output, "utf8"),
-    calls,
-    downloads,
-    lines,
-  };
+  return { order: numbers(JSON.parse(readFileSync(candidates, "utf8"))), calls, downloads, lines };
 }
 
-const artifact = (runId, createdAt, expired = false) => ({ expired, created_at: createdAt, workflow_run: { id: runId } });
-const mainRun = (event, branch = "main") => ({ path: ".github/workflows/pr-merge.yml", event, head_branch: branch });
+const wf = (id, event, branch = "main", path = ".github/workflows/pr-merge.yml") => ({ id, event, head_branch: branch, path });
+const filler = (from, count) => Array.from({ length: count }, (_, i) => wf(from + i, "push"));
 
-test("main reads the newest trusted cursor and rewrites the candidates in rotated order", async () => {
+test("main reads the newest trusted run's cursor and rewrites the candidates in rotated order", async () => {
   const result = await run({
-    artifacts: [artifact(1, "2026-10-19T01:00:00Z"), artifact(2, "2026-10-19T02:00:00Z")],
-    runs: { 1: mainRun("schedule"), 2: mainRun("pull_request_target", "some-pr-branch") },
+    pages: [[wf(999, "schedule"), wf(8, "schedule"), wf(7, "workflow_dispatch"), wf(6, "schedule")]],
+    cursors: { 7: '{"last": 20}', 6: '{"last": 10}' },
   });
-  assert.deepEqual(result.downloads, [2]);
+  // This run (999) is skipped; run 8 has no cursor (a superseded run).
+  assert.deepEqual(result.downloads, [7]);
   assert.deepEqual(result.order, [30, 10, 20]);
-  assert.match(result.output, /^last=20$/m);
 });
 
-test("a cursor from a run of another copy of the workflow is skipped", async () => {
+test("a pull_request_target run's cursor is never read", async () => {
   const result = await run({
-    artifacts: [
-      artifact(3, "2026-10-19T03:00:00Z"),
-      artifact(4, "2026-10-19T02:30:00Z"),
-      artifact(5, "2026-10-19T02:00:00Z"),
-      artifact(6, "2026-10-19T01:00:00Z", true),
-    ],
-    runs: {
-      3: mainRun("pull_request"),
-      4: mainRun("workflow_dispatch", "feature"),
-      5: { ...mainRun("schedule"), path: ".github/workflows/other.yml" },
-      6: mainRun("schedule"),
-    },
+    pages: [[wf(5, "pull_request_target"), wf(4, "pull_request"), wf(3, "workflow_dispatch", "feature"), wf(2, "schedule", "main", ".github/workflows/other.yml")]],
+    cursors: { 5: '{"last": 20}', 4: '{"last": 20}', 3: '{"last": 20}', 2: '{"last": 20}' },
   });
   assert.deepEqual(result.downloads, []);
+  assert.ok(!result.calls.some((path) => /\/runs\/[2-5]\/artifacts/.test(path)));
   assert.deepEqual(result.order, [10, 20, 30]);
-  assert.match(result.output, /^last=$/m);
+});
+
+test("the lookup pages through main's runs, then stops at its bounds", async () => {
+  // A full first page of push runs, then the trusted run on page two.
+  const found = await run({ pages: [filler(1000, 100), [wf(9, "schedule")]], cursors: { 9: '{"last": 10}' } });
+  assert.deepEqual(found.downloads, [9]);
+  assert.deepEqual(found.order, [20, 30, 10]);
+  // Ten trusted runs without a cursor end the search before an eleventh is asked.
+  const runs = Array.from({ length: 11 }, (_, i) => wf(100 + i, "schedule"));
+  const bounded = await run({ pages: [runs], cursors: { 110: '{"last": 10}' } });
+  assert.equal(bounded.calls.filter((path) => path.includes("/artifacts")).length, 10);
+  assert.deepEqual(bounded.downloads, []);
+  // Never more than two pages.
+  const paged = await run({ pages: [filler(1000, 100), filler(2000, 100), [wf(9, "schedule")]], cursors: { 9: '{"last": 10}' } });
+  assert.equal(paged.calls.filter((path) => path.includes("/workflows/")).length, 2);
+  assert.deepEqual(paged.order, [10, 20, 30]);
 });
 
 test("an unreadable cursor leaves the listing order with a warning", async () => {
   for (const options of [
     { fail: new Error("HTTP 502") },
-    { artifacts: [artifact(1, "t")], runs: { 1: mainRun("schedule") }, cursor: '{"last": "x"}' },
-    { artifacts: [artifact(1, "t")], runs: { 1: mainRun("schedule") }, cursor: "not json" },
+    { pages: [[wf(1, "schedule")]], cursors: { 1: '{"last": "x"}' } },
+    { pages: [[wf(1, "schedule")]], cursors: { 1: "not json" } },
   ]) {
     const result = await run(options);
     assert.deepEqual(result.order, [30, 10, 20]);
-    assert.match(result.output, /^last=$/m);
     assert.ok(result.lines.some((line) => line.startsWith("::warning title=rotation::")));
   }
 });
