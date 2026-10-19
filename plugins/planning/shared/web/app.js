@@ -1380,8 +1380,9 @@
       } catch (e) { ui.mRetry = Date.now() + 10000; fail(e); } finally { ui.mLoading = false; }
     }
     /** Open the chat at one message, reading it from the server when it is outside what the page holds. */
-    async function goMsg(id) {
-      if (!mList._map?.has(id) && !(await Core.chatAround(id).catch(() => false))) return flash("That message is no longer in the chat.");
+    /** `gone`, when given, runs in place of the "no longer in the chat" notice. */
+    async function goMsg(id, gone) {
+      if (!mList._map?.has(id) && !(await Core.chatAround(id).catch(() => false))) return gone ? gone() : flash("That message is no longer in the chat.");
       // At once, not smoothly: a poll's render during a smooth scroll would still see the reader at the newest message.
       // Off the newest now, so nothing pins the chat back to it before this scroll's own event says so.
       requestAnimationFrame(() => { const li = mList._map?.get(id); if (li) { li.scrollIntoView({ block: "center" }); mStick = false; ring(li); } });
@@ -2571,7 +2572,7 @@
       const host = () => { setMode("host"); if (phone.matches) setTab("host"); };
       if (!i.qid && i.scope) { // about the whole session: a shared answer is in chat, the rest in Ask Claude
         const xid = i.kind === "share" ? i.id : i.result, x = xid && (Core.state.research?.[Core.GENERAL] || []).find(y => y.id === xid);
-        if (x?.msg && x.published !== false && st().chat) { setChat(true); return goMsg(x.msg); }
+        if (x?.msg && x.published !== false && st().chat) { setChat(true); return goMsg(x.msg, () => openGeneral("x:" + xid)); } // a message chat dropped: the answer is still in Ask Claude
         if (i.kind === "run") return host();
         return openGeneral(xid ? "x:" + xid : "r:" + i.id);
       }
@@ -6350,7 +6351,7 @@
           // own message opens its full answer.
           const sent = btn("vf-lbtn vf-msent"), sentT = E("span");
           sent.append(claudeAv(14), sentT);
-          sent.onclick = () => { const x = li._gq?.x; if (li._m?.claude || !x?.msg || x.published === false) openGeneral(x ? "x:" + x.id : "r:" + li._m?.request); else goMsg(x.msg); };
+          sent.onclick = () => { const x = li._gq?.x; if (li._m?.claude || !x?.msg || x.published === false) openGeneral(x ? "x:" + x.id : "r:" + li._m?.request); else goMsg(x.msg, () => openGeneral("x:" + x.id)); };
           // Emoji reactions: chips under the bubble only when there are some. Add sits beside ⋯ (hover or focus on a
           // fine pointer); on touch it is React in the long-press menu.
           const reactAdd = btn("vf-mreact-add"); reactAdd.append(E("span", "vf-mreact-plus", "+"), E("span", "vf-mreact-face", "🙂"));

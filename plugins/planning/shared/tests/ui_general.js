@@ -82,6 +82,25 @@ async function main() {
     ok("Ann is told Claude answered her request about the session", await toast(ann, /^Claude answered your request about the session$/));
     ok("  and her message now reads Sent to Claude · Answered", await until(ann, t => [...document.querySelectorAll(".vf-msg")].some(li => li.textContent.includes(t)
       && li.querySelector(".vf-msent")?.textContent === "Sent to Claude · Answered"), ASK));
+    // ---------- a shared answer whose chat message chat no longer keeps still opens, in Ask Claude ----------
+    // Ann's page reads the answer's message as one the server never kept, so GET /api/chat?around= answers 404.
+    await ann.route(/\/api\/state\?/, async route => {
+      const res = await route.fetch(), body = await res.text();
+      let j; try { j = JSON.parse(body); } catch { return route.fulfill({ response: res, body }); }
+      for (const x of j.results?.session || []) if (x.msg) x.msg = "M999999";
+      return route.fulfill({ response: res, body: JSON.stringify(j) });
+    });
+    await ann.reload();
+    await until(ann, () => (window.Core.state.research.session || []).some(x => x.msg === "M999999"), null, 10000);
+    await openInbox(ann);
+    await ann.locator(".vf-ixmine .vf-ixlist > li", { hasText: ASK }).locator(".vf-ixitem").click();
+    ok("opening it from the Inbox shows the answer in Ask Claude", await until(ann, a => !document.querySelector(".vf-drawer").hidden
+      && [...document.querySelectorAll(".vf-apgen .vf-res")].some(li => li.textContent.includes(a)), ANSWER, 10000));
+    await ann.keyboard.press("Escape");
+    await ann.unroute(/\/api\/state\?/);
+    await ann.reload();
+    await until(ann, () => !!window.Core.snapshot()?.me);
+
     const fit = await bo.evaluate(() => ({ page: document.documentElement.scrollWidth, w: innerWidth,
       rows: [...document.querySelectorAll(".vf-msg-claude")].every(li => li.getBoundingClientRect().right <= innerWidth) }));
     ok("390: Claude's message fits and nothing scrolls sideways", fit.page <= fit.w && fit.rows, JSON.stringify(fit));
