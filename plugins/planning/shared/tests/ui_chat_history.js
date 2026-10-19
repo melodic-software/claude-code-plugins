@@ -54,6 +54,7 @@ async function main() {
 
     // ---------- a notification to a message outside the window ----------
     await gus.click(".vf-bell");
+    await gus.click(".vf-ixtabs [data-k=notes]");
     await gus.locator(".vf-nitem", { hasText: "mentioned you in chat." }).click();
     const ringedM1 = () => {
       const li = [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x._m?.id === "M1"), box = document.querySelector(".vf-mscroll").getBoundingClientRect();
