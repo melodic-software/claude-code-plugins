@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Phase 2 security review",
+            "prompt": "Change set: git -C .worktrees/phase-2 diff 3f9c2a1b7d. Concern: security. Quality bar: production.",
+            "subagent_type": "review:security-reviewer"
+          }
+        }
+      ],
+      "why": "the plugin's security reviewer"
+    },
+    {
+      "answer": [{ "tool": "Agent", "input": { "description": "Security audit", "prompt": "Audit the phase diff.", "subagent_type": "security-reviewer" } }],
+      "why": "unprefixed agent name"
+    }
+  ],
+  "fail": [
+    { "answer": [], "why": "reviewed on the main thread" },
+    {
+      "answer": [{ "tool": "Agent", "input": { "description": "Review", "prompt": "Review the phase.", "subagent_type": "review:brief-reviewer" } }],
+      "why": "wrong reviewer for the security mode"
+    },
+    {
+      "answer": [{ "tool": "Agent", "input": { "description": "Security", "prompt": "Act as the security-reviewer agent.", "subagent_type": "general-purpose" } }],
+      "why": "general-purpose agent playing the reviewer"
+    }
+  ]
+}
