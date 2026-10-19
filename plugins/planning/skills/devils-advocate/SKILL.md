@@ -133,6 +133,9 @@ Extract every assumption in the plan, explicit and implicit, as a table:
 **Categories**: API contract, platform behavior, performance, security, extensibility, dependency
 stability, cross-platform, convention compliance
 
+In plan-review mode, also check that the plan solves the Brief's `### Problem` and flag a goal that
+drifts from it ([`${CLAUDE_PLUGIN_ROOT}/context/problem-framing.md`](../../context/problem-framing.md)).
+
 ### Round 2: Evidence Check
 
 Verify each assumption against evidence; mark one you could not confirm as unconfirmed and say where

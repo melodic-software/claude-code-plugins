@@ -205,10 +205,12 @@ main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8
 .note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:9px 14px;border-radius:0 6px 6px 0;font-size:14px}
 section.blk{display:grid;gap:8px}
 section.blk>h4,details.more>summary{font:500 12px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0}
-details.more{display:grid;gap:12px}
+details.more,details.src{display:grid;gap:12px}
 details.more>summary{cursor:pointer;padding:4px 0}
 details.more[open]>summary{margin-bottom:10px}
 details.more>section+section{margin-top:12px}
+details.src>summary{font:500 12px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);cursor:pointer;padding:4px 0}
+details.src[open]>summary{margin-bottom:10px}
 .md{max-width:72ch}
 .md p{margin:0 0 .5em}.md p:last-child{margin-bottom:0}
 .md ul,.md ol{margin:0 0 .5em;padding-left:20px}
@@ -228,7 +230,7 @@ details.why .md{margin-top:6px;font-size:14px}
 .assume{font:500 12.5px var(--mono);color:var(--chg)}
 .pill code{font-size:12px;background:none;padding:0}
 /* A grid track sized auto grows to its widest unbreakable child; every single-column grid caps it at the container. */
-nav.rail,.toolbar,.rail-list,.sec,.qlist,.tree,.act-list,.act-list li,main.detail,.dscroll,.dhead,section.blk,details.more,.recbox,.crows,.alts,ol.hist,ol.hist li,section.answer,.choices,.compose,.conflict,aside.fly,.fhead,.fbody,.nthread,.nmsg,.fs,ul.loose{grid-template-columns:minmax(0,1fr)}
+nav.rail,.toolbar,.rail-list,.sec,.qlist,.tree,.act-list,.act-list li,main.detail,.dscroll,.dhead,section.blk,details.more,details.src,.recbox,.crows,.alts,ol.hist,ol.hist li,section.answer,.choices,.compose,.conflict,aside.fly,.fhead,.fbody,.nthread,.nmsg,.fs,ul.loose{grid-template-columns:minmax(0,1fr)}
 .alts{display:grid;gap:8px;max-width:80ch}
 .alt{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;border:1px solid var(--line);border-radius:6px;padding:8px 12px}
 .alt .k{font:600 13px var(--mono)}
@@ -1144,6 +1146,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q.claudeNote) h += '<div class="note"><b>Claude:</b> ' + inline(q.claudeNote) + "</div>";
     const lc = latestClaude(q);
     if (lc) h += '<div class="latest" id="latest"><span class="who">' + esc(whoLabel(lc)) + " &middot; " + esc(fmt(lc.at)) + "</span>" + md(lc.text) + "</div>";
+    let facts = String(q.facts || "").replace(/\r/g, "");
+    const sm = facts.match(/^(?:[ \t]*\n)*((?:>[^\n]*(?:\n|$)|[ \t]*\n(?=[ \t]*>))+)/), src = sm ? sm[1].replace(/^>[ \t]?/gm, "").trim() : ""; // a Source block opens facts with the quote: it shows above the recommendation
+    if (src) { facts = facts.slice(sm[0].length); h += '<details class="src" id="src"' + (lsGet("srcOpen", true) ? " open" : "") + "><summary>Source text</summary>" + md(src.replace(/^/gm, "> ")) + "</details>"; }
     if (q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + '</h4><div class="recbox">' + md(q.recommendation) +
       (q.basis ? '<details class="why"><summary>Why</summary>' + md(q.basis) + "</details>" : "") + "</div></section>";
     if (q.commits && q.commits.length) {
@@ -1156,7 +1161,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       }).join("") + "</div>" + (acc && q.commits.some((c, i) => !cf.has(String(i))) ? '<div class="arow"><button type="button" class="tbtn small" data-toconfirm="' + esc(q.id) + '">Review commitments to confirm</button></div>' : "") + "</section>";
     }
     let more = "";
-    if (q.facts) more += '<section class="blk"><h4>What we know</h4>' + md(q.facts) + "</section>";
+    if (facts.trim()) more += '<section class="blk"><h4>What we know</h4>' + md(facts) + "</section>";
     if (altsOf(q).length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + altsOf(q).map(a =>
       '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + inline(a.text) + "</span></div>").join("") + "</div></section>";
     if (more) h += '<details class="more" id="more"' + (lsGet("moreOpen", false) ? " open" : "") + "><summary>Details: what we know, alternatives</summary>" + more + "</details>";
@@ -1312,7 +1317,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const r = S.doc.restatement;
     return r ? events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn && e.contentRev === r.rev).pop() || null : null;
   }
-  const USECT = [["goal", "Goal"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
+  const USECT = [["problem", "Problem"], ["goal", "Goal"], ["workSize", "Work size"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
   function confirmedRev(){ // the newest earlier restatement whose newest live verdict is a Confirm
     const cur = S.doc.restatement, vs = events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn);
     return cur && (S.doc.restatements || []).filter(r => r.rev < cur.rev).reverse().find(r => (vs.filter(e => e.contentRev === r.rev).pop() || {}).alt === "confirm") || null;
@@ -2124,7 +2129,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       setLocal(k, v); renderFly(); renderAll();
     }
   });
-  document.addEventListener("toggle", e => { if (e.target.id === "more") lsSet("moreOpen", e.target.open); }, true);
+  document.addEventListener("toggle", e => { if (e.target.id === "more") lsSet("moreOpen", e.target.open); else if (e.target.id === "src") lsSet("srcOpen", e.target.open); }, true);
   document.addEventListener("input", e => {
     if (e.target.id === "note") { if (S.sel && Q[S.sel]) lsSet("draft:" + S.sel, e.target.value); grow(e.target); renderAnswer(); }
     else if (e.target.id === "noteText") { lsSet("noteDraft", e.target.value); grow(e.target); }
