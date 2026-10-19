@@ -248,6 +248,57 @@ test("without needs-human nothing changes and no permission is read", async () =
   assert.deepEqual(api.permissionReads, []);
 });
 
+// The thread on #8031: the reviewer bot's finding, then the owner's fix
+// request, with no reply from the lanes App.
+function asked(replies, edits = {}) {
+  const rows = [[100, REVIEWER, "finding 100"], ...replies];
+  return {
+    reviewComments: rows.map(([id, user, body], i) => comment(id, user, { body, created_at: at(i) })),
+    threads: [
+      {
+        id: "PRRT_1",
+        isResolved: false,
+        comments: {
+          totalCount: rows.length,
+          nodes: rows.map(([id]) => ({ databaseId: id, lastEditedAt: edits[id] ? at(30) : null, editor: edits[id] ? { databaseId: edits[id] } : null })),
+        },
+      },
+    ],
+  };
+}
+
+test("with no escalation, a write-access trusted person's fix request is kept as direction", async () => {
+  const api = fakeApi(asked([[101, HUMAN, REQUEST]]));
+  const result = await run(api);
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.fixRequested, false);
+  assert.deepEqual(result.file.threads[0].comments, [
+    { id: 100, author: "reviewer", body: "finding 100" },
+    { id: 101, author: "trusted-human", direction: true, body: REQUEST },
+  ]);
+  assert.deepEqual(api.permissionReads, ["kyle-sexton"]);
+});
+
+test("with no escalation, on a needs-human PR, a write-access trusted person's fix request is kept", async () => {
+  const result = await run(fakeApi({ ...asked([[101, HUMAN, REQUEST]]), labels: ["needs-human"] }));
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.fixRequested, true);
+});
+
+for (const [label, overrides] of [
+  ["an untrusted person's fix request", { ...asked([[101, STRANGER, REQUEST]]), permissions: { stranger: "admin" } }],
+  ["a trusted person's fix request without write access", { ...asked([[101, HUMAN, REQUEST]]), permissions: { "kyle-sexton": "read" } }],
+  ["a trusted person's reply that asks no fix", asked([[101, HUMAN, DECISION]])],
+  ["a fix request last edited by a stranger", asked([[101, HUMAN, REQUEST]], { 101: STRANGER })],
+  ["a stranger's comment beside a trusted fix request", asked([[101, HUMAN, REQUEST], [102, STRANGER, INJECTION]])],
+]) {
+  test(`with no escalation, ${label} is not kept`, async () => {
+    const result = await run(fakeApi(overrides));
+    assert.equal(result.decision, "skip");
+    assert.equal(result.skipReason, "not-applicable");
+  });
+}
+
 test("trustedHumansFrom reads only the people on the list", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));

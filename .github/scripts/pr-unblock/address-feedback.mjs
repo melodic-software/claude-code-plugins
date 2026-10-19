@@ -6,7 +6,8 @@
 //           `prepare: review-threads` skill, before the head checkout and any
 //           model turn, with the job's read-only token: keeps the unresolved
 //           review threads the reviewer bot opened in a review on a head a
-//           review lane's marker confirms, when every comment is the bot's or
+//           review lane's marker confirms, when every comment is the bot's,
+//           a trusted person with write access asked the lane to fix it, or
 //           a trusted person answered the lane's escalation, then decides
 //           skip (no such thread), escalate (the PR changes .github/**, or
 //           the configured number of rounds already ran) or proceed, writing the thread file
@@ -121,6 +122,14 @@ export async function fixRequesters({ comments, trustedHumans, permission }) {
   return writers;
 }
 
+// fixRequesters over a PR's review comments (the REST rows).
+export const reviewFixers = ({ reviewComments, trustedHumans = new Set(), permission }) =>
+  fixRequesters({
+    comments: reviewComments.map((row) => ({ authorId: row.user?.id, login: row.user?.login, body: row.body })),
+    trustedHumans,
+    permission,
+  });
+
 // The base's human-gated role label: config.role_labels["human-gated"] of
 // .work-item-tracker.json, needs-human when the file or entry is absent.
 export function humanGatedLabelFrom(path) {
@@ -146,35 +155,60 @@ export function humanGatedLabelFrom(path) {
 
 // Who wrote each comment of a thread, or null when it is not one to work.
 // `comments` are oldest first, each { authorId, createdAt, body, lastEditedAt,
-// editorId }. The first is the reviewer bot's, and either every comment is,
-// or the lanes App's last comment escalated the thread and every comment after
-// it is a trusted person's reply. Those replies are direction. A comment by
-// anyone else, a trusted person's comment last edited by anyone but a trusted
-// person, or a reply not after the escalation leaves the thread alone. The
-// select step and the reply job (keepThreads) and the dispatcher
+// editorId }. The first is the reviewer bot's, and one of these holds:
+// - every comment is the reviewer bot's;
+// - the lanes App never commented, every later comment is the reviewer bot's
+//   or a trusted person's, and one is a fix request (isFixRequest) by one of
+//   `fixers` (the trusted people with write access who wrote a fix request,
+//   fixRequesters); the trusted people's comments are direction;
+// - the lanes App's last comment escalated the thread and every comment after
+//   it is a trusted person's reply, which is direction.
+// A comment by anyone else, a trusted person's comment last edited by anyone
+// but a trusted person, or a reply not after the escalation leaves the thread
+// alone. The select step and the reply job (keepThreads) and the dispatcher
 // (feedback-dispatch.mjs) all judge a thread with this. With `requesters` (a
 // set of ids, given on a PR carrying the human-gated label), a thread is
-// worked only when a reply after the escalation is a fix request
-// (isFixRequest) by one of them.
-export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new Set(), requesters = null }) {
+// worked only when a reply is a fix request by one of them, after the
+// escalation when there is one.
+export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   if (comments.length === 0 || comments[0].authorId !== reviewerId) {
     return null;
   }
   if (comments.every((comment) => comment.authorId === reviewerId)) {
     return requesters ? null : comments.map(() => ({ author: "reviewer" }));
   }
+  const isHuman = (comment) =>
+    trustedHumans.has(comment.authorId) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
+  const asks = (ids, comment) => ids.has(comment.authorId) && isFixRequest(comment.body);
   const last = comments.findLastIndex((comment) => comment.authorId === appId);
+  if (last === -1) {
+    const humanAsks = (ids) => comments.some((comment) => isHuman(comment) && asks(ids, comment));
+    if (!humanAsks(fixers) || (requesters && !humanAsks(requesters))) {
+      return null;
+    }
+    const authors = [];
+    for (const comment of comments) {
+      if (comment.authorId === reviewerId) {
+        authors.push({ author: "reviewer" });
+      } else if (isHuman(comment)) {
+        authors.push({ author: "trusted-human", direction: true });
+      } else {
+        return null;
+      }
+    }
+    return authors;
+  }
   if (last < 1 || !ESCALATION_REPLY.test(firstLine(comments[last].body)) || last === comments.length - 1) {
     return null;
   }
-  if (requesters && !comments.slice(last + 1).some((comment) => requesters.has(comment.authorId) && isFixRequest(comment.body))) {
+  if (requesters && !comments.slice(last + 1).some((comment) => asks(requesters, comment))) {
     return null;
   }
   const escalatedAt = Date.parse(comments[last].createdAt ?? "");
   const authors = [];
   for (const [i, comment] of comments.entries()) {
     const id = comment.authorId;
-    const human = trustedHumans.has(id) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
+    const human = isHuman(comment);
     if (i > last) {
       // NaN compares false, so an unparseable time leaves the thread alone.
       if (!human || !(Date.parse(comment.createdAt ?? "") > escalatedAt)) {
@@ -194,7 +228,7 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
 // review the reviewer bot submitted on a marker-confirmed head, and
 // threadAuthors accepts its comments. A thread with more comments than one
 // page reads is left alone.
-export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId, appId, trustedHumans = new Set(), requesters = null }) {
+export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
   const reviewsById = new Map(reviews.map((review) => [review.id, review]));
   const kept = [];
@@ -215,7 +249,7 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
         lastEditedAt: nodes[i].lastEditedAt,
         editorId: nodes[i].editor?.databaseId,
       })),
-      { reviewerId, appId, trustedHumans, requesters },
+      { reviewerId, appId, trustedHumans, requesters, fixers },
     );
     const review = reviewsById.get(rows[0].pull_request_review_id);
     if (authors === null || review?.user?.id !== reviewerId || !heads.has(review.commit_id)) {
@@ -256,13 +290,7 @@ export async function select({
   // The human-gated label holds the PR except for threads a trusted person
   // with write access asked the lane to fix.
   const gated = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
-  const requesters = gated
-    ? await fixRequesters({
-        comments: reviewComments.map((row) => ({ authorId: row.user?.id, login: row.user?.login, body: row.body })),
-        trustedHumans,
-        permission: api.getPermission,
-      })
-    : null;
+  const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
   const kept = keepThreads({
     threads,
     reviewComments,
@@ -271,7 +299,8 @@ export async function select({
     reviewerId,
     appId,
     trustedHumans,
-    requesters,
+    requesters: gated ? fixers : null,
+    fixers,
   });
   if (kept.length === 0) {
     return { decision: "skip", skipReason: gated ? "awaiting-human" : "not-applicable", threads: kept };
@@ -307,9 +336,10 @@ export async function currentThreads({ api, pr, reviewerId, appId, trustedHumans
     api.listReviewComments(pr),
     api.listThreads(pr),
   ]);
+  const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
   return {
     issueComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, appId, trustedHumans }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, appId, trustedHumans, fixers }),
   };
 }
 

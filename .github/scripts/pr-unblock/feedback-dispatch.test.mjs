@@ -525,6 +525,43 @@ test("without needs-human a trusted reply dispatches with no permission read", a
   assert.deepEqual(api.calls.permission, []);
 });
 
+// The #8031 shape: the reviewer bot's finding, then `reply`, with no reply
+// from the lanes App.
+const askedThread = (reply) => ({
+  isResolved: false,
+  comments: {
+    nodes: [{ author: CLAUDE, body: "finding" }, reply].map((node, i) => ({
+      createdAt: `2026-10-17T20:0${i}:00Z`,
+      lastEditedAt: null,
+      editor: null,
+      ...node,
+    })),
+    pageInfo: { hasNextPage: false },
+  },
+});
+
+test("a write-access trusted person's fix request on a thread the lane never answered dispatches", async () => {
+  const api = fakeApi({ threads: [askedThread({ author: KYLE_LOGIN, body: REQUEST })] });
+  assert.equal((await decide(api)).result.number, 42);
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(api.calls.permission, ["kyle-sexton"]);
+});
+
+for (const [label, options] of [
+  ["an untrusted person's fix request", { threads: [askedThread({ author: STRANGER_LOGIN, body: REQUEST })], permissions: { stranger: "admin" } }],
+  ["a trusted person's fix request without write access", {
+    threads: [askedThread({ author: KYLE_LOGIN, body: REQUEST })],
+    permissions: { "kyle-sexton": "read" },
+  }],
+  ["a trusted reply that asks no fix", { threads: [askedThread({ author: KYLE_LOGIN, body: "Owner decision: drop it." })] }],
+]) {
+  test(`a thread the lane never answered dispatches nothing for ${label}`, async () => {
+    const api = fakeApi(options);
+    assert.equal((await decide(api)).result, null);
+    assert.deepEqual(api.calls.dispatch, []);
+  });
+}
+
 test("main reads the trusted people from the base's trusted-actor list", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "feedback-dispatch-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
