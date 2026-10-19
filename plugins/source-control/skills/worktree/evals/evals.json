@@ -16,13 +16,13 @@
     },
     {
       "id": 2,
-      "name": "cleanup-emits-branch-delete-not-inline",
-      "prompt": "/worktree cleanup — remove the stale worktrees and delete their branches.",
-      "expected_output": "Cleanup removes stale/orphaned worktrees but does NOT run the branch deletion inline: it emits the git branch -D commands for the USER to run — branch deletion is destructive and the project's hooks may block it mid-session. If the active worktree is itself a cleanup candidate, its removal is emitted too (a worktree can't delete itself), but not when the current checkout is not a target. -D (not -d) is used because squash-merge changes the SHA.",
+      "name": "cleanup-branch-delete-after-confirmation",
+      "prompt": "/worktree cleanup — remove the stale worktrees and delete their branches. (Windows host, or a hook blocks git branch -D.)",
+      "expected_output": "Cleanup removes stale/orphaned worktrees after the confirmation, but on Windows or when a hook blocks the command it emits the git branch -D commands for the USER to run instead of running them inline (on Linux/macOS it runs them itself once the user confirmed and the stranded-work guard passed). If the active worktree is itself a cleanup candidate, its removal is emitted too on Windows (the session holds its directory handle), but not when the current checkout is not a target. -D (not -d) is used because squash-merge changes the SHA.",
       "files": [],
       "expectations": [
-        "The skill does NOT run git branch -D inline — it emits the branch-deletion command(s) for the user to run",
-        "If the active worktree is itself one of the cleanup candidates, its removal is emitted for the user to run (a worktree cannot delete itself) rather than executed inline; self-removal is not emitted when the current checkout is not a target",
+        "On Windows or after a hook block, the skill does NOT run git branch -D inline — it emits the branch-deletion command(s) for the user to run, and never before the Step 4 confirmation",
+        "If the active worktree is itself one of the cleanup candidates on Windows, its removal is emitted for the user to run rather than executed inline; self-removal is not emitted when the current checkout is not a target",
         "Branch deletion uses -D (not -d), and the reasoning cites squash-merge changing the SHA / destructiveness / hooks"
       ]
     },
@@ -130,7 +130,7 @@
       "id": 11,
       "name": "branch-delete-carries-the-same-precondition",
       "prompt": "/worktree cleanup — the worktree directory is already gone, just give me the branch cleanup commands to paste.",
-      "expected_output": "Removal leaves the branch ref intact, so the emitted `git branch -D` is where the commits actually die. The skill emits it only for a branch whose work is landed or ok; for STRANDED, UNKNOWN, or superseded it emits nothing destructive and says why, offering `git -C <path> push -u origin HEAD` instead. A suggested command in a code block reads as vetted, so an unguarded one must not appear at all.",
+      "expected_output": "Removal leaves the branch ref intact, so the `git branch -D`, run or emitted, is where the commits actually die. The skill emits it only for a branch whose work is landed or ok; for STRANDED, UNKNOWN, or superseded it emits nothing destructive and says why, offering `git -C <path> push -u origin HEAD` instead. A suggested command in a code block reads as vetted, so an unguarded one must not appear at all.",
       "files": [],
       "expectations": [
         "The stranded-work precondition is applied to the emitted git branch -D, not only to the worktree removal",

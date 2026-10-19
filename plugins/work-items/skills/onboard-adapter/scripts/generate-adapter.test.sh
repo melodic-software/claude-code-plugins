@@ -39,6 +39,7 @@ BASE_SPEC='{
     "release": false,
     "reclaim": false, "link-blocks": false, "add-sub-item": false,
     "list-items": true, "list-sub-items": false, "label-provenance": false,
+    "set-fields": false,
     "change-link": true, "capabilities": true
   },
   "features": { "cross_repo_edges": false, "sub_items": false, "leases": false, "labels": true },

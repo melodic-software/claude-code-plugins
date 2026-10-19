@@ -1,7 +1,10 @@
-// Checks the verifier's structured output and writes the verdict file that
+// Checks the verifier's structured output, the last result message of
+// run-claude-cli's execution file, and writes the verdict file that
 // pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>. The output
 // must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
-// summary a string, notes an array of strings. The file also records the head
+// summary a string, notes an array of strings, none shaped like an Anthropic
+// key or OAuth token, since the verdict is uploaded; a run with any permission
+// denial writes none. The file also records the head
 // branch and the linked issues with their authors, as the resolver read them
 // (number, author and last body editor login, id and type, last_edited_at;
 // each nullable but the number), which the pr-merge
@@ -13,6 +16,8 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+
+import { SECRET_PATTERNS } from "../../../lib/publish-gate.mjs";
 
 export const VERDICTS = Object.freeze(["pass", "pass-notes", "fail"]);
 const SUMMARY_MAX = 4000;
@@ -31,6 +36,9 @@ const specComment = (comment) =>
   typeof comment.updated_at === "string";
 const stringOrNull = (value) => value === null || typeof value === "string";
 const idOrNull = (value) => value === null || Number.isSafeInteger(value);
+
+// Both credential kinds start sk-ant-.
+const ANTHROPIC_KEY = SECRET_PATTERNS.find(([label]) => label === "Anthropic key")[1];
 
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -84,6 +92,9 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
   ) {
     throw new Error("the structured output does not match the verdict schema");
   }
+  if ([parsed.summary, ...parsed.notes].some((text) => ANTHROPIC_KEY.test(text))) {
+    throw new Error("the structured output holds text shaped like an Anthropic credential");
+  }
   return {
     pr: Number(pr),
     head_sha: headSha,
@@ -97,11 +108,41 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
   };
 }
 
-export const artifactName = (verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
+// The structured output of the last result message in the CLI's messages.
+export function structuredOutput(messages) {
+  const result = Array.isArray(messages) ? messages.findLast((message) => message?.type === "result") : undefined;
+  if (result?.structured_output === undefined) {
+    throw new Error("the run left no result with a structured output");
+  }
+  // A denied call means the model reached past its data files: no verdict.
+  // Only tool names are printed, never a call's input.
+  const denials = Array.isArray(result.permission_denials) ? result.permission_denials : [];
+  if (denials.length > 0) {
+    const names = [...new Set(denials.map((d) => (/^[A-Za-z0-9_*-]{1,64}$/.test(d?.tool_name ?? "") ? d.tool_name : "unnamed")))];
+    throw new Error(`the run hit ${denials.length} permission denial(s): ${names.join(", ")}`);
+  }
+  return result.structured_output;
+}
+
+// The execution file is the last leg's alone, so a denial on an earlier leg
+// (the key leg, before a credit stop) shows only in run-claude-cli's log, one
+// object per leg.
+export function earlierDenials(logText) {
+  const total = logText
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .reduce((sum, line) => sum + (JSON.parse(line)?.denials?.count ?? 0), 0);
+  if (total > 0) {
+    throw new Error(`the run's legs hit ${total} permission denial(s)`);
+  }
+}
+
+export const artifactName =(verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
 
 export function main(env = process.env) {
   for (const key of [
-    "STRUCTURED_OUTPUT",
+    "EXECUTION_FILE",
+    "LOG_FILE",
     "PR_NUMBER",
     "HEAD_SHA",
     "BASE_SHA",
@@ -115,6 +156,20 @@ export function main(env = process.env) {
       throw new Error(`${key} is not set`);
     }
   }
+  let messages;
+  try {
+    messages = JSON.parse(readFileSync(env.EXECUTION_FILE, "utf8"));
+  } catch {
+    throw new Error("the execution file is unreadable");
+  }
+  const output = structuredOutput(messages);
+  let logText;
+  try {
+    logText = readFileSync(env.LOG_FILE, "utf8");
+  } catch {
+    throw new Error("the run log is unreadable");
+  }
+  earlierDenials(logText);
   let linkedIssues;
   try {
     linkedIssues = JSON.parse(readFileSync(env.SPEC_FILE, "utf8"));
@@ -122,7 +177,7 @@ export function main(env = process.env) {
     throw new Error("the linked issues file is unreadable");
   }
   const verdict = buildVerdict({
-    output: env.STRUCTURED_OUTPUT,
+    output,
     pr: env.PR_NUMBER,
     headSha: env.HEAD_SHA,
     baseSha: env.BASE_SHA,
