@@ -136,7 +136,7 @@ function embeddedIPv4NonPublic(hi, lo) {
 /**
  * True when an IPv6 address is loopback, unspecified, unique-local, link-local,
  * multicast, site-local, or a mapped, compatible, NAT64 or 6to4 form of a
- * non-public IPv4 address. An unparseable address is non-public.
+ * non-public IPv4 address. An unparsable address is non-public.
  *
  * @param {string} address
  * @returns {boolean}
