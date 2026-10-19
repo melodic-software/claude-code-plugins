@@ -1733,7 +1733,7 @@ write "$case_dir/installed_plugins.json" '{
     "wsl-d@market1": [{"scope": "project", "projectPath": "/MNT/D/users/someone/", "installPath": "x", "version": "0.1.0"}],
     "linux@market1": [{"scope": "local", "projectPath": "/home/<user>", "installPath": "x", "version": "0.1.0"}],
     "mac@market1":   [{"scope": "project", "projectPath": "/Users/<user>", "installPath": "x", "version": "0.1.0"}],
-    "win@market1":   [{"scope": "project", "projectPath": "C:\\Users\\<user>", "installPath": "x", "version": "0.1.0"}],
+    "win@market1":   [{"scope": "project", "projectPath": "C:\\Users\\%USERNAME%", "installPath": "x", "version": "0.1.0"}],
     "envhome@market1": [{"scope": "project", "projectPath": "/srv/odd-home", "installPath": "x", "version": "0.1.0"}],
     "repo@market1":  [{"scope": "project", "projectPath": "/home/<user>/repos/app", "installPath": "x", "version": "0.1.0"}],
     "wslrepo@market1": [{"scope": "project", "projectPath": "/mnt/c/Users/someone/repos/app", "installPath": "x", "version": "0.1.0"}],
