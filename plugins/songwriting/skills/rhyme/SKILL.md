@@ -5,22 +5,17 @@ user-invocable: true
 disable-model-invocation: false
 ---
 
-**Arguments.** `[rhyme|mosaic|types|datamuse|worksheet|dictionary|strategy] [args]`. e.g., /songwriting:rhyme, /songwriting:rhyme mosaic "Texas", /songwriting:rhyme worksheet Full actions in body
+**Arguments.** `[rhyme|mosaic|types|datamuse|worksheet|dictionary|strategy] [args]`. e.g.,
+/songwriting:rhyme, /songwriting:rhyme mosaic "Texas", /songwriting:rhyme worksheet. Full actions
+in body.
 
 ## Mandatory pre-flight. Response Filter
 
 Before emitting any rhyme suggestion or rhyme list, run **§1 Rhyme suggestion filter** of
 [response-filter](../../context/pat-pattison/research/response-filter.md). NAME each box's
-pass / fail / skip-with-reason (aloud or in reasoning), correct before emission. Skips are valid;
+pass / fail / skip-with-reason (aloud or in reasoning); correct before emission. Skips are valid;
 silent skips are not. Without the filter, generic LLM defaults ship instead of Pat's craft:
 perfect rhymes, predictable end-lines, single-winner picks.
-
-## Purpose
-
-Rhyme choice, rhyme stability, rhyme types, family/additive/subtractive/assonance/consonance,
-mosaic (multi-word) rhyme, and rhyme worksheets. Internal Pat-framed generation is PRIMARY; the
-live Datamuse lookup supplements only for vocabulary breadth, syllable verification, or
-semantic-field mining.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
 author's method plugs in at `context/<author>/` without changing this skill, the author seam per
@@ -28,7 +23,8 @@ the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 
-`/songwriting:rhyme <action> [args]`. Parse `$ARGUMENTS`: first token = action when it matches a listed action, remainder = args; otherwise treat all of `$ARGUMENTS` as payload for the default.
+`/songwriting:rhyme <action> [args]`. Parse `$ARGUMENTS`: first token = action when it matches a
+listed action, remainder = args; otherwise treat all of `$ARGUMENTS` as payload for the default.
 No action → generate rhymes for the word/line in context (the `rhyme` default).
 
 | Action | Use when the user asks for | Load |
@@ -43,25 +39,24 @@ No action → generate rhymes for the word/line in context (the `rhyme` default)
 
 ## Handlers
 
-- **Pre-flight:** run response-filter §1 before any rhyme output.
 - Load [rhyme-generation](../../context/pat-pattison/research/rhyme-generation.md) FIRST for any
-  rhyme request. Apply the discipline. Identity check (pre-vowel consonants MUST differ; identity
-  is NOT rhyme), vowel-FIELD walk (Step 1b, the source word's own coda is ONE row of the field,
-  not the search), stability-tier walk, vowel triangle, song's-world vocabulary, cliche scan. To
-  internal vocabulary. Surface 8-15 labeled candidates across tiers, never a single winner.
-- Use [ai-tools](../../context/pat-pattison/research/ai-tools.md) (Datamuse) only as a supplement
-  for vocabulary breadth, syllable verification, or semantic-field mining. Internal generation is
-  PRIMARY; Datamuse supplements. The script degrades gracefully when `bash`/`curl`/`jq` are absent.
-- Proper nouns and polysyllabic/rare words are mosaic territory. Route to `mosaic`.
+  rhyme request and apply its discipline: identity check (pre-vowel consonants MUST differ;
+  identity is NOT rhyme), vowel-FIELD walk (Step 1b: the source word's own coda is ONE row of the
+  field, not the search), stability-tier walk, vowel triangle, song's-world vocabulary, cliche scan.
+  Surface 8-15 labeled candidates across tiers, never a single winner.
+- Internal generation is PRIMARY. Use [ai-tools](../../context/pat-pattison/research/ai-tools.md)
+  (Datamuse) only as a supplement for vocabulary breadth, syllable verification, or semantic-field
+  mining. The script degrades gracefully when `bash`/`curl`/`jq` are absent.
+- Proper nouns and polysyllabic/rare words are mosaic territory: route to `mosaic`.
 
 ## Persistence and template overrides
 
 Write generated files to the paths in
-[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)
-"Where generated work persists", and honor a consuming project's own songwriting layout when it
-defines one. Before loading any bundled `templates/<name>.md`, check
+[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md) "Where
+generated work persists", and honor a consuming project's own songwriting layout when it defines
+one. Before loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
-override wins over the bundled skill default, first match, per that file's "Template override".
+override wins over the bundled default, first match, per that file's "Template override".
 
 ## Boundary. What this skill must NOT emit
 
@@ -75,12 +70,12 @@ write the line the rhyme lands in.
 | A structural judgment about where the rhyme sits | `/songwriting:song-form` |
 | A claim that a candidate scans | `/songwriting:meter-prosody` |
 
-Three failures belong to this skill specifically and are caught nowhere downstream: a rhyme list
-that is all-perfect, all-single-word, and all-same-part-of-speech; a "mosaic" list whose entries
-reuse the source word with a prefix (identity in disguise); and a tier-labeled, mosaic-complete
-list whose every entry still sits on the source word's own coda, a column sweep, not a walk of
-the stressed vowel's field. §1 of the response filter names all three fail signatures. Run it
-rather than recalling it.
+Three failures belong to this skill and are caught nowhere downstream: a rhyme list that is
+all-perfect, all-single-word, and all-same-part-of-speech; a "mosaic" list whose entries reuse the
+source word with a prefix (identity in disguise); and a tier-labeled, mosaic-complete list whose
+every entry still sits on the source word's own coda, a column sweep, not a walk of the stressed
+vowel's field. §1 of the response filter names all three fail signatures. Run it rather than
+recalling it.
 
 ## Related skills
 

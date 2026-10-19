@@ -22,7 +22,10 @@
 #                       | dependency-security-close | dependency-escalate
 #                       | dependency-config-unreadable
 #                       | dependency-files-truncated
-#                       | dependency-control-uncited
+#                       | dependency-control-uncited | ci-fix-round-cap
+#                       | ci-fix-empty | ci-fix-invalid
+#                       | ci-fix-protected-path | ci-fix-not-applied
+#                       | ci-fix-escalated
 #   TRACKER_CONFIG      base .work-item-tracker.json
 #                       (default .base/.work-item-tracker.json)
 #   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
@@ -73,11 +76,18 @@ case ${ESCALATION_REASON:-} in
   dependency-config-unreadable) why='the lane could not read the base .github/dependabot.yml, so it does not mark this dependency update for merge' ;;
   dependency-files-truncated) why='the dependency review chose merge, but the files listing it read was cut short, so the lane does not mark this dependency update for merge' ;;
   dependency-control-uncited) why='the dependency review chose merge for a review-only dependency without quoting its control, so the lane does not mark it for merge' ;;
+  ci-fix-round-cap) why='the lane has pushed as many CI fixes to this pull request as its cap allows, and CI still fails' ;;
+  ci-fix-empty) why='the lane changed nothing that fixes the failing checks' ;;
+  ci-fix-invalid) why='the CI fix the lane wrote did not pass validation, so it was not pushed' ;;
+  ci-fix-protected-path) why='the CI fix changes .github/, which the lane does not push' ;;
+  ci-fix-not-applied) why='the CI fix did not apply to the head it was written for, so it was not pushed' ;;
+  ci-fix-escalated) why='the lane could not fix every failing check; its run log names each one and why' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
 esac
 case $ESCALATION_REASON in
   feedback-*) activity=address-feedback ;;
   dependency-*) activity=review-dependency ;;
+  ci-fix-*) activity=fix-ci ;;
   *) activity=resolve-conflicts ;;
 esac
 [[ ${PR_NUMBER:-} =~ ^[1-9][0-9]*$ ]] || die "PR_NUMBER is not a pull request number"

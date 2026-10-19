@@ -25,6 +25,10 @@
 #   paths.exclude       glob relative to <root>, normalized; wins over include
 #   adapter_dirs        absolute directory of consumer adapters (a leading ~/
 #                       is $HOME)
+#   project_kinds       `<glob>=<kind>`: the kind (unit, integration, functional,
+#                       architecture, live or operational) of a C# test project
+#                       whose repo-relative .csproj path the glob matches; the
+#                       first match wins. Quote an entry that starts with *.
 #   extend.<id>.<field> one item appended to that adapter's list field
 #   rules.<slug>        off | warn | error (test-weaken-block: the test-weaken
 #                       hook denies an added skip or a removed test at error)

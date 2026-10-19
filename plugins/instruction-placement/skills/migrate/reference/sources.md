@@ -356,16 +356,12 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   the import depth limit in
   [memory § Import additional files](https://code.claude.com/docs/en/memory#import-additional-files),
   the same limit `scripts/lib/discover.sh` `_ip_reaches` encodes. Condition F's per-session
-  plugins, from [plugins/create](https://code.claude.com/docs/en/plugins/create) "Develop without
-  a marketplace" (fetched 2026-10-01, 25,706 bytes, first heading "Create a Claude Code plugin",
-  slug in `llms.txt`; the `plugins` page, which has no "Test your plugins locally" heading on this
-  date, sends `--plugin-dir` readers there): "You can
-  load a plugin for a single session in three ways: from a directory or `.zip` archive on disk
-  with `--plugin-dir`, from a URL with `--plugin-url`, or from an environment variable", namely
-  `CLAUDE_CODE_PLUGIN_DIRS`, and "Each plugin loads for that session only, and nothing is written
-  to your settings for it", which is why no settings read finds them; and "Claude Code loads any
-  folder there [`~/.claude/skills/`] that contains a `.claude-plugin/plugin.json` as a plugin in
-  every session, with no flag and no install step". The user roots, from
+  plugins are ones no settings read finds, and so are plugins that load from the personal skills
+  directory in every session with no flag and no install step. Pointer: when deciding which ways
+  a plugin loads for one session or without an install, fetch
+  [plugins/create: develop without a marketplace](https://code.claude.com/docs/en/plugins/create#develop-without-a-marketplace)
+  live. As of: 2026-10-18. Recheck trigger: that section changes the ways a plugin loads for one
+  session or without an install, or starts recording such a plugin in settings. The user roots, from
   [env-vars](https://code.claude.com/docs/en/env-vars) (fetched 2026-10-01, 158,869 bytes):
   `CLAUDE_CONFIG_DIR` "Override the configuration directory (default: `~/.claude`). All settings,
   session history, and plugins are stored under this path. ... Set it in your shell, user

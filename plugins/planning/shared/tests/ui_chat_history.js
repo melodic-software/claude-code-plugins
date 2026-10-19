@@ -96,8 +96,18 @@ async function main() {
       return li.getBoundingClientRect().top;
     });
     ok("scrolling to the top loads the oldest messages by itself", await until(gus, n => document.querySelectorAll(".vf-mlist > .vf-msg").length === n, SEEDED), String(await msgCount(gus)));
-    await gus.waitForTimeout(500);
-    const after = await gus.evaluate(() => [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x.textContent.includes("Seeded message 21")).getBoundingClientRect().top);
+    // Read once the message holds still for 250 ms of frames (5 s at most): the load moves it, and the page puts it back.
+    const after = await gus.evaluate(() => new Promise(res => {
+      const top = () => [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x.textContent.includes("Seeded message 21")).getBoundingClientRect().top;
+      const t0 = performance.now();
+      let last = top(), since = t0;
+      const f = now => {
+        const v = top();
+        if (v !== last) { last = v; since = now; }
+        if (now - since >= 250 || now - t0 > 5000) res(v); else requestAnimationFrame(f);
+      };
+      requestAnimationFrame(f);
+    }));
     ok("the message the reader was looking at stays where it was", Math.abs(after - before) <= 4, `${before} -> ${after}`);
     ok("at the start of the chat no Load earlier row is left", await gus.evaluate(() => !document.querySelector(".vf-mlist > .vf-mgap")));
 

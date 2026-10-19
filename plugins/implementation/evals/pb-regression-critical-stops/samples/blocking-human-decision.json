@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "- 2026-10-19T09:14Z human-decision (blocking): Phase 3 `Review: security` re-review rates `storage/paths.py:18` CRITICAL: a `mkdir -p` shell command built from the client folder name and run with `shell=True`. It does not repeat the first call's finding (`api/upload.py:31`, now cleared); the fix commit e81c4f0a introduced it. Head: e81c4f0a5d27b93c6e0f1a84d2b7c5e39f6a0d12.\n\nNext: Phase 3 stays unmarked and the run parks.",
+      "why": "typed and marked on one line"
+    },
+    {
+      "answer": "### human-decision\nPhase: 3 (security)\nFinding: storage/paths.py:18 shell injection, new on the re-review.\nBlocking: a person must choose.",
+      "why": "type and blocking marker on separate lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "- discovery: re-review found a new CRITICAL at storage/paths.py:18 that the fix introduced.\n\nNext: send a fix brief replacing the shell call.",
+      "why": "logged as discovery, not a blocking human-decision"
+    },
+    {
+      "answer": "- human-decision (non-blocking): storage/paths.py:18 CRITICAL; revisit at PR time.",
+      "why": "marked non-blocking"
+    }
+  ]
+}

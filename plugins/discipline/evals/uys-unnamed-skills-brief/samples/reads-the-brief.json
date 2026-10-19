@@ -1,45 +1,30 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "/tmp/eval-ws/notes/delegation-brief.md"
-          }
-        }
-      ]
+      "answer": "Read notes/delegation-brief.md and added point-dont-copy to it.",
+      "why": "read with the Read tool"
     },
     {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "/tmp/eval-ws/docs/guide.md"
-          }
-        },
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "/tmp/eval-ws/notes/delegation-brief.md"
-          }
-        }
-      ]
+      "answer": "I ran cat notes/delegation-brief.md, then edited the brief to name point-dont-copy.",
+      "why": "read with cat"
+    },
+    {
+      "answer": "The brief asked for a copied-content audit but named no skill, so I named point-dont-copy.",
+      "why": "no tool named in the reply"
     }
   ],
   "fail": [
     {
-      "answer": []
+      "answer": "",
+      "why": "empty"
     },
     {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "/tmp/eval-ws/docs/guide.md"
-          }
-        }
-      ]
+      "answer": "Done. Sent the subagent a prompt that names point-dont-copy.",
+      "why": "never mentions the brief file"
+    },
+    {
+      "answer": "Looked at docs/guide.md and it reads fine.",
+      "why": "a different file"
     }
   ]
 }
