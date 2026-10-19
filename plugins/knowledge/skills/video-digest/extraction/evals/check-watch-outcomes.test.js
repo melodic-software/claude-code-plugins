@@ -258,4 +258,59 @@ describe("checkWatchOutcomes session gates", () => {
     expect(check?.pass).toBe(false);
     expect(check?.actual).toBe("missing: Closing");
   });
+
+  const twoSessions = [
+    "## 1. Opening",
+    "**Boundary:** [0:00] start → [5:00] main",
+    "",
+    "## 2. Closing",
+    "**Boundary:** [5:00] main → [10:00] end",
+    "",
+  ].join("\n");
+
+  it("passes both gates for a session with no frame but a talking-head-only gap row", () => {
+    const slice = makeSessionSlice(twoSessions);
+    fs.writeFileSync(
+      path.join(slice, "key-frames", "visual-gaps.md"),
+      "| Kind | Session | Note |\n| --- | --- | --- |\n| talking-head-only | Closing | webcam only |\n",
+    );
+    for (const id of ["session-visual-coverage", "session-synthesis-depth"]) {
+      expect(sessionCheck(slice, id)?.pass).toBe(true);
+    }
+  });
+
+  it("passes both gates when every session carries a talking-head-only row and no frame exists", () => {
+    const slice = makeSessionSlice(twoSessions);
+    fs.writeFileSync(
+      path.join(slice, "key-frames", "selection.json"),
+      JSON.stringify({ durationSec: 600, selectedFrames: [] }),
+    );
+    fs.rmSync(path.join(slice, "key-frames", "frames", "0001.png"));
+    fs.writeFileSync(
+      path.join(slice, "key-frames", "visual-gaps.md"),
+      "| talking-head-only | Opening | webcam |\n| talking-head-only | closing | webcam |\n",
+    );
+    for (const id of ["session-visual-coverage", "session-synthesis-depth"]) {
+      expect(sessionCheck(slice, id)?.pass).toBe(true);
+    }
+  });
+
+  it("credits only the session cell of a row whose first cell is talking-head-only", () => {
+    const slice = makeSessionSlice(twoSessions);
+    fs.writeFileSync(
+      path.join(slice, "key-frames", "visual-gaps.md"),
+      "| talking-head-only | Opening | Closing |\n| ~8m | Closing | talking-head-only |\n",
+    );
+    expect(sessionCheck(slice, "session-visual-coverage")?.actual).toBe("missing: Closing");
+  });
+
+  it("still fails both gates for a frameless session with no talking-head-only row", () => {
+    const slice = makeSessionSlice(twoSessions);
+    fs.writeFileSync(
+      path.join(slice, "key-frames", "visual-gaps.md"),
+      "| ~5m (300.0-312.4s) | no promoted frame |\n| talking-head-only | Opening | webcam |\n",
+    );
+    expect(sessionCheck(slice, "session-visual-coverage")?.actual).toBe("missing: Closing");
+    expect(sessionCheck(slice, "session-synthesis-depth")?.pass).toBe(false);
+  });
 });

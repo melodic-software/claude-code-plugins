@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "lint-repo: fixed"
+    },
+    {
+      "answer": "Removed the spaces inside the code span in docs/guide.md and reran the check.\n\n`lint-repo: fixed`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "lint-repo: escalated unfixed the span could not be fixed"
+    },
+    {
+      "answer": "The markdown lint is fixed.",
+      "why": "not the report line"
+    }
+  ]
+}

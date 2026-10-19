@@ -1,0 +1,10 @@
+{
+  "source": "DEFAULTS in the prototype page's core.js (.work/shared-interview-proto/web/core.js, 2026-10-16): the state its script renders before its first poll, and what each poll's answer is spread over ({...DEFAULTS, ...answer}).",
+  "defaults": {
+    "questions": [], "answers": {}, "ideas": [], "presence": [], "locks": {}, "suggestions": {}, "chat": [], "leaders": [], "trusted": [],
+    "round": {"current": 1, "status": "open"}, "title": "", "people": {}, "research": {}, "requestCounts": {"open": 0, "byQ": {}}, "requests": [],
+    "myRequests": [], "ended": null, "youRemoved": false, "removed": [], "guestKey": "", "shareChanged": false,
+    "v": 0, "goal": "", "uploads": [], "myUploads": [], "mergeRequests": [], "myMergeRequests": [], "me": null,
+    "settings": {"voting": true, "signoff": false, "chat": true, "follow": true, "showNames": true, "digestNames": false, "uploads": false}
+  }
+}
