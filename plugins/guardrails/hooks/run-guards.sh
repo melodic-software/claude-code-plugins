@@ -875,10 +875,8 @@ RUN_GUARDS_UNWOUND=0
 # this way; that is the function above. Never returns.
 # shellcheck disable=SC2329  # invoked through _GAB_CONTINUE by the trap handler
 run_guards::guard_died() {
-  RUN_GUARDS_DYING=1
   run_guards::guard_done "$1"
 }
-RUN_GUARDS_DYING=0
 
 # run_guards::record <rc>: the guard at RUN_GUARDS_CUR ended with <rc>. Applies
 # its abort boundary (when it installed one: a stub that never called
@@ -916,6 +914,7 @@ RUN_GUARDS_MAX_DEPTH=64
 
 # run_guards::guard_done <rc>: record the guard that died of a hard error and
 # run the rest. Never returns.
+# shellcheck disable=SC2329  # invoked by run_guards::guard_died, itself invoked through _GAB_CONTINUE
 run_guards::guard_done() {
   run_guards::record "$1"
   ((RUN_GUARDS_OVERLONG && RC == 2)) && run_guards::finish
@@ -1000,7 +999,6 @@ run_guards::run_rest() {
     # shellcheck disable=SC2030  # the subshell's own OUTS and RC come back on its stdout
     __rg_rest=$(
       RUN_GUARDS_PID=$BASHPID
-      RUN_GUARDS_DYING=0
       RUN_GUARDS_REPORT=1
       OUTS=()
       RC=0
