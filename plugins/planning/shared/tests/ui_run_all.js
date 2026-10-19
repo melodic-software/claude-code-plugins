@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// The owner's review view (the Inbox's Waiting on you) shows a started run at once, against `share.sh ensure-running` with the fake cloudflared.
+// The owner's Inbox (Needs you) shows a started run at once, against `share.sh ensure-running` with the fake cloudflared.
 // Four guests each ask Claude on a question; every /api/request/act call of the owner's page waits 600 ms first, as
-// over a quick tunnel. After Run all shown, every started row must read "Running" with no Run button left enabled,
-// and Run all must be hidden, in under 100 ms and still so once the server answers. The same holds for one row's Run.
+// over a quick tunnel. After Run all shown, every started request must read running with its row gone from Needs you,
+// so no Run button is left to press, and Run all must be hidden, in under 100 ms and still so once the server answers.
+// The same holds for one row's Run.
 // A refused run rolls the rows back to waiting, with Run all back, and shows the refusal's own sentence.
 //   node plugins/planning/shared/tests/ui_run_all.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
@@ -35,14 +36,15 @@ function helpers() {
     };
     tick();
   });
-  /** The queue rows whose text holds one of `texts`: each one's status line and whether its Run button can be pressed. */
-  window.__rows = texts => [...document.querySelectorAll(".vf-ritem")].filter(li => texts.some(t => li.textContent.includes(t))).map(li => {
+  /** The Needs you rows whose text holds one of `texts`: each one's status line and whether its Run button can be pressed. */
+  window.__rows = texts => [...document.querySelectorAll(".vf-ibneeds .vf-ritem")].filter(li => texts.some(t => li.textContent.includes(t))).map(li => {
     const run = [...li.querySelectorAll(".vf-acts button")].find(b => b.textContent === "Run"), stat = li.querySelector(".vf-rstat");
     return { status: stat && !stat.hidden ? stat.textContent : "", runEnabled: !!run && !run.hidden && !run.disabled };
   });
   window.__runAll = () => [...document.querySelectorAll("button")].find(b => b.textContent.startsWith("Run all shown"));
-  /** Every row of `texts` is shown as running with no Run button to press, and Run all is hidden. */
-  window.__started = texts => { const rows = window.__rows(texts); return rows.length === texts.length && rows.every(r => r.status.startsWith("Running") && !r.runEnabled) && window.__runAll()?.hidden === true; };
+  /** Every request of `texts` reads running, none is left in Needs you to Run, and Run all is hidden. */
+  window.__started = texts => texts.every(t => window.Core.state.requests.find(r => r.text === t)?.status === "running")
+    && window.__rows(texts).every(r => !r.runEnabled) && window.__runAll()?.hidden === true;
   /** Every row of `texts` is waiting with its Run button enabled, and Run all is shown. */
   window.__waiting = texts => { const rows = window.__rows(texts); return rows.length === texts.length && rows.every(r => !r.status && r.runEnabled) && window.__runAll()?.hidden === false; };
 }
@@ -66,8 +68,8 @@ async function main() {
     await ask("Di", "Q1", DI);
     await ask("Ev", "Q2", EV);
     await until(owner, () => (window.Core.state.requests || []).filter(r => r.status === "pending").length === 4);
-    await owner.click(".vf-bell"); // the review view: the Inbox's Waiting on you
-    await owner.locator("button.vf-seg-btn", { hasText: "Waiting on you" }).click();
+    await owner.click(".vf-bell"); // the Inbox page, on Needs you
+    await owner.click(".vf-ixtabs [data-k=needs]");
     const shown = texts => until(owner, t => window.__waiting(t), texts);
     ok("the queue lists the waiting requests, each with Run, and Run all shown", await shown([BO, CY, DI, EV]),
       await owner.evaluate(t => JSON.stringify(window.__rows(t)), [BO, CY, DI, EV]));
@@ -80,22 +82,20 @@ async function main() {
     // ---------- a refused Run all rolls back with the refusal's own sentence ----------
     await owner.route("**/api/request/act", route => setTimeout(() => route.fulfill({ status: 409, contentType: "application/json",
       body: JSON.stringify({ ok: false, error: "wrong-status", message: REFUSAL, status: "not-pending" }) }).catch(() => {}), DELAY), { times: 1 });
-    fast("a refused Run all still shows every row running and hides Run all", await owner.evaluate(t => window.__time(() => window.__runAll().click(), () => window.__started(t)), [BO, CY, DI, EV]));
+    fast("a refused Run all still shows every request running and hides Run all", await owner.evaluate(t => window.__time(() => window.__runAll().click(), () => window.__started(t)), [BO, CY, DI, EV]));
     ok("then the rows roll back to waiting, Run all comes back, and the refusal shows", await until(owner, ([t, msg]) => window.__waiting(t)
       && (document.querySelector(".vf-toast")?.textContent || "").includes(msg), [[BO, CY, DI, EV], REFUSAL]),
       await owner.evaluate(t => `${JSON.stringify(window.__rows(t))} | ${document.querySelector(".vf-toast")?.textContent}`, [BO, CY, DI, EV]));
     ok("  and nothing ran on the server", await owner.evaluate(() => window.Core.snapshot().requests.every(r => r.status.kind === "pending")));
 
     // ---------- one row's Run ----------
-    fast("one row's Run shows that row running", await owner.evaluate(t => window.__time(() => [...document.querySelectorAll(".vf-ritem")]
-      .find(li => li.textContent.includes(t)).querySelector(".vf-acts button.vf-btn-primary").click(), () => {
-      const [r] = window.__rows([t]); return r?.status.startsWith("Running") && !r.runEnabled;
-    }, 8000, 2000), DI));
+    fast("one row's Run shows that request running, its row gone from Needs you", await owner.evaluate(t => window.__time(() => [...document.querySelectorAll(".vf-ibneeds .vf-ritem")]
+      .find(li => li.textContent.includes(t)).querySelector(".vf-acts button.vf-btn-primary").click(), () => window.__started([t]) || (window.Core.state.requests.find(r => r.text === t)?.status === "running" && !window.__rows([t]).length), 8000, 2000), DI));
     ok("  and the server has it running", await until(owner, t => window.Core.snapshot().requests.find(r => r.text === t)?.status.kind === "running", DI));
 
     // ---------- Run all ----------
     await until(owner, t => window.__waiting(t), [BO, CY, EV]);
-    fast("Run all shows every started row running and hides Run all", await owner.evaluate(t => window.__time(() => window.__runAll().click(), () => window.__started(t), 8000, 3000), [BO, CY, EV]));
+    fast("Run all shows every started request running and hides Run all", await owner.evaluate(t => window.__time(() => window.__runAll().click(), () => window.__started(t), 8000, 3000), [BO, CY, EV]));
     ok("  and the server has all of them running", await until(owner, () => window.Core.snapshot().requests.every(r => r.status.kind === "running")),
       await owner.evaluate(() => window.Core.snapshot().requests.map(r => r.status.kind).join()));
     ok("  and Run all stays hidden with nothing waiting", await owner.evaluate(() => window.__runAll()?.hidden === true));

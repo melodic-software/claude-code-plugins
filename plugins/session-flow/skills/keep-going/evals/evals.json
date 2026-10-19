@@ -169,6 +169,22 @@
         "Hands back by invoking /session-flow:handoff and stops, not busy-waiting",
         "Lists the worker in the report with its partial-work evidence"
       ]
+    },
+    {
+      "id": 14,
+      "name": "account-changed-across-rate-limit-stop",
+      "prompt": "keep going — we hit the usage limit earlier (\"resets 3:45pm\"); the handoff recorded the account as work@example.com. I switched accounts before resuming, and `claude auth status` now reports the identifying field personal@example.com. Is the limit still on?",
+      "expected_output": "The skill reads the active account from `claude auth status`, takes the account at the stop from the stop entry or handoff, and reports both with their sources. They differ, so it states the account changed and does not read the captured 3:45pm message against the current account; it takes a live reading of the current account instead, and asks the operator if none is obtainable. It never concludes still-blocked from the old message and does not switch accounts.",
+      "files": [],
+      "expectations": [
+        "Reads the active account's identity from `claude auth status` and names the source of each reading",
+        "Names the account at the time of the stop and where that came from",
+        "States changed, unchanged, or unknown explicitly, here changed",
+        "Does not read the captured limit message against the current account, and does not conclude still-blocked from it",
+        "Uses a live reading of the current account, or asks the operator when none is obtainable",
+        "When `claude auth status` cannot be read or is ambiguous, states unknown and asks the operator rather than guessing",
+        "Does not switch accounts or drive account rotation"
+      ]
     }
   ]
 }
