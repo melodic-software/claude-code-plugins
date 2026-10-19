@@ -74,8 +74,10 @@ model. On a new comment on an open issue, not a pull request, it acts on a `stat
 issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
 trusted-actors list, not posted through an App, unedited or last edited by a listed human), or on a
 `status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
-status label, and `needs-human` for a decision, adds `needs-triage` and dispatches
-`intake-triage.yml` once; a dispatch skips the born-triaged check. Removing the status label is the
+status label, and `needs-human` for a decision, and adds `needs-triage`. It dispatches
+`intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
+or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
+cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
 claim, so a second answer dispatches nothing. It never adds `agent-ready`, and it holds the job's
 own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
 

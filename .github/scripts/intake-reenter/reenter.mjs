@@ -8,7 +8,8 @@
 // - `status: needs-info` and a comment by the issue's author or a listed
 //   human, not posted through an App: remove `status: needs-info`;
 //
-// then add `needs-triage` and dispatch intake-triage.yml once. Anything else
+// then add `needs-triage` and dispatch intake-triage.yml once, only for an
+// issue whose author intake admits (a listed human or the lanes App). Anything else
 // changes nothing. It never adds `agent-ready`. Removing the status label is
 // the claim: when GitHub answers 404 another run already took it, so a second
 // answer, or a racing run, dispatches nothing. Every fact is read from the API;
@@ -113,6 +114,14 @@ export async function main({ env = process.env, github, log = console.log } = {}
     await client("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
     if (kind === "decision") {
       await removeLabel(client, base, NEEDS_HUMAN);
+    }
+    // Intake admits an issue only from a listed human or the lanes App; any
+    // other issue waits in needs-triage for a person, so its author cannot
+    // start a model run with each reply.
+    const author = issue.user?.id;
+    if (!(humans.has(author) || (lanesAppId !== null && author === lanesAppId))) {
+      log(`intake-reenter: removed ${status}, added ${NEEDS_TRIAGE}; the author is not one intake admits, so nothing dispatched`);
+      return 0;
     }
     await client("POST", `/repos/${repository}/actions/workflows/${WORKFLOW}/dispatches`, {
       ref: "main",

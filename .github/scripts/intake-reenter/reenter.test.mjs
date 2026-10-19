@@ -2,9 +2,10 @@
 // listed human's `**Decision recorded.**` first line on a
 // `status: needs-decision` issue, or the author's or a listed human's reply
 // on a `status: needs-info` issue, removes that status label (and
-// `needs-human` for a decision), adds `needs-triage` and dispatches
-// intake-triage.yml once with the issue number; anything else changes
-// nothing, and `agent-ready` is never added.
+// `needs-human` for a decision) and adds `needs-triage`; it dispatches
+// intake-triage.yml once with the issue number only when the issue's author is
+// one intake admits on open (a listed human or the lanes App). Anything else
+// changes nothing, and `agent-ready` is never added.
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -40,7 +41,7 @@ writeFileSync(
 // One issue with its comments. `editors` maps a comment id to its last
 // editor's id; `author` opened the issue; `gone` names labels GitHub answers 404 for on removal (a run
 // that already took them).
-function world({ labels, author = AUTHOR, state = "open", pullRequest = false, comments, editors = {}, gone = [] }) {
+function world({ labels, author = OWNER, state = "open", pullRequest = false, comments, editors = {}, gone = [] }) {
   const current = new Set(labels);
   const writes = [];
   const base = `/repos/${REPO}/issues/${NUMBER}`;
@@ -120,10 +121,28 @@ test("a listed human's decision on a needs-decision issue sends it back to triag
   expectDispatched(w);
 });
 
-test("the issue author's reply on a needs-info issue sends it back to triage", async () => {
-  const w = world({ labels: ["status: needs-info", "needs-human"], comments: [{ id: 1, user: AUTHOR, body: "Here is the log." }] });
+test("the outside author's reply on a needs-info issue moves it to needs-triage without a model run", async () => {
+  const w = world({
+    labels: ["status: needs-info", "needs-human"],
+    author: AUTHOR,
+    comments: [{ id: 1, user: AUTHOR, body: "Here is the log." }],
+  });
   assert.equal(await run(w, 1), 0);
   assert.deepEqual(w.labels(), ["needs-human", "needs-triage"]);
+  assert.equal(w.dispatches().length, 0);
+});
+
+test("a decision on an outside author's issue moves it to needs-triage without a model run", async () => {
+  const w = world({ labels: ["status: needs-decision", "needs-human"], author: AUTHOR, comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["needs-triage"]);
+  assert.equal(w.dispatches().length, 0);
+});
+
+test("a decision on a lanes App issue sends it back to triage", async () => {
+  const w = world({ labels: ["status: needs-decision"], author: LANES_APP, comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["needs-triage"]);
   expectDispatched(w);
 });
 
@@ -153,7 +172,7 @@ const quiet = [
   ["an issue without the status label", { labels: ["needs-human"], comments: [{ id: 1, user: OWNER, body: DECISION }] }],
   ["a closed issue", { labels: ["status: needs-decision"], state: "closed", comments: [{ id: 1, user: OWNER, body: DECISION }] }],
   ["a pull request", { labels: ["status: needs-decision"], pullRequest: true, comments: [{ id: 1, user: OWNER, body: DECISION }] }],
-  ["a stranger's reply on a needs-info issue", { labels: ["status: needs-info"], comments: [{ id: 1, user: STRANGER, body: "Me too." }] }],
+  ["a stranger's reply on a needs-info issue", { labels: ["status: needs-info"], author: AUTHOR, comments: [{ id: 1, user: STRANGER, body: "Me too." }] }],
 ];
 
 for (const [name, setup] of quiet) {

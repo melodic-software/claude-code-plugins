@@ -4,7 +4,8 @@ name: intake-reenter
 # `**Decision recorded.**` comment on a `status: needs-decision` issue, or the
 # author's or a listed human's reply on a `status: needs-info` issue, takes
 # the status label off (and `needs-human`, for a decision), adds
-# `needs-triage`, and dispatches intake-triage.yml once. It never adds
+# `needs-triage`, and dispatches intake-triage.yml once when intake admits
+# the issue's author (a listed human or the lanes App). It never adds
 # `agent-ready`. The rules are in .github/scripts/intake-reenter/reenter.mjs.
 #
 # No model and no App token: the job's GITHUB_TOKEN edits labels and starts
