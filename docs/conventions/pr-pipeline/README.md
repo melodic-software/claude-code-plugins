@@ -349,6 +349,22 @@ activity in a trailer. A verdict is bound to the commit it judged and is not reu
 When an activity needs a human, it escalates with a resume key and exits instead of blocking. An
 activity whose `labels-absent` lists `needs-human` or `do-not-merge` skips with `awaiting-human`
 while that label is on the PR; a human removes the label, then dispatches the lane, to resume it.
+
+A pr-unblock escalation whose reason repository state can settle is also cleared without a
+person. On its schedule, `pr-merge` rechecks each open PR into main carrying the human-gated
+label and removes it, after one comment naming the reason and the head, when the reason recorded
+in the lanes App's newest escalation comment no longer holds at the current head:
+
+| Reason | Cleared when |
+|---|---|
+| `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head |
+| `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
+| `feedback-protected-path` | the PR changes nothing under `.github/` |
+
+It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
+when an account other than a bot commented or reviewed after the escalation. Every other reason
+(`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
+`ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
 `labels-absent` reads only whether a label is present, not who set or removed it: it is a hold, not
 a trust gate. An expedite label from a human with write access skips
 `refine`. A label counts only when the actor on its label event is a trusted human: a label the App
