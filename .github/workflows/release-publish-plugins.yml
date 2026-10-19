@@ -11,7 +11,7 @@ name: release-publish-plugins
 # request that GITHUB_TOKEN opens or updates starts no `pull_request` runs, and
 # the release pull request needs `ci-status`. The commit goes through the GraphQL
 # createCommitOnBranch mutation, which GitHub signs, so main's
-# required_signatures rule accepts it (the pattern of pr-bump-plugin-version.yml).
+# required_signatures rule accepts it.
 #
 # A scheduled run, and a push of a fragment to main, run `merge`: it queues a
 # release pull request that is current and green, rebuilds one that is stale,

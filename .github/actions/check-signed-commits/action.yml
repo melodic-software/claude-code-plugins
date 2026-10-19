@@ -21,7 +21,7 @@ inputs:
   github-token:
     description: >
       Token that can read the PR and its commits, add a label and comment
-      (the lane's App token).
+      (the report job's GITHUB_TOKEN; the writes need issues: write).
     required: true
   escalation-label:
     description: Label added on an unverified commit, only if it already exists.

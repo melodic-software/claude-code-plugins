@@ -160,10 +160,9 @@ roots put personal learning state in a shared repo (an explicit rung-1 team choi
 
 ## Pre-computed Context
 
-Gather with one Bash call. Keep `$`-expansion off this line: a worktree-isolated agent refused it
-here (probe: [#1687](https://github.com/melodic-software/claude-code-plugins/issues/1687), as of
-2026-08-12; recheck trigger: a worktree-isolated session loads a pre-compute line that expands a
-variable). And `${user_config.*}` tokens must NEVER appear on this line: a surviving literal is a
+Gather with one Bash call. Keep `$`-expansion off this line; `/source-control:worktree` owns the
+accepted shapes, under "Accepted command shapes for body-time and subagent Bash".
+And `${user_config.*}` tokens must NEVER appear on this line: a surviving literal is a
 bash `bad substitution` that kills the whole call before any fallback (**Pointer**: when deciding
 whether a saved value is substituted in skill content, fetch
 <https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value> and

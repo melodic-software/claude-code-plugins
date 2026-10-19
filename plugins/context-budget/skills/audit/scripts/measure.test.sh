@@ -811,6 +811,42 @@ else
   fail "attribute (noprefix scenario) exited nonzero"
 fi
 
+# --- snapshot --measure-only ------------------------------------------------
+# Read-only consumer mode: with the SDK absent it exits 4 (distinct from the
+# degradation code 3), does not fall back to cli-parse, offers no install, and
+# leaves the data dir and working dir untouched. Run from $WORK, where the SDK
+# does not resolve and the fake binary would satisfy a cli-parse fallback.
+MO_DATA="$WORK/mo-data"
+mkdir -p "$MO_DATA/sub"
+printf 'keep\n' >"$MO_DATA/sub/f.txt"
+tree_hash() { (cd "$1" && find . -type f ! -name mo-out.json -exec sha256sum {} + | sort | sha256sum); }
+mo_data_before="$(tree_hash "$MO_DATA")"
+mo_work_before="$(tree_hash "$WORK")"
+mo_out="$WORK/mo-out.json"
+(cd "$WORK" && FAKE_MODE=control node "$ENGINE" snapshot --measure-only --binary "$FAKE" --sdk-dir "$MO_DATA/sdk" >"$mo_out" 2>/dev/null)
+mo_rc=$?
+assert_eq "$mo_rc" "4" "measure-only exits 4 when the SDK is absent" "measure-only SDK-absent exit code wrong"
+assert_eq "$(jsonget "$mo_out" 'j.error')" "sdk-absent" \
+  "measure-only reports sdk-absent" "measure-only did not report sdk-absent"
+assert_eq "$(jsonget "$mo_out" 'j.categories === undefined')" "true" \
+  "measure-only does not fall back to a cli-parse measurement" "measure-only fell back to cli-parse"
+assert_eq "$(jsonget "$mo_out" '/npm install/.test(j.remediation)')" "false" \
+  "measure-only offers no install command" "measure-only remediation offers an install"
+assert_eq "$(tree_hash "$MO_DATA")" "$mo_data_before" \
+  "measure-only leaves the data dir byte-identical" "measure-only changed the data dir"
+assert_eq "$(tree_hash "$WORK")" "$mo_work_before" \
+  "measure-only wrote no file anywhere under the work dir" "measure-only wrote a file"
+assert_exit 2 "measure-only refuses --out" "measure-only accepted --out" \
+  node "$ENGINE" snapshot --measure-only --out "$WORK/mo-should-not-exist.json"
+assert_exit 2 "measure-only refuses --deny" "measure-only accepted --deny" \
+  node "$ENGINE" snapshot --measure-only --deny AlphaTool
+assert_exit 2 "measure-only refuses --label" "measure-only accepted --label" \
+  node "$ENGINE" snapshot --measure-only --label x
+mo_err="$(cd "$WORK" && node "$ENGINE" snapshot --measure-only --binary "$FAKE" --sdk-dir "$MO_DATA/sdk" 2>&1 >/dev/null)"
+assert_eq "$(printf '%s\n' "$mo_err" | wc -l | tr -d ' ')" "1" \
+  "measure-only prints a one-line message on stderr" "measure-only stderr message is not one line"
+if [[ -e "$WORK/mo-should-not-exist.json" ]]; then fail "measure-only --out wrote a file"; else ok "measure-only --out wrote nothing"; fi
+
 # --- summary ---------------------------------------------------------------
 
 echo
