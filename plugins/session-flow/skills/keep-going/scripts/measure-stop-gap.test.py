@@ -62,6 +62,42 @@ class MeasureStopGapTests(unittest.TestCase):
         self.assertEqual(data["stop_at"], data["last_assistant"])
         self.assertEqual(data["gap"], "1d 1h 1m 1s")
 
+    def test_resumed_turn_error_entry_does_not_move_the_stop(self) -> None:
+        result = self.run_on(
+            [
+                _entry("user", "2026-10-18T08:00:00Z"),
+                _entry("assistant", "2026-10-18T09:00:00Z"),
+                _entry("assistant", "2026-10-18T09:05:00Z", isApiErrorMessage=True),
+                _entry("user", "2026-10-18T15:00:00Z"),
+                _entry("assistant", "2026-10-18T15:00:05Z"),
+                _entry("system", "2026-10-18T15:00:10Z", level="error"),
+            ],
+            "2026-10-18T15:05:00Z",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data["last_assistant"], "2026-10-18T09:00:00+00:00")
+        self.assertEqual(data["limit_or_error"], "2026-10-18T09:05:00+00:00")
+        self.assertEqual(data["stop_at"], "2026-10-18T09:05:00+00:00")
+        self.assertEqual(data["gap_seconds"], 6 * 3600)
+
+    def test_resumed_turn_without_error_entry_is_ignored(self) -> None:
+        result = self.run_on(
+            [
+                _entry("user", "2026-10-18T08:00:00Z"),
+                _entry("assistant", "2026-10-18T09:00:00Z"),
+                _entry("assistant", "2026-10-18T09:05:00Z", isApiErrorMessage=True),
+                _entry("user", "2026-10-18T15:00:00Z"),
+                _entry("assistant", "2026-10-18T15:00:20Z"),
+            ],
+            "2026-10-18T15:05:00Z",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data["last_assistant"], "2026-10-18T09:00:00+00:00")
+        self.assertEqual(data["stop_at"], "2026-10-18T09:05:00+00:00")
+        self.assertEqual(data["gap_seconds"], 6 * 3600)
+
     def test_empty_file_exits_nonzero(self) -> None:
         result = self.run_on([], "2026-10-18T10:00:00Z")
         self.assertEqual(result.returncode, 2)
