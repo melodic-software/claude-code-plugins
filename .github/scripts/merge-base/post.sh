@@ -188,14 +188,18 @@ workflows_are_base_own() {
   ((found)) || return 1
   # ls-tree --format quotes paths even with -z, so reshape its default
   # "<mode> <type> <oid>\t<path>" records into ls-files -s form.
+  g ls-tree -r -z "$base" -- .github/workflows/ >"$tmp/base-tree" || return 1
   while IFS= read -r -d '' record; do
     read -r mode _ oid <<<"${record%%$'\t'*}"
     printf '%s %s 0\t%s\0' "$mode" "$oid" "${record#*$'\t'}"
-  done < <(g ls-tree -r -z "$base" -- .github/workflows/) >"$tmp/workflows-base"
+  done <"$tmp/base-tree" >"$tmp/workflows-base" || return 1
+  # The security gate: the pushed workflows are byte for byte the base's. The
+  # merge-base diff alone misses a PR edit carried in by rename detection.
   cmp -s "$tmp/workflows-base" "$tmp/workflows-after" || return 1
+  g ls-tree -r -z --name-only "$head" -- .github/workflows/ >"$tmp/head-workflows" || return 1
   while IFS= read -r -d '' path; do
     g cat-file -e "$base:$path" 2>/dev/null || return 1
-  done < <(g ls-tree -r -z --name-only "$head" -- .github/workflows/)
+  done <"$tmp/head-workflows"
 }
 g diff-index --cached --quiet "$head" -- .github/workflows/ || workflows_are_base_own || reason workflow-staged
 

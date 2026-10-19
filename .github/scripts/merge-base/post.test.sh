@@ -377,6 +377,22 @@ commit 'main makes the same edit and edits ci.yml'
 prepare
 run_post
 check "workflow-staged: a PR diff touching a workflow escalates though the result is main's" 0/workflow-staged "$RC/$(reason)"
+# Main renames x.yml into .github/workflows/ and the PR edits x.yml: rename
+# detection carries the PR's edit into the workflow, though the PR's own diff
+# touches no workflow path.
+new_repo
+put x.yml 'on: push\njobs: {}\nname: probe\n'
+commit 'add x.yml'
+tg checkout -q -b pr
+side pr x.yml 'on: pull_request_target\njobs: {}\nname: probe\n'
+tg checkout -q main
+mkdir -p "$R/.github/workflows"
+tg mv x.yml .github/workflows/x.yml
+commit 'main moves x.yml into workflows'
+prepare
+check 'workflow-staged: rename fixture merged clean' clean "$STATE"
+run_post
+check "workflow-staged: a PR edit carried into a workflow by a rename escalates" 0/workflow-staged "$RC/$(reason)"
 # Main deletes a workflow the head still has: the merge drops a head workflow.
 new_repo
 put "$WF" 'on: push\n'
