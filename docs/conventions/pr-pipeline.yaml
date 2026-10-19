@@ -113,6 +113,51 @@ activities:
     # Reads the verdict the model wrote, and the PR body for an advisory.
     reads-untrusted: true
     inputs: [pr, head-sha]
+  fix-ci:
+    # Fixes the failing CI checks on a lanes App pull request: reproduces each
+    # with the repository's own command, fixes the cause and reruns it. It
+    # holds no write token: the runner turns its uncommitted edits into a
+    # patch that apply-ci-fix pushes. pr-unblock-dispatch.yml starts it; a
+    # trusted person may also dispatch it by hand.
+    skill: source-control:pull-request
+    # The skill's CI mode for failing checks: never weakens a check, never
+    # edits .github/, and reports each check fixed or escalated.
+    args: ci --ci
+    # Before the run a base job writes the failing checks' names, workflow,
+    # annotations and log ends to a context file, or hands the pull request
+    # to a person once `loop.fix-ci-rounds` fixes were already pushed. The
+    # read runner gives the skill that file, Bash, Edit and Write.
+    prepare: ci-context
+    # Runs head code, so no write token: the change leaves as a patch.
+    effect: read
+    # ci-status judges the pushed fix.
+    gating: advisory
+    # Reads check annotations and logs, which print head text.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
+  apply-ci-fix:
+    # Applies fix-ci's patch to the head fix-ci worked on and pushes it as one
+    # commit, without force. A script, no model, and it runs no head code.
+    script: .github/scripts/pr-unblock/apply-ci-fix.mjs
+    # Before the mint the runner checks the patch artifact and the head;
+    # the script refuses the whole patch when any change is under .github/,
+    # an agent instruction path (CLAUDE.md, AGENTS.md, .claude/ or
+    # .claude-plugin/, a plugin's hooks/, .mcp.json, .gitmodules, CODEOWNERS), a
+    # symbolic link or a gitlink, and hands an empty, invalid or unappliable
+    # patch to a person.
+    prepare: apply-patch
+    # Pushes the fix to the pull request's branch, nothing else.
+    effect: mutate-branch
+    gating: advisory
+    # Reads the patch and the report the model wrote.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
   resolve-issue:
     # Works one issue labeled agent-ready: either commits the change to a new
     # branch, or stops and says why. The runner adds `--issue <number>`.
@@ -260,9 +305,15 @@ lanes:
       # Runs after review-dependency, in its own job with its own token.
       - activity: apply-dependency-verdict
         needs: [review-dependency]
+      # Started by pr-unblock-dispatch.yml for lanes App PRs whose ci-status
+      # failed.
+      - activity: fix-ci
+      # Runs after fix-ci, in its own job with its own token.
+      - activity: apply-ci-fix
+        needs: [fix-ci]
       # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
-        needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict]
+        needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-ci-fix]
   pr-merge:
     stage: merge
     slots:
@@ -298,8 +349,20 @@ models:
 loop:
   review-rounds: 3
   dependency-review-rounds: 2
+  # Fixes fix-ci may push to one pull request before the next run hands it to
+  # a person instead. 3 matches review-rounds: past it, CI failing again after
+  # each pushed fix means the fixes are not converging and a person decides.
+  fix-ci-rounds: 3
 
 limits:
+  # fix-ci runs one pr-unblock-dispatch run starts. 2 matches the
+  # review-dependency cap, so a push to main starts at most a few model runs
+  # while plan usage per run is unmeasured; the backlog drains over pushes.
+  fix-ci-per-run: 2
+  # Extra fix-ci dispatches on one head whose fix-ci run failed (an outage,
+  # a timeout). 1 retries once; a second failure on the same head is a
+  # pattern for a person, not a retry.
+  fix-ci-restarts: 1
   # Open lane PRs at which the issue lane stops starting runs. Sized as
   # measured lane merges per hour (about 1.5) times an 8-hour open-to-merge
   # target. Revisit after merge.max-in-flight (#8251) lands and merges per hour
@@ -334,8 +397,8 @@ merge:
     mode: enforce
   # The HIGH path floor, floor-paths, floor-script-scopes and the capability
   # check are on (owner decision 2026-10-18, reversing Q661): lanes may edit
-  # runnable plugin files (the #8184 scope), and fix-ci guards only
-  # .github/**. The scorer's fixed HIGH floor (.github/**,
+  # runnable plugin files (the #8184 scope), and fix-ci's patch guard
+  # covers only .github/** and agent instruction paths. The scorer's fixed HIGH floor (.github/**,
   # docs/conventions/**, agent instructions, hooks, lib/, scripts/, package
   # manifests and more) now applies in the pr-merge lane too. A lane PR
   # touching a floor path or script, or changing
