@@ -24,9 +24,11 @@ context7
 coupling
 debugging
 desktop-notification
+developer-experience
 discipline
 discovery
 disk-hygiene
+display-redaction
 docs-hygiene
 docs-naming
 domain-driven-design

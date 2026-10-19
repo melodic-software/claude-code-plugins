@@ -1,6 +1,6 @@
 # Adopt a five-layer plugin config cascade read through one shared resolver
 
-- Status: accepted
+- Status: accepted; its layers and paths (the five-layer list, the user-global `~/docs/conventions/` layer and the lower-layer-keeps-the-key rule) are superseded by [ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)
 - Date: 2026-10-10
 - Related: [#6594](https://github.com/melodic-software/claude-code-plugins/issues/6594), which owns
   the repo-wide config format and folder layout and may supersede this record
