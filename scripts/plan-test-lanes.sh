@@ -32,7 +32,8 @@
 #                           A Node suite with neither fails the plan: no lane would run it.
 #   *.Tests.ps1             test-windows; Pester has no Linux lane
 # The Windows steps run on the selection of the changed files minus the paths
-# scripts/test-windows-inert-paths.txt lists; a path it does not list selects as usual.
+# scripts/test-windows-inert-paths.txt lists; a path it does not list selects as usual, and a change to the list runs
+# every Windows step.
 #
 # WIDER THAN THE SELECTION, NEVER NARROWER:
 #   - the whole tree (no base and no paths: a schedule, a dispatch, a push with no
@@ -145,7 +146,7 @@ fi
 for f in ${changed[@]+"${changed[@]}"}; do
   case "$f" in
   .github/workflows/pr-require-checks.yml) whole=1 ;;
-  .github/workflows/pr-test-windows.yml) whole_windows=1 ;;
+  .github/workflows/pr-test-windows.yml | "$WINDOWS_INERT") whole_windows=1 ;;
   .github/actions/download-full-history/*)
     whole=1
     whole_windows=1

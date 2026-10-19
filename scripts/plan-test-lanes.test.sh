@@ -229,6 +229,10 @@ is "$(suites bash | tr '\n' ' ')" "plugins/a/a.test.sh plugins/b/b.test.sh " &&
   is "$(key windows_jobs)" '["win-b"]' && is "$(key windows_steps)" '["plugins/b/b.test.sh"]'
 check "beside an inert path, a path the list does not name still starts its Windows step" $?
 
+plan -- scripts/test-windows-inert-paths.txt
+is "$(key windows_jobs)" '["win-a","win-b"]'
+check "a change to the inert list runs every Windows step" $?
+
 plan -- plugins/z/data.cfg
 is "$(key unmapped)" 1 && is "$(key bash)" false && is "$(key python)" false
 check "an unmapped data file runs no corpus and is counted" $?
