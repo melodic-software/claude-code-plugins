@@ -121,6 +121,7 @@
     "url": {"type": "string", "maxLength": 2000, "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://\\S+$"},
     "assetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg)$"},
     "cardRef": {"type": "string"},
+    "attachments": {"description": "Upload ids, each an accepted upload of the record's author.", "type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}},
     "svgAssetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.svg$"},
     "reaction": {"enum": ["thumbs", "down", "heart", "idea"]},
     "rect": {
@@ -745,6 +746,7 @@
         "text": {"$ref": "#/$defs/text"},
         "note": {"$ref": "#/$defs/note"},
         "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
         "fromProposal": {"type": "string"},
         "status": {
           "oneOf": [
@@ -780,6 +782,7 @@
         "pid": {"$ref": "#/$defs/pid"},
         "text": {"$ref": "#/$defs/text"},
         "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
         "via": {
           "oneOf": [
             {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["direct"]}}},
@@ -843,6 +846,7 @@
         "pid": {"$ref": "#/$defs/pid"},
         "text": {"$ref": "#/$defs/text"},
         "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
         "replyTo": {
           "type": "object",
           "required": ["id", "pid", "excerpt"],
@@ -876,6 +880,7 @@
         "pid": {"$ref": "#/$defs/pid"},
         "text": {"$ref": "#/$defs/text"},
         "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
         "edited": {"$ref": "#/$defs/ts"},
         "hidden": {
           "type": "object",
@@ -906,6 +911,7 @@
         "at": {"$ref": "#/$defs/ts"},
         "kind": {"$ref": "#/$defs/requestKind"},
         "text": {"$ref": "#/$defs/text"},
+        "attachments": {"$ref": "#/$defs/attachments"},
         "edited": {"type": "boolean"},
         "runner": {"enum": ["host", "self"]},
         "status": {

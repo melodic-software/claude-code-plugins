@@ -1976,6 +1976,28 @@ class TestUploads(ServerCase):
         self.assertEqual({u["id"] for u in owner_view["uploads"]}, {done, sending, offered, declined, own})
         self.assertEqual(self.get("/api/state?since=0", self.bo)[2]["files"], {done: {"file": "funnel.pdf", "ext": "pdf", "size": len(self.DATA), "status": "done"}})
 
+    def test_a_received_picture_reads_back_only_where_its_item_shows(self):
+        pic = b"\x89PNG\r\n\x1a\n" + bytes(1100)  # 1108 bytes: chunks of 1024 and 84
+        shown = self.accepted(self.ann, name="a.png", data=pic)
+        hidden = self.accepted(self.bo, name="b.png", data=pic)
+        for who, uid in ((self.ann, shown), (self.bo, hidden)):
+            for i in range(2):
+                self.assertEqual(self.chunk(who, uid, i, pic)[0], 200)
+        code, _, out = self.post("/api/chat", {"text": "Look", "attachments": [shown]}, self.ann)
+        self.assertEqual(code, 200, out)
+        time.sleep(session.WRITE_INTERVAL)
+        code, _, out = self.post("/api/discussion", {"qid": "Q1", "text": "Mine", "attachments": [hidden]}, self.bo)
+        self.assertEqual(code, 200, out)
+        self.assertEqual(self.post("/api/discussion/hide", {"qid": "Q1", "id": out["id"], "on": True}, self.owner)[0], 200)
+        url = "data:image/png;base64," + base64.b64encode(pic).decode()
+        code, headers, out = self.get(f"/api/upload/image?id={shown}", self.bo)
+        self.assertEqual((code, out, headers["X-Content-Type-Options"], headers["Content-Type"]), (200, {"ok": True, "id": shown, "image": url}, "nosniff", "application/json; charset=utf-8"))
+        code, _, out = self.get(f"/api/upload/image?id={hidden}", self.ann)
+        self.assertEqual((code, out["error"]), (404, "not-found"))
+        self.assertEqual(self.get(f"/api/upload/image?id={hidden}", self.bo)[2]["image"], url)
+        self.assertEqual(self.get(f"/api/upload/image?id={hidden}", self.owner)[2]["image"], url)
+        self.assertEqual(self.get(f"/api/upload/image?id={shown}", {})[0], 401)
+
     def test_sizes_are_checked_before_any_body_is_read(self):
         uid = self.accepted(self.ann)
         h = self.chunk_headers(self.ann, uid, 0, b"")

@@ -79,7 +79,8 @@
               "scope": {"$ref": "#/$defs/scope"},
               "from": {"enum": ["chat"], "description": "With scope: session, a chat message's \"@Claude\" asked it; the answer replies in chat."},
               "kind": {"$ref": "#/$defs/requestKind"},
-              "text": {"type": "string"}
+              "text": {"type": "string"},
+              "attachments": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}, "description": "Upload ids it carries; each one's upload-received event names where it is stored."}
             }
           }
         }

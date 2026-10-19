@@ -5118,6 +5118,142 @@ class TestUploadRecovery(UploadCase):
         self.assertEqual((self.tmp / self.upload(a)["status"]["stored"]).read_bytes(), PDF)
 
 
+PIC = b"\x89PNG\r\n\x1a\n" + bytes(300)  # 308 bytes: chunks of 200 and 108
+
+
+class TestAttachmentsEverywhere(UploadCase):
+    """Chat, requests, suggestions, proposals and Discussion comments carry `attachments` like an answer: the writer's
+    own uploads the owner accepted, at most four, each once; refused while Uploads is off. A file shows only where its
+    item shows, and a received picture (PNG, JPEG, WebP or GIF) is read back as a data: URL by whoever sees it."""
+
+    def sent_pic(self, pid, name="shot.png", data=PIC):
+        uid = self.offered_and_accepted(pid, name=name, data=data)
+        self.send_all(pid, uid, data)
+        return uid
+
+    def test_each_form_keeps_its_attachments(self):
+        uid = self.offered_and_accepted(self.ann)
+        m = self.act("chat", self.ann, {"text": "Look", "attachments": [uid]})["id"]
+        r = self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": "Read it", "attachments": [uid]})["id"]
+        p = self.act("propose", self.ann, {"text": "Ask about it", "attachments": [uid]})["id"]
+        c = self.act("comment", self.ann, {"qid": "Q1", "text": "See this", "attachments": [uid]})["id"]
+        st = self.s.state
+        self.assertEqual([x["attachments"] for x in (
+            next(x for x in st["chat"] if x["id"] == m), next(x for x in st["requests"] if x["id"] == r),
+            next(x for x in st["proposals"] if x["id"] == p), next(x for x in st["discussions"]["Q1"] if x["id"] == c))], [[uid]] * 4)
+        self.send()
+        sid = self.act("suggest", self.ann, {"qid": "Q1", "text": "Change it", "attachments": [uid]})["id"]
+        self.assertEqual(next(x for x in st["suggestions"]["Q1"] if x["id"] == sid)["attachments"], [uid])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_only_my_own_accepted_uploads_and_four_at_most(self):
+        offered = self.offer(self.ann)["id"]
+        bos = self.offered_and_accepted(self.bo)
+        mine = [self.offered_and_accepted(self.ann, name=f"f{i}.pdf") for i in range(5)]
+        for method, body in (("chat", {"text": "x"}), ("request", {"qid": "Q1", "kind": "ask", "text": "x"}), ("propose", {"text": "x"}),
+                             ("comment", {"qid": "Q1", "text": "x"})):
+            with self.subTest(method=method):
+                self.assertEqual(self.refused("wrong-status", method, self.ann, {**body, "attachments": [offered]}).details["status"], "offered")
+                self.refused("no-such-upload", method, self.ann, {**body, "attachments": [bos]})
+                self.assertEqual(self.refused("too-long", method, self.ann, {**body, "attachments": mine}).details["max"], 4)
+                self.refused("bad-field", method, self.ann, {**body, "attachments": [mine[0], mine[0]]})
+                self.refused("bad-field", method, self.ann, {**body, "attachments": "U1-00000000"})
+
+    def test_refused_while_uploads_are_off(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("update_settings", HOST, {"uploads": False})
+        for method, body in (("chat", {"text": "x"}), ("request", {"qid": "Q1", "kind": "ask", "text": "x"}), ("propose", {"text": "x"}),
+                             ("comment", {"qid": "Q1", "text": "x"})):
+            with self.subTest(method=method):
+                self.assertEqual(self.refused("uploads-off", method, self.ann, {**body, "attachments": [uid]}).http, 403)
+                self.act(method, self.ann, {**body, "attachments": []})  # none sent is no upload
+
+    def test_my_own_claude_takes_no_attachments(self):
+        uid = self.offered_and_accepted(self.ann)
+        e = self.refused("bad-field", "request", self.ann, {"qid": "Q1", "kind": "ask", "text": "x", "runner": "self", "attachments": [uid]})
+        self.assertEqual(e.details["field"], "attachments")
+
+    def test_claude_gets_the_attachments_of_what_it_runs(self):
+        uid = self.offered_and_accepted(self.ann)
+        rid = self.act("chat", self.ann, {"text": "@Claude what is this?", "attachments": [uid]})["request"]
+        self.assertEqual(next(r for r in self.s.state["requests"] if r["id"] == rid)["attachments"], [uid])
+        self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+        self.assertEqual(self.events("request-run")[-1]["requests"][0]["attachments"], [uid])
+        own = self.offered_and_accepted(HOST, name="host.pdf")
+        self.act("comment", HOST, {"qid": "Q1", "text": "@Claude read mine", "attachments": [own]})
+        self.assertEqual(self.events("request-run")[-1]["requests"][0]["attachments"], [own])
+
+    def test_a_file_shows_only_where_its_item_shows(self):
+        lee = self.join("Lee")[0]
+        self.act("set_role", HOST, {"pid": lee, "role": "leader"})
+        on = {k: self.offered_and_accepted(self.ann, name=f"{k}.pdf") for k in ("chat", "hidden", "request", "proposal")}
+        self.act("chat", self.ann, {"text": "Look", "attachments": [on["chat"]]})
+        c = self.act("comment", self.ann, {"qid": "Q1", "text": "Hidden soon", "attachments": [on["hidden"]]})["id"]
+        self.act("hide_comment", HOST, {"qid": "Q1", "id": c, "on": True})
+        self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": "Mine", "attachments": [on["request"]], "audience": "me"})
+        self.act("propose", self.ann, {"text": "Ask it", "attachments": [on["proposal"]]})
+        seen = {who: set(self.s.snapshot(pid)["files"]) for who, pid in (("owner", HOST), ("author", self.ann), ("leader", lee), ("guest", self.bo))}
+        self.assertEqual(seen["owner"], set(on.values()))
+        self.assertEqual(seen["author"], set(on.values()))
+        self.assertEqual(seen["leader"], {on["chat"], on["proposal"]})
+        self.assertEqual(seen["guest"], {on["chat"]})
+
+    def test_a_received_picture_reads_back_to_whoever_sees_its_item(self):
+        pic = self.sent_pic(self.ann)
+        hidden = self.sent_pic(self.ann, name="b.png")
+        self.act("chat", self.ann, {"text": "Look", "attachments": [pic]})
+        c = self.act("comment", self.ann, {"qid": "Q1", "text": "Mine", "attachments": [hidden]})["id"]
+        self.act("hide_comment", HOST, {"qid": "Q1", "id": c, "on": True})
+        url = "data:image/png;base64," + __import__("base64").b64encode(PIC).decode()
+        self.assertEqual(self.s.snapshot(self.bo)["files"][pic], {"file": "shot.png", "ext": "png", "size": 308, "status": "done", "image": True})
+        self.assertEqual(self.s.upload_image(self.bo, {"id": pic}), {"id": pic, "image": url})
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": hidden}).http, 404)
+        self.assertEqual(self.s.upload_image(self.ann, {"id": hidden})["image"], url)
+        self.assertEqual(self.s.upload_image(HOST, {"id": hidden})["image"], url)
+        draft = self.sent_pic(self.ann, name="c.png")  # on nothing yet: its uploader and the owner read it
+        self.assertEqual(next(u for u in self.s.snapshot(self.ann)["myUploads"] if u["id"] == draft)["image"], True)
+        self.assertEqual(self.s.upload_image(self.ann, {"id": draft})["image"], url)
+        self.refused("not-found", "upload_image", self.bo, {"id": draft})
+        self.refused("not-found", "upload_image", self.bo, {"id": "U99-00000000"})
+
+    def test_only_a_received_picture_reads_back(self):
+        pdf = self.offered_and_accepted(self.ann)
+        self.send_all(self.ann, pdf)
+        sending = self.offered_and_accepted(self.ann, name="c.png", data=PIC)
+        self.act("set_trust", HOST, {"pid": self.ann, "on": True})
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+        vector = self.sent_pic(self.ann, name="d.svg", data=svg)
+        self.act("chat", self.ann, {"text": "Files", "attachments": [pdf, sending, vector]})
+        files = self.s.snapshot(self.bo)["files"]
+        self.assertEqual([files[u].get("image") for u in (pdf, sending, vector)], [None, None, None])
+        for uid in (pdf, sending, vector):
+            with self.subTest(uid=uid):
+                self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
+
+    def test_a_declined_upload_leaves_every_form(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("chat", self.ann, {"text": "Look", "attachments": [uid]})
+        self.act("comment", self.ann, {"qid": "Q1", "text": "See", "attachments": [uid]})
+        self.act("propose", self.ann, {"text": "Ask", "attachments": [uid]})
+        self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": "Read", "attachments": [uid]})
+        st = self.s.state
+
+        def held():
+            return [x["id"] for x in [*st["chat"], *st["proposals"], *st["requests"], *st["discussions"]["Q1"]] if "attachments" in x]
+
+        self.assertEqual(len(held()), 4)
+        self.act("act_on_upload", HOST, {"id": uid, "action": "decline"})
+        self.assertEqual(held(), [])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_state_whose_message_names_another_persons_upload_does_not_load(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("chat", self.bo, {"text": "Mine"})
+        doc = self.disk()
+        doc["chat"][-1]["attachments"] = [uid]
+        self.assertIn("not an accepted upload of its author", session.document_error(doc))
+
+
 def zip_of(*entries):
     """A zip built here: (name, bytes, zipfile compression[, Unix mode]) per entry, in order."""
     import io
