@@ -163,6 +163,14 @@ activities:
     # branch, or stops and says why. The runner adds `--issue <number>`.
     skill: work-items:work
     args: --ci
+    # Validates the format of every changelog fragment before the skill
+    # reports done. A missing fragment is caught on the PR by ci-status
+    # (--check-required needs committed work, and the lane commits through
+    # the API, not in the checkout). After the skill, work-resolve-issue.yml's
+    # run-checks job runs each check again itself, from the base copy against
+    # the lane branch with the base's scripts/, and report-outcome stops a done
+    # run whose checks failed or did not run, whatever the outcome file says.
+    checks: ["scripts/check-changelog-fragments.sh --check"]
     # Runs the diff-scoped lint checks a push would face (markdown,
     # shellcheck, exec bits, changelog fragments, plugin validation) in the
     # run, so the skill fixes what they report before it commits and the PR
@@ -394,10 +402,13 @@ merge:
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge
-  # verdict at the head and ci-status passes. Owner decision: no Dependabot
-  # pull request waits on a human (docs/adr/0073).
+  # verdict at the head and ci-status passes. Owner decision 2026-10-18: a
+  # major update, or one whose version cannot be read (a SHA pin) or whose
+  # sources disagree, waits for a human whatever the verdict (`majors: hold`); `review` lets the verdict
+  # merge it.
   dependabot:
     mode: enforce
+    majors: hold
   # Owner decision Q624: the lane denies no path and applies no HIGH path
   # floor, size cap or C2 contradiction check; the verifier verdict, the kill
   # switch, the fork and Dependabot refusals, lane-author and single-closing-
