@@ -225,6 +225,15 @@ consequence of violating it.
 Only things that would actually break something. A preference is a decision, so it belongs in
 section 8.
 
+**A refusal or an owner reservation carries its evidence.** An entry saying a permission rule or
+the auto-mode classifier refuses an action, or that the owner reserves a step, names the session it
+was observed in, the date, and the denial text verbatim (or the owner's words, quoted). Without
+that it is a habit, not a constraint. A resumed session retries a recorded refusal once, in its
+documented required shape, before handing the action to the user, then re-tags the entry with the
+result or moves it under `Superseded:`. A reservation the owner has since lifted in their own words
+moves under `Superseded:` too. Carried records without evidence handed actions back in 5 of 8
+audited sessions, and one handed-back merge later went through with no denial.
+
 Before closing the section, re-scan for *but*, *except*, *unless*, "the exception is", "the corner
 case". Those words mark constraints that emerged mid-discussion and never rose to a top-line
 bullet, and an omitted one is exactly what the resuming session ships as a bug. Record how the
@@ -400,6 +409,11 @@ the first action does not leave the resuming session guessing at the second.
 An action is something to *do*. An unknown to resolve is section 12; something you cannot proceed
 on is section 13. Cross-reference those rather than duplicating them: an action that waits on a
 blocker is listed here in its sequence position, marked as waiting, and named once in section 13.
+
+**When every action waits on a peer or the owner, list the prework that advances them** (review
+the peer's PR, check a release's state, pre-verify the condition the wait is for), so the resumed
+session does it before going idle. Never write a bare "no action owed" line: an audited session
+resumed from one and idled with review and release prework available.
 
 The `Resumption brief` names only the first of these. This section owns the rest. It is the one
 place the full sequence exists, so it survives when the brief's single action is done.
