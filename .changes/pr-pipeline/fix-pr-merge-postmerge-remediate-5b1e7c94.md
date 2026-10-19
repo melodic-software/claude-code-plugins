@@ -4,12 +4,16 @@ bump: patch
 
 ### Fixed
 
-- pr-merge.yml's merge job now files the demotion record for a failed lane merge. When its
-  read-only post-merge check exits 1, it runs the check again with `--remediate` under the lanes App
-  token, which files (or comments on, reopening) the record and dequeues the lane's merge-queue
-  entries, so a human closing that record re-arms the lane. Before, a red full run this workflow
-  dispatched with `GITHUB_TOKEN` raised no `workflow_run` event, post-merge-demotion-alert.yml never
-  saw it, and the gate refused every candidate with no record a human could close.
+- pr-merge.yml's merge job now files the demotion record when its read-only post-merge check
+  exits 1 (a failed lane merge: a canary or read-back failure, a missed dispatch deadline, or a red
+  full run whose attempt 2 the agent identity did not start). It runs the check again with
+  `--remediate` under the lanes App token, which files (or comments on, reopening) the record and
+  dequeues the lane's merge-queue entries, so a human closing that record re-arms the lane. A full
+  run this workflow dispatched with `GITHUB_TOKEN` raises no `workflow_run` event, so
+  post-merge-demotion-alert.yml never files for it; when a human re-runs such a red run (run
+  39200031682, red attempt 1, human attempt 2), the check reads it red and this step files the record.
+  A red dispatched run that nobody re-runs still waits for its one re-run (exit 5) and files nothing;
+  the lanes App cannot start that re-run.
 - That step judges the remediation by its report, not its exit code: a missing report or a failed
   record filing or dequeue raises an error annotation, and only the expected refused re-run and
   dispatch attempts warn.

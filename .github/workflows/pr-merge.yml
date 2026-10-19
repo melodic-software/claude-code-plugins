@@ -38,8 +38,10 @@ name: pr-merge
 # whoever enqueued it, the push starts a full CI run of main (the
 # dispatch-full-run job), even while the switch or report-only is on, since it
 # merges nothing. That run raises no workflow_run event (GITHUB_TOKEN started
-# it), so post-merge-demotion-alert.yml never sees it; when it fails a lane
-# merge, the merge job's post-merge check files the demotion record.
+# it), so post-merge-demotion-alert.yml never sees it. The merge job's
+# post-merge check files the demotion record only once it reads the run red:
+# after a human re-runs it, since a red attempt 1 with no re-run waits for one
+# the lanes App cannot start.
 #
 # On its schedule it also gives a PR a new head, an empty commit, when a lane
 # run on its current head was refused by the token broker as
