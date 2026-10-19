@@ -308,6 +308,49 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
+  # A fix-ci-context skip (a closed PR or no failing check) runs no fix-ci job,
+  # so no fix-ci check would land on the head and fix-ci-dispatch.mjs would
+  # dispatch it again on every run. This job posts fix-ci neutral on that head,
+  # as publish-feedback-not-run does; a kill-switch stop leaves the head empty.
+  fix-ci-not-run:
+    needs: fix-ci-context
+    if: >-
+      ${{ !cancelled() && inputs.activity == 'fix-ci'
+      && needs.fix-ci-context.outputs.proceed == 'false'
+      && needs.fix-ci-context.outputs.escalation-reason == ''
+      && needs.fix-ci-context.outputs.head-sha != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      checks: write
+      contents: read
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Post the check run
+        uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: fix-ci
+          run-result: skipped
+          not-run-reason: not-applicable
+          head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+          can-commit: "false"
+          base-path: .base
+          head-sha-fallback: ${{ needs.fix-ci-context.outputs.head-sha }}
+          github-token: ${{ github.token }}
+
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill reruns the failing checks, fixes
   # them and reruns them; the runner uploads its uncommitted edits as a patch.
