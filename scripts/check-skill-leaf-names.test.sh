@@ -126,8 +126,8 @@ else
 fi
 
 # 5f. A leaf name registered twice fails, even when one entry matches. The
-#     registry merges with merge=union, so two branches that each change one
-#     entry leave both lines behind, and neither may silently win.
+#     merge that keeps both sides leaves two lines when two branches each
+#     change one entry, and neither may silently win.
 printf 'shared alpha,beta\nshared alpha,beta,gamma\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?

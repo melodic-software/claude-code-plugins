@@ -90,8 +90,8 @@ if [[ -f "$registry" ]]; then
     # `read`, not array splitting: the owner field may be a literal `*`, which
     # unquoted word splitting would pathname-expand against the cwd.
     read -r leaf_key owner_field _ <<<"$line"
-    # The registry merges with merge=union (.gitattributes), so two branches
-    # that each changed one entry leave both lines; neither may silently win.
+    # A merge that keeps both sides (merge=union, or a hand resolution) leaves
+    # two lines when two branches each changed one entry; neither may win.
     if [[ -n "${registered[$leaf_key]+set}" ]]; then
       duplicate_leaves+=("$leaf_key")
     else

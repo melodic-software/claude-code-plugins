@@ -34,22 +34,6 @@
 *.bat   text eol=crlf
 
 ###############################################################################
-# One-entry-per-line sets whose order carries no meaning: union merge keeps
-# both sides' additions, so parallel pull requests appending here never
-# conflict. Only files whose readers treat them as sets belong here. Where a
-# line is keyed (shared-copies by path, the leaf-name registry by name), its
-# checker fails on a key listed twice, so a union of two edits to one entry
-# fails CI instead of letting one side win.
-###############################################################################
-
-scripts/affected-tests-no-suite.txt   merge=union
-scripts/em-dash-purged-paths.txt      merge=union
-scripts/fragment-plugins.txt          merge=union
-scripts/outside-node-packages.txt     merge=union
-scripts/shared-copies.txt             merge=union
-scripts/skill-leaf-name-registry.txt  merge=union
-
-###############################################################################
 # Lockfiles: tracked, but suppress noisy diffs (regenerate to resolve).
 ###############################################################################
 
