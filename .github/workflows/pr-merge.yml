@@ -509,7 +509,7 @@ jobs:
           echo "code=$code" >>"$GITHUB_OUTPUT"
 
       # A failed lane merge (the check above exited 1) holds the gate until a
-      # human closes its demotion record, and the gate reads only records the
+      # human closes every open demotion record, and the gate reads only records the
       # lanes App or github-actions[bot] filed. post-merge-demotion-alert.yml
       # files none for a full run this workflow dispatched: a run started with
       # GITHUB_TOKEN raises no workflow_run event. So the check runs again

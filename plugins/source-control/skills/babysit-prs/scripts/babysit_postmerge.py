@@ -1267,7 +1267,7 @@ def _issue_body(failure: Failure) -> str:
             f"The post-merge check found a `{failure.signal}` failure after an unattended merge. The",
             "unattended merge path stays at rung off while any demotion record is open. Fix main",
             "first, then close every open demotion record directly (not through a pull request's",
-            "closing keyword); a red main reopens them.",
+            "closing keyword); a new sighting of the same failure reopens its record.",
             "",
             f"- Pull request: {merge.url or f'#{merge.number}'}",
             f"- Merge commit: `{merge.merge_commit}`",
@@ -1309,10 +1309,14 @@ def _recorded(failure: Failure, record: dict[str, Any], notes: Iterable[Any]) ->
 
 
 def _same_run(failure: Failure, body: Any) -> bool:
-    """Whether a record names the same failing run, any attempt. The alert
-    workflow keys its marker on the run's head SHA and this check on the merge
-    commit, so one red run would otherwise get a record from each filer."""
+    """Whether a demotion record names the same failing run, any attempt. The
+    alert workflow keys its marker on the run's head SHA and this check on the
+    merge commit, so one red run would otherwise get a record from each filer.
+    The alert's post-merge-failure record never holds the gate, so it is not
+    this failure's record."""
     if not failure.run_url or "/attempts/" not in failure.run_url:
+        return False
+    if not _first_line(body).startswith(policy.DEMOTION_MARKER):
         return False
     prefix = f"- Failing run: {failure.run_url.rsplit('/attempts/', 1)[0]}/attempts/"
     return any(line.startswith(prefix) for line in _lines(body))

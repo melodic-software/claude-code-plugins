@@ -1347,7 +1347,9 @@ class Remediation(CheckCase):
         ]
         pm.remediate(REPO, self.check(), agent_identity=IDENTITY)
 
-    def canary_failure_with_alert_record(self, run: int) -> None:
+    def canary_failure_with_alert_record(
+        self, run: int, marker: str = f"<!-- babysit-merge-demotion sha={'4' * 40} signal=canary -->"
+    ) -> None:
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
         self.gh.add_runs(
             "post-merge-detect-silent-revert.yml",
@@ -1356,7 +1358,6 @@ class Remediation(CheckCase):
         )
         # The alert workflow keys its marker on the run's head SHA, not the
         # merge commit.
-        marker = f"<!-- babysit-merge-demotion sha={'4' * 40} signal=canary -->"
         self.gh.issues = [
             {
                 "number": 8004,
@@ -1375,6 +1376,22 @@ class Remediation(CheckCase):
 
     def test_an_alert_record_of_another_run_does_not_stand_in(self) -> None:
         self.canary_failure_with_alert_record(22)
+        self.assertTrue(
+            any(f"repos/{REPO}/issues" in w for w in self.record_writes())
+        )
+
+    def test_a_run_number_sharing_the_prefix_does_not_stand_in(self) -> None:
+        # runs/210 is not runs/21.
+        self.canary_failure_with_alert_record(210)
+        self.assertTrue(
+            any(f"repos/{REPO}/issues" in w for w in self.record_writes())
+        )
+
+    def test_a_same_run_post_merge_failure_record_does_not_stand_in(self) -> None:
+        # The alert's not-demoted record never holds the gate.
+        self.canary_failure_with_alert_record(
+            21, marker=f"<!-- post-merge-failure sha={'4' * 40} signal=canary -->"
+        )
         self.assertTrue(
             any(f"repos/{REPO}/issues" in w for w in self.record_writes())
         )
