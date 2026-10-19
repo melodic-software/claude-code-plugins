@@ -311,6 +311,22 @@ class ReadConfigAt(unittest.TestCase):
                     any("risk-escalation-minutes" in n for n in config.notes), noted
                 )
 
+    def test_check_inputs_reads_a_path_list_and_is_empty_when_absent(self) -> None:
+        listed = PIPELINE.replace(
+            "merge:\n",
+            "merge:\n  check-inputs:\n    - scripts/shared-copies.txt\n"
+            "    - scripts/docs-only-paths.txt\n",
+        )
+        for text, expected in (
+            (PIPELINE, ()),
+            (listed, ("scripts/shared-copies.txt", "scripts/docs-only-paths.txt")),
+        ):
+            with self.subTest(expected=expected):
+                config_fake(self, text)
+                self.assertEqual(
+                    policy.read_config_at(REPO, SHA).check_inputs, expected
+                )
+
     def test_a_parse_error_is_off(self) -> None:
         config_fake(self, "merge:\n  rung: [C2\n")
         config = policy.read_config_at(REPO, SHA)

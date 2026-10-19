@@ -475,6 +475,11 @@ class PipelineConfig:
     # human-gated label; 0 is no minimum. Absent, or anything but a whole
     # number, is `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
+    # `merge.check-inputs`: git pathspecs of what the pull request checks
+    # read. When the base changed one since a pull request's merge base, the
+    # pr-merge lane updates its branch from the base instead of enqueuing it
+    # (`babysit_check_inputs`). Absent or empty, nothing is updated.
+    check_inputs: tuple[str, ...] = ()
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -612,6 +617,7 @@ def read_config_at(
             ("merge.max-in-flight", False),
             ("merge.max-queue-ejections", False),
             ("merge.risk-escalation-minutes", False),
+            ("merge.check-inputs", True),
         ],
     )
     if values is None:
@@ -711,6 +717,7 @@ def read_config_at(
         risk_escalation_minutes=int(escalation_minutes)
         if escalation_minutes is not None
         else RISK_ESCALATION_MINUTES,
+        check_inputs=tuple(values["merge.check-inputs"]),
     )
 
 

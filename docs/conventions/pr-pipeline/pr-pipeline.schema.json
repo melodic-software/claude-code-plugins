@@ -779,6 +779,12 @@
           "default": 60,
           "description": "Minutes the agent identity's MED or HIGH reasons comment must have stood unchanged (same score, reasons and head), timed from its last change, before the unattended merge gate adds the tracker's human-gated role label. 0: no minimum, so the second run that finds the same comment labels it. A rewrite of the reasons restarts the time."
         },
+        "check-inputs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": [],
+          "description": "Git pathspecs of files the pull request checks read but a pull request rarely changes (a registry, an allowlist). When the base changed one since a pull request's merge base, the unattended merge gate updates its branch from the base (a merge, never a rebase) instead of enqueuing it, and enqueues the new head once its checks pass. `scripts/shared-copies.txt` counts only for a pull request whose own changes touch a path it registers. Empty or absent: nothing is updated."
+        },
         "verify-authors": {
           "enum": ["lane", "any"],
           "default": "lane",
