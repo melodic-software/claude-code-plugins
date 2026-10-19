@@ -1892,6 +1892,29 @@ class GateReviewFixes(Unattended):
         self.async_merge.assert_not_called()
 
 
+class FloorReadsCapabilityText(Unattended):
+    """With the floor on, the scorer gets each capability file's base and head
+    text, so a prose-only SKILL.md edit scores LOW instead of unreadable."""
+
+    def test_a_prose_only_skill_edit_scores_low(self) -> None:
+        self.config = dataclasses.replace(self.config, high_path_floor=True)
+        path = "plugins/foo/skills/bar/SKILL.md"
+        self.files = (
+            (ChangedFile(path, None, "modified", 1, 1, True, "100644", "100644"),),
+            True,
+        )
+        front = "---\nname: bar\ndescription: y\n---\n\n"
+        texts = {BASE: front + "Old prose.\n", HEAD: front + "New prose.\n"}
+        policy._TEXT_AT.clear()
+        self.addCleanup(policy._TEXT_AT.clear)
+        with mock.patch.object(
+            policy, "_file_at", side_effect=lambda o, n, p, sha: texts[sha]
+        ):
+            code, out = self.run_main(merge_flag=False)
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+
+
 class ReasonsComment(Unattended):
     """MED/HIGH on an eligible pull request: one upserted comment (T14, D15)."""
 

@@ -462,6 +462,8 @@ _CAPABILITY_KEYS = frozenset(
 )
 _HUNK = re.compile(r"@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@")
 _FRONT_KEY = re.compile(r"([A-Za-z][A-Za-z0-9_-]*)[ \t]*:(?:[ \t]|$)")
+# A `|` or `>` block scalar header: its indented lines are text.
+_BLOCK_SCALAR = re.compile(r"[|>][0-9+-]*(?:[ \t]+#.*)?$")
 # Anchors, aliases, tags and merge keys let one entry change another's value.
 # YAML reads them only where a node starts: at line start, after `key: ` or
 # `[`, `{`, `,` in a flow collection, and after any run of `- `, `? ` or `: `
@@ -505,7 +507,7 @@ def _front_entries(block: str) -> dict[str, str] | None:
     """Top-level frontmatter entries, each key (casefolded) to its lines, read
     strictly: None for any shape a line-by-line read cannot follow."""
     entries: dict[str, list[str]] = {}
-    key = None
+    key, scalar = None, False
     for line in block.split("\n"):
         if not line.strip() or line.startswith("#"):
             if key is not None:
@@ -519,9 +521,14 @@ def _front_entries(block: str) -> dict[str, str] | None:
             if key in entries:
                 return None
             entries[key] = [line]
+            value = line[named.end() :].strip()
+            scalar = bool(value) and not _BLOCK_SCALAR.match(value)
         elif key is not None and (
             line[0] in " \t" or line == "-" or line.startswith("- ")
         ):
+            # An indented key under a plain scalar may be read as its own entry.
+            if scalar and _FRONT_KEY.match(line.strip()):
+                return None
             entries[key].append(line)
         else:
             return None

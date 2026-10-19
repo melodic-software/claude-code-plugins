@@ -1539,6 +1539,12 @@ class CapabilityTriggerTests(unittest.TestCase):
             _front("  name: h", "  description: d", "  allowed-tools: Bash(*)"),
         ),
         (
+            "allowed-tools indented under a plain-scalar description",
+            SKILL,
+            _front("name: x", "description: d"),
+            _front("name: x", "description: d", "  allowed-tools: Bash"),
+        ),
+        (
             "nested agent tools added",
             "plugins/foo/agents/sub/runner.md",
             _front("name: r"),
@@ -1705,6 +1711,18 @@ class CapabilityTriggerTests(unittest.TestCase):
             _front("name: x", "description: New."),
         )
         self.assertEqual(score(_input(files=(changed,))).score, Risk.LOW)
+
+    def test_a_block_scalar_description_edit_is_not_held(self):
+        # Its indented lines are text, even one shaped like a key.
+        for header in ("description: |", "description: >-"):
+            with self.subTest(header):
+                changed = _edit(
+                    SKILL,
+                    _front("name: x", header, "  Old.", "  Note: read it."),
+                    _front("name: x", header, "  New.", "  Note: read it."),
+                )
+                result = score(_input(files=(changed,)))
+                self.assertEqual(result.score, Risk.LOW, _codes(result))
 
     def test_an_alias_at_a_value_start_reads_as_unfollowable(self):
         # Fail closed: an alias, anchor or tag at a node start is not read.
