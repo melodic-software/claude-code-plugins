@@ -1,0 +1,19 @@
+{
+  "pass": [
+    { "answer": [], "why": "no Skill call" },
+    {
+      "answer": [{ "tool": "Skill", "input": { "skill": "review:quality-gate", "args": "security --worktree .worktrees/phase-2" } }],
+      "why": "the gate itself"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Skill", "input": { "skill": "source-control:pull-request", "args": "list --head feat/storefront-phases" } }],
+      "why": "pull-request lookup through the owner skill"
+    },
+    {
+      "answer": [{ "tool": "Skill", "input": { "skill": "pull-request", "args": "view" } }],
+      "why": "unprefixed name"
+    }
+  ]
+}

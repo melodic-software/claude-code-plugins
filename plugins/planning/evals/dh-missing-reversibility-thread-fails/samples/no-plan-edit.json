@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".work/export-archive/PLAN.md",
+            "old_string": "## Brief",
+            "new_string": "## Design\n\n## Brief"
+          }
+        }
+      ],
+      "why": "edited PLAN.md on a failed gate"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "Two finder questions first, because both lists are raw material for you.\n\n**What characteristics does this loneliness have?** quiet, echoing, too much space, routine without a witness, half of everything left over.\n\n**What else has those characteristics?** an empty church after the service, a two-car garage with one truck, a jukebox with no quarters, a dance hall at closing.\n\nOptions (you pick by emotional intent):\n\n1. *The house rings like a bell nobody pulls.* Type: verbal. Linking: echo and silence. Distance: medium.\n2. *Loneliness is a two-car garage.* Type: expressed identity. Linking: the missing half. Distance: close.\n3. *The evenings stack up like unwashed plates.* Type: verbal (simile). Linking: routine piling up. Distance: close.\n4. *The bed yawns on my side.* Type: verbal. Linking: too much space. Distance: medium.\n5. *a jukebox quiet* Type: qualifying. Linking: music with no one to choose it. Distance: far.\n6. *The phone sleeps through Sundays.* Type: verbal. Linking: no one calls. Distance: far.\n\nNoun-verb pairs outnumber adjective-noun ones on purpose."
+    },
+    {
+      "answer": "§7 Image filter: cliche scan pass (no \"empty heart\"), literally-false check pass.\n\nFinder questions:\n- What characteristics does it have? silence, extra room, nobody to report your day to.\n- What else has these characteristics? a motel in the off season, a church parking lot on Monday, a radio left on in a sold house.\n\n| # | Candidate | Type | Why it lands | Family distance |\n| --- | --- | --- | --- | --- |\n| 1 | the hallway swallows my footsteps | Verbal metaphor | sound with nowhere to go | close |\n| 2 | I'm an off-season motel | Expressed identity | vacancy sign | medium |\n| 3 | Sunday drags its feet | Verbal metaphor | time slowing | medium |\n| 4 | a sold-house quiet | Qualifying metaphor | quiet that belongs to someone else | far |\n| 5 | the porch light waits up for nobody | Verbal metaphor | routine with no witness | close |\n| 6 | my truck idles in the church lot | Verbal metaphor | going nowhere after the vows | far |\n\nI'm not crowning one; which fits depends on whether the ballad is bitter or tender."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Type: verbal. Linking: echo. The bed yawns on my side."
+    },
+    {
+      "answer": "These go far beyond cliche. Keep the distance from the obvious.",
+      "why": "distance and far not a label"
+    },
+    {
+      "answer": "Close your eyes and picture the empty garage.",
+      "why": "close as a verb"
+    }
+  ]
+}

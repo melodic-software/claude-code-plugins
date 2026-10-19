@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.6] - 2026-10-18
+
+### Changed
+
+- `/fleet:reach` relay reference marks the `logs` accepts-only-the-id probe row as observed on Claude Code 2.1.284, so it no longer reads as current behavior.
+
 ## [0.2.5] - 2026-10-13
 
 ### Changed

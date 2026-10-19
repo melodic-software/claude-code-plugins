@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Here is what I see: an empty reports package.\n\nQ1: Which order fields should the CSV carry?\nMy recommendation: **id, date, total**.",
+      "why": "a numbered question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "I wrote the Brief and locked it.",
+      "why": "no question asked"
+    }
+  ]
+}

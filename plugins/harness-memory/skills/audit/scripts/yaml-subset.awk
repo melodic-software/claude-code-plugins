@@ -24,6 +24,9 @@
 #
 # -v BLOCK=1 reads only the lines inside the first ```yaml config fence (a
 # docs convention file); line numbers still name the .md file's own lines.
+# -v STRICT=1 also makes a key repeated in the same mapping a parse error at
+# the second occurrence's line; without it the first and later records are all
+# printed, as before.
 # On a parse error prints `error<TAB><line><TAB><message>` and exits 1.
 # Prints `block<TAB>1` first when BLOCK=1 found a fence.
 
@@ -34,6 +37,14 @@ function fail(msg) {
 }
 
 function emit(path, val) { print path "\t" val }
+
+# -v STRICT=1: a key seen twice at one full dotted path is a duplicate in its
+# mapping. Sequence items carry their own index in the path, so the same key in
+# two items never collides.
+function dupcheck(path) {
+  if (path in keyseen) fail("duplicate key `" path "` (first at line " keyseen[path] ")")
+  keyseen[path] = NR
+}
 
 function ch() { return substr(FS_S, FP, 1) }
 
@@ -174,6 +185,7 @@ function fmap(path,   k, c, start) {
     FP++
     skipws()
     c = ch()
+    if (STRICT == 1) dupcheck(path "." k)
     if (c != "," && c != "}") flow(path "." k)
     skipws()
     c = ch()
@@ -219,6 +231,7 @@ function mapkey(rest, ind,   key, val, path, p) {
   if (val != "" && val !~ /^[ \t]/) fail("expected a space after `" key ":`")
   sub(/^[ \t]+/, "", val)
   path = (paths[n] == "" ? "" : paths[n] ".") key
+  if (STRICT == 1) dupcheck(path)
   value(path, val, ind, "map")
 }
 
@@ -247,7 +260,7 @@ BEGIN { n = 0; based = 0; pending = 0; inblock = (BLOCK == 1) ? 0 : 1; seen = 0 
     if (line ~ /^```[ \t]*$/) { inblock = 0; done = 1; next }
   }
   if (line ~ /^[ \t]*(#.*)?$/) next
-  if (line ~ /^(---|\.\.\.)([ \t]|$)/ || line ~ /^%/) next
+  if (line ~ /^(---|\.\.\.)([ \t]|$)/ || line ~ /^%/) { delete keyseen; next }
 
   match(line, /^[ \t]*/)
   if (BLOCK != 1 && substr(line, 1, RLENGTH) ~ /\t/) fail("tab indentation")
