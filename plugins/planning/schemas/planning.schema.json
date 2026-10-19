@@ -22,6 +22,53 @@
       "type": "boolean",
       "default": false
     },
+    "time_units": {
+      "description": "When true, an estimate or budget of work may be stated in hours, days or weeks; when false, the planning skills use the work_size levels instead. Practice cadence and measurement windows are not estimates and are unaffected. A quoted \"true\" or \"false\" is a string, not a boolean, and is invalid.",
+      "type": "boolean",
+      "default": false
+    },
+    "pre_confirmed_label": {
+      "description": "A tracker label name. In an unattended run, an item carrying it that states its problem counts as problem-confirmed. Unset: no pre-confirmation.",
+      "type": "string",
+      "minLength": 1
+    },
+    "work_size": {
+      "description": "The levels the Brief's Work size uses, per dimension: an ordered map of level name to a one-line quoted description. A dimension set here replaces that dimension's default as a whole. The last level of size is the split trigger, whatever it is named.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "appetite": {
+          "description": "How much the human is willing to spend on the work.",
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "default": {
+            "Small": "A contained change the human will spend little on.",
+            "Medium": "A real piece of work the human will fund with some care.",
+            "Large": "A major investment the human accepts."
+          }
+        },
+        "size": {
+          "description": "How big the work is. The last level means split.",
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "default": {
+            "Small": "One focused change with few moving parts.",
+            "Medium": "Several coordinated changes inside one deliverable.",
+            "Large": "Too big for one deliverable: split it."
+          }
+        },
+        "uncertainty": {
+          "description": "How much of the work is not yet known.",
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "default": {
+            "Known": "The approach and its unknowns are understood.",
+            "Knowable": "The open points can be settled by looking.",
+            "Unknown": "The open points need experiment or discovery."
+          }
+        }
+      }
+    },
     "shared_session": {
       "description": "Starting settings for a /planning:interview shared session. Read once, when a session's state is first created; the owner changes a running session from its Host view.",
       "type": "object",

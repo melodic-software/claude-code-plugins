@@ -141,6 +141,7 @@ reads it from.
 | `plan_store` | string | `"local"` | `CLAUDE_PLUGIN_OPTION_PLAN_STORE` | Where /planning:plan keeps an approved plan: local (default, PLAN.md in the memory slice only) or tracker (also posted as one comment on the claimed work item). A repository's docs/conventions/planning.yaml plan_store key overrides this value. |
 | `phase_order` | string | `"composed"` | `CLAUDE_PLUGIN_OPTION_PHASE_ORDER` | How /planning:plan orders phases: composed (default: dead-code removal, integration slice, riskiest unknown, scaffold, features), subtraction-first (removal, scaffold, features) or riskiest-first. A repository's docs/conventions/planning.yaml phase_order key overrides this value. |
 | `scaffold_stubs` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SCAFFOLD_STUBS` | When on, /planning:design hands off the stub files and signatures a change needs, and /planning:plan puts one stub phase right after dead-code removal (first when there is none). Default: off. A repository's docs/conventions/planning.yaml scaffold_stubs key overrides this value. |
+| `time_units` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TIME_UNITS` | When on, the planning skills may state an estimate or budget of work in hours, days or weeks; when off they use the work_size levels instead. Practice cadence and measurement windows are not affected. Default: off. A repository's docs/conventions/planning.yaml time_units key overrides this value. |
 
 ### How to set these
 

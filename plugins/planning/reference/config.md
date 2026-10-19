@@ -38,6 +38,9 @@ never used in its place. An invalid value never stops the run.
 | `plan_store` | `local`, `tracker` | `local` | `/planning:plan`, final persist step: `tracker` also publishes the approved plan to the claimed work item through `/work-items:track publish-plan` | repository file over user config over default |
 | `phase_order` | `composed`, `subtraction-first`, `riskiest-first` | `composed` | `/planning:plan` Step 2, after build-technique selection: the order of the plan's phases | repository file over user config over default |
 | `scaffold_stubs` | `true`, `false` (bare YAML booleans; a quoted `"true"` is invalid) | `false` | `/planning:design` handoff: names the stub files and their signatures; `/planning:plan` Step 2: places the stub phase | repository file over user config over default |
+| `time_units` | `true`, `false` (bare YAML booleans) | `false` | the procedure in [`../context/problem-framing.md`](../context/problem-framing.md) "Time units": whether an estimate or budget of work may be stated in hours, days or weeks | repository file over user config over default |
+| `pre_confirmed_label` | a tracker label name (non-empty string) | unset | same procedure, "Pre-confirmed": the label that marks an item's stated problem confirmed in an unattended run | repository file over default |
+| `work_size` | an object with `appetite`, `size`, `uncertainty`, each a map of level name to a quoted one-line description | appetite and size `Small`, `Medium`, `Large`; uncertainty `Known`, `Knowable`, `Unknown`; descriptions below | same procedure, "Work size": the levels the Brief's `### Work size` names | repository file over default |
 | `shared_session.uploads` | `true`, `false` | `false` | `/planning:interview` shared lane, at start: guests may offer files | repository file over default |
 | `shared_session.names` | `full`, `initials`, `someone` | `full` | same: what guests see of who answered and voted | repository file over default |
 | `shared_session.digest_names` | `true`, `false` | `false` | same: whether the round sent to Claude names who answered, except people a question is aimed at, who are always named | repository file over default |
@@ -65,6 +68,31 @@ file with the signatures it declares, and `/planning:plan` makes those stubs one
 after the dead-code removal step, or first when the plan has none. A stub body is the language's
 ordinary not-implemented form. When the stubs leave the build red, that phase carries a
 `**Planned breakage:**` line naming the stub paths. `false` adds no stub phase.
+
+`time_units` governs estimates and budgets of work only. Practice cadence ("integrate at least
+daily") and measurement windows ("within 30 days of launch") are not estimates and are written as
+needed under either value.
+
+`work_size` lives in the repository file only and is edited by hand: `/planning:setup apply`
+writes no maps. A dimension set there replaces that dimension's default as a whole; levels are
+never merged. Levels keep the order written, and the last `size` level is the split trigger,
+whatever it is named. Write each description as a quoted string. The defaults:
+
+```yaml
+work_size:
+  appetite:
+    Small: "A contained change the human will spend little on."
+    Medium: "A real piece of work the human will fund with some care."
+    Large: "A major investment the human accepts."
+  size:
+    Small: "One focused change with few moving parts."
+    Medium: "Several coordinated changes inside one deliverable."
+    Large: "Too big for one deliverable: split it."
+  uncertainty:
+    Known: "The approach and its unknowns are understood."
+    Knowable: "The open points can be settled by looking."
+    Unknown: "The open points need experiment or discovery."
+```
 
 The `shared_session.*` keys sit under one `shared_session` object in the repository file and have
 no user-config option. The interview's shared lane resolves them once, when it starts a session,
