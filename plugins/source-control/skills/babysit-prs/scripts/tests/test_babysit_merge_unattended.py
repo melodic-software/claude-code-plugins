@@ -1155,6 +1155,18 @@ class DependabotLane(Unattended):
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
         self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
 
+    def test_a_stale_dependabot_head_is_enqueued_not_written(self) -> None:
+        self.config = dataclasses.replace(
+            self.config, check_inputs=("scripts/shared-copies.txt",)
+        )
+        stale = {"state": "stale", "mergeBase": "e" * 40, "changed": ["x"]}
+        with mock.patch.object(
+            merge.check_inputs, "changed_since_merge_base", return_value=stale
+        ):
+            code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
     def test_an_in_flight_refusal_still_reads_the_dependabot_class(self) -> None:
         # Off the queue and refused in flight: the class is still read, so
         # the gate keeps no dependency-manager hold it would not keep anyway.
@@ -1649,6 +1661,87 @@ class EachRefusalMakesNoMergeCall(Unattended):
         code, out = self.run_main()
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:MED")
+
+
+class CheckInputsChangedOnTheBase(Unattended):
+    """#8339: a ready head whose merge base predates a base change to a
+    `merge.check-inputs` path is updated from the base, not enqueued."""
+
+    MERGE_BASE = "e" * 40
+    UPDATE = f"repos/owner/repo/pulls/{PR}/update-branch"
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.config = dataclasses.replace(
+            self.config, check_inputs=("scripts/shared-copies.txt",)
+        )
+        self.update_code = 0
+        self.inputs_reads: list[tuple[Any, ...]] = []
+        self.inputs_answer: dict[str, Any] = {
+            "state": "stale",
+            "mergeBase": self.MERGE_BASE,
+            "baseTip": BASE,
+            "changed": ["scripts/shared-copies.txt"],
+        }
+
+    def _capture(self, args: list[str]) -> Any:
+        if self.UPDATE in args:
+            self.log.append("update-branch:" + args[-1])
+            return subprocess.CompletedProcess(args, self.update_code, "{}", "refused")
+        return super()._capture(args)
+
+    def run_main(self, *flags: str, merge_flag: bool = True) -> Any:
+        def read(*args: Any) -> dict[str, Any]:
+            self.inputs_reads.append(args)
+            return dict(self.inputs_answer)
+
+        with mock.patch.object(
+            merge.check_inputs, "changed_since_merge_base", side_effect=read
+        ):
+            return super().run_main(*flags, merge_flag=merge_flag)
+
+    def test_a_stale_head_is_updated_from_the_base_and_not_enqueued(self) -> None:
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [f"update-branch:expected_head_sha={HEAD}"])
+        self.assertEqual(
+            self.inputs_reads, [(("scripts/shared-copies.txt",), HEAD, "main")]
+        )
+        (blocker,) = [b for b in out["blockers"] if "check-inputs-changed:" in b]
+        self.assertIn("scripts/shared-copies.txt", blocker)
+        self.assertIn(self.MERGE_BASE, blocker)
+        self.assertIs(out["unattended"]["enqueue"]["checkInputs"]["updated"], True)
+
+    def test_an_unchanged_or_unknown_read_enqueues_as_before(self) -> None:
+        for state in ("current", "unknown", "off"):
+            with self.subTest(state=state):
+                self.log = []
+                self.inputs_answer = {"state": state}
+                code, out = self.run_main()
+                self.assertEqual(code, 0, out["blockers"])
+                self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_a_refused_update_enqueues_as_before(self) -> None:
+        self.update_code = 1
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(
+            self.log,
+            [
+                f"update-branch:expected_head_sha={HEAD}",
+                "pin",
+                f"enqueue:{HEAD}:merge_queue",
+            ],
+        )
+        read = out["unattended"]["enqueue"]["checkInputs"]
+        self.assertIs(read["updated"], False)
+        self.assertEqual(read["updateError"], "refused")
+
+    def test_a_kill_switch_stop_writes_no_update(self) -> None:
+        self.kill = [PROCEED, policy.KillSwitch(False, "disabled")]
+        code, _ = self.run_main()
+        self.assert_no_merge(code)
+        self.assertFalse(any(e.startswith("update-branch") for e in self.log))
 
 
 class OneUnattendedMergeInFlight(Unattended):

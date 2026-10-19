@@ -459,6 +459,11 @@ class PipelineConfig:
     # Absent, or anything but a whole number from 1 to
     # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
     max_queue_ejections: int = 2
+    # `merge.check-inputs`: git pathspecs of what the pull request checks
+    # read. When the base changed one since a pull request's merge base, the
+    # pr-merge lane updates its branch from the base instead of enqueuing it
+    # (`babysit_check_inputs`). Absent or empty, nothing is updated.
+    check_inputs: tuple[str, ...] = ()
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -595,6 +600,7 @@ def read_config_at(
             ("merge.dependabot.majors", False),
             ("merge.max-in-flight", False),
             ("merge.max-queue-ejections", False),
+            ("merge.check-inputs", True),
         ],
     )
     if values is None:
@@ -682,6 +688,7 @@ def read_config_at(
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
         max_queue_ejections=int(ejections) if ejections else 2,
+        check_inputs=tuple(values["merge.check-inputs"]),
     )
 
 
