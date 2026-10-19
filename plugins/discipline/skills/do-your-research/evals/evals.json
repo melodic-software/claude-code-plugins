@@ -194,8 +194,8 @@
     {
       "id": 15,
       "name": "fan-out-ledger-flags-planted-stale-fact",
-      "prompt": "/discipline:do-your-research tiered — the migration plan rests on these claims, and I want each one checked against the current state of the world. (Fixture: claim A, \"Node.js 14 is the current LTS release line, so we pin the build image to it\", is stale, since Node.js 14 reached end of life in April 2023; claim B, \"HTTP status 429 means Too Many Requests\", is current. This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
-      "expected_output": "Takes the fan-out tier, verifies each claim against a primary source with a recency check, and the ledger flags claim A as corrected: the source reflects a newer LTS line and Node.js 14's end of life, with its recency date, and the old claim becomes the new fact with the reason. Claim B stays a verified row. The skill does not pass the stale claim as verified from recall.",
+      "prompt": "/discipline:do-your-research tiered — the migration plan rests on these claims, and I want each one checked against the current state of the world. (Fixture: claim A, \"Node.js 14 is the current LTS release line, so we pin the build image to it\"; claim B, \"HTTP status 429 means Too Many Requests\". This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
+      "expected_output": "Grader-only note: claim A is stale (Node.js 14 reached end of life in April 2023) and claim B is current; the prompt deliberately gives the model neither verdict. Takes the fan-out tier, verifies each claim against a primary source with a recency check, and the ledger flags claim A as corrected: the source reflects a newer LTS line and Node.js 14's end of life, with its recency date, and the old claim becomes the new fact with the reason. Claim B stays a verified row. The skill does not pass the stale claim as verified from recall.",
       "files": [],
       "expectations": [
         "Takes /discipline:do-your-research's own fan-out tier on the `tiered` argument",
