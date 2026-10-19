@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   analyzeHarvestedRepos,
   filterGitHubUrls,
+  liveCloneGroupCount,
   sanitizePathSegment,
   shallowCloneGitHubRepo,
 } from "./analyze-harvested-repos.js";
@@ -142,6 +143,74 @@ describe("shallowCloneGitHubRepo hardening", () => {
       expect(isAlive(descendant)).toBe(false);
     } finally {
       if (descendant && isAlive(descendant)) process.kill(descendant);
+      fs.rmSync(pidDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(process.platform === "win32")("clone groups and an abnormal parent exit", () => {
+  const isAlive = (/** @type {number} */ pid) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  it("untracks a clone that finishes normally", async () => {
+    const quickSpawn = (_command, _args, options) =>
+      spawn(process.execPath, ["-e", ""], options);
+
+    await expect(
+      shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", quickSpawn),
+    ).resolves.toBe(true);
+    expect(liveCloneGroupCount()).toBe(0);
+  });
+
+  it.each(["SIGTERM", "SIGINT"])("kills the clone group when the parent gets %s", async (signal) => {
+    const pidDir = fs.mkdtempSync(path.join(os.tmpdir(), "clone-parent-"));
+    const pidFile = path.join(pidDir, "clone.pid");
+    const moduleUrl = new URL("./analyze-harvested-repos.js", import.meta.url).href;
+    const parentScript = [
+      `import { spawn } from "node:child_process";`,
+      `import fs from "node:fs";`,
+      `import { shallowCloneGitHubRepo } from ${JSON.stringify(moduleUrl)};`,
+      `const fakeSpawn = (_c, _a, options) => {`,
+      `  const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], options);`,
+      `  fs.writeFileSync(${JSON.stringify(pidFile)}, String(child.pid));`,
+      `  return child;`,
+      `};`,
+      `await shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", fakeSpawn);`,
+    ].join("\n");
+    const parent = spawn(process.execPath, ["--input-type=module", "-e", parentScript], {
+      stdio: "ignore",
+    });
+    const parentExit = new Promise((resolve) => parent.on("close", (code, sig) => resolve({ code, sig })));
+
+    let clone = 0;
+    try {
+      const deadline = Date.now() + 10_000;
+      const readPid = () => (fs.existsSync(pidFile) ? Number(fs.readFileSync(pidFile, "utf8")) : 0);
+      while (readPid() <= 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      clone = readPid();
+      expect(clone).toBeGreaterThan(0);
+      expect(isAlive(clone)).toBe(true);
+
+      parent.kill(signal);
+      const exit = await parentExit;
+      expect(exit).toEqual({ code: null, sig: signal });
+
+      const goneBy = Date.now() + 3000;
+      while (isAlive(clone) && Date.now() < goneBy) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(isAlive(clone)).toBe(false);
+    } finally {
+      if (clone && isAlive(clone)) process.kill(clone);
+      parent.kill("SIGKILL");
       fs.rmSync(pidDir, { recursive: true, force: true });
     }
   });

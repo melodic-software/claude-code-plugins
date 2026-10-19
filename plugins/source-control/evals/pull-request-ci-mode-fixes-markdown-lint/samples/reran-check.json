@@ -1,0 +1,57 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/lint-markdown.sh"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .github/workflows/ci.yml"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "./scripts/lint-markdown.sh"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx markdownlint-cli2 docs/guide.md"
+          }
+        }
+      ],
+      "why": "not the repository command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat scripts/lint-markdown.sh"
+          }
+        }
+      ],
+      "why": "read, not run"
+    }
+  ]
+}

@@ -16,6 +16,7 @@ seam; no real gh process runs.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import io
 import json
 import pathlib
@@ -2172,6 +2173,58 @@ class SharedAnswer(CheckCase):
                 self.assertIsNone(pm.read_shared(str(path)))
         path.write_text("not json", encoding="utf-8")
         self.assertIsNone(pm.read_shared(str(path)))
+        # A partial write, an unparsable or missing computedAt: not trusted.
+        whole = json.dumps(good)
+        broken = {k: v for k, v in good["shared"].items() if k != "computedAt"}
+        for text in (
+            whole[: len(whole) // 2],
+            json.dumps({**good, "shared": {**good["shared"], "computedAt": "soon"}}),
+            json.dumps({**good, "shared": broken}),
+        ):
+            with self.subTest(text=text[:40]):
+                path.write_text(text, encoding="utf-8")
+                self.assertIsNone(pm.read_shared(str(path)))
+
+    def test_a_written_answer_reads_back_as_the_scripts_own(self) -> None:
+        # The gate's write-back (`write_shared`) keeps the script's schema, so
+        # the next candidate reads the same answer back.
+        self.all_green()
+        path = self.write_report()
+        original = json.loads(path.read_text(encoding="utf-8"))
+        shared = pm.read_shared(str(path))
+        assert shared is not None
+        path.unlink()
+        self.assertTrue(pm.write_shared(str(path), shared))
+        written = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(set(written), set(original))
+        self.assertEqual(set(written["shared"]), set(original["shared"]))
+        reread = pm.read_shared(str(path))
+        assert reread is not None
+        self.assertEqual(dataclasses.replace(reread, gate=shared.gate), shared)
+        self.assertEqual(
+            (reread.gate.refusal, reread.gate.report),
+            (shared.gate.refusal, shared.gate.report),
+        )
+        self.assertEqual(list(path.parent.iterdir()), [path])
+
+    def test_a_failed_write_is_reported_and_leaves_the_old_answer(self) -> None:
+        self.all_green()
+        path = self.write_report()
+        before = path.read_text(encoding="utf-8")
+        shared = pm.read_shared(str(path))
+        assert shared is not None
+        err = io.StringIO()
+        with (
+            contextlib.redirect_stderr(err),
+            mock.patch.object(pm.os, "replace", side_effect=OSError("disk full")),
+        ):
+            self.assertFalse(pm.write_shared(str(path), shared))
+        self.assertIn("disk full", err.getvalue())
+        self.assertEqual(path.read_text(encoding="utf-8"), before)
+        self.assertEqual(list(path.parent.iterdir()), [path])
+        # A path with no file name is a failed write, never a raise.
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertFalse(pm.write_shared(".", shared))
 
     def test_the_default_floor_names_what_it_was_read_from(self) -> None:
         demotion = pm.policy.Demotion(False, None, (9,), None, None)
@@ -2273,6 +2326,60 @@ class RoleLabelRead(unittest.TestCase):
                 with self.assertRaises(pm.PostMergeReadError):
                     self._read(proc, strict=True)
                 self.assertEqual(self._read(proc), pm.DEFAULT_ROLE_LABEL)
+
+
+class SeveralInFlight(CheckCase):
+    """`merge.max-in-flight` above 1: several lane merges land unverified, and
+    one red full run on a head containing them all charges every one."""
+
+    def test_a_red_run_charges_every_unverified_lane_merge_and_demotes(
+        self,
+    ) -> None:
+        commits = ("6" * 40, "7" * 40, "8" * 40)
+        self.gh.merged = [
+            identity_merge(
+                number=7101 + i,
+                mergeCommit={"oid": sha},
+                mergedAt=f"2026-10-12T10:0{i}:00Z",
+            )
+            for i, sha in enumerate(commits)
+        ]
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                41,
+                conclusion="failure",
+                run_attempt=2,
+                created_at="2026-10-12T10:05:00Z",
+            ),
+        )
+        self.gh.attempts[(41, 1)] = dispatch_run(
+            41, conclusion="failure", created_at="2026-10-12T10:05:00Z"
+        )
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        verdict = pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=datetime(2026, 10, 12, 11, 0, tzinfo=UTC),
+            pinned_sha=lambda merge: HEAD_SHA,
+            lane_merges_only=True,
+        )
+        charged = [(f.signal, f.merge.number) for f in verdict.failures]
+        self.assertEqual(
+            charged, [("dispatch", 7101), ("dispatch", 7102), ("dispatch", 7103)]
+        )
+        gate = pm.gate_from_report(verdict.report())
+        self.assertEqual(
+            gate.refusal, "failure:dispatch#7101,dispatch#7102,dispatch#7103"
+        )
+        self.assertFalse(any(gate.verified(m.merge) for m in verdict.merges))
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        # One demotion record per charged merge.
+        self.assertEqual(report["telemetry"], {"demotion_events": 3})
+        self.assertEqual(report["errors"], [])
 
 
 if __name__ == "__main__":

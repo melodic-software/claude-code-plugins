@@ -150,6 +150,8 @@ async page => {
     ok("AC20: archived question greyed in Groups", await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived")));
     const live = s.questions.questions.filter(q => !q.archived).length;
     ok("AC20: meter leaves the archived question out", new RegExp(" of " + live + " answered$").test(await page.textContent("#meterText")), await page.textContent("#meterText"));
+    const archN = s.questions.questions.filter(q => q.archived).length;
+    ok("#7758: the header shows the live and archived counts as visible text", archN > 0 && (await page.textContent("#qCounts")) === live + " live, " + archN + " archived", await page.textContent("#qCounts"));
     await page.click('.seg [data-view="tree"]'); await page.waitForTimeout(200);
     ok("AC20: archived question greyed in Tree", await page.$eval('.rail-list .tree .qbtn[data-q="X1"]', el => el.classList.contains("archived")));
     await page.click('.rail-list .tree .qbtn[data-q="X1"]'); await page.waitForTimeout(200);
