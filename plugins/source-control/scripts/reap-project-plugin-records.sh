@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# reap-project-plugin-records.sh — remove the project-scope plugin install
-# records Claude Code recorded for the directory this script is standing in,
+# reap-project-plugin-records.sh — remove the project- and local-scope plugin
+# install records Claude Code recorded for the directory this script is standing in,
 # through the documented plugin CLI and nothing else.
 #
 # WHY THIS EXISTS. Claude Code records a project-scope install in
@@ -12,15 +12,17 @@
 #
 # THE BOUNDARY, RENDERED IN CODE RATHER THAN IN PROSE. `claude plugin uninstall
 # <id> -s project` has NO path flag: it resolves strictly against the current
-# directory (measured — see skills/worktree/fixtures/README.md). This script
-# therefore resolves `--worktree-path` to one directory and enters it itself, so
-# the caller's cwd does not matter (a worktree-isolated session cannot `cd`
+# directory (measured for project scope only — see skills/worktree/fixtures/README.md).
+# Local scope is unmeasured: this script assumes the same behavior and gives it the
+# same directory handling, so a differing local-scope CLI is what to recheck. This
+# script therefore resolves `--worktree-path` to one directory and enters it itself,
+# so the caller's cwd does not matter (a worktree-isolated session cannot `cd`
 # between commands) and the script acts on that one path only. It refuses a main
-# working tree (its `.git` is a directory) before entering, so the main
-# checkout's records are out of reach. A record for a live repository on an
-# unmounted network share or a detached external volume is indistinguishable
-# from a dead worktree to a bare existence check, which is why the trigger is a
-# teardown the caller is performing, never path liveness.
+# working tree (its `.git` is a directory, or git reports its git dir equal to its
+# common dir) before entering, so the main checkout's records are out of reach. A
+# record for a live repository on an unmounted network share or a detached external
+# volume is indistinguishable from a dead worktree to a bare existence check, which
+# is why the trigger is a teardown the caller is performing, never path liveness.
 #
 # TWO CALLS IT NEVER MAKES.
 #   * `-s user` — the CLI's own failure text for an id with no project record
@@ -175,6 +177,17 @@ if [[ -d "$arg_native/.git" ]]; then
   printf 'info: this script reaps the records of a worktree being torn down, never those of a main checkout.\n'
   exit 2
 fi
+# A `.git` file is a main checkout too when git reports its git dir equal to its
+# common dir (`git init --separate-git-dir`, a submodule). Skipped when git
+# cannot resolve the path, as for a husk whose gitdir is gone.
+if [[ -f "$arg_native/.git" ]] && have git; then
+  git_dirs="$(git -C "$arg_native" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)" || git_dirs=""
+  if [[ -n "$git_dirs" && "${git_dirs%%$'\n'*}" == "${git_dirs#*$'\n'}" ]]; then
+    printf 'error: --worktree-path is a main working tree (its git dir is its common dir) — refusing: %s\n' "$arg_native"
+    printf 'info: this script reaps the records of a worktree being torn down, never those of a main checkout.\n'
+    exit 2
+  fi
+fi
 
 # The project scope has no path flag, so the script enters the named directory
 # itself; the caller's cwd does not matter.
@@ -195,8 +208,8 @@ have jq || {
   exit 3
 }
 
-# enumerate — ids with a project-scope record whose projectPath is this
-# directory. `claude plugin list --json` reports every project-scope record on
+# enumerate — id and scope of each project- or local-scope record whose
+# projectPath is this directory (user scope is never listed). `claude plugin list --json` reports every project-scope record on
 # the machine regardless of cwd — measured, and re-checkable:
 # skills/worktree/fixtures/README.md § project-scope-reap-probe.sh arm 2,
 # Claude Code 2.1.240, re-run unchanged on 2.1.241 — so enumeration is
@@ -210,22 +223,22 @@ list_ids() {
   # same path resolved locally — the field would silently never match.
   printf '%s' "$raw" | jq -r '
     (if type == "object" then (.installed // .plugins // []) else . end)
-    | map(select(.scope == "project"))
+    | map(select(.scope == "project" or .scope == "local"))
     | .[]
-    | [(.id // ""), (.projectPath // "")]
+    | [(.id // ""), (.projectPath // ""), .scope]
     | join("\t")
   ' 2>/dev/null | tr -d '\r' || return 1
 }
 
-# matching_ids — newline-separated, deduplicated.
+# collect_matches — `<id><TAB><scope>` rows, deduplicated.
 collect_matches() {
-  local rows id path
+  local rows id path scope
   rows="$(list_ids)" || return 1
-  printf '%s\n' "$rows" | while IFS=$'\t' read -r id path; do
+  printf '%s\n' "$rows" | while IFS=$'\t' read -r id path scope; do
     [[ -n "$id" ]] || continue
     [[ -n "$path" ]] || continue
     [[ "$(norm_path "$path")" == "$here_key" ]] || continue
-    printf '%s\n' "$id"
+    printf '%s\t%s\n' "$id" "$scope"
   done | sort -u
 }
 
@@ -236,17 +249,17 @@ matches="$(collect_matches)" || {
 }
 
 if [[ -z "$matches" ]]; then
-  printf 'ok: no project-scope plugin install records are recorded for %s — nothing to reap.\n' "$here_native"
+  printf 'ok: no project- or local-scope plugin install records are recorded for %s — nothing to reap.\n' "$here_native"
   exit 0
 fi
 
 count="$(printf '%s\n' "$matches" | grep -c '[^[:space:]]')"
-printf 'info: %s project-scope plugin install record(s) recorded for %s\n' "$count" "$here_native"
+printf 'info: %s project- or local-scope plugin install record(s) recorded for %s\n' "$count" "$here_native"
 
 if [[ "$dry_run" -eq 1 ]]; then
-  while IFS= read -r id; do
+  while IFS=$'\t' read -r id scope; do
     [[ -n "$id" ]] || continue
-    printf 'info: would reap %s\n' "$id"
+    printf 'info: would reap %s (%s scope)\n' "$id" "$scope"
   done <<<"$matches"
   printf 'ok: dry run — no record was removed.\n'
   exit 0
@@ -336,20 +349,21 @@ settle_settings() {
 
 reaped=0
 noop=0
-while IFS= read -r id; do
+while IFS=$'\t' read -r id scope; do
   [[ -n "$id" ]] || continue
-  # -s project only. Never -s user (the CLI's own failure text suggests it and
+  # The record's own scope: project or local, never another (the enumeration
+  # yields no other). Never -s user (the CLI's own failure text suggests it and
   # that suggestion is fleet-wide). Never --prune. Always --keep-data: this
   # script reaps stale records, never a plugin's persistent data directory.
-  out="$(claude plugin uninstall "$id" -s project --keep-data 2>&1)"
+  out="$(claude plugin uninstall "$id" -s "$scope" --keep-data 2>&1)"
   rc=$?
   if [[ "$rc" -eq 0 ]]; then
     reaped=$((reaped + 1))
-    printf 'ok: reaped %s\n' "$id"
+    printf 'ok: reaped %s (%s scope)\n' "$id" "$scope"
   else
     noop=$((noop + 1))
-    printf 'info: no-op for %s — the CLI resolved no project-scope record here (exit %s): %s\n' \
-      "$id" "$rc" "$(printf '%s' "$out" | tr '\r\n' '  ')"
+    printf 'info: no-op for %s — the CLI resolved no %s-scope record here (exit %s): %s\n' \
+      "$id" "$scope" "$rc" "$(printf '%s' "$out" | tr '\r\n' '  ')"
     printf 'info:   this is a report, not an escalation — do NOT retry it with the user scope.\n'
   fi
 done <<<"$matches"
@@ -384,5 +398,5 @@ if [[ "$survivor_count" -gt 0 ]]; then
   exit 1
 fi
 
-printf 'ok: every project-scope plugin install record for %s is gone.\n' "$here_native"
+printf 'ok: every project- and local-scope plugin install record for %s is gone.\n' "$here_native"
 exit 0

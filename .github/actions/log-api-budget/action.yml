@@ -1,0 +1,35 @@
+name: Log API budget
+description: >
+  Log each named token's REST budget, from the x-ratelimit-* headers of
+  GET /rate_limit, in pr-merge's rate-line shape: one notice and one step
+  summary line per token, and at any phase after `start` a used-since-start
+  count and one `<name>-cost=N` summary line. Never fails the job.
+
+inputs:
+  phase:
+    description: "`start` at the top of the job; any other lower-case word (`end`) compares with it."
+    required: true
+  tokens:
+    description: >
+      One `name token` pair per line, name in lower-case kebab case, such as
+      `github-token` followed by the job token.
+    required: true
+
+outputs:
+  costs:
+    description: "At a phase after `start`, the summary's `<name>-cost=N` line; empty at `start`."
+    value: ${{ steps.log.outputs.costs }}
+
+runs:
+  using: composite
+  steps:
+    - name: Log the API budget
+      id: log
+      shell: bash
+      env:
+        PHASE: ${{ inputs.phase }}
+        TOKENS: ${{ inputs.tokens }}
+        STATE_DIR: ${{ runner.temp }}/log-api-budget
+      run: |
+        [[ $PHASE =~ ^[a-z]{1,20}$ ]] || { echo "::warning::api-budget: phase is not a lower-case word"; exit 0; }
+        bash "$GITHUB_ACTION_PATH/log-api-budget.sh"

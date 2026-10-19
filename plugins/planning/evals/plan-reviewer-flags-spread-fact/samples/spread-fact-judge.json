@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Plan review: audit log retention\n\n| # | Severity | Category | Finding | Action |\n|---|---|---|---|---|\n| 1 | IMPORTANT | Design alignment | The 30-day window is written separately into app/cleanup/job.py, the get_limits() response and docs/operations.md, so a later change to the window updates one and leaves the others wrong | Add AUDIT_RETENTION_DAYS to app/settings.py beside SESSION_TIMEOUT_MINUTES; the job and the API read it, and the docs point at it |\n",
+      "why": "flags the spread fact and names one home"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Plan review: audit log retention\n\n| # | Severity | Category | Finding | Action |\n|---|---|---|---|---|\n| 1 | SUGGESTION | Plan mechanics | tests/test_cleanup.py does not exist yet | Create it in Phase 1 |\n",
+      "why": "no finding about where the value lives"
+    },
+    {
+      "answer": "No plan gaps found.",
+      "why": "clean pass"
+    }
+  ]
+}

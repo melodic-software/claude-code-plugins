@@ -412,4 +412,21 @@ assert_exit "session s1 does not own a session-s10 claim" 4 "$?"
 (cd "${CLAIM%/*}" && bash "${CLAIM##*/}" check-enter "$EXT/wt-s10" --repo-dir "$REPO" --session-id s1 2>/dev/null)
 assert_exit "bare-name invocation still stops on a foreign claim" 4 "$?"
 
+# --- report --root counts unclaimed worktrees outside the worktree root --------
+
+ROOT_REPO="$(mkrepo)"
+ROOT_DIR="$TEST_TMPDIR/wt-root"
+OUTSIDE_DIR="$TEST_TMPDIR/outside-root"
+mkdir -p "$ROOT_DIR" "$OUTSIDE_DIR"
+git -C "$ROOT_REPO" worktree add -q "$ROOT_DIR/in-root" -b feat/in-root
+git -C "$ROOT_REPO" worktree add -q "$OUTSIDE_DIR/out-root" -b feat/out-root
+run_claim report --repo-dir "$ROOT_REPO" --root "$ROOT_DIR"
+assert_exit "unclaimed trees still make report exit 1 with --root" 1 "$?"
+assert_contains "one unclaimed outside the root, one inside, counts 1" "$ERR" \
+  "1 unclaimed outside the worktree root"
+run_claim report --repo-dir "$ROOT_REPO"
+assert_not_contains "without --root no placement line is printed" "$ERR" "outside the worktree root"
+run_claim claim --all-unclaimed --repo-dir "$ROOT_REPO" --root "$ROOT_DIR"
+assert_exit "--root is refused outside report" 2 "$?"
+
 [[ $FAILED -eq 0 ]] || exit 1

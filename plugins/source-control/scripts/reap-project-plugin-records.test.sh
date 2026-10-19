@@ -75,14 +75,14 @@ if [[ "${1:-}" == "plugin" && "${2:-}" == "uninstall" ]]; then
     esac
   done
   here="$(stub_key "$(stub_native_pwd)")"
-  hit="$(jq -r --arg id "$id" --arg here "$here" '
-    map(select(.id == $id and .scope == "project"
+  hit="$(jq -r --arg id "$id" --arg here "$here" --arg scope "$scope" '
+    map(select(.id == $id and .scope == $scope
       and ((.projectPath // "") | gsub("\\\\"; "/") | ascii_downcase | sub("/$"; "")) == $here))
     | length' "$STUB_STATE")"
-  if [[ "$scope" == "project" && "$hit" -gt 0 ]]; then
+  if [[ ( "$scope" == "project" || "$scope" == "local" ) && "$hit" -gt 0 ]]; then
     tmp="$(mktemp)"
-    jq --arg id "$id" --arg here "$here" '
-      map(select((.id == $id and .scope == "project"
+    jq --arg id "$id" --arg here "$here" --arg scope "$scope" '
+      map(select((.id == $id and .scope == $scope
         and ((.projectPath // "") | gsub("\\\\"; "/") | ascii_downcase | sub("/$"; "")) == $here) | not))
     ' "$STUB_STATE" >"$tmp" && mv "$tmp" "$STUB_STATE"
     # The reported side effect: a project-scope uninstall also rewrites the
@@ -91,7 +91,7 @@ if [[ "${1:-}" == "plugin" && "${2:-}" == "uninstall" ]]; then
       mkdir -p .claude
       printf '{\n  "enabledPlugins": {}\n}\n' >.claude/settings.json
     fi
-    printf 'Successfully uninstalled plugin: %s (scope: project)\n' "$id"
+    printf 'Successfully uninstalled plugin: %s (scope: %s)\n' "$id" "$scope"
     exit 0
   fi
   printf 'Failed to uninstall plugin "%s": Plugin "%s" is installed in user scope, not project. Use --scope user to uninstall.\n' "$id" "$id" >&2
@@ -171,6 +171,19 @@ run "$MAIN" --worktree-path "$MAIN"
 assert_exit "refuses a main working tree even when standing in it" 2 "$RC"
 assert_eq "a refused run from inside removes nothing" "1" "$(jq 'length' "$STATE")"
 
+# A main checkout whose `.git` is a file (`git init --separate-git-dir`) is
+# refused too: git reports its git dir equal to its common dir.
+SEPMAIN="$TEST_TMPDIR/sepmain"
+git init -q --separate-git-dir "$TEST_TMPDIR/sepmain.git" "$SEPMAIN"
+SEPMAIN_NATIVE="$(native_of "$SEPMAIN")"
+seed_state "$(jq -n --arg m "$SEPMAIN_NATIVE" '[{id:"a@m",scope:"project",projectPath:$m}]')"
+reset_log
+run "$OTHER" --worktree-path "$SEPMAIN"
+assert_exit "refuses a main working tree whose .git is a file" 2 "$RC"
+assert_contains "the .git-file refusal names the main working tree" "$OUT" "main working tree"
+assert_eq "a refused .git-file run removes nothing" "1" "$(jq 'length' "$STATE")"
+assert_not_contains "a refused .git-file run never calls the CLI" "$(cat "$LOG")" "plugin"
+
 # --- the caller's cwd does not matter -------------------------------------------
 # A linked worktree keeps `.git` as a file. Run from an unrelated directory, the
 # script enters --worktree-path itself and reaps only that path's records.
@@ -217,6 +230,26 @@ assert_eq "only this directory's project records are removed" "c@m,d@m" "$left"
 assert_not_contains "never escalates to user scope" "$(cat "$LOG")" "-s user"
 assert_not_contains "never passes --prune" "$(cat "$LOG")" "--prune"
 assert_contains "always passes --keep-data" "$(cat "$LOG")" "--keep-data"
+
+# --- local-scope records are reaped with their own scope -------------------------
+# A dead path can hold a project and a local record side by side, and a user
+# record for the same plugin must survive.
+
+seed_state "$(jq -n --arg wt "$WT_NATIVE" --arg o "$OTHER_NATIVE" '[
+  {id:"a@m",scope:"project",projectPath:$wt},
+  {id:"a@m",scope:"local",projectPath:$wt},
+  {id:"a@m",scope:"local",projectPath:$o},
+  {id:"a@m",scope:"user"}
+]')"
+reset_log
+run "$WT" --worktree-path "$WT"
+assert_exit "a mixed project and local reap exits 0" 0 "$RC"
+assert_contains "the project record is uninstalled with -s project" "$(cat "$LOG")" "plugin uninstall a@m -s project --keep-data"
+assert_contains "the local record is uninstalled with -s local" "$(cat "$LOG")" "plugin uninstall a@m -s local --keep-data"
+left="$(jq -r 'map(.scope + ":" + (.projectPath // "")) | sort | join(",")' "$STATE")"
+assert_eq "the user record and the other path's local record are untouched" \
+  "local:$OTHER_NATIVE,user:" "$left"
+assert_not_contains "never escalates to user scope" "$(cat "$LOG")" "-s user"
 
 # --- the tracked settings file is left as it was found ------------------------
 # The uninstall CLI also rewrites the cwd's .claude/settings.json. Left dirty, a
@@ -366,7 +399,8 @@ SHIM
   STUB_REWRITE_SETTINGS=1 EXTRA_PATH="$GIT_SHIM" run "$GWT" --worktree-path "$GWT" --dry-run
   assert_exit "--dry-run with a tracked settings file exits 0" 0 "$RC"
   assert_not_contains "--dry-run restores nothing" "$OUT" "restored"
-  assert_eq "--dry-run makes no git call" "" "$(cat "$GIT_LOG")"
+  assert_eq "--dry-run makes no git call beyond the main-tree check" "" \
+    "$(grep -v -- ' rev-parse --path-format=absolute --git-dir --git-common-dir$' "$GIT_LOG")"
 else
   skip_case "git not available — the settings-restore cases are unpinned here"
 fi
@@ -480,7 +514,7 @@ assert_contains "the pass is called unverified" "$OUT" "UNVERIFIED"
 assert_contains "the survivor count is reported as unknown, not zero" "$OUT" "surviving UNKNOWN"
 # The needle is the success SENTENCE, not the phrase — the degrade text itself
 # legitimately contains "gone" while denying it ("nothing confirmed any record is gone").
-assert_not_contains "never emits the clean-reap line" "$OUT" "ok: every project-scope"
+assert_not_contains "never emits the clean-reap line" "$OUT" "ok: every project- and local-scope"
 assert_contains "the uninstall that did run is still reported" "$OUT" "reaped 1"
 
 # --- the documented trailing-separator normalization ----------------------------

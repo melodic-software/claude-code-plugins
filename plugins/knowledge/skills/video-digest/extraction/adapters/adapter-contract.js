@@ -163,6 +163,7 @@ export function classifyErrorDetail(errorPatterns, detail) {
  * @property {string} id
  * @property {string} title
  * @property {string} description
+ * @property {number|null} [durationSec] - media duration from metadata; null or absent when unreported
  */
 
 /**

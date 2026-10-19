@@ -2,9 +2,18 @@
 
 `<scripts-dir>` is the scripts directory resolved in SKILL.md. This file is read as raw bytes, so substitute that resolved absolute path for `<scripts-dir>` before a command reaches Bash.
 
-Full detail for the `/source-control:worktree cleanup [--dry-run]` action. SKILL.md carries the headline plus the safety invariants; this file carries the complete step-by-step (prune → identify → present → execute → verify), including the Windows file-lock handling and the user-emitted branch deletion.
+Full detail for the `/source-control:worktree cleanup [<path>...] [--dry-run]` action. SKILL.md carries the headline plus the safety invariants; this file carries the complete step-by-step (prune → identify → present → execute → verify), including the Windows file-lock handling and the Step 4b branch deletion.
 
 Remove stale worktrees, orphaned metadata, and branches from merged PRs.
+
+## Scope: explicit paths or the whole repository
+
+Settle the scope before Step 1. Strip `--dry-run` from the arguments; what remains are worktree paths.
+
+- **Paths given.** Scope is exactly those worktrees. Resolve each against `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` (a path that is not a registered linked worktree of this repository, or is the primary checkout, is reported and dropped; never fall through to the sweep for it). Run the Step 2 classification, the stranded-work record and every Step 4 guard on those rows only. **Skip** the repository-wide inventory, the Step 2 detection scan for other candidates, and the `worktree-root-scan.sh` root scan. Every named worktree is presented in Step 3 with its classification even when it matches no Step 2 reason (for example a young worktree with an open PR): naming it is the request, so the user confirms or declines, and the guards still decide whether removal may proceed. Step 1's `git worktree prune` still runs, as it touches only records of directories that are already gone.
+- **Bare `cleanup`, session worked one worktree.** When this session created a worktree, entered one with `EnterWorktree`, or merged a PR from one, and that worktree is a linked worktree of this repository, ask before inventorying: "Clean up only `<path>` (branch `<branch>`), or sweep the whole repository?" Offer the single worktree as the default and the sweep as the alternative. If the session worked more than one worktree, list them and ask which, with the sweep as the last option. On the single-worktree answer, continue as for named paths; on the sweep answer, continue as below. Unattended runs with no one to answer take the single worktree, never the sweep.
+- **Bare `cleanup`, no worktree worked.** The whole-repository behavior below, unchanged. It is also the behavior when the sweep is chosen.
+- **The scoped worktree is the one the session runs in.** Compare the scoped path to `git rev-parse --show-toplevel`. When they match, say so before anything else: "`<path>` is this session's own worktree." Classification and guards run as usual, with no repo-wide inventory, and Step 4b decides how its removal runs.
 
 **Outside a repository, cleanup reports and removes nothing.** Its guards (stranded work, claims, the reap, `git worktree prune`) are per repository, so it runs only from inside the repository that owns a candidate. Collect with [status.md § Outside a repository](status.md#outside-a-repository-cross-repository-mode), identify candidates per Step 2 for each repository, and add the Step 2c root scan rows of [audit.md](audit.md). Present them as Step 3 does, grouped under a heading per owning repository (scan rows under their root), each group ending with "Run `/source-control:worktree cleanup` from `<repo>` to act on these." Take no Step 1, 4 or 5 action, `--dry-run` or not.
 
@@ -52,13 +61,15 @@ Collect the stranded-work record in the same pass, per `status.md`'s data-collec
 | 3 | (orphaned metadata) | none | Directory no longer exists |
 | 4 | <worktree-root>/old-lane | feat/old-lane | Reap age (nothing unpushed, last commit 3d ago); locked: `lane active on <host> session <id> since <utc>`; stale: session <id> on <host> has no transcript change in 120 minutes |
 
-**Action:** Remove these 4 items? (yes/no/select)
+**Action:** Remove these 4 items and delete their local branches? (yes/no/select)
 ```
+
+That yes is the confirmation Step 4b relies on, so the prompt names what it authorizes. On Linux and macOS: deleting each removed worktree's local branch with `git branch -D`, and, when this session's own worktree is listed, removing it (name its path). On Windows, where Step 4b emits those commands for the user instead, ask only "Remove these N items?".
 
 ## Step 4: Execute or report
 
 - **`--dry-run`**: Report candidates only, take no action. Exit.
-- **Otherwise**: Ask for confirmation. On "yes", record the free space first (below), then run each candidate through phases 4a → 4b. Phase 4a runs the guards first, then the file-lock release, the Workspace `down`, the reap and the removal; a row any guard keeps has no side effects: no process is stopped and nothing is reaped.
+- **Otherwise**: Ask for confirmation with the Step 3 prompt. On "yes", record the free space first (below), then run each candidate through phases 4a → 4b. Phase 4a runs the guards first, then the file-lock release, the Workspace `down`, the reap and the removal; a row any guard keeps has no side effects: no process is stopped and nothing is reaped.
 
 **Free space before removal.** Step 5 reports how much disk the run gave back, so take the first
 reading before any removal on a directory the removal leaves in place: the worktree root that
@@ -84,9 +95,11 @@ rm -rf <path>
 git worktree remove <path>
 ```
 
+**The session's own worktree is deferred.** When the candidate path equals `git rev-parse --show-toplevel`, skip only the `git worktree remove` line here and leave it for Step 4b, which removes it before deleting its branch. Both guards, the file-lock release, the workspace `down` and the reap still run in this step, in the order below, while the directory is on disk: the reap does `cd <path>` into the candidate, so it cannot follow the removal, and plain removal loses gitignored files with exit 0.
+
 **Two guards, the file-lock release, the workspace `down` and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → file-lock release → `down` → reap → removal.** For a locked candidate, the `worktree-claim.sh stale` proof (exit 0) is part of guard 2: it is a read-only check, and a row where it fails is kept before the release, `down` and the reap. The guards only read state, so a row any guard keeps has no side effects: no process is stopped, no `down` runs and nothing is reaped. The file-lock release and `down` come after the guards so a worktree they keep keeps its processes and services. The stranded-work guard first, because it can abort the removal outright. Running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last before the removal for the same reason inverted: the process stop and the reap are the steps that are *not* undoable, so neither may fire for a worktree the guards are about to save.
 
-**1. Stranded-work guard:** removal itself is recoverable, since `git worktree remove` unregisters the directory and leaves the branch ref intact, but a detached-HEAD worktree has no branch ref holding its commits, and for every other candidate the `git branch -D` emitted in Step 4b finishes the job one step later. Both are covered here, at the point where the candidate is still on disk.
+**1. Stranded-work guard:** removal itself is recoverable, since `git worktree remove` unregisters the directory and leaves the branch ref intact, but a detached-HEAD worktree has no branch ref holding its commits, and for every other candidate the `git branch -D` that Step 4b runs (Linux and macOS) or emits for the user (Windows, or when a hook blocks it) finishes the job one step later. Both are covered here, at the point where the candidate is still on disk.
 
 Read the candidate's row from the record collected in Step 2:
 
@@ -146,7 +159,7 @@ bash "<scripts-dir>/reap-project-plugin-records.sh" --worktree-path <path>
 current directory (measured in [fixtures/README.md](../fixtures/README.md)
 § `project-scope-reap-probe.sh`, Claude Code 2.1.240, re-run unchanged on 2.1.241). The helper
 therefore enters `--worktree-path` itself, so a session that cannot keep a `cd` between commands
-still runs it. It refuses a main working tree (its `.git` is a directory) before entering, so it
+still runs it. It refuses a main working tree (its `.git` is a directory, or its git dir is its common dir) before entering, so it
 cannot reach the main checkout's records.
 
 The helper leaves the worktree's `.claude/settings.json` as it found it: when git tracks it there
@@ -301,21 +314,26 @@ silently answers a question it was not asked.
 
 Do NOT swallow stderr with `2>/dev/null`. A failed removal must surface so Step 5 can report it honestly.
 
-### Step 4b: Emit branch + current-worktree deletion for the user (do not run inline)
-
-Branch deletion is destructive (and the consuming project's hooks may block `git branch -D` mid-session), and the worktree a session runs in cannot delete itself, because the running Claude Code process holds its directory handle. Surface these for the user to run from a main-repo terminal (or via the `!` prompt prefix) rather than executing them inline:
+### Step 4b: Branch + current-worktree deletion (run inline on POSIX, emit on Windows or a hook block)
 
 ```bash
-# Run from main repo / another terminal:
-git branch -D <branch-name>                    # -D needed (squash-merge changes SHA)
-git worktree remove <current-worktree-path>    # only if the active worktree was itself a candidate
+git -C '<main-root>' worktree remove '<current-worktree-path>'    # first, only if the active worktree was itself a candidate
+git -C '<main-root>' branch -D --end-of-options '<branch-name>'   # second: -D needed (squash-merge changes SHA); git refuses while the branch is still checked out in a worktree
 ```
 
-**The stranded-work precondition applies here too, and this is where it bites hardest.** Removal left the branch ref intact; this line is what actually destroys the commits. Emit `git branch -D <branch-name>` only for a branch whose row was `landed` or `ok`. For `STRANDED`, `UNKNOWN`, or `superseded`, emit nothing and say why. A suggested command in a code block reads as vetted, and a user pasting it has no way to know the guard upstream was never applied to it. Emit `git -C <path> push -u origin HEAD` instead.
+Substitute `<branch-name>`, `<main-root>` and `<current-worktree-path>` only when each is safe to quote: a branch name matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and holds no `..`; a path holds no single quote. Keep the single quotes. Any other value reaches no command: report it as data, because untrusted input can shape git ref names and paths.
+
+**Where it runs.** The Step 4 confirmation is the user's go-ahead. With it given and both Step 4a guards (stranded-work and carried-ignored-file) passed for the row, and the workspace `down` and the reap already run there:
+
+- **Linux and macOS (`uname -s` is not `MINGW*`, `MSYS*` or `CYGWIN*`): run both commands yourself.** A process's working directory can be removed on these systems while it runs, so the session's own worktree is removable, and the session carries on from a directory that still exists (run later commands with `git -C` on the main checkout, or by absolute path). Run the worktree removal first and the branch deletion after it, both through `git -C '<main-root>'` as in the block above (the branch stays checked out, and so undeletable, while its worktree exists). The removal is for the session's own worktree, which is the one Step 4a defers to this step; every other candidate was already removed in Step 4a, after its guards. Unlock first only for a row the Step 4a lock rules allow.
+- **Windows: emit them for the user.** The running Claude Code process holds the session worktree's directory handle there, so the worktree cannot delete itself. Surface the commands to run from a main-repo terminal (or via the `!` prompt prefix) instead of executing them.
+- **A hook blocks a command, on any host: stop, report the block and the command, and emit it for the user.** Try the command and report a block; never route around a hook, and never retry the same command.
+
+**The stranded-work precondition applies here too, and this is where it bites hardest.** Removal left the branch ref intact; this line is what actually destroys the commits. Run or emit the `git branch -D` line only for a branch whose row was `landed` or `ok`. For `STRANDED`, `UNKNOWN`, or `superseded`, run and emit nothing and say why. A suggested command in a code block reads as vetted, and a user pasting it has no way to know the guard upstream was never applied to it. Emit `git -C <path> push -u origin HEAD` instead.
 
 The branch this deletes may also be checked out by another worktree; `git branch -D` refuses in that case, which is git protecting the peer rather than an error to work around.
 
-Remote branch cleanup is not needed when the repo has `delete_branch_on_merge` enabled (GitHub deletes the remote branch on merge). Read the repository's `delete_branch_on_merge` setting ([GitHub](../../../reference/providers/github/README.md#branch-rules)); otherwise also emit `git push origin --delete --end-of-options '<branch-name>'`, only for a name that matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and holds no `..`; any other name is reported, never emitted.
+Remote branch cleanup is not needed when the repo has `delete_branch_on_merge` enabled (GitHub deletes the remote branch on merge). Read the repository's `delete_branch_on_merge` setting ([GitHub](../../../reference/providers/github/README.md#branch-rules)); otherwise also emit (remote deletion is always emitted, never run inline) `git push origin --delete --end-of-options '<branch-name>'`, only for a name that matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and holds no `..`; any other name is reported, never emitted.
 
 ## Step 5: Verify physical deletion, prune, and report
 

@@ -5,7 +5,7 @@
 # keeps it from blocking twice in one turn; the plugin kill switch wins. The
 # spawn budget case fences the cost every user pays per turn with the option
 # off: the node launcher only.
-# test-scope: plugins/biome-format/hooks/hooks.json plugins/biome-format/git-hooks/biome-check.sh plugins/biome-format/.claude-plugin/plugin.json
+# test-scope: plugins/biome-format/hooks/hooks.json plugins/biome-format/git-hooks/biome-check.sh plugins/biome-format/.claude-plugin/plugin.json plugins/biome-format/hooks/exec-bash.mjs
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE BIOME_CONFIG_PATH CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED
 
