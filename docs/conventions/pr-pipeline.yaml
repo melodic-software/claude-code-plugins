@@ -374,6 +374,9 @@ limits:
   # Hours of issue-lane admissions the admitted backlog (open issues with
   # agent-ready) may hold before new agent-ready labels pause.
   admission-window-hours: 24
+  # Share of the lane's hourly merge rate admitted per hour; the release point
+  # is this factor times hourly merges times admission-window-hours.
+  admission-factor: 0.8
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as

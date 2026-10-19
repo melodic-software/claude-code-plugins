@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // admission-window.mjs: whether the issue lane's admissions are open. The
 // admitted backlog (open issues labeled agent-ready) may hold
-// `limits.admission-window-hours` of admissions, admitted at ADMISSION_FACTOR
-// times the lane's merge rate over the last 24 hours:
+// `limits.admission-window-hours` of admissions, admitted at
+// `limits.admission-factor` times the lane's merge rate over the last 24 hours:
 //
 //   hourly        = lane PRs merged in the last 24 h / 24
-//   release_point = ADMISSION_FACTOR * hourly * admission-window-hours
+//   release_point = admission-factor * hourly * admission-window-hours
 //   open          = admitted < release_point
 //
-// Prints one line and exits 0 open, 1 held, 2 on error. Reads the window from
+// Prints one line and exits 0 open, 1 held, 2 on error. Reads both limits from
 // this checkout's pr-pipeline.yaml through resolve-config (run `npm ci` in
 // .github/actions/resolve-config once) and the counts through `gh`.
 //
@@ -17,8 +17,6 @@ import { execFileSync } from "node:child_process";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// Admissions at or below 0.8 times the merge rate; pr-pipeline.yaml sets no factor.
-export const ADMISSION_FACTOR = 0.8;
 const LANES_APP = "app/melodic-automation-lanes";
 const DAY_MS = 86_400_000;
 
@@ -41,7 +39,7 @@ export function counts(run, { repo, now }) {
   };
 }
 
-export function decide({ merged24h, admitted, windowHours, factor = ADMISSION_FACTOR }) {
+export function decide({ merged24h, admitted, windowHours, factor }) {
   const hourly = merged24h / 24;
   const releasePoint = factor * hourly * windowHours;
   return { merged24h, hourly, admitted, releasePoint, open: admitted < releasePoint, allowedPerHour: factor * hourly };
@@ -52,20 +50,21 @@ const fmt = (x) => String(Number(x.toFixed(2)));
 export const formatLine = (d) =>
   `merged24h=${d.merged24h} hourly=${fmt(d.hourly)} admitted=${d.admitted} release_point=${fmt(d.releasePoint)} admissions=${d.open ? "open" : "held"} allowed_per_hour=${fmt(d.allowedPerHour)}`;
 
-async function windowFromConfig() {
+async function limitsFromConfig() {
   const { limitsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
-  return limitsFromBase({ BASE_PATH: fileURLToPath(new URL("../../../", import.meta.url)) })["admission-window-hours"];
+  const limits = limitsFromBase({ BASE_PATH: fileURLToPath(new URL("../../../", import.meta.url)) });
+  return { windowHours: limits["admission-window-hours"], factor: limits["admission-factor"] };
 }
 
-export async function main({ argv = process.argv.slice(2), run = gh, loadWindow = windowFromConfig, now = Date.now(), out = console.log, err = console.error } = {}) {
+export async function main({ argv = process.argv.slice(2), run = gh, loadLimits = limitsFromConfig, now = Date.now(), out = console.log, err = console.error } = {}) {
   try {
     const at = argv.indexOf("--repo");
     const repo = at >= 0 ? argv[at + 1] : run(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo ?? "")) {
       throw new Error(`no owner/repo (got \`${repo}\`)`);
     }
-    const windowHours = await loadWindow();
-    const decision = decide({ ...counts(run, { repo, now }), windowHours });
+    const { windowHours, factor } = await loadLimits();
+    const decision = decide({ ...counts(run, { repo, now }), windowHours, factor });
     out(formatLine(decision));
     return decision.open ? 0 : 1;
   } catch (error) {

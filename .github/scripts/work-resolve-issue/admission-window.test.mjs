@@ -1,7 +1,8 @@
 // Expected values come from the owner's admission rule (Q17/Q22,
 // 2026-10-19): hourly = lane merges in the last 24 h / 24, release point =
-// 0.8 x hourly x admission-window-hours, admissions open while the agent-ready
-// backlog is under the release point; exit 0 open, 1 held, 2 on error.
+// admission-factor x hourly x admission-window-hours (0.8 and 24 here unless a
+// test sets them), admissions open while the agent-ready backlog is under the
+// release point; exit 0 open, 1 held, 2 on error.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -29,11 +30,11 @@ function stubGh({ merged, admitted, repoView = REPO }) {
   return { run, calls };
 }
 
-async function report({ merged, admitted, windowHours = 24, argv = ["--repo", REPO], repoView }) {
+async function report({ merged, admitted, windowHours = 24, factor = 0.8, argv = ["--repo", REPO], repoView }) {
   const { run, calls } = stubGh({ merged, admitted, repoView });
   const lines = [];
   const errors = [];
-  const code = await main({ argv, run, loadWindow: async () => windowHours, now: NOW, out: (l) => lines.push(l), err: (l) => errors.push(l) });
+  const code = await main({ argv, run, loadLimits: async () => ({ windowHours, factor }), now: NOW, out: (l) => lines.push(l), err: (l) => errors.push(l) });
   return { code, lines, errors, calls };
 }
 
@@ -56,6 +57,14 @@ test("the window scales the release point", async () => {
   // 36 merges, window 12: 0.8 x 1.5 x 12 = 14.4; 15 admitted holds, 14 opens.
   assert.equal((await report({ merged: 36, admitted: 15, windowHours: 12 })).code, 1);
   assert.equal((await report({ merged: 36, admitted: 14, windowHours: 12 })).code, 0);
+});
+
+test("the factor scales the release point and the allowed rate", async () => {
+  // 36 merges, factor 0.5: 0.5 x 1.5 x 24 = 18; 18 admitted holds, 17 opens.
+  const held = await report({ merged: 36, admitted: 18, factor: 0.5 });
+  assert.equal(held.code, 1);
+  assert.deepEqual(held.lines, ["merged24h=36 hourly=1.5 admitted=18 release_point=18 admissions=held allowed_per_hour=0.75"]);
+  assert.equal((await report({ merged: 36, admitted: 17, factor: 0.5 })).code, 0);
 });
 
 test("no merges in 24 h holds admissions even with an empty backlog", async () => {
@@ -93,10 +102,10 @@ test("a failed gh call, an answer that is no count, or no repository exits 2 wit
   }
 });
 
-test("a window that cannot be read exits 2", async () => {
+test("limits that cannot be read exit 2", async () => {
   const { run } = stubGh({ merged: 36, admitted: 0 });
   const errors = [];
-  const code = await main({ argv: ["--repo", REPO], run, loadWindow: async () => { throw new Error("invalid-config"); }, now: NOW, out: () => {}, err: (l) => errors.push(l) });
+  const code = await main({ argv: ["--repo", REPO], run, loadLimits: async () => { throw new Error("invalid-config"); }, now: NOW, out: () => {}, err: (l) => errors.push(l) });
   assert.equal(code, 2);
   assert.match(errors[0], /invalid-config/);
 });
