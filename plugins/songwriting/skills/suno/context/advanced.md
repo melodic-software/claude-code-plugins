@@ -81,7 +81,7 @@ Suno's official help names these controls and their qualitative endpoints. **Eve
 | **Style Influence** | Loose ↔ Strong | 50% | Right = strict adherence to descriptors; left = creative interpretation |
 | **Audio Influence** | (with upload only) | **25%** on entry to the cover-from-upload flow; other entry flows unobserved. See note below | Weight of uploaded reference vs creative AI interpretation |
 
-**Audio Influence entry value: read the flow, not just the number.** The slider read **25%** on entry to the **cover-from-upload** flow (upload a file, then Cover it) on Suno v5.5. Provenance: `writer-observed, single session (2026-08-12), n=1 — not externally corroborated`, which sits off the [SKILL.md](../SKILL.md) confidence ladder rather than on a rung of it. First-hand does not mean stronger: this is one unreproduced reading.
+**Audio Influence entry value: read the flow, not just the number.** The slider read **25%** on entry to the **cover-from-upload** flow (upload a file, then Cover it) on Suno v5.5. Provenance: `writer-observed, single session (2026-08-12), n=1, not externally corroborated`, which sits off the [SKILL.md](../SKILL.md) confidence ladder rather than on a rung of it. First-hand does not mean stronger: this is one unreproduced reading.
 
 **Do not generalize it across entry flows.** The **Extend** flow and the **upload-as-melodic-seed** flow were not observed, and nothing here establishes that Suno seeds them identically. Treat 25% as what you will see on a cover opened from an upload, and re-read the slider in any other flow rather than assuming a starting value.
 

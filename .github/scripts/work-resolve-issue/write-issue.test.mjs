@@ -50,11 +50,14 @@ const labeled = (actor, day, name = "agent-ready") => labelEvent("labeled", acto
 const unlabeled = (actor, day, name = "agent-ready") => labelEvent("unlabeled", actor, day, name);
 
 // By default the owner added agent-ready after every comment a test posts.
-function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = "", events = [labeled(OWNER, 28)] }) {
+function fakeGitHub({ comments, edits = {}, issueEdits = {}, users = {}, fail = "", events = [labeled(OWNER, 28)], compare = {} }) {
   return async (method, apiPath, body) => {
     const key = `${method} ${apiPath}`;
     if (key === fail) {
       throw new GitHubError(502, key);
+    }
+    if (Object.hasOwn(compare, key)) {
+      return structuredClone(compare[key]);
     }
     if (key === `GET /repos/${REPO}/issues/6825`) {
       return structuredClone(ISSUE);
@@ -98,7 +101,7 @@ afterEach(() => {
 });
 
 // `eventAt` is the payload's issue update time; by default after every label event.
-async function run(github, { sender = String(OWNER.id), eventAt = "2026-10-30T00:00:00Z" } = {}) {
+async function run(github, { sender = String(OWNER.id), eventAt = "2026-10-30T00:00:00Z", extraEnv = {} } = {}) {
   const file = path.join(dir, "issue.json");
   const logged = [];
   const code = await main({
@@ -111,6 +114,7 @@ async function run(github, { sender = String(OWNER.id), eventAt = "2026-10-30T00
       LABEL_SENDER_ID: sender,
       LABEL_NAME: "agent-ready",
       LABEL_EVENT_AT: eventAt,
+      ...extraEnv,
     },
     github,
     log: (line) => logged.push(line),
@@ -365,6 +369,83 @@ test("a failed comment read writes no file and fails", async () => {
   const { code, issue } = await run(
     fakeGitHub({ comments: [], fail: `GET /repos/${REPO}/issues/6825/comments?per_page=100&page=1` }),
   );
+  assert.equal(code, 1);
+  assert.equal(issue, null);
+});
+
+// Resume (plan: turn-cap resume, PR 3): when the run continues an earlier
+// run's lane branch, issue.json carries `resume`, built by the runner from
+// GET /compare between the trusted base and the branch tip: the branch, the
+// cause, each commit's subject (the earlier run's words, data) and a diffstat.
+const BASE_SHA = "b".repeat(40);
+const TIP_SHA = "c".repeat(40);
+const RESUME_ENV = {
+  RESUME_BRANCH: "work-resolve-issue/issue-6825-400-1",
+  RESUME_TIP: TIP_SHA,
+  RESUME_CAUSE: "turn-cap",
+  BASE_SHA,
+};
+const COMPARE_KEY = `GET /repos/${REPO}/compare/${BASE_SHA}...${TIP_SHA}`;
+const COMPARISON = {
+  ahead_by: 2,
+  commits: [
+    { commit: { message: "docs(work-items): add the frame\n\nBody text." } },
+    { commit: { message: "test(work-items): cover the frame" } },
+  ],
+  files: [
+    { filename: "plugins/work-items/README.md", additions: 12, deletions: 3 },
+    { filename: "plugins/work-items/scripts/frame.test.sh", additions: 40, deletions: 0 },
+  ],
+};
+
+test("a resumed run's issue.json names the branch, the cause, its commit subjects and diffstat", async () => {
+  const { code, issue } = await run(fakeGitHub({ comments: [], compare: { [COMPARE_KEY]: COMPARISON } }), { extraEnv: RESUME_ENV });
+  assert.equal(code, 0);
+  assert.deepEqual(issue.resume, {
+    branch: "work-resolve-issue/issue-6825-400-1",
+    cause: "turn-cap",
+    tip: TIP_SHA,
+    commits: ["docs(work-items): add the frame", "test(work-items): cover the frame"],
+    files: [
+      { path: "plugins/work-items/README.md", additions: 12, deletions: 3 },
+      { path: "plugins/work-items/scripts/frame.test.sh", additions: 40, deletions: 0 },
+    ],
+  });
+});
+
+// Every outcome report-outcome resumes after: a funding stop's restart
+// continues its branch like a turn-cap, stopped or limited one's.
+for (const cause of ["turn-cap", "stopped", "limited", "funding"]) {
+  test(`a run resuming after a ${cause} stop writes its resume`, async () => {
+    const { code, issue } = await run(fakeGitHub({ comments: [], compare: { [COMPARE_KEY]: COMPARISON } }), {
+      extraEnv: { ...RESUME_ENV, RESUME_CAUSE: cause },
+    });
+    assert.equal(code, 0);
+    assert.equal(issue.resume.cause, cause);
+  });
+}
+
+test("a run that resumes nothing writes no resume field", async () => {
+  const { code, issue } = await run(fakeGitHub({ comments: [] }));
+  assert.equal(code, 0);
+  assert.equal(Object.hasOwn(issue, "resume"), false);
+});
+
+test("a resume with a malformed tip, branch or cause, or an unreadable comparison, writes no issue file", async () => {
+  for (const extra of [
+    { RESUME_TIP: "abc" },
+    { RESUME_BRANCH: "main" },
+    { RESUME_BRANCH: "work-resolve-issue/issue-7-400-1" },
+    { RESUME_CAUSE: "pushback" },
+    { BASE_SHA: "" },
+  ]) {
+    const { code, issue } = await run(fakeGitHub({ comments: [], compare: { [COMPARE_KEY]: COMPARISON } }), {
+      extraEnv: { ...RESUME_ENV, ...extra },
+    });
+    assert.equal(code, 1, JSON.stringify(extra));
+    assert.equal(issue, null, JSON.stringify(extra));
+  }
+  const { code, issue } = await run(fakeGitHub({ comments: [] }), { extraEnv: RESUME_ENV });
   assert.equal(code, 1);
   assert.equal(issue, null);
 });

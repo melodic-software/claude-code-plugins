@@ -119,10 +119,10 @@
 .app .vf-btn, .app .vf-tbtn, .app .vf-follow, .app .vf-seg-btn, .app .vf-vote, .app .vf-q, .app .vf-tab,
 .app .vf-person, .app .vf-fab, .app .vf-edge, .app .vf-fwd, .app .vf-menu-item, .app .vf-sw-row, .app .vf-col-q,
 .app .vf-rtoggle, .app .vf-proprow, .app .vf-pick-btn, .app .vf-lbtn, .app .vf-qref, .app .vf-res-head, .app .vf-tnode,
-.app .vf-merge-item, .app .vf-swatch {
+.app .vf-merge-item, .app .vf-swatch, .app .vf-cltoggle {
   all: unset; box-sizing: border-box; cursor: pointer;
 }
-.app :is(.vf-btn, .vf-tbtn, .vf-follow, .vf-seg-btn, .vf-vote, .vf-q, .vf-tab, .vf-person, .vf-fab, .vf-edge, .vf-fwd, .vf-menu-item, .vf-sw-row, .vf-col-q, .vf-rtoggle, .vf-proprow, .vf-pick-btn, .vf-lbtn, .vf-qref, .vf-res-head, .vf-tnode, .vf-merge-item, .vf-swatch, .core-avatar[data-pid], .vf-card, .vf-mini):focus-visible {
+.app :is(.vf-btn, .vf-tbtn, .vf-follow, .vf-seg-btn, .vf-vote, .vf-q, .vf-tab, .vf-person, .vf-fab, .vf-edge, .vf-fwd, .vf-menu-item, .vf-sw-row, .vf-col-q, .vf-rtoggle, .vf-proprow, .vf-pick-btn, .vf-lbtn, .vf-qref, .vf-res-head, .vf-tnode, .vf-merge-item, .vf-swatch, .vf-cltoggle, .core-avatar[data-pid], .vf-card, .vf-mini):focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 .app .vf-btn {
@@ -389,13 +389,15 @@
 .app .vf-focus, .app .vf-cmp, .app .vf-treev { min-height: 0; }
 .app .vf-center:not([data-mode="compare"]) .vf-cmp, .app .vf-center:not([data-mode="focus"]) .vf-focus, .app .vf-center:not([data-mode="tree"]) .vf-treev { display: none; }
 .app .vf-focus { display: flex; flex-direction: column; }
-.app .vf-scroll { flex: 1; overflow: auto; padding: 28px clamp(16px, 4vw, 48px) 20px; overscroll-behavior: contain; }
+/* The bottom clears the chat button (52px, 20px off the edge) by 16px, so the last control scrolls out from under it. */
+.app .vf-scroll { flex: 1; overflow: auto; padding: 28px clamp(16px, 4vw, 48px) calc(52px + 20px + 16px); overscroll-behavior: contain; }
 .app .vf-scroll > * { max-inline-size: 720px; margin-inline: auto; }
 .app .vf-qmeta { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 12px; margin-block-end: 10px; }
 .app .vf-qfrom { color: var(--accent-text); }
 .app .vf-qtext { font-size: clamp(22px, 2.3vw, 29px); line-height: 1.22; font-weight: 650; letter-spacing: -0.022em; text-wrap: balance; overflow-wrap: anywhere; }
 .app .vf-qtext:focus { outline: none; }
 .app .vf-onit { display: flex; align-items: center; gap: 8px; margin-block: 12px 24px; color: var(--muted); font-size: 12px; min-block-size: 20px; }
+.app .vf-qonit { display: none; }
 
 /* locked block: the one loud element */
 .app .vf-lock {
@@ -967,8 +969,7 @@
 /* ---------- shortcuts ---------- */
 .app .vf-keys { inline-size: 320px; }
 .app .vf-help-rec .core-rec-line { color: var(--faint); font-size: 12px; }
-.app .vf-help-rec .core-rec-link { color: var(--accent-text, var(--accent)); }
-.app .vf-help-rec .core-rec-switch { color: var(--text); font-size: 13px; }
+.app .vf-help-rec .core-rec-link { color: var(--accent-text); }
 .app .vf-keylist { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 14px; margin: 10px 0 0; align-items: center; }
 .app .vf-keylist dt { display: flex; gap: 4px; }
 .app .vf-keylist dd { margin: 0; color: var(--muted); }
@@ -1025,6 +1026,14 @@
 .app .vf-rep-sent li::before { content: "· "; }
 .app .vf-rep-err { margin: 0; font-size: 13px; color: var(--warn); }
 .app .vf-rep-err:empty { display: none; }
+/* Your reports: each report with its status; while it is not fixed, a box to add a line or a screenshot */
+.app .vf-myreps { max-block-size: min(70vh, 640px); overflow-y: auto; }
+.app .vf-myrep { display: grid; gap: 6px; }
+.app .vf-myrep-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.app .vf-myrep-adds { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.app .vf-myrep-add { display: grid; gap: 6px; }
+.app :is(.vf-myrep-add, .vf-myrep-adds)[hidden] { display: none; }
+.app .vf-myrep-add:has(.vf-rep-file:focus-visible) .vf-rep-add { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app .vf-myprops { display: grid; gap: 4px; padding: 4px 8px 2px; }
 .app .vf-mp { display: grid; gap: 1px; font-size: 12px; }
 .app .vf-mp-txt { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1104,7 +1113,7 @@
 @media (max-height: 560px) {
   .app { grid-template-rows: 44px minmax(0, 1fr) auto; }
   .app .vf-bar { padding-block: 4px; }
-  .app .vf-scroll { padding-block: 12px 12px; }
+  .app .vf-scroll { padding-block: 12px calc(44px + 8px + 16px); } /* clears the 44px chat button 8px off the edge */
   .app .vf-qtext { font-size: 19px; }
   .app .vf-onit { margin-block: 6px 12px; }
   /* the composer folds to one row beside its buttons, growing only while it has focus */
@@ -1117,6 +1126,7 @@
 }
 @media (max-height: 560px) and (max-width: 720px) {
   .app { --tabs-h: calc(48px + env(safe-area-inset-bottom)); }
+  .app .vf-scroll { padding-block-end: 12px; } /* the chat button sits in the tab bar here, not over the page */
   .app .vf-tab { min-block-size: 48px; }
   .app .vf-fab { inline-size: 64px; block-size: 48px; inset-block-end: env(safe-area-inset-bottom); }
   .app .vf-center[data-mode="focus"] .vf-bar { display: none; } /* Questions tab and Next cover moving between questions */
@@ -1125,7 +1135,7 @@
 
 /* ======================= round 8 ======================= */
 .app :is(.vf-thlist, .vf-queue, .vf-hpeople, .vf-apreqs, .vf-upstrip, .vf-citelist, .vf-laterlist, .vf-steps, .vf-hsec, .vf-apform,
-  .vf-anspane, .vf-thpane, .vf-colopts, .vf-res-ask, .vf-fmt) { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .vf-anspane, .vf-colopts, .vf-fmt) { display: grid; grid-template-columns: minmax(0, 1fr); }
 
 /* ---------- title and goal ---------- */
 .app .vf-titles { display: grid; min-width: 0; row-gap: 1px; }
@@ -1191,9 +1201,12 @@
 .app .vf-fmt { gap: 8px; margin-block: 2px 22px; }
 .app .vf-opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 12px; }
 .app .vf-fmt-hint { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.app .vf-advance { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 13.5px; color: var(--muted); }
+.app .vf-advance[hidden] { display: none; }
+.app .vf-advance-sep { color: var(--faint); }
 /* a card: picture (opens the viewer), label, who chose it, then its own Choose button */
 .app .vf-opt {
-  display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-content: start; min-width: 0; padding: 8px 8px 10px;
+  display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px 8px 10px;
   border-radius: var(--r-lg); border: 1px solid var(--line-strong); background: var(--pane);
   transition: border-color 150ms var(--ease-out), background-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
 }
@@ -1214,9 +1227,9 @@
 .app .vf-optlabel { font-size: 14px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; padding-inline: 2px; cursor: pointer; }
 .app .vf-optfoot { display: flex; align-items: center; gap: 6px; padding-inline: 2px; min-block-size: 20px; min-width: 0; }
 .app .vf-optn { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 0; }
-.app .vf-optacts { display: flex; flex-wrap: wrap; gap: 8px; }
+.app .vf-optacts { display: flex; gap: 8px; margin-block-start: auto; }
 .app .vf-optacts .vf-btn { block-size: 44px; font-size: 14px; gap: 6px; }
-.app .vf-optchoose { flex: 1 0 auto; }
+.app .vf-optchoose { flex: 1 1 auto; min-width: 0; }
 /* The pick control is a radio: an empty ring and "Choose this" until picked, then filled, with a dot and "Your choice". */
 .app :is(.vf-optchoose, .vf-lb-choose) { gap: 10px; justify-content: flex-start; color: var(--text); background: var(--pane); box-shadow: inset 0 0 0 1.5px var(--line-input); }
 .app :is(.vf-optchoose, .vf-lb-choose)[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); box-shadow: none; cursor: default; }
@@ -1233,7 +1246,7 @@
   content: "\2713  Your choice"; position: absolute; z-index: 1; inset-block-start: 8px; inset-inline-start: 8px;
   padding: 3px 8px; border-radius: var(--r-sm); background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700;
 }
-.app .vf-optlock { justify-self: start; }
+.app .vf-optlock { justify-self: start; align-self: flex-start; }
 .app .vf-fmt-note { color: var(--muted); font-size: 12px; }
 .app .vf-confirm-fig { margin: 0; }
 .app .vf-confirm-fig .vf-imgbtn { inline-size: min(100%, 640px); }
@@ -1241,6 +1254,8 @@
 .app .vf-imgbtn .vf-confirm-box { inline-size: 100%; }
 /* "Something else…": no picture; its card asks for the person's own option */
 .app .vf-opt-other { border-style: dashed; }
+/* With Lock this one under the other cards, "Something else…" keeps the same room, so its Choose button lines up too. */
+.app .vf-opts:has(.vf-optlock:not([hidden])) .vf-opt-other::after { content: ""; flex: none; block-size: 26px; }
 .app .vf-opt-other .vf-optlabel { color: var(--muted); }
 
 /* ---------- multi, scale and rank questions; the box for one's own option; their results ---------- */
@@ -1383,6 +1398,8 @@
 .app .vf-lb-acts .vf-btn:disabled { opacity: 0.5; cursor: default; }
 @media (max-width: 720px) {
   .app .vf-opts { grid-template-columns: minmax(0, 1fr); }
+  .app .vf-optacts { flex-wrap: wrap; }
+  .app .vf-optchoose { flex: 1 0 auto; }
   /* Picture options sit two to a row, so both Choose buttons are on screen above the tab bar (ux-review-3, Q3). */
   .app .vf-opts:has(.vf-optview:not([hidden])) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .app .vf-opts:has(.vf-optview:not([hidden])) .vf-optacts .vf-btn { block-size: auto; min-block-size: 44px; }
@@ -1439,29 +1456,95 @@
 .app .vf-colopt-n { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 650; }
 .app .vf-colopt-locked { border-color: var(--brass); background: var(--brass-soft); }
 
-/* ---------- Answers | Claude (Q77) ---------- */
-.app .vf-splittabs { margin-block-end: 12px; }
-.app .vf-splittabs .vf-seg-btn { min-inline-size: 7em; text-align: center; }
-.app .vf-split[data-layout="tabs"][data-tab="answers"] .vf-thpane,
-.app .vf-split[data-layout="tabs"][data-tab="claude"] .vf-anspane { display: none; }
-.app .vf-split[data-layout="cols"] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); gap: 28px; align-items: start; }
-.app .vf-anspane, .app .vf-thpane { align-content: start; min-width: 0; }
-.app .vf-split[data-layout="cols"] .vf-thpane {
-  padding: 12px; border-radius: var(--r-lg); background: var(--sunk); border: 1px solid color-mix(in oklch, var(--claude) 22%, var(--line));
-  position: sticky; inset-block-start: 0;
+/* ---------- Answers, then "Claude on this question" (layout A): one column at every width ---------- */
+.app .vf-anspane { align-content: start; min-width: 0; }
+.app .vf-clsec {
+  margin-block-start: 24px; border-radius: var(--r-lg); background: var(--sunk); scroll-margin-block-start: 8px;
+  border: 1px solid color-mix(in oklch, var(--claude) 30%, var(--line));
 }
-.app .vf-thhead { display: flex; align-items: center; gap: 8px; padding-block-end: 8px; margin-block-end: 10px; border-block-end: 1px solid var(--line); flex-wrap: wrap; }
-.app .vf-th-title { color: var(--text); font-size: 13px; }
-.app .vf-thlist { gap: 8px; }
-.app .vf-thpane > .vf-qtools { margin-block: 12px 0; }
-.app .vf-thpane > .vf-askform { margin-block: 10px 0; }
+.app .vf-clhead { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 6px 10px 6px 6px; }
+.app .vf-clh { flex: 1 1 16em; min-width: 0; font-size: inherit; }
+.app .vf-cltoggle {
+  /* A 20px first line inside 12px padding (44px for one line). When the counts wrap on a phone, the chevron stays
+     pinned to that first line, beside the title, rather than dropping to the wrapped line. */
+  position: relative; display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; inline-size: 100%; min-block-size: 44px;
+  padding: 12px 34px 12px 8px; border-radius: var(--r-md); text-align: start; color: var(--text);
+}
+.app .vf-cltitle { font-size: 14px; font-weight: 650; line-height: 20px; }
+.app .vf-cltoggle .vf-chev { position: absolute; inset-block-start: 14px; inset-inline-end: 10px; }
+.app .vf-clsec[data-open="true"] .vf-cltoggle .vf-chev { rotate: 180deg; }
+.app .vf-clhead > .vf-qtools { margin: 0; }
+.app .vf-clbody { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; padding: 0 14px 14px; }
+.app .vf-clbody[hidden] { display: none; }
+.app .vf-clbody > .vf-askform { margin: 0; }
+/* Item 10: the Discussion under the Claude section, folded to its head by default. */
+.app .vf-disc { margin-block-start: 16px; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--pane); scroll-margin-block-start: 8px; }
+.app .vf-disc-h { font-size: inherit; padding: 6px; }
+.app .vf-disc-head {
+  all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap;
+  inline-size: 100%; min-block-size: 44px; padding: 6px 8px; border-radius: var(--r-md); color: var(--text);
+}
+.app .vf-disc-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app .vf-disc-title { font-size: 14px; font-weight: 650; }
+.app .vf-disc-head .vf-chev { margin-inline-start: auto; }
+.app .vf-disc[data-open="true"] .vf-disc-head .vf-chev { rotate: 180deg; }
+.app .vf-disc-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 0 14px 14px; }
+.app .vf-disc-body[hidden], .app .vf-disc-form[hidden], .app .vf-cm [hidden] { display: none; }
+.app .vf-disc-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin: 0; padding: 0; list-style: none; }
+.app .vf-cm { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; padding-block: 10px; border-block-start: 1px solid var(--line); }
+.app .vf-disc-list > .vf-cm:first-child { border-block-start: 0; padding-block-start: 2px; }
+.app .vf-cm-col { min-width: 0; display: grid; gap: 4px; }
+.app .vf-cm-head { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; font-size: 12px; }
+.app .vf-cm-name { font-weight: 650; }
+.app .vf-cm-new { margin: 0; inline-size: 6px; block-size: 6px; }
+.app .vf-cm-txt { font-size: 13.5px; overflow-wrap: anywhere; }
+.app .vf-cm-txt p { margin: 0; }
+.app .vf-cm-ishidden .vf-cm-txt { color: var(--muted); }
+.app .vf-cm-became {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 8px; border-radius: var(--r-sm);
+  background: color-mix(in oklch, var(--claude) 12%, transparent); color: var(--muted); font-size: 12px;
+}
+.app .vf-cm-view, .app .vf-fromdisc { color: var(--claude); font-weight: 650; font-size: 12px; }
+.app .vf-fromdisc { justify-self: start; margin-block-start: 4px; text-decoration: underline; }
+.app .vf-fromdisc[hidden] { display: none; }
+.app .vf-cm .vf-mreacts { grid-column: auto; }
+.app .vf-cm-acts { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; font-size: 12px; }
+.app .vf-cm-acts .vf-lbtn { color: var(--faint); min-block-size: 28px; }
+.app .vf-cm-acts .vf-lbtn:hover { color: var(--text); }
+.app .vf-cm-acts .vf-cm-react { display: inline-flex; }
+.app .vf-cm-acts .vf-cm-react[hidden] { display: none; }
+.app .vf-disc-hint { color: var(--faint); font-size: 12px; }
+/* Chat: "@Claude" asks Claude about the whole session; its message says so, and Claude's answer replies in the thread. */
+.app .vf-mhint { margin: 0; padding: 6px 14px 0; color: var(--faint); font-size: 12px; }
+.app .vf-msent { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-block-size: 24px; color: var(--faint); font-size: 12px; }
+.app .vf-msent:hover { color: var(--text); }
+.app :is(.vf-mhint, .vf-msent, .vf-apgen, .vf-ixq)[hidden] { display: none; }
+.app .vf-ixq.vf-ixgen { font-weight: 600; color: var(--accent-text); }
+.app .vf-disc-form .vf-crow { flex-wrap: wrap; }
+.app .vf-chip-new { color: var(--on-accent); background: var(--accent); border: 1px solid transparent; }
+.app .vf-chip[hidden] { display: none; }
+.app .vf-thlist { gap: 12px; }
+/* Soft-rule cards: "<Name> asked" and the ask, a 1px quiet line, then "Claude" and the answer, the two texts one size. */
+.app .vf-qa-lbl { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; color: var(--muted); min-width: 0; }
+.app .vf-qa-lbl > .vf-card-time { margin-inline-start: auto; font-weight: 400; }
+.app .vf-cbox.vf-qa-txt { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text); }
+.app .vf-qa-ask { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding-block-end: 12px; border-block-end: 1px solid var(--line); justify-self: stretch; }
+.app .vf-qa-ans { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; justify-items: start; justify-self: stretch; }
+.app .vf-qa-ans[hidden] { display: none; }
+.app .vf-qa-ans > .vf-cbox { justify-self: stretch; }
+.app .vf-qa-noask .vf-qa-ask { display: none; }
+.app .vf-runline { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.app .vf-runbar { position: relative; flex: none; inline-size: 56px; block-size: 3px; border-radius: 2px; overflow: hidden; background: var(--line); }
+.app .vf-runline[data-run="true"] .vf-runbar::after { content: ""; position: absolute; inset: 0; inline-size: 40%; background: var(--accent); border-radius: inherit; }
+.app .vf-runline[data-run="false"] .vf-runbar { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .app .vf-runline[data-run="true"] .vf-runbar::after { animation: vf-run 1.4s var(--ease-io) infinite alternate; }
+}
+@keyframes vf-run { from { translate: 0; } to { translate: 150%; } }
 .app .vf-threq { display: grid; gap: 6px; padding: 9px 11px; border-radius: var(--r-md); border: 1px dashed var(--line-strong); background: var(--pane); }
 .app .vf-threq .vf-pfrom { margin: 0; min-width: 0; }
 .app .vf-threq .vf-acts { margin: 0; }
 .app .vf-threq[data-stat="declined"] .vf-thstat, .app .vf-threq[data-stat="failed"] .vf-thstat { color: var(--review); }
-.app .vf-res-ask { gap: 4px; justify-self: stretch; }
-.app .vf-res-who { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-.app .vf-res-asktxt { margin: 0; font-size: 12.5px; color: var(--muted); }
 .app .vf-citedby { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 @media (min-width: 1200px) {
   .app .vf-scroll > *, .app .vf-composer > * { max-inline-size: 1080px; }
@@ -1685,6 +1768,7 @@
 .app .vf-res-head .vf-res-title { grid-column: 2; grid-row: 1; overflow-wrap: anywhere; }
 .app .vf-res-head .vf-via { grid-column: 2; grid-row: 2; min-width: 0; overflow-wrap: anywhere; line-height: 1.4; }
 .app .vf-res-head .vf-card-time { grid-column: 3; grid-row: 1; margin-inline-start: 0; }
+.app .vf-res-head .vf-res-new { grid-column: 3; grid-row: 2; justify-self: end; }
 .app .vf-hperson { align-items: start; }
 .app .vf-hp-namerow { min-block-size: 26px; }
 .app .vf-devicepop .vf-share-url { text-overflow: ellipsis; }
@@ -1729,7 +1813,6 @@
   .app .vf-tab-ico .vf-i { inline-size: 20px; block-size: 20px; }
   .app .vf-tab .vf-tab-l { font-size: 10px; line-height: 1.2; letter-spacing: -0.01em; }
   .app .vf-tab-ico .vf-badge { inset-inline-start: calc(100% - 7px); inset-block-start: -6px; }
-  .app .vf-splittabs { display: inline-flex; }
   .app .vf-uprow { grid-template-columns: 36px minmax(0, 1fr); }
   .app .vf-upacts { grid-column: 1 / -1; justify-content: flex-start; }
   .app .vf-devicepop, .app .vf-citepop, .app .vf-menu { inline-size: min(340px, calc(100% - 16px)); }
@@ -1852,6 +1935,12 @@
   background: var(--sunk);
 }
 .app .vf-ref-thumb img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.app .vf-uppic-wait { cursor: default; }
+.app .vf-uppic-wait .vf-ref-thumb img { opacity: 0.55; }
+.app .vf-uppic-stat {
+  position: absolute; inset-inline: 0; inset-block-end: 0; padding: 4px 8px; font-size: 12px; font-weight: 600; color: var(--text);
+  background: color-mix(in oklch, var(--pane) 85%, transparent);
+}
 .app .vf-ref-cap { padding: 7px 10px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app .vf-ref-quote { display: grid; gap: 8px; padding: 10px 12px; align-content: space-between; }
 .app .vf-ref-qt {
@@ -1921,6 +2010,53 @@
 }
 
 /* ---------- composer send button: a label on wide screens, a round icon on phones ---------- */
+/* ---------- Item 11: the Inbox (in the bell's place): my requests, what waits on the host, notifications ---------- */
+.app .vf-inboxbtn .vf-bell-n { position: static; box-shadow: none; background: var(--accent); color: var(--on-accent); }
+/* .vf-tbtn's min-inline-size replaces flex's min-content floor: on a crowded top bar the title gives way, not these labels */
+.app :is(.vf-inboxbtn, .vf-sharebtn) { flex-shrink: 0; }
+.app .vf-inboxpop { inline-size: 420px; max-block-size: min(640px, calc(100% - 64px)); }
+.app .vf-inboxpop .vf-pp-head { gap: 8px; }
+.app .vf-inboxpop .vf-pp-head .vf-pop-title { flex: 0 1 auto; }
+.app .vf-ixcount { border-radius: 8px; }
+.app .vf-inboxpop .vf-pp-head .vf-ixcount + .vf-btn { margin-inline-start: auto; }
+.app .vf-ixtabs { justify-self: start; margin: 4px 4px 6px; flex-wrap: wrap; }
+.app .vf-ixsec { display: grid; gap: 6px; padding: 4px 2px 10px; }
+.app .vf-ixh { margin: 0; padding-inline: 8px; font-size: 12px; font-weight: 650; color: var(--muted); }
+.app .vf-ixgh { margin: 2px 0 0; padding-inline: 8px; font-size: 11.5px; font-weight: 600; color: var(--faint); }
+.app .vf-ixgroup { display: grid; gap: 6px; }
+.app .vf-ixwait { padding: 8px 6px 10px; border: 1px solid color-mix(in oklch, var(--brass) 35%, transparent); border-radius: var(--r-md); background: var(--brass-soft); }
+.app .vf-ixwait > .vf-ixh { color: var(--brass-text); }
+.app .vf-ixlist { display: grid; gap: 6px; grid-template-columns: minmax(0, 1fr); }
+/* question line and status chip; what was asked and when; a reason or a wait under it; the unread dot in the gutter */
+.app .vf-ixitem {
+  all: unset; box-sizing: border-box; cursor: pointer; inline-size: 100%; position: relative;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "q chip" "what time" "sub sub"; column-gap: 10px; row-gap: 2px;
+  padding: 8px 10px 8px 22px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--pane);
+  transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out);
+}
+.app .vf-ixitem:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.app .vf-ixitem.vf-nunread { border-color: color-mix(in oklch, var(--accent) 45%, transparent); background: color-mix(in oklch, var(--accent) 7%, var(--pane)); }
+.app .vf-ixq { grid-area: q; font-size: 12px; line-height: 18px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app .vf-ixchip { grid-area: chip; justify-self: end; align-self: start; }
+.app .vf-ixwhat {
+  grid-area: what; font-size: 13px; line-height: 19px; font-weight: 600; color: var(--text); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.app .vf-ixtime { grid-area: time; justify-self: end; align-self: start; margin: 0; line-height: 19px; }
+.app .vf-ixsub { grid-area: sub; font-size: 12px; line-height: 17px; color: var(--faint); overflow-wrap: anywhere; }
+.app .vf-ixitem .vf-ndot { position: absolute; inset-inline-start: 8px; inset-block-start: 13px; margin: 0; }
+.app .vf-ixitem:not(:has(.vf-ixq:not([hidden]))) { grid-template-areas: "what time" "sub sub"; }
+.app .vf-ixchip { color: var(--muted); background: var(--raise); border: 1px solid var(--line-strong); }
+.app .vf-ixchip:is([data-stat="answered"], [data-stat="unshared"], [data-stat="private"]) { color: var(--ok); background: color-mix(in oklch, var(--ok) 13%, transparent); border-color: color-mix(in oklch, var(--ok) 35%, transparent); }
+.app .vf-ixchip[data-stat="running"] { color: var(--accent-text); background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 35%, transparent); }
+.app .vf-ixchip[data-stat="shared"] { color: var(--claude); background: color-mix(in oklch, var(--claude) 13%, transparent); border-color: color-mix(in oklch, var(--claude) 35%, transparent); }
+.app .vf-ixchip[data-stat="declined"] { text-decoration: line-through; color: var(--faint); }
+.app .vf-ixchip[data-stat="failed"] { color: var(--warn); background: color-mix(in oklch, var(--warn) 12%, transparent); border-color: color-mix(in oklch, var(--warn) 40%, transparent); }
+.app .vf-ixnotes { padding-block-start: 10px; border-block-start: 1px solid var(--line); }
+@media (hover: hover) and (pointer: fine) {
+  .app .vf-ixitem:hover { background: var(--raise); }
+}
+
 .app .vf-send-i { display: none; }
 .app .vf-qnav { display: none; }
 
@@ -1935,6 +2071,11 @@
     border-radius: var(--r-lg) var(--r-lg) 0 0; border-block-end: 0; padding-block-end: env(safe-area-inset-bottom); transform-origin: bottom center;
   }
   .app .vf-bellpop .vf-tbtn { inline-size: 44px; block-size: 44px; }
+  /* the Inbox on a phone: the whole screen, its tabs and items full width */
+  .app .vf-inboxpop[data-place="sheet"] { inset: 0; max-block-size: none; block-size: 100%; border-radius: 0; border: 0; padding-block-end: env(safe-area-inset-bottom); }
+  .app .vf-inbox-l { display: none; }
+  .app .vf-inboxbtn { min-inline-size: 44px; block-size: 44px; }
+  .app .vf-ixitem { padding-block: 10px; }
   .app .vf-nitem { padding-block: 12px; }
   .app .vf-mopt { min-block-size: 44px; }
   .app .vf-moresheet .vf-pp-head { padding-block-end: 4px; }
@@ -1943,10 +2084,13 @@
   .app .vf-center[data-mode="focus"] :is(.vf-bar, .vf-toolbar) { display: none; }
   .app .vf-scroll { padding-block-start: 10px; }
   .app .vf-qmeta { gap: 8px; margin-block-end: 6px; }
-  .app .vf-qmeta > span:first-child { min-width: 0; }
+  .app .vf-qmeta > span:first-child { flex: 1 1 0; min-width: 7.5em; } /* the position takes two lines before a chip wraps */
   .app .vf-qmeta :is(.vf-purpose, .vf-purposesel, .vf-chip) { order: 1; } /* chips wrap to their own row under the position and the arrows */
   .app .vf-qmeta { flex-wrap: wrap; row-gap: 6px; }
   .app .vf-qnav { display: flex; gap: 0; margin-inline-start: auto; flex: none; }
+  /* who else is on the question: up to 3 avatars in a slot this row keeps empty or not, so presence never moves the page */
+  .app .vf-onit { display: none; }
+  .app .vf-qonit { display: inline-flex; align-items: center; justify-content: flex-end; flex: none; inline-size: 72px; overflow: hidden; }
 
   /* the composer is one rounded line: paperclip inside its start, a round send button inside its end */
   .app .vf-composer { position: relative; padding: 8px 10px; }
@@ -2091,12 +2235,13 @@
   border: 1px solid color-mix(in oklch, var(--accent) 45%, var(--line-strong)); background: color-mix(in oklch, var(--accent) 8%, var(--pane));
 }
 .app .vf-orient[hidden] { display: none; }
-.app .vf-orient-h { margin: 0 44px 6px 0; min-block-size: 38px; font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; } /* clears the 44 px close button */
+.app .vf-orient-h { margin: 0 64px 6px 0; min-block-size: 38px; font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; } /* clears Skip */
+.app .vf-orient-lead { margin: 0 64px 4px 0; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
 .app :is(.vf-orient-goal, .vf-orient-ask) { margin: 0 0 6px; overflow-wrap: anywhere; }
 .app .vf-orient-goal { font-weight: 600; }
 .app .vf-orient-row { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 12px; }
 .app .vf-orient-row .vf-btn { block-size: 44px; padding-inline: 16px; font-size: 14px; white-space: normal; text-align: center; }
-.app .vf-orient-x { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; inline-size: 44px; block-size: 44px; }
+.app .vf-orient-x { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; min-inline-size: 44px; block-size: 44px; padding-inline: 12px; }
 
 /* ux-review-2 #4: the guest's one control for the views, sort and filters. */
 .app .vf-viewopts { flex: none; }
@@ -2140,9 +2285,9 @@
 .app[data-kb] :is(.vf-toast, .vf-mtyping) { display: none; }
 
 .app .vf-optfoot[hidden] { display: none; }
+@media (max-width: 720px) { .app .vf-optfoot[data-empty="true"] { display: none; } }
 .app .vf-bar > .vf-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 720px) {
-  .app .vf-splittabs .vf-seg-btn { min-block-size: 44px; }
   .app .vf-orient { padding: 14px; }
   .app .vf-orient-h { font-size: 16px; }
   .app .vf-orient-row .vf-btn { flex: 1 1 auto; }
@@ -2191,12 +2336,17 @@
 .app .vf-intropop-t { margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 720px) {
   /* A phone's first screen keeps the goal, the ask, Start here, the question, "Something else…" and the answer box. */
-  .app .vf-orient { padding: 8px 12px 10px; margin-block-end: 8px; }
+  .app .vf-orient { padding: 8px 12px; margin-block-end: 4px; }
   /* The welcome line is read out but not drawn: the goal and the ask lead. */
   .app .vf-orient-h { position: absolute; inline-size: 1px; block-size: 1px; min-block-size: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .app .vf-orient-x { inset-block-start: 0; inset-inline-end: 0; }
-  .app :is(.vf-orient-goal, .vf-orient-ask) { margin: 0 40px 0 0; font-size: 13.5px; line-height: 1.35; }
-  .app .vf-orient-row { margin-block-start: 6px; flex-wrap: nowrap; }
+  /* Skip joins the button row and the welcome line runs on into the goal, so the card stays short enough that the
+     answer box starts above the fold. */
+  .app .vf-orient-row .vf-orient-x { position: static; flex: 0 0 auto; }
+  .app :is(.vf-orient-lead, .vf-orient-goal, .vf-orient-ask) { margin: 0; font-size: 13.5px; line-height: 1.35; }
+  .app :is(.vf-orient-lead, .vf-orient-goal) { display: inline; }
+  .app .vf-orient-lead { font-size: 12.5px; color: var(--muted); }
+  .app .vf-orient-goal { margin-inline-start: 0.3em; }
+  .app .vf-orient-row { margin-block-start: 4px; flex-wrap: nowrap; }
   .app .vf-orient-row .vf-btn { block-size: 44px; padding-inline: 10px; font-size: 13.5px; }
   .app .vf-orient-row .vf-orient-start { flex: 1 1 auto; }
   .app .vf-orient-row .vf-orient-whybtn { flex: 0 1 auto; }
@@ -2321,3 +2471,13 @@
   .vp-app .vp-tab, .vp-app .vp-bar .vf-btn { min-block-size: 40px; }
   .vp-app .vp-choose { flex-basis: 100%; }
 }
+/* The host's review view in the Inbox, and the Ask boxes' Everyone / Just me. */
+.app .vf-review[hidden], .app .vf-rev-res[hidden], .app .vf-aud[hidden] { display: none; }
+.app .vf-rev-head { display: flex; align-items: center; gap: 8px; }
+.app .vf-rev-head .vf-ixgh { margin: 0; }
+.app .vf-rev-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-inline: 4px; }
+.app .vf-rev-note { margin: 0; padding-inline: 8px; }
+.app .vf-rev-res { display: grid; gap: 4px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--pane); }
+.app .vf-rev-who { margin-inline-start: auto; }
+.app .vf-revrow .vf-ndot { margin: 0; }
+.app .vf-aud { justify-self: start; }

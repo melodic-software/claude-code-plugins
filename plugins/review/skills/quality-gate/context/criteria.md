@@ -16,6 +16,8 @@ Loads review criteria as contextual reference. Reference mode, not action mode. 
 
 ## Applying criteria to changes
 
-Check the resolved criteria against the actual changes, applying only those whose surfaces the change touches, since not every concern applies to every change, and report findings using the severity vocabulary in effect (project's, else baseline).
+With `--base` or `--worktree`, do not apply them in this thread: dispatch `review:brief-reviewer` in
+fresh context per [phase-boundary.md](phase-boundary.md) "The reviewer's brief". Otherwise, check
+the resolved criteria against the actual changes, applying only those whose surfaces the change touches, since not every concern applies to every change, and report findings using the severity vocabulary in effect (project's, else baseline).
 
 Respect the project's documented skip list when one exists (generated code, lock files, build-enforced style rules). Do not re-review what tooling already enforces.

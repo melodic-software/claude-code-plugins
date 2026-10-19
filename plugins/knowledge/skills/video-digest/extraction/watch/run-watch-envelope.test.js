@@ -136,8 +136,8 @@ describe("runWatchCli envelope consumption", () => {
     captured.stderr.length = 0;
     captured.stdout.length = 0;
     vi.mocked(acquireMedia).mockReset();
-    // Call history only — the vi.mock factory above owns the resolved value,
-    // and no test overrides it.
+    // Call history only — the vi.mock factory above owns the default resolved
+    // value; the duration-mismatch tests override it once per call.
     vi.mocked(orchestrateWatching).mockClear();
   });
 
@@ -262,6 +262,11 @@ describe("runWatchCli envelope consumption", () => {
 
     const state = await readWatchJson();
     expect(state.phases.acquire.metrics.entryCount).toBe(2);
+    expect(state.phases.acquire.metrics.primaryMedia).toEqual({
+      video: "video.mp4",
+      infoJson: "info.json",
+      caption: "first.en.vtt",
+    });
     expect(state.phases.transcript.metrics.transcriptCount).toBe(2);
 
     await expect(
@@ -307,5 +312,48 @@ describe("runWatchCli envelope consumption", () => {
       fs.readFile(path.join(sliceDir(), "source", "transcript-1.txt"), "utf8"),
     ).resolves.toContain("hello world");
     await expect(fs.access(path.join(sliceDir(), "source", "transcript-2.txt"))).rejects.toThrow();
+  });
+
+  /** @param {number} metadataDurationSec @param {number} probedDurationSec */
+  async function watchWithDurations(metadataDurationSec, probedDurationSec) {
+    const vttPath = await writeVtt("7zZy1QTvokM.en.vtt");
+    vi.mocked(acquireMedia).mockResolvedValue({
+      success: true,
+      data: createAcquisitionEnvelope({
+        entries: [mediaEntry(vttPath)],
+        metadata: { ...METADATA, durationSec: metadataDurationSec },
+        workDir: fixtureDir,
+      }),
+    });
+    vi.mocked(orchestrateWatching).mockResolvedValueOnce({
+      selectedFrames: [],
+      targetMinFrames: 0,
+      highVolume: false,
+      densificationWindows: [],
+      candidateCount: 0,
+      probedDurationSec,
+    });
+    return runWatchCli(["node", "run-watch.js", URL, "--skip-research"]);
+  }
+
+  it("records both durations in watch.json and the README when metadata and probe disagree", async () => {
+    expect(await watchWithDurations(10446, 3995)).toBe(0);
+
+    expect((await readWatchJson()).durationMismatch).toMatchObject({
+      metadataDurationSec: 10446,
+      probedDurationSec: 3995,
+    });
+    await expect(fs.readFile(path.join(sliceDir(), "README.md"), "utf8")).resolves.toContain(
+      "## Duration mismatch",
+    );
+  });
+
+  it("records no duration mismatch when metadata and probe agree", async () => {
+    expect(await watchWithDurations(3995, 3995)).toBe(0);
+
+    expect((await readWatchJson()).durationMismatch).toBeUndefined();
+    await expect(fs.readFile(path.join(sliceDir(), "README.md"), "utf8")).resolves.not.toContain(
+      "## Duration mismatch",
+    );
   });
 });

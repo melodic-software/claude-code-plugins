@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Code-design review",
+            "prompt": "You are reviewing a change for code design. Concern: code-design.",
+            "subagent_type": "review:brief-reviewer"
+          }
+        }
+      ],
+      "why": "the plugin's brief reviewer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Review",
+            "prompt": "Concern: code-design.",
+            "subagent_type": "brief-reviewer"
+          }
+        }
+      ],
+      "why": "unprefixed agent name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "reviewed on the invoking thread"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Review",
+            "prompt": "Review the design.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "a general-purpose agent can fan out"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Review",
+            "prompt": "Review the code.",
+            "subagent_type": "review:code-reviewer"
+          }
+        }
+      ],
+      "why": "wrong reviewer for the code-design mode"
+    }
+  ]
+}

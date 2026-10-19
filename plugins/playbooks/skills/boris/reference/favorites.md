@@ -140,9 +140,16 @@ Source: https://x.com/bcherny/status/2038454353787519164
 
 ## 56. /batch: Fan Out Massive Changesets
 
-`/batch` interviews you, then fans out work to as many worktree agents as it takes: dozens, hundreds, even thousands.
+`/batch` interviews you, then fans out work to worktree agents.
 
 Use for large code migrations and other parallelizable work.
+
+- **Pointer**: for how many subagents `/batch` splits a change across, see
+  [Fan out across files](https://code.claude.com/docs/en/best-practices#fan-out-across-files)
+  (under [Automate and scale](https://code.claude.com/docs/en/best-practices#automate-and-scale)).
+  Boris's "dozens, hundreds, even thousands" from the thread no longer matches that page.
+- **As of**: 2026-10-18
+- **Recheck trigger**: that section changes the subagent range or how `/batch` fans out.
 
 See also: [Section 30: /batch](workflows.md#30-batch-parallel-code-migrations)
 

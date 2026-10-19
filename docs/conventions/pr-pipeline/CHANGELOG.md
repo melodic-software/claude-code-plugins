@@ -1,5 +1,100 @@
 # Changelog for the PR pipeline convention
 
+## 2.15.1 - 2026-10-18
+
+`work-resolve-issue` no longer takes the model's word that its checks passed. A new `run-checks`
+job, on a fresh runner after `resolve-issue`, runs each of the activity's `checks` from the default
+branch tip's copy against a checkout of the lane branch whose `scripts/` is the base's, so
+`scripts/fragment-plugins.txt` comes from the base and only the branch's own files, such as
+`.changes/`, are checked. It hands the results (branch, tip, each check's exit status) to
+`report-outcome` as a job output, never through the outcome artifact that code the model started
+can rewrite, and only when `run-checks` succeeded. `report-outcome` lists those results under
+Verification and stops a done run whose checks failed, are missing, or ran on a tip the branch has
+since left, even when the outcome file's `not_done` is empty ([#7497](https://github.com/melodic-software/claude-code-plugins/issues/7497)).
+`version` stays 2.
+
+## 2.15.0 - 2026-10-18
+
+`pr-unblock-dispatch.yml` starts pr-unblock's `fix-ci` for open lanes App pull requests whose
+head's `ci-status` failed, from one GraphQL query per page with its `rateLimit.cost` logged, at
+most `limits.fix-ci-per-run` per run and, on a head whose earlier runs all failed, at most
+`limits.fix-ci-restarts` more times ([README](README.md#lanes)). Its job's concurrency group
+now cancels a run in progress. `version` stays 2.
+
+## 2.14.0 - 2026-10-18
+
+`prepare` gains `ci-context`, the one mode for a `read` skill, and `apply-patch`, the one mode for
+a script, a `mutate-branch` one. `pr-run-activity-read.yml` performs `ci-context`: it downloads a
+base job's `ci-context-<attempt>` artifact, checks its SHA-256 and head, and gives the skill that
+file plus Bash, Edit and Write; it takes `ci-context-attempt` and `ci-context-sha256` and gains a
+`reply-attempt` output. `pr-run-activity-write.yml` performs `apply-patch` with the new
+`patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity` and
+`reply-attempt` inputs ([pr-run-activity.md](pr-run-activity.md#prepare-apply-patch)). The
+pr-unblock lane adds `fix-ci` and `apply-ci-fix`, which refuses the whole patch on a change to
+`.github/**` or an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a
+plugin's `hooks/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), and `report-escalation` takes six `ci-fix-*`
+reasons. New config: `loop.fix-ci-rounds` (3), `limits.fix-ci-per-run` (2) and
+`limits.fix-ci-restarts` (1). `version` stays 2.
+
+## 2.13.0 - 2026-10-18
+
+`pr-run-activity-read.yml` gains an `output-mode` input. The default, `clean-tree`, keeps failing a
+run that leaves the tree changed. `patch` instead uploads what the activity changed against the
+gated head as the artifact `patch-<lane>-<activity>-<run attempt>` (one `patch.diff`) and sets the
+new `patch-state`, `patch-sha256` and `patch-attempt` outputs, beside a new `head-sha` output. An
+empty change is `patch-state` `empty` and a success check titled `Passed: no changes`
+([pr-run-activity.md](pr-run-activity.md#patch-output-mode)). `version` stays 2.
+
+## 2.12.5 - 2026-10-18
+
+The unattended merge gate reads `merge.max-in-flight` at the default branch head instead of at each
+pull request's base, once per cache window; when the head's config cannot be read, the base's value
+applies, and the post-enqueue room check keeps the lower of that and the cap the assessment applied. Every other `merge.` key is still read at the base.
+`version` stays 2.
+
+## 2.12.4 - 2026-10-18
+
+`pr-run-activity-read.yml` takes a `dispatcher-run-id` input and passes it to its trigger gate with
+`dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml` and
+`dispatched-workflow: .github/workflows/pr-unblock.yml`, so a read activity that
+`pr-unblock-dispatch.yml` sent to `pr-unblock.yml` runs; any other `github-actions[bot]` dispatch
+still stops with `untrusted-actor`. With the id set, the skill step also admits `github-actions` in
+`allowed_bots`. No caller passes it yet. `version` stays 2.
+
+## 2.12.3 - 2026-10-18
+
+`pr-unblock` `address-feedback` widens a kept thread's scope from its path alone to also a file in
+the `plugins/<p>/` directory that path sits in, and a test file (`test_*.py`, `*_test.py`,
+`*.test.*`, `*.spec.*`) in that path's directory
+([#8109](https://github.com/melodic-software/claude-code-plugins/issues/8109)). The plugin-wide
+part leaves out files the harness or a shell runs or loads as instructions: anything under
+`hooks/`, `.claude-plugin/` or a `.claude/` directory, a `CLAUDE.md` or `AGENTS.md`, and any
+`.sh`, `.py`, `.mjs`, `.js` or `.ts` file. The review-thread tool, the promote step and the reply
+job apply the same rule; the promote step imports the base's `thread-scope.mjs` from a copy taken
+before the head checkout, checked against its SHA-256. `.github/` stays refused. `version` stays 2.
+
+## 2.12.2 - 2026-10-18
+
+On a pull request labeled `needs-human` (the human-gated role label), `pr-unblock`
+`address-feedback` works a thread when a person on the trusted-actor list with write or admin
+permission asks for the fix: a line of their reply after the lane's escalation starts with
+`PR-fix lane: please fix this finding`, in any case, outside a fenced block. Without one the
+dispatcher starts nothing and the select step skips `awaiting-human`, so the pull request stays
+held; with one the write runner lifts only the human-gated hold for that run
+([pr-run-activity.md](pr-run-activity.md#prepare-review-threads)). Its `labels-absent` is
+`[do-not-merge]`, `do-not-merge` still stops it, every other activity still waits on
+`needs-human`, and `pr-merge` still refuses a `needs-human` pull request. `version` stays 2.
+
+## 2.12.1 - 2026-10-18
+
+A write-runner skill run that claude-code-action fails only because its `success` result went over
+`--max-turns` now counts as a success: `act-outcome`, the verdict, the lane record and the job
+result report success, so `pipeline/resolve-issue` posts `success` and report-outcome proceeds as on
+any finished run. The run job reads this from the execution file's last result message (subtype
+`success`, `is_error` false, `num_turns` over the cap); any other failure, or a missing or
+unreadable execution file, still fails
+([pr-run-activity.md](pr-run-activity.md#the-run-job)). `version` stays 2.
+
 ## 2.12.0 - 2026-10-18
 
 `merge.max-in-flight` (an integer of at least 1, default 1) caps the lane merges in flight: the

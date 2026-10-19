@@ -30,8 +30,8 @@ their own session are filed as issues (see [Decisions and follow-ups](#decisions
 ## Source and verification
 
 - Pointer for every row: [Prompting Claude Opus 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5)
-  on the Claude platform docs, read 2026-09-23. The usage guide by Addy Osmani, published
-  2026-09-22: (correlate with `https://claude.dev/blog/getting-the-most-out-of-opus-5-5/`).
+  on the Claude platform docs, read 2026-09-23. The usage guide is by Addy Osmani, published
+  2026-09-22 (correlate with `https://claude.dev/blog/getting-the-most-out-of-opus-5-5/`).
 - Pointer for model behavior: the Claude Code
   [Model configuration](https://code.claude.com/docs/en/model-config) page, read 2026-09-23 (effort
   defaults, the `opus` alias, `MAX_THINKING_TOKENS`, and
@@ -72,7 +72,7 @@ their own.
 
 | Topic | Ours | Verdict |
 |---|---|---|
-| G3.1 What the reader must act on, first | Root `AGENTS.md` ("Blocked on me, Changed, Found"); postures P11; reports in bugs, codebase-health, mutation-testing, discovery, architecture, machine-health, batch-simplify, coupling, ai-briefing, harness-config:audit-pass, session-flow (keep-going, reconcile, clean-stop), source-control (babysit-prs, pull-request monitor and readiness), repo-hygiene batch runs, repo-fleet-hygiene apply, work-items drain mode, and the loop-lane launch prompts now lead with what waits on the user. A skill's own report template keeps its headings (for example "Needs you") | ADOPT |
+| G3.1 What the reader must act on, first | Root `AGENTS.md` ("Needs you, Waiting on me, Done, Found"); postures P11; reports in bugs, codebase-health, mutation-testing, discovery, architecture, machine-health, batch-simplify, coupling, ai-briefing, harness-config:audit-pass, session-flow (keep-going, reconcile, clean-stop), source-control (babysit-prs, pull-request monitor and readiness), repo-hygiene batch runs, repo-fleet-hygiene apply, work-items drain mode, and the loop-lane launch prompts now lead with what waits on the user. A skill's own report template keeps its headings (for example "Needs you") | ADOPT |
 | G3.2 Code review requests | review:code-review and security-review findings carry file and line, the reason it is a defect, and a way to demonstrate the failure; quality-gate PR mode leads with merge-blocking findings; harness-config:audit-automation-gaps. The CI lane keeps its "block or flag" bar by decision | ADOPT |
 | G3.3 Unconfirmed claims | dometrain grounding added. Already present in discovery research and trace-intent, github:audit, ai-briefing, postures P4 and P5 | ADOPT / COVERED |
 
