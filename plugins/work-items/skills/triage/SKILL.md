@@ -244,10 +244,9 @@ Only after verification (or for enhancements, where the open question is scope, 
 Read [context/apply-outcome.md](context/apply-outcome.md) once the category and state are settled,
 before writing anything to the tracker: it owns the per-outcome mutation, the raw-intake marker
 rules that keep an item reachable, the comment bodies including the needs-info comment, and what
-each outcome does to the item's labels, including the issue size label an autonomous-eligible
-outcome takes when the repository configures sizes, and the route to `/work-items:decompose` for
-a size too large for one run. Every outcome is a transition off raw intake, never a layer on top
-of it.
+each outcome does to the item's labels and issue dimensions, including the human-gated route for
+an item too large for one run or not ready to run. Every outcome is a transition off raw intake,
+never a layer on top of it.
 
 **Objection window.** When `triage_objection_window_hours` resolved above 0, every outcome that
 applies the autonomous-eligible role label also posts an "Objection window until <UTC>" comment
