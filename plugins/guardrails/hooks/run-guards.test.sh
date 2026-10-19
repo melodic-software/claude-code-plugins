@@ -676,7 +676,14 @@ assert_exit "deep hard error: the fresh dispatcher's block comes back" 2 "$RC"
 run "$PAYLOAD" "$TEST_TMPDIR/harddeep.sh" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "deep hard error: the fresh dispatcher's status comes back" 0 "$RC"
 assert_contains "deep hard error: the fresh dispatcher's documents come back" "$(hsd additionalContext)" "ctx one"
-run "not json" "$TEST_TMPDIR/harddeep.sh" "$TEST_TMPDIR/allow.sh"
+# The depth bound is reached here by lowering it, not by recursing: an EXIT trap
+# on Linux bash runs after the frames unwind, so a real deep abort never shows
+# run_rest more than 64 frames. The stub is sourced into the dispatcher, so it
+# calls run_rest the way guard_done does, on a stack the lowered bound counts as deep.
+stub restdeep.sh 'RUN_GUARDS_MAX_DEPTH=0
+run_guards::run_rest $((RUN_GUARDS_CUR + 1))
+run_guards::finish'
+run "not json" "$TEST_TMPDIR/restdeep.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "deep hard error, unprimed payload: denied" 2 "$RC"
 assert_contains "deep hard error, unprimed payload: the reason names it" "$ERR" "reported no verdict"
 # A rest of the chain that dies before reporting has an unknown verdict, so
