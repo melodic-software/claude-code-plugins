@@ -1333,12 +1333,12 @@ class TestBuiltinTools(unittest.TestCase):
         self.assertIs(tools["Bash"]["gated"], True)
         self.assertIs(tools["Read"]["gated"], False)
 
-    def test_literal_aliases_carry_no_source_marker(self) -> None:
+    def test_complete_aliases_carry_a_literal_or_absent_source(self) -> None:
         tools = self._extract()[0]
         self.assertEqual(tools["Read"]["aliases"], ["ReadFile"])
         self.assertEqual(tools["Bash"]["aliases"], [])
-        self.assertNotIn("aliases_source", tools["Read"])
-        self.assertNotIn("aliases_source", tools["Bash"])
+        self.assertEqual(tools["Read"]["aliases_source"], "literal")
+        self.assertEqual(tools["Bash"]["aliases_source"], "absent")
 
     def test_an_unresolved_alias_spread_is_partial_not_empty(self) -> None:
         for aliases, names in (

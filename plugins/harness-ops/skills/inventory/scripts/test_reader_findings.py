@@ -907,7 +907,7 @@ class TestToolAliasesAcrossModules(unittest.TestCase):
     def test_the_regex_reader_reads_the_imported_array(self) -> None:
         rec = _tool(self._bundle(), "TaskStop")
         self.assertEqual(rec["aliases"], self.NAMES)
-        self.assertNotIn("aliases_source", rec)
+        self.assertEqual(rec["aliases_source"], "literal")
 
     def test_the_parser_reader_reads_the_names_or_marks_them_partial(self) -> None:
         src = self._bundle()
@@ -918,7 +918,7 @@ class TestToolAliasesAcrossModules(unittest.TestCase):
         )
         with inv.use_reader(type(self).reader):
             rec = _tool(src, "TaskStop")
-        if rec.get("aliases_source") is None:
+        if rec["aliases_source"] == "literal":
             self.assertEqual(rec["aliases"], self.NAMES)
         else:
             self.assertEqual(rec["aliases_source"], "partial")
