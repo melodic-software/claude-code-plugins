@@ -1287,12 +1287,12 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
   was minted.
 - `report-outcome` downloads that artifact. On `done` it opens a ready (not draft) PR from the branch whose
-  body starts `Closes #<n>` (or `Refs: #<n>`, with the hold line, when the outcome sets
+  body starts `Closes #<n>` (or `Refs: #<n>` when the outcome sets
   `"link": "refs"` because a recorded decision keeps the issue open), puts no label on it (the work class stays on the issue), and adds
   `Hold: a human merges this` for structural or untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
-  resolved config; unreadable holds every PR), or for one too large for the compare listing to
-  show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
+  resolved config; unreadable holds every PR), or, while some path is denied, for one too large
+  for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
