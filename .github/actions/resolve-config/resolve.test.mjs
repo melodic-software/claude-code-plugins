@@ -4,6 +4,8 @@ import { test } from "node:test";
 
 import { parse, stringify } from "yaml";
 
+import { WIP_DEFAULTS, resolveWip } from "../../scripts/work-resolve-issue/limits.mjs";
+
 import {
   checkConfigPath,
   neededFacts,
@@ -332,7 +334,8 @@ test("the denied config path is the one the run read", () => {
 
 // The values the lanes must keep with no limits leaf, as the request for the
 // leaf states them: a 5-hour fallback reset, a 1-hour to 7-day clamp, 5
-// restarts per sweep, 3 limit stops per head and per issue.
+// restarts per sweep, 3 limit stops per head and per issue; and no restart
+// after a turn cap, the lane's behavior before the leaf existed.
 const LIMITS = {
   "fallback-reset": 5,
   "reset-clamp-min": 1,
@@ -341,21 +344,28 @@ const LIMITS = {
   "limit-stops-per-head": 3,
   "limit-stops-per-issue": 3,
   "wip-cap": 60,
+  "turn-cap-restarts": 0,
+  // The fix-ci defaults the owner chose (2026-10-18 interview).
+  "fix-ci-per-run": 2,
+  "fix-ci-restarts": 1,
+  // The admission window the owner chose (Q17/Q22, 2026-10-19).
+  "admission-window-hours": 24,
+  "admission-factor": 0.8,
 };
 
-test("limits: a config with no limits leaf resolves today's seven values", () => {
+test("limits: a config with no limits leaf resolves today's twelve values", () => {
   assert.deepEqual(run(fixture("valid.yaml")).limits, LIMITS);
 });
 
 test("limits: a set leaf overrides its default and leaves the others", () => {
   const config = edited((doc) => {
-    doc.limits = { "fallback-reset": 2, "limit-stops-per-issue": 4 };
+    doc.limits = { "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1 };
   });
-  assert.deepEqual(run(config).limits, { ...LIMITS, "fallback-reset": 2, "limit-stops-per-issue": 4 });
+  assert.deepEqual(run(config).limits, { ...LIMITS, "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1 });
 });
 
 test("limits: an unknown key, a value that is not an integer, or one out of its range is rejected", () => {
-  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }]) {
+  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }, { "turn-cap-restarts": -1 }, { "turn-cap-restarts": 6 }, { "fix-ci-per-run": 0 }, { "fix-ci-per-run": 21 }, { "fix-ci-restarts": -1 }, { "fix-ci-restarts": 6 }, { "admission-window-hours": 0 }, { "admission-window-hours": 721 }, { "admission-factor": 0 }, { "admission-factor": 1.1 }]) {
     const config = edited((doc) => {
       doc.limits = limits;
     });
@@ -363,9 +373,52 @@ test("limits: an unknown key, a value that is not an integer, or one out of its 
   }
 });
 
-test("defaults are materialized: loop 2/3/2, merge off and manual, slot scope diff and enabled", () => {
+// The owner-set WIP values: a 2-hour target lead time over a 24-hour window,
+// admissions at 0.8 of merges, a held buffer of 60 with a 24-hour alarm, and
+// no pause date. The resolver passes the leaf through as set; its readers
+// apply these defaults.
+const WIP = {
+  "target-lead-time-hours": 2,
+  "min-cap": 1,
+  "merge-rate-window-hours": 24,
+  "opened-to-merged-ratio": 0.8,
+  "held-cap": 60,
+  "held-alarm-hours": 24,
+  "pause-from": "",
+};
+
+test("wip: a config with no wip leaf resolves to the readers' defaults", () => {
+  assert.deepEqual(run(fixture("valid.yaml")).wip, {});
+  assert.deepEqual(resolveWip(run(fixture("valid.yaml")).wip), WIP);
+});
+
+test("wip: a set leaf overrides its default and leaves the others", () => {
+  const set = { "held-cap": 30, "opened-to-merged-ratio": 0.5, "pause-from": "2026-11-01" };
+  const config = edited((doc) => {
+    doc.wip = set;
+  });
+  assert.deepEqual(run(config).wip, set);
+  assert.deepEqual(resolveWip(run(config).wip), { ...WIP, ...set });
+});
+
+test("wip: an unknown key, a wrong type, or a value out of range is rejected", () => {
+  for (const wip of [{ "held-caps": 30 }, { "target-lead-time-hours": 0 }, { "min-cap": 0 }, { "min-cap": 2.5 }, { "min-cap": 501 }, { "opened-to-merged-ratio": 1.5 }, { "opened-to-merged-ratio": 0 }, { "held-cap": 0 }, { "held-cap": 2.5 }, { "merge-rate-window-hours": 1.5 }, { "pause-from": "soon" }, { "pause-from": 20261101 }]) {
+    const config = edited((doc) => {
+      doc.wip = wip;
+    });
+    assertRejected(() => run(config), "invalid-config");
+  }
+});
+
+test("wip: the schema's defaults are the readers' defaults", () => {
+  const schema = JSON.parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url), "utf8"));
+  assert.deepEqual(Object.fromEntries(Object.entries(schema.properties.wip.properties).map(([key, value]) => [key, value.default])), WIP_DEFAULTS);
+  assert.deepEqual(WIP_DEFAULTS, WIP);
+});
+
+test("defaults are materialized: loop 2/3/2/3, merge off and manual, slot scope diff and enabled", () => {
   const resolved = run(fixture("valid.yaml"), { activity: "run-tests" });
-  assert.deepEqual(resolved.loop, { "review-rounds": 2, "no-progress": 3, "dependency-review-rounds": 2 });
+  assert.deepEqual(resolved.loop, { "review-rounds": 2, "no-progress": 3, "dependency-review-rounds": 2, "fix-ci-rounds": 3 });
   assert.equal(resolved.merge.rung, "off");
   assert.equal(resolved.merge["stack-landing"], "manual");
   assert.equal(resolved.version, 1);
@@ -1237,6 +1290,33 @@ test("prepare on a script leaf, or a value other than merge-base, fails the sche
     doc.activities.simplify.prepare = "rebase";
   });
   assertRejected(() => runRefine(otherMode), "invalid-config");
+});
+
+test("prepare: ci-context is the one mode a read skill may set, and it needs effect read", () => {
+  const read = withPrepare((doc) => {
+    doc.activities.simplify.prepare = "ci-context";
+    doc.activities.simplify.effect = "read";
+  });
+  assert.equal(runRefine(read, { activity: "simplify", facts: LINT_FACTS }).selected.prepare, "ci-context");
+  const write = withPrepare((doc) => {
+    doc.activities.simplify.prepare = "ci-context";
+  });
+  assertRejected(() => runRefine(write), "invalid-prepare");
+});
+
+test("prepare: apply-patch is the one mode a script may set, and it needs effect mutate-branch", () => {
+  const onScript = (effect) =>
+    composite((doc) => {
+      doc.activities["fix-lint"].prepare = "apply-patch";
+      doc.activities["fix-lint"].effect = effect;
+    });
+  assert.equal(runRefine(onScript("mutate-branch"), { activity: "fix-lint", facts: LINT_FACTS }).selected.prepare, "apply-patch");
+  assertRejected(() => runRefine(onScript("read")), "invalid-prepare");
+  assertRejected(() => runRefine(onScript("publish-artifact")), "invalid-prepare");
+  const onSkill = withPrepare((doc) => {
+    doc.activities.simplify.prepare = "apply-patch";
+  });
+  assertRejected(() => runRefine(onSkill), "invalid-config");
 });
 
 // Activity rules (trust root, beside lane-rules.json)

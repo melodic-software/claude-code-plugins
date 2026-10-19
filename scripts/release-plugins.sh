@@ -13,6 +13,9 @@
 #      committed;
 #   3. `version` changes in plugin.json only;
 #   4. every fragment of the plugin, `none` included, is deleted.
+# A listed convention (scripts/lib/changelog-fragments.sh) has no plugin.json:
+# its version is the newest heading of docs/conventions/<name>/CHANGELOG.md at
+# HEAD, and step 3 does not apply.
 # Prints one line per plugin. Every new changelog and manifest is produced in a
 # temporary directory first, and the tree changes only once all of them exist.
 # A changelog that already carries the version about to be written (a run cut
@@ -118,14 +121,22 @@ for path in "${fragments[@]}"; do
 done
 
 # Pass 1: compute every new version and check every file it will touch.
-declare -A old_version=() new_version=()
+declare -A old_version=() new_version=() manifest_of=() changelog_of=()
 for name in "${plugins[@]}"; do
   [[ "${plugin_bump[$name]}" != none ]] || continue
-  manifest="plugins/$name/.claude-plugin/plugin.json"
-  changelog="plugins/$name/CHANGELOG.md"
-  version="$(jq -r '.version // empty' "$manifest" 2>/dev/null)"
+  root="$(changelog_fragments::root_of "$name")" || exit 2
+  changelog="$root/CHANGELOG.md"
+  manifest=""
+  if [[ "$root" == plugins/* ]]; then
+    manifest="$root/.claude-plugin/plugin.json"
+    version="$(jq -r '.version // empty' "$manifest" 2>/dev/null)"
+  else
+    # Read at HEAD, as a plugin's version stays unraised until the run ends:
+    # a run cut short then trips the existing-entry check below.
+    version="$(git show "HEAD:$changelog" 2>/dev/null | changelog_fragments::newest_version -)"
+  fi
   if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    echo "$self: $manifest version '$version' is not MAJOR.MINOR.PATCH; cannot raise it." >&2
+    echo "$self: ${manifest:-$changelog} version '$version' is not MAJOR.MINOR.PATCH; cannot raise it." >&2
     exit 2
   fi
   major="${BASH_REMATCH[1]}" minor="${BASH_REMATCH[2]}" patch="${BASH_REMATCH[3]}"
@@ -134,7 +145,7 @@ for name in "${plugins[@]}"; do
   minor) new="$major.$((minor + 1)).0" ;;
   *) new="$major.$minor.$((patch + 1))" ;;
   esac
-  if [[ "$(grep -cE "^[[:space:]]*\"version\"[[:space:]]*:[[:space:]]*\"${version//./\\.}\"" "$manifest")" != 1 ]]; then
+  if [[ -n "$manifest" && "$(grep -cE "^[[:space:]]*\"version\"[[:space:]]*:[[:space:]]*\"${version//./\\.}\"" "$manifest")" != 1 ]]; then
     echo "$self: $manifest does not carry exactly one \"version\": \"$version\" line to rewrite." >&2
     exit 2
   fi
@@ -148,6 +159,8 @@ for name in "${plugins[@]}"; do
   fi
   old_version["$name"]="$version"
   new_version["$name"]="$new"
+  manifest_of["$name"]="$manifest"
+  changelog_of["$name"]="$changelog"
 done
 
 # Pass 2: produce every new file under $stage. Nothing in the tree changes until
@@ -174,8 +187,8 @@ for name in "${plugins[@]}"; do
     continue
   fi
 
-  manifest="plugins/$name/.claude-plugin/plugin.json"
-  changelog="plugins/$name/CHANGELOG.md"
+  manifest="${manifest_of[$name]}"
+  changelog="${changelog_of[$name]}"
   old="${old_version[$name]}"
   new="${new_version[$name]}"
 
@@ -210,6 +223,12 @@ for name in "${plugins[@]}"; do
     exit 2
   fi
 
+  targets+=("$changelog")
+  staged+=("$stage/$name.changelog")
+  deletions+=("${paths[@]}")
+  report+=("$name: $old -> $new (${plugin_bump[$name]}) from ${#paths[@]} fragment(s): ${paths[*]}")
+  [[ -n "$manifest" ]] || continue
+
   if ! awk -v old="\"$old\"" -v new="\"$new\"" '
     !done && /^[ \t]*"version"[ \t]*:/ && (p = index($0, old)) { $0 = substr($0, 1, p - 1) new substr($0, p + length(old)); done = 1 }
     { print }
@@ -222,10 +241,8 @@ for name in "${plugins[@]}"; do
     exit 2
   fi
 
-  targets+=("$changelog" "$manifest")
-  staged+=("$stage/$name.changelog" "$stage/$name.manifest")
-  deletions+=("${paths[@]}")
-  report+=("$name: $old -> $new (${plugin_bump[$name]}) from ${#paths[@]} fragment(s): ${paths[*]}")
+  targets+=("$manifest")
+  staged+=("$stage/$name.manifest")
 done
 
 # Pass 3: apply. Changelogs and manifests first and fragments last, so a run

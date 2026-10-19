@@ -150,8 +150,15 @@ digest-file map (one row per digest unit), and a status checklist. SOURCES.md op
 frontmatter block carrying at least `abstract:` (ONE unwrapped line naming what the page covers),
 which a parent slice's `INDEX.md` regen mirrors. Digest-unit granularity: the
 pre-H2 introduction plus each H2 section is one unit; sub-bullets stay as sub-digests inside
-their unit's file. SOURCES.md is the representation layer every later phase (and the interview)
-walks. Keep its digest-map rows in parity with the digest files.
+their unit's file. An H2 is a heading in either form, a `##` line or an `<h2 id="...">` tag
+(the raw-md channel emits some real headings as tags, see the profile), outside code fences: a
+scan for `#` lines alone merges a tag H2's section into the previous unit. SOURCES.md is the
+representation layer every later phase (and the interview) walks. Keep its digest-map rows in
+parity with the digest files. Write it in the shape
+[`check-sources-parity.py`](scripts/check-sources-parity.py) reads: a `## Headings` table
+(`line | level | text`, one row per heading of either form), a `## Digest map` table
+(`digest file | START-END` source lines, contiguous from line 1 to the last line), and a
+`## Status` checklist with one row per digest file.
 
 A separate `## Relied-on links` section lists each outbound link whose target holds content a
 digest unit leans on without stating it (a "see X for details", a link standing in for an
@@ -176,8 +183,11 @@ not retried at once and not collapsed into inline writing.
   Claude to do.
 
 Each unit writes `<work-root>/digests/NN-slug.md` with this fixed
-structure: Summary / Key claims (verbatim) / Prompt snippets (exact) / Implications for daily
-use / Candidate artifacts / Open questions for interview. Digest filenames derive from section
+structure: Summary / Key claims (verbatim) / Figure claims (verbatim; only when the unit has
+figure rows) / Prompt snippets (exact) / Implications for daily use / Candidate artifacts / Open
+questions for interview. `**FN.**` figure rows sit under their own `## Figure claims` H2 right
+after Key claims, never under Key claims, whose gate fails any fence there that is not a `**CN.**`
+claim. Every brief states the heading and the `**FN.**` label. Digest filenames derive from section
 headings, untrusted content, so apply the same slug guard as the work root: slugify to
 lowercase alphanumerics and hyphens (strip `/`, `\`, `..`), ≤ 40 chars, and verify the resolved
 path stays inside `<work-root>/digests/` before writing.
@@ -207,7 +217,8 @@ path stays inside `<work-root>/digests/` before writing.
   characters. Record a truncation, or a join of source lines, outside the fence, in prose after the
   closing fence. Verifiers diff quotes character-for-character against the source.
 - **Fence mandate:** every verbatim quote, Key claims and Prompt snippets, lives in a
-  column-0 fenced container. Key-claim labels are bold `**CN.**`. Blockquotes and inline code
+  column-0 fenced container. Key-claim labels are bold `**CN.**`; figure-row labels, under
+  `## Figure claims`, are bold `**FN.**`. Blockquotes and inline code
   spans are forbidden as quote carriers: the PostToolUse markdownlint hook rewrites `*` list
   markers and renumbers lists inside blockquoted quotes, and a bare code span cannot hold a
   trailing space through that hook. Format: [context/pipeline-hardening.md](context/pipeline-hardening.md).
@@ -257,7 +268,9 @@ it.
 
 **Replay the handoff's own
 commands before handing off**. Every Phase 4 check precedes it, so this pass is the only one that
-can reach them. Then hand off: invoke `/planning:interview` via the Skill tool over it when that
+can reach them. A recorded command calls GNU grep explicitly (`ggrep`, or `grep` after
+`grep --version` shows GNU), because a plain `grep` can resolve to ugrep and change a count; the
+replay runs `grep --version` first and reports a non-GNU grep rather than comparing counts. Then hand off: invoke `/planning:interview` via the Skill tool over it when that
 plugin is installed, otherwise present the artifact and stop. The pipeline ends at the handoff. Deciding what to BUILD
 from a verified slice is the interview's job, and building it belongs to the consuming repo's
 planning/implementation flow.
@@ -295,7 +308,7 @@ gate. Phrase-greps miss fluent-prose instances entirely.
   trailing-space loss pass; Prompt snippets are unparsed.
 - **`check-fences-exact.py`:** only `**CN.**` + the following column-0 fence under Key claims.
   Blind to Prompt snippets, prose quotes, unlabeled fences, tag correctness, join-convention
-  honesty.
+  honesty, and the `## Figure claims` section, which `check-html-rows.py` covers.
 - **`check-snippets.py`:** only fences under Prompt snippets. Blind to Key claims, unfenced
   restatements, omitted real prompts, a lying none-marker.
 - **`check-html-rows.py`** (only when digests carry `**FN.**` rows quoted from `source.html`):
@@ -328,7 +341,9 @@ and we do not rely on a token being substituted on that route.
   for the next; the profile records precedent, not a guarantee.
 - **Digest-unit parity is the invariant.** SOURCES.md digest-map rows, digest files, and checklist
   entries must agree (relied-on-link rows sit outside it); a dropped section is silent corpus loss the verifiers are told to catch. Parity
-  that only checks presence-non-empty will not catch unsubstituted placeholders.
+  that only checks presence-non-empty will not catch unsubstituted placeholders. The standing
+  gate `check-sources-parity.py` checks heading and unit parity mechanically, HTML-tag headings
+  included.
 - **Verdicts are append-only.** Fixing a digest after verification means a corrections-applied
   file plus re-verification of the changed digests, never editing the verdict. A verdict file
   on disk is not a report.
@@ -344,6 +359,9 @@ and we do not rely on a token being substituted on that route.
 - **Know where each agent's effort comes from.** Per-task effort goes through Workflow's per-call
   effort option or, where Workflow is unavailable, the Agent tool's per-call `effort`. Check the route live before relying on a "high effort"
   verification claim, and record the effective effort and its source in verification records.
+  An arm that cannot report its own effort (a Codex verifier B is the case) is recorded as
+  `requested <level>, unconfirmed`, never as the requested level; confirmed effort comes only
+  from the arm's own report or the harness's record of the spawn.
   The pointer records for both routes live under verifier A in
   [context/dual-verification.md](context/dual-verification.md#phase-4-dual-verification) (as of
   2026-10-11; recheck trigger: those records leave verifier A or that heading is renamed).

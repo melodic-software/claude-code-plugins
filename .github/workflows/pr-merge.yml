@@ -13,9 +13,11 @@ name: pr-merge
 # Dependabot PRs are the other kind it merges, made only of Dependabot's own
 # verified commits and only once `ci-status` passes. A non-major bump from an
 # allowed publisher (tier `auto`) merges as is. Anything riskier (tier
-# `review`: a major bump, another Actions publisher, a red `ci-status`) merges
-# only after the pr-unblock lane's AI review leaves a `verdict=merge` marker,
-# written by the lanes App, for the PR's current commit.
+# `review`: another Actions publisher, a red `ci-status`) merges only after
+# the pr-unblock lane's AI review leaves a `verdict=merge` marker, written by
+# the lanes App, for the PR's current commit. A major bump, one whose version
+# cannot be read, or one whose title and commit metadata disagree, waits for a
+# human whatever the verdict while `merge.dependabot.majors` is `hold`.
 #
 # It runs no AI model and never checks out a PR's own code: every script it
 # runs comes from the main branch. The rules live in
@@ -32,13 +34,19 @@ name: pr-merge
 # cannot read those variables with its own token, so this workflow hands it
 # the answer; if the answer is missing, the gate stops too.
 #
-# When the merge queue lands a lanes App PR on main, the push starts the full
-# CI run that verifies the merge, so the next lane PR does not wait for a
-# scheduled run to start it.
+# One exception to the switch: when the merge queue lands any PR on main,
+# whoever enqueued it, the push starts a full CI run of main (the
+# dispatch-full-run job), even while the switch or report-only is on, since it
+# merges nothing. That run raises no workflow_run event (GITHUB_TOKEN started
+# it), so post-merge-demotion-alert.yml never sees it. A red attempt 1 gets
+# its one re-run from the post-merge-dispatch job, which records it; the merge
+# job's post-merge check files the demotion record once it reads the run red.
 #
 # On its schedule it also gives a PR a new head, an empty commit, when a lane
 # run on its current head was refused by the token broker as
-# workflow-modified, once per version of the workflow file the broker named.
+# workflow-modified, once per version of the workflow file the broker named,
+# and takes off a needs-human label the lanes App set for a pr-unblock
+# escalation once its recorded reason no longer holds.
 #
 # How to keep one PR from merging: put the line `Hold: a human merges this`
 # in its body, or add the `do-not-merge` or `needs-human` label (the
@@ -72,10 +80,11 @@ on:
   schedule:
     - cron: "11,26,41,56 * * * *"
 
-  # A merge-queue landing on main. Only the `lane-merge-landed` job runs on
-  # it, and only for a commit the lanes App authored: it starts the full CI
-  # run that verifies the merge at once instead of at the next scheduled run.
-  # The merge job does not run on it, so it never joins the queue below.
+  # A merge-queue landing on main (the merge-queue ruleset has no bypass, so
+  # every push to main is one). Only `dispatch-full-run` runs on it: it starts
+  # the full CI run that verifies the merge at once instead of at the next
+  # scheduled run. The merge job does not run on it, so it never joins the
+  # queue below.
   push:
     branches: [main]
 
@@ -86,6 +95,188 @@ defaults:
     shell: bash
 
 jobs:
+  # The post-merge check on its own, and the full CI run of main it asks for,
+  # started at once: not after the merge job's candidate listing, which can
+  # fail on a GitHub 5xx, nor after its gate loop, which can take many
+  # minutes. It reads with this job's own token, so the merge job's Actions
+  # token stays read-only. It also starts the one re-run of a red full run the
+  # lane dispatched, which the lanes App cannot start. Same mechanics as
+  # dispatch-full-run: ref main, and the pr-merge-dispatched-<id> artifact the
+  # post-merge check trusts. Not on pull_request_target, whose dispatch the
+  # check does not trust; that event's merge job still runs the check.
+  post-merge-dispatch:
+    if: >-
+      github.ref == 'refs/heads/main'
+      && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # check out main
+      pull-requests: read # read lane merges and their merge-queue entries
+      actions: write # read full runs and their records; start pr-require-checks.yml on main and re-run a red lane-dispatched run
+      checks: read # read a failed full run's annotations
+      issues: read # read the demotion records the merge floor depends on
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # Live as the merge job reads it: the lane's own PRs not report-only,
+      # or Dependabot PRs enforced.
+      - name: Read report-only
+        id: mode
+        if: steps.kill.outputs.proceed == 'true'
+        run: |
+          set -euo pipefail
+          config=.base/docs/conventions/pr-pipeline.yaml
+          if [[ $(yq '.merge."report-only"' "$config") =~ ^(false|null)$ ]] ||
+            [ "$(yq '.merge.dependabot.mode // "off"' "$config")" = enforce ]; then
+            echo "live=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::the lane is report-only; no full CI run started"
+          fi
+
+      - name: Check earlier lane merges
+        id: post-merge
+        if: steps.mode.outputs.live == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          code=0
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+            --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+            </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          echo "::group::post-merge check: exit $code"
+          cat "$RUNNER_TEMP/post-merge.json"
+          echo "::endgroup::"
+          # 1 (a failure) and 5 (not yet verified) are verdicts; 2, 3 and 4
+          # mean the check could not judge, so no full run starts from it.
+          case $code in
+            2 | 3 | 4) echo "::warning::the post-merge check exited $code (2 refused, 3 unreadable, 4 write failed); no full CI run started from it" ;;
+          esac
+          echo "code=$code" >>"$GITHUB_OUTPUT"
+          needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
+          echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
+          rerun=$(jq -r '[.reruns[]? | select(.laneDispatched == true) | .runId][0] // ""' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || true)
+          echo "lane-rerun=$rerun" >>"$GITHUB_OUTPUT"
+
+      - name: Start the full CI run on main
+        id: dispatch
+        if: steps.post-merge.outputs.needs-dispatch == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          id=$(gh api -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
+            -f ref=main -F return_run_details=true --jq '.workflow_run_id')
+          if [[ ! $id =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::the dispatch returned no run id"
+            exit 1
+          fi
+          echo "started run $id"
+          echo "{\"dispatcher_run_id\":$GITHUB_RUN_ID,\"run_id\":$id}" >"$RUNNER_TEMP/dispatched.json"
+          echo "run-id=$id" >>"$GITHUB_OUTPUT"
+
+      - name: Record the dispatched run
+        if: steps.dispatch.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}
+          path: ${{ runner.temp }}/dispatched.json
+          retention-days: 90
+          if-no-files-found: error
+
+      # A red attempt 1 of a full run this workflow dispatched waits for its
+      # one re-run, and the lanes App holds no Actions permission to start it.
+      # This job starts it with its own token, one run per job, and records it
+      # as pr-merge-rerun-<id>-attempt-2, which the post-merge check needs
+      # before it counts a github-actions[bot] attempt 2 of a lane-dispatched
+      # run. The record is uploaded only after this job's own re-run made
+      # attempt 2, so a re-run anyone else started never gets one. Only a
+      # check that could judge (exit 0, 1 or 5) names a run. It runs after the
+      # dispatch, and either failing leaves the other to run.
+      - name: Re-run a red lane-dispatched full run
+        id: rerun
+        if: >-
+          !cancelled()
+          && contains(fromJSON('["0","1","5"]'), steps.post-merge.outputs.code)
+          && steps.post-merge.outputs.lane-rerun != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ steps.post-merge.outputs.lane-rerun }}
+        run: |
+          set -euo pipefail
+          if [[ ! $RUN_ID =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::the post-merge check named no run id to re-run: $RUN_ID"
+            exit 1
+          fi
+          attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt)
+          if [ "$attempt" != 1 ]; then
+            echo "::notice::run $RUN_ID is at attempt $attempt; no re-run started or recorded"
+            exit 0
+          fi
+          if ! gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
+            echo "::warning::the re-run of run $RUN_ID was refused; the next run tries again"
+            exit 0
+          fi
+          # The re-run started, so a read that fails or still shows attempt 1
+          # is retried for about three minutes, and a step that cannot confirm
+          # attempt 2 fails instead of leaving that attempt unrecorded.
+          for wait in 0 5 10 20 30 45 60; do
+            sleep "$wait"
+            if attempt=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .run_attempt); then
+              [ "$attempt" = 1 ] || break
+            else
+              attempt=
+            fi
+          done
+          if [ -z "$attempt" ]; then
+            echo "::error::the re-run of run $RUN_ID started, but its attempt could not read back; nothing recorded"
+            exit 1
+          fi
+          if [ "$attempt" = 1 ]; then
+            echo "::error::the re-run of run $RUN_ID started, but the run still reads attempt 1; nothing recorded"
+            exit 1
+          fi
+          if [ "$attempt" != 2 ]; then
+            echo "::warning::run $RUN_ID reads attempt $attempt after the re-run, not 2; nothing recorded"
+            exit 0
+          fi
+          echo "re-ran run $RUN_ID as attempt 2"
+          echo "{\"rerunner_run_id\":$GITHUB_RUN_ID,\"run_id\":$RUN_ID,\"attempt\":2}" >"$RUNNER_TEMP/rerun.json"
+          echo "recorded=true" >>"$GITHUB_OUTPUT"
+
+      - name: Record the re-run
+        if: "!cancelled() && steps.rerun.outputs.recorded == 'true'"
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-rerun-${{ steps.post-merge.outputs.lane-rerun }}-attempt-2
+          path: ${{ runner.temp }}/rerun.json
+          retention-days: 90
+          if-no-files-found: error
+
   merge:
     # A run started on any other branch would use that branch's copy of this
     # file, so it does nothing. pull_request_target runs carry the PR's base
@@ -111,6 +302,11 @@ jobs:
       group: pr-merge
       queue: max
     runs-on: ubuntu-24.04
+    # A ceiling above the gate's time budget (merge.gate-budget-minutes, 10),
+    # which is what ends a long sweep: the budget stops between candidates,
+    # a timeout can stop one between its check and its merge-queue write.
+    # 30 leaves the budget, about a minute before the loop, the longest
+    # measured candidate (about 3 minutes) and the closing steps well inside.
     timeout-minutes: 30
     permissions:
       contents: read # check out main
@@ -124,10 +320,10 @@ jobs:
       # `true` when the lane can merge (its own PRs are not report-only, or
       # Dependabot PRs are enforced) and either a PR merged during this run
       # and the gate could not start the follow-up full CI run itself (its
-      # token cannot start workflows), or the post-merge check says an
-      # earlier lane merge still needs one. While neither can merge it is
-      # never true; the summary says what would have been started.
-      dispatch: ${{ steps.mode.outputs.live == 'true' && (steps.gate.outputs.dispatch == 'true' || steps.post-merge.outputs.needs-dispatch == 'true') }}
+      # token cannot start workflows). While neither can merge it is never
+      # true; the summary says what would have been started. An earlier lane
+      # merge that still needs a full run is the post-merge-dispatch job's.
+      dispatch: ${{ steps.mode.outputs.live == 'true' && steps.gate.outputs.dispatch == 'true' }}
     steps:
       # Everything below runs from main as it is right now, never from a PR.
       # Full history: the gate reads the pipeline config's history from this
@@ -248,6 +444,7 @@ jobs:
             echo "report-only=$report_only"
             echo "dependabot=$dependabot"
             echo "live=$live"
+            echo "gate-budget-minutes=$(yq '.merge."gate-budget-minutes" // ""' "$config")"
           } >>"$GITHUB_OUTPUT"
 
       # Swaps this job's GitHub identity proof for a short-lived token of the
@@ -273,24 +470,21 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           superseded-ok: true
 
-      # Measures the lane token's spend: this reading and the one before the
-      # revoke bracket the run. GET /rate_limit does not count against the
-      # REST limit. The installation's bucket is shared by every job using the
-      # lanes App, so the difference includes their calls. Never fails the job.
-      - name: Log the lane token rate limit at mint
-        id: rate-start
+      # Measures the run's spend on the lane token and on the job's own token
+      # (the verdict reads, the listing): this reading and the one at job end
+      # bracket the run, and run even when it times out. The lanes App's
+      # bucket is shared by every job using it, so the lane figure includes
+      # their calls. Never fails the job.
+      - name: Log the API budget at mint
         if: steps.lane-token.outputs.token != ''
         continue-on-error: true
         timeout-minutes: 1
-        env:
-          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-        run: |
-          r=$(gh api rate_limit)
-          line=$(jq -r '"mint core remaining=\(.resources.core.remaining) used=\(.resources.core.used) limit=\(.resources.core.limit) reset=\(.resources.core.reset | todate)"
-            + (if .resources.graphql then " graphql remaining=\(.resources.graphql.remaining)" else "" end)' <<<"$r")
-          echo "::notice title=lane-app-rate::$line"
-          echo "lane-app-rate: $line" >>"$GITHUB_STEP_SUMMARY"
-          jq -r '"used=\(.resources.core.used)\nreset=\(.resources.core.reset)"' <<<"$r" >>"$GITHUB_OUTPUT"
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: |
+            lane ${{ steps.lane-token.outputs.token }}
+            github-token ${{ github.token }}
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) opened, plus Dependabot's unless
@@ -332,18 +526,73 @@ jobs:
           if [ "$DEPENDABOT" != off ]; then
             authors+=(app/dependabot)
           fi
+          # A 5xx from the API fails one call; three tries, then one clear
+          # error instead of jq and the prefilter failing on empty input.
+          listing="$RUNNER_TEMP/listing.jsonl"
+          : >"$listing"
           for author in "${authors[@]}"; do
-            gh pr list --repo "$REPO" --base main --state open --limit 500 \
-              --author "$author" --json number,headRefOid,isDraft,updatedAt,labels,body
-          done |
-            jq -cs '[add[] | select(.isDraft | not)
+            for attempt in 1 2 3; do
+              if gh pr list --repo "$REPO" --base main --state open --limit 500 \
+                --author "$author" --json number,headRefOid,isDraft,updatedAt,labels,body >>"$listing"; then
+                break
+              fi
+              if [ "$attempt" = 3 ]; then
+                echo "::error::gh pr list --author $author failed 3 times; no candidates listed, the gate does not run"
+                exit 1
+              fi
+              sleep $((attempt * 15))
+            done
+          done
+          jq -cs '[add[] | select(.isDraft | not)
               | {number, head: .headRefOid, updatedAt, labels: [.labels[].name], body}]
-              | unique_by(.number)' |
+              | unique_by(.number)' "$listing" |
             python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py \
               --human-gated="$human_gated" >"$RUNNER_TEMP/prefilter.json"
           jq -c .candidates "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/candidates.json"
           jq -c .held "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/held.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
+
+      # The gate loop below can stop at its time budget, so it starts after
+      # the last candidate the previous loop reached (the
+      # pr-merge-gate-cursor artifact) and wraps round: every candidate is
+      # reached across runs. The cursor sets only the order; any error
+      # leaves the listing order. Rules: .github/scripts/pr-merge/rotation.mjs.
+      - name: Start after the candidate the last run reached
+        if: steps.candidates.outcome == 'success'
+        continue-on-error: true
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          CANDIDATES_PATH: ${{ runner.temp }}/candidates.json
+        run: node .base/.github/scripts/pr-merge/rotation.mjs
+
+      # The verdict reads that never change (FAIL run records, FAIL head refs,
+      # run heads on main) carry over from the last run, so a sweep does not
+      # read them all again on its first candidate. A cache key is never
+      # overwritten, so each run saves a new one and restores the newest
+      # (https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
+      # Any job in the default branch's cache scope can write that prefix, so
+      # the entry is untrusted: each kept read lands in a carried-* section the
+      # gate uses only where it counts a FAIL, never to turn one away or allow
+      # a PASS, and reads GitHub for any other answer. Rules:
+      # .github/scripts/pr-merge/carry-run-cache.mjs. Any error leaves the
+      # run cache empty, and the gate reads GitHub.
+      - name: Restore the verdict reads the last run kept
+        if: steps.candidates.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/pr-merge-carried.json
+          key: pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pr-merge-run-cache-
+
+      - name: Start the run cache from them
+        if: steps.candidates.outcome == 'success'
+        continue-on-error: true
+        env:
+          CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
+          CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
+        run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 
       # The post-merge check, read-only, on every run whether or not any PR is
       # a candidate: after the queue lands the last lane PR there is none, yet
@@ -353,7 +602,9 @@ jobs:
       # It runs before the gate, which reuses its answer for every candidate
       # whose base has the same floor while no lane merge has landed since
       # (--postmerge-result); a PR that merges during the run is in the
-      # gate's own `dispatch` output.
+      # gate's own `dispatch` output. The post-merge-dispatch job runs the
+      # same check to start the full run an earlier merge needs, so neither a
+      # failed listing nor a long gate loop holds that run back.
       - name: Check earlier lane merges
         id: post-merge
         if: steps.lane-token.outputs.token != ''
@@ -372,6 +623,44 @@ jobs:
           echo "::endgroup::"
           needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
           echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
+          echo "code=$code" >>"$GITHUB_OUTPUT"
+
+      # A failed lane merge (the check above exited 1) holds the gate until a
+      # human closes every open demotion record, and the gate reads only records the
+      # lanes App or github-actions[bot] filed. post-merge-demotion-alert.yml
+      # files none for a full run this workflow dispatched: a run started with
+      # GITHUB_TOKEN raises no workflow_run event. So the check runs again
+      # with --remediate under the lane token, which files the record (or
+      # comments on it, reopening it on a new sighting) and dequeues the
+      # lane's merge-queue entries. The lane token holds no Actions
+      # permission, so the re-run and dispatch --remediate also attempts fail
+      # here and are reported as a write failure (exit 4); the
+      # post-merge-dispatch job starts those. Live mode only.
+      - name: Record a failed lane merge
+        if: steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          code=0
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+            --repo "$REPO" --agent-identity "$identity" --lane-merges-only --remediate \
+            </dev/null >"$RUNNER_TEMP/post-merge-remediate.json" || code=$?
+          report=$RUNNER_TEMP/post-merge-remediate.json
+          echo "::group::post-merge remediation: exit $code"
+          cat "$report"
+          echo "::endgroup::"
+          # Exit 4 also covers the expected re-run and dispatch refusals, so
+          # the report, not the exit code, says whether the record was filed.
+          if ! jq -e '.remediation.errors | type == "array"' "$report" >/dev/null 2>&1; then
+            echo "::error::the post-merge remediation exited $code with no remediation report; no demotion record was filed"
+          elif jq -e '[.remediation.errors[] | select(startswith("demotion issue:") or startswith("dequeue:"))] | length > 0' "$report" >/dev/null; then
+            echo "::error::the post-merge remediation could not file the demotion record or dequeue the lane's entries; see its report above"
+          elif [ "$code" -eq 4 ]; then
+            echo "::warning::the post-merge remediation exited $code (re-run or dispatch refused: the lane token has no Actions permission)"
+          fi
 
       # The gate itself, once per candidate, using the lane App's token. It is
       # the same script the local babysit loop uses, run as the pr-merge lane:
@@ -388,6 +677,11 @@ jobs:
       # CLAUDE_LANES_MERGE_RUNG_CAP variable from here: a person can set it to
       # `off` (or `C2`) to lower how far the lane may go; left unset, there is
       # no extra limit.
+      # Once the loop has run merge.gate-budget-minutes, it starts no further
+      # candidate and ends; the candidate in progress finishes first, so no
+      # gate stops between its check and its merge-queue write. The rest wait
+      # for the next run, which starts after the last one reached here
+      # (cursor.json, uploaded below). No setting: no budget.
       - name: Run the merge gate on each candidate
         id: gate
         if: steps.candidates.outcome == 'success'
@@ -406,15 +700,25 @@ jobs:
           # credential pass, permissions, trusted list, run heads on main,
           # FAIL run records, default branch, base rules, the queued entries
           # a candidate kept) are shared here within their bounds
-          # (babysit_run_cache.py).
+          # (babysit_run_cache.py), starting from the reads the last run kept.
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
+          BUDGET_MINUTES: ${{ steps.mode.outputs.gate-budget-minutes }}
         run: |
           set -euo pipefail
+          budget=${BUDGET_MINUTES:-}
+          if [[ -n $budget && ! $budget =~ ^[1-9][0-9]*$ ]]; then
+            echo "::warning::merge.gate-budget-minutes is not a whole number of minutes ($budget); the gate runs with no budget"
+            budget=
+          fi
+          cursor="$RUNNER_TEMP/gate-cursor/cursor.json"
+          mkdir -p "${cursor%/*}"
+          started=$(date +%s)
+          reached=0
           # The script and its flags come from the merge-pr activity on main.
           read -ra args < <(jq -r '.selected.args // ""' "$RUNNER_TEMP/resolved-config.json")
           results="$RUNNER_TEMP/results.jsonl"
@@ -423,7 +727,18 @@ jobs:
             enqueued: false, merged: false, reportOnly: null, reason: "prefilter:\(.reason)",
             dispatched: null, blockers: ["prefilter: \(.reason), refused before the gate"]}' \
             "$RUNNER_TEMP/held.json" >"$results"
+          # Rewritten after each candidate, so a cancelled run still reports
+          # the verdicts it reached.
+          summary="$RUNNER_TEMP/pr-merge-summary.json"
+          save() { jq -s . "$results" >"$summary.tmp" && mv "$summary.tmp" "$summary"; }
+          save
           while read -r number head updated; do
+            if [ -n "$budget" ] && (($(date +%s) - started >= budget * 60)); then
+              stop="the ${budget}-minute gate budget is used after $reached of $(jq length "$RUNNER_TEMP/candidates.json") candidates; the next run starts after #$(jq .last "$cursor" 2>/dev/null || echo none)"
+              echo "::notice::$stop"
+              echo "budget-stop: $stop" >>"$GITHUB_STEP_SUMMARY"
+              break
+            fi
             out="$RUNNER_TEMP/gate-$number.json"
             code=0
             ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
@@ -442,10 +757,44 @@ jobs:
                reportOnly: .unattended.reportOnly, reason: (.unattended.reason // .error),
                dispatched: .unattended.dispatched, blockers: (.blockers // [])}
             ' "$out" >>"$results"
+            save
+            reached=$((reached + 1))
+            echo "{\"last\":$number}" >"$cursor"
           done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt)"' "$RUNNER_TEMP/candidates.json")
-          jq -s . "$results" >"$RUNNER_TEMP/pr-merge-summary.json"
-          dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$RUNNER_TEMP/pr-merge-summary.json")
+          dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$summary")
           echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
+
+      # The next run's starting point (rotation.mjs reads it), uploaded even
+      # when the job is cancelled, since cursor.json is rewritten after each
+      # candidate.
+      - name: Record where the gate stopped
+        if: always() && steps.gate.outcome != 'skipped'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-gate-cursor
+          path: ${{ runner.temp }}/gate-cursor/cursor.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # The next run's verdict reads, under this run's own key; also after a
+      # timeout, since the run cache is written as each candidate reads.
+      - name: Keep the verdict reads that never change
+        id: carry
+        if: always() && steps.gate.outcome != 'skipped'
+        continue-on-error: true
+        env:
+          CARRY_FROM: ${{ runner.temp }}/babysit-run-cache.json
+          CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
+        run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
+
+      - name: Save them for the next run
+        if: always() && steps.carry.outputs.carried == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/pr-merge-carried.json
+          key: pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The run's report: every candidate with its verdict, whether a full CI
       # run is started (or, in report-only mode, would have been), then the
@@ -456,7 +805,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           LIVE: ${{ steps.mode.outputs.live }}
-          WANTS_DISPATCH: ${{ steps.gate.outputs.dispatch == 'true' || steps.post-merge.outputs.needs-dispatch == 'true' }}
+          WANTS_DISPATCH: ${{ steps.gate.outputs.dispatch == 'true' }}
         run: |
           set -euo pipefail
           summary="$RUNNER_TEMP/pr-merge-summary.json"
@@ -471,7 +820,7 @@ jobs:
             echo '```'
             echo
             if [ "$WANTS_DISPATCH" != true ]; then
-              echo "Full CI run on main: not needed."
+              echo "Full CI run on main: none for a merge in this run; earlier lane merges are the post-merge-dispatch job's."
             elif [ "$LIVE" = true ]; then
               echo "Full CI run on main: started by the next job."
             else
@@ -485,6 +834,44 @@ jobs:
               | if length == 0 then "None." else .[] | "- #\(.pr): \((.reason // "not ready") | tostring | gsub("[\r\n`]"; " ") | .[0:200])" end
             ' "$summary"
           } >>"$GITHUB_STEP_SUMMARY"
+
+      # The same verdicts as data for the lane trend chart, since the API
+      # cannot read a step summary: the pr-merge-summary artifact, and one log
+      # line of refusal counts by reason. The key is split here so this
+      # script, which the log echoes, never matches a grep for it. Rules:
+      # .github/scripts/pr-merge/sweep-summary.mjs.
+      - name: Count the sweep's refusals
+        if: always() && steps.gate.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          LIVE: ${{ steps.mode.outputs.live }}
+          GATE_OUTCOME: ${{ steps.gate.outcome }}
+          SUMMARY_PATH: ${{ runner.temp }}/pr-merge-summary.json
+          HELD_PATH: ${{ runner.temp }}/held.json
+          CANDIDATES_PATH: ${{ runner.temp }}/candidates.json
+          CURSOR_PATH: ${{ runner.temp }}/gate-cursor/cursor.json
+          SWEEP_SUMMARY_TO: ${{ runner.temp }}/pr-merge-sweep.json
+        run: |
+          set -euo pipefail
+          RUN_STARTED_AT=$(gh api "repos/$REPO/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at) || RUN_STARTED_AT=
+          export RUN_STARTED_AT
+          node .base/.github/scripts/pr-merge/sweep-summary.mjs
+          jq -r '"refusal" + "-counts=" + (.refusal_counts | tojson)' "$SWEEP_SUMMARY_TO"
+
+      - name: Upload the sweep's verdicts
+        if: always() && steps.gate.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-summary
+          path: ${{ runner.temp }}/pr-merge-sweep.json
+          retention-days: 30
+          if-no-files-found: ignore
 
       # A pr-refine or pr-unblock run the broker refused as
       # workflow-modified cannot pass on a rerun, which keeps its first
@@ -510,23 +897,59 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/refire-refused.mjs
 
-      - name: Log the lane token rate limit at job end
+      # A pr-unblock escalation adds the human-gated label with a reason. On
+      # the schedule, this takes off a label the lanes App set once that
+      # reason no longer holds at the PR's head (workflow-staged, a conflict
+      # reason, feedback-protected-path), after a comment naming the reason
+      # and the head: never a label a person set, and never after anyone but
+      # the App commented or reviewed since it went on. At most five a run, and not
+      # while the lane is report-only.
+      # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
+      - name: Clear escalations whose reason no longer holds
+        if: >-
+          always() && github.event_name == 'schedule'
+          && steps.lane-token.outputs.token != ''
+          && steps.mode.outputs.report-only == 'false'
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+        run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
+
+      - name: Log the API budget at job end
+        id: budget-end
         if: always() && steps.lane-token.outputs.token != ''
         continue-on-error: true
         timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: |
+            lane ${{ steps.lane-token.outputs.token }}
+            github-token ${{ github.token }}
+
+      # One line per sweep, in the log and the summary: the two tokens' spend
+      # since mint (`unknown` when the hourly window rolled), the candidates
+      # listed, and how many the gate reached before it ended.
+      - name: Write the sweep cost
+        if: always() && steps.gate.outcome != 'skipped'
+        continue-on-error: true
         env:
-          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          START_USED: ${{ steps.rate-start.outputs.used }}
-          START_RESET: ${{ steps.rate-start.outputs.reset }}
+          COSTS: ${{ steps.budget-end.outputs.costs }}
+          CANDIDATES: ${{ steps.candidates.outputs.count }}
         run: |
-          r=$(gh api rate_limit)
-          line=$(jq -r --arg s "$START_USED" --arg sr "$START_RESET" '"end core remaining=\(.resources.core.remaining) used=\(.resources.core.used) limit=\(.resources.core.limit) reset=\(.resources.core.reset | todate)"
-            + (if .resources.graphql then " graphql remaining=\(.resources.graphql.remaining)" else "" end)
-            + (if $s == "" then ""
-               elif ($sr | tostring) != (.resources.core.reset | tostring) then " used-since-mint=window-rolled"
-               else " used-since-mint=\(.resources.core.used - ($s | tonumber))" end)' <<<"$r")
-          echo "::notice title=lane-app-rate::$line"
-          echo "lane-app-rate: $line" >>"$GITHUB_STEP_SUMMARY"
+          lane=unknown github_token=unknown
+          for cost in $COSTS; do
+            case $cost in
+              lane-cost=*) lane=${cost#*=} ;;
+              github-token-cost=*) github_token=${cost#*=} ;;
+            esac
+          done
+          reached=$(jq -n --slurpfile s "$RUNNER_TEMP/pr-merge-summary.json" --slurpfile h "$RUNNER_TEMP/held.json" \
+            '($s[0] | length) - ($h[0] | length)' 2>/dev/null) || reached=unknown
+          line="sweep-cost=$lane github-token-cost=$github_token candidates=${CANDIDATES:-unknown} reached=$reached"
+          echo "$line"
+          echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
       # The token is cancelled as soon as the job is done; it would otherwise
       # expire within the hour. This never fails the job.
@@ -547,79 +970,48 @@ jobs:
             echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
           fi
 
-  # A push to main whose head commit the lanes App authored: the squash commit
-  # of one of its PRs, which the merge queue just landed. The merge gate
-  # counts that merge in flight until it is verified, so the full
-  # CI run that verifies it starts here instead of waiting for a scheduled
-  # run. The author check runs before any runner starts, so other pushes cost
-  # nothing; it only saves work, and the post-merge check still decides what
-  # a merge needs. This job takes no lane token: the token broker mints none
-  # on `push`. A lanes App PR a person merged also matches, which costs one
-  # extra full run.
-  lane-merge-landed:
-    if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/main'
-      && vars.AUTOMATION_LANES_APP_SENDER_ID != ''
-      && startsWith(github.event.head_commit.author.email, format('{0}+', vars.AUTOMATION_LANES_APP_SENDER_ID))
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read # check out main
-    outputs:
-      # `true` when the kill switch lets the lanes run and the lane's own PRs
-      # are not report-only.
-      dispatch: ${{ steps.kill.outputs.proceed == 'true' && steps.mode.outputs.live == 'true' }}
-    steps:
-      - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: refs/heads/main
-          path: .base
-          persist-credentials: false
-
-      - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .base/.node-version
-          package-manager-cache: false
-
-      - name: Check the kill switch
-        id: kill
-        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
-        with:
-          value: ${{ vars.CLAUDE_LANES_DISABLED }}
-          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-
-      # Read as the merge job reads it for the lane's own PRs.
-      - name: Read report-only
-        id: mode
-        if: steps.kill.outputs.proceed == 'true'
-        run: |
-          set -euo pipefail
-          case "$(yq '.merge."report-only"' .base/docs/conventions/pr-pipeline.yaml)" in
-            false | null) echo "live=true" >>"$GITHUB_OUTPUT" ;;
-            *) echo "::notice::merge.report-only is set; no full CI run started" ;;
-          esac
-
-  # After a lane merge, the post-merge check wants a full CI run of main.
-  # Starting a workflow needs `actions: write`, which the lane App token does
-  # not have, so this separate job does it with the job's own GitHub token. It
-  # runs when the merge job says a full run is needed, which it never does
-  # while nothing can merge, or when lane-merge-landed saw a lane merge land.
-  # A run woken by pull_request_target
-  # leaves it to the next run: the post-merge check does not trust a dispatch
-  # from that event, which runs the PR base branch's copy of this file.
+  # Starts the full CI run that verifies main. Starting a workflow needs
+  # `actions: write`, which the lane App token does not have, so this job does
+  # it with its own GitHub token, in two cases:
+  #   * The merge job says a lane PR merged during its run, which it never
+  #     says while nothing can merge. A run woken by pull_request_target
+  #     leaves it to the next run: the post-merge check does not trust a
+  #     dispatch from that event, which runs the PR base branch's copy of
+  #     this file.
+  #   * A push to main, whoever merged: a person, a release App or the lanes
+  #     App. The run it starts is a `dispatch` signal for
+  #     post-merge-demotion-alert.yml, and for a lane merge the post-merge
+  #     check credits it through the artifact below.
+  # An earlier lane merge the post-merge check still finds unverified is the
+  # post-merge-dispatch job's, which is also the catch-up for a push dispatch
+  # that failed. A lane merge can get a second run from it when it checks the
+  # merge before the push dispatch's run exists.
+  #
+  # BURSTS COLLAPSE HERE, NOT IN pr-require-checks.yml. Push jobs share one
+  # group without `cancel-in-progress`, so one runs while one waits; a newer
+  # push replaces the waiting job, which is cancelled before it dispatches
+  # anything. The running job holds the group until the run it started
+  # finishes, so the waiting one dispatches main's tip then, which contains
+  # every merge it replaced. A pending pr-require-checks run is never
+  # cancelled: babysit_postmerge.py and post-merge-demotion-alert.yml both
+  # count a cancelled full run as red. Every other event takes a group of its
+  # own and does not wait.
   dispatch-full-run:
-    needs: [merge, lane-merge-landed]
+    needs: [merge]
     if: >-
       !cancelled()
       && ((needs.merge.result == 'success' && needs.merge.outputs.dispatch == 'true'
       && github.event_name != 'pull_request_target')
-      || (needs.lane-merge-landed.result == 'success' && needs.lane-merge-landed.outputs.dispatch == 'true'))
+      || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    concurrency:
+      group: ${{ github.event_name == 'push' && 'pr-merge-verify-main' || format('pr-merge-dispatch-{0}', github.run_id) }}
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # A push job waits for the full run, whose longest lane is capped at 16
+    # minutes, plus time in the runner queue.
+    timeout-minutes: 45
     permissions:
-      actions: write # start pr-require-checks.yml on main
+      actions: write # start pr-require-checks.yml on main and read its status
     steps:
       - name: Start the full CI run on main
         id: dispatch
@@ -648,3 +1040,24 @@ jobs:
           path: ${{ runner.temp }}/dispatched.json
           retention-days: 90
           if-no-files-found: error
+
+      # Holds the push group until the run finishes, so a burst of merges
+      # waits here as one pending job. One REST read a minute; the run's
+      # result is the merge job's post-merge check's to judge, not this job's.
+      - name: Wait for the full run to finish
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ steps.dispatch.outputs.run-id }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 40); do
+            sleep 60
+            status=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .status) || continue
+            if [ "$status" = completed ]; then
+              echo "run $RUN_ID completed"
+              exit 0
+            fi
+          done
+          echo "::warning::run $RUN_ID did not finish within 40 minutes; releasing the group"

@@ -1,0 +1,4 @@
+# Paths /docs-hygiene:audit-encapsulation detect skips. One row per path: path<TAB>reason.
+# A path is a file or a directory prefix ending in `/`. List only fixtures, evals and tests that
+# exist to exercise a detector; fix a real cite instead.
+plugins/docs-hygiene/skills/audit-encapsulation/scripts/detect.test.sh	regression fixtures embed literal cross-plugin, scripts/ and marketplace-id cites to exercise the detector

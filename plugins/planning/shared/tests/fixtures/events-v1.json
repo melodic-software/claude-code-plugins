@@ -44,5 +44,6 @@
   {"seq": 7, "at": "2026-10-16T12:00:00Z", "kind": "session-ended", "later": [{"id": "P3", "text": "Talk about refunds.", "reason": "Out of scope for checkout."}]},
   {"seq": 8, "at": "2026-10-16T12:01:00Z", "kind": "upload-received", "upload": "U2-4e5f6a7b", "file": "walkthrough.mp4", "stored": "uploads/accepted/2026-10-16-U2-walkthrough.mp4", "qid": null},
   {"seq": 9, "at": "2026-10-17T09:30:00Z", "kind": "report-filed", "report": "F1", "qid": "Q1", "text": "The Send button does nothing on my phone."},
-  {"seq": 10, "at": "2026-10-17T10:15:00Z", "kind": "round-reset", "round": 2, "sentSeq": 4}
+  {"seq": 10, "at": "2026-10-17T10:15:00Z", "kind": "round-reset", "round": 2, "sentSeq": 4},
+  {"seq": 11, "at": "2026-10-19T14:05:00Z", "kind": "upload-removed", "upload": "U2-4e5f6a7b", "file": "walkthrough.mp4"}
 ]
