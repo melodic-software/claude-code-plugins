@@ -370,18 +370,18 @@ if [[ -n "$nested_porcelain" ]] && git -C "$repo_dir" worktree list --porcelain 
     if [[ -n "$root_canon" && "$wt_canon" == "$root_canon"/* ]]; then
       continue
     fi
-    anc="$(dirname -- "$wt_canon")"
-    while [[ -d "$anc" && -r "$anc" && -x "$anc" ]]; do
-      if [[ -e "$anc/.git" ]]; then
-        anc_common="$(common_of "$anc")" || anc_common=""
-        if [[ -n "$anc_common" && "$anc_common" != "$own_common" ]]; then
-          err "worktree $wt_path of repository $owner_main sits inside the work tree of a different repository ($anc). Remove it: git -C $owner_main worktree remove $wt_path"
+    ancestor="$(dirname -- "$wt_canon")"
+    while [[ -d "$ancestor" && -r "$ancestor" && -x "$ancestor" ]]; do
+      if [[ -e "$ancestor/.git" ]]; then
+        ancestor_common="$(common_of "$ancestor")" || ancestor_common=""
+        if [[ -n "$ancestor_common" && "$ancestor_common" != "$own_common" ]]; then
+          err "worktree $wt_path of repository $owner_main sits inside the work tree of a different repository ($ancestor). Remove it: git -C $owner_main worktree remove $wt_path"
           break
         fi
       fi
-      parent="$(dirname -- "$anc")"
-      [[ "$parent" != "$anc" ]] || break
-      anc="$parent"
+      parent="$(dirname -- "$ancestor")"
+      [[ "$parent" != "$ancestor" ]] || break
+      ancestor="$parent"
     done
   done
 fi
