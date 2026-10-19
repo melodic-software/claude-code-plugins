@@ -143,7 +143,7 @@ test("prepare: merge-base leaves out the commit tool and the instruction to comm
 // pr-run-activity.md, "Skill activities": each listed check runs from the base
 // copy against the checkout, through a wrapper that takes no arguments, and
 // that wrapper is the only Bash the runner grants.
-function withChecks(checks, overrides = {}) {
+function withChecks(checks, overrides = {}, selected = {}) {
   const dir = mkdtempSync(path.join(root, "checks-"));
   const workspace = path.join(dir, "workspace");
   mkdirSync(path.join(workspace, "scripts"), { recursive: true });
@@ -152,7 +152,7 @@ function withChecks(checks, overrides = {}) {
   writeFileSync(path.join(base, "scripts", "check-x.sh"), script, { mode: 0o755 });
   writeFileSync(path.join(workspace, "scripts", "check-x.sh"), "#!/usr/bin/env bash\necho head code\n", { mode: 0o755 });
   const file = path.join(dir, "resolved.json");
-  writeFileSync(file, JSON.stringify({ selected: { args: "ci", checks } }));
+  writeFileSync(file, JSON.stringify({ selected: { args: "ci", checks, ...selected } }));
   const checksDir = path.join(dir, "lane-checks");
   return { workspace, checksDir, ...stage({ RESOLVED: file, CHECKS_DIR: checksDir, WORKSPACE: workspace, ...overrides }) };
 }
@@ -176,6 +176,41 @@ test("a listed check gets a no-argument wrapper that runs the base copy against 
     run.stdout.trim(),
     `from=${path.join(checksDir, "scripts", "check-x.sh")} data=${workspace} pwd=${workspace} args=--check`,
   );
+});
+
+// #8310: self-checks are the skill's own advisory checks; the skill runs
+// them through the same wrapper as checks, and the runner does not rerun them.
+test("a self-check gets the same no-argument wrapper as a check", () => {
+  const { status, allowed, args, workspace, checksDir } = withChecks(undefined, {}, {
+    "self-checks": ["scripts/check-x.sh --check"],
+  });
+  assert.equal(status, 0);
+  const wrapper = path.join(checksDir, "bin", "check-x");
+  assert.deepEqual(wrapperRules(allowed), [`Bash(${wrapper})`]);
+  assert.ok(args.includes(wrapper), "the system prompt names the self-check");
+  const run = spawnSync(wrapper, [], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(
+    run.stdout.trim(),
+    `from=${path.join(checksDir, "scripts", "check-x.sh")} data=${workspace} pwd=${workspace} args=--check`,
+  );
+});
+
+test("checks and self-checks each get a wrapper, and a script in both fails red", () => {
+  writeFileSync(path.join(base, "scripts", "check-y.sh"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+  try {
+    const both = withChecks(["scripts/check-x.sh --check"], {}, { "self-checks": ["scripts/check-y.sh"] });
+    assert.equal(both.status, 0);
+    assert.deepEqual(wrapperRules(both.allowed), [
+      `Bash(${path.join(both.checksDir, "bin", "check-x")})`,
+      `Bash(${path.join(both.checksDir, "bin", "check-y")})`,
+    ]);
+    const dup = withChecks(["scripts/check-x.sh --check"], {}, { "self-checks": ["scripts/check-x.sh"] });
+    assert.notEqual(dup.status, 0);
+    assert.match(dup.stdout, /::error::two checks run the same script/);
+  } finally {
+    rmSync(path.join(base, "scripts", "check-y.sh"));
+  }
 });
 
 // #8310: check-affected.sh passes shellcheck and markdownlint the configs beside

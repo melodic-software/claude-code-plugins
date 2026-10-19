@@ -164,11 +164,13 @@ activities:
     skill: work-items:work
     args: --ci
     # Runs the diff-scoped lint checks a push would face (markdown,
-    # shellcheck, exec bits, changelog fragments, plugin validation) before
-    # the skill reports done, so the PR does not open red. --uncommitted
-    # checks the work tree as the commit the API would make, since the lane
-    # commits through the API, not in the checkout, from main's tip.
-    checks: ["scripts/check-affected.sh --uncommitted"]
+    # shellcheck, exec bits, changelog fragments, plugin validation) in the
+    # run, so the skill fixes what they report before it commits and the PR
+    # does not open red. Advisory: unlike checks, the runner does not run
+    # these again, and a failure the skill cannot fix still opens the PR,
+    # named in its report. --uncommitted checks the work tree as the commit
+    # the API would make, since the lane commits through the API.
+    self-checks: ["scripts/check-affected.sh --uncommitted"]
     # Repository scripts the run may call with any arguments it chooses, to
     # check its work the way an issue's done-when says. Each runs from a
     # read-only copy of the base. A script that changes files, runs code from

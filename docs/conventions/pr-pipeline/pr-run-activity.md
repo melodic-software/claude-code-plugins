@@ -342,7 +342,7 @@ starts with `#!` or ends in `.sh`. A `prepare: merge-base` skill
 gets neither tool nor those sentences: it stages its resolution and the runner commits
 ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
-`checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
+`checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags,
 `CHECK_DATA_ROOT` naming the checkout, `GH_TOKEN` and `GITHUB_TOKEN` unset, and the same git config
 pins as a verify-script's wrapper, makes the copy read-only and denies `Edit` and `Write` on

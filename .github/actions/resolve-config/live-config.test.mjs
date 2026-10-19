@@ -266,11 +266,19 @@ test("live config: resolve-issue still needs the agent-ready label event after t
   );
 });
 
-// #8310: the run checks its uncommitted work with check-affected before it reports done.
-test("live config: resolve-issue may run check-affected on its uncommitted work", () => {
+// The run must pass the fragment format check before it reports done.
+test("live config: resolve-issue may run the changelog fragment check", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE).checks, [
-    "scripts/check-affected.sh --uncommitted",
+    "scripts/check-changelog-fragments.sh --check",
   ]);
+});
+
+// #8310 (owner decision: option a): the run's own advisory check-affected over
+// its uncommitted work, which the runner's run-checks job never reruns.
+test("live config: resolve-issue self-checks its uncommitted work with check-affected", () => {
+  const leaf = selected("work-resolve-issue", "resolve-issue", ISSUE);
+  assert.deepEqual(leaf["self-checks"], ["scripts/check-affected.sh --uncommitted"]);
+  assert.ok(!leaf.checks.includes("scripts/check-affected.sh --uncommitted"), leaf.checks.join(" | "));
 });
 
 // #7597: the issue's done-when runs the can't-fail scan, a read-only checker.

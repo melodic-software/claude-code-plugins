@@ -260,8 +260,9 @@ runs:
             # The activity's checks run from a base copy outside the working
             # directory, which the skill cannot edit, against the checkout,
             # through a wrapper with the flags fixed: the Bash rule allows the
-            # wrapper alone, with no arguments.
-            mapfile -t checks < <(jq -r '.selected.checks // [] | .[]' "$RESOLVED")
+            # wrapper alone, with no arguments. The skill runs checks and
+            # self-checks alike; only checks does the runner run again.
+            mapfile -t checks < <(jq -r '(.selected.checks // []) + (.selected["self-checks"] // []) | .[]' "$RESOLVED")
             if ((${#checks[@]})); then
               [[ $CHECKS_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
                 fail "the checks directory or workspace has a name a rule cannot carry"
