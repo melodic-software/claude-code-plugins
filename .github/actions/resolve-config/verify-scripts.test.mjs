@@ -76,9 +76,9 @@ for (const path of [
   });
 }
 
-// Only the write runner grants them, so a read skill's list would do nothing.
-test("verify-scripts with effect read fails the schema", () => {
-  rejected({ effect: "read", "verify-scripts": ["scripts/check-x.sh"] });
+// A read skill may list them too (README.md, Activities, verify-scripts).
+test("verify-scripts with effect read pass through", () => {
+  assert.deepEqual(run({ effect: "read", "verify-scripts": ["scripts/check-x.sh"] }).selected["verify-scripts"], ["scripts/check-x.sh"]);
 });
 
 test("an empty or repeating verify-scripts list fails the schema", () => {

@@ -78,9 +78,10 @@ for (const domains of ["all", [], ["*"], ["any"], ["code.claude.com,x"], ["Code.
   });
 }
 
-// Only the write runner grants the web, so a read skill cannot ask for it.
-test("web-access on with effect read fails the schema", () => {
-  rejected({ effect: "read", "reads-untrusted": true, "web-access": { enabled: true, domains: "any" } });
+// A read skill may read the web too (README.md, Activities, web-access).
+test("web-access on with effect read passes through", () => {
+  const webAccess = { enabled: true, domains: "any" };
+  assert.deepEqual(selected({ effect: "read", "reads-untrusted": true, "web-access": webAccess })["web-access"], webAccess);
 });
 
 test("web-access with an unknown key fails the schema", () => {

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/melodic-software/claude-code-plugins/.github/actions/resolve-config/patch-rules.schema.json",
+  "title": "Patch rules",
+  "description": "What apply-patch admits from a producer's patch: one row per prepare mode a patch-producing skill uses, `default` for one with no prepare mode, and `issue` for a patch that goes to a new issue-lane branch. Contract: docs/conventions/pr-pipeline/README.md, Patch rules.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["default", "issue"],
+  "properties": {
+    "ci-context": { "$ref": "#/$defs/row" },
+    "review-threads": { "$ref": "#/$defs/row" },
+    "dependency-review": { "$ref": "#/$defs/row" },
+    "merge-base": { "$ref": "#/$defs/row" },
+    "default": { "$ref": "#/$defs/row" },
+    "issue": { "$ref": "#/$defs/row" }
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["refuse", "allow", "max-files", "requires", "commit", "reads-report", "escalations"],
+      "properties": {
+        "refuse": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "github",
+              "claude",
+              "mcp-config",
+              "gitmodules",
+              "settings",
+              "symlink",
+              "gitlink",
+              "new-executable",
+              "rename-into-refused"
+            ]
+          },
+          "description": "Named refusals; any match refuses the whole patch. github: .github/** in any case and through any .. segment; claude: .claude/** at any depth; mcp-config: the root .mcp.json; gitmodules: .gitmodules; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; new-executable: an executable bit on a file not already executable; rename-into-refused: a rename whose new path another refusal matches."
+        },
+        "allow": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["any", "kept-threads", "merge-result"] },
+          "description": "What a path the refusals pass must also meet. any: nothing more; kept-threads: the path of a thread the run kept; merge-result: the blob the base merge leaves there, or a conflicted path left with no conflict markers."
+        },
+        "max-files": {
+          "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }],
+          "description": "The most paths one patch may change; null for no limit."
+        },
+        "requires": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["dependency-verdict: fix"] },
+          "description": "What the producer's output must say before any path is applied."
+        },
+        "commit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["parents", "message", "trailer"],
+          "properties": {
+            "parents": {
+              "oneOf": [
+                { "type": "array", "prefixItems": [{ "const": "head" }], "items": false, "minItems": 1 },
+                {
+                  "type": "array",
+                  "prefixItems": [{ "const": "head" }, { "const": "base" }],
+                  "items": false,
+                  "minItems": 2
+                }
+              ],
+              "description": "The commit's parents: the producer's head, then the trusted base tip for a merge."
+            },
+            "message": {
+              "type": "string",
+              "pattern": "^[^{}\\n]+(\\{(ref|base|lane|activity|issue)\\}[^{}\\n]*)*$",
+              "description": "The subject, with {ref}, {base}, {lane}, {activity} and {issue} filled in by apply-patch."
+            },
+            "trailer": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Za-z-]*: [^{}\\n]*(\\{(lane|activity)\\}[^{}\\n]*)*$",
+              "description": "The trailer line that names the activity, with {lane} and {activity} filled in."
+            }
+          }
+        },
+        "reads-report": {
+          "enum": [null, "ci-escalations"],
+          "description": "The producer report apply-patch reads; ci-escalations: the checks the model escalated."
+        },
+        "escalations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
+          "description": "The escalation reasons apply-patch may give for this row."
+        }
+      }
+    }
+  }
+}

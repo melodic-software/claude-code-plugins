@@ -397,21 +397,6 @@ models:
       # Only an experiment answers it: skip until a probe has (probe-first).
       unknown: probe-first
 
-# The funding role whose secrets pay for each Claude lane's runs (README.md,
-# Funding). A lane on ci-workflows' run-claude-cli action (today intake and
-# pr-verify) passes its role with <ROLE>_CLAUDE_API_KEY and
-# <ROLE>_CLAUDE_CODE_OAUTH_TOKEN, role upper-snake; the others are the role each
-# lane takes when it moves there.
-funding:
-  intake: automations
-  pr-unblock: automations
-  fix-ci: automations
-  pr-verify: automations
-  pr-refine: automations
-  claude-review: reviews
-  claude-security-review: reviews
-  work-resolve-issue: issue-lane
-
 loop:
   review-rounds: 3
   dependency-review-rounds: 2

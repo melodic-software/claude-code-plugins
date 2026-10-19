@@ -1,0 +1,21 @@
+{
+  "repository": "melodic-software/azure-iac",
+  "path": "scripts/deploy/fetch-resolve-config.sh",
+  "commit": "f8a671f096b01571ed505612d90209fe586c4fb9",
+  "runtime": ["resolve.mjs", "dimensions.mjs", "predicate.mjs", "vocabulary.mjs", "package.json", "package-lock.json"],
+  "test_files": [
+    ".github/actions/resolve-config/lane-rules.json",
+    ".github/actions/resolve-config/effect-grants.json",
+    ".github/actions/resolve-config/activity-rules.json",
+    ".github/actions/resolve-config/fixtures/vocabulary.json",
+    "docs/conventions/pr-pipeline/pr-pipeline.schema.json"
+  ],
+  "pending": {
+    "pull-request": "the azure-iac pull request that adds these to fetch-resolve-config.sh and bumps src/lanes-token-broker/resolve-config.pin, not opened yet",
+    "runtime": [],
+    "test_files": [
+      ".github/actions/resolve-config/patch-rules.json",
+      ".github/actions/resolve-config/patch-rules.schema.json"
+    ]
+  }
+}

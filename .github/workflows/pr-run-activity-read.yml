@@ -321,6 +321,8 @@ jobs:
           # This file performs prepare: ci-context (the context steps below)
           # and refuses every other mode.
           prepare-supported: "true"
+          # It collects a patch-producing activity's change as a patch artifact.
+          applied-by-supported: patch
 
       # Any other effect belongs in pr-run-activity-write.yml; the caller chose
       # the wrong file. Fails before anything reads the PR head.
