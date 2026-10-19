@@ -132,6 +132,7 @@ async function main() {
     ok("Mark all read with 250 unread items sends reads of 100, 100 and 50", batches.join() === "100,100,50", batches.join());
 
     // ---------- a guest never sees another person's request ----------
+    await until(bo, t => (window.Core.state.inbox || []).length === 1 && JSON.stringify(window.Core.snapshot()).includes(t), BO_ASK);
     const leak = await bo.evaluate(([a, b]) => ({ inbox: window.Core.state.inbox.map(i => i.key), text: JSON.stringify(window.Core.snapshot()), a, b }), [ASK2, BO_ASK]);
     ok("Bo's Inbox holds only his own request and nothing waiting", leak.inbox.length === 1 && !leak.text.includes(ASK2) && !leak.text.includes(ASK) && leak.text.includes(BO_ASK)
       && !(await bo.evaluate(() => window.Core.state.inbox.some(i => i.group === "waiting"))), JSON.stringify(leak.inbox));
