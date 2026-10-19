@@ -16,3 +16,9 @@ bump: minor
 
 - A plugin's `.mcp.json`, `.gitmodules` or `CODEOWNERS` is no longer in the plugin-wide part of a
   kept thread's scope.
+- The instruction paths `apply-ci-fix` and address-feedback refuse now also cover a `hooks`,
+  `.claude` or `.claude-plugin` segment with nothing after it, a plugin's `monitors/` and `bin/`,
+  and `.lsp.json`; a thread's plugin-wide scope also refuses `.bash`, `.zsh`, `.ps1`, `.cjs`,
+  `.mts` and `.cts` files and any path with a character outside ASCII letters, digits and `_@+.-`.
+- The address-feedback promote step moves the PR branch only when every path the lane branch
+  adds or changes is a regular file at its tip, not a symbolic link or gitlink.

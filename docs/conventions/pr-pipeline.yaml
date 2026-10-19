@@ -145,7 +145,8 @@ activities:
     # Before the mint the runner checks the patch artifact and the head;
     # the script refuses the whole patch when any change is under .github/,
     # an agent instruction path (CLAUDE.md, AGENTS.md, .claude/ or
-    # .claude-plugin/, a plugin's hooks/, .mcp.json, .gitmodules, CODEOWNERS), a
+    # .claude-plugin/, a plugin's hooks/, monitors/ or bin/, .mcp.json,
+    # .lsp.json, .gitmodules, CODEOWNERS), a
     # symbolic link or a gitlink, and hands an empty, invalid or unappliable
     # patch to a person.
     prepare: apply-patch

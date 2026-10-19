@@ -8,17 +8,18 @@ export function isProtectedPath(path) {
 }
 
 // Run or loaded as instructions by the harness, git or GitHub: agent rules,
-// MCP and submodule config, code owners, .claude/ and .claude-plugin/
-// directories, and plugin hooks.
+// MCP, language-server and submodule config, code owners, a .claude or
+// .claude-plugin directory, and a plugin's hooks, monitors and bin, each
+// matched as the whole segment.
 const INSTRUCTION_PATH =
-  /(^|\/)((claude|agents)\.md|\.mcp\.json|\.gitmodules|codeowners)$|(^|\/)\.claude(-plugin)?\/|(^|\/)plugins\/[^/]+\/hooks\//i;
+  /(^|\/)((claude|agents)\.md|\.mcp\.json|\.lsp\.json|\.gitmodules|codeowners)$|(^|\/)\.claude(-plugin)?(\/|$)|(^|\/)plugins\/[^/]+\/(hooks|monitors|bin)(\/|$)/i;
 export const isInstructionPath = (path) => INSTRUCTION_PATH.test(String(path));
 
 const PLUGIN_DIR = /^plugins\/[^/]+\//;
 const pluginOf = (path) => PLUGIN_DIR.exec(path)?.[0];
 // Script or code files, run by a shell or an interpreter, so out of the
 // plugin-wide part of a thread's scope.
-const CODE_FILE = /\.(sh|py|mjs|js|ts)$/i;
+const CODE_FILE = /\.(sh|bash|zsh|ps1|py|mjs|cjs|js|ts|mts|cts)$/i;
 const TEST_FILE = /^(test_[^/]*\.py|[^/]*_test\.py|[^/]*\.(test|spec)\.[^/]+)$/;
 const dirOf = (path) => path.slice(0, path.lastIndexOf("/") + 1);
 
@@ -45,13 +46,13 @@ export function namedInScope(path, threadPath) {
 }
 
 // A kept thread's own path, a file in the plugins/<p>/ directory a kept
-// thread's path sits in that is no instruction path and not a .sh, .py, .mjs,
-// .js or .ts file, a test file in the same directory as a kept thread's path,
+// thread's path sits in that is no instruction path and no script or code
+// file, a test file in the same directory as a kept thread's path,
 // or a path in a kept thread's named_paths (in `threads`, each { path,
 // named_paths }) that namedInScope allows for that thread; never anything
-// under .github/, and never a path that is not in normal form.
+// under .github/, and never a path that is not plain and in normal form.
 export function inThreadScope(path, threadPaths, threads = []) {
-  if (isProtectedPath(path) || BAD_SEGMENT.test(path)) {
+  if (isProtectedPath(path) || BAD_SEGMENT.test(path) || !PLAIN_PATH.test(path)) {
     return false;
   }
   if (threadPaths.has(path)) {

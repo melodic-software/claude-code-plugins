@@ -132,6 +132,16 @@ for path in plugins/other/x.js .github/workflows/x.yml plugins/knowledge/AGENTS.
   assert_exit "check-paths refuses named $path" 1 "$?"
 done
 
+# check-paths: instruction segments with no trailing /, plugin monitors, bin and .lsp.json, more
+# code files, and non-ASCII letters stay out of the plugin-wide scope
+run check-paths plugins/knowledge/README.md >/dev/null 2>&1
+assert_exit "check-paths allows a plain file in the named thread's plugin" 0 "$?"
+for path in plugins/knowledge/hooks plugins/knowledge/.claude plugins/knowledge/monitors/monitors.json plugins/knowledge/bin/tool \
+  plugins/knowledge/.lsp.json plugins/knowledge/lib/x.cjs plugins/knowledge/lib/x.ps1 "plugins/knowledge/hooKs/hooks.json" "plugins/knowledge/AGENTſ.md"; do
+  run check-paths "$path" >/dev/null 2>&1
+  assert_exit "check-paths refuses $path" 1 "$?"
+done
+
 # record VALID: checked against the lane branch and appended, nothing posted
 setup
 disposition "{\"disposition\":\"VALID\",\"evidence\":[\"src/a.js:3\"],\"fix_sha\":\"$FIX\",\"note\":\"Guarded the null case.\"}"

@@ -10,5 +10,7 @@ bump: minor
 
 ### Fixed
 
-- `check-paths` and `record` no longer allow a plugin's `.mcp.json`, `.gitmodules` or
-  `CODEOWNERS` through the plugin-wide part of a thread's scope.
+- `check-paths` and `record` no longer allow a plugin's `.mcp.json`, `.lsp.json`, `.gitmodules`,
+  `CODEOWNERS`, `monitors/` or `bin/`, a `hooks` or `.claude` segment with nothing after it, a
+  `.bash`, `.zsh`, `.ps1`, `.cjs`, `.mts` or `.cts` file, or any path with a character outside
+  ASCII letters, digits and `_@+.-` through the plugin-wide part of a thread's scope.

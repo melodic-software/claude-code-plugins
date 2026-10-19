@@ -33,7 +33,8 @@ function promoteScript() {
 const dir = mkdtempSync(join(tmpdir(), "promote-scope-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 
-async function promote(files, { scope = readFileSync(SCOPE), sha256, threads = [{ path: "plugins/p/evals/c/case.yaml" }, { path: "src/round.py" }] } = {}) {
+// Every lane-tip tree entry is a regular file unless `modes` names it.
+async function promote(files, { scope = readFileSync(SCOPE), sha256, threads = [{ path: "plugins/p/evals/c/case.yaml" }, { path: "src/round.py" }], modes = {} } = {}) {
   const threadFile = join(dir, "threads.json");
   writeFileSync(threadFile, JSON.stringify({ threads }));
   const scopeScript = join(dir, "thread-scope.mjs");
@@ -55,6 +56,14 @@ async function promote(files, { scope = readFileSync(SCOPE), sha256, threads = [
   const core = { setOutput() {}, info() {}, warning() {}, setFailed: (message) => failed.push(message) };
   const github = {
     request: async () => ({ data: { object: { sha: LANE } } }),
+    async graphql(query, { expression }) {
+      const dir = expression.slice(`${LANE}:`.length);
+      const entries = files
+        .map((f) => f.filename)
+        .filter((name) => name.slice(0, Math.max(name.lastIndexOf("/"), 0)) === dir)
+        .map((name) => ({ name: name.slice(dir ? dir.length + 1 : 0), ...(modes[name] ?? { type: "blob", mode: 0o100644 }) }));
+      return { repository: { object: { entries } } };
+    },
     rest: {
       repos: { compareCommitsWithBasehead: async () => ({ data: { files } }) },
       git: { deleteRef: async () => {} },
@@ -120,4 +129,13 @@ test("a file a kept thread's named_paths holds passes the path check; the same f
   assert.match(stopped[0], OUT);
   const instruction = await promote([{ filename: "plugins/p/AGENTS.md" }], { threads: [{ ...named[0], named_paths: ["plugins/p/AGENTS.md"] }] });
   assert.match(instruction[0], OUT);
+});
+
+test("a symbolic link or gitlink the lane adds at an in-scope path stops the move; a removed file needs no entry", async () => {
+  for (const mode of [{ type: "blob", mode: 0o120000 }, { type: "commit", mode: 0o160000 }]) {
+    const failed = await promote([{ filename: "plugins/p/hooksx" }], { modes: { "plugins/p/hooksx": mode } });
+    assert.deepEqual(failed, ["The lane branch adds or changes a path that is not a regular file (plugins/p/hooksx); the PR branch is not moved"]);
+  }
+  const removed = await promote([{ filename: "plugins/p/README.md", status: "removed" }], { modes: { "plugins/p/README.md": { type: "missing" } } });
+  assert.match(removed[0], HOLD);
 });

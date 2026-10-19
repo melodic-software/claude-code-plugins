@@ -187,3 +187,31 @@ test("a named path off normal form or outside plain ASCII is refused", () => {
     assert.equal(inThreadScope(path, new Set([WRITE]), [{ path: WRITE, named_paths: [path] }]), false, path);
   }
 });
+
+// From the security review of #8461: a segment named exactly hooks or
+// .claude, plugin monitors, bin and .lsp.json, more code extensions, and
+// non-ASCII letters JS /i does not fold (U+212A KELVIN SIGN, U+017F LONG S).
+test("instruction segments with no trailing /, plugin monitors, bin and .lsp.json, and more code files are refused", () => {
+  for (const path of [
+    "plugins/p/hooks",
+    "plugins/p/.claude",
+    "plugins/p/skills/s/.claude-plugin",
+    "plugins/p/monitors/monitors.json",
+    "plugins/p/bin/tool",
+    "plugins/p/.lsp.json",
+    "plugins/p/lib/x.cjs",
+    "plugins/p/lib/x.mts",
+    "plugins/p/lib/x.cts",
+    "plugins/p/lib/x.ps1",
+    "plugins/p/lib/x.bash",
+    "plugins/p/lib/x.zsh",
+  ]) {
+    assert.equal(inThreadScope(path, kept), false, path);
+  }
+});
+
+test("a path with a non-ASCII letter is refused, even as a kept thread's own path", () => {
+  for (const path of ["plugins/p/hooKs/hooks.json", "plugins/p/AGENTſ.md", "plugins/p/run.ſh", "plugins/p/café.md"]) {
+    assert.equal(inThreadScope(path, new Set([...kept, path])), false, path);
+  }
+});
