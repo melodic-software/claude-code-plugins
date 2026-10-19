@@ -198,14 +198,21 @@ FLOOR_ADDITIONS: tuple[str, ...] = (
 DECLARATION_FILES: tuple[str, ...] = (
     "plugins/*/.claude-plugin/plugin.json",
     "plugins/*/.mcp.json",
+    "plugins/*/.lsp.json",
     "plugins/*/hooks/hooks.json",
+    "plugins/*/monitors/monitors.json",
 )
 # plugin.json keys whose values Claude Code runs or reads as run config; its
-# other `./` paths (types, skills) are not executable.
+# other `./` paths (types, skills) are not executable. A string value of one is
+# a pointer to a config file, which is read and declares too.
 _EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
 _PLUGIN_ROOT_REF = re.compile(
     r"\$(?:\{CLAUDE_PLUGIN_ROOT\}|CLAUDE_PLUGIN_ROOT\b)([^\s\"'`;|&<>(){}$]*)"
 )
+# Any spelling of the variable; one _PLUGIN_ROOT_REF does not consume (a
+# default, a trim, PowerShell's or cmd's form) is unsafe.
+_PLUGIN_ROOT_NAME = re.compile("CLAUDE_PLUGIN_ROOT", re.IGNORECASE)
+_RELATIVE = ("./", "../", ".\\", "..\\")
 
 # Lane -> (code, severity) for an open finding on that lane. Both lanes are
 # required: a lane absent from the input is unbound.
@@ -451,10 +458,8 @@ def _strings(value: Any) -> list[str]:
     return [s for item in items for s in _strings(item)]
 
 
-def _under_root(root: str, rest: str) -> str | None:
-    """A declared path as the directory holding it (code beside an entry point
-    runs with it), or the path itself at the plugin root; None when it leaves
-    the plugin."""
+def _resolve(root: str, rest: str) -> list[str] | None:
+    """The segments of a path under the plugin root, None when it leaves it."""
     parts: list[str] = []
     for segment in rest.replace("\\", "/").split("/"):
         if segment == "..":
@@ -463,6 +468,16 @@ def _under_root(root: str, rest: str) -> str | None:
             parts.pop()
         elif segment not in ("", "."):
             parts.append(segment)
+    return parts
+
+
+def _under_root(root: str, rest: str) -> str | None:
+    """A declared path as the directory holding it (code beside an entry point
+    runs with it), or the path itself at the plugin root; None when it leaves
+    the plugin."""
+    parts = _resolve(root, rest)
+    if parts is None:
+        return None
     return "/".join([root, *(parts[:-1] if len(parts) > 1 else parts)])
 
 
@@ -470,40 +485,89 @@ _DECLARATION_NAMES = {g.removeprefix("plugins/*/") for g in DECLARATION_FILES}
 _PLUGIN_JSON = ".claude-plugin/plugin.json"
 
 
+def _located(path: Any) -> tuple[str, str, str] | None:
+    """(normalized path, plugin root, casefolded path under the root) for a
+    safe path inside a plugin directory."""
+    normalized, safe = normalize_path(path)
+    parts = normalized.split("/")
+    if not safe or len(parts) < 3 or parts[0] != "plugins":
+        return None
+    return normalized, "/".join(parts[:2]), "/".join(parts[2:]).casefold()
+
+
+def _load(text: Any) -> dict[str, Any] | None:
+    if not isinstance(text, str):
+        return None
+    try:
+        data = json.loads(text)
+    except (ValueError, RecursionError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _executable_values(data: dict[str, Any]) -> list[Any]:
+    experimental = data.get("experimental")
+    monitors = experimental.get("monitors") if isinstance(experimental, dict) else None
+    return [*(data.get(key) for key in _EXECUTABLE_KEYS), monitors]
+
+
+def declaration_pointers(path: Any, text: Any) -> tuple[str, ...]:
+    """The config files a plugin.json's executable keys point at (a string or
+    a list of strings), as repository paths for the caller to read at the base
+    SHA; () for any other file, unreadable text, or a pointer leaving the
+    plugin, which the scorer rates."""
+    located, data = _located(path), _load(text)
+    if located is None or located[2] != _PLUGIN_JSON or data is None:
+        return ()
+    root = located[1]
+    found = []
+    for value in _executable_values(data):
+        pointers = [value] if isinstance(value, str) else _sequence(value) or ()
+        for pointer in pointers:
+            parts = _resolve(root, pointer) if isinstance(pointer, str) else None
+            if parts:
+                found.append("/".join([root, *parts]))
+    return tuple(dict.fromkeys(found))
+
+
 def _declared_paths(value: Any, unsafe: list[str]) -> tuple[str, ...]:
     """The paths base-side declarations run: every `${CLAUDE_PLUGIN_ROOT}`
-    reference, and in plugin.json every `./` path under an executable key.
-    A declaration it cannot read, or a path outside its plugin, is unsafe."""
+    reference and every `./` or `../` path, resolved against the plugin root,
+    in plugin.json under an executable key only, and in the files its pointers
+    name. A declaration it cannot read, a pointer not read, a reference it
+    cannot resolve, or a path outside its plugin is unsafe."""
     entries = _sequence(value)
     if entries is None:
         unsafe.append(f"declarations unreadable: {_show(value)}")
         return ()
-    found = []
+    pairs = []
     for entry in entries:
         pair = _sequence(entry)
-        path, text = pair if pair is not None and len(pair) == 2 else (entry, None)
-        normalized, safe = normalize_path(path)
-        parts = normalized.split("/")
-        name = "/".join(parts[2:]).casefold()
-        if not safe or parts[0] != "plugins" or name not in _DECLARATION_NAMES:
+        pairs.append(pair if pair is not None and len(pair) == 2 else (entry, None))
+    pointers = {
+        p.casefold() for path, text in pairs for p in declaration_pointers(path, text)
+    }
+    read = {located[0].casefold() for path, _ in pairs if (located := _located(path))}
+    unsafe.extend(f"pointer not read: {_show(p)}" for p in sorted(pointers - read))
+    found = []
+    for path, text in pairs:
+        located = _located(path)
+        if located is None or not (
+            located[2] in _DECLARATION_NAMES or located[0].casefold() in pointers
+        ):
             unsafe.append(f"declaration file not recognized: {_show(path)}")
             continue
-        root = "/".join(parts[:2])
-        try:
-            if not isinstance(text, str):
-                raise TypeError("no text")
-            data = json.loads(text)
-            if not isinstance(data, dict):
-                raise ValueError("not an object")
-            plugin_json = name == _PLUGIN_JSON
-            scope = [data.get(k) for k in _EXECUTABLE_KEYS] if plugin_json else data
-            strings = _strings(scope)
-        except (TypeError, ValueError, RecursionError):
+        _, root, name = located
+        data = _load(text)
+        if data is None:
             unsafe.append(f"declaration unreadable: {_show(path)}")
             continue
-        for string in strings:
+        scope = _executable_values(data) if name == _PLUGIN_JSON else data
+        for string in _strings(scope):
             refs = [m.group(1) for m in _PLUGIN_ROOT_REF.finditer(string)]
-            if plugin_json and string.startswith("./"):
+            if len(_PLUGIN_ROOT_NAME.findall(string)) > len(refs):
+                unsafe.append(f"{_show(path)} names the plugin root as {_show(string)}")
+            if string.startswith(_RELATIVE):
                 refs.append(string)
             for ref in refs:
                 declared = _under_root(root, ref)

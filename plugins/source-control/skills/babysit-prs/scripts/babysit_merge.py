@@ -2996,9 +2996,11 @@ def score_unattended(
         if inputs.get("authority") == merge_policy.PR_MERGE
         else {}
     )
-    # Read at the base SHA, so a pull request cannot drop its own declaration.
+    # Read at the base SHA, so a pull request cannot drop its own declaration;
+    # only the plugins its changed files sit in.
+    changed = [path for f in files for path in (f.path, f.previous_path)]
     declarations = (
-        merge_policy.declarations_at(repo, pr)
+        merge_policy.declarations_at(repo, pr, changed)
         if lane_switches.get("high_floor", True)
         else ()
     )

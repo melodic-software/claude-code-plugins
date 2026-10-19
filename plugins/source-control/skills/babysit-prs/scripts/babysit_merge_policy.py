@@ -32,7 +32,7 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Iterator, Mapping
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -59,6 +59,7 @@ from babysit_gh import (
 from babysit_risk import (
     DECLARATION_FILES,
     ChangedFile,
+    declaration_pointers,
     glob_match,
     is_capability_path,
 )
@@ -2672,40 +2673,62 @@ _TREE_MODE = "040000"
 
 
 def declarations_at(
-    repo: str, pr: Mapping[str, Any]
+    repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
 ) -> tuple[tuple[str, str | None], ...] | None:
-    """`babysit_risk.RiskInput.declarations`: each `DECLARATION_FILES` file at
-    the base SHA as (path, text), from a clone holding it, else the contents
-    API, with None for a file that could not be read. None when the base tree
-    cannot be listed; the scorer holds the floor either way."""
+    """`babysit_risk.RiskInput.declarations`: each `DECLARATION_FILES` file of
+    a plugin directory a changed path sits in, and each config file its
+    plugin.json points at, at the base SHA as (path, text), from a clone
+    holding it, else the contents API, with None for a file that could not be
+    read. A declared path outside its own plugin is unsafe, so no other
+    plugin's declarations can floor a changed file, and a change outside every
+    plugin reads none. None when the base tree cannot be listed; the scorer
+    holds the floor either way."""
+    plugins = {
+        "/".join(parts[:2]).casefold()
+        for path in changed
+        if isinstance(path, str)
+        and len(parts := path.split("/")) >= 3
+        and parts[0].casefold() == "plugins"
+    }
+    if not plugins:
+        return ()
     owner, name = _split_repo(repo)
-    base = json_object(pr.get("base")).get("sha")
+    base = str(json_object(pr.get("base")).get("sha"))
     try:
-        if not SHA_RE.fullmatch(str(base)):
+        if not SHA_RE.fullmatch(base):
             raise PolicyReadError("the pull request record names no base SHA")
-        modes = _tree_modes(owner, name, str(base))
-        root = next(_clones_holding(str(base)), None)
+        modes = _tree_modes(owner, name, base)
+        root = next(_clones_holding(base), None)
     except (PolicyReadError, ValueError) as exc:
         print(f"declarations at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
         return None
     if modes is None:
         return None
-    found: list[tuple[str, str | None]] = []
-    for path, mode in sorted(modes.items()):
-        if mode == _TREE_MODE or not any(
-            glob_match(g, path) for g in DECLARATION_FILES
-        ):
-            continue
+
+    def read(path: str) -> str | None:
+        if modes.get(path) in (None, _TREE_MODE):
+            return None
         try:
-            text = (
-                _git_file_at(root, path, str(base))
-                if root is not None
-                else _text_at(owner, name, path, str(base))
-            )
+            if root is not None:
+                return _git_file_at(root, path, base)
+            return _text_at(owner, name, path, base)
         except (PolicyReadError, ValueError) as exc:
             print(f"declaration {path!r}: {type(exc).__name__}", file=sys.stderr)
-            text = None
-        found.append((path, text))
+            return None
+
+    found = [
+        (path, read(path))
+        for path in sorted(modes)
+        if "/".join(path.split("/")[:2]).casefold() in plugins
+        and any(glob_match(g, path) for g in DECLARATION_FILES)
+    ]
+    named = {path for path, _ in found}
+    pointers = (
+        q for path, text in list(found) for q in declaration_pointers(path, text)
+    )
+    for pointer in dict.fromkeys(pointers):
+        if pointer not in named:
+            found.append((pointer, read(pointer)))
     return tuple(found)
 
 
