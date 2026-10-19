@@ -3317,6 +3317,10 @@
       if (Core.me.isOwner) {
         for (const m of S.mergeRequests || []) note("gm:" + m.id, "seen", `${disp(m.fromName)} says they were ${disp(m.toName)} before. Approve it in Host.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); }, isNew: true });
         for (const u of S.uploads || []) if (u.status === "offered" && !isMe(u.cid)) note("uo:" + u.id, "seen", `${disp(u.by)} offered a file: ${u.file}.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); }, isNew: true });
+        // What waits on me pops up once when it arrives; merges have their own line above.
+        const WAIT = { join: i => `${disp(i.by)} asks to join.`, run: i => `${disp(i.by)} asked Claude on ${i.qid}. Run it from the Inbox.`,
+          share: i => `Claude answered on ${i.qid}. Share it from the Inbox.`, report: i => `${disp(i.by)} reported a problem.` };
+        for (const i of S.inbox || []) if (i.group === "waiting" && WAIT[i.kind]) note("iw:" + i.key, "seen", WAIT[i.kind](i), { label: "Open", run: () => openInboxItem(i), isNew: true });
       }
       // Item 11: a toast when Claude answers one of my requests, once I can open the answer.
       for (const i of S.inbox || []) {

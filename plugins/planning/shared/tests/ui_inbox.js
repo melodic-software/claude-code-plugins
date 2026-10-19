@@ -152,6 +152,35 @@ async function main() {
     ok("the owner, with requests waiting to run, gets the proposal's queue line, its only one", await until(owner, () => window.Core.state.me.notifications.filter(n => n.kind === "queue" && !n.read).length === 1, null, 10000));
     ok("  and the badge counts it: 3", await until(owner, () => document.querySelector(".vf-bell-n").textContent === "3"), await badge(owner));
 
+    // ---------- what waits on the owner pops up once, for the owner alone ----------
+    const RUN_T = "Ann asked Claude on Q2. Run it from the Inbox.", JOIN_T = "Jib asks to join.";
+    const watchToasts = page => page.evaluate(() => {
+      window.__toasts = [];
+      new MutationObserver(() => { const t = document.querySelector(".vf-toast span")?.textContent; if (t) window.__toasts.push(t); })
+        .observe(document.querySelector(".vf-toast"), { childList: true, characterData: true, subtree: true });
+    });
+    const toasts = (page, t) => page.evaluate(x => window.__toasts.filter(y => y === x).length, t);
+    for (const p of [owner, lee]) await watchToasts(p);
+    await ann.evaluate(() => window.Core.request("Q2", "ask", "Ann's third question, waiting on Run"));
+    ok("a guest's request waiting on Run pops one toast for the owner", await until(owner, t => window.__toasts.includes(t), RUN_T, 10000), JSON.stringify(await owner.evaluate(() => window.__toasts)));
+    await owner.evaluate(() => window.Core.saveSettings({ approveJoins: true }));
+    await until(owner, () => window.Core.snapshot().settings.approveJoins === true);
+    const jib = await rec.open(A.localUrl, desk);
+    await jib.waitForSelector("dialog.core-name[open]");
+    await jib.fill("#core-n", "Jib");
+    await jib.click("dialog.core-name button");
+    ok("a guest asking to join pops one toast for the owner, with their name", await until(owner, t => window.__toasts.includes(t), JOIN_T, 20000), JSON.stringify(await owner.evaluate(() => window.__toasts)));
+    await owner.waitForTimeout(3000); // a few more polls: neither item pops again
+    ok("  each exactly once", (await toasts(owner, RUN_T)) === 1 && (await toasts(owner, JOIN_T)) === 1, JSON.stringify(await owner.evaluate(() => window.__toasts)));
+    ok("  and none for the leader", (await toasts(lee, RUN_T)) === 0 && (await toasts(lee, JOIN_T)) === 0, JSON.stringify(await lee.evaluate(() => window.__toasts)));
+    await owner.reload();
+    await until(owner, () => window.Core.live && window.Core.state.inbox.some(i => i.kind === "join"));
+    await watchToasts(owner);
+    await owner.waitForTimeout(3000);
+    const showing = await owner.evaluate(() => document.querySelector(".vf-toast.vf-on span")?.textContent || ""); // one fired before the watch would still show (9 s)
+    ok("after a reload, items already waiting pop no toast", (await toasts(owner, RUN_T)) === 0 && (await toasts(owner, JOIN_T)) === 0 && ![RUN_T, JOIN_T].includes(showing),
+      JSON.stringify([showing, ...(await owner.evaluate(() => window.__toasts))]));
+
     // ---------- the phone sheet ----------
     await bo.click(".vf-bell");
     ok("390: the Inbox opens as a sheet over the whole screen", await until(bo, () => {

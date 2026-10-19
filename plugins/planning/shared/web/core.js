@@ -227,7 +227,9 @@
     view.requests = (s.requests || []).map(req);
     view.myRequests = (s.myRequests || []).map(req);
     // The Inbox: my own requests with the status I see, and for the owner what waits on them; the server decides both.
-    view.inbox = (s.inbox || []).map(i => ({ ...i, ts: i.at, changedTs: i.changed, ...(i.by ? { byCid: i.by, by: nameOf(i.by) } : {}) }));
+    // A person asking to join is not in people yet: their name comes from joinRequests.
+    const joinName = pid => (s.joinRequests || []).find(j => j.pid === pid)?.name;
+    view.inbox = (s.inbox || []).map(i => ({ ...i, ts: i.at, changedTs: i.changed, ...(i.by ? { byCid: i.by, by: people[i.by] ? nameOf(i.by) : joinName(i.by) || nameOf(i.by) } : {}) }));
     view.mergeRequests = (s.mergeRequests || []).map(m => ({ id: m.id, from: m.from, to: m.to, fromName: nameOf(m.from), toName: nameOf(m.to), ts: m.at, status: m.status.kind }));
     view.myMergeRequests = (s.myMergeRequests || []).map(m => ({ id: m.id, status: m.status.kind, toName: nameOf(m.to) }));
     // Uploads: my own files, everyone's for the owner (with a picture's preview), and what everyone reads of the
