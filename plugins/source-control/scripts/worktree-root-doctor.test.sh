@@ -337,6 +337,23 @@ run "$EMPTY_GCFG" "$NEST_A/clone"
 assert_not_contains "a clone under another repository is not flagged" "$OUT" \
   "sits inside the work tree of a different repository"
 
+# A worktree inside its own repository's tree is not flagged even when that
+# repository's main checkout sits inside another repository.
+fgit -C "$NEST_A/clone" config user.email t@t.t
+fgit -C "$NEST_A/clone" config user.name t
+fgit -C "$NEST_A/clone" config commit.gpgsign false
+printf 'seed\n' >"$NEST_A/clone/README.md"
+fgit -C "$NEST_A/clone" add README.md >/dev/null 2>&1
+fgit -C "$NEST_A/clone" commit -qm init >/dev/null 2>&1
+mkdir -p "$NEST_A/clone/.work"
+if fgit -C "$NEST_A/clone" worktree add -q "$NEST_A/clone/.work/x" -b feat/clone-own >/dev/null 2>&1; then
+  run "$EMPTY_GCFG" "$NEST_A/clone"
+  assert_not_contains "an own-tree worktree of a nested clone is not flagged" "$OUT" \
+    "sits inside the work tree of a different repository"
+else
+  skip_case "worktree add unavailable for the nested-clone fixture"
+fi
+
 # --- Standing notes are always present ---------------------------------------------
 
 run "$EMPTY_GCFG" "$REPO"
