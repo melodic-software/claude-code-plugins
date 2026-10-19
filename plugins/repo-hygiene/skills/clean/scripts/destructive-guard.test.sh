@@ -425,6 +425,11 @@ for cmd in \
   assert_exit "blocks: $cmd" 2 "$(guard_exit "$cmd")"
 done
 
+# A quoted backslash-separated script path reaches the parser with its
+# backslash intact, so only the backslash strip names the apply script.
+assert_exit "blocks a quoted backslash script path" 2 \
+  "$(guard_exit "bash 'scripts\\clean-caches.sh' --apply")"
+
 for cmd in \
   "bash scripts/clean-batch.sh --tier caches --dry-run --repo /d/repos/foo" \
   "bash scripts/remove-path.sh --dry-run /d/repos/foo" \
