@@ -14,7 +14,7 @@ execution:
 graders:
   - name: names-skill-and-plugin
     type: regex
-    pattern: '(?:implementation[:/ ]+implement-dispatch|implement-dispatch[^\n]{0,80}\bimplementation\b|\bimplementation\b[^\n]{0,80}implement-dispatch)'
+    pattern: 'owner:\s*implementation:implement-dispatch'
     flags: 'i'
     arm: with-only
   - name: reports-skill-fit-gap
