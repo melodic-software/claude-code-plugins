@@ -64,6 +64,9 @@ const LANES = Object.freeze({
     events: ["pull_request"],
     files: [".github/workflows/pr-refine.yml", WRITE_RUNNER],
     after: "pr-merge pushes an empty commit so new runs start on main's files.",
+    // pr-refine.yml has no synchronize trigger, so the push starts no pr-refine run.
+    starts:
+      " The push starts no pr-refine run itself: pr-refine runs again when the pull request is reopened or a listed person dispatches `pr-refine` with its number.",
   },
   // GitHub runs no pull_request workflow on a conflicting PR, and
   // pr-unblock-dispatch runs only on a push to main or a listed person's

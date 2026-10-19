@@ -97,6 +97,10 @@ Step `base-merge`. Disabled by `pre_ready` or skipped by `--skip`: skip the merg
 first, through `push-branch.sh` as below, so the reviews (which read the PR's diff on the remote)
 and the verify gate (which runs on local HEAD) in 2.5.3 cover the same commit.
 
+Record the PR's head commit as `HEAD_BEFORE` first
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#record-the-head-before-the-refresh)),
+for the wait in 2.5.4.
+
 Read the PR's base branch into `BASE`, resolve `REMOTE` with `resolve-remote.sh`, have the forge
 merge the base into the head branch, then fetch the head branch from `REMOTE` and fast-forward the
 local branch to it
@@ -140,6 +144,23 @@ fail between prep and the flip. A review whose lane reads `ci` is skipped as a b
 the flip itself starts that CI lane on the whole pull request. A lane that
 reads `local`, or a venue that cannot be read, means the review runs here as that lane's stand-in.
 
+<a id="docs-only-and-instruction-surfaces"></a>
+**Docs-only, and instruction surfaces.** A diff is docs-only when every changed file is
+documentation and none is an instruction surface. An instruction surface changes what agents do
+even though it is prose, so a diff touching any of these is not docs-only: `AGENTS.md`,
+`CLAUDE.md`, any `.md` file under `.claude/rules/`, `.claude/agents/`, `.claude/commands/` or
+`.claude/skills/`, and skill and agent bodies (the `.md` files under `plugins/*/skills/**` and
+`plugins/*/agents/**`). The list is this marketplace's layout plus the `.claude/` directories a
+project keeps agent instructions in; a consuming project adds its own skill and agent directories
+to it. A code file is never docs-only, whatever its path. This is the one definition; other files
+cite it rather than restate the list. It decides the two reviews below. It does not change the
+added-suppressions check in [prep.md](prep.md) §1.2.1: that scan reads code, so the row keeps its
+file-type reading, owed when a changed file is code and not owed for prose alone, an instruction
+surface included. Prep's own review steps (1.2 to 1.4) also stay keyed on the `code` class, so the
+reviews this definition adds run at ready.
+
+The bullets below are the steps.
+
 - **The plan's review evidence (`plan-evidence`), when a plan asks for it.** When the branch implements a plan (the
   `PLAN.md` the pull request body or the session names) and a phase this pull request ships sets a
   `Review:` value that asks for evidence, such as screenshots of each changed screen or a short
@@ -176,8 +197,10 @@ the findings of each review that ran are fixed or recorded, and the verify gate 
 
 ## 2.5.4 Flip to ready
 
-When 2.5.3 committed anything, push it all in one push and flip right after it, so the ready run
-replaces that push's draft run within seconds instead of after it ran to the end. Push through
+When 2.5.3 committed anything, push it all in one push. Do not flip right after it: the push's CI
+run is created a few seconds later with a payload that still says draft, and it cancels a ready run
+that started first through the per-PR concurrency group, leaving only a draft run whose lanes are
+skipped and `ci-status` red. Wait for the push's run first (below). Push through
 `push-branch.sh`, as [create.md](create.md) does: it pushes to the remote `resolve-remote.sh
 --push` resolves, so a fork or triangular checkout never pushes to the wrong remote. `--pr` pushes
 the pull request's head branch even when the session runs in another worktree, and exits non-zero
@@ -193,6 +216,15 @@ the checkout to push (loop-lane convention, "Lane write identity"). For a fork h
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
 ```
 
+**Wait for the push's CI run.** When the PR was already out of draft at 2.5.1, skip the wait. When
+its head commit is not the `HEAD_BEFORE` recorded in 2.5.2 (the base merge, the forge's update or a
+push of local commits moved it), wait up to 90 seconds, polling every
+5, for CI runs to exist for the new head commit and their count to hold steady across two polls.
+The wait counts the head's runs from every workflow, so it needs no CI workflow name
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#wait-for-the-pushs-ci-run)).
+Then flip whether or not one appeared; a timeout is reported, and the backstop below covers it.
+When nothing was pushed, skip the wait and flip as before.
+
 Then run the hold check of 2.5.1 again
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)),
 since a hold can land during the reviews; on any exit but 0, leave the PR in draft, report the
@@ -200,12 +232,22 @@ check's output, and stop. Otherwise, when `--skip` removed a step, post the skip
 "Skip a step for this run"), then mark the PR ready
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#flip-to-ready)).
 
+**Confirm a ready run, toggle once if missing.** After the flip, wait up to 120 seconds, polling
+every 5, for a CI run on the head that did not exist before the flip
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#confirm-a-ready-run)).
+When none appears, switch the PR back to draft and mark it ready again, once, then wait the same
+way. A rerun does not help: it replays the draft payload. Never toggle a second time. When the
+toggle fails or the second wait also finds none, read the draft flag again, report both, and stop;
+a PR left in draft by a failed re-ready is a failure to name, not to retry. Skip this confirmation when the PR was already out
+of draft at 2.5.1.
+
 In a cloud session the CLI flip fails, because the flip is a GraphQL mutation. Two routes work
 there: the proxy's REST route, or the GitHub MCP `update_pull_request` call with `draft: false`
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#flip-to-ready)).
 
 Completion criterion: the PR's draft flag reads `false`
-([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-draft-flag)).
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-draft-flag)),
+and, when this run flipped it, a CI run created after the flip exists for the head.
 
 ## 2.5.5 Hand the pull request to the change digest
 
@@ -237,7 +279,8 @@ Report one line per step, in the order they ran, each with exactly one outcome:
   is never reported as passing.
 
 The lines are the hold check, `base-merge`, `plan-evidence`, `code-review`, `security-review`,
-`verify`, the push, the hold re-check, the flip, and the digest (skipped, offered, built, or not
+`verify`, the push, the CI-run wait (found, or timed out), the hold re-check, the flip, the ready-run
+confirmation (found, or toggled draft and ready once with its outcome), and the digest (skipped, offered, built, or not
 available). Above them, one line for where the step list came from: the reader's `source`, and for
 `fail-closed` its reason. Then choose who watches the PR from here, per
 [watch-handoff.md](watch-handoff.md).

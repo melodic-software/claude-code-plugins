@@ -36,10 +36,10 @@ OWNER=$(gh repo view --json owner -q .owner.login)
 REPO=$(gh repo view --json name -q .name)
 BASELINE_FILE=  # re-arm only: the checks snapshot the full iteration wrote
 prev_checks=""
-have_baseline=0
+baselined=0  # set by a readable BASELINE_FILE or the first successful check read
 if [ -n "$BASELINE_FILE" ] && [ -r "$BASELINE_FILE" ]; then
   prev_checks=$(tr -d '\r' <"$BASELINE_FILE" | sort)
-  have_baseline=1
+  baselined=1
 elif [ -n "$BASELINE_FILE" ]; then
   echo "BASELINE-UNREADABLE $BASELINE_FILE — first checks poll only records; run a full scan"
 fi
@@ -70,24 +70,40 @@ while true; do
   # deduplicated as gh does (latest start per name/workflow/event);
   # commit statuses are always read, since check-runs omit them.
   b='def b: ascii_upcase | if . == "SUCCESS" then "pass" elif . == "SKIPPED" or . == "NEUTRAL" then "skipping" elif . == "CANCELLED" then "cancel" elif . == "ERROR" or . == "FAILURE" or . == "TIMED_OUT" or . == "ACTION_REQUIRED" then "fail" else "pending" end;'
-  wf=$(gh api --paginate "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=100" \
-    --jq '.workflow_runs[] | {(.check_suite_id | tostring): "\(.name)/\(.event)"}' 2>>"$err" | jq -s -c 'add // {}')
-  cur_checks=$({ gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/check-runs?per_page=100" \
-      | jq -s -r --argjson wf "$wf" "$b"' [.[].check_runs[] | {k: "\(.name)/\($wf[.check_suite.id | tostring] // "")", name, t: (.started_at // ""), s: (if .status == "completed" then .conclusion else .status end)}] | group_by(.k) | map(max_by(.t))[] | "\(.name): \(.s | b)"'
-    gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/status?per_page=100" \
-      --jq "$b"' .statuses[] | "\(.context): \(.state | b)"'
-  } 2>>"$err" | tr -d '\r' | grep -v ': pending$' | sort || true)
-  if [ "$cur_checks" != "$prev_checks" ]; then
+  # A failed read of any call below leaves the baseline alone and emits
+  # nothing: an empty list from a failed read would otherwise be stored as
+  # the baseline, and the next good poll would emit every finished check.
+  checks_ok=1
+  [ -n "${head_sha:-}" ] || checks_ok=0
+  if [ "$checks_ok" -eq 1 ]; then
+    if wf_raw=$(gh api --paginate "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=100" \
+      --jq '.workflow_runs[] | {(.check_suite_id | tostring): "\(.name)/\(.event)"}' 2>>"$err"); then
+      wf=$(printf '%s\n' "$wf_raw" | jq -s -c 'add // {}') || checks_ok=0
+    else checks_ok=0; fi
+  fi
+  if [ "$checks_ok" -eq 1 ]; then
+    runs_raw=$(gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/check-runs?per_page=100" 2>>"$err") || checks_ok=0
+    stat_raw=$(gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/status?per_page=100" \
+      --jq "$b"' .statuses[] | "\(.context): \(.state | b)"' 2>>"$err") || checks_ok=0
+  fi
+  if [ "$checks_ok" -eq 1 ]; then
+    run_rows=$(printf '%s\n' "$runs_raw" | jq -s -r --argjson wf "$wf" "$b"' [.[].check_runs[] | {k: "\(.name)/\($wf[.check_suite.id | tostring] // "")", name, t: (.started_at // ""), s: (if .status == "completed" then .conclusion else .status end)}] | group_by(.k) | map(max_by(.t))[] | "\(.name): \(.s | b)"') || checks_ok=0
+    cur_checks=$({ printf '%s\n' "$run_rows"; printf '%s\n' "$stat_raw"; } \
+      | tr -d '\r' | grep -v -e '^$' -e ': pending$' | sort || true)
+  fi
+  if [ "$checks_ok" -eq 1 ]; then
     # Bucket values mirror gh pr checks: pass|fail|pending|skipping|cancel.
-    # With no baseline the first poll only records the checks. A re-arm
-    # starts from the full iteration's snapshot instead, so a check that
-    # finished since that read is emitted and the rest are not re-emitted.
-    if [ "$poll" -gt 0 ] || [ "$have_baseline" -eq 1 ]; then
+    # With no baseline, the first poll whose check read succeeds only records
+    # the checks. A re-arm starts from the full iteration's snapshot instead,
+    # so a check that finished since that read is emitted and the rest are not
+    # re-emitted.
+    if [ "$baselined" -eq 1 ] && [ "$cur_checks" != "$prev_checks" ]; then
       comm -13 <(echo "$prev_checks") <(echo "$cur_checks") | \
         grep --line-buffered -E ': (pass|fail|skipping|cancel)$' \
         || true
     fi
     prev_checks="$cur_checks"
+    baselined=1
   fi
 
   # New comments — ALL THREE review surfaces (issue-level, inline
@@ -141,7 +157,7 @@ done
 ```
 
 Its state check and CI block (the `head_sha` read through `cur_checks`) also run standalone, with
-`OWNER`, `REPO`, `PR_NUMBER`, and `err` set, as the REST read of a PR's checks. The bucket mapping and the
+`OWNER`, `REPO`, `PR_NUMBER`, and `err` set, as the REST read of a PR's checks; `cur_checks` is valid only when `checks_ok` is 1. The bucket mapping and the
 latest-per-name/workflow/event dedupe follow gh's `pkg/cmd/pr/checks/aggregate.go`.
 
 ## Why polling uses REST

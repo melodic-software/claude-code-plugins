@@ -120,10 +120,12 @@ We pass the background-command maximum on every fallback poll and treat the stop
      `<scripts-dir>/source-control-review-threads` and emits `REVIEW-THREADS unresolved=<n>` when
      the unresolved count, or `THREADS_UNPROVEN`, changes. Resolving a thread moves no check and
      posts no comment, so the other reads never see it.
-   - Its first poll records the thread count, and the checks too unless `BASELINE_FILE` names a
-     readable snapshot. With one, the snapshot is the first checks read: the first poll emits a check
-     finished in the live read but not in the snapshot, and nothing else. A `BASELINE_FILE` that is
-     unreadable emits `BASELINE-UNREADABLE <path>` and records only; run a full checks scan when it wakes you.
+   - It records the thread count on its first poll, and the checks as the baseline on the first poll
+     whose check read succeeds, unless `BASELINE_FILE` names a readable snapshot. With one, the
+     snapshot is the baseline: the first successful checks read emits a check finished in the live
+     read but not in the snapshot, and nothing else. A `BASELINE_FILE` that is unreadable emits
+     `BASELINE-UNREADABLE <path>` and records only; run a full checks scan when it wakes you. A poll
+     whose check read fails (any call in the read errors) keeps the baseline and emits no check lines.
 
    Capture the returned task id. Report: `Monitor watch armed (task <id>, PR #<N>). Fires on CI check completion, new comments, and review-thread count changes. Stop with TaskStop <id> or end session; re-armed at each deadline.` Keep that task id: it is what step 2 and §3.0.5 check.
 

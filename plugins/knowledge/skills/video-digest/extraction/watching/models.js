@@ -65,6 +65,8 @@
  * @property {number} [targetMinFrames]
  * @property {boolean} [highVolume] - Advisory when frame count far exceeds plan target
  * @property {number} [durationSec]
+ * @property {number|null} [probedDurationSec] - the media probe's duration; null when the
+ *   probe gave none and `durationSec` fell back to the last cue's end
  * @property {boolean} overCap - Legacy field; always false (no truncation)
  * @property {number} candidateCount - Unique frame count after dedup
  */

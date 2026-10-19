@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2] - 2026-10-18
+
+### Changed
+
+- The synced `lib/transcript_reader.py` copy gains `decode_line(line, stats)`, the one-line decode `iter_records` is now built on; `iter_records` behaves as before.
+
 ## [0.10.1] - 2026-10-16
 
 ### Changed
