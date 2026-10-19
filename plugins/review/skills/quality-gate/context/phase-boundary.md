@@ -65,10 +65,13 @@ Dispatch each mode's own reviewer in fresh context, as its context file names, w
   crossings in `code`, the finding-class table and the spec text read from the local
   `--spec <path>` in `spec`, the resolved criteria (file paths and sections) in `criteria`, and
   the paved-path file from [criteria.md](criteria.md) step 2;
-- this rule, verbatim: "Rate findings only on lines the phase diff adds or changes. Anything you
-  notice outside the diff goes in a separate `Outside this phase` list, one line per item naming
-  the file, with no severity and no effect on the verdict, or is left out." The gate's report
-  keeps that list unrated, so debt the phase did not add never blocks it.
+- this rule, verbatim: "Rate a finding only when the phase diff causes it: a line the diff adds or
+  changes, or something the diff leaves out that the change requires. The file it names may be
+  outside the diff, such as a caller the change breaks or a canonical home the added text
+  duplicates. A problem the diff did not cause goes in a separate `Outside this phase` list, one
+  line per item naming the file, with no severity and no effect on the verdict, or is left out."
+  The gate's report keeps that list unrated, so debt the phase did not add never blocks it, while
+  `downstream`, `restatement` and `spec` still rate what the change breaks, duplicates or misses.
 
 Never give it the plan's rationale, the conversation or the implementer's account of the change,
 just as the [per-slice.md](per-slice.md) prompt template carries none of them: the reviewer judges
