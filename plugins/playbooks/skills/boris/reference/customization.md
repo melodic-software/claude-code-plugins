@@ -114,6 +114,13 @@ Every key binding in Claude Code is customizable. `/keybindings` to re-map any k
 
 Keybindings are stored in `~/.claude/keybindings.json`.
 
+- **Pointer**: for the file's shape (fields, binding blocks) and the live-reload behavior, see
+  [Configuration file](https://code.claude.com/docs/en/keybindings#configuration-file); the page
+  intro names the path and `/keybindings`.
+- **As of**: 2026-10-18
+- **Recheck trigger**: that section changes its fields or the live-reload note, or the page intro
+  changes the path.
+
 ---
 
 ## 24. Hooks (Advanced)

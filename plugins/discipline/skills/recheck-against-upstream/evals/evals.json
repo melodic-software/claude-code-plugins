@@ -107,12 +107,13 @@
     {
       "id": 9,
       "name": "batched-fork-run-never-takes-fan-out-tier",
-      "prompt": "You are an audit-only fork dispatched by /discipline:sweep-all. Load /discipline:recheck-against-upstream, run re-anchor and self-audit only, make no writes, and return a findings ledger. (This session reworked a whole framework's configuration across dozens of upstream-dependent surfaces.)",
-      "expected_output": "Runs the inline recheck only, despite the whole-framework scope: a batched or forked run never takes the fan-out tier and dispatches no subagents. Its ledger names the surfaces it compared and those it skipped, and adds an entry recommending a direct /discipline:recheck-against-upstream fan-out run, rather than fanning out from inside the fork.",
+      "prompt": "You are a fork dispatched by /discipline:sweep-all for the upstream pass. Load /discipline:recheck-against-upstream and work through this session's changes, make no writes, and return what you find. (This session reworked a whole framework's configuration across dozens of upstream-dependent surfaces, and your Agent tool is available and able to spawn subagents.)",
+      "expected_output": "The skill's own fork guard fires: despite the whole-framework scope and a fork Agent tool that could spawn, a batched or forked run never takes the fan-out tier and dispatches no subagents. It runs the inline recheck only and returns a ledger naming the surfaces it compared and those it skipped, plus an entry recommending a direct /discipline:recheck-against-upstream fan-out run. The prompt never says to audit only, so the restraint comes from the guard, not from the request.",
       "files": [],
       "expectations": [
-        "Does not dispatch any subagent or start the fan-out tier from inside the batched fork",
-        "Runs the inline re-anchor and self-audit and returns a findings ledger without writing, with an explicit compared-versus-skipped list",
+        "Does not dispatch any subagent or start the fan-out tier from inside the fork, although the Agent tool is available and the scope would otherwise call for it: the transcript shows no Agent call",
+        "Cites the skill's never-inside-a-batch-or-a-fork guard (or its effect) as the reason it stays inline, not the request's wording",
+        "Runs the inline re-anchor and recheck and returns a findings ledger without writing, with an explicit compared-versus-skipped list",
         "Recommends a direct /discipline:recheck-against-upstream fan-out run where the fan-out would fit"
       ]
     }

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -826,10 +827,12 @@ class AQueuedDependabotEntryNeedsNoVerdict(unittest.TestCase):
 
 class ActionsReadsUseTheActionsToken(unittest.TestCase):
     """The lane token holds no Actions permission, so the artifact listing,
-    the run records and the download run under `BABYSIT_VERIFY_GH_TOKEN`;
-    every other read keeps the process token."""
+    the run records and the download run under `BABYSIT_VERIFY_GH_TOKEN`, as
+    do the run heads' compares to the branch (a contents read the job token
+    serves, kept off the lane App's quota); every other read keeps the
+    process token."""
 
-    ACTIONS = ("actions/artifacts", "actions/runs/", "run download")
+    ACTIONS = ("actions/artifacts", "actions/runs/", "run download", "/compare/")
 
     def reads(self, reader: ve.Reader) -> dict[str, Any]:
         fake = passing()
@@ -1012,17 +1015,289 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
                 self.assertEqual(listings(fake), 1)
 
 
+class OneRunSharesItsVerifierReads(unittest.TestCase):
+    """With `BABYSIT_RUN_CACHE` named, the gate processes of one run share a
+    run head found on the branch and the trusted-actor list (for its bound);
+    a head not found on the branch is compared again."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    @staticmethod
+    def compares(fake: FakeGitHub, sha: str) -> int:
+        return sum(f"/compare/{sha}..." in " ".join(c) for c in fake.calls)
+
+    @staticmethod
+    def trusted_reads(fake: FakeGitHub) -> int:
+        return sum(any("/contents/" in a for a in c) for c in fake.calls)
+
+    def candidates(self, fake: FakeGitHub, count: int) -> None:
+        for _ in range(count):
+            self.assertIsNone(read(fake).refusal)
+
+    def test_a_head_on_the_branch_is_compared_once_per_run(self) -> None:
+        fake = passing()
+        self.candidates(fake, 3)
+        self.assertEqual(self.compares(fake, MAIN_SHA), 1)
+
+    def test_a_head_off_the_branch_is_compared_by_every_candidate(self) -> None:
+        off = "d" * 40
+        fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2, head_sha=off)})
+        self.candidates(fake, 2)
+        self.assertEqual(self.compares(fake, off), 2)
+
+    def test_a_judgment_notes_its_oldest_shared_read(self) -> None:
+        # The trusted list another process read 90 s ago dates the judgment.
+        clock = [datetime(2026, 10, 18, 11, 58, 30, tzinfo=UTC)]
+        fake = passing()
+        with (
+            mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]),
+            mock.patch.object(ve, "_wall_clock", side_effect=lambda: clock[0]),
+        ):
+            self.candidates(fake, 1)
+            listed_before = clock[0]
+            clock[0] += timedelta(seconds=90)
+            with ve.run_cache.track() as taken:
+                self.candidates(fake, 1)
+        self.assertEqual(self.trusted_reads(fake), 1)
+        self.assertEqual(min(taken), listed_before)
+        self.assertIn(clock[0], taken)  # this process's own listing
+
+    def test_the_trusted_list_is_read_once_within_the_bound(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        fake = passing()
+        with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
+            self.candidates(fake, 2)
+            self.assertEqual(self.trusted_reads(fake), 1)
+            clock[0] += ve.run_cache.MAX_AGE + timedelta(seconds=1)
+            self.candidates(fake, 1)
+        self.assertEqual(self.trusted_reads(fake), 2)
+
+
+class OneRunSharesItsFailRunReads(unittest.TestCase):
+    """With `BABYSIT_RUN_CACHE` named, a FAIL's run record and an untied
+    FAIL's recorded head ref are read once per run. A PASS's run is read by every gate process, so a re-run
+    that undoes a completed success never allows on a shared record."""
+
+    OTHER = UNRELATED
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def other_fail(self) -> FakeGitHub:
+        """A pass at the head (run 1) and another PR's FAIL (run 2)."""
+        name = named(self.OTHER, "fail", 99)
+        fake = passing(artifact(name, 2), runs={2: run(2)})
+        fake.records[name] = record(99, self.OTHER, head_ref="feat/other")
+        return fake
+
+    @staticmethod
+    def run_reads(fake: FakeGitHub, run_id: int) -> int:
+        return sum(
+            any(a.endswith(f"/actions/runs/{run_id}") for a in c) for c in fake.calls
+        )
+
+    @staticmethod
+    def downloads(fake: FakeGitHub, run_id: int) -> int:
+        return sum(c[:3] == ["run", "download", str(run_id)] for c in fake.calls)
+
+    def test_a_fail_run_and_its_record_are_read_once_per_run(self) -> None:
+        fake = self.other_fail()
+        for _ in range(3):
+            self.assertIsNone(read(fake).refusal)
+        self.assertEqual(self.run_reads(fake, 2), 1)
+        self.assertEqual(self.downloads(fake, 2), 1)
+        # The pass's run is read by every candidate.
+        self.assertEqual(self.run_reads(fake, 1), 3)
+
+    def test_a_replaced_artifact_of_the_same_name_is_read_again(self) -> None:
+        # An overwrite uploads a new id under the same name: the head ref
+        # shared for the old id must not stand for the new contents.
+        fake = self.other_fail()
+        self.assertIsNone(read(fake).refusal)
+        name = named(self.OTHER, "fail", 99)
+        fake.artifacts[1] = {**fake.artifacts[1], "id": 21}
+        fake.records[name] = record(99, self.OTHER, head_ref="feat/x")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertEqual(self.downloads(fake, 2), 2)
+
+    def test_a_fail_run_is_not_read_again_past_the_shared_bound(self) -> None:
+        # Origin rests on fields a re-run keeps, so the record serves the
+        # whole run, however long the sweep takes.
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        fake = self.other_fail()
+        with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
+            read(fake)
+            clock[0] += ve.run_cache.MAX_AGE * 20
+            read(fake)
+        self.assertEqual(self.run_reads(fake, 2), 1)
+
+    def test_a_re_run_of_a_counted_pass_does_not_allow(self) -> None:
+        fake = passing()
+        self.assertIsNone(read(fake).refusal)
+        fake.runs[1] = run(1, status="in_progress", conclusion=None, run_attempt=2)
+        self.assertEqual(read(fake).refusal, "verify:missing")
+
+    def test_a_re_run_of_a_fail_still_refuses_on_the_shared_record(self) -> None:
+        fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
+        self.assertEqual(read(fake).refusal, "verify:fail")
+        fake.runs[2] = run(2, status="in_progress", conclusion=None, run_attempt=2)
+        self.assertEqual(read(fake).refusal, "verify:fail")
+        self.assertEqual(self.run_reads(fake, 2), 1)
+
+
+class ACarriedHeadServesOnlyAFail(unittest.TestCase):
+    """A run head an earlier pr-merge run found on main reaches this run's
+    cache as `carried-on-branch` (carry-run-cache.mjs). Only a FAIL's run may
+    rest on it, where it can only count the FAIL; a PASS's run is compared by
+    this run, so a wrong carried yes can never allow."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.path = pathlib.Path(tmp.name, "run.json")
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": str(self.path)})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        at = datetime.now(UTC).isoformat()
+        entry = {f"{REPO}|{MAIN_SHA}...main": {"at": at, "value": True}}
+        self.path.write_text(json.dumps({"carried-on-branch": entry}))
+
+    @staticmethod
+    def compares(fake: FakeGitHub) -> int:
+        return sum("/compare/" in " ".join(c) for c in fake.calls)
+
+    def test_a_fail_run_rests_on_the_carried_head_with_no_compare(self) -> None:
+        fake = FakeGitHub([artifact(named(HEAD, "fail"), 2)], {2: run(2)})
+        self.assertEqual(read(fake).refusal, "verify:fail")
+        self.assertEqual(self.compares(fake), 0)
+
+    def test_a_carried_yes_the_branch_denies_still_counts_the_fail(self) -> None:
+        fake = FakeGitHub([artifact(named(HEAD, "fail"), 2)], {2: run(2)})
+        fake.on_main = set()
+        self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_pass_run_is_compared_and_not_counted_off_the_branch(self) -> None:
+        # The same run uploads another PR's FAIL first: its judgment rests on
+        # the carried yes, and the PASS must not reuse it.
+        other = named(UNRELATED, "fail", 99)
+        fake = FakeGitHub(
+            [artifact(other, 1), artifact(named(HEAD, "pass"), 1)],
+            {1: run(1)},
+            {named(HEAD, "pass"): record(), other: record(99, UNRELATED, head_ref="o")},
+        )
+        fake.on_main = set()
+        self.assertEqual(read(fake).refusal, "verify:missing")
+        self.assertEqual(self.compares(fake), 1)
+
+
+CARRY = (
+    pathlib.Path(__file__).resolve().parents[6]
+    / ".github/scripts/pr-merge/carry-run-cache.mjs"
+)
+
+
+class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
+    """pr-merge restores the newest `pr-merge-run-cache-` entry its ref can
+    read, which a job in the default branch's cache scope may have written.
+    Whatever that entry holds, carry-run-cache.mjs and the reader together
+    may only add refusals: a carried read that would turn a FAIL away is read
+    again from GitHub."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = pathlib.Path(tmp.name)
+        patcher = mock.patch.dict(
+            "os.environ", {"BABYSIT_RUN_CACHE": str(self.dir / "run.json")}
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def restore(self, sections: dict[str, Any]) -> None:
+        """Carry `sections`, as the cache restored them, into the run cache."""
+        at = datetime.now(UTC).isoformat()
+        restored = self.dir / "restored.json"
+        restored.write_text(
+            json.dumps(
+                {
+                    s: {k: {"at": at, "value": v} for k, v in e.items()}
+                    for s, e in sections.items()
+                }
+            )
+        )
+        subprocess.run(
+            ["node", str(CARRY)],
+            env={
+                "PATH": os.environ["PATH"],
+                "CARRY_FROM": str(restored),
+                "CARRY_TO": str(self.dir / "run.json"),
+                "GITHUB_REPOSITORY": REPO,
+            },
+            check=True,
+            capture_output=True,
+        )
+
+    def test_a_forged_run_head_does_not_turn_a_fail_away(self) -> None:
+        fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
+        forged = run(2, head_sha=OFF_MAIN)
+        for section in ("run-record", "carried-run-record"):
+            with self.subTest(section=section):
+                self.restore({section: {f"{REPO}|2": forged}})
+                self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_forged_head_ref_does_not_untie_an_earlier_fail(self) -> None:
+        name = named(UNRELATED, "fail", 99)
+        fake = passing(artifact(name, 2), runs={2: run(2)})
+        fake.records[name] = record(99, UNRELATED, head_ref="feat/x")
+        for section in ("fail-head-ref", "carried-fail-head-ref"):
+            with self.subTest(section=section):
+                self.restore({section: {f"{REPO}|20": {"head_ref": "feat/other"}}})
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_carried_reads_that_count_a_fail_spare_the_reads(self) -> None:
+        name = named(UNRELATED, "fail", 99)
+        fake = passing(artifact(name, 2), runs={2: run(2)})
+        self.restore(
+            {
+                "run-record": {f"{REPO}|2": run(2)},
+                "fail-head-ref": {f"{REPO}|20": {"head_ref": "feat/x"}},
+                "on-branch": {f"{REPO}|{MAIN_SHA}...main": True},
+            }
+        )
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertFalse(any(c[-1].endswith("/actions/runs/2") for c in fake.calls))
+        self.assertFalse(any(c[:3] == ["run", "download", "2"] for c in fake.calls))
+
+
 # --- A transient listing failure is read again --------------------------------
 
 # Every test runs without the backoff sleep; `judge` reads the waits off it.
 _no_sleep = mock.patch.object(ve, "_listing_sleep")
 
 
+# The tracker's human-gated label read an autonomous gate makes: stubbed so
+# no test reads GitHub; a test that remaps it patches it again.
+_role_label = mock.patch.object(postmerge, "_role_label", return_value="needs-human")
+
+
 def setUpModule() -> None:
     _no_sleep.start()
+    _role_label.start()
 
 
 def tearDownModule() -> None:
+    _role_label.stop()
     _no_sleep.stop()
 
 
@@ -1332,6 +1607,9 @@ class LaneRequiresAVerdict(unattended.Unattended):
             out["unattended"]["writes"]["escalation"],
             {"label": "present", "comment": "unchanged"},
         )
+        # The escalation's own label is a merge hold too; the reason still
+        # names the verifier refusal.
+        self.assertEqual(out["unattended"]["reason"], "verify:spec-changed")
 
     def test_report_only_reports_a_needs_human_refusal_and_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, report_only=True)
@@ -1461,8 +1739,23 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertIn(f"dequeue:[{other}]", self.log)
         self.read.assert_called_once_with(other, self.scored_head)
 
-    def test_a_risk_refusal_stays_the_reason(self) -> None:
+    def test_a_verifier_refusal_is_judged_before_the_diff(self) -> None:
+        # The refusal stands whatever the diff scores, so neither the lane
+        # evidence nor the score is read, and the reason is the verifier's.
         self.verdicts[unattended.PR] = evidence("verify:fail")
+        self.lanes = unattended.UNBOUND
+        self.queued = [unattended.PR]
+        self._lane_evidence = mock.Mock(return_value=(self.lanes, self.comments))
+        with mock.patch.object(merge.babysit_risk, "score") as score:
+            code, out = self.lane()
+        self.assert_no_merge(code)
+        self._lane_evidence.assert_not_called()
+        score.assert_not_called()
+        self.assertEqual(out["unattended"]["reason"], "verify:fail")
+        self.assertNotIn("risk", out["unattended"])
+        self.assertIn(f"dequeue:[{unattended.PR}]", self.log)
+
+    def test_a_risk_refusal_is_the_reason_when_the_verifier_passes(self) -> None:
         self.lanes = unattended.UNBOUND
         _, out = self.lane()
         self.assertTrue(out["unattended"]["reason"].startswith("risk:"))
@@ -1530,6 +1823,16 @@ class LaneRequiresAVerdict(unattended.Unattended):
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
+    def test_the_lane_scores_a_floor_path_from_the_config_high(self) -> None:
+        self.config = dataclasses.replace(
+            self.config, high_path_floor=True, floor_paths=("notes/held/**",)
+        )
+        self.files = ((changed("notes/held/x.md"),), True)
+        _, out = self.lane()
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+        codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
+        self.assertEqual(codes, ["high-path:notes/held/**"])
+
     def unlabeled_lane_pr(self, real_denied_paths: bool = False) -> None:
         """The real lane eligibility over a lanes-App pull request whose one
         closing issue carries no `work-class:` label."""
@@ -1569,7 +1872,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.verdicts[unattended.PR] = evidence("verify:missing")
         code, out = self.lane()
         self.assert_no_merge(code)
-        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+        self.assertNotIn("risk", out["unattended"])
         self.assertEqual(out["unattended"]["reason"], "verify:missing")
 
 
@@ -1592,6 +1895,19 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
+    def test_the_floor_switch_governs_the_local_floor_paths(self) -> None:
+        # Owner decision 2026-10-18: the additions follow the switch in every lane.
+        self.files = ((changed("notes/held/x.md"),), True)
+        for on in (False, True):
+            with self.subTest(high_path_floor=on):
+                self.config = dataclasses.replace(
+                    self.config, high_path_floor=on, floor_paths=("notes/held/**",)
+                )
+                _, out = self.run_main()
+                self.assertEqual(
+                    out["unattended"]["risk"]["score"], "HIGH" if on else "LOW"
+                )
+
 
 class TheConfigKey(unittest.TestCase):
     def config(self, value: str | None) -> policy.PipelineConfig:
@@ -1612,6 +1928,51 @@ class TheConfigKey(unittest.TestCase):
         config = self.config("maybe")
         self.assertTrue(config.require_verifier_verdict)
         self.assertTrue(any("require-verifier-verdict" in n for n in config.notes))
+
+
+class TheSweepKeepsTheListingBound(unattended.Unattended):
+    """A queued entry another candidate kept is skipped only while the
+    listing its verdict was judged on is within the bound."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.config = policy.PipelineConfig(
+            unattended.BASE, "C2", "pr-merge", unattended.IDENTITY, 200,
+            (".github/**",), "c2-mechanical", require_verifier_verdict=True,
+        )  # fmt: skip
+        self.opt_in_recheck = "not-lane-authored-or-opted-in"
+        self.promotion = policy.Promotion(None, "resolver-failed")
+        self.kill = []
+        self.flight = policy.InFlight(False, "identity-entry-queued:#5")
+        self.queued = [unattended.PR, 5]
+        self.clock = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        self.reads: list[int] = []
+        listed = self.clock - timedelta(seconds=90)
+        for patcher in (
+            mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path}),
+            mock.patch.object(ve.run_cache, "now", side_effect=lambda: self.clock),
+            # The verdict is judged on a listing begun 90 s before the run.
+            mock.patch.object(
+                ve.Reader,
+                "evidence",
+                side_effect=lambda n, head, pr=None: (
+                    self.reads.append(n) or ve.run_cache.note(listed) or evidence(None)
+                ),
+            ),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_the_skip_ends_when_the_judged_listing_passes_the_bound(self) -> None:
+        for seconds in (0, 29, 31):
+            self.clock = datetime(2026, 10, 18, 12, 0, seconds, tzinfo=UTC)
+            code, _ = unattended.LaneMode.lane(self)
+            self.assert_no_merge(code)
+        # Judged at 12:00:00 on a listing from 11:58:30: skipped at :29, not :31.
+        self.assertEqual(self.reads.count(5), 2)
 
 
 if __name__ == "__main__":

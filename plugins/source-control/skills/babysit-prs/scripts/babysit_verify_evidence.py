@@ -72,8 +72,14 @@ from typing import Any
 
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
+import babysit_run_cache as run_cache
 from babysit_classify import is_dependency_author
-from babysit_gh import flatten_paginated_items, gh_http_status, gh_timeout_seconds
+from babysit_gh import (
+    flatten_paginated_items,
+    gh_http_status,
+    gh_timeout_seconds,
+    pull_request_commits_once,
+)
 from babysit_util import is_json_array, is_json_object, json_array, json_object
 
 WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
@@ -90,10 +96,8 @@ TOO_OLD_DAYS = 80
 COMMITS_CAP = 250
 # The waits before the second and third listing reads (judgment).
 LISTING_WAITS = (2.0, 4.0)
-# The oldest listing any judgment uses, saved or in memory. pr-verify is not a
-# required check, so a queued entry whose FAIL lands mid-run must be held
-# before the merge queue can land it (judgment).
-LISTING_MAX_AGE = timedelta(minutes=2)
+# The oldest listing any judgment uses, saved or in memory (see the bound).
+LISTING_MAX_AGE = run_cache.MAX_AGE
 # How gh reports a request that never got an HTTP response: its own
 # "error connecting to <host>" for a failed lookup, else Go's net/http error.
 NETWORK_ERRORS = (
@@ -125,6 +129,29 @@ CLOSING_QUERY = (
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
 # verifier origin, not a completed success), or counted (both).
 UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
+# The run cache's section of run records, and the fields `_run_state` reads.
+RUN_SECTION = "run-record"
+RECORD_SECTION = "fail-head-ref"
+# What earlier pr-merge runs read, copied into this run's cache by
+# .github/scripts/pr-merge/carry-run-cache.mjs from a cache entry any job in
+# the default branch's cache scope could have written. Each is used only
+# where it counts a FAIL; any other answer is read from GitHub.
+CARRIED_RUN_SECTION = "carried-run-record"
+CARRIED_RECORD_SECTION = "carried-fail-head-ref"
+CARRIED_ON_BRANCH = "carried-on-branch"
+RUN_FIELDS = (
+    "id",
+    "path",
+    "event",
+    "head_branch",
+    "head_sha",
+    "repository",
+    "head_repository",
+    "status",
+    "conclusion",
+    "run_attempt",
+    "run_started_at",
+)
 
 
 class _Unreadable(Exception):
@@ -225,7 +252,7 @@ class Reader:
     branch: str
     now: datetime | None = None
     # The token for the Actions reads (artifact listing, run records,
-    # download): pr-merge.yml passes the job's GITHUB_TOKEN, which holds
+    # download) and the run heads' compares: pr-merge.yml passes the job's GITHUB_TOKEN, which holds
     # `actions: read`, while the lane token it runs gh with holds none.
     actions_token: str | None = field(
         default_factory=lambda: os.environ.get(TOKEN_ENV) or None
@@ -241,11 +268,22 @@ class Reader:
     _listing_error: str | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
+    # Runs whose standing came from the run cache (`_run_state`).
+    _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
     _records: dict[tuple[int, str], dict[str, Any]] = field(default_factory=dict)
     _humans: frozenset[int] | None = None
+    _humans_at: datetime | None = None  # when `_humans` was read
 
     def _listing(self) -> list[dict[str, Any]]:
+        """`_current_listing`, noting when it began to be read
+        (`run_cache.note`)."""
+        listing = self._current_listing()
+        if self._fetched_at is not None:
+            run_cache.note(self._fetched_at)
+        return listing
+
+    def _current_listing(self) -> list[dict[str, Any]]:
         """Every repository artifact, read at most `LISTING_MAX_AGE` before
         this judgment (from the run's saved listing when it is that recent): a
         failed read is kept too, so one outage refuses each later entry
@@ -365,51 +403,122 @@ class Reader:
         except ValueError as exc:
             raise _Unreadable(f"{label}: {exc}") from exc
 
-    def _contains(self, sha: str) -> bool:
+    def _contains(self, sha: str, *, shared: bool = False) -> bool:
+        """Whether the branch holds `sha`, read under the Actions token (a
+        contents read). A yes stays true while the branch only moves forward
+        (main's ruleset forbids force pushes), so the run shares it; a no is
+        read again by each gate process. A yes an earlier run found
+        (`CARRIED_ON_BRANCH`) serves a FAIL's run only (`shared`), where it
+        can only count the FAIL."""
         if sha not in self._on_branch:
+            key = f"{self.repo}|{sha}...{self.branch}"
+            if run_cache.get("on-branch", key, None) is True:
+                self._on_branch[sha] = True
+                return True
+            if shared and run_cache.get(CARRIED_ON_BRANCH, key, None) is True:
+                return True
             compare = json_object(
-                _read(
+                self._actions(
                     ["api", f"repos/{self.repo}/compare/{sha}...{self.branch}"],
                     f"compare {sha[:12]}...{self.branch}",
                 )
             )
             self._on_branch[sha] = compare.get("status") in ("ahead", "identical")
+            if self._on_branch[sha]:
+                run_cache.put("on-branch", key, True)
         return self._on_branch[sha]
 
-    def _run_state(self, run_id: int) -> str:
-        if run_id not in self._runs:
-            try:
+    def _run_state(self, run_id: int, *, shared: bool = False) -> str:
+        """The run's standing. A FAIL's run (`shared`) may be judged on a
+        record another gate process of the run read, however long ago, or
+        on one an earlier run carried in when it shows origin: a
+        FAIL counts whether its run is origin or counted, and origin rests
+        only on fields a re-run keeps (id, path, event, branch, repositories,
+        head) plus a live branch check, never on status, conclusion or
+        attempt, so a stale record cannot turn a FAIL away. A PASS needs a
+        completed success, which a re-run can undo, so its run is read by
+        this process, never taken from a FAIL's judgment."""
+        if run_id in self._runs and (shared or run_id not in self._shared_runs):
+            return self._runs[run_id]
+        key = f"{self.repo}|{run_id}"
+        record = run_cache.get(RUN_SECTION, key, None) if shared else None
+        cached = is_json_object(record)
+        origin: bool | None = None
+        if shared and not cached:
+            # A carried record counts the FAIL when it shows origin; any
+            # other answer from it could turn the FAIL away, so the run is
+            # read instead.
+            carried = run_cache.get(CARRIED_RUN_SECTION, key, None)
+            if is_json_object(carried):
+                try:
+                    if self._origin(carried, run_id, shared=True):
+                        record, cached, origin = carried, True, True
+                except _Unreadable:
+                    pass
+        try:
+            if not cached:
                 record = json_object(
                     self._actions(
                         ["api", f"repos/{self.repo}/actions/runs/{run_id}"],
                         f"run {run_id}",
                     )
                 )
-                head = record.get("head_sha")
-                origin = (
-                    record.get("id") == run_id
-                    and record.get("path") == WORKFLOW_PATH
-                    and record.get("event") == "workflow_run"
-                    and record.get("head_branch") == self.branch
-                    and json_object(record.get("repository")).get("full_name")
-                    == self.repo
-                    and json_object(record.get("head_repository")).get("full_name")
-                    == self.repo
-                    and isinstance(head, str)
-                    and merge_policy.SHA_RE.fullmatch(head) is not None
-                    and self._contains(head)
-                )
-                self._started[run_id] = record.get("run_started_at")
-                done = (
-                    record.get("status") == "completed"
-                    and record.get("conclusion") == "success"
-                )
-                self._runs[run_id] = (
-                    FOREIGN if not origin else COUNTED if done else ORIGIN
-                )
-            except _Unreadable:
-                self._runs[run_id] = UNREAD
+            if origin is None:
+                origin = self._origin(record, run_id, shared=shared)
+        except _Unreadable:
+            self._shared_runs.discard(run_id)
+            self._runs[run_id] = UNREAD
+            return UNREAD
+        if cached or shared:
+            self._shared_runs.add(run_id)
+        else:
+            self._shared_runs.discard(run_id)
+        if not cached:
+            self._started[run_id] = record.get("run_started_at")
+            run_cache.put(RUN_SECTION, key, {k: record.get(k) for k in RUN_FIELDS})
+        done = (
+            record.get("status") == "completed"
+            and record.get("conclusion") == "success"
+        )
+        self._runs[run_id] = FOREIGN if not origin else COUNTED if done else ORIGIN
         return self._runs[run_id]
+
+    def _origin(self, record: dict[str, Any], run_id: int, *, shared: bool) -> bool:
+        """Whether `record` names a run of the verifier on the branch of this
+        repository whose head the branch holds."""
+        head = record.get("head_sha")
+        return (
+            record.get("id") == run_id
+            and record.get("path") == WORKFLOW_PATH
+            and record.get("event") == "workflow_run"
+            and record.get("head_branch") == self.branch
+            and json_object(record.get("repository")).get("full_name") == self.repo
+            and json_object(record.get("head_repository")).get("full_name") == self.repo
+            and isinstance(head, str)
+            and merge_policy.SHA_RE.fullmatch(head) is not None
+            and self._contains(head, shared=shared)
+        )
+
+    def _head_ref(self, run_id: int, name: str, artifact_id: Any, head_ref: str) -> Any:
+        """The head ref an untied FAIL's verdict.json records, shared by the
+        run's gate processes under the artifact's id: an id names contents
+        that never change (an overwrite uploads a new id), and a FAIL whose
+        artifact has since gone still refuses. An artifact with no id is not
+        shared."""
+        shared = isinstance(artifact_id, int) and not isinstance(artifact_id, bool)
+        key = f"{self.repo}|{artifact_id}"
+        dated = run_cache.get_dated(RECORD_SECTION, key, None) if shared else None
+        if dated is not None and is_json_object(dated[0]):
+            return dated[0].get("head_ref")
+        # A carried head ref ties the FAIL to this PR; one naming another
+        # ref could untie it, so the record is read instead.
+        carried = run_cache.get(CARRIED_RECORD_SECTION, key, None) if shared else None
+        if head_ref and is_json_object(carried) and carried.get("head_ref") == head_ref:
+            return head_ref
+        record = self._record(run_id, name)
+        if shared:
+            run_cache.put(RECORD_SECTION, key, {"head_ref": record.get("head_ref")})
+        return record.get("head_ref")
 
     def _record(self, run_id: int, name: str) -> dict[str, Any]:
         """The artifact's verdict.json, downloaded once."""
@@ -436,8 +545,18 @@ class Reader:
         return self._records[key]
 
     def _trusted_humans(self) -> frozenset[int]:
+        """The trusted list's human ids at the branch, shared by the run's
+        gate processes for `run_cache.MAX_AGE`; each answer notes when it
+        was read (`run_cache.note`)."""
+        key = f"{self.repo}@{self.branch}"
+        if self._humans is None:
+            shared = run_cache.get_dated("trusted-humans", key, run_cache.MAX_AGE)
+            if shared is not None and is_json_array(shared[0]):
+                self._humans = frozenset(i for i in shared[0] if type(i) is int)
+                self._humans_at = shared[1]
         humans = self._humans
         if humans is None:
+            self._humans_at = run_cache.now()
             listing = json_object(
                 _read(
                     [
@@ -458,6 +577,9 @@ class Reader:
                 if a.get("kind") == "human" and isinstance(a.get("id"), int)
             )
             self._humans = humans
+            run_cache.put("trusted-humans", key, sorted(humans), self._humans_at)
+        if self._humans_at is not None:
+            run_cache.note(self._humans_at)
         return humans
 
     def _trusted_actor(self, kind: Any, actor_id: Any, login: Any, author: str) -> bool:
@@ -565,11 +687,16 @@ class Reader:
                 )
         return live
 
-    def _commits(self, number: int) -> set[str]:
+    def _commits(self, number: int, head: str) -> set[str]:
         try:
-            commits = postmerge._paginated(
-                f"repos/{self.repo}/pulls/{number}/commits?per_page=100",
-                f"#{number} commits",
+            commits = pull_request_commits_once(
+                self.repo,
+                number,
+                head,
+                lambda: postmerge._paginated(
+                    f"repos/{self.repo}/pulls/{number}/commits?per_page=100",
+                    f"#{number} commits",
+                ),
             )
         except postmerge.PostMergeReadError as exc:
             raise _Unreadable(str(exc)) from exc
@@ -599,7 +726,7 @@ class Reader:
             return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
         head_ref = str(json_object(pr.get("head")).get("ref") or "")
         author = str(json_object(pr.get("user")).get("login") or "")
-        commits = self._commits(number) | {head}
+        commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str]] = []
         ignored = 0
@@ -626,7 +753,7 @@ class Reader:
                 else:
                     ignored += 1
                 continue
-            state = self._run_state(run_id)
+            state = self._run_state(run_id, shared=True)
             if state == FOREIGN:
                 ignored += 1
                 continue
@@ -638,7 +765,7 @@ class Reader:
                 continue
             if not tied:
                 try:
-                    recorded = self._record(run_id, name).get("head_ref")
+                    recorded = self._head_ref(run_id, name, item.get("id"), head_ref)
                 except _Unreadable:
                     unreadable = unreadable or f"record of {name}"
                     continue

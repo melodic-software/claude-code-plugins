@@ -25,8 +25,10 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
 5. **Stranded-work record**: age and PR state answer *is anyone still working here*; neither answers *would removing this destroy a commit*. Run the detection engine once per repository. It enumerates the worktrees itself and emits one TSV row per registered worktree:
 
    ```bash
-   bash "<scripts-dir>/landed-work.sh" --repo-dir <repo-toplevel> --merged-refs-file <file>
+   bash "<scripts-dir>/landed-work.sh" --repo-dir <repo-toplevel> --merged-refs-file <file> --merged-pr-proof
    ```
+
+   `--merged-pr-proof` makes the engine read each unlanded branch's merged pull request (one `gh pr list --state merged --head <branch>`; only a PR merged into the resolved base counts) and report `landed` (method `merged-pr-head` or `merged-pr-commits`) when local HEAD equals or is an ancestor of the PR's head commit, or every unpushed local commit is in the PR's commit list. That is the proof for a squash-merged multi-commit branch, which patch-id cannot match. A failed read keeps the prior verdict and names the read in `reason` (`merged-pr-read-failed:...`). Omit the flag when `gh` was unavailable.
 
    Write the merged `headRefName` values from step 2 to `<file>`, one per line. That is what marks a row as a likely *superseded draft* (a pull request carrying this branch NAME merged, so the base may already hold a later revision of the same change). Name-only evidence: a branch name reused after that merge still matches, so `superseded` narrows the reading of a row but never authorizes removing it. Omit the flag when `gh` was unavailable.
 
@@ -96,6 +98,6 @@ A `stranded` row whose `peers` column names another worktree is recoverable from
 **Summary:** 3 worktrees (1 in-review, 1 stale, 1 stranded with 4 commits at risk)
 ```
 
-Report the at-risk commit total in the summary whenever it is non-zero; a stranded row that reads as one line among many is how the commits get swept.
+Report the at-risk commit total in the summary whenever it is non-zero. It is the sum of `unpushed` over every row in the stranded class (`STRANDED`, `UNKNOWN` and `superseded`), the same rows the stranded count covers, so the two figures never disagree. A row whose `unpushed` is `?` is counted as stranded with its commits unknown: say so rather than adding zero; a stranded row that reads as one line among many is how the commits get swept.
 
 If issues are found, suggest actions: `/source-control:worktree cleanup` for stale/merged, `/source-control:worktree cleanup` also for a locked worktree whose PR is merged or whose work has landed (`worktree-claim.sh stale <path>` exits 0), which cleanup treats as a stale lock; a locked worktree without that evidence is left alone. For `stranded` and `unknown`, suggest pushing the branch first with `git -C <path> push -u origin HEAD`, which converts the row to `safe` without a judgment call.
