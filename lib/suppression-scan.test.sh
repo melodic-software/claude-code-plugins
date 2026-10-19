@@ -240,7 +240,8 @@ for g in globs:
         if bool(ours.match(p)) != bool(theirs.match(p)):
             bad.append("%s vs %s" % (g, p))
         checked += 1
-print("\n".join(bad))
+if bad:
+    print("\n".join(bad))
 print("checked %d pairs" % checked)
 PYEOF
 )"
