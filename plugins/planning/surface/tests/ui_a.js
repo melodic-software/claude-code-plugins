@@ -198,6 +198,33 @@ async page => {
   ok("a filter that matches nothing says so in the rail, not a blank list", (await page.$$(".rail-list .qbtn")).length > 0 || /No questions match/.test(await page.textContent("#railList")));
   await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
 
+  // a session with no answered question, on a second page whose state has its events stripped and whose stream is refused (the 3 s poll then feeds the page the same stripped state)
+  const stripped = await page.context().newPage();
+  await stripped.route("**/events", r => r.abort());
+  await stripped.route("**/api/state", async route => { const res = await route.fetch(); const body = await res.json(); body.responses.events = []; await route.fulfill({response: res, json: body}); });
+  await stripped.setViewportSize({width: 1400, height: 860});
+  await stripped.goto(base); await stripped.waitForSelector(".qbtn", {state: "attached"});
+  await stripped.click(".sumbtn"); await stripped.waitForTimeout(400);
+  const sum0 = await stripped.evaluate(() => { const hs = [...document.querySelectorAll("#dscroll h4")].map(h => h.textContent.trim()); return {table: !!document.querySelector("#dscroll table.sum"), decisions: hs.includes("Decisions"), loose: hs.includes("Loose ends")}; });
+  ok("with no answered question the summary has no Decisions table or heading but still renders its other sections", !sum0.table && !sum0.decisions && sum0.loose, JSON.stringify(sum0));
+  await stripped.close();
+
+  // the connection pill: neutral Connecting until a first attempt has failed, then Connection lost
+  const pillOf = p => p.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent}));
+  const wake = p => p.evaluate(() => { Object.defineProperty(document, "visibilityState", {configurable: true, get: () => "visible"}); document.dispatchEvent(new Event("visibilitychange")); });
+  const hung = await page.context().newPage();
+  await hung.route("**/api/state", () => {}); await hung.route("**/events", () => {});
+  await hung.goto(base, {waitUntil: "domcontentloaded"}); await wake(hung); await hung.waitForTimeout(500);
+  const pc = await pillOf(hung);
+  ok("before any connection result the pill reads Connecting, not Connection lost", /\bconnecting\b/.test(pc.cls) && pc.text === "Connecting", JSON.stringify(pc));
+  await hung.close();
+  const refused = await page.context().newPage();
+  await refused.route("**/api/state", r => r.abort()); await refused.route("**/events", r => r.abort());
+  await refused.goto(base, {waitUntil: "domcontentloaded"}); await wake(refused); await refused.waitForTimeout(500);
+  const pd = await pillOf(refused);
+  ok("after a failed connection attempt the pill reads Connection lost", /\boffline\b/.test(pd.cls) && /^Connection lost/.test(pd.text), JSON.stringify(pd));
+  await refused.close();
+
   // set up the 409 test on N2: pick a choice and write a note
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
   await page.click("#note"); await page.keyboard.type("Keep this note"); await page.keyboard.press("Escape"); await page.keyboard.press("1");
