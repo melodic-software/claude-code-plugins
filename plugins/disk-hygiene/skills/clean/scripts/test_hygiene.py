@@ -14831,6 +14831,50 @@ class GuardTests(unittest.TestCase):
         self.assertIn("internal deadline", completed.stderr)
 
 
+@unittest.skipUnless(sys.platform.startswith("linux"), "the trust check is Linux-only")
+class TrustedManagedFileTests(unittest.TestCase):
+    """``_is_trusted_managed_file`` judged on stat results it is handed."""
+
+    PATH = Path("/etc/claude-code/managed-settings.json")
+
+    def trusted(
+        self, mode: int, uid: int = 0, writable: bool = False, euid: int = 1000
+    ) -> bool:
+        file_stat = os.stat_result((mode, 0, 0, 1, uid, 0, 0, 0, 0, 0))
+        with (
+            mock.patch.object(guard.killswitch_config.os, "geteuid", lambda: euid),
+            mock.patch.object(
+                guard.killswitch_config.os,
+                "access",
+                lambda path, mode, **kwargs: writable,
+            ),
+        ):
+            return guard.killswitch_config._is_trusted_managed_file(
+                self.PATH, file_stat
+            )
+
+    def test_root_owned_0644_not_writable_is_trusted(self) -> None:
+        self.assertTrue(self.trusted(0o100644))
+
+    def test_group_writable_is_untrusted(self) -> None:
+        self.assertFalse(self.trusted(0o100664))
+
+    def test_other_writable_is_untrusted(self) -> None:
+        self.assertFalse(self.trusted(0o100646))
+
+    def test_acl_write_grant_is_untrusted(self) -> None:
+        self.assertFalse(self.trusted(0o100644, writable=True))
+
+    def test_user_owned_read_only_is_untrusted(self) -> None:
+        self.assertFalse(self.trusted(0o100444, uid=1000))
+
+    def test_non_regular_file_is_untrusted(self) -> None:
+        self.assertFalse(self.trusted(0o010644))
+
+    def test_root_process_trusts_root_owned_file_it_can_write(self) -> None:
+        self.assertTrue(self.trusted(0o100644, writable=True, euid=0))
+
+
 class DirectReadKillSwitchTests(unittest.TestCase):
     """The kill switch resolves by reading user-scope pluginConfigs directly.
 
@@ -15019,9 +15063,168 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
     def test_managed_configured_true_overrides_user_false(self) -> None:
+        # Ownership stubbed: the temp file is user-owned, a root-owned,
+        # non-writable file is what the trust check admits.
         self.write_managed_toggle(True)
         self.write_toggle(False)
-        self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+        with mock.patch.object(
+            guard.killswitch_config,
+            "_is_trusted_managed_file",
+            lambda path, file_stat: True,
+        ):
+            self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_untrusted_managed_true_does_not_override_user_false(self) -> None:
+        self.write_managed_toggle(True)
+        self.write_toggle(False)
+        with mock.patch.object(
+            guard.killswitch_config,
+            "_is_trusted_managed_file",
+            lambda path, file_stat: False,
+        ):
+            self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_untrusted_managed_false_still_restricts(self) -> None:
+        self.write_managed_toggle(False)
+        self.write_toggle(True)
+        with mock.patch.object(
+            guard.killswitch_config,
+            "_is_trusted_managed_file",
+            lambda path, file_stat: False,
+        ):
+            self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_trust_check_is_applied_per_dropin(self) -> None:
+        # An earlier trusted drop-in enables; a later untrusted one is skipped.
+        self.write_toggle(False)
+        self.write_managed_dropin("10-trusted.json", True)
+        self.write_managed_dropin("20-untrusted.json", True)
+        dropin_dir = self.config_dir / "managed-settings.d"
+        untrusted = dropin_dir / "20-untrusted.json"
+        with mock.patch.object(
+            guard.killswitch_config,
+            "_is_trusted_managed_file",
+            lambda path, file_stat: path != untrusted,
+        ):
+            # The trusted drop-in enables; the later untrusted one is skipped
+            # rather than overriding or cancelling it.
+            self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+            (dropin_dir / "10-trusted.json").unlink()
+            # Only the untrusted drop-in enables: no verdict, the user decides.
+            self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    @unittest.skipUnless(
+        sys.platform.startswith("linux") and os.geteuid() != 0,
+        "needs a non-root Linux user",
+    )
+    def test_user_owned_managed_file_is_untrusted_on_linux(self) -> None:
+        self.write_managed_toggle(True)
+        # Read-only to its owner, so only the uid check can reject it.
+        os.chmod(self.managed, 0o444)
+        self.assertFalse(
+            guard.killswitch_config._is_trusted_managed_file(
+                self.managed, os.stat(self.managed)
+            )
+        )
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    @unittest.skipUnless(
+        sys.platform.startswith("linux") and os.geteuid() != 0,
+        "needs a non-root Linux user",
+    )
+    def test_trust_comes_from_the_descriptor_not_the_path(self) -> None:
+        # The path is replaced after the descriptor is opened and before trust
+        # is judged. The descriptor's fstat is stubbed as a root-owned 0644
+        # file, so only a check that reads that fstat trusts the enabling
+        # drop-in; a check that re-resolves the path sees the user-owned
+        # replacement and refuses.
+        self.write_toggle(False)
+        self.write_managed_dropin("99.json", True)
+        dropin_dir = self.config_dir / "managed-settings.d"
+        link = dropin_dir / "99.json"
+        os.chmod(link, 0o444)
+        opened_ino = os.stat(link).st_ino
+        real_fstat = os.fstat
+        swapped = []
+
+        def fstat_then_swap(fd):
+            result = real_fstat(fd)
+            if result.st_ino != opened_ino or swapped:
+                return result
+            swapped.append(True)
+            staging = dropin_dir / "99.json.tmp"
+            staging.write_text(self._toggle_json(False), encoding="utf-8")
+            os.chmod(staging, 0o444)
+            os.replace(staging, link)
+            return os.stat_result(
+                (0o100644, result.st_ino, result.st_dev, 1, 0, 0, result.st_size, 0, 0, 0)
+            )
+
+        with mock.patch.object(os, "fstat", fstat_then_swap):
+            self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+        self.assertTrue(swapped)
+
+    def test_symlinked_managed_file_still_restricts(self) -> None:
+        # A symlink is never trusted to enable, but a restriction still counts.
+        self.write_toggle(True)
+        dropin_dir = self.config_dir / "managed-settings.d"
+        dropin_dir.mkdir()
+        target = self.config_dir / "policy.json"
+        target.write_text(self._toggle_json(False), encoding="utf-8")
+        (dropin_dir / "10-policy.json").symlink_to(target)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "O_NOFOLLOW is Linux-only")
+    def test_symlinked_managed_file_never_enables(self) -> None:
+        # Even when the file it points at would pass the ownership check.
+        self.write_toggle(False)
+        dropin_dir = self.config_dir / "managed-settings.d"
+        dropin_dir.mkdir()
+        target = self.config_dir / "policy.json"
+        target.write_text(self._toggle_json(True), encoding="utf-8")
+        (dropin_dir / "10-policy.json").symlink_to(target)
+        with mock.patch.object(
+            guard.killswitch_config,
+            "_is_trusted_managed_file",
+            lambda path, file_stat: True,
+        ):
+            self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_unopenable_managed_file_contributes_no_verdict(self) -> None:
+        # An unreadable managed file cannot enable: the user setting decides.
+        self.write_managed_toggle(True)
+        self.write_toggle(False)
+        real_open = os.open
+        managed = os.fspath(self.managed)
+
+        def deny_managed(path, *args, **kwargs):
+            if os.fspath(path) == managed:
+                raise PermissionError(13, "Permission denied", managed)
+            return real_open(path, *args, **kwargs)
+
+        with (
+            mock.patch.object(
+                guard.killswitch_config,
+                "_is_trusted_managed_file",
+                lambda path, file_stat: True,
+            ),
+            mock.patch.object(guard.killswitch_config.os, "open", deny_managed),
+        ):
+            self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_trusted_primary_false_beats_untrusted_dropin_true(self) -> None:
+        # The headline case: an untrusted drop-in cannot undo an organization's
+        # trusted audit-only policy, even though drop-ins override the primary.
+        self.write_toggle(True)
+        self.write_managed_toggle(False)
+        self.write_managed_dropin("99-user.json", True)
+        with mock.patch.object(
+            guard.killswitch_config,
+            "_is_trusted_managed_file",
+            lambda path, file_stat: path == self.managed,
+        ):
+            self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
     def test_managed_absent_falls_back_to_user(self) -> None:
         # No managed file written; the user toggle decides.
