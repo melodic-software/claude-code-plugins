@@ -492,6 +492,13 @@ tolower($0) ~ /((recheck|re-check|revisit|re-derivation|reopening|re-trigger)[^a
   has_trigger = 1
 }
 
+# The inline clause `recheck when <condition>` and the `Recheck:` label (bold or
+# plain) also state a trigger, but only with a condition after them: a bare
+# `recheck` does not.
+tolower($0) ~ /recheck[ \t]+when[ \t]+[^ \t]|recheck\**:\**[ \t]*[^ \t*]/ {
+  has_trigger = 1
+}
+
 {
   win = keyword_window($0)
   if (win == "") next

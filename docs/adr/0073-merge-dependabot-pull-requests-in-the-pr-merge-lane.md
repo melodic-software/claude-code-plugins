@@ -1,6 +1,7 @@
 # Merge Dependabot pull requests in the pr-merge lane
 
-- Status: accepted
+- Status: accepted; amended 2026-10-18 (a major or unreadable Dependabot update waits for a
+  human under `merge.dependabot.majors: hold`, see the addendum below)
 - Date: 2026-10-16
 - Related: [ADR 0048](0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md)
   (changelog fragments for Dependabot updates),
@@ -114,3 +115,23 @@ move into the classifiers and the verdict job, with no model
 
 The two classifiers still change together: the provenance rule is stated once in the README and
 implemented in both, with matching test vectors.
+
+## Addendum (2026-10-18): a major update waits for a human
+
+The owner decided on 2026-10-18 that a Dependabot major version update must wait for a human
+instead of merging on the AI review's verdict; safe npm, pip and NuGet patch and minor updates
+keep merging. This narrows the Context's "no Dependabot pull request may wait on a human" for
+majors only. `merge.dependabot.majors` carries it
+([README, "Dependabot pull requests"](../conventions/pr-pipeline/README.md#dependabot-pull-requests)):
+
+- **`hold`** (the default, and this repository's value): the pr-merge lane refuses a pull request
+  with a major update with `dependabot-major-held:<names>`, whatever the review verdict says. It
+  fails closed: an update whose version cannot be read (a SHA pin), a pull request with no
+  readable update, and an update whose title and commit metadata disagree are held too, marked
+  `(unreadable)` or `(disagree)`. The lane escalates the pull request once, with a marked comment
+  and the tracker's human-gated role label, so it reaches the human queue.
+- **`review`**: the behavior above, where the lanes App's `verdict=merge` marker merges a major.
+
+The pr-unblock review still runs on a major; its verdict is advisory there. The standards
+dependabot-policy merge tiers are asked to follow in
+[melodic-software/standards#806](https://github.com/melodic-software/standards/issues/806).

@@ -207,6 +207,23 @@ test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflic
   assert.equal(job.uses, undefined, "a script job, never the write runner");
 });
 
+// Runs 39184851924 and 39184853452: fix-ci's job group rendered to its own
+// run's group, pr-unblock-fix-ci-<pr>, and the job never started.
+test("pr-unblock.yml: no job's concurrency group is its own run's group", () => {
+  const { on, concurrency, jobs } = workflow("pr-unblock.yml");
+  const render = (group, activity) =>
+    group.replaceAll("${{ inputs.activity }}", activity).replaceAll("${{ inputs.pr-number }}", "7923");
+  for (const activity of on.workflow_dispatch.inputs.activity.options) {
+    const runGroup = render(concurrency.group, activity);
+    for (const [id, job] of Object.entries(jobs)) {
+      if (job.concurrency) assert.notEqual(render(job.concurrency.group, activity), runGroup, `${id} (${activity})`);
+    }
+  }
+  // fix-ci still runs one at a time per PR, a running one never cancelled.
+  assert.equal(render(concurrency.group, "fix-ci"), "pr-unblock-fix-ci-7923");
+  assert.equal(concurrency["cancel-in-progress"], false);
+});
+
 // address-feedback's head-sha output is empty after a gate stop.
 test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback ran no feedback round", async () => {
   const head = "c".repeat(40);
@@ -312,6 +329,26 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
     "work-resolve-issue-${{ github.event.issue.number }}-${{ github.event.label.name == 'agent-ready' }}",
   );
   assert.equal(concurrency["cancel-in-progress"], false);
+});
+
+// The run job's timeout is the issue size's (models.issue-dimensions), resolved
+// from the base config before the job starts; no literal stands in for it.
+test("work-resolve-issue.yml: resolve-issue's timeout is the resolved issue dimensions'", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const dims = jobs["pick-slot"].steps.find((s) => s.id === "dimensions");
+  assert.equal(dims.uses, "./.base/.github/actions/resolve-config");
+  assert.deepEqual([dims.with.lane, dims.with.activity], ["work-resolve-issue", "resolve-issue"]);
+  assert.notEqual(dims["continue-on-error"], true, "unresolved dimensions must not start a run");
+  // The org fields are readable only with issues: read.
+  assert.equal(jobs["pick-slot"].permissions.issues, "read");
+  assert.equal(jobs["pick-slot"].outputs["timeout-minutes"], "${{ steps.dimensions.outputs.timeout-minutes }}");
+  assert.equal(jobs["resolve-issue"].with["timeout-minutes"], "${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}");
+  // The run takes the dimensions whose timeout it got, not fields set while it waited.
+  assert.equal(jobs["pick-slot"].outputs["issue-dimensions"], "${{ steps.dimensions.outputs.issue-dimensions }}");
+  assert.equal(jobs["resolve-issue"].with["issue-dimensions"], "${{ needs.pick-slot.outputs.issue-dimensions }}");
+  const write = workflow("pr-run-activity-write.yml");
+  const config = write.jobs.run.steps.find((s) => s.id === "config");
+  assert.equal(config.with["issue-dimensions"], "${{ inputs.issue-dimensions }}");
 });
 
 // A queued resolve-issue run starts on the workflow files of its label event.

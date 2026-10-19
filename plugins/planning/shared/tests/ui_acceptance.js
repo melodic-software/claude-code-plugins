@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 // The Brief's acceptance criteria in real browsers, against `share.sh ensure-running` with the fake cloudflared:
-// the join dialog says answers are saved on the host's computer and read by Claude when a round is sent and the side
-// chat is not sent; a refused join (rate-limited, session full) shows the reason and a retry; two guests see each
+// the join dialog shows only its heading, the invite line, the name prompt, the name box and Join; a refused join (rate-limited, session full) shows the reason and a retry; two guests see each
 // other's current question and typing within about 2 seconds; Claude's suggestion cards wait behind "Show Claude's
 // take (N)" until the person answers or votes, a chosen card always shows, and Always show shows them; WHILE a question
 // is locked its composer is disabled and says how to suggest a change; a changed locked answer flags its dependents
-// "Needs review" naming the changed question; WHILE uploads are off no upload control appears; answers and the Claude
-// thread sit side by side on desktop and as two tabs on phones; on phones the header is one row, the composer one line
+// "Needs review" naming the changed question; WHILE uploads are off no upload control appears; the answers and, below
+// them, a folded "Claude on this question" section share one column at every width, with no tabs; on phones the header is one row, the composer one line
 // with send inside it, and the question and answers take at least ~70% of the height; long text clamps with Show more
 // and opens in a reader, and chat shows a character count; the owner and leaders get a Host view (people, queue, round
 // status, links, goal, Later) and a guest does not; IF the server drops, pages show "Reconnecting…", keep unsent text
@@ -58,10 +57,15 @@ async function main() {
     // ---------- join dialog ----------
     const gus = await rec.open(A.localUrl);
     await gus.waitForSelector("dialog.core-name[open]");
-    const note = await gus.textContent("#core-n-note");
-    ok("join dialog: states answers are saved on the host's computer and read by Claude when a round is sent",
-      /answers are saved on the host's computer/i.test(note) && /read by Claude when a round is sent/i.test(note), note);
-    ok("join dialog: states the side chat is not sent to Claude", /side chat is not sent to Claude/i.test(note), note);
+    const parts = await gus.evaluate(() => {
+      const d = document.querySelector("dialog.core-name");
+      const shown = [...d.querySelectorAll("form > *")].filter(e => e.offsetParent && (e.matches("input, button") || e.textContent.trim()));
+      return { shown: shown.map(e => e.matches("input") ? `input:${e.type}` : `${e.localName}:${e.textContent.trim()}`),
+        extra: d.querySelectorAll("a, input[type=checkbox], [role=switch]").length };
+    });
+    ok("join dialog: shows only the heading, the invite line, the name prompt, the name box and Join",
+      parts.shown.join("|") === "h2:Join the session|p:You are invited to answer a few questions: Offsite|label:What should everyone call you?|input:text|button:Join"
+      && parts.extra === 0, JSON.stringify(parts));
     const gusPid = await joinAs(gus, "Gus");
 
     // ---------- refused join: the reason and a retry ----------
@@ -182,24 +186,32 @@ async function main() {
     ok("reconnecting: the unsent answer is still there after it recovers", (await gus.inputValue("#vf-answer")) === DRAFT, await gus.inputValue("#vf-answer"));
     await gus.fill("#vf-answer", "");
 
-    // ---------- answers and Claude thread: side by side at 1440x900, two tabs at 390x844 ----------
+    // ---------- answers, then "Claude on this question" below them: one column at 1440x900 and 390x844, no tabs ----------
     await railQ(ivy, Q1T).click();
-    const cols = await ivy.evaluate(() => {
-      const sp = document.querySelector(".vf-split"), a = document.querySelector(".vf-anspane").getBoundingClientRect(), t = document.querySelector(".vf-thpane").getBoundingClientRect();
-      return { layout: sp.dataset.layout, side: a.width > 0 && t.width > 0 && a.right <= t.left && Math.abs(a.top - t.top) < 4, tabs: !!document.querySelector(".vf-splittabs")?.offsetParent };
+    const column = page => page.evaluate(() => {
+      const r = s => document.querySelector(s)?.getBoundingClientRect(), a = r(".vf-anspane"), c = r(".vf-clsec"), comp = r(".vf-composer");
+      return { tabs: document.querySelectorAll(".vf-splittabs, .vf-split, .vf-thpane, [role=tablist][aria-label='Answers or Claude']").length,
+        below: !!a && !!c && a.width > 0 && c.top >= a.bottom - 1 && Math.abs(a.left - c.left) < 2 && Math.abs(a.width - c.width) < 2 && comp.bottom <= a.top + 1,
+        open: document.querySelector(".vf-cltoggle").getAttribute("aria-expanded"), body: !document.querySelector(".vf-clbody").hidden,
+        title: document.querySelector(".vf-cltitle")?.textContent };
     });
-    ok("side by side: at 1440x900 answers and the Claude thread sit next to each other, no tabs", cols.side && !cols.tabs, JSON.stringify(cols));
+    const c1 = await column(ivy);
+    ok("one column: at 1440x900 no Answers | Claude tabs or split exist", c1.tabs === 0, JSON.stringify(c1));
+    ok("one column: the composer, then the answers, then \"Claude on this question\" at the answers' width", c1.below && c1.title === "Claude on this question", JSON.stringify(c1));
+    ok("one column: the Claude section starts folded to its head", c1.open === "false" && !c1.body, JSON.stringify(c1));
     const pho = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(pho, "Pho");
     await until(pho, () => !!document.querySelector(".vf-qtext")?.offsetParent);
-    const paneState = () => pho.evaluate(() => ({ tabs: [...document.querySelectorAll(".vf-splittabs .vf-seg-btn")].filter(b => b.offsetParent).map(b => b.textContent),
-      ans: !!document.querySelector(".vf-anspane").offsetParent, th: !!document.querySelector(".vf-thpane").offsetParent }));
-    const ph1 = await paneState();
-    ok("side by side: at 390x844 they are two tabs, Answers showing", ph1.tabs.length === 2 && /^Answers/.test(ph1.tabs[0]) && /^Claude/.test(ph1.tabs[1]) && ph1.ans && !ph1.th, JSON.stringify(ph1));
-    await pho.locator(".vf-splittabs .vf-seg-btn", { hasText: /^Claude/ }).tap();
-    const ph2 = await paneState();
-    ok("side by side: the Claude tab shows the thread instead of the answers", ph2.th && !ph2.ans, JSON.stringify(ph2));
-    await pho.locator(".vf-splittabs .vf-seg-btn", { hasText: /^Answers/ }).tap();
+    const p1 = await column(pho);
+    ok("one column: at 390x844 the same order, no tabs, Claude folded", p1.tabs === 0 && p1.below && p1.open === "false", JSON.stringify(p1));
+    await pho.locator(".vf-cltoggle").tap();
+    const p2 = await pho.evaluate(() => new Promise(res => setTimeout(() => {
+      const sc = document.querySelector(".vf-scroll").getBoundingClientRect(), h = document.querySelector(".vf-clhead").getBoundingClientRect();
+      res({ body: !document.querySelector(".vf-clbody").hidden, ans: !!document.querySelector(".vf-anspane").offsetParent, comp: !!document.querySelector(".vf-composer").offsetParent,
+        inView: h.top >= sc.top - 1 && h.bottom <= sc.bottom + 1 });
+    }, 700)));
+    ok("opening it pushes the page: the composer and answers stay, and its head scrolls into view", p2.body && p2.ans && p2.comp && p2.inView, JSON.stringify(p2));
+    await pho.locator(".vf-cltoggle").tap();
 
     // ---------- phone 390x844: header one row, composer one line with send inside, question and answers >= 70% ----------
     await pho.evaluate(() => document.activeElement?.blur());
@@ -252,7 +264,9 @@ async function main() {
     ok("host view: the owner's shows people, the queue, round status, links, goal and Later",
       !!own && ["People", "Queue", "Round", "Links and settings", "Later"].every(k => own.secs.includes(k)) && own.people.includes("Gus") && /Round 1/.test(own.round) && own.goal === GOAL, JSON.stringify(own));
     await owner.evaluate(p => window.Core.setLeader(p, true), piaPid);
-    await until(pia, () => window.Core.me.isLeader);
+    // Until the page shows it, not only knows it: the promotion swaps View options for the view switch, and a click on
+    // View options read before that swap waits for a button that is gone.
+    await until(pia, () => window.Core.me.isLeader && [...document.querySelectorAll(".vf-bar .vf-seg-btn")].some(b => b.offsetParent && b.textContent.trim() === "Host"));
     const lead = await hostPane(pia);
     ok("host view: a leader's shows people, the queue, round status, goal and Later",
       !!lead && ["People", "Queue", "Round", "Later"].every(k => lead.secs.includes(k)) && lead.people.includes("Gus") && /Round 1/.test(lead.round) && lead.goal === GOAL, JSON.stringify(lead));
@@ -286,7 +300,7 @@ async function main() {
     if (await sendAnyway.isVisible().catch(() => false)) await sendAnyway.click();
     ok("round lifecycle: after Send, guests see Waiting for Claude", await until(bo, () => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent === "Waiting for Claude"), await curStep(bo));
     const cancelBtn = host.locator(".vf-cancel-send").first();
-    ok("round lifecycle: the owner gets Cancel while it waits", await cancelBtn.isVisible());
+    ok("round lifecycle: the owner gets Cancel while it waits", await cancelBtn.waitFor({ timeout: 8000 }).then(() => true, () => false));
     await cancelBtn.click();
     await host.locator("dialog[open] button", { hasText: "Cancel sending" }).click();
     ok("round lifecycle: Cancel works, and guests see the round open again", await toastHas(bo, /cancelled\. It is open again/)

@@ -1,0 +1,86 @@
+{
+  "pass": [
+    {
+      "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again after the escape_like fix (9c2e5d71).\n\nNext: no third fix or review; Phase 4 stays unmarked and the run parks for a person.",
+      "why": "negated mention of another round"
+    },
+    {
+      "answer": "- human-decision (blocking): re-review rated api/search.py:42 CRITICAL a second time.\n\nThe run parks with a handoff; it never loops back to another fix brief.",
+      "why": "never-loops statement"
+    },
+    {
+      "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again.\n\nDo not send a third fix brief. The run parks for a person.",
+      "why": "negated third fix brief"
+    },
+    {
+      "answer": "- 2026-10-18T14:02Z human-decision (blocking): Phase 4 `Review: security`, api/search.py:42 CRITICAL on the re-review too; repeats the first-call finding. Fix tried: escape_like() in one fix brief, committed as 9c2e5d71. The re-review ran with the same --base.\n\nNext: the run parks; Phase 4 stays [TODO].",
+      "why": "past-tense account of the one fix and re-review is not a plan"
+    },
+    {
+      "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again.\nNeeds a person; options: parameterize and re-run the review, accept the risk, or replan.",
+      "why": "options put to a person are not the run's plan"
+    },
+    {
+      "answer": "- Finding: api/search.py:42 builds the query from q and run with escape_like(), committed by the fix 9c2e5d71.",
+      "why": "descriptive run has no planning lead-in"
+    },
+    {
+      "answer": "- **Needs:** A person to decide on the fix, or to approve another fix round and then rerun `/review:quality-gate security`.",
+      "why": "options for a person"
+    },
+    {
+      "answer": "**Suggested remediation (for whoever picks this up):** replace the shell call with `os.makedirs(path, exist_ok=True)`, then re-run `/review:quality-gate security`.",
+      "why": "remediation addressed to a person"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again.\n\nNext: dispatch another fix brief that switches to a parameterized query, then re-review.",
+      "why": "another fix round"
+    },
+    {
+      "answer": "- discovery: escape_like fix insufficient.\n\nNext: run a third /review:quality-gate security after parameterizing.",
+      "why": "third review"
+    },
+    {
+      "answer": "Next: one more re-review with the full phase base to confirm.",
+      "why": "one more review"
+    },
+    {
+      "answer": "Instead of parking, dispatch another fix brief.",
+      "why": "instead is not a negator"
+    },
+    {
+      "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again.\n\nI'll send another fix brief and re-run the review.",
+      "why": "plans another fix and review"
+    },
+    {
+      "answer": "- discovery: escape_like() did not parameterize the query.\n\nNext: parameterize `q`, then re-run the review against the same base.",
+      "why": "re-run the review"
+    },
+    {
+      "answer": "Next: dispatch a fix brief that switches to a bound parameter and re-review.",
+      "why": "a fix brief with no third or another still plans a new round"
+    },
+    {
+      "answer": "Next step: dispatch a fix brief for the quoting bug.",
+      "why": "next step: lead-in"
+    },
+    {
+      "answer": "Next, dispatch a fix brief.",
+      "why": "next with a comma"
+    },
+    {
+      "answer": "I should run the review again.",
+      "why": "should"
+    },
+    {
+      "answer": "We need to re-run the review.",
+      "why": "need to"
+    },
+    {
+      "answer": "Plan: dispatch a fix brief.",
+      "why": "plan: lead-in"
+    }
+  ]
+}

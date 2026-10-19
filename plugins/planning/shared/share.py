@@ -668,8 +668,8 @@ def summary_text(s):
     pct = lambda r: "-" if r is None else f"{r * 100:.1f}%"  # noqa: E731
     devs = lambda d: ", ".join(f"{k} {n}" for k, n in sorted(d.items()))  # noqa: E731
     sm = s["summaries"]
-    out = [f"Summaries: {sm['count']} in {sm['batches']} batches from {sm['pages']} page views ({sm['ownerPages']} of them the owner's, left out of the timings). "
-           "A page with recording turned off sends none." + (f" {sm['dropped']} more did not fit in their batch." if sm["dropped"] else ""), "", "Top errors:"]
+    out = [f"Summaries: {sm['count']} in {sm['batches']} batches from {sm['pages']} page views ({sm['ownerPages']} of them the owner's, left out of the timings)."
+           + (f" {sm['dropped']} more did not fit in their batch." if sm["dropped"] else ""), "", "Top errors:"]
     out += [f"  {g['count']}x {g['kind']}: {g['message'][:120]} {g['source']} ({devs(g['devices'])}; {devs(g['browsers'])}), first {g['firstSeen']}, last {g['lastSeen']}"
             for g in s["errors"]] or ["  none"]
     out += ["", "Refusals by route and code (the server's own entries):"]

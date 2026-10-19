@@ -8,6 +8,14 @@
 #   scripts/check-affected.sh --base <ref>    diff against <ref> (default: origin/main)
 #   scripts/check-affected.sh --no-fetch      skip refreshing <ref> before the
 #                                             stale-base check
+#   scripts/check-affected.sh --uncommitted   check the work tree as the commit
+#                                             it would make (default base: HEAD)
+#
+# --uncommitted is for a run that commits through an API from the files on
+# disk rather than in the checkout, such as the issue lane: it commits the work
+# tree, untracked files and file modes included, through a temporary index (the
+# checkout's HEAD and index stay as they are), checks that commit out in a
+# temporary worktree, and runs the checks there.
 #
 # Each check calls the script or tool CI calls; none restates a check's logic.
 # The changed set is <merge-base of HEAD and the base>..HEAD, committed work
@@ -60,17 +68,19 @@
 set -uo pipefail
 
 usage() {
-  echo "usage: $(basename "$0") [--tests] [--base <ref>] [--no-fetch]" >&2
+  echo "usage: $(basename "$0") [--tests] [--base <ref>] [--no-fetch] [--uncommitted]" >&2
   exit 2
 }
 
 run_tests=0
 fetch=1
-base=origin/main
+uncommitted=0
+base=
 while (($#)); do
   case "$1" in
   --tests) run_tests=1 ;;
   --no-fetch) fetch=0 ;;
+  --uncommitted) uncommitted=1 ;;
   --base)
     [[ $# -ge 2 && -n "$2" ]] || usage
     base="$2"
@@ -88,6 +98,28 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 2
 fi
 cd "$(git rev-parse --show-toplevel)" || exit 2
+
+if ((uncommitted)); then
+  if [[ -z "$base" ]]; then
+    base="$(git rev-parse HEAD)" || exit 2
+  fi
+  snap="$(mktemp -d)" || exit 2
+  trap 'git worktree remove --force "$snap/tree" >/dev/null 2>&1; rm -rf "$snap"' EXIT
+  index="$(git rev-parse --git-path index)" || exit 2
+  [[ ! -f "$index" ]] || cp "$index" "$snap/index" || exit 2
+  GIT_INDEX_FILE="$snap/index" git add -A || exit 2
+  tree="$(GIT_INDEX_FILE="$snap/index" git write-tree)" || exit 2
+  commit="$(git -c user.name=check-affected -c user.email=check-affected@localhost \
+    commit-tree "$tree" -p HEAD -m 'check-affected: uncommitted work')" || exit 2
+  git -c core.hooksPath=/dev/null worktree add --quiet --detach "$snap/tree" "$commit" || exit 2
+  args=(--base "$base")
+  ((run_tests)) && args+=(--tests)
+  ((fetch)) || args+=(--no-fetch)
+  rc=0
+  (cd "$snap/tree" && bash "$tools/scripts/check-affected.sh" "${args[@]}") || rc=$?
+  exit "$rc"
+fi
+base="${base:-origin/main}"
 foreign=0
 if [[ "$(pwd -P)" != "$tools" ]]; then
   foreign=1
