@@ -43,6 +43,36 @@ The item-side comment alone is never sufficient; stopping after step 1 leaves th
 
 **Work-class pairing (hard).** Every mutation that applies the autonomous-eligible role label (`agent-ready` by default) MUST also apply exactly one `work-class:` label in the same edit, and it must be one of the autonomously dispatchable classes (`work-class: read-only` / `mechanical` / `scoped`. Map C1–C3). Applying `agent-ready` without a work-class is a triage defect: the fail-closed admission gate then makes the item unreachable while it still looks frontier-available (medley#1677). **Never pair `agent-ready` with `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5)**: those are human-gated regardless of any other signal, so the pair contradicts itself. `list-frontier --autonomous` drops such an item on the work-class floor and the role label buys nothing; before that floor existed, each lane instance in turn claimed it, hit the admission gate, and escalated, burning a worker every pass. A C4/C5 outcome takes the human-gated role label (default `needs-human`) instead, per [`reference/work-class-labels.md`](../../../reference/work-class-labels.md) "Human-floor classes exclude the autonomous-eligible role label". **Classify** from the risk-property bundle, when the `autonomy` plugin is installed, read [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md) (same reference the work-loop admission gate cites); otherwise use the label→class mapping in [`reference/work-class-labels.md`](../../../reference/work-class-labels.md). **Preflight:** before any autonomous-eligible outcome, verify all five canonical labels exist per that reference's "Migration" section; if any are missing, stop without mutating and report remediation. `/work-items:setup apply` provisions them on repos without label-as-code, or route to the repo's declared label-as-code owner. A lane that may not write `work-class:` labels cannot meet this pairing and never applies the role label: see "Lane barred from recording a class" below.
 
+**Issue dimensions (hard, when configured).** When the repository's
+`docs/conventions/pr-pipeline.yaml` (read at `--config-ref` when given, the way "Triage settings"
+reads) has `models.issue-dimensions`, every outcome that would apply the autonomous-eligible role
+label first assesses the item on each dimension that block's `fields` names, choosing one key of
+that dimension's table in the same block, never a name from this skill: for complexity, the key
+whose factor fits how hard the work is to get right; for size, the smallest key whose
+`base-turns` times that factor fits the brief's work in one run, or the key set to `split` when
+none does; for uncertainty, the key whose mode is `run` when the approach is known, else the key
+whose mode names the step that must come first. Then write all of them in one call, before the
+outcome's label edit:
+
+```bash
+bash "<plugin-root>/skills/triage/scripts/set-dimensions.sh" [--ref '<ref>'] <item-id> <dimension>=<key> ...
+```
+
+The script maps each key to its option id through the block and sets the fields through the
+tracker seam; never set a field any other way or type an id. Exit 3 means the repository maps no
+dimensions: skip this rule. Any other non-zero exit stops the outcome with no label change,
+reported with the script's message, since the issue lane refuses an item whose fields are empty.
+The lane counts a value only when its last setter is a listed human or the lanes App, so report
+when the seam writes as any other account.
+
+An item whose size is `split`, or whose uncertainty mode is not `run`, is not
+autonomous-eligible: in one edit, apply `status:ready` and the human-gated role label (default
+`needs-human`) and clear the raw marker, with a comment naming the next step: `/work-items:decompose`
+for a `split` size, planning or research for `research-first`, a probe or spike for `probe-first`.
+The fields stay set, so the item is not re-assessed. An interactive session may run that step once
+the operator agrees; a lane does not, since publishing items is outside triage's mandate. No
+`models.issue-dimensions` block: skip this rule.
+
 **Signal-marked items are C5 by rule.** An item whose body carries the autonomy signal marker, or that already carries `provenance: signal`, gets `work-class: untrusted-provenance` in the same edit that applies `provenance: signal`. It is never paired with `agent-ready`, and its briefed exit is human-gated: the outcome edit applies the human-gated role label (default `needs-human`). No judgment about the item's content, however small or well-scoped the fix looks, lowers the class. The preflight in "Status and provenance labels" below covers `work-class: untrusted-provenance` as well: when the repository lacks it, stop without mutating and report the provisioning gap. A lane barred from recording a class applies `needs-human` to a signal item with no `work-class:` label and leaves the class to a person. `list-frontier --autonomous` drops a `provenance: signal` item whatever its other labels, because the human floor in `labels.sh` holds that label as well as the C4/C5 classes.
 
 **Lane barred from recording a class: propose it, human-gate the item.** When the session may not record a class, because the autonomous lane's standing directive forbids writing `work-class:` labels (the conforming posture for an unattended lane: the autonomy contract's `admission-policy.md` bars any agent-writable surface from supplying "the work class used for admission"), the pairing rule above cannot be met, so the autonomous-eligible role label is never applied. A delegable, decision-defaulted, or multi-surface-stub outcome instead ends in the attended queue's `[escalated]` view:

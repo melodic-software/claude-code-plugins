@@ -1,6 +1,6 @@
 # Bind the tracker at the repo root with an allowlisted personal overlay
 
-- Status: accepted
+- Status: accepted; superseded in full by [ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md), which moves the tracker binding to `<home>/work-items.yaml`
 - Date: 2026-08-18
 
 ## Context

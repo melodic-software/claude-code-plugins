@@ -164,6 +164,12 @@ RC_CAPTURE=$?
 assert_eq "undeclared label-provenance verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the label-provenance verb" "$ERR" "label-provenance"
 
+# An adapter with no issue fields declares no set-fields key: the verb degrades, never writes.
+ERR="$(run_dispatcher set-fields "fake:o/r#1" --field 1=2 2>&1 >/dev/null)"
+RC_CAPTURE=$?
+assert_eq "undeclared set-fields verb → exit 6" "6" "$RC_CAPTURE"
+assert_contains "exit-6 stderr names the set-fields verb" "$ERR" "set-fields"
+
 # --- capabilities passthrough ---
 
 OUT="$(run_dispatcher capabilities)"
@@ -429,6 +435,23 @@ assert_contains "old gh: gated --blocked-by names the flag" "$ERR" "--blocked-by
 ERR="$(PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
   WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" create-item --title t 2>&1 >/dev/null)"
 assert_not_contains "old gh: plain create-item does not quote the version floor" "$ERR" "2.94"
+
+# A conforming gh in a cloud session (CLAUDE_CODE_REMOTE=true) still gates the edge verbs.
+run_gh_verb_remote() {
+  CLAUDE_CODE_REMOTE=true run_gh_verb "$@"
+}
+printf '#!/usr/bin/env bash\nprintf "gh version 2.94.0 (2026-01-01)\\n"\n' >"$STUB_BIN/gh"
+for v in list-sub-items link-blocks add-sub-item; do
+  assert_eq "remote session: $v gated → exit 3" "3" "$(run_gh_verb_remote "$v" "github:o/r#1")"
+done
+assert_eq "remote session: create-item --parent gated → exit 3" \
+  "3" "$(run_gh_verb_remote create-item --title t --parent "github:o/r#1")"
+assert_eq "remote session: list-frontier gated → exit 3" "3" "$(run_gh_verb_remote list-frontier)"
+assert_eq "remote session: plain create-item dispatches" \
+  "0" "$(run_gh_verb_remote create-item --title t)"
+ERR="$(CLAUDE_CODE_REMOTE=true PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
+  WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" add-sub-item "github:o/r#1" --parent "github:o/r#2" 2>&1 >/dev/null)"
+assert_contains "remote session: the gate names the session" "$ERR" "unavailable in this Claude Code cloud session"
 
 # A conforming gh lifts the gate for every verb, including gated flags.
 cat >"$STUB_BIN/gh" <<'EOF'

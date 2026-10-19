@@ -137,9 +137,9 @@ are retention-swept (`cleanupPeriodDays`), and the conversation itself has no du
 
 - **Pointer**: [Data usage § Data retention](https://code.claude.com/docs/en/data-usage#data-retention),
   for the retention period and what `cleanupPeriodDays` adjusts.
-- **As of**: 2026-09-06
-- **Recheck trigger**: that page names a different default, or a release note names
-  `cleanupPeriodDays`.
+- **As of**: 2026-10-19
+- **Recheck trigger**: that section stops describing local transcripts as swept after a retention
+  period, or a release note names `cleanupPeriodDays`.
 
 If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`unattended`:** record the suggestion in output; do not ask.
 

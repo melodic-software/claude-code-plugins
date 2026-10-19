@@ -10,6 +10,7 @@
 - [Sub-Topic Promotion Trigger](#sub-topic-promotion-trigger)
 - [Execution-Shape Analysis](#execution-shape-analysis)
 - [Large-scale changes (migrations, library swaps, broad refactoring)](#large-scale-changes-migrations-library-swaps-broad-refactoring)
+- [Decision ids (tagged decisions)](#decision-ids-tagged-decisions)
 - [Phase Review tags (optional per phase)](#phase-review-tags-optional-per-phase)
 - [Planned breakage (optional per phase)](#planned-breakage-optional-per-phase)
 - [Visual parity (optional per phase)](#visual-parity-optional-per-phase)
@@ -333,6 +334,22 @@ The plan should capture migration-specific inputs the downstream quality passes 
 
 Per Kent Beck: separate structural commits (renames, extracts, reorganizations) from behavioral commits (new features, API changes). This applies especially to large migrations: the structural scaffolding commit should be reviewable and revertable independently from the behavioral changes.
 
+## Decision ids (tagged decisions)
+
+A decision the plan tags `[EXEC-SHAPE]` or `[FALLBACK]` carries an id that its row in the "Decisions made (gate-passed)" table repeats, so the outcome gate maps every tag to its row:
+
+```markdown
+- Add `.chezmoiignore`. [EXEC-SHAPE D1]
+- Retry once on a lock timeout. [FALLBACK D2]
+
+| Decision | What it changes in the plan | Basis (evidence) | Source |
+|---|---|---|---|
+| D1 Ignore file first | Phase 1 adds `.chezmoiignore` | chezmoi docs read this session | plan |
+| D2 One retry on lock timeout | Phase 2 retries the apply once | existing retry helper read this session | plan |
+```
+
+The id sits at the start of the row's first column; the table keeps its `Decision | What it changes` header. Several tags may cite one id. A bare tag with no id still passes the gate, with a warning. Rules: [tag-decisions.md](tag-decisions.md) "Presentation contract".
+
 ## Phase Review tags (optional per phase)
 
 When a phase touches a review concern that should be caught at the phase boundary (not deferred to PR), add a `Review:` line immediately under the phase header. For the four concern tags below, implementation dispatches a fresh-context sub-agent review before the phase commit; that phase-boundary review applies to these tags only.
@@ -342,8 +359,12 @@ When a phase touches a review concern that should be caught at the phase boundar
 Review: architecture   # structural integrity, dependency direction
 Review: security       # auth, input handling, secrets
 Review: concurrency    # races, shared state
-Review: code-design    # configurability, testability, observability
+Review: code-design    # repeated facts, cascades, configurability, testability, observability
 ```
+
+Each tag maps to a `/review:quality-gate` mode: `architecture`, `security` and `code-design` to the mode of the same name, `concurrency` to `/review:quality-gate slice concurrency`. The review rates at the Brief's `Quality bar:` line, which implementation reads from the plan and passes with the phase diff; a phase never repeats it.
+
+Tag `Review: code-design` on any phase that adds or changes a contract, type, module, or a fact or rule several files read, skill and instruction Markdown included; omit it only for trivial edits. Stumble: phases that only changed Markdown or a shared value went untagged, so no phase-boundary review saw the copies they spread.
 
 A phase that changes what users see or do can also carry one optional evidence value, written as a plain description of the evidence:
 
@@ -352,8 +373,6 @@ Review: screenshots of each changed screen, plus a short recording of the change
 ```
 
 Leave out the recording when no interaction changes. No reviewer runs on this value at the phase boundary: the evidence is gathered when the pull request is marked ready (`/source-control:pull-request ready`, when it is among the available skills; otherwise attach it by hand) and linked from the pull request. A phase that must leave its screens unchanged uses [Visual parity](#visual-parity-optional-per-phase) instead.
-
-Omit `Review:` when the phase is docs-only or trivial with no new types/contracts.
 
 ## Planned breakage (optional per phase)
 
@@ -456,5 +475,5 @@ Load this section from Step 4.5. The hub states the agent-team routing rule and 
 
 - Parallel orchestration depends on sub-agent compliance with scope-fence discipline. The sequential fallback path MUST be documented in PLAN.md "Handoff to implementation"
 - PLAN.md edits stay main-session-only (status updates would race if agents edited PLAN); agents report back instead
-- **Design for an agent team when the parallel-safe workers must message each other** (cross-layer feature, competing-hypothesis debugging) rather than just fan out and report back. That execution shape is an **agent team**, not independent fan-out sub-agents. The file-overlap matrix above IS the team-safety check: decompose by **context boundary / disjoint clean-interface file-set, never by lifecycle role** (a planner/implementer/tester of one feature shares too much context). Dependency-order the task list so blocked tasks auto-unblock; teammates are NOT worktree-isolated, so disjoint file ownership is mandatory, not optional. Agent teams are an experimental, default-off runtime surface: the harness documentation states they are "experimental and disabled by default" and names the environment variable that turns them on, without which no team is set up at session start and Claude spawns no teammates. Verified 2026-09-06 against Claude Code 2.1.263 and <https://code.claude.com/docs/en/agent-teams> as fetched that day; recheck when that page drops the experimental label or the default-off statement, or a release note names agent teams. Verify availability before routing a phase there, and keep the sub-agent fan-out or sequential path as the documented fallback
+- **Design for an agent team when the parallel-safe workers must message each other** (cross-layer feature, competing-hypothesis debugging) rather than just fan out and report back. That execution shape is an **agent team**, not independent fan-out sub-agents. The file-overlap matrix above IS the team-safety check: decompose by **context boundary / disjoint clean-interface file-set, never by lifecycle role** (a planner/implementer/tester of one feature shares too much context). Dependency-order the task list so blocked tasks auto-unblock; disjoint file ownership is mandatory, not optional. Pointer: <https://code.claude.com/docs/en/agent-teams#avoid-file-conflicts>; as of 2026-10-19; recheck when that section is renamed or moved. For whether agent teams are available and how they are turned on, pointer: <https://code.claude.com/docs/en/agent-teams#enable-agent-teams>; as of 2026-10-19; recheck when that section is renamed, or a release note names agent teams. Verify availability before routing a phase there, and keep the sub-agent fan-out or sequential path as the documented fallback
 - The user's commit policy is unchanged. Staging/commits happen per the consuming project's own rules, never silently by parallel agents

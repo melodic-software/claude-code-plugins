@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape",
+  "title": "Interview question shape",
+  "description": "The question every interview lane asks: terminal, the 1:1 page and the shared session. `id` is the interview ledger's `Q<N>`. `scope` names the view, screen or artifact asked about. `basis` opens with `Checked against:` and the constraints in words. `dependsOn` names earlier question ids only, and the shared lane takes 2-3 alternatives; both are checked when input is parsed, not here.",
+  "type": "object",
+  "required": ["id", "text", "alternatives", "dependsOn"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"$ref": "#/$defs/questionId"},
+    "text": {"$ref": "#/$defs/text"},
+    "short": {"$ref": "#/$defs/short"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "context": {"$ref": "#/$defs/context"},
+    "recommendation": {"$ref": "#/$defs/recommendation"},
+    "basis": {"$ref": "#/$defs/basis"},
+    "alternatives": {"$ref": "#/$defs/alternatives"},
+    "dependsOn": {"$ref": "#/$defs/dependsOn"}
+  },
+  "$defs": {
+    "questionId": {"type": "string"},
+    "text": {"type": "string", "maxLength": 2000},
+    "short": {"type": "string", "maxLength": 80},
+    "scope": {"type": "string"},
+    "context": {"type": "string", "maxLength": 4000},
+    "recommendation": {"type": "string"},
+    "basis": {"type": "string", "maxLength": 4000},
+    "alternatives": {"type": "array", "maxItems": 4, "items": {"$ref": "#/$defs/alternative"}},
+    "alternative": {
+      "type": "object",
+      "required": ["key", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {"enum": ["a", "b", "c", "d"]},
+        "text": {"$ref": "#/$defs/text"},
+        "tradeoff": {"$ref": "#/$defs/text"}
+      }
+    },
+    "dependsOn": {"type": "array", "items": {"$ref": "#/$defs/questionId"}}
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Window bar: passes. One cold session finishes it in one fresh context window, and it can merge to the mainline at least daily.",
+      "why": "direct statement"
+    },
+    {
+      "answer": "Window bar: fits one window; the team can integrate at least daily. No estimate in hours or days is needed.",
+      "why": "negated hours mention"
+    },
+    {
+      "answer": "Window bar passes: it will merge at least daily as a thin slice.",
+      "why": "short form"
+    },
+    {
+      "answer": "Window bar: pass. A cold session can finish it in one fresh context window and merge it the same day.",
+      "why": "same-day merge meets the at-least-daily floor"
+    },
+    {
+      "answer": "Window bar: pass, thin enough to integrate within a day.",
+      "why": "within-a-day form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty run"
+    },
+    {
+      "answer": "Window bar: passes, one fresh context window. Split it only if it grows.",
+      "why": "no daily integration"
+    },
+    {
+      "answer": "Window bar: this slice cannot integrate at least daily, so split it.",
+      "why": "negated daily mention"
+    },
+    {
+      "answer": "Window bar: passes, about 3 hours of work; merge daily.",
+      "why": "bare 'daily' states no floor"
+    },
+    {
+      "answer": "Window bar: a cold session cannot merge it the same day, so split it.",
+      "why": "negated same-day mention"
+    }
+  ]
+}

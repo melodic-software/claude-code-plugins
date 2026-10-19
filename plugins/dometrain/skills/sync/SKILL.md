@@ -38,8 +38,9 @@ Never writes to `vendor/SKILL.md` or `grounding/SKILL.md`. Direct the user to
 
 ## Output
 
-Report the script's exit code and its stdout verbatim (or a short summary if long): drift
-present or absent, and when present, point to `context/update.md` for the next step.
+Report the script's exit code (0 no drift, 1 drift, 2 unverifiable) and its stdout verbatim (or a
+short summary if long): drift present or absent, and when present, point to `context/update.md`
+for the next step.
 
 ## Spoke paths
 

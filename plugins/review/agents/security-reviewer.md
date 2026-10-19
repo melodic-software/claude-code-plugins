@@ -16,7 +16,7 @@ Model and effort pin record. Pointer: the `high` row of [model config: choose an
 ## Before reviewing
 
 1. **Read the project's security criteria first**, when present: a security review guide, threat-model doc, `REVIEW.md`, or the security section of the project rules. Project criteria override this baseline where they conflict. Resolve every code-span citation in `REVIEW.md` shaped `<relative-path>.md#<heading>`, not just the first (deduplicate paths): split at the last `#`, Read the file (it may be mounted via `--add-dir` from outside this repository), and read that heading's section before finalizing any finding on its topic. A cited file that does not exist is noted in the report as an unresolved citation; continue the review.
-2. **Identify the change set.** Run exactly:
+2. **Identify the change set.** When your brief supplies the change set, as a worktree path and base SHA or as the commands to run, run only those commands (`git -C <worktree> diff <sha>` and `git -C <worktree> ls-files --others --exclude-standard`) in place of the block below: no `gh`, no `git fetch`, no `git ls-remote`, and no git command outside the brief's worktree. When the brief supplies a worktree, every command and tool call in the review targets that worktree, never the invoking checkout: git runs as `git -C <worktree>`, every Read, Grep and Glob and every untracked path resolves under it, and any other command, such as a dependency audit, runs with the worktree as its directory or path argument. Otherwise run exactly:
 
    ```bash
    PR_BASE="$(gh pr list --head "$(git branch --show-current)" --json baseRefName -q '.[0].baseRefName' 2>/dev/null)"

@@ -12,6 +12,14 @@
     {
       "answer": "When those two steps are done, tell me:\n\n```text\nphase 1 done\n```",
       "why": "the skill's own fenced-literal form"
+    },
+    {
+      "answer": "When both steps are done, reply with the line below, exactly like this:\n\n```text\nphase 1 done\n```",
+      "why": "'reply with ... like this:' then a text fence"
+    },
+    {
+      "answer": "Once the token is copied, reply with the phrase in the box below, spelled exactly the way it appears in the `README`, like this:\n\n```\ntoken ready\n```",
+      "why": "a gap past 40 characters and a backtick before the colon, then a bare fence"
     }
   ],
   "fail": [
@@ -30,6 +38,10 @@
     {
       "answer": "Tell me when you are done.\n\n```powershell\n./config.cmd\n```",
       "why": "a command fence after a vague ask is not a literal advancing reply"
+    },
+    {
+      "answer": "Tell me when you are done, once the runner shows as Idle in the list, like this:\n\n```powershell\n./config.cmd\n```",
+      "why": "a long gap before the colon still needs a non-command fence"
     }
   ]
 }
