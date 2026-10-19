@@ -210,7 +210,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
    any head checkout. The broker mints once per job, so a second request from this job is denied
    `already-minted`. The
    step fails red unless the grant this job resolved is `read` or `write` for each of `contents`,
-   `pull-requests` and `issues` and the broker's answer equals it. The read file requests nothing
+   `pull-requests` and `issues` and the broker's answer equals it. On a `pull_request` run, one
+   refusal skips instead: a 403 `workflow-modified` whose detail names a `.github/workflows/` file the PR
+   itself changes ([below](#a-workflow-file-the-pr-changes)). The read file requests nothing
    and uses the job's read-only `GITHUB_TOKEN` throughout.
 7. [`select-trusted-text`](../../../.github/actions/select-trusted-text/README.md) to
    `$RUNNER_TEMP/trusted-context.json` when the activity `reads-untrusted`, with the App token or,
@@ -607,6 +609,7 @@ its check:
 | Path | act-outcome | skip reason | escalation-reason | Check |
 |---|---|---|---|---|
 | Head moved before mint | skipped | `superseded-sha` | empty | neutral |
+| Broker refused a workflow file the PR changes | skipped | `workflow-modified` | empty | neutral |
 | Hold label present | skipped | `awaiting-human` | empty | neutral |
 | Pre-model escalation | skipped | `awaiting-human` | `protected-path-conflict` / `repeat-cap` / `unresolved-conflict` (no markers) | neutral |
 | Clean merge, no model turn, committed, promoted | success | none | empty | success |
@@ -1121,6 +1124,29 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 
 A `kill-switch` denial is red, not neutral: step 3 already stopped the common case, so the denial
 means the job's read and the broker's read of the switch disagreed.
+
+### A workflow file the PR changes
+
+A PR that changes the caller or `pr-run-activity-write.yml` gets `workflow-modified` on every write
+lane run until it merges, and a re-run cannot help. On a `pull_request` run, which executes the
+PR's copy of the workflow files, the run job passes `pr-workflow-change-ok`, and the step skips
+instead of failing when all of these hold. A dispatched or issue run executes the default
+branch's files, so its refusal means the default branch moved, and it stays red:
+
+- the answer is 403 with reason `workflow-modified`;
+- its detail is exactly `<file> differs from refs/heads/<default branch>`, `<file>` a
+  `.github/workflows/` YAML file;
+- GitHub's compare of the default branch with the gated head
+  (`GET /repos/{owner}/{repo}/compare/<default branch>...<head SHA>`, read with the job's
+  `GITHUB_TOKEN`, whose `contents: read` covers it) lists `<file>` as a changed `filename` or
+  `previous_filename`.
+
+The refusal does not say whether the PR or the default branch changed the file, so the compare,
+which reads neither model output nor anything the PR's code writes, decides. A compare lists at
+most 300 changed files; a file it does not list keeps the step red. The step then sets no token,
+names the reason and file in the job summary, and sets the skip reason `workflow-modified`, so
+every later step skips and the check is neutral. Any other answer, a detail that does not parse, a
+file the compare does not list, and a compare that cannot be read stay red.
 
 ### The check endpoint
 
