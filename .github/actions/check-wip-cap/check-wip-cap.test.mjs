@@ -143,6 +143,20 @@ test("the cap is the merge rate times the target lead time, rounded up and at le
   assert.equal(status(await read({ merged: 36 })).merge_rate_per_hour, 1.5);
 });
 
+test("the cap never falls below wip.min-cap, so a quiet day cannot stall the lane", async () => {
+  const floor = { "min-cap": 12, "pause-from": "2026-10-01" };
+  for (const merged of [0, 1]) {
+    const result = status(await read({ open: [pr()], merged }), floor);
+    assert.equal(result.wip_cap, 12, `merged=${merged}`);
+    assert.equal(result.wip_min_cap, 12);
+    assert.equal(result.wip_cap_source, "computed");
+    assert.equal(result.wip_over, false, `merged=${merged}`);
+    assert.equal(result.paused, false, `merged=${merged}`);
+  }
+  assert.equal(status(await read({ merged: 300 }), floor).wip_cap, 25);
+  assert.equal(status(await read({ merged: 0 })).wip_min_cap, 1);
+});
+
 test("with no merged count the cap is limits.wip-cap from config", async () => {
   for (const merged of [new Error("GET /search/issues failed with status 403"), null]) {
     const result = status(await read({ merged }));
@@ -271,13 +285,15 @@ test("main writes capped=true only when paused", async () => {
   assert.equal(over.wip.wip_over, true);
   assert.equal(over.capped, "false");
   assert.equal((await runMain({ open: [pr()], merged: 24 })).capped, "false");
-  // The base config's past pause-from: over the cap it pauses, under it it runs.
+  // The base config's past pause-from: over the cap (its min-cap floor of 12
+  // here, since 24 merged would compute 2) it pauses, under it it runs.
   const repoConfig = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8");
   const config = repoConfig.replace(/^( +pause-from: ).*$/m, '$1"2026-10-01"');
   assert.notEqual(config, repoConfig.replace(/^( +pause-from: ).*$/m, '$1""'));
-  const paused = await runMain({ open: [pr(), pr(), pr(), pr()], merged: 24 }, {}, config);
+  const paused = await runMain({ open: Array.from({ length: 13 }, () => pr()), merged: 24 }, {}, config);
   assert.equal(paused.wip.pause_from, "2026-10-01");
+  assert.equal(paused.wip.wip_min_cap, 12);
   assert.equal(paused.capped, "true");
-  assert.ok(paused.logs.some((line) => line.includes("4 countable lane PRs are at or over the WIP cap of 2")));
+  assert.ok(paused.logs.some((line) => line.includes("13 countable lane PRs are at or over the WIP cap of 12")));
   assert.equal((await runMain({ open: [pr()], merged: 24 }, {}, config)).capped, "false");
 });

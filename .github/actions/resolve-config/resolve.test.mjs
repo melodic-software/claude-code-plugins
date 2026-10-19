@@ -377,6 +377,7 @@ test("limits: an unknown key, a value that is not an integer, or one out of its 
 // apply these defaults.
 const WIP = {
   "target-lead-time-hours": 2,
+  "min-cap": 1,
   "merge-rate-window-hours": 24,
   "opened-to-merged-ratio": 0.8,
   "held-cap": 60,
@@ -399,7 +400,7 @@ test("wip: a set leaf overrides its default and leaves the others", () => {
 });
 
 test("wip: an unknown key, a wrong type, or a value out of range is rejected", () => {
-  for (const wip of [{ "held-caps": 30 }, { "target-lead-time-hours": 0 }, { "opened-to-merged-ratio": 1.5 }, { "opened-to-merged-ratio": 0 }, { "held-cap": 0 }, { "held-cap": 2.5 }, { "merge-rate-window-hours": 1.5 }, { "pause-from": "soon" }, { "pause-from": 20261101 }]) {
+  for (const wip of [{ "held-caps": 30 }, { "target-lead-time-hours": 0 }, { "min-cap": 0 }, { "min-cap": 2.5 }, { "min-cap": 501 }, { "opened-to-merged-ratio": 1.5 }, { "opened-to-merged-ratio": 0 }, { "held-cap": 0 }, { "held-cap": 2.5 }, { "merge-rate-window-hours": 1.5 }, { "pause-from": "soon" }, { "pause-from": 20261101 }]) {
     const config = edited((doc) => {
       doc.wip = wip;
     });

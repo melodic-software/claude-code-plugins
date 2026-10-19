@@ -4,8 +4,8 @@
 // ones merged in the rolling window, and the ones opened in it.
 //
 // The cap is the merged count per hour times wip.target-lead-time-hours,
-// rounded up and at least 1 (limits.wip-cap when the merged count cannot be
-// read). Only open PRs that are not held count against it. A held PR (label
+// rounded up and at least wip.min-cap (limits.wip-cap when the merged count
+// cannot be read). Only open PRs that are not held count against it. A held PR (label
 // needs-human or do-not-merge, or a body line exactly HOLD_LINE) counts
 // against wip.held-cap instead, and one older than wip.held-alarm-hours
 // raises the alarm. PRs opened in the window may be at most
@@ -103,7 +103,7 @@ export function wipStatus({ open, merged, admitted }, { limits, wip, now }) {
   const held = open?.filter((pr) => pr.held) ?? null;
   const ages = held?.map((pr) => (now - pr.createdAt) / HOUR_MS).filter(Number.isFinite) ?? [];
   const computed = merged !== null;
-  const wipCap = computed ? Math.max(1, Math.ceil((merged * wip["target-lead-time-hours"]) / window - 1e-9)) : limits["wip-cap"];
+  const wipCap = computed ? Math.max(wip["min-cap"], Math.ceil((merged * wip["target-lead-time-hours"]) / window - 1e-9)) : limits["wip-cap"];
   const admissionCap = computed ? Math.floor(wip["opened-to-merged-ratio"] * merged + 1e-9) : null;
   const countable = open === null ? null : open.length - held.length;
   const heldCount = held === null ? null : held.length;
@@ -120,6 +120,7 @@ export function wipStatus({ open, merged, admitted }, { limits, wip, now }) {
     held_over_alarm_count: heldOverAlarm,
     wip_cap: wipCap,
     wip_cap_source: computed ? "computed" : "config",
+    wip_min_cap: wip["min-cap"],
     held_cap: wip["held-cap"],
     held_alarm_hours: wip["held-alarm-hours"],
     merged_lane_prs_window: merged,

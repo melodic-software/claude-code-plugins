@@ -155,7 +155,14 @@
           "exclusiveMinimum": 0,
           "maximum": 720,
           "default": 2,
-          "description": "Target open-to-merge hours. The WIP cap is the lane merge rate per hour times this, rounded up, at least 1."
+          "description": "Target open-to-merge hours. The WIP cap is the lane merge rate per hour times this, rounded up, at least min-cap."
+        },
+        "min-cap": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 1,
+          "description": "Floor under the computed WIP cap, so a day with few merges cannot shrink the cap until the lane stalls."
         },
         "merge-rate-window-hours": {
           "type": "integer",

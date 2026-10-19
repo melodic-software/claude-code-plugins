@@ -41,6 +41,7 @@ export function readLimits(path) {
 // passes the leaf through as set; this is the one copy of its defaults.
 export const WIP_DEFAULTS = Object.freeze({
   "target-lead-time-hours": 2,
+  "min-cap": 1,
   "merge-rate-window-hours": 24,
   "opened-to-merged-ratio": 0.8,
   "held-cap": 60,
@@ -51,6 +52,7 @@ export const WIP_DEFAULTS = Object.freeze({
 const positive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
 const WIP_VALID = {
   "target-lead-time-hours": positive,
+  "min-cap": (value) => Number.isInteger(value) && value >= 1 && value <= 500,
   "merge-rate-window-hours": (value) => Number.isInteger(value) && value > 0,
   "opened-to-merged-ratio": (value) => positive(value) && value <= 1,
   "held-cap": (value) => Number.isInteger(value) && value > 0,

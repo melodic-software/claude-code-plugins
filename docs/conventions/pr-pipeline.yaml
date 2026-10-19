@@ -401,6 +401,9 @@ limits:
 wip:
   # Cap = lane PRs merged per hour over the window times this target.
   target-lead-time-hours: 2
+  # Floor under the computed cap: the earlier fixed cap (#8252). It stops a
+  # day with few merges from shrinking the cap until the lane stalls.
+  min-cap: 12
   merge-rate-window-hours: 24
   # Lane PRs opened in the window may be at most this share of those merged
   # in it (not limits.admission-factor, which sizes the agent-ready backlog).
