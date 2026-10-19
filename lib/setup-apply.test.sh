@@ -324,7 +324,7 @@ check_warn() {
 check_ok "a plain string" $'label: team-a\n' "PASS label: team-a"
 check_ok "a double-quoted string" $'label: "team-a"\n' "PASS label: team-a"
 check_ok "a string with a colon and a hash inside quotes" $'note: "a: b # c"\n' "PASS note: a: b # c"
-check_ok "an empty string with no minLength" $'note: ""\n' "PASS note: (unset)"
+check_ok "an empty string with no minLength" $'note: ""\n' 'PASS note: ""'
 check_warn "an empty string under minLength 1" $'label: ""\n' 'label is an empty string'
 check_warn "a string outside the pattern" $'label: Team-A\n' 'label=Team-A is not'
 check_warn "a plain true on a string key" $'label: true\n' 'label=true is not'

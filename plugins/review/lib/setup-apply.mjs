@@ -433,14 +433,14 @@ export function perKeyReport({ rel, keys, problems, value }) {
   if (problems.some((p) => p.kind === "parse" || p.kind === "file")) return 1;
   for (const k of Object.keys(keys)) {
     if (problems.some((p) => p.key === k)) continue;
-    process.stdout.write(`PASS ${k}: ${value(k) || "(unset)"}\n`);
+    process.stdout.write(`PASS ${k}: ${value(k) ?? "(unset)"}\n`);
   }
   return problems.length ? 1 : 0;
 }
 export function wholeFileReport({ rel, keys, problems, value }) {
   process.stdout.write(problems.map((p) => `WARN ${rel}: ${p.msg}\n`).join(""));
   if (problems.some((p) => p.kind !== "unknown")) return 1;
-  for (const k of Object.keys(keys)) process.stdout.write(`PASS ${k}: ${value(k) || "(unset)"}\n`);
+  for (const k of Object.keys(keys)) process.stdout.write(`PASS ${k}: ${value(k) ?? "(unset)"}\n`);
   return problems.length ? 1 : 0;
 }
 
@@ -656,8 +656,13 @@ function main(config, argv) {
         .filter((r) => r.top === k && r.nested)
         .map((r) => `${r.path.slice(r.path.indexOf(".") + 1)}=${r.value}`)
         .join(", ");
-    const value = (k) =>
-      isObject(keys[k]) ? leaves(k) : spawnSync("bash", [config.reader, "-", k], { input: existing, encoding: "utf8" }).stdout.trim();
+    // null for an absent key; a key set to an empty string shows as "".
+    const present = new Set(topLevelLines(existing).map((t) => t.key));
+    const value = (k) => {
+      if (!present.has(k)) return null;
+      const v = isObject(keys[k]) ? leaves(k) : spawnSync("bash", [config.reader, "-", k], { input: existing, encoding: "utf8" }).stdout.trim();
+      return v === "" ? '""' : v;
+    };
     return (config.report ?? perKeyReport)({ rel, keys, problems: check(existing), value });
   }
 
