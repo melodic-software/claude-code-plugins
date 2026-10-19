@@ -324,6 +324,17 @@
           }
         },
         "silent": {"description": "Active guests who did nothing on the question: no signal.", "type": "integer", "minimum": 0},
+        "discussion": {
+          "description": "The question's Discussion, oldest first, without comments the owner hid: each comment's text, `by` with digestNames, `edited` when its author changed it, `askedClaude` when its @Claude filed a request.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["text"],
+            "additionalProperties": false,
+            "properties": {"text": {"type": "string"}, "by": {"$ref": "#/$defs/by"}, "edited": {"enum": [true]}, "askedClaude": {"enum": [true]}}
+          }
+        },
+        "discussionMore": {"description": "How many earlier comments the digest leaves out.", "type": "string"},
         "for": {"description": "The people the question asks, by name.", "type": "array", "items": {"type": "string"}},
         "missing": {"description": "Of `for`, who has not taken part (an own answer, a vote or pick, or a pass).", "type": "array", "items": {"type": "string"}},
         "disagreements": {

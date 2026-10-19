@@ -293,6 +293,26 @@ offers still count. The owner's own requests skip the queue: one starts running 
 sent, and Claude's result for it is shared at once. A guest's request, the owner's guest identity
 included, still waits for Run and Share.
 
+## Discussion
+
+Each question has a Discussion under its Claude section, folded by default; its head counts the
+comments and those new to the viewer. `state.json` keeps `discussions` (qid -> comments) and
+`discussionSeen` (pid -> qid -> the newest comment time they saw when they last opened it); others'
+comments after that mark are new. Routes, each one write a second per person and route, and each
+writing nothing when nothing would change:
+
+| Route | Body | Who and what |
+|---|---|---|
+| `/api/discussion` | `{qid, text}` | Anyone who may write. "@Claude" in the text also files an ask request with it (`request` on the comment), owner-gated like any guest request; the owner's own runs at once. It shares `/api/request`'s one a second. Too soon after a request, or with too many requests waiting, the comment still posts, with `requestRefused` and no request. A person keeps at most 30 comments on a question (hidden ones count); a question at most 200 and the session at most 2000 that everyone sees. People already in that Discussion get a rolled-up `discussion` notification; a mention notifies as usual. Posting marks the Discussion read for its author only when no one else's comment is unread to them |
+| `/api/discussion/edit`, `/delete` | `{qid, id, text?}` | The comment's author only; another person's comment reads as 404. A comment that filed a request cannot be edited (409 `sent-to-claude`); deleting it leaves the request as it is |
+| `/api/discussion/hide` | `{qid, id, on}` | Owner only. A hidden comment leaves every other snapshot and the digest; its author still sees it, with `hidden`. A request it filed that still waits is declined, as by the owner's Decline |
+| `/api/discussion/react` | `{qid, id, emoji, on}` | The chat's emoji set and caps |
+| `/api/discussion/read` | `{qid, at}` | Marks the Discussion read up to `at`, never past the newest comment the reader can see; allowed while ended |
+
+The round's digest lists each question's comments under `discussion` (`text`, `by` with
+`digestNames`, `edited`, `askedClaude`), hidden ones left out: the newest 50 at most, each cut to 500
+characters, within 30000 comment characters per digest; `discussionMore` counts the rest.
+
 ## Connect your Claude
 
 A guest can run a request on their own Claude instead of the host's (R2-12; Brief C18-C20): in
