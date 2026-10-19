@@ -214,7 +214,7 @@ jobs:
           stage=release/plugins-next
           gh api -X DELETE "$refs/heads/$stage" --silent 2>/dev/null || true
           gh api -X POST "$refs" -f ref="refs/heads/$stage" -f sha="$MAIN_SHA" --silent
-          git add -A -- plugins .changes
+          git add -A -- plugins docs/conventions .changes
           # File contents go through stdin and files, never argv, so a large file fits.
           adds="$RUNNER_TEMP/additions.jsonl"
           dels="$RUNNER_TEMP/deletions.json"

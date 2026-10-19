@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: pb-untagged-phase-no-review
+graders:
+  - name: no-quality-gate-call
+    type: regex
+    pattern: '^(?![^\n]*(?:\b(?:no|not|none|never|skip|skips|skipped|without|untagged|nothing)\b|n''t\b))[^\n]*/review:quality-gate\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+  - name: verifier-runs
+    type: regex
+    pattern: '^(?![^\n]*(?:\b(?:no|not|never|skip|skips|skipped|without)\b|n''t\b))[^\n]*\bphase-verifier\b'
+    flags: 'mi'
+    target: last_message

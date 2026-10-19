@@ -73,6 +73,17 @@ say(/protected-path-conflict/.test(prepare.run ?? ""), "a conflicted workflow pa
 
 // Clause 3: no head code runs with the write token.
 say(mint >= 0 && checkout > mint, "the lane token is minted before the head checkout");
+// A workflow-modified skip ends the mint green with no token (#7732), so no
+// step after it may key on the head re-read alone.
+const keyed = steps.slice(mint + 1)
+  .filter((s) => /steps\.head-recheck\.outputs\.proceed/.test(String(s.if ?? "")) && !/steps\.lane-token\.outputs\.token != ''/.test(String(s.if ?? "")))
+  .map((s) => s.name);
+say(keyed.length === 0, `no step after the mint keys on the head re-read instead of the token (${keyed.join(", ") || "none"})`);
+say(String(steps[checkout]?.if ?? "") === "steps.lane-token.outputs.token != ''", "the head checkout runs only with a minted token");
+const mintWith = byId("lane-token").with ?? {};
+say(mintWith["pr-workflow-change-ok"] === "${{ inputs.issue-number == '' && github.event_name == 'pull_request' }}" && mintWith["github-token"] === "${{ github.token }}"
+  && mintWith["head-sha"] === "${{ steps.gate.outputs.head-sha }}",
+  "the workflow-modified skip runs on pull_request only, off issue mode, and compares the gated head with the job's own token");
 const recheck = at((s) => s.id === "head-recheck");
 say(recheck >= 0 && recheck < mint, "the head re-read runs before the mint");
 for (const id of ["merge-bin", "hold-label", "stage"]) {

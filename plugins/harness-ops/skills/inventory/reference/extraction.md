@@ -110,6 +110,13 @@ Two further shapes, both first seen in 2.1.284:
   with `Qi=[{kind:"report",...},...]`. When the table binding is an array of object literals, each
   row is expanded into its own skill and `bundled_skill_notes.rosters_resolved` records the table
   and row count. A loop over anything else stays a `dynamic_roster`.
+- **Arrow over a mode table.** `description:()=>s().description(),menuDescription:()=>s().menu()`
+  with `s=()=>vs[n()??"consent"]` and `vs={types:{...},hub:{...},consent:{...}}` (the `design`
+  skill, 2.1.302). When the arrow returns `<local>().<member>()` (or `.<member>`), `<local>` is an
+  arrow returning `<table>[<expr>??"<key>"]`, and `<table>` is an object literal of object
+  literals, the field resolves with source `arrow`: `value` is the `<key>` row's member and
+  `variants` lists every row's member. A row member that does not reduce to a string is left out;
+  a `<key>` row that does not reduce, or no row that does, leaves the field `unresolved`.
 
 `resolved` counts registration calls, not rows, so an expanded roster never masks an unresolved
 call. A registrar call must stand alone: `productionRemoteToolsAnnounceDeps({` ends in `ps` and is

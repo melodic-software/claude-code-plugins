@@ -48,7 +48,7 @@ export class GitHubError extends Error {
 }
 
 // One function every API read and write goes through; tests replace it.
-export function createGitHub({ token, apiUrl = "https://api.github.com", fetchImpl = fetch }) {
+export function createGitHub({ token, apiUrl = "https://api.github.com", fetchImpl = fetch, onResponse }) {
   return async function github(method, apiPath, body) {
     const response = await fetchImpl(`${apiUrl}${apiPath}`, {
       method,
@@ -60,6 +60,7 @@ export function createGitHub({ token, apiUrl = "https://api.github.com", fetchIm
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    onResponse?.(response);
     if (!response.ok) {
       throw new GitHubError(response.status, `${method} ${apiPath}`);
     }

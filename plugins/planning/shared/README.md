@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -125,7 +125,7 @@ the refused op's index).
 | `open-round` | `questions` (1..8), `placements?` | Closes the `working` round (or starts round 1) and opens the next |
 | `close-round` | `placements?`, `reason?` | `working` -> `closed`, no new round |
 | `ack-round` | `round` | `sent` -> `working` |
-| `result` | `qid`, `request?`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Stores a result unpublished; the owner publishes or discards it |
+| `result` | `qid?`, `request?`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Stores a result, shared or not as [Sharing Claude's answers](#sharing-claudes-answers) says. No `qid` answers a request about the whole session, which `request` must name (see [General asks](#general-asks)) |
 | `fail-request` | `request`, `reason` | `running` -> `failed` |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | |
 | `add-asset` | `path`, `as?`, `scale?` | Copies a PNG, JPEG, WebP, SVG or HTML file (by its bytes, at most 10 MB) from the data folder, where captures go in `staging/`, into `assets/<16 hex>.<ext>`, named by its content; returns `{id, kind, bytes, at, scale}`. Usable from the next apply; a refused apply removes the files it copied and puts back any sidecar it rewrote |
@@ -209,7 +209,7 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `/api/session/intro` | `{intro}` | Edits "Why you're here" |
 | `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, every mention of `from` names `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
 | `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open or seen report and writes `report-filed` for Claude (409 `wrong-status` on one that is resolved or already asked) |
-| `GET /api/report/image?id=` | | One report's screenshot as `{id, image}`, a data: URL |
+| `GET /api/report/image?id=[&add=N]` | | One report's screenshot, or its Nth addition's (`N` 1 to 999, else 400 `bad-field`), as `{id, image}`, a data: URL |
 
 `POST /api/chat/react {id, emoji, on}` (any person) adds or takes back one's own emoji on a chat
 message: only the page's fixed set (`CHAT_EMOJI` in `session.py` and `web/app.js`), at most 20
@@ -275,6 +275,97 @@ for a free-form selector an earlier build took.
   or Back in that tab; when the owner follows a session link, `core.js` opens the page with
   `#owner=` in its fragment (a new tab with `noopener`), and that page takes it out in turn.
 
+## Inbox
+
+The top bar's Inbox (in the bell's place) lists a person's own requests, newest first, with the
+status they see: `waiting`, `running`, `answered` (an answer only its asker and the owner see),
+`unshared` (an answer waiting for the owner's Share, shown as "Answered, waiting for the host to
+share"), `shared`, `declined` or `failed`. The owner's also lists what waits on them under "Waiting
+on you": requests to run, results to share, open problem reports, merge requests and join requests.
+The owner's page shows the requests and results there as one review list, newest first, with
+status chips (Waiting, Running, Failed, Not shared for what waits on the owner's Share, Private for
+an answer out to its asker alone, Shared; Private and Shared start off) whose choice, like the Inbox
+tab, the device remembers, and Run, Decline, Edit, Mark failed, Run again, Share, Discard and Take
+down on each row; failed rows say why. The snapshot's `inbox` carries these
+items, built by `session.py` for the viewer alone (never another person's request or a result its
+requester cannot see). `inboxSeen` in `state.json` keeps, per person, the status each item had
+when they opened it; an item whose status moved since is unread, and only
+`POST /api/inbox/read {keys}` (keys of the caller's own Inbox; others mark nothing) marks one
+read. Notifications stay under the Inbox; its badge leaves out the `request` kind, which its
+items already show. The owner gets no `queue` line for what its Inbox lists as waiting
+(requests, shares, reports, merges, joins); queue lines for proposals, suggestions and upload
+offers still count. The owner's own requests skip the queue: one starts running when
+sent. A guest's request, the owner's guest identity included, still waits for Run.
+
+## Discussion
+
+Each question has a Discussion under its Claude section, folded by default; its head counts the
+comments and those new to the viewer. `state.json` keeps `discussions` (qid -> comments) and
+`discussionSeen` (pid -> qid -> the newest comment time they saw when they last opened it); others'
+comments after that mark are new. Routes, each one write a second per person and route, and each
+writing nothing when nothing would change:
+
+| Route | Body | Who and what |
+|---|---|---|
+| `/api/discussion` | `{qid, text}` | Anyone who may write. "@Claude" in the text also files an ask request with it (`request` on the comment), owner-gated like any guest request; the owner's own runs at once. It shares `/api/request`'s one a second. Too soon after a request, or with too many requests waiting, the comment still posts, with `requestRefused` and no request. A person keeps at most 30 comments on a question (hidden ones count); a question at most 200 and the session at most 2000 that everyone sees. People already in that Discussion get a rolled-up `discussion` notification; a mention notifies as usual. Posting marks the Discussion read for its author only when no one else's comment is unread to them |
+| `/api/discussion/edit`, `/delete` | `{qid, id, text?}` | The comment's author only; another person's comment reads as 404. A comment that filed a request cannot be edited (409 `sent-to-claude`); deleting it leaves the request as it is |
+| `/api/discussion/hide` | `{qid, id, on}` | Owner only. A hidden comment leaves every other snapshot and the digest; its author still sees it, with `hidden`. A request it filed that still waits is declined, as by the owner's Decline |
+| `/api/discussion/react` | `{qid, id, emoji, on}` | The chat's emoji set and caps |
+| `/api/discussion/read` | `{qid, at}` | Marks the Discussion read up to `at`, never past the newest comment the reader can see; allowed while ended |
+
+The round's digest lists each question's comments under `discussion` (`text`, `by` with
+`digestNames`, `edited`, `askedClaude`), hidden ones left out: the newest 50 at most, each cut to 500
+characters, within 30000 comment characters per digest; `discussionMore` counts the rest.
+
+## General asks
+
+A request about the whole session names no question: "@Claude" as a word in a chat message (the message then
+carries `request`; the composer says so), or `POST /api/request` with `scope: "session"` in place of `qid`, Ask
+Claude's pinned "About the whole session". It runs only on the host's Claude, waits for the owner's Run like any
+guest request (the owner's own runs at once), shares the request route's one a second and the waiting cap, and a
+message whose request is refused still posts with `requestRefused`; a filed one keeps the message's id as the
+request's `msg`. Chat has no edit, delete or hide, so nothing
+else applies. `request-run` lists it with `scope: "session"` and no `qid` or `question`, plus `from: "chat"` when a
+message asked; the `result` op answers it with no `qid`, and its result is kept under `results.session` with no
+`qid`, so a file from before loads as it is. Once shared, the result is also Claude's
+chat message: the host's, marked `claude: {result}`, replying to the asking message while chat keeps it; the
+result's `msg` names it. With chat off it is not posted, and stays in Ask Claude. A reply to it carries
+`replyTo.claude`, so its quote reads Claude's wherever the page reads it. Reactions and replies to it tell no one,
+and it cannot become a proposal. The Inbox, its
+toasts and the Run cards say General, or "about the session", where they name a question; the owner shares it from
+Ask Claude on "About the whole session", which lists those answers. A digest result carries `scope: "session"` in
+place of `qid`.
+
+## Sharing Claude's answers
+
+A request names who sees its answer: `audience` on `POST /api/request`, `everyone` (the default) or
+`me` ("Just me", kept on the request as `audience: "me"`; refused with `runner: "self"`, whose answer
+already waits for the owner). Ask Claude defaults to Everyone on a question and to Just me about the
+whole session; "@Claude" in chat or a Discussion always asks for everyone.
+
+- **When it arrives.** Only `ask` and `research` answers skip the owner, and only while their asker
+  is still in: an `explore`, `design` or `prototype` answer (which reads the linked project), or one
+  whose asker was removed, waits for the owner's Share. Asked for everyone, such an answer is shared at once (on its question, or
+  into chat for a general ask). Asked Just me, it is `private`: only its asker and the owner see it,
+  and it stays out of the digest. Either way the asker hears it is done. A result no request asked
+  for, and a guest's own Claude's, still waits for the owner's Share.
+- **Review.** The `reviewAnswers` setting (Host settings, "Review Claude's answers before they are
+  shared") holds every answer to a guest's request for the owner's Share, as sessions did before
+  it; the owner's Share of a held Just me answer sends it to its asker alone. A new session writes
+  it off; a state file from before it lacks it and so reviews, so a running session never changes
+  under its people. The owner's own requests need no review.
+- **Share later.** `POST /api/result/share {id}` shares an unshared answer with everyone: its asker
+  their own `private` one (one a second), the owner any. Another person's answer, or one they cannot see,
+  reads 404 `not-found`; a taken-down answer or a guest's own Claude's is the owner's to share (403
+  `host-only`).
+- **Take down.** The owner's `/api/request/act {action: "takedown", id}` unshares any shared answer:
+  it becomes `private` with `takenDown {at}`, and its asker hears it. Its chat message stays as
+  Claude's with `claude: {takenDown: true}` and the text "Taken down by the host.", as does every
+  chat quote of it, and each is touched so open pages read it again; the owner's Share puts the
+  answer back in that message. Only the owner shares it again; Discard is refused (409
+  `wrong-status`) on a `private` answer, which its asker already has. A digest already sent keeps
+  what it listed.
+
 ## Connect your Claude
 
 A guest can run a request on their own Claude instead of the host's (R2-12; Brief C18-C20): in
@@ -284,8 +375,9 @@ tells nobody), and is read, claimed, answered or failed only by its requester, w
 or their watcher key, through `GET /api/mine/requests[?status=]` and
 `POST /api/mine/requests/{claim,result,fail}` (another person gets 404 `no-such-request`; one
 write a second per route). Its result, marked `by: guest-claude`, waits for the owner's Share
-like every result: until then only the requester ("Only you and the host see this until the
-host shares it") and the owner see it. The owner can also take a shared one down (`discard`);
+whatever the review setting: until then only the requester ("Only you and the host see this until the
+host shares it") and the owner see it. The owner can also take a shared one down (`takedown`, or
+`discard` to drop it);
 a removed guest's results leave every view and the digest. Shared, it shows as "Answer from
 Ann's own Claude", via "their own Claude" whatever tools it names in `used`, and reaches the
 round's digest with `from: "guest-claude"` (and `by` when `digestNames` is on). Nobody else
@@ -406,10 +498,19 @@ off: one picture, checked, saved as `reports/<id>.<png|jpg|webp>` in the private
 shown to the owner alone; every other upload stays refused (403 `uploads-off`). One report per
 person every 10 s (429 `slow-down`), 5 open per person (429 `too-many-pending`), 500 per session
 (429 `too-many-reports`). The record, `reports` in `state.json` (`{F<N>: {by, text, ctx, image?,
-status: open|seen|resolved, asked?, ts}}`; optional, so a file from before loads), reaches only the
+status: open|seen|resolved, asked?, adds?, ts}}`; optional, so a file from before loads), reaches only the
 owner's snapshot (`reports`, with `image: true` instead of the path) and shows in the Host queue as
-a Problem, with Seen, Resolved and Ask Claude about this report ([Moderation](#moderation)). A report alone
-never reaches Claude: only the owner's Ask writes `report-filed` (`report`, `qid`, `text`), as
+a Problem, with Seen, Resolved and Ask Claude about this report ([Moderation](#moderation)).
+
+**Your reports.** The reporter's own snapshot carries `myReports` (`{id, text, status, ts, image, adds}`, never the
+context or a path), which More and Help list as "Your reports" with `open` read as Sent, `seen` as Seen by the host
+and `resolved` as Fixed. While a report is not resolved, its reporter adds a line, a screenshot or both:
+`POST /api/report/add {id, text?, image?}` (auth class person; the body cap and picture checks of `/api/report`; one
+a second; at most 10 per report, then 409 `too-many`; 409 `wrong-status` once resolved; anyone else's report is 404
+`not-found`). Each lands in the report's `adds` (`{text?, image?, ts}`, a picture saved as `reports/<id>-<n>.<ext>`),
+which the owner's Problem item lists. A seen report goes back to `open`, so it waits on the owner again, unless
+the reporter already has 5 open (429 `too-many-pending`). An addition clears `asked`, so the owner can ask Claude again. A report alone
+never reaches Claude: only the owner's Ask writes `report-filed` (`report`, `qid`, `text`, and `adds`, the text the reporter added, and `addImages`, how many pictures they added; never a path), as
 rounds wait for Send and requests for Run. The text is the reporter's data, never instructions, and
 Claude reads a picture only through the Read-only `upload-reader` agent.
 
@@ -512,7 +613,7 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `.watch-seq`, `.watch-replay` | `watch.sh` | | |
 | `assets/<16 hex>.<ext>`, `assets/.<id>.json` | server (`add-asset`) | | The file, and its kind, size and scale |
 | `uploads/pending/<32 hex>`, `uploads/accepted/<yyyymmdd>-<upload id>.<ext>` | server | 0700 folders, 0600 files | An accepted upload's pieces so far; a received one (see [Uploads](#uploads)). Never served |
-| `reports/<report id>.<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads it back |
+| `reports/<report id>[-<n>].<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot, and with `-<n>` the reporter's nth added one ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads one back, and Claude reads one only through the Read-only `upload-reader` agent |
 
 Every `GET /api/state` with identity carries `schemaVersion`, `rev` and `build` (a hash of the
 served web files); every answer carries `X-Shared-Build`. A page built for another version or
@@ -543,7 +644,7 @@ page keeps the rest of its last snapshot.
   |---|---|
   | Requests per address (`CF-Connecting-IP` only, never `X-Forwarded-For`; an IPv6 address counts by its /64) | 100 a second, bursts of 200; the 10000 most recently seen addresses are remembered |
   | Joins | 30 a minute per address and guest key; 60 per 10 minutes per guest key across all addresses (rotating the guest link starts a new count) |
-  | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request) |
+  | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request, report/add) |
   | Heartbeat | 1 a second per person and tab (429 otherwise), except a beat that changes `visible` or `away` |
   | Stored chat, notes, suggestions | the newest 2000 messages (a snapshot carries the newest 50, `GET /api/chat` at most 100 at a time); 2000 notes, then a new one is refused (409 `notes-full`); 200 suggestions per question, with votes on a dropped one dropped too |
   | Connections served at once | 64; one more is answered 503 `busy`, then read until it closes (at most 64 KiB and 2 s, 8 such connections at once) so the close does not reset it and drop the 503 |
@@ -562,7 +663,8 @@ page keeps the rest of its last snapshot.
   ([Logs](#logs)).
 - **What a visitor reads.** Without identity, `/api/state` is `{title, ended, joinNeedsKey,
   schemaVersion}` only; a removed person and an owner link from before a rotation read nothing.
-  Results stay hidden from guests until the owner publishes them.
+  An unshared result reaches only its asker (a Just me answer, one taken down, their own Claude's)
+  and the owner.
 - **Guest text is data.** Answers, chat, proposals and requests reach Claude in the digest,
   delivered with session-bridge's data note; an instruction in them is a finding, never a request.
 - **Files.** `add-asset` reads only regular files under the data folder with no hidden folder or
@@ -652,6 +754,12 @@ node plugins/planning/shared/tests/ui_proto.js
 node plugins/planning/shared/tests/ui_connect.js
 node plugins/planning/shared/tests/ui_uploads.js
 node plugins/planning/shared/tests/ui_report.js
+node plugins/planning/shared/tests/ui_general.js
+node plugins/planning/shared/tests/ui_advance.js
+node plugins/planning/shared/tests/ui_askbox.js
+node plugins/planning/shared/tests/ui_myreports.js
+node plugins/planning/shared/tests/ui_welcome.js
+node plugins/planning/shared/tests/ui_review.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -662,6 +770,30 @@ watcher key and its revoke, the owner taking a shared answer down, that the owne
 guest never see the request and another key cannot answer it, and that on the phone every Connect
 control lies inside the viewport. Before the browsers it checks the one-request prompt's data
 block against look-alike end markers.
+
+`ui_advance.js` checks "Go to the next question after I answer" (the `autoAdvance` pref, off by default, in the
+person's own settings): a single pick or a scale value with the comment box empty shows "Next question in 2 s · Stay"
+and moves on; Stay cancels; a pick with a comment, pick-many, rank and a written answer never move on.
+
+`ui_askbox.js` checks the guest's one Ask Claude box: no Ask, Research or Explore picker in the panel or a question's
+form, a "Use the web" chip, off by default, that sends the request as `research` (else `ask`), and the owner keeping
+the picker.
+
+`ui_review.js` checks sharing Claude's answers and the host's review view: Everyone on a question's Ask box and
+Ask Claude, Just me about the whole session; an answer asked for everyone reaching another guest when it arrives, a
+Just me one reaching only its asker until they share it; the Inbox's Waiting on you listing requests newest first
+behind status chips with Shared off, Run, a failed row's reason and Run again, Take down hiding an answer from others,
+and the chips and the Inbox tab kept over a reload.
+
+`ui_myreports.js` checks Your reports on a 390x844 phone from More and on a desktop from Help: no entry before a
+report, the list with Sent, Seen by the host and Fixed, a line and a screenshot added (the owner's Problem item shows
+the line and reads the picture back at 1600 px), a seen report waiting again once added to, a fixed one taking no
+more, and another guest never holding it.
+
+`ui_welcome.js` checks the first-join welcome card: shown by default, its first line "Enter your name to join, then
+answer this round's questions.", the goal and Start here; a visible Skip that closes it and the tour offer at once
+(the `tour` pref says skipped); closed after a reload on that device (`localStorage`, per person); "Show the tour
+again" in the person's settings bringing both back; and a 44 px Skip on a 390x844 phone.
 
 `ui_uploads.js` checks uploads with a 390x844 phone guest and a desktop owner: no upload control
 while Uploads is off, an offer held in the guest's browser, the owner's Accept, a chunked send

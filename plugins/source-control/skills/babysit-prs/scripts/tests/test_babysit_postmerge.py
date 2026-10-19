@@ -1307,6 +1307,9 @@ class Remediation(CheckCase):
             f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=read-back -->",
         )
         self.assertIn(f"git revert {MERGE_SHA}", body)
+        # Any open record holds the rung off, and a red main reopens a closed one.
+        self.assertIn("rung off while any demotion record is open", body)
+        self.assertIn("then close every open demotion record directly", body)
         self.assertIn("https://github.com/example-org/example-repo/pull/7001", body)
         self.assertIn("labels[]=needs-human", create)
 
@@ -1343,6 +1346,78 @@ class Remediation(CheckCase):
             {"body": c, "user": {"login": "github-actions[bot]"}} for c in comments
         ]
         pm.remediate(REPO, self.check(), agent_identity=IDENTITY)
+
+    def canary_failure_with_alert_record(
+        self,
+        run: int,
+        marker: str = f"<!-- babysit-merge-demotion sha={'4' * 40} signal=canary -->",
+    ) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(21, conclusion="failure"),
+        )
+        # The alert workflow keys its marker on the run's head SHA, not the
+        # merge commit.
+        self.gh.issues = [
+            {
+                "number": 8004,
+                "state": "open",
+                "body": f"{marker}\n- Failing run: {RUN_URL}/{run}/attempts/1",
+                "user": {"login": "github-actions[bot]"},
+            }
+        ]
+        pm.remediate(REPO, self.check(), agent_identity=IDENTITY)
+
+    def test_the_alert_record_of_the_same_run_is_not_duplicated(self) -> None:
+        self.canary_failure_with_alert_record(21)
+        self.assertEqual(
+            [w for w in self.record_writes() if f"repos/{REPO}/issues" in w], []
+        )
+
+    def test_an_alert_record_of_another_run_does_not_stand_in(self) -> None:
+        self.canary_failure_with_alert_record(22)
+        self.assertTrue(any(f"repos/{REPO}/issues" in w for w in self.record_writes()))
+
+    def test_a_run_number_sharing_the_prefix_does_not_stand_in(self) -> None:
+        # runs/210 is not runs/21.
+        self.canary_failure_with_alert_record(210)
+        self.assertTrue(any(f"repos/{REPO}/issues" in w for w in self.record_writes()))
+
+    def test_a_same_run_post_merge_failure_record_does_not_stand_in(self) -> None:
+        # The alert's not-demoted record never holds the gate.
+        self.canary_failure_with_alert_record(
+            21, marker=f"<!-- post-merge-failure sha={'4' * 40} signal=canary -->"
+        )
+        self.assertTrue(any(f"repos/{REPO}/issues" in w for w in self.record_writes()))
+
+    def test_one_red_run_over_two_merges_files_one_record(self) -> None:
+        # A red full run on a SHA containing both merges charges each, under
+        # its own marker; the second comments nowhere new, files nothing.
+        second = "6" * 40
+        self.gh.descendants.add(second)
+        self.gh.merged = [
+            identity_merge(),
+            identity_merge(number=7002, mergeCommit={"oid": second}),
+        ]
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, "failure", run_attempt=2),
+        )
+        self.gh.attempts[(11, 1)] = dispatch_run(11, "failure")
+        verdict = self.check()
+        self.assertEqual(sorted(f.merge.number for f in verdict.failures), [7001, 7002])
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        files = [w for w in self.record_writes() if w[-1].startswith("labels[]=")]
+        self.assertEqual(len(files), 1)
+        self.assertEqual(report["issues"], [9001])
+        self.assertEqual(report["comments"], [])
+        # The one record names the other charged merge and reverts neither.
+        body = next(a for a in files[0] if a.startswith("body="))
+        self.assertIn(f"- Also charged by this run: #7002 (`{second}`)", body)
+        self.assertNotIn("git revert", body)
 
     def record_writes(self) -> list[list[str]]:
         return [w for w in self.gh.writes() if "dequeuePullRequest" not in " ".join(w)]
@@ -2377,8 +2452,9 @@ class SeveralInFlight(CheckCase):
         )
         self.assertFalse(any(gate.verified(m.merge) for m in verdict.merges))
         report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
-        # One demotion record per charged merge.
-        self.assertEqual(report["telemetry"], {"demotion_events": 3})
+        # One demotion record per failing run, naming every charged merge;
+        # any open record holds the gate for all of them.
+        self.assertEqual(report["telemetry"], {"demotion_events": 1})
         self.assertEqual(report["errors"], [])
 
 

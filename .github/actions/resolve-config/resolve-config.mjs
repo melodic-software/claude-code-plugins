@@ -23,6 +23,7 @@ import {
   resolveLimits,
   resolveLoop,
   resolveRoute,
+  resolveWipLeaf,
 } from "./resolve.mjs";
 
 const DEFAULT_BASE_PATH = ".base";
@@ -272,6 +273,15 @@ export function limitsFromBase(env) {
   const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
   const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
   return resolveLimits(filesUnderBase(basePath, configPath), { configPath });
+}
+
+// The base config's resolved limits and its wip leaf as set, read once, for
+// the WIP cap check.
+export function wipFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  const files = filesUnderBase(basePath, configPath);
+  return { limits: resolveLimits(files, { configPath }), wip: resolveWipLeaf(files, { configPath }) };
 }
 
 // The base config's resolved `loop` caps, likewise.

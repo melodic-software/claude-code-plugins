@@ -143,7 +143,7 @@ test("prepare: merge-base leaves out the commit tool and the instruction to comm
 // pr-run-activity.md, "Skill activities": each listed check runs from the base
 // copy against the checkout, through a wrapper that takes no arguments, and
 // that wrapper is the only Bash the runner grants.
-function withChecks(checks, overrides = {}) {
+function withChecks(checks, overrides = {}, selected = {}) {
   const dir = mkdtempSync(path.join(root, "checks-"));
   const workspace = path.join(dir, "workspace");
   mkdirSync(path.join(workspace, "scripts"), { recursive: true });
@@ -152,7 +152,7 @@ function withChecks(checks, overrides = {}) {
   writeFileSync(path.join(base, "scripts", "check-x.sh"), script, { mode: 0o755 });
   writeFileSync(path.join(workspace, "scripts", "check-x.sh"), "#!/usr/bin/env bash\necho head code\n", { mode: 0o755 });
   const file = path.join(dir, "resolved.json");
-  writeFileSync(file, JSON.stringify({ selected: { args: "ci", checks } }));
+  writeFileSync(file, JSON.stringify({ selected: { args: "ci", checks, ...selected } }));
   const checksDir = path.join(dir, "lane-checks");
   return { workspace, checksDir, ...stage({ RESOLVED: file, CHECKS_DIR: checksDir, WORKSPACE: workspace, ...overrides }) };
 }
@@ -176,6 +176,112 @@ test("a listed check gets a no-argument wrapper that runs the base copy against 
     run.stdout.trim(),
     `from=${path.join(checksDir, "scripts", "check-x.sh")} data=${workspace} pwd=${workspace} args=--check`,
   );
+});
+
+// #8310: self-checks are the skill's own advisory checks; the skill runs
+// them through the same wrapper as checks, and the runner does not rerun them.
+test("a self-check gets the same no-argument wrapper as a check", () => {
+  const { status, allowed, args, workspace, checksDir } = withChecks(undefined, {}, {
+    "self-checks": ["scripts/check-x.sh --check"],
+  });
+  assert.equal(status, 0);
+  const wrapper = path.join(checksDir, "bin", "check-x");
+  assert.deepEqual(wrapperRules(allowed), [`Bash(${wrapper})`]);
+  assert.ok(args.includes(wrapper), "the system prompt names the self-check");
+  const run = spawnSync(wrapper, [], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(
+    run.stdout.trim(),
+    `from=${path.join(checksDir, "scripts", "check-x.sh")} data=${workspace} pwd=${workspace} args=--check`,
+  );
+});
+
+test("checks and self-checks each get a wrapper, and a script in both fails red", () => {
+  writeFileSync(path.join(base, "scripts", "check-y.sh"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+  try {
+    const both = withChecks(["scripts/check-x.sh --check"], {}, { "self-checks": ["scripts/check-y.sh"] });
+    assert.equal(both.status, 0);
+    assert.deepEqual(wrapperRules(both.allowed), [
+      `Bash(${path.join(both.checksDir, "bin", "check-x")})`,
+      `Bash(${path.join(both.checksDir, "bin", "check-y")})`,
+    ]);
+    const dup = withChecks(["scripts/check-x.sh --check"], {}, { "self-checks": ["scripts/check-x.sh"] });
+    assert.notEqual(dup.status, 0);
+    assert.match(dup.stdout, /::error::two checks run the same script/);
+  } finally {
+    rmSync(path.join(base, "scripts", "check-y.sh"));
+  }
+});
+
+// #8310: check-affected.sh passes shellcheck and markdownlint the configs beside
+// its copy, and run-ruff.sh reads its pin from .github/requirements-ci.txt there;
+// without them the lane's shellcheck reports what CI's does not and ruff skips.
+test("a listed check's copy carries the base's shellcheck, markdownlint and ruff-pin files", () => {
+  mkdirSync(path.join(base, ".github"), { recursive: true });
+  writeFileSync(path.join(base, ".shellcheckrc"), "external-sources=true\n");
+  writeFileSync(path.join(base, ".markdownlint-cli2.jsonc"), '{ "config": { "MD013": false } }\n');
+  writeFileSync(path.join(base, ".github", "requirements-ci.txt"), "ruff==0.0.1\n");
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-x.sh --check"]);
+    assert.equal(status, 0);
+    assert.equal(readFileSync(path.join(checksDir, ".shellcheckrc"), "utf8"), "external-sources=true\n");
+    assert.equal(
+      readFileSync(path.join(checksDir, ".markdownlint-cli2.jsonc"), "utf8"),
+      '{ "config": { "MD013": false } }\n',
+    );
+    assert.equal(readFileSync(path.join(checksDir, ".github", "requirements-ci.txt"), "utf8"), "ruff==0.0.1\n");
+  } finally {
+    rmSync(path.join(base, ".shellcheckrc"));
+    rmSync(path.join(base, ".markdownlint-cli2.jsonc"));
+    rmSync(path.join(base, ".github"), { recursive: true });
+  }
+});
+
+// A skill that commits runs its checks, fixes and re-runs them before it
+// commits, since the checks read the working tree (#8319 review).
+test("a committing skill with checks is told to commit after the checks and their fixes", () => {
+  const { status, args, allowed } = withChecks(["scripts/check-x.sh --check"]);
+  assert.equal(status, 0);
+  assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
+  const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
+  assert.match(systemPrompt, /Run the checks before you commit: run them, fix, run them again, then commit/);
+});
+
+// A skill with checks but no commit tool (merge-base: the runner commits what
+// the skill staged) must not be told to commit its check fixes.
+test("prepare: merge-base with checks is never told to commit", () => {
+  const { status, args, allowed } = withChecks(["scripts/check-x.sh --check"], { PREPARE: "merge-base" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.includes(COMMIT_TOOL), allowed.join(" | "));
+  const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
+  assert.match(systemPrompt, /run each of these repository checks/);
+  assert.doesNotMatch(systemPrompt, /\bcommit/i);
+});
+
+// #8319 review: a check's wrapper gets the verify-script wrapper's
+// environment, so the check and what it runs never hold the GitHub token or
+// load system, global, hook or fsmonitor git config.
+test("a listed check's wrapper drops the GitHub token and pins git config", () => {
+  const script =
+    '#!/usr/bin/env bash\necho "gh=${GH_TOKEN-unset} github=${GITHUB_TOKEN-unset} global=$GIT_CONFIG_GLOBAL system=$GIT_CONFIG_NOSYSTEM hooks=$(git config core.hooksPath) fsmonitor=$(git config core.fsmonitor)"\n';
+  mkdirSync(path.join(base, "scripts"), { recursive: true });
+  writeFileSync(path.join(base, "scripts", "check-env.sh"), script, { mode: 0o755 });
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-env.sh"]);
+    assert.equal(status, 0);
+    const run = spawnSync(path.join(checksDir, "bin", "check-env"), [], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, GH_TOKEN: "secret-gh", GITHUB_TOKEN: "secret-github" },
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(
+      run.stdout.trim(),
+      "gh=unset github=unset global=/dev/null system=1 hooks=/dev/null fsmonitor=false",
+    );
+  } finally {
+    rmSync(path.join(base, "scripts", "check-env.sh"));
+  }
 });
 
 for (const check of ["scripts/check-x.sh; rm -rf /", "../scripts/check-x.sh", "scripts/check-x.sh --x=$(id)", "plugins/a.sh"]) {

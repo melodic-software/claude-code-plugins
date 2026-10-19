@@ -39,7 +39,7 @@
 // times per version of the lane workflow files, a WIP cap skip without a
 // per-issue bound. It waits limits.reset-clamp-min hours after the run ended, past any reset
 // the broker passes on (its Retry-After is at most an hour), and only while
-// the lanes App has fewer than limits.wip-cap pull requests open. It is no
+// the issue lane's WIP cap check (check-wip-cap.mjs) does not pause it. It is no
 // limit stop, so it never counts toward handing the issue to a person.
 //
 // When that label's run opened a pull request instead, the newest one the
@@ -79,9 +79,9 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { atCap, openLanePrs } from "../../actions/check-wip-cap/check-wip-cap.mjs";
+import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
-import { readLimits } from "../work-resolve-issue/limits.mjs";
+import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -494,7 +494,7 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
       return { reason: `its lane run did no work; it is re-fired after ${new Date(due).toISOString()}` };
     }
     if (await wipCapped()) {
-      return { reason: `its lane run did no work, and the lanes App has ${limits["wip-cap"]} or more pull requests open` };
+      return { reason: "its lane run did no work, and the issue lane is paused over its WIP or held cap" };
     }
     const key = await workflowKey();
     // A record after the newest label is one whose label write failed: the
@@ -603,7 +603,7 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
 
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
 // Returns how many reads or writes failed.
-async function restartLimited({ github, actions, repo, bot, humans, now, limits, cap = limits["restarts-per-run"] }) {
+async function restartLimited({ github, actions, repo, bot, humans, now, limits, wip, remaining, cap = limits["restarts-per-run"] }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -620,9 +620,9 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
       }
       return shas.join("-");
     })());
-  // The WIP cap, from one search per run; a count that cannot be read is under it.
+  // The issue lane's pause, read once per run; a read that fails never pauses.
   let capped;
-  const wipCapped = () => (capped ??= openLanePrs(github, { repo, bot }).then((count) => atCap(count, limits)));
+  const wipCapped = () => (capped ??= checkWip(github, { repo, bot, now, limits, wip, remaining }).then((status) => status.paused));
   let open;
   try {
     open = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}`)).filter(
@@ -721,7 +721,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   return failed;
 }
 
-export async function main({ env = process.env, github, actions, now = Date.now() } = {}) {
+export async function main({ env = process.env, github, actions, now = Date.now(), rate = searchRateLimit() } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -749,7 +749,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     }
     const repo = env.GITHUB_REPOSITORY;
     const humans = loadTrustedList(env.TRUSTED_ACTORS_PATH).humans;
-    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
     const closed = sweep
       ? await closedSince(github, repo, new Date(now - LOOKBACK_HOURS * 3_600_000))
       : [Number(event.issue.number)];
@@ -760,8 +760,8 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     let failed = await labelUnblocked({ github, repo, closed, sweep, humans, bot });
     if (sweep) {
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
-      const limits = readLimits(env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`);
-      failed += await restartLimited({ github, actions, repo, bot, humans, now, limits });
+      const resolved = env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`;
+      failed += await restartLimited({ github, actions, repo, bot, humans, now, limits: readLimits(resolved), wip: readWip(resolved), remaining: rate.remaining });
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {

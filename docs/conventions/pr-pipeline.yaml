@@ -166,8 +166,19 @@ activities:
     # Validates the format of every changelog fragment before the skill
     # reports done. A missing fragment is caught on the PR by ci-status
     # (--check-required needs committed work, and the lane commits through
-    # the API, not in the checkout).
+    # the API, not in the checkout). After the skill, work-resolve-issue.yml's
+    # run-checks job runs each check again itself, from the base copy against
+    # the lane branch with the base's scripts/, and report-outcome stops a done
+    # run whose checks failed or did not run, whatever the outcome file says.
     checks: ["scripts/check-changelog-fragments.sh --check"]
+    # Runs the diff-scoped lint checks a push would face (markdown,
+    # shellcheck, exec bits, changelog fragments, plugin validation) in the
+    # run, so the skill fixes what they report before it commits and the PR
+    # does not open red. Advisory: unlike checks, the runner does not run
+    # these again, and a failure the skill cannot fix still opens the PR,
+    # named in its report. --uncommitted checks the work tree as the commit
+    # the API would make, since the lane commits through the API.
+    self-checks: ["scripts/check-affected.sh --uncommitted"]
     # Repository scripts the run may call with any arguments it chooses, to
     # check its work the way an issue's done-when says. Each runs from a
     # read-only copy of the base. A script that changes files, runs code from
@@ -346,6 +357,20 @@ models:
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
 
+# The funding role whose secrets pay for each Claude lane's runs (README.md,
+# Funding). A lane on ci-workflows' run-claude-cli action (today only intake)
+# passes its role with <ROLE>_CLAUDE_API_KEY and <ROLE>_CLAUDE_CODE_OAUTH_TOKEN,
+# role upper-snake; the others are the role each lane takes when it moves there.
+funding:
+  intake: automations
+  pr-unblock: automations
+  fix-ci: automations
+  pr-verify: automations
+  pr-refine: automations
+  claude-review: reviews
+  claude-security-review: reviews
+  work-resolve-issue: issue-lane
+
 loop:
   review-rounds: 3
   dependency-review-rounds: 2
@@ -363,11 +388,33 @@ limits:
   # a timeout). 1 retries once; a second failure on the same head is a
   # pattern for a person, not a retry.
   fix-ci-restarts: 1
-  # Open lane PRs at which the issue lane stops starting runs. Sized as
-  # measured lane merges per hour (about 1.5) times an 8-hour open-to-merge
-  # target. Revisit after merge.max-in-flight (#8251) lands and merges per hour
-  # are re-measured.
+  # The issue lane's WIP cap when the lane merge rate cannot be read; the
+  # wip block below derives it otherwise.
   wip-cap: 12
+  # Hours of issue-lane admissions the admitted backlog (open issues with
+  # agent-ready) may hold before new agent-ready labels pause.
+  admission-window-hours: 24
+  # Share of the lane's hourly merge rate admitted per hour; the release point
+  # is this factor times hourly merges times admission-window-hours.
+  admission-factor: 0.8
+
+wip:
+  # Cap = lane PRs merged per hour over the window times this target.
+  target-lead-time-hours: 2
+  # Floor under the computed cap: the earlier fixed cap (#8252). It stops a
+  # day with few merges from shrinking the cap until the lane stalls.
+  min-cap: 12
+  merge-rate-window-hours: 24
+  # Lane PRs opened in the window may be at most this share of those merged
+  # in it (not limits.admission-factor, which sizes the agent-ready backlog).
+  opened-to-merged-ratio: 0.8
+  # Held lane PRs (needs-human, do-not-merge, or a "Hold: a human merges
+  # this" body line) count here, not against the cap. Step down to 30 later.
+  held-cap: 60
+  held-alarm-hours: 24
+  # Over the WIP or held cap the lane pauses from this date; the owner clears
+  # it to only alert. Empty: over a cap the lane alerts and keeps starting runs.
+  pause-from: "2026-10-18"
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
@@ -385,24 +432,88 @@ merge:
   # The merge queue tests each PR against the latest base plus the PRs ahead
   # of it.
   max-in-flight: 5
+  # Minutes pr-merge's gate loop runs before it starts no further candidate;
+  # the next run starts after the last one reached. Runs 39190604942,
+  # 39187691831 and 39183126369 (the last three scheduled sweeps that ran
+  # the gate) checked 37-39 candidates each: median 30-39 s, longest
+  # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
+  # candidate included, inside the 15 minutes between scheduled runs.
+  gate-budget-minutes: 10
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge
-  # verdict at the head and ci-status passes. Owner decision: no Dependabot
-  # pull request waits on a human (docs/adr/0073).
+  # verdict at the head and ci-status passes. Owner decision 2026-10-18: a
+  # major update, or one whose version cannot be read (a SHA pin) or whose
+  # sources disagree, waits for a human whatever the verdict (`majors: hold`); `review` lets the verdict
+  # merge it.
   dependabot:
     mode: enforce
-  # Owner decision Q624: the lane denies no path and applies no HIGH path
-  # floor, size cap or C2 contradiction check; the verifier verdict, the kill
-  # switch, the fork and Dependabot refusals, lane-author and single-closing-
-  # issue eligibility and the demotion stop still hold. Each
-  # removed check comes back by setting it here: list denied-paths, set
-  # `high-path-floor: true` or `c2-contradictions: true`, or set
-  # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
+    majors: hold
+  # The HIGH path floor, floor-paths, floor-script-scopes and the capability
+  # check are on (owner decision 2026-10-18, reversing Q661): lanes may edit
+  # runnable plugin files (the #8184 scope), and fix-ci's patch guard
+  # covers only .github/** and agent instruction paths. The scorer's fixed HIGH floor (.github/**,
+  # docs/conventions/**, agent instructions, hooks, lib/, scripts/, package
+  # manifests and more) now applies in the pr-merge lane too. A lane PR
+  # touching a floor path or script, or changing
+  # capability frontmatter in a SKILL.md, agents/**/*.md or commands/**/*.md,
+  # scores HIGH and waits for a human, who merges it in person. A denied path
+  # would instead make the PR ineligible. The switch governs both lanes: in
+  # the local babysit lane, false would leave out floor-paths,
+  # floor-script-scopes, the capability check and the floor entries for
+  # plugin monitors and workflows, keeping the rest of the fixed floor. The
+  # verifier verdict, both AI review lanes, ci-status and the post-merge
+  # revert breaker still gate every lane PR.
+  # Owner decision Q624 still holds for the rest: no denied path, size cap or
+  # C2 contradiction check. Each comes back by setting it here: list
+  # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
+  # or `max-changed-lines` (the earlier 8 and 400).
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
-  # provenance work only; scoped lane PRs merge on the verifier verdict.
+  # provenance work only; scoped lane PRs off the HIGH floor merge on the
+  # verifier verdict.
   diff-check:
     denied-paths: []
+    high-path-floor: true
+    floor-paths:
+      - "**/bin/**"
+      - "**/.lsp.json"
+      - "**/settings*.json"
+      - "plugins/ai-slop/scripts/**"
+      - "plugins/ai-slop/skills/*/scripts/**"
+      - "plugins/source-control/scripts/**"
+      - "plugins/source-control/skills/*/scripts/**"
+      - "plugins/discovery/scripts/**"
+      - "plugins/discovery/skills/*/scripts/**"
+      - "plugins/knowledge/scripts/**"
+      - "plugins/knowledge/skills/*/scripts/**"
+      - "plugins/skill-quality/scripts/**"
+      - "plugins/skill-quality/skills/*/scripts/**"
+      - "plugins/testing/scripts/**"
+      - "plugins/testing/skills/*/scripts/**"
+      - "plugins/autonomy/scripts/**"
+      - "plugins/autonomy/skills/*/scripts/**"
+      # The directories of the scripts a SessionStart or PreToolUse hook runs
+      # by path, outside the plugin's hooks/, held whole so a sibling module
+      # cannot shadow one of their imports (pydeps.py, arm_observer.py,
+      # destructive_guard.py).
+      - "plugins/animation/scripts/**"
+      - "plugins/explainer-video/scripts/**"
+      - "plugins/speech/scripts/**"
+      - "plugins/playwright/skills/demo-video/scripts/**"
+      - "plugins/session-flow/skills/running-retro/scripts/**"
+      - "plugins/disk-hygiene/skills/clean/scripts/**"
+    # Owner decision Q646 (2026-10-18): a .ps1 or .cjs file, or one with git
+    # mode 100755, holds the same way in the plugins the CI lanes load and,
+    # in the scorer, at the top level. work-items and review are already on
+    # the floor; other plugins stay an accepted risk (Q640c).
+    floor-script-scopes:
+      - "plugins/ai-slop/**"
+      - "plugins/source-control/**"
+      - "plugins/discovery/**"
+      - "plugins/knowledge/**"
+      - "plugins/skill-quality/**"
+      - "plugins/testing/**"
+      - "plugins/autonomy/**"
