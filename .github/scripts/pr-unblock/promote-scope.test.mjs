@@ -33,9 +33,9 @@ function promoteScript() {
 const dir = mkdtempSync(join(tmpdir(), "promote-scope-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 
-async function promote(files, { scope = readFileSync(SCOPE), sha256 } = {}) {
+async function promote(files, { scope = readFileSync(SCOPE), sha256, threads = [{ path: "plugins/p/evals/c/case.yaml" }, { path: "src/round.py" }] } = {}) {
   const threadFile = join(dir, "threads.json");
-  writeFileSync(threadFile, JSON.stringify({ threads: [{ path: "plugins/p/evals/c/case.yaml" }, { path: "src/round.py" }] }));
+  writeFileSync(threadFile, JSON.stringify({ threads }));
   const scopeScript = join(dir, "thread-scope.mjs");
   writeFileSync(scopeScript, scope);
   const env = {
@@ -109,4 +109,15 @@ test("a rewritten scope copy, or no recorded hash, stops the move", async () => 
     const failed = await promote([{ filename: ".github/workflows/x.yml" }], options);
     assert.deepEqual(failed, ["thread-scope.mjs does not match the base's copy; the PR branch is not moved"]);
   }
+});
+
+test("a file a kept thread's named_paths holds passes the path check; the same file unnamed stops the move", async () => {
+  const named = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/lib/run.js"] }];
+  const passed = await promote([{ filename: "plugins/p/lib/run.js" }], { threads: named });
+  assert.equal(passed.length, 1);
+  assert.match(passed[0], HOLD);
+  const stopped = await promote([{ filename: "plugins/p/lib/run.js" }]);
+  assert.match(stopped[0], OUT);
+  const instruction = await promote([{ filename: "plugins/p/AGENTS.md" }], { threads: [{ ...named[0], named_paths: ["plugins/p/AGENTS.md"] }] });
+  assert.match(instruction[0], OUT);
 });

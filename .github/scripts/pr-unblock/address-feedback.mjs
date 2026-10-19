@@ -11,7 +11,8 @@
 //           a trusted person answered the lane's escalation, then decides
 //           skip (no such thread), escalate (the PR changes .github/**, or
 //           the configured number of rounds already ran) or proceed, writing the thread file
-//           the skill's review-thread tool reads. On a PR carrying the
+//           the skill's review-thread tool reads, with the same-plugin files
+//           a write-access fix request names (namedPaths). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
 //           awaiting-human when there are none.
@@ -25,7 +26,7 @@
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { isProtectedPath } from "./thread-scope.mjs";
+import { isProtectedPath, namedInScope } from "./thread-scope.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
@@ -103,6 +104,81 @@ export function isFixRequest(body) {
     }
   }
   return false;
+}
+
+// The file-shaped words of a fix request's body outside fenced code blocks and
+// quoted lines: each word with wrapping backticks, quotes, brackets or
+// emphasis, trailing punctuation and a trailing :line or :line-line removed,
+// kept when its last segment has an extension.
+const WRAP_START = /^[`'"([{<*_]+/;
+const WRAP_END = /[`'")\]}>*_.,;:!?]+$/;
+export function pathTokens(body) {
+  const tokens = new Set();
+  let fenced = false;
+  for (const raw of String(body ?? "").split("\n")) {
+    const line = raw.replace(/\r$/, "");
+    if (/^ {0,3}(```|~~~)/.test(line)) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced || /^ {0,3}>/.test(line)) {
+      continue;
+    }
+    for (const word of line.split(/\s+/)) {
+      const token = word
+        .replace(WRAP_START, "")
+        .replace(WRAP_END, "")
+        .replace(/:[1-9][0-9]*(-[1-9][0-9]*)?$/, "");
+      if (/\.[A-Za-z0-9]+$/.test(token.slice(token.lastIndexOf("/") + 1))) {
+        tokens.add(token);
+      }
+    }
+  }
+  return [...tokens];
+}
+
+// The most named paths one thread's existence check reads.
+export const NAMED_CAP = 10;
+// A regular or executable file's git mode, as GraphQL's TreeEntry.mode gives
+// it (100644 and 100755 in decimal): a symbolic link (120000) and a gitlink
+// (160000) are never named in.
+const FILE_MODES = new Set([0o100644, 0o100755]);
+
+// The paths a kept thread's fix requests name that may join its scope: each
+// path token of a comment by one of `fixers` that is a fix request
+// (isFixRequest), read as repository-relative when it holds a / and as a
+// file in the thread path's directory when it does not, allowed by
+// namedInScope for the thread, and a regular file at `headSha`
+// (`listTree(sha, dir)` answers the directory's GraphQL tree entries).
+export async function namedPaths({ thread, reviewComments, fixers, headSha, listTree }) {
+  const rows = new Map(reviewComments.map((row) => [row.id, row]));
+  const dir = thread.path.slice(0, thread.path.lastIndexOf("/") + 1);
+  const candidates = new Set();
+  for (const comment of thread.comments) {
+    const row = rows.get(comment.id);
+    if (comment.author !== "trusted-human" || !fixers.has(row?.user?.id) || !isFixRequest(row.body)) {
+      continue;
+    }
+    for (const token of pathTokens(row.body)) {
+      const path = token.includes("/") ? token : `${dir}${token}`;
+      if (path !== thread.path && namedInScope(path, thread.path)) {
+        candidates.add(path);
+      }
+    }
+  }
+  const trees = new Map();
+  const named = [];
+  for (const path of [...candidates].slice(0, NAMED_CAP)) {
+    const parent = path.slice(0, path.lastIndexOf("/"));
+    if (!trees.has(parent)) {
+      trees.set(parent, await listTree(headSha, parent));
+    }
+    const entry = trees.get(parent).find((e) => e.name === path.slice(parent.length + 1));
+    if (entry?.type === "blob" && FILE_MODES.has(entry.mode)) {
+      named.push(path);
+    }
+  }
+  return named;
 }
 
 // The ids of the trusted people who wrote a fix request in `comments` (each
@@ -330,6 +406,12 @@ export async function select({
   if (rounds >= maxRounds) {
     return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
   }
+  for (const thread of kept) {
+    const named = await namedPaths({ thread, reviewComments, fixers, headSha, listTree: api.listTree });
+    if (named.length > 0) {
+      thread.named_paths = named;
+    }
+  }
   return {
     decision: "proceed",
     rounds,
@@ -359,6 +441,12 @@ const THREAD_QUERY = `query($id: ID!) {
     ... on PullRequestReviewThread {
       isResolved pullRequest { number } comments(first: 100) { totalCount nodes { databaseId } }
     }
+  }
+}`;
+
+const TREE_QUERY = `query($owner: String!, $name: String!, $expression: String!) {
+  repository(owner: $owner, name: $name) {
+    object(expression: $expression) { ... on Tree { entries { name type mode } } }
   }
 }`;
 
@@ -481,6 +569,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
         }
         after = page.pageInfo.endCursor;
       }
+    },
+    // The entries of the tree at `${sha}:${dir}`, none when it is no tree.
+    async listTree(sha, dir) {
+      const object = (await graphql(TREE_QUERY, { owner, name, expression: `${sha}:${dir}` })).repository.object;
+      return object?.entries ?? [];
     },
     async readThread(id) {
       const node = (await graphql(THREAD_QUERY, { id })).node;

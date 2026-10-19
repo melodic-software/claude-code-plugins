@@ -26,7 +26,10 @@ The system prompt names the tool's path. It is the only shell command this mode 
   directory its path sits in, except one under `hooks/`, `.claude-plugin/` or a `.claude/`
   directory, a `CLAUDE.md` or `AGENTS.md`, or a `.sh`, `.py`, `.mjs`, `.js` or `.ts` file; and a
   test file (`test_*.py`, `*_test.py`, `*.test.*`,
-  `*.spec.*`) in its path's directory.
+  `*.spec.*`) in its path's directory; and each file in its `named_paths`: a file a trusted person
+  with write access named in a fix request, in the same `plugins/<p>/` directory, existing at the
+  gated head, and not an instruction path (`CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.gitmodules`,
+  `CODEOWNERS`, a `.claude/` or `.claude-plugin/` directory, a plugin's `hooks/`).
 - `record <thread-id> <file>` reads a disposition file from the scratch directory, checks it
   against the template, and records it. Exit 1 means the tool refused and recorded nothing: fix
   the file and record again. One record per thread.

@@ -1722,7 +1722,8 @@ jobs:
               }
               if (THREAD_FILE) {
                 const fs = require('fs');
-                const paths = new Set(JSON.parse(fs.readFileSync(THREAD_FILE, 'utf8')).threads.map((t) => t.path));
+                const { threads } = JSON.parse(fs.readFileSync(THREAD_FILE, 'utf8'));
+                const paths = new Set(threads.map((t) => t.path));
                 // Imported from the bytes just hashed, so a rewrite after the
                 // check cannot reach the import.
                 const scope = fs.readFileSync(SCOPE_SCRIPT);
@@ -1734,7 +1735,7 @@ jobs:
                 const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${HEAD_SHA}...${lane}` });
                 const bad = data.files.length >= 300 ? ['(300 or more files)'] : data.files
                   .flatMap((f) => [f.filename, f.previous_filename].filter(Boolean))
-                  .filter((p) => !inThreadScope(p, paths));
+                  .filter((p) => !inThreadScope(p, paths, threads));
                 if (bad.length > 0) {
                   core.setFailed(`The lane branch changes a path outside the kept threads' scope or under .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
                   return;
@@ -1845,7 +1846,7 @@ jobs:
             const run = {
               version: 1,
               head_sha: HEAD_SHA,
-              threads: threads.map((t) => ({ id: t.id, path: t.path, comment_ids: t.comments.map((c) => c.id) })),
+              threads: threads.map((t) => ({ id: t.id, path: t.path, comment_ids: t.comments.map((c) => c.id), ...(t.named_paths ? { named_paths: t.named_paths } : {}) })),
             };
             const runText = `${JSON.stringify(run)}\n`;
             fs.writeFileSync(`${OUT_DIR}/run.json`, runText);
