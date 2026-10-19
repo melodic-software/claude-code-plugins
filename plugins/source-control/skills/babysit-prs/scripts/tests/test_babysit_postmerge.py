@@ -1307,6 +1307,9 @@ class Remediation(CheckCase):
             f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=read-back -->",
         )
         self.assertIn(f"git revert {MERGE_SHA}", body)
+        # Any open record holds the rung off, and a red main reopens a closed one.
+        self.assertIn("rung off while any demotion record is open", body)
+        self.assertIn("then close every open demotion record directly", body)
         self.assertIn("https://github.com/example-org/example-repo/pull/7001", body)
         self.assertIn("labels[]=needs-human", create)
 
@@ -1343,6 +1346,38 @@ class Remediation(CheckCase):
             {"body": c, "user": {"login": "github-actions[bot]"}} for c in comments
         ]
         pm.remediate(REPO, self.check(), agent_identity=IDENTITY)
+
+    def canary_failure_with_alert_record(self, run: int) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(21, conclusion="failure"),
+        )
+        # The alert workflow keys its marker on the run's head SHA, not the
+        # merge commit.
+        marker = f"<!-- babysit-merge-demotion sha={'4' * 40} signal=canary -->"
+        self.gh.issues = [
+            {
+                "number": 8004,
+                "state": "open",
+                "body": f"{marker}\n- Failing run: {RUN_URL}/{run}/attempts/1",
+                "user": {"login": "github-actions[bot]"},
+            }
+        ]
+        pm.remediate(REPO, self.check(), agent_identity=IDENTITY)
+
+    def test_the_alert_record_of_the_same_run_is_not_duplicated(self) -> None:
+        self.canary_failure_with_alert_record(21)
+        self.assertEqual(
+            [w for w in self.record_writes() if f"repos/{REPO}/issues" in w], []
+        )
+
+    def test_an_alert_record_of_another_run_does_not_stand_in(self) -> None:
+        self.canary_failure_with_alert_record(22)
+        self.assertTrue(
+            any(f"repos/{REPO}/issues" in w for w in self.record_writes())
+        )
 
     def record_writes(self) -> list[list[str]]:
         return [w for w in self.gh.writes() if "dequeuePullRequest" not in " ".join(w)]
