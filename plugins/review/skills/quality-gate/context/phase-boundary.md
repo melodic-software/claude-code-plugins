@@ -37,7 +37,7 @@ Step 0.5 runs against the base SHA in place of the "Shared inputs" ladder:
   step writes no path file: the loop reads `git diff --name-only -z <base>` with `read -r -d ''`,
   where `<base>` is the `--base` SHA when given, else the review diff base ("Shared inputs"), and
   the crossings go in the gate's report.
-- `restatement` with `--base` reviews no file inline: it dispatches a fresh-context
+- `restatement` with `--base` or `--worktree` reviews no file inline: it dispatches a fresh-context
   `review:brief-reviewer` for every batch, briefed as below.
 - `downstream` with `--base` skips the `downstream_probe` layer read from the default branch, which
   needs `git ls-remote` and `git fetch`. The floor is `report`, so no probe runs, and the report
@@ -54,6 +54,8 @@ Dispatch each mode's own reviewer in fresh context, as its context file names, w
   the reviewer's own change-set step: `review:code-reviewer`, `review:security-reviewer` and
   `review:architecture-guardian` run only the commands their brief supplies, with no forge lookup
   or fetch;
+- the worktree's absolute path as the file-read root: every Read, Grep and Glob, and every path
+  the change-set commands list, resolves under that path, never the invoking checkout;
 - the concern tag: the mode, or `slice <name>`;
 - the `Quality bar:` line;
 - the inputs the mode's own brief requires: the slice criteria file path in `slice`, the size
@@ -61,6 +63,7 @@ Dispatch each mode's own reviewer in fresh context, as its context file names, w
   `--spec <path>` in `spec`, the resolved criteria (file paths and sections) in `criteria`, and
   the paved-path file from [criteria.md](criteria.md) step 2.
 
-Never give it the plan's rationale, the conversation or the implementer's account of the change, as
-[per-slice.md](per-slice.md) does: the reviewer judges the diff, not the story behind it. In `self`
+Never give it the plan's rationale, the conversation or the implementer's account of the change,
+just as the [per-slice.md](per-slice.md) prompt template carries none of them: the reviewer judges
+the diff, not the story behind it. In `self`
 mode this replaces gathering the plan in the orchestrator sequence's first step.
