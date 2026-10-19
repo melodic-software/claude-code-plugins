@@ -17,7 +17,7 @@
   "dependencies": {
     "@melodic/repo-analysis": "file:../../../vendor/repo-analysis",
     "@melodic/video-digestion": "file:../../../vendor/video-digestion",
-    "mdast-util-from-markdown": "~2.0.3"
+    "mdast-util-from-markdown": "~2.1.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
