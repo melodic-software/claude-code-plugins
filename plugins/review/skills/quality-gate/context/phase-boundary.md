@@ -64,7 +64,11 @@ Dispatch each mode's own reviewer in fresh context, as its context file names, w
 - the inputs the mode's own brief requires: the slice criteria file path in `slice`, the size
   crossings in `code`, the finding-class table and the spec text read from the local
   `--spec <path>` in `spec`, the resolved criteria (file paths and sections) in `criteria`, and
-  the paved-path file from [criteria.md](criteria.md) step 2.
+  the paved-path file from [criteria.md](criteria.md) step 2;
+- this rule, verbatim: "Rate findings only on lines the phase diff adds or changes. Anything you
+  notice outside the diff goes in a separate `Outside this phase` list, one line per item naming
+  the file, with no severity and no effect on the verdict, or is left out." The gate's report
+  keeps that list unrated, so debt the phase did not add never blocks it.
 
 Never give it the plan's rationale, the conversation or the implementer's account of the change,
 just as the [per-slice.md](per-slice.md) prompt template carries none of them: the reviewer judges
