@@ -1978,14 +1978,22 @@
     function stopAdvance() { clearTimeout(ADV.timer); ADV.timer = 0; ADV.qid = ""; advBar.hidden = true; }
     /** After my own single pick on the question in view: with the switch on, the comment box empty and another
      *  question still open for me, Next in 2 s. */
+    /** Whether moving on from qid is still wanted: the switch on, not following the host, my pick or value still
+     *  held, the comment box empty, and nothing else being written in the pane (Ask Claude, Pass, any text field). */
+    function advanceWanted(qid) {
+      const q = qById(qid), rec = myRec(qid), f = document.activeElement;
+      return !!pref("autoAdvance", false) && !following() && ui.cur === qid && ["choice", "confirm", "prototype", "scale"].includes(q?.format)
+        && (q.format === "scale" ? rec?.value != null : !!rec?.pick) && !ta.value.trim() && !ui.askOpen && !ui.passOpen
+        && !(scroll.contains(f) && f.matches("textarea, input:not([type=radio], [type=checkbox], [type=button], [type=file])"));
+    }
     function armAdvance(qid) {
-      const q = qById(qid);
-      if (!pref("autoAdvance", false) || ui.cur !== qid || !["choice", "confirm", "prototype", "scale"].includes(q?.format) || ta.value.trim()) return;
-      if (!Core.state.questions.some(x => x.id !== qid && isOpenForMe(x.id))) return;
+      if (!advanceWanted(qid) || !Core.state.questions.some(x => x.id !== qid && isOpenForMe(x.id))) return;
       stopAdvance();
       ADV.qid = qid; advBar.hidden = false;
-      ADV.timer = setTimeout(() => { const go = ADV.qid === ui.cur; stopAdvance(); if (go) step(1); }, 2000);
+      ADV.timer = setTimeout(() => { const go = advanceWanted(ADV.qid); stopAdvance(); if (go) step(1); }, 2000);
     }
+    // Writing anywhere in the question pane stays on the question.
+    on(scroll, "input", e => { if (e.target.matches?.("textarea, input:not([type=radio], [type=checkbox])")) stopAdvance(); });
     advStay.onclick = () => { stopAdvance(); (ta.disabled ? qText : ta).focus({ preventScroll: true }); };
     function focusQuestion(qid) { select(qid, { manual: true }); setMode("focus"); if (phone.matches) setTab("answer"); }
     function setFollow(v) { setPrefs({ follow: v }); follow.setAttribute("aria-pressed", String(v)); render(); }
@@ -3531,6 +3539,7 @@
       Core.pick(qid, optId, keptComment(q, rec)).then(() => { announce(rec?.pick ? `Your choice moved to ${label}.` : `You picked ${label}.`); armAdvance(qid); }).catch(fail);
     };
     const clearPick = (qid = ui.cur) => {
+      stopAdvance();
       const rec = myRec(qid), q = qById(qid);
       if (!q || !rec?.pick || readOnly(q) || Core.lockOf(qid)) return;
       Core.pick(qid, "", keptComment(q, rec)).then(() => announce("Your choice is cleared.")).catch(fail);

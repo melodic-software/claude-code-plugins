@@ -3,12 +3,13 @@
 // cloudflared: the switch sits in the person's own settings, off by default, and is kept with their other
 // preferences on the server; with it on, a single pick, a confirm or a scale value with the comment box empty shows
 // "Next question in 2 s · Stay" and moves on; Stay cancels; a pick-many, a rank or a written answer never moves on,
-// and neither does a pick with a comment written; with it off nothing moves.
+// and neither does a pick with a comment written, an Undo, a field being typed in, a move elsewhere or following the
+// host; with it off nothing moves. A move lands on the next question still open for me in the round's order.
 //   node plugins/planning/shared/tests/ui_advance.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved spec (follow-up item 1) and the texts this suite writes, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, joinAs, png } = require("./browser_harness");
 
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
 const opts = (...labels) => labels.map((label, i) => ({ id: `opt-${i + 1}`, label }));
@@ -19,6 +20,8 @@ const QS = [
   q("Q4", "How urgent is the checkout redesign?", { kind: "scale", min: 1, max: 5, labels: { min: "Not urgent", max: "Very urgent" } }),
   q("Q5", "Rank the checkout steps by importance", { kind: "rank", options: opts("Address", "Shipping", "Payment") }),
   q("Q6", "Which receipt layout?", { kind: "choice", options: opts("Short", "Long") }),
+  q("Q7", "Did you mean this button?", { kind: "confirm", image: "", rect: { x: 10, y: 10, w: 30, h: 20 } }),
+  q("Q8", "Which shipping default?", { kind: "choice", options: opts("Standard", "Express") }),
 ];
 const textOf = id => QS.find(x => x.id === id).text;
 
@@ -30,7 +33,8 @@ async function main() {
   const s = suite("ui_advance"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("advance");
-    s.apply(A.dir, [{ op: "set-title", title: "Checkout" }, { op: "open-round", questions: QS }]);
+    const shot = s.asset(A.dir, "shot.png", png(400, 300));
+    s.apply(A.dir, [{ op: "set-title", title: "Checkout" }, { op: "open-round", questions: QS.map(x => x.id === "Q7" ? { ...x, format: { ...x.format, image: shot } } : x) }]);
     const desk = { context: { viewport: { width: 1440, height: 900 } } };
     const owner = await rec.open(A.ownerUrl, desk);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
@@ -67,8 +71,42 @@ async function main() {
     ok("a single pick with the comment box empty shows \"Next question in 2 s · Stay\"", await until(ann, () => {
       const b = document.querySelector(".vf-advance"); return !!b && !b.hidden && b.textContent === "Next question in 2 s·Stay" && b.querySelector("button")?.textContent === "Stay";
     }));
-    ok("then it moves to the next question still open for me", await until(ann, t => document.querySelector(".vf-qtext")?.textContent !== t, textOf("Q6"), 4000)
-      && (await cur()) !== textOf("Q6") && !(await bar()));
+    ok("then it moves to Q7, the next question still open for me", await until(ann, t => document.querySelector(".vf-qtext")?.textContent === t, textOf("Q7"), 4000)
+      && !(await bar()), await cur());
+
+    // ---------- Undo within the 2 s stays ----------
+    await go("Q7");
+    await ann.locator(".vf-pickbtn", { hasText: "Yes" }).click();
+    await until(ann, () => !!document.querySelector(".vf-advance:not([hidden])"));
+    await ann.locator(".vf-optundo:visible", { hasText: "Undo" }).click();
+    const undone = await until(ann, () => !(window.Core.snapshot()?.cards?.Q7 || []).some(c => c.pid === window.Core.me.cid && c.pick));
+    ok("a confirm Yes then Undo within 2 s stays", undone && await stays("Q7"), `${await cur()} / undone ${undone}`);
+
+    // ---------- typing in Ask Claude stays, and keeps what was typed ----------
+    await pickOn("Q8", "Standard");
+    await until(ann, () => !!document.querySelector(".vf-advance:not([hidden])"));
+    await ann.click(".vf-askbtn");
+    await ann.locator("#vf-ask-ta").pressSequentially("Is Express worth it?", { delay: 20 });
+    ok("a pick, then typing in Ask Claude, stays with the Ask Claude form open", await stays("Q8")
+      && await ann.evaluate(() => !document.querySelector(".vf-askform").hidden && document.getElementById("vf-ask-ta").value === "Is Express worth it?"), await cur());
+    await ann.evaluate(() => { const f = document.querySelector(".vf-askform"); if (!f.hidden) f.querySelector(".vf-btn-ghost").click(); });
+
+    // ---------- moving elsewhere cancels ----------
+    await pickOn("Q8", "Express");
+    await until(ann, () => !!document.querySelector(".vf-advance:not([hidden])"));
+    await go("Q3");
+    ok("a pick, then opening Q3 by hand, stays on Q3", await stays("Q3"), await cur());
+
+    // ---------- following the host: no move, still following ----------
+    await owner.locator(".vf-q", { hasText: textOf("Q6") }).first().click();
+    await until(ann, () => (window.Core.state.presence || []).some(p => p.cid === window.Core.state.ownerPid && p.q === "Q6"));
+    await ann.click(".vf-follow");
+    await until(ann, t => document.querySelector(".vf-qtext")?.textContent === t, textOf("Q6"));
+    await ann.locator(".vf-opt", { hasText: "Long" }).locator(".vf-optchoose").click();
+    const pickedQ6 = await until(ann, () => (window.Core.snapshot()?.cards?.Q6 || []).some(c => c.pid === window.Core.me.cid && c.pick === "opt-2"));
+    ok("while following the host a pick stays and keeps following", pickedQ6 && await stays("Q6") && (await ann.getAttribute(".vf-follow", "aria-pressed")) === "true",
+      `${await cur()} / following ${await ann.getAttribute(".vf-follow", "aria-pressed")}`);
+    await ann.click(".vf-follow");
 
     // ---------- Stay cancels ----------
     await pickOn("Q1", "Saved method");
@@ -85,7 +123,7 @@ async function main() {
     // ---------- a scale value moves on ----------
     await go("Q4");
     await ann.locator(".vf-scale-btn", { hasText: "4" }).click();
-    ok("a scale value moves on", await until(ann, t => document.querySelector(".vf-qtext")?.textContent !== t, textOf("Q4"), 5000));
+    ok("a scale value moves on to Q5, the next question still open for me", await until(ann, t => document.querySelector(".vf-qtext")?.textContent === t, textOf("Q5"), 5000), await cur());
 
     // ---------- never after pick-many, rank or a written answer ----------
     await go("Q2");
