@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "batch-simplify finished (72h scope, unattended). Group 1 (bash): src/greet.sh and repo/tool.sh simplified, verification passed. No task tools in this session, so I tracked the groups in the checklist copy. Edits are uncommitted in the working tree."
+      "answer": "batch-simplify finished (72h scope, unattended). No task tools in this session, so I tracked the groups in the checklist copy.\n\n- Group 1 (src): src/greet.sh simplified, verification passed.\n- Group 2 (repo): repo/tool.sh simplified, verification passed.\n\nEdits are uncommitted in the working tree."
     }
   ],
   "fail": [
