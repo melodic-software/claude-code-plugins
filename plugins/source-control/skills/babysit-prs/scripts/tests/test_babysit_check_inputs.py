@@ -38,6 +38,7 @@ GIT_ENV = {
     "PATH": os.environ.get("PATH", ""),
 }
 REGISTRY = "scripts/shared-copies.txt"
+ALLOWLIST = "scripts/docs-only-paths.txt"
 
 
 def git(root: pathlib.Path, *args: str) -> str:
@@ -60,7 +61,9 @@ def commit(root: pathlib.Path, path: str, text: str) -> str:
 
 
 class ChangedSinceMergeBase(unittest.TestCase):
-    """origin: main A -> B (registry) -> C (README); feat A -> P."""
+    """origin: main A -> B (registry) -> C (README); feat A -> P (feat.txt);
+    canon A -> K (the registered canonical); copy A -> Y (a copy B
+    registers)."""
 
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -71,15 +74,23 @@ class ChangedSinceMergeBase(unittest.TestCase):
         git(self.origin, "init", "-q", "-b", "main")
         git(self.origin, "config", "uploadpack.allowAnySHA1InWant", "true")
         self.a = commit(self.origin, REGISTRY, "lib/a.sh plugins/x/a.sh\n")
-        git(self.origin, "checkout", "-q", "-b", "feat")
-        self.p = commit(self.origin, "feat.txt", "pr\n")
-        git(self.origin, "checkout", "-q", "main")
+        self.p = self.branch("feat", "feat.txt")
+        self.k = self.branch("canon", "lib/a.sh")
+        self.y = self.branch("copy", "plugins/y/a.sh")
         commit(
-            self.origin, REGISTRY, "lib/a.sh plugins/x/a.sh\nlib/a.sh plugins/y/a.sh\n"
+            self.origin,
+            REGISTRY,
+            "# comment\nlib/a.sh plugins/x/a.sh\nlib/a.sh plugins/y/a.sh\n",
         )
         self.c = commit(self.origin, "README.md", "readme\n")
         self.clone = self.tmp / "clone"
         git(self.tmp, "clone", "-q", str(self.origin), str(self.clone))
+
+    def branch(self, name: str, path: str) -> str:
+        git(self.origin, "checkout", "-q", "-b", name, self.a)
+        sha = commit(self.origin, path, name + "\n")
+        git(self.origin, "checkout", "-q", "main")
+        return sha
 
     def read(
         self, paths: tuple[str, ...], head: str, root: pathlib.Path | None = None
@@ -88,14 +99,33 @@ class ChangedSinceMergeBase(unittest.TestCase):
             paths, head, "main", [root or self.clone]
         )
 
-    def test_a_registry_change_since_the_merge_base_is_stale(self) -> None:
-        for paths in ((REGISTRY,), ("scripts",), ("docs/none.md", REGISTRY)):
-            with self.subTest(paths=paths):
-                out = self.read(paths, self.p)
-                self.assertEqual(out["state"], "stale")
-                self.assertEqual(out["changed"], [REGISTRY])
-                self.assertEqual(out["mergeBase"], self.a)
-                self.assertEqual(out["baseTip"], self.c)
+    def test_a_registry_change_is_stale_for_a_pr_touching_a_registered_path(
+        self,
+    ) -> None:
+        for head in (self.k, self.y):
+            for paths in ((REGISTRY,), ("scripts",), ("docs/none.md", REGISTRY)):
+                with self.subTest(head=head, paths=paths):
+                    out = self.read(paths, head)
+                    self.assertEqual(out["state"], "stale")
+                    self.assertEqual(out["changed"], [REGISTRY])
+                    self.assertEqual(out["mergeBase"], self.a)
+                    self.assertEqual(out["baseTip"], self.c)
+
+    def test_a_registry_change_is_current_for_a_pr_touching_no_registered_path(
+        self,
+    ) -> None:
+        out = self.read((REGISTRY,), self.p)
+        self.assertEqual(out["state"], "current")
+        self.assertEqual(out["changed"], [])
+        self.assertEqual(out["notApplicable"], [REGISTRY])
+
+    def test_an_unscoped_input_is_stale_for_every_pr(self) -> None:
+        commit(self.origin, ALLOWLIST, "docs/**\n")
+        git(self.clone, "fetch", "-q", "origin")
+        out = self.read((REGISTRY, ALLOWLIST), self.p)
+        self.assertEqual(out["state"], "stale")
+        self.assertEqual(out["changed"], [ALLOWLIST])
+        self.assertEqual(out["notApplicable"], [REGISTRY])
 
     def test_a_base_change_off_the_listed_paths_is_current(self) -> None:
         out = self.read(("docs/none.md", ".github/workflows"), self.p)
@@ -111,9 +141,7 @@ class ChangedSinceMergeBase(unittest.TestCase):
         self.assertEqual(out["mergeBase"], self.c)
 
     def test_a_head_the_clone_lacks_is_fetched_by_sha(self) -> None:
-        git(self.origin, "checkout", "-q", "-b", "late", self.a)
-        late = commit(self.origin, "late.txt", "late\n")
-        git(self.origin, "checkout", "-q", "main")
+        late = self.branch("late", "lib/a.sh")
         out = self.read((REGISTRY,), late)
         self.assertEqual(out["state"], "stale")
         self.assertEqual(out["changed"], [REGISTRY])

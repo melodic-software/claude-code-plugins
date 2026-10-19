@@ -3595,6 +3595,24 @@ def _graphql_write(query: str, node_id: str) -> bool:
     return proc.returncode == 0
 
 
+def update_error(proc: Any) -> dict[str, Any]:
+    """The status and message of a refused `update-branch` call: whether the
+    lane token may write a merge that brings in base workflow changes is
+    learned from these."""
+    status = re.search(r"\(HTTP (\d{3})\)", proc.stderr or "")
+    message = ""
+    try:
+        body = json.loads(proc.stdout or "")
+        if isinstance(body, dict) and isinstance(body.get("message"), str):
+            message = body["message"]
+    except ValueError:
+        pass
+    return {
+        "status": int(status.group(1)) if status else None,
+        "message": (message or (proc.stderr or "").strip())[:500],
+    }
+
+
 def unattended_enqueue(
     repo: str,
     number: int,
@@ -3749,7 +3767,7 @@ def unattended_enqueue(
                 "was updated from the base, so the new head is enqueued once its "
                 "checks pass"
             )
-        inputs_read["updateError"] = proc.stderr.strip()
+        inputs_read["updateError"] = update_error(proc)
     proc = gh_capture(
         ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
         + ["-f", f"body={postmerge.pin_comment(pin)}"]

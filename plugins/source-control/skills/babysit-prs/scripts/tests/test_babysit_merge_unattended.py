@@ -1664,7 +1664,7 @@ class EachRefusalMakesNoMergeCall(Unattended):
 
 
 class CheckInputsChangedOnTheBase(Unattended):
-    """#8339: a ready head whose merge base predates a base change to a
+    """A ready head whose merge base predates a base change to a
     `merge.check-inputs` path is updated from the base, not enqueued."""
 
     MERGE_BASE = "e" * 40
@@ -1687,7 +1687,14 @@ class CheckInputsChangedOnTheBase(Unattended):
     def _capture(self, args: list[str]) -> Any:
         if self.UPDATE in args:
             self.log.append("update-branch:" + args[-1])
-            return subprocess.CompletedProcess(args, self.update_code, "{}", "refused")
+            if self.update_code == 0:
+                return subprocess.CompletedProcess(args, 0, "{}", "")
+            return subprocess.CompletedProcess(
+                args,
+                self.update_code,
+                '{"message":"Resource not accessible by integration","status":"403"}',
+                "gh: Resource not accessible by integration (HTTP 403)",
+            )
         return super()._capture(args)
 
     def run_main(self, *flags: str, merge_flag: bool = True) -> Any:
@@ -1735,13 +1742,30 @@ class CheckInputsChangedOnTheBase(Unattended):
         )
         read = out["unattended"]["enqueue"]["checkInputs"]
         self.assertIs(read["updated"], False)
-        self.assertEqual(read["updateError"], "refused")
+        self.assertEqual(
+            read["updateError"],
+            {"status": 403, "message": "Resource not accessible by integration"},
+        )
 
     def test_a_kill_switch_stop_writes_no_update(self) -> None:
         self.kill = [PROCEED, policy.KillSwitch(False, "disabled")]
         code, _ = self.run_main()
         self.assert_no_merge(code)
         self.assertFalse(any(e.startswith("update-branch") for e in self.log))
+
+
+class UpdateError(unittest.TestCase):
+    def test_a_body_that_is_not_json_keeps_the_stderr_status_and_text(self) -> None:
+        proc = subprocess.CompletedProcess([], 1, "not json", "gh: Bad (HTTP 422)\n")
+        self.assertEqual(
+            merge.update_error(proc), {"status": 422, "message": "gh: Bad (HTTP 422)"}
+        )
+
+    def test_no_status_is_none(self) -> None:
+        proc = subprocess.CompletedProcess([], 1, "", "timed out")
+        self.assertEqual(
+            merge.update_error(proc), {"status": None, "message": "timed out"}
+        )
 
 
 class OneUnattendedMergeInFlight(Unattended):

@@ -13,12 +13,18 @@ The answer comes from a local clone of the base branch with its whole history
 clone lacks is fetched into it by SHA over git, with no ref written; its code
 is never checked out. Any doubt (no such clone, a failed fetch or merge-base)
 answers `unknown`, and the gate enqueues as it would without this check.
+
+An input in `SCOPED_INPUTS` counts as changed only for a pull request whose
+own changes since the merge base touch a path it registers, read at the base
+tip: the shared-copy check compares each registered copy with its canonical,
+so a pull request touching neither merges cleanly whatever the base
+registered. Every other input counts for every pull request.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +40,25 @@ FETCH_TIMEOUT_SECONDS = 60.0
 
 def _git(root: Path, *args: str) -> str | None:
     return merge_policy._git(root, *args)
+
+
+def _registered_paths(text: str) -> set[str]:
+    """Every canonical and copy path in a `scripts/shared-copies.txt` text."""
+    paths: set[str] = set()
+    for line in text.splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            paths.update(line.split())
+    return paths
+
+
+SCOPED_INPUTS: dict[str, Callable[[str], set[str]]] = {
+    "scripts/shared-copies.txt": _registered_paths,
+}
+
+
+def _names(out: str) -> list[str]:
+    return sorted(p for p in out.split("\0") if p)
 
 
 def _full_history_clone(roots: Iterable[Path], tip_ref: str) -> tuple[Path, str] | None:
@@ -110,6 +135,26 @@ def changed_since_merge_base(
     )
     if out is None:
         return {"state": "unknown", "reason": "the base's changes could not be listed"}
-    changed = sorted(p for p in out.split("\0") if p)
-    report = {"mergeBase": base, "baseTip": tip, "changed": changed}
+    changed = _names(out)
+    report: dict[str, Any] = {"mergeBase": base, "baseTip": tip}
+    scoped = [p for p in changed if p in SCOPED_INPUTS]
+    if scoped:
+        own = _git(root, "diff", "--name-only", "--no-renames", "-z", base, head)
+        if own is None:
+            return {
+                "state": "unknown",
+                "reason": "the head's changes could not be listed",
+            }
+        touched = set(_names(own))
+        # A registry absent or unreadable at the tip registers nothing, so
+        # the doubt falls toward enqueuing.
+        skipped = [
+            p
+            for p in scoped
+            if not touched
+            & SCOPED_INPUTS[p](_git(root, "cat-file", "blob", f"{tip}:{p}") or "")
+        ]
+        changed = [p for p in changed if p not in skipped]
+        report["notApplicable"] = skipped
+    report["changed"] = changed
     return {"state": "stale" if changed else "current", **report}
