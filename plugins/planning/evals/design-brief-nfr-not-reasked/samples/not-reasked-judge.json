@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Settled from the Brief: lookup budget 300 ms at p95; proceed and warn when Loqate is down or over 2 s; never log the full address.\n\n1. Timeout. Recommend a 250 ms client timeout so the lookup stays inside the 300 ms budget, falling through to the proceed-and-warn path. Basis: verified, the Brief's Constraints.",
+      "why": "designs to the settled requirements, asks none"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. What latency budget can the address lookup add to checkout? Recommend 500 ms at p95.\n2. When Loqate is down, should checkout block or proceed?",
+      "why": "re-asks two settled requirements"
+    }
+  ]
+}

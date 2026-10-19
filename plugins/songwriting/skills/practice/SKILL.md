@@ -5,7 +5,8 @@ user-invocable: true
 disable-model-invocation: false
 ---
 
-**Arguments.** `[daily|exercise] [args]`. e.g., /songwriting:practice, /songwriting:practice exercise 4.6 Full actions in body
+**Arguments.** `[daily|exercise] [args]`. e.g., /songwriting:practice, /songwriting:practice
+exercise 4.6. Full actions in body.
 
 ## Mandatory pre-flight. Response Filter
 
@@ -17,9 +18,8 @@ reasoning); correct before emission. Skips are valid; silent skips are not. Prom
 
 ## Purpose
 
-The habit layer: a daily craft routine and a numbered-exercise index across all four books, so a
-writer can build and sustain practice. This skill hands out prompts and curricula; the craft skills
-do the in-the-moment coaching on the output.
+The habit layer: a daily craft routine and a numbered-exercise index across all four books. This
+skill hands out prompts and curricula; the craft skills coach the output in the moment.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
 author's method plugs in at `context/<author>/` without changing this skill, the author seam per
@@ -27,7 +27,8 @@ the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 
-`/songwriting:practice <action> [args]`. Parse `$ARGUMENTS`: first token = action when it matches a listed action, remainder = args; otherwise treat all of `$ARGUMENTS` as payload for the default.
+`/songwriting:practice <action> [args]`. Parse `$ARGUMENTS`: first token = action when it matches
+a listed action, remainder = args; otherwise treat all of `$ARGUMENTS` as payload for the default.
 No action → issue one daily craft prompt immediately (default a 90-second object-writing dive).
 
 | Action | Use when the user asks for | Load |
@@ -37,20 +38,17 @@ No action → issue one daily craft prompt immediately (default a 90-second obje
 
 ## Handlers
 
-- **Pre-flight when producing sample output:** run the applicable response-filter section; a
-  prompt-only (assign-an-exercise) run needs no filter pass.
 - Give one usable prompt or a bounded sequence. Do not assign the full curriculum unless asked.
-- Practice output persists per the artifact convention (`songwriting/practice/<YYYY>/<date>.md`).
 
 ## Persistence and template overrides
 
 Write generated files to the paths in
-[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)
-"Where generated work persists", and honor a consuming project's own songwriting layout when it
-defines one. Daily practice goes to `songwriting/practice/<YYYY>/<date>.md`.
-Before loading any bundled `templates/<name>.md`, check
+[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md) "Where
+generated work persists", and honor a consuming project's own songwriting layout when it defines
+one. All practice output, daily or not, goes to `songwriting/practice/<YYYY>/<date>.md`. Before
+loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
-override wins over the bundled skill default, first match, per that file's "Template override".
+override wins over the bundled default, first match, per that file's "Template override".
 
 ## Related skills
 

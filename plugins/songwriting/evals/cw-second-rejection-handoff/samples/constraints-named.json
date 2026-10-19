@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Two rejected executions in this slot, so I'm stopping generation here rather than writing a third batch. Here's the concept handed back:\n\n1. **What line 2 has to do:** turn \"you can keep the house\" from a concession into what it costs him, in one plain sentence.\n2. **Constraints:** positional template `you CAN keep the HOUSE on MA-ple STREET` sets four stressed slots; line 2 needs to rhyme with \"had\" in line 4, so it lands on an /ae/ sound.\n3. **Unused raw material:** the dog, the Chevy and \"the last good year\" are already in the chorus; nothing in `ideation/` covers the house yet, so there's no image left to mine there.\n4. **What both batches had in common:** both reached for rooms, walls and doors and told the feeling (\"reminds me of you\") instead of handing over one object. That's the failure mode.\n5. **One question for you:** what is the one thing in that house you'd actually miss?"
+    },
+    {
+      "answer": "That's the second rejection of the execution for chorus line 2, and two is your threshold, so no new batch. Handoff instead:\n\n- The job of this line: make the giving-up of the house sound like a choice, not a loss.\n- Constraints: stress pattern matching line 1 (four stresses), rhyme obligation on \"had\".\n- Raw material still unused: the screen door and the yard sign, if they're in your ideation notes.\n- In common: both batches abstract (walls, rooms, memories) and run long; none of them ends on the rhyme.\n\nSo, a question: what did you leave in that house on purpose?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both batches were too abstract. What do you miss?"
+    },
+    {
+      "answer": "It needs to feel right and sound good.",
+      "why": "no concrete constraint"
+    }
+  ]
+}

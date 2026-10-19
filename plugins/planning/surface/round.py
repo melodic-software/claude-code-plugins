@@ -138,6 +138,10 @@ LOGGED_OPS = {
 BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[QC][0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
+ASKS_USER = re.compile(
+    r"\?(?:\s|$)|\b(?:tell|let) me\b|\bplease (?:confirm|say|choose|pick|tell|let|state|specify)\b",
+    re.IGNORECASE,
+)
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
 CODE_SPAN = re.compile(r"`[^`\n]+`")
 REPO_SLUG = re.compile(r"[\w.-]+/[\w.-]+", re.ASCII)
@@ -564,8 +568,21 @@ def restates_recommendation(alt_text, recommendation):
     )
 
 
+def rec_asks_user(rec):
+    """True when a recommendation asks the user something: a question mark, or a request to tell, confirm or choose."""
+    return bool(ASKS_USER.search(CODE_SPAN.sub("", str(rec or ""))))
+
+
+def warn_rec_asks(qid, rec):
+    if rec_asks_user(rec):
+        warn(
+            f"{qid} recommendation asks the user something; a recommendation carries no "
+            "question, so ask it as its own question"
+        )
+
+
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget, an alternative that restates the recommendation, bare Q<N> and C<N> ids that name no question here, and bare #N with no meta.repo. Other tokens (project keys, severity codes, standard names) are never flagged."""
+    """Warnings, never refusals: R12 length budget, an alternative that restates the recommendation, a recommendation that asks the user something, bare Q<N> and C<N> ids that name no question here, and bare #N with no meta.repo. Other tokens (project keys, severity codes, standard names) are never flagged."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
@@ -577,6 +594,7 @@ def lint_questions(doc, qs):
                 f"{q['id']} recommendation runs {first} characters before its first sentence "
                 f"break (budget {REC_BUDGET}, R12)"
             )
+        warn_rec_asks(q["id"], rec)
         for alt in q.get("alternatives") or []:
             if restates_recommendation(alt.get("text", ""), rec):
                 warn(
@@ -1012,6 +1030,7 @@ def op_revise(d, doc, a):
         q["recommendation"] = a.rec
         q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         changed.append("recommendation")
+        warn_rec_asks(a.id, a.rec)
     if alts is not None:
         q["alternatives"] = alts
         changed.append("alternatives")

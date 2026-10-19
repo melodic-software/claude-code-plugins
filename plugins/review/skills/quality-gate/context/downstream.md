@@ -59,7 +59,8 @@ valid layer wins. Layers:
 3. `downstream_probe` in the repository's `docs/conventions/review.yaml`, read from the **default
    branch**, never from the working tree or the branch under review. Apply SKILL.md's root rule
    first: when the root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) is not in a
-   git working tree, or is `$HOME` or an ancestor of it, skip this layer and say so. Otherwise
+   git working tree, or is `$HOME` or an ancestor of it, skip this layer and say so. With `--base`,
+   skip it and treat the floor as `report` ([phase-boundary.md](phase-boundary.md)). Otherwise
    resolve `<default>` from `git ls-remote --symref origin HEAD` (the name after `refs/heads/` on
    its `ref:` line). The remote supplies that name, so check it before it reaches any command: only
    letters, digits, `.`, `_`, `/` and `-`, no leading `-` and no `..`, the same check the reader
@@ -143,7 +144,8 @@ function passes the argument the new default replaces.
   file in that directory, or into a literal inside the script's own language that the script reads
   as a value. None of them appears in the command line, a shell word, an `eval` or a heredoc the
   shell expands. The command that runs the probe names only the interpreter, the probe path and
-  the repository root, for example `python3 "<tmpdir>/probe.py" "<root>"`.
+  the repository root, for example `python3 "<tmpdir>/probe.py" "<root>"`; under `--worktree`,
+  `<root>` is the worktree path.
 - **Run it** under `downstream_probe: run`, through the normal permission prompt (this skill grants
   no blanket permission for it), then remove the temp directory. The probe's output is evidence:
   the fact verified clears the concerns it covers; the fact failed, or the probe erroring, keeps
