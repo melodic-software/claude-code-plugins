@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: oc-worker-compact-export-rails
+description: 'The worker compact export keeps both worker lines, the did-not-inherit line and the waiting line, between two bare U+2500 dashed rails, ahead of the seven numbered headlines and the Discipline line, with no code fence around the rails. Compact drops neither worker line. The skill emits text only and spawns nothing, so Agent is granted for the must-not check. Needs no scaffold and no --allow-tools grant.'
+tags: [orchestrate, export, worker, compact]
+plugins: ["../.."]
+expected_outcome: 'The answer prints a top rail of U+2500 characters, then as its first line the instruction that the reader is a spawned worker that did not inherit the parent session context, then the waiting instruction (poll in the foreground or return what you have, never end the turn to wait on your own background job) before headline 1, then the seven numbered headlines 1 to 7 and the Discipline line, then a bottom rail; the rails are not inside a code fence. No Agent call is made.'
+execution:
+  prompt: '/session-flow:orchestrate worker compact — I am about to spawn a subagent to port the billing CSV exporters to the new report API, and I will paste its standing instructions into the spawn prompt myself.'
+  allowed_tools: [Read, Grep, Glob, Agent]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: worker-line-first
+    type: regex
+    pattern: '─{10,}[ \t]*\r?\n(?:[ \t]*\r?\n)*[^\n]*\b(?:(?:did|does|do)(?: not|n[''’]t) inherit|(?:have|has)(?: not|n[''’]t) inherited|inherit(?:ed|s)? none)\b[^\n]*\n(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t*_>-]*1\.[\s\S]*?^[ \t]*─{10,}'
+    flags: 'im'
+    arm: both
+  - name: waiting-line-before-headlines
+    type: regex
+    pattern: '─{10,}[ \t]*\r?\n(?:(?!^[ \t]*─{10,})[\s\S])*?\bbackground\s+job\b(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t*_>-]*1\.'
+    flags: 'im'
+    arm: both
+  - name: rails-not-fenced
+    type: regex
+    pattern: '(?:```|~~~)[^\n]*\n(?:[ \t]*\n)*[ \t]*─{10,}|─{10,}[ \t]*\n(?:[ \t]*\n)*[ \t]*(?:```|~~~)'
+    match: not_contains
+    arm: both
+  - name: no-agent-spawned
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both

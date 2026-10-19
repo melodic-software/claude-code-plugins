@@ -67,7 +67,9 @@
 # closed, is an error. Before the merged config it prints
 # `block <tab> <file> <tab> <first body line> <tab> <last body line>` for each
 # .md layer that holds a block; a .md layer with none contributes nothing. Keys: adapters.enable,
-# adapters.disable, paths.include, paths.exclude, adapter_dirs (lists),
+# adapters.disable, paths.include, paths.exclude, adapter_dirs (lists), project_kinds
+# (a list of <glob>=<kind>: a C# project whose .csproj path the glob matches has
+# that kind in cant-fail-scan.sh's findings),
 # extend.<adapter>.<list field> (validated as the adapter field is), and
 # rules.<rule>: off | warn | error, where <rule> is testing/audit/rule-<slug>
 # or rule-<slug> and prints as rules.<slug>, or is test-weaken-block, the
@@ -164,7 +166,7 @@ function plain_value(s,    rest) {
 function kind_of(k,    f) {
   if (MODE != "config") return (k in KIND) ? KIND[k] : ""
   if (k ~ /^(adapters|paths|rules|extend)$/ || k ~ /^extend\.[A-Za-z0-9_-]+$/) return "m"
-  if (k ~ /^(adapters\.(enable|disable)|paths\.(include|exclude)|adapter_dirs)$/) return "l"
+  if (k ~ /^(adapters\.(enable|disable)|paths\.(include|exclude)|adapter_dirs|project_kinds)$/) return "l"
   if (k ~ /^rules\.[^.]+$/) return "s"
   if (!match(k, /^extend\.[A-Za-z0-9_-]+\./)) return ""
   f = substr(k, RLENGTH + 1)
@@ -186,6 +188,8 @@ function cfg_add(key, v,    r) {
     SCAL[r] = v
     return
   }
+  if (key == "project_kinds" && v !~ /^[^=]+=(unit|integration|functional|architecture|live|operational)$/)
+    die("project_kinds entries are <glob>=<kind> with kind unit, integration, functional, architecture, live or operational, got: " v)
   if (match(key, /^extend\.[A-Za-z0-9_-]+\./)) check_value(substr(key, RLENGTH + 1), v)
   if ((key, v) in LSEEN) return
   LSEEN[key, v] = 1

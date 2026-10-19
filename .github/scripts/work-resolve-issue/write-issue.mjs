@@ -14,6 +14,12 @@
 // anchors on, so a comment created or edited after that is left out, and a
 // title or body changed since fails the run.
 //
+// When the run resumes an earlier run's lane branch (report-outcome
+// --find-prior), `resume` says so: the branch, why that run ended, the tip the
+// new branch starts at, each commit's subject (the earlier run's words, data)
+// and the files it changed with their line counts, from GET /compare between
+// the trusted base and the tip.
+//
 // Environment:
 //   GITHUB_TOKEN          the lane token, which can read the issue
 //   GITHUB_REPOSITORY     owner/repo
@@ -24,6 +30,10 @@
 //   LABEL_SENDER_ID       the account that applied the label
 //   LABEL_NAME            the label whose event started the run
 //   LABEL_EVENT_AT        the issue's updated_at in that event's payload
+//   RESUME_BRANCH, RESUME_TIP, RESUME_CAUSE
+//                         the resumed lane branch, its tip and the earlier
+//                         run's outcome, or empty when the run resumes nothing
+//   BASE_SHA              the trusted base the comparison starts from
 //   GITHUB_API_URL
 import { rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
@@ -31,6 +41,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { RESUMABLE } from "./report-outcome.mjs";
 
 const DECISION = /^\*\*Decision recorded\.\*\*(\s|$)/;
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -93,6 +104,39 @@ async function readAdmittedAt(github, repository, number, label, senderId, lanes
     throw new Error(`no ${label} label event that admitted the issue`);
   }
   return at;
+}
+
+// The resume record, or undefined when the run resumes nothing. Any value
+// that is not its expected shape, or a failed comparison, throws.
+const SHA = /^[0-9a-f]{40}$/;
+export const MAX_RESUME_COMMITS = 50;
+export const MAX_RESUME_FILES = 100;
+async function readResume(github, env) {
+  const { RESUME_BRANCH: branch = "", RESUME_TIP: tip = "", RESUME_CAUSE: cause = "", BASE_SHA: base = "" } = env;
+  if (!branch && !tip && !cause) {
+    return undefined;
+  }
+  const lane = new RegExp(`^work-resolve-issue/issue-${env.ISSUE_NUMBER}-[1-9][0-9]*-[1-9][0-9]*$`);
+  if (!lane.test(branch) || !SHA.test(tip) || !SHA.test(base) || !RESUMABLE.has(cause)) {
+    throw new Error("the resume branch, tip, cause or base is malformed");
+  }
+  const comparison = await github("GET", `/repos/${env.GITHUB_REPOSITORY}/compare/${base}...${tip}`);
+  if (!Array.isArray(comparison?.commits) || !Array.isArray(comparison?.files)) {
+    throw new Error("the resumed branch's comparison has an unexpected shape");
+  }
+  return {
+    branch,
+    cause,
+    tip,
+    commits: comparison.commits
+      .slice(-MAX_RESUME_COMMITS)
+      .map((item) => firstLine(String(item?.commit?.message ?? "")).slice(0, 200)),
+    files: comparison.files.slice(0, MAX_RESUME_FILES).map((file) => ({
+      path: String(file?.filename ?? "").slice(0, 300),
+      additions: Number.isSafeInteger(file?.additions) ? file.additions : 0,
+      deletions: Number.isSafeInteger(file?.deletions) ? file.deletions : 0,
+    })),
+  };
 }
 
 export async function main({ env = process.env, github, log = console.log } = {}) {
@@ -180,6 +224,10 @@ export async function main({ env = process.env, github, log = console.log } = {}
       labels: (data.labels ?? []).map((label) => (typeof label === "string" ? label : label.name)),
       comments: comments.filter((comment) => !cut.has(comment)),
     };
+    const resume = await readResume(client, env);
+    if (resume) {
+      issue.resume = resume;
+    }
     writeFileSync(file, `${JSON.stringify(issue, null, 2)}\n`);
     log(`write-issue: kept ${issue.comments.length} comment(s), dropped ${JSON.stringify(dropped)}`);
     return 0;

@@ -8,6 +8,8 @@ Promote a frame only when it **closes a gap** the transcript and research do not
 
 **Reject:** talking-head-only, title-card-only, content fully in transcript or research/Google, duplicate-of-deck-slide when deck fetched, unreadable, mislabeled.
 
+**A talking-head-only session is logged, not promoted.** Never promote a webcam frame, including a "speaker-identity anchor". Instead add a `key-frames/visual-gaps.md` row `| talking-head-only | <session name> | <note> |` (session name as headed in `research/claim-inventory.md`); that row satisfies `session-visual-coverage` and `session-synthesis-depth` for the session (`quality-gates.md`, "Talking-head-only session gap"). A session with neither a frame nor such a row still fails.
+
 **Sparse is OK.** No quota filler. Zero frames in a session is rare and requires documented deep vision inspect.
 
 ## Vision-gated promote
