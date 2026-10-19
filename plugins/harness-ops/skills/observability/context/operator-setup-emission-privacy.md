@@ -66,6 +66,13 @@ committed file. To capture one project only, export them in the shell that launc
 | `OTEL_LOG_TOOL_CONTENT=1` | tool content in spans |
 | `OTEL_LOG_RAW_API_BODIES=1` | raw API request/response bodies |
 
+- **Pointer**: when stating what each content key adds or what it requires, fetch
+  [Agent SDK observability: control sensitive data in exports](https://code.claude.com/docs/en/agent-sdk/observability#control-sensitive-data-in-exports)
+  live, including any requirement one key has on another setting.
+- **As of**: 2026-10-18
+- **Recheck trigger**: that section renames a content variable, changes what one adds or requires,
+  or adds a fifth.
+
 Exact flag names, accepted values, redaction and truncation limits: [monitoring: common
 configuration variables](https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables)
 (as of 2026-10-11; recheck when that table renames a content flag or changes a truncation limit).

@@ -51,6 +51,13 @@
           "minimum": 1,
           "default": 2,
           "description": "review-dependency rounds on one Dependabot PR before the next one escalates to needs-human."
+        },
+        "fix-ci-rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "fix-ci commits the lanes App pushed to one PR before the next fix-ci run escalates to needs-human, before any model turn."
         }
       }
     },
@@ -107,6 +114,20 @@
           "maximum": 500,
           "default": 60,
           "description": "Open pull requests by the lanes App at or above which work-resolve-issue starts no run and work-unblock re-fires none."
+        },
+        "fix-ci-per-run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 2,
+          "description": "fix-ci dispatches one pr-unblock-dispatch run sends at most."
+        },
+        "fix-ci-restarts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 1,
+          "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
         }
       }
     },
@@ -224,7 +245,8 @@
         "awaiting-human",
         "superseded-sha",
         "disabled-by-config",
-        "untrusted-trigger"
+        "untrusted-trigger",
+        "workflow-modified"
       ],
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
     },
@@ -256,13 +278,21 @@
       "required": ["effect", "gating", "reads-untrusted"],
       "oneOf": [{ "required": ["skill"] }, { "required": ["script"] }],
       "dependentRequired": {
-        "prepare": ["skill"],
         "checks": ["skill"],
         "verify-scripts": ["skill"],
         "web-access": ["skill"]
       },
       "dependentSchemas": {
-        "verify-scripts": { "properties": { "effect": { "not": { "const": "read" } } } }
+        "verify-scripts": { "properties": { "effect": { "not": { "const": "read" } } } },
+        "prepare": {
+          "oneOf": [
+            {
+              "required": ["skill"],
+              "properties": { "prepare": { "enum": ["merge-base", "review-threads", "dependency-review", "ci-context"] } }
+            },
+            { "required": ["script"], "properties": { "prepare": { "const": "apply-patch" } } }
+          ]
+        }
       },
       "if": {
         "required": ["web-access"],
@@ -274,8 +304,8 @@
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
-          "enum": ["merge-base", "review-threads", "dependency-review"],
-          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; move the PR branch only to commits that touch nothing under .github/ and carry [dependabot skip]; after it, upload the verdict, which a dependency-verdict script job validates and acts on."
+          "enum": ["merge-base", "review-threads", "dependency-review", "ci-context", "apply-patch"],
+          "description": "What the runner does around the activity. ci-context is the one mode for a read skill, apply-patch the one mode for a script (a mutate-branch one); the others need a skill with an effect other than read. ci-context: the read runner downloads the failing-check context file a base job wrote, checks its SHA-256 and head, makes it read-only and names it to the skill, which also gets Bash, Edit and Write; the run must use output-mode: patch. apply-patch: before the mint, check the patch artifact a ci-context run left (one patch.diff with its SHA-256, on the head it worked on) and read its report; the script applies it to the gated head, refuses the whole patch on any change to .github/**, an agent instruction path (CLAUDE.md, AGENTS.md, .claude/ or .claude-plugin/, a plugin's hooks/, .mcp.json, .gitmodules, CODEOWNERS), a symbolic link or a gitlink, and pushes it as one commit without force. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; move the PR branch only to commits that touch nothing under .github/ and carry [dependabot skip]; after it, upload the verdict, which a dependency-verdict script job validates and acts on."
         },
         "args": {
           "type": "string",
@@ -520,7 +550,7 @@
           "type": "integer",
           "minimum": 1,
           "default": 1,
-          "description": "Lane merges allowed in flight at once: the agent identity's merge-queue entries plus its merged pull requests the post-merge check has not verified. The gate refuses `in-flight:` at this count. A post-merge failure charges every unverified lane merge whose commit the red run contains, and any charge demotes the rung."
+          "description": "Lane merges allowed in flight at once: the agent identity's merge-queue entries plus its merged pull requests the post-merge check has not verified. The gate reads it at the default branch head, not the pull request's base, and refuses `in-flight:` at this count. A post-merge failure charges every unverified lane merge whose commit the red run contains, and any charge demotes the rung."
         },
         "verify-authors": {
           "enum": ["lane", "any"],
@@ -579,6 +609,11 @@
               "enum": ["off", "report", "enforce"],
               "default": "off",
               "description": "enforce: merge Dependabot pull requests whatever merge.report-only says. report: report each decision and write nothing. off: refuse every Dependabot pull request and leave them unlisted."
+            },
+            "majors": {
+              "enum": ["hold", "review"],
+              "default": "hold",
+              "description": "hold: refuse a pull request with a major update, one whose version cannot be read, or one whose title and commit metadata disagree, whatever the review verdict says, and escalate it to a human with the tracker's human-gated role label. review: a major update is tier review and merges on the lanes App's verdict=merge marker."
             }
           }
         }

@@ -268,6 +268,12 @@ is invoked via the Skill tool.
 | A docs finding is pure prose dedup | `/docs-hygiene:extract-ssot` when installed owns the extraction; else apply per the remediation catalog |
 | A `change` is an identifier rename, not a value | `/docs-hygiene:rename-references` when installed owns the sweep; else run `change` and review each row; records still stay |
 
+## Next
+
+/verification:confirm
+
+It checks the batch against the repo's own build, test and lint gates.
+
 ## Gotchas
 
 The counterweights this skill exists to hold. Add here when a new one surfaces.

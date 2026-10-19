@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, dispatchFeedback, main } from "./feedback-dispatch.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
@@ -84,8 +85,9 @@ function fakeApi({
   checkRuns = [],
   workflowRuns = [],
   workflowRunId = 38779200001,
+  permissions = { "kyle-sexton": "admin" },
 } = {}) {
-  const calls = { dispatch: [] };
+  const calls = { dispatch: [], permission: [] };
   return {
     calls,
     // The event's workflow_run, which the script takes in place of a read.
@@ -107,6 +109,10 @@ function fakeApi({
     },
     listIssueComments: async () => comments,
     listReviewThreads: async () => threads,
+    async getPermission(login) {
+      calls.permission.push(login);
+      return permissions[login] ?? "none";
+    },
     listCheckRuns: async () => checkRuns,
     listWorkflowRuns: async () => workflowRuns,
     async dispatchWorkflow(request) {
@@ -240,7 +246,6 @@ for (const [label, options] of [
   ["the PR is a draft", { pulls: pull({ draft: true }) }],
   ["a human opened the PR", { pulls: pull({ user: { id: 153232337 } }) }],
   ["the PR is labeled do-not-merge", { pulls: pull({ labels: [{ name: "do-not-merge" }] }) }],
-  ["the PR is labeled needs-human", { pulls: pull({ labels: [{ name: "needs-human" }] }) }],
   ["the security lane has not reviewed the head", { comments: [marker("claude-review")] }],
   ["the code lane's marker names an older head", {
     comments: [marker("claude-review", OLD_HEAD), marker("claude-security-review")],
@@ -475,6 +480,51 @@ test("a trusted person's reply on a thread the lane escalated dispatches address
   assert.equal(api.calls.dispatch.length, 1);
 });
 
+// On a needs-human PR only a write-access trusted person's fix request
+// (address-feedback.mjs isFixRequest) dispatches.
+const REQUEST = "*Owner reply.*\n\nPR-fix lane: please fix this finding. Drop the reference.";
+const KYLE_LOGIN = { ...KYLE, login: "kyle-sexton" };
+const STRANGER_LOGIN = { ...STRANGER, login: "stranger" };
+const humanGated = (labels = []) => pull({ labels: [{ name: "needs-human" }, ...labels.map((name) => ({ name }))] });
+
+test("a needs-human PR dispatches when a write-access trusted person asked the lane to fix a thread", async () => {
+  const api = fakeApi({ pulls: humanGated(), threads: [decidedThread({ author: KYLE_LOGIN, body: REQUEST })] });
+  const { result } = await decide(api);
+  assert.equal(result.number, 42);
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(api.calls.permission, ["kyle-sexton"]);
+});
+
+for (const [label, options] of [
+  ["a trusted reply that asks no fix", { threads: [decidedThread({ author: KYLE_LOGIN })] }],
+  ["a bot-only thread", { threads: [thread([CLAUDE])] }],
+  ["a quoted fix request", { threads: [decidedThread({ author: KYLE_LOGIN, body: "> PR-fix lane: please fix this finding." })] }],
+  ["a fix request inside a code block", {
+    threads: [decidedThread({ author: KYLE_LOGIN, body: "```\nPR-fix lane: please fix this finding.\n```" })],
+  }],
+  ["an untrusted person's fix request", { threads: [decidedThread({ author: STRANGER_LOGIN, body: REQUEST })], permissions: { stranger: "admin" } }],
+  ["a trusted person without write access", {
+    threads: [decidedThread({ author: KYLE_LOGIN, body: REQUEST })],
+    permissions: { "kyle-sexton": "read" },
+  }],
+  ["do-not-merge beside a write-access fix request", {
+    pulls: humanGated(["do-not-merge"]),
+    threads: [decidedThread({ author: KYLE_LOGIN, body: REQUEST })],
+  }],
+]) {
+  test(`a needs-human PR dispatches nothing for ${label}`, async () => {
+    const api = fakeApi({ pulls: humanGated(), ...options });
+    assert.equal((await decide(api)).result, null);
+    assert.deepEqual(api.calls.dispatch, []);
+  });
+}
+
+test("without needs-human a trusted reply dispatches with no permission read", async () => {
+  const api = fakeApi({ threads: [decidedThread({ author: KYLE_LOGIN })] });
+  assert.equal((await decide(api)).result.number, 42);
+  assert.deepEqual(api.calls.permission, []);
+});
+
 test("main reads the trusted people from the base's trusted-actor list", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "feedback-dispatch-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -519,4 +569,93 @@ test("the API client reads review threads across pages through GraphQL", async (
     bodies.map((body) => body.variables.after),
     [null, "c1"],
   );
+});
+
+// The record one run leaves for the next at the same head. `counting` wraps
+// a fake so every API call is counted by method.
+function counting(api) {
+  const counts = {};
+  const wrapped = { calls: api.calls, upstream: api.upstream };
+  for (const [name, value] of Object.entries(api)) {
+    if (typeof value === "function") {
+      wrapped[name] = (...args) => {
+        counts[name] = (counts[name] ?? 0) + 1;
+        return value(...args);
+      };
+    }
+  }
+  return { api: wrapped, counts };
+}
+
+async function decideWith(api, record, resolved = resolvedLane()) {
+  const lines = [];
+  const result = await dispatchFeedback({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    upstream: api.upstream,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    resolveSlot: async () => resolved,
+    log: (line) => lines.push(line),
+    record,
+  });
+  return { result, lines };
+}
+
+test("a head a finished run handled is recorded, and a later run at that head reads nothing", async () => {
+  const handled = { id: 7, name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", output: { title: "Done" } };
+  const record = emptyRecord();
+  const first = counting(fakeApi({ checkRuns: [handled] }));
+  assert.equal((await decideWith(first.api, record)).result, null);
+  // Without a record: the PR, comments, threads, run listing and check runs.
+  assert.deepEqual(first.counts, { pullsForCommit: 1, listIssueComments: 1, listReviewThreads: 1, listWorkflowRuns: 1, listCheckRuns: 1 });
+  const later = counting(fakeApi({ checkRuns: [handled] }));
+  const { result, lines } = await decideWith(later.api, parseRecord(serializeRecord(record)));
+  assert.equal(result, null);
+  assert.deepEqual(later.counts, {});
+  assert.deepEqual(lines, [`skip: head ${HEAD} already has a pr-unblock / address-feedback check run (recorded)`]);
+});
+
+test("a limit-stopped run is not recorded", async () => {
+  const record = emptyRecord();
+  const stopped = failedRun("lane=pr-unblock activity=address-feedback class=rate-limit resets=2026-10-17T12:00:00Z");
+  await decideWith(fakeApi({ checkRuns: [stopped] }), record);
+  assert.equal(record.handled.size, 0);
+});
+
+test("a later run at a head whose dispatched run is still going skips after one read of that run", async () => {
+  const record = emptyRecord();
+  const first = await decideWith(fakeApi(), record);
+  assert.deepEqual(first.result, { number: 42, workflowRunId: "38779200001" });
+  assert.deepEqual(record.dispatched.get(HEAD), { number: 42, runId: "38779200001" });
+
+  const going = { id: 38779200001, status: "in_progress", display_title: TITLE_42, created_at: "2026-10-17T10:05:00Z" };
+  const run = { run_started_at: "2026-10-17T10:00:00Z" };
+  // Without the record the same run is found in the run listing: the same skip.
+  const full = counting(fakeApi({ run, workflowRuns: [going] }));
+  assert.equal((await decideWith(full.api, emptyRecord())).result, null);
+  assert.deepEqual(full.counts, { pullsForCommit: 1, listIssueComments: 1, listReviewThreads: 1, listWorkflowRuns: 1 });
+
+  const later = counting({ ...fakeApi({ run, workflowRuns: [going] }), getWorkflowRun: async () => going });
+  const { result, lines } = await decideWith(later.api, record);
+  assert.equal(result, null);
+  assert.deepEqual(later.counts, { pullsForCommit: 1, getWorkflowRun: 1 });
+  assert.ok(lines.at(-1).endsWith("is not done yet (recorded)"));
+});
+
+test("a recorded run that finished, started before this review, or cannot be read takes the full path", async () => {
+  const record = emptyRecord();
+  record.dispatched.set(HEAD, { number: 42, runId: "38779200001" });
+  const run = { run_started_at: "2026-10-17T10:00:00Z" };
+  for (const getWorkflowRun of [
+    async () => ({ id: 1, status: "completed", display_title: TITLE_42, created_at: "2026-10-17T10:05:00Z" }),
+    async () => ({ id: 1, status: "queued", display_title: TITLE_42, created_at: "2026-10-17T09:55:00Z" }),
+    async () => {
+      throw new Error("GET returned 404");
+    },
+  ]) {
+    const { result } = await decideWith({ ...fakeApi({ run }), getWorkflowRun }, record);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+  }
 });

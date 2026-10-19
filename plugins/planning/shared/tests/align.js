@@ -157,6 +157,7 @@ async function main() {
           if (ok === "skip") break;
           await page.evaluate(t => { window.__expectToast = t; }, v.startsWith("toast"));
           await page.waitForTimeout(i === 0 ? 250 : 120);
+          await settled(page);
           const tag = `${v} ${w}x${h} ${theme}`;
           const f = ok === false ? [{ rule: "setup", msg: "could not open this view" }] : await check(page, theme);
           results.push({ v, size: `${w}x${h}`, theme, fails: f.length });
@@ -183,6 +184,27 @@ async function main() {
   console.log(`PASS ${pass} / ${results.length}`);
   return code || pass !== results.length || !results.length ? 1 : 0;
 }
+
+/** Resolves once the page holds still, so the check measures what a person sees and not a passing frame: fonts
+ *  loaded, no finite animation running, and every box in #app the same for two frames in a row (5 s at most). A theme
+ *  switch starts color transitions (0.01 ms under reduced motion, still a frame on a busy machine), and mid-way a
+ *  popover's or the chat panel's background reads as a half-way color the overlap rule cannot call opaque. */
+const settled = page => page.evaluate(async () => {
+  const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+  const running = () => document.getAnimations().filter(a => a.playState === "running" && a.effect?.getTiming().iterations !== Infinity);
+  const boxes = () => [...document.querySelectorAll("#app *")].map(e => { const r = e.getBoundingClientRect(); return `${r.x},${r.y},${r.width},${r.height}`; }).join("|");
+  await document.fonts.ready;
+  const t0 = performance.now();
+  let last = null, same = 0;
+  while (performance.now() - t0 < 5000) {
+    await Promise.all(running().map(a => a.finished.catch(() => null)));
+    await frame();
+    const now = boxes();
+    same = now === last && !running().length ? same + 1 : 0;
+    if (same >= 2) return;
+    last = now;
+  }
+});
 
 function helpers(page) {
   const clickIn = (sel, text) => page.evaluate(([sel, text]) => {
@@ -221,8 +243,8 @@ function helpers(page) {
 
 function views(page, CFG) {
   const { clickIn, phone, more, mode, joinIfAsked } = helpers(page);
-  // the Claude thread: its own column from 1200px, a tab below that
-  const claudeTab = async () => { await clickIn(".vf-splittabs .vf-seg-btn", "Claude"); return true; };
+  // the Claude thread: the "Claude on this question" section below the answers, opened
+  const claudeTab = async () => { if (await page.evaluate(() => document.querySelector(".vf-cltoggle")?.getAttribute("aria-expanded") !== "true")) await page.click(".vf-cltoggle"); return true; };
   const gotoQ = async id => { await mode("tree"); const ok = await clickIn(`[data-tkey="q:${id}"]`); await mode("focus"); return ok; };
   const railTab = async () => { if (await phone()) await clickIn(".vf-tab", "Questions"); };
   const W = ms => page.waitForTimeout(ms);
@@ -286,9 +308,9 @@ function views(page, CFG) {
     "ref-add": async () => { await gotoQ("Q5"); return clickIn(".vf-refadd"); },
     "ref-reader": async () => { await gotoQ("Q1"); return clickIn(".vf-ref-img"); },
     "reply": async () => { await clickIn(".vf-fab"); await W(150); await clickIn(".vf-msgmore"); await W(120); return clickIn(".vf-msgmenu .vf-menu-item", "Reply"); },
-    "confirm-unlock": async () => { await gotoQ("Q4"); await clickIn(".vf-splittabs .vf-seg-btn", "Answers"); return clickIn(".vf-lock .vf-btn", "Unlock"); },
+    "confirm-unlock": async () => { await gotoQ("Q4"); return clickIn(".vf-lock .vf-btn", "Unlock"); },
     "confirm-remove": async () => { await mode("host"); return clickIn(".vf-hpeople .vf-btn-danger", "Remove"); },
-    "pick-thumbs": async () => { await gotoQ("Q11"); await clickIn(".vf-splittabs .vf-seg-btn", "Answers"); return page.evaluate(() => { const a = document.querySelector(".vf-alist .vf-pickthumb:not([hidden])"); a?.scrollIntoView({ block: "center" }); return !!a; }); },
+    "pick-thumbs": async () => { await gotoQ("Q11"); return page.evaluate(() => { const a = document.querySelector(".vf-alist .vf-pickthumb:not([hidden])"); a?.scrollIntoView({ block: "center" }); return !!a; }); },
     "more": async () => ((await phone()) ? clickIn(".vf-tab", "More") : "skip"),
     // last: these leave the seeded page; the next view reloads it
     "empty-host": async () => { await page.goto(CFG.emptyHost); await page.reload(); await joinIfAsked("Kyle"); return true; },

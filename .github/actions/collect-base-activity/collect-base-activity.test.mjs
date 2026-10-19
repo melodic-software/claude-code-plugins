@@ -809,6 +809,47 @@ test("prepare: dependency-review with no context file, or as a gate, fails red b
   assert.match(gate.stdout, /::error::dependency-review: the activity must be advisory/);
 });
 
+// pr-run-activity.md, "prepare: ci-context": a read skill that holds no write
+// token gets Bash, Edit and Write to rerun and fix the failing checks, reads
+// the runner's read-only context file, and gets no commit tool.
+function withCiContext({ file = true, effect = "read" } = {}) {
+  const dir = mkdtempSync(path.join(root, "ci-"));
+  const ciDir = path.join(dir, "lane-ci");
+  mkdirSync(ciDir, { recursive: true });
+  if (file) writeFileSync(path.join(ciDir, "context.json"), "{}");
+  return { ciDir, ...stage({ PREPARE: "ci-context", CI_DIR: ciDir, EFFECT: effect, CAN_COMMIT: "false", SKILL: "source-control:pull-request" }) };
+}
+
+test("prepare: ci-context gives a read skill Bash, Edit and Write and the read-only context file", () => {
+  const { status, args, allowed, denied, ciDir } = withCiContext();
+  assert.equal(status, 0);
+  for (const tool of ["Bash", "Edit", "Write", `Read(/${ciDir}/**)`]) {
+    assert.ok(allowed.includes(tool), `${tool} in ${allowed.join(" | ")}`);
+  }
+  assert.ok(!allowed.includes(COMMIT_TOOL), allowed.join(" | "));
+  assert.ok(denied.includes(`Edit(/${ciDir}/**)`) && denied.includes(`Write(/${ciDir}/**)`), denied.join(" | "));
+  assert.ok(denied.includes("WebFetch") && denied.includes("WebSearch"), denied.join(" | "));
+  assert.ok(args.includes(`${ciDir}/context.json`), "the system prompt names the context file");
+  const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", path.join(ciDir, "context.json")]);
+  assert.notEqual(write.status, 0, "the context file is read-only");
+});
+
+test("a read skill without ci-context gets no Bash, Edit or Write", () => {
+  const { status, allowed } = stage({ EFFECT: "read", CAN_COMMIT: "false" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => /^(Bash|Edit|Write)/.test(rule)), allowed.join(" | "));
+});
+
+test("prepare: ci-context with no context file, or on a write effect, fails red before any output", () => {
+  const missing = withCiContext({ file: false });
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stdout, /::error::ci-context: the runner wrote no context file/);
+  assert.equal(missing.args, "");
+  const write = withCiContext({ effect: "mutate-branch" });
+  assert.notEqual(write.status, 0);
+  assert.match(write.stdout, /::error::ci-context: the activity's effect must be read/);
+});
+
 test("an unknown prepare mode fails red before any output", () => {
   const { status, stdout, args } = stage({ PREPARE: "rebase" });
   assert.notEqual(status, 0);

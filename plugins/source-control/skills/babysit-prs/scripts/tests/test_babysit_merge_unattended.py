@@ -19,6 +19,7 @@ import dataclasses
 import io
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -549,8 +550,17 @@ class Unattended(unittest.TestCase):
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
         self.pr_labels: list[dict[str, Any]] = []
         self.dependabot_reads: list[policy.Eligibility] = []
+        self.dependabot_kwargs: list[dict[str, Any]] = []
+        # The default branch head the in-flight cap is read at: the base, so
+        # the cap is `self.config`'s.
+        self.main_head = BASE
+        # Reads of the pipeline config at `main_head` when it is not the
+        # base, in order: a config, or an exception to raise. Empty reads
+        # `self.config`.
+        self.head_configs: list[Any] = []
 
     def _dependabot_eligibility(self, *args: Any, **kwargs: Any) -> Any:
+        self.dependabot_kwargs.append(kwargs)
         if not self.dependabot_reads:
             raise AssertionError("the Dependabot class was read for this pull request")
         return (
@@ -568,6 +578,19 @@ class Unattended(unittest.TestCase):
         if self.default_branch is None:
             raise policy.PolicyReadError("the default branch could not be read")
         return self.default_branch
+
+    def _read_config_at(self, repo: str, sha: str, *args: Any) -> Any:
+        if sha != self.main_head or sha == BASE or not self.head_configs:
+            return self.config
+        read = self.head_configs.pop(0)
+        if isinstance(read, Exception):
+            raise read
+        return read
+
+    def _get(self, endpoint: str) -> tuple[int | None, Any]:
+        if endpoint == "repos/owner/repo/commits/main":
+            return 200, {"sha": self.main_head}
+        return self._real_get(endpoint)
 
     def _dispatch(self, repo: str, ref: str) -> None:
         self.log.append("dispatch")
@@ -627,13 +650,17 @@ class Unattended(unittest.TestCase):
             argv += ["--merge", "--expected-head", HEAD]
         argv += list(flags)
         out = io.StringIO()
+        self._real_get = policy._get
         patches = [
             mock.patch.object(sys, "argv", argv),
+            mock.patch.object(policy, "_get", side_effect=self._get),
             mock.patch.object(policy, "pull_request", return_value=pr_record),
             mock.patch.object(
                 policy, "_default_branch", side_effect=self._default_branch
             ),
-            mock.patch.object(policy, "read_config_at", return_value=self.config),
+            mock.patch.object(
+                policy, "read_config_at", side_effect=self._read_config_at
+            ),
             mock.patch.object(policy, "read_acting_login", return_value=self.acting),
             mock.patch.object(
                 policy, "credential_refusal", return_value=self.credentials
@@ -1198,6 +1225,26 @@ class DependabotLane(Unattended):
             out["blockers"],
         )
 
+    def test_the_enqueue_recheck_holds_a_major_under_the_config(self) -> None:
+        held = "dependabot-major-held:x"
+        tier = dependabot.Classification("review", ("major:x",), approved="55-1")
+        for majors, hold in (("hold", True), ("review", False)):
+            with self.subTest(majors=majors):
+                self.config = dataclasses.replace(self.config, dependabot_majors=majors)
+                self.dependabot_kwargs = []
+                self.dependabot_reads = [
+                    policy.Eligibility(True, None, "C2", dependabot=tier),
+                    policy.Eligibility(False, held, "C2", dependabot=tier),
+                ]
+                code, out = self.lane()
+                self.assert_no_merge(code)
+                self.assertIn(
+                    f"unattended merge refused: ineligible:{held}", out["blockers"]
+                )
+                self.assertEqual(
+                    [k["hold_majors"] for k in self.dependabot_kwargs], [hold, hold]
+                )
+
     def test_a_lane_authored_pr_still_reads_report_only(self) -> None:
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
         self.pr_view = fixtures._pr()
@@ -1551,6 +1598,66 @@ class OneUnattendedMergeInFlight(Unattended):
                     "dequeue-self:id=PR_self" in self.log, not kept, self.log
                 )
                 self.assertEqual(code, 0 if kept else 10)
+
+    def test_the_room_check_reads_the_cap_again_not_from_the_run_cache(
+        self,
+    ) -> None:
+        # Another gate process saved a cap of 1; the head's is 5, so the
+        # fifth entry stays only on a fresh read.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {run_cache.ENV: path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        run_cache.put(policy.MAX_IN_FLIGHT_SECTION, "owner/repo", 1)
+        self.config = dataclasses.replace(self.config, max_in_flight=5)
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+        self.flight = policy.InFlight(True, None, frozenset(), 1)
+        code, out = self.run_main()
+        self.assertIs(out["enqueued"], True)
+        self.assertNotIn("dequeue-self:id=PR_self", self.log)
+        self.assertEqual(code, 0)
+
+    def test_the_room_check_reads_the_cap_at_the_default_branch_head(
+        self,
+    ) -> None:
+        # Three earlier entries and one unverified merge: the fifth entry
+        # stays only at a cap of 5, read at main's head, not at the base.
+        self.main_head = "d" * 40
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.flight = policy.InFlight(True, None, frozenset(), 1)
+        for base_cap, head_cap, kept in ((1, 5, True), (5, 1, False)):
+            with self.subTest(base_cap=base_cap, head_cap=head_cap):
+                self.log.clear()
+                self.config = dataclasses.replace(self.config, max_in_flight=base_cap)
+                head = dataclasses.replace(self.config, max_in_flight=head_cap)
+                self.head_configs = [head, head]
+                self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+                code, out = self.run_main()
+                self.assertEqual(out["unattended"]["inFlight"]["cap"], head_cap)
+                self.assertIs(out["enqueued"], kept)
+                self.assertEqual(
+                    "dequeue-self:id=PR_self" in self.log, not kept, self.log
+                )
+
+    def test_a_failed_room_check_read_keeps_the_lower_applied_cap(self) -> None:
+        # The gate applied main's cap of 1; the re-read fails, and the base's
+        # 5 would leave room, so the lower cap holds and the entry leaves.
+        self.main_head = "d" * 40
+        self.config = dataclasses.replace(self.config, max_in_flight=5)
+        self.head_configs = [
+            dataclasses.replace(self.config, max_in_flight=1),
+            policy.PolicyReadError("HTTP 502"),
+        ]
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+        self.flight = policy.InFlight(True, None, frozenset(), 0)
+        code, out = self.run_main()
+        self.assertIn("dequeue-self:id=PR_self", self.log)
+        self.assertIs(out["enqueued"], False)
+        self.assertEqual(code, 10)
 
     def test_the_earliest_entry_stays(self) -> None:
         self.entries = [
@@ -2267,6 +2374,190 @@ def setUpModule() -> None:
 
 def tearDownModule() -> None:
     _role_label.stop()
+
+
+class DependabotMajorEscalation(unittest.TestCase):
+    """A Dependabot major held under `merge.dependabot.majors: hold` gets the
+    escalation contract: one marked comment, then the tracker's human-gated
+    role label, once."""
+
+    REPO, PR, HEAD = "owner/repo", 7, "e" * 40
+
+    def setUp(self) -> None:
+        self.calls: list[list[str]] = []
+        self.pr_labels: list[dict[str, str]] = []
+        self.comments: list[dict[str, Any]] = []
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(
+            mock.patch.object(postmerge, "identity_queue", return_value=([], 0))
+        )
+        stack.enter_context(
+            mock.patch.object(postmerge, "dequeue_identity_entries", return_value=0)
+        )
+        self.role = stack.enter_context(
+            mock.patch.object(
+                merge, "human_gated_label", return_value="status: needs-decision"
+            )
+        )
+
+        def capture(args: list[str]) -> subprocess.CompletedProcess[str]:
+            self.calls.append(args)
+            return subprocess.CompletedProcess(args, 0, "{}", "")
+
+        stack.enter_context(mock.patch.object(merge, "gh_capture", capture))
+
+    def writes(self, reason: str, eligibility: str | None = None) -> dict[str, Any]:
+        inputs = {
+            "identity": "agent-lanes[bot]",
+            "branch": "main",
+            "pr": {"head": {"sha": self.HEAD}, "labels": self.pr_labels},
+            "comments": self.comments,
+        }
+        return merge.unattended_writes(
+            self.REPO,
+            self.PR,
+            policy.UnattendedPolicy(
+                reason,
+                "agent-lanes[bot]",
+                {
+                    "eligibility": {
+                        "eligible": False,
+                        "reason": eligibility or reason.removeprefix("ineligible:"),
+                    }
+                },
+                inputs=inputs,
+            ),
+        )
+
+    def test_a_held_major_is_labeled_with_the_role_label_once(self) -> None:
+        out = self.writes("ineligible:dependabot-major-held:x")
+        comment, label = self.calls
+        self.assertIn(f"repos/{self.REPO}/issues/{self.PR}/comments", comment)
+        body = comment[-1].removeprefix("body=")
+        self.assertTrue(
+            body.startswith(
+                f"{merge.ATTEND_QUEUE_MARKER}\n{merge.MAJOR_ESCALATION_MARKER}\n"
+            )
+        )
+        self.assertIn("`x`", body)
+        self.assertIn(self.HEAD, body)
+        self.assertIn("`(disagree)`", body)
+        self.assertEqual(
+            label[-4:],
+            ["POST", f"repos/{self.REPO}/issues/{self.PR}/labels"]
+            + ["-f", "labels[]=status: needs-decision"],
+        )
+        self.assertNotIn("do-not-merge", " ".join(" ".join(c) for c in self.calls))
+        self.assertEqual(
+            out["majorEscalation"], {"label": "added", "comment": "created"}
+        )
+
+    def test_an_unreadable_version_hold_is_escalated_the_same_way(self) -> None:
+        out = self.writes("ineligible:dependabot-major-held:x(unreadable)")
+        comment, label = self.calls
+        self.assertIn("`x(unreadable)`", comment[-1])
+        self.assertEqual(label[-1], "labels[]=status: needs-decision")
+        self.assertEqual(
+            out["majorEscalation"], {"label": "added", "comment": "created"}
+        )
+
+    def test_a_rerun_writes_nothing(self) -> None:
+        self.pr_labels = [{"name": "Status: Needs-Decision"}]
+        self.comments = [
+            {
+                "id": 90,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": merge.major_escalation_body("x", self.HEAD),
+            }
+        ]
+        out = self.writes("ineligible:dependabot-major-held:x")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "unchanged"}
+        )
+
+    def test_the_first_line_is_the_attend_queue_escalation_marker(self) -> None:
+        # The grammar and kinds come from the work-items reference, so a
+        # change there fails here.
+        reference = (
+            pathlib.Path(__file__).resolve().parents[6]
+            / "plugins/work-items/reference/escalation-marker.md"
+        ).read_text(encoding="utf-8")
+        template = re.search(
+            r"## Comment prefix.*?```text\n(.+?)\n```", reference, re.S
+        ).group(1)
+        grammar = re.escape(template)
+        grammar = grammar.replace(re.escape("<lane>"), r"(?P<lane>[a-z-]+)")
+        grammar = grammar.replace(re.escape("<kind>"), r"(?P<kind>[a-z0-9-]+)")
+        kinds = re.search(r"\| `<kind>` \| (.+?) \|\n", reference).group(1)
+        body = merge.major_escalation_body("x", self.HEAD)
+        match = re.fullmatch(grammar, body.split("\n", 1)[0])
+        self.assertIsNotNone(match)
+        self.assertIn(f"`{match['kind']}`", kinds)
+        # attend-queue lists `escalated` and `routed-advisory` as escalated rows.
+        self.assertIn(match["kind"], ("escalated", "routed-advisory"))
+
+    def test_an_old_format_comment_is_rewritten_not_duplicated(self) -> None:
+        self.pr_labels = [{"name": "status: needs-decision"}]
+        old = merge.major_escalation_body("x", self.HEAD).removeprefix(
+            merge.ATTEND_QUEUE_MARKER + "\n"
+        )
+        self.comments = [
+            {
+                "id": 92,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": old,
+            }
+        ]
+        out = self.writes("ineligible:dependabot-major-held:x")
+        (comment,) = self.calls
+        self.assertIn("PATCH", comment)
+        self.assertIn(f"repos/{self.REPO}/issues/comments/92", comment)
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "updated"}
+        )
+
+    def test_a_held_major_under_an_earlier_refusal_escalates_once(self) -> None:
+        out = self.writes("in-flight:queue-full", "dependabot-major-held:x")
+        comment, label = self.calls
+        self.assertIn("`x`", comment[-1])
+        self.assertEqual(label[-1], "labels[]=status: needs-decision")
+        self.assertEqual(
+            out["majorEscalation"], {"label": "added", "comment": "created"}
+        )
+        # The next run finds both and writes nothing.
+        self.calls.clear()
+        self.pr_labels = [{"name": "status: needs-decision"}]
+        self.comments = [
+            {
+                "id": 91,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": comment[-1].removeprefix("body="),
+            }
+        ]
+        out = self.writes("in-flight:queue-full", "dependabot-major-held:x")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "unchanged"}
+        )
+
+    def test_other_refusals_are_not_escalated(self) -> None:
+        for reason in (
+            "ineligible:dependabot-review:major:x",
+            "ci-status:pending",
+            "kill-switch:off",
+        ):
+            with self.subTest(reason):
+                out = self.writes(
+                    reason,
+                    "dependabot-major-held:x" if reason.startswith("kill") else None,
+                )
+                self.assertEqual(self.calls, [])
+                self.assertNotIn("majorEscalation", out)
 
 
 if __name__ == "__main__":

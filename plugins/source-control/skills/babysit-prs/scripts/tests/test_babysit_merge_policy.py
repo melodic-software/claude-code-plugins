@@ -2036,6 +2036,9 @@ class Assess(unittest.TestCase):
             "head": {"ref": "feat", "sha": "e" * 40},
         }
         gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
+        # The default branch head is the base, so the in-flight cap is the
+        # base config's.
+        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": SHA}
         return gh
 
     def readable(self) -> GhFake:
@@ -3191,6 +3194,92 @@ NEWEST_CONFIG = (
 )
 
 
+class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
+    """`merge.max-in-flight` caps the one merge queue, so every candidate of
+    a run reads it at the default branch head, not at its own base; a failed
+    head read falls back to the base's and is never shared."""
+
+    readable = LaneAssess.readable
+    fake = Assess.fake
+    assess = Assess.assess
+    lane_assess = LaneAssess.lane_assess
+    lane_clear = LaneAssess.lane_clear
+    HEAD_CONFIG = f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={MAIN_SHA}"
+
+    def moved(self, head_config: Any) -> GhFake:
+        """Main has moved past the base (whose config has no cap) to a head
+        whose config read answers `head_config`."""
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+        gh.rest[self.HEAD_CONFIG] = head_config
+        return gh
+
+    def cap(self) -> tuple[int, dict[str, Any]]:
+        self.lane_clear()
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        (call,) = policy.in_flight.call_args_list
+        return call.kwargs["max_in_flight"], result.details["inFlight"]
+
+    def test_the_heads_cap_governs_a_base_without_one(self) -> None:
+        for base in (
+            LANE_PIPELINE,
+            LANE_PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 1\n"),
+        ):
+            with self.subTest(base=base):
+                gh = self.moved(
+                    file_payload(
+                        LANE_PIPELINE.replace(
+                            "merge:\n", "merge:\n  max-in-flight: 5\n"
+                        )
+                    )
+                )
+                gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = (
+                    file_payload(base)
+                )
+                cap, details = self.cap()
+                self.assertEqual(cap, 5)
+                self.assertEqual(details["cap"], 5)
+                self.assertEqual(details["capSource"], "default-branch")
+
+    def test_an_unreadable_head_config_falls_back_to_the_bases_cap(self) -> None:
+        """Pins the fallback only: the base's cap is what the gate read before
+        this change, so this guards no regression from it."""
+        for answer in (502, file_payload("merge: [unclosed\n")):
+            with self.subTest(answer=answer):
+                gh = self.moved(answer)
+                gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = (
+                    file_payload(
+                        LANE_PIPELINE.replace(
+                            "merge:\n", "merge:\n  max-in-flight: 3\n"
+                        )
+                    )
+                )
+                cap, details = self.cap()
+                self.assertEqual(cap, 3)
+                self.assertEqual(details["capSource"], "base")
+
+    def test_the_heads_cap_is_shared_per_cache_window_and_a_failure_never(
+        self,
+    ) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {"BABYSIT_RUN_CACHE": str(pathlib.Path(tmp.name, "run.json"))}
+        patcher = mock.patch.dict("os.environ", env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        gh = self.moved(502)
+        for _ in range(2):
+            self.lane_clear()
+            self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertEqual(gh.calls.count(["api", self.HEAD_CONFIG]), 2)
+        gh.rest[self.HEAD_CONFIG] = file_payload(
+            LANE_PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 5\n")
+        )
+        for _ in range(2):
+            self.assertEqual(self.cap()[0], 5)
+        self.assertEqual(gh.calls.count(["api", self.HEAD_CONFIG]), 3)
+
+
 class SharedPostMergeAnswer(unittest.TestCase):
     """`assess(shared=...)`: the pr-merge run's one demotion, floor and
     post-merge answer stands in for each candidate's own reads only while it
@@ -3206,6 +3295,11 @@ class SharedPostMergeAnswer(unittest.TestCase):
     def bound(self) -> GhFake:
         gh = self.readable()
         gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+        # The in-flight cap's read at the head this class moves main to.
+        for sha in (MAIN_SHA, "f" * 40):
+            gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={sha}"] = (
+                file_payload(LANE_PIPELINE)
+            )
         gh.rest[NEWEST_CONFIG] = [{"sha": CONFIG_SHA}]
         self.computed_at = policy.datetime.now(policy.UTC)
         gh.rest[self.issues_since()] = []
@@ -3252,6 +3346,12 @@ class SharedPostMergeAnswer(unittest.TestCase):
         details = {
             k: v for k, v in (result.details or {}).items() if k != "postMergeShared"
         }
+        # Where the cap was read is provenance, not a decision: an unreadable
+        # head falls back to the base's cap.
+        if isinstance(details.get("inFlight"), dict):
+            details["inFlight"] = {
+                k: v for k, v in details["inFlight"].items() if k != "capSource"
+            }
         return result.reason, result.enabled, result.promoted, details
 
     def test_a_bound_answer_decides_as_the_fresh_reads_do(self) -> None:
@@ -3552,7 +3652,10 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
             shared=self.shared(lane_gate(False)),
             share=lambda answer: None,
         )
-        self.assertEqual(refreshed.details["inFlight"], {"clear": True, "reason": None})
+        self.assertEqual(
+            refreshed.details["inFlight"],
+            {"clear": True, "reason": None, "cap": 1, "capSource": "default-branch"},
+        )
         self.assertIsNone(refreshed.reason)
         self.assertTrue(refreshed.enabled)
         self.assertIn("eligibility", refreshed.details)
@@ -3917,6 +4020,22 @@ class DependabotConfig(unittest.TestCase):
                 config_fake(self, text)
                 self.assertEqual(policy.read_config_at(REPO, SHA).dependabot_mode, mode)
 
+    def test_majors_hold_unless_set_to_review(self) -> None:
+        for written, majors in (
+            (None, "hold"),
+            ("hold", "hold"),
+            ("review", "review"),
+            ("merge", "hold"),
+        ):
+            with self.subTest(written=written):
+                text = LANE_PIPELINE + "  dependabot:\n    mode: enforce\n"
+                if written is not None:
+                    text += f"    majors: {written}\n"
+                config_fake(self, text)
+                self.assertEqual(
+                    policy.read_config_at(REPO, SHA).dependabot_majors, majors
+                )
+
 
 class DependabotEligibility(unittest.TestCase):
     """The pr-merge lane's Dependabot class: tier `auto` on verified
@@ -4033,7 +4152,7 @@ class DependabotEligibility(unittest.TestCase):
             **fields,
         }
 
-    def eligibility(self, title: str = "build(deps): bump x") -> Any:
+    def eligibility(self, title: str = "build(deps): bump x", **options: Any) -> Any:
         pr = {
             "number": 7,
             "title": title,
@@ -4044,7 +4163,9 @@ class DependabotEligibility(unittest.TestCase):
             "head": {"sha": self.HEAD, "ref": "dependabot/npm_and_yarn/x-1.3.0"},
             "user": {"login": "dependabot[bot]", "type": "Bot"},
         }
-        return policy.dependabot_eligibility(REPO, 7, pr=pr, agent_identity=IDENTITY)
+        return policy.dependabot_eligibility(
+            REPO, 7, pr=pr, agent_identity=IDENTITY, **options
+        )
 
     def marker(
         self, head: str | None = None, verdict: str = "merge", login: str = IDENTITY
@@ -4115,7 +4236,7 @@ class DependabotEligibility(unittest.TestCase):
     def test_a_review_tier_bump_spends_no_registry_read(self) -> None:
         self.fake(commits=[dependabot_commit("semver-major")], registry={})
         self.assertEqual(
-            self.eligibility().reason,
+            self.eligibility(hold_majors=False).reason,
             "dependabot-review:major:x;review-verdict-missing",
         )
         self.assertEqual(self.registry_calls, [])
@@ -4134,16 +4255,85 @@ class DependabotEligibility(unittest.TestCase):
 
     def test_a_major_bump_is_tier_review_and_waits_for_the_verdict(self) -> None:
         self.fake(commits=[dependabot_commit("semver-major")])
-        result = self.eligibility()
+        result = self.eligibility(hold_majors=False)
         self.assertFalse(result.eligible)
         self.assertEqual(
             result.reason, "dependabot-review:major:x;review-verdict-missing"
         )
         self.assertEqual(result.dependabot.tier, "review")
 
-    def test_a_merge_verdict_at_the_current_head_on_green_ci_is_eligible(self) -> None:
+    def test_a_major_bump_is_held_for_a_human_despite_a_merge_verdict(self) -> None:
         self.fake(commits=[dependabot_commit("semver-major")], comments=[self.marker()])
         result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:x")
+        self.assertIsNone(result.dependabot.approved)
+
+    SHA_PIN = dependabot_commit(
+        message=(
+            "build(deps): bump x\n\n---\nupdated-dependencies:\n"
+            f"- dependency-name: x\n  dependency-version: {'a' * 40}\n"
+            "  dependency-type: direct:production\n...\n"
+        )
+    )
+
+    def test_a_sha_pin_bump_is_held_despite_a_merge_verdict(self) -> None:
+        # Fail closed: an unreadable version may be a major.
+        self.fake(commits=[self.SHA_PIN], comments=[self.marker()])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:x(unreadable)")
+        self.assertEqual(result.dependabot.reasons, ("unparsed-version:x",))
+
+    def test_sources_that_disagree_are_held_despite_a_merge_verdict(self) -> None:
+        # The metadata says minor, the title says major.
+        self.fake(comments=[self.marker()])
+        result = self.eligibility(title="build(deps): bump x from 1.2.0 to 2.0.0")
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:x(disagree)")
+        self.assertIn("sources-disagree", result.dependabot.reasons)
+
+    def test_no_readable_update_is_held_despite_a_merge_verdict(self) -> None:
+        # Fail closed: neither the title nor the commit names an update.
+        self.fake(
+            commits=[dependabot_commit(message="build(deps): update dependencies")],
+            comments=[self.marker()],
+        )
+        result = self.eligibility(title="build(deps): update dependencies")
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:updates(unreadable)")
+        self.assertIsNone(result.dependabot.approved)
+
+    def test_with_majors_review_the_verdict_path_is_unchanged(self) -> None:
+        for commit, why in (
+            (dependabot_commit("semver-major"), "major:x"),
+            (self.SHA_PIN, "unparsed-version:x"),
+        ):
+            with self.subTest(why=why):
+                self.fake(commits=[commit])
+                self.assertEqual(
+                    self.eligibility(hold_majors=False).reason,
+                    f"dependabot-review:{why};review-verdict-missing",
+                )
+                self.fake(commits=[commit], comments=[self.marker()])
+                result = self.eligibility(hold_majors=False)
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.dependabot.approved, "55-1")
+
+    def test_a_minor_bump_still_merges_while_majors_are_held(self) -> None:
+        self.fake()
+        result = self.eligibility(hold_majors=True)
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.tier, "auto")
+        # A non-major review-tier bump still merges on the verdict.
+        self.fake(review_only=[self.entry()], comments=[self.marker()])
+        result = self.eligibility(hold_majors=True)
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.approved, "55-1")
+
+    def test_a_merge_verdict_at_the_current_head_on_green_ci_is_eligible(self) -> None:
+        self.fake(commits=[dependabot_commit("semver-major")], comments=[self.marker()])
+        result = self.eligibility(hold_majors=False)
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual(result.work_class, "C2")
         self.assertEqual(
@@ -4160,7 +4350,7 @@ class DependabotEligibility(unittest.TestCase):
                 self.fake(
                     commits=[dependabot_commit("semver-major")], comments=[comment]
                 )
-                result = self.eligibility()
+                result = self.eligibility(hold_majors=False)
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.reason, f"dependabot-review:major:x;{why}")
 
@@ -4170,7 +4360,9 @@ class DependabotEligibility(unittest.TestCase):
             comments=[self.marker()],
             ci=[{"status": "in_progress", "conclusion": None}],
         )
-        self.assertEqual(self.eligibility().reason, "ci-status:pending")
+        self.assertEqual(
+            self.eligibility(hold_majors=False).reason, "ci-status:pending"
+        )
 
     def test_the_lanes_app_fix_commit_counts_only_after_a_review(self) -> None:
         fix = dependabot_commit(
@@ -4184,7 +4376,10 @@ class DependabotEligibility(unittest.TestCase):
         gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
             "files": [{"filename": "src/x.js"}]
         }
-        self.assertEqual(self.eligibility().reason, f"commit-not-dependabot:{'e' * 12}")
+        self.assertEqual(
+            self.eligibility(hold_majors=False).reason,
+            f"commit-not-dependabot:{'e' * 12}",
+        )
         pushes = [
             {
                 "activity_type": "push",
@@ -4205,7 +4400,7 @@ class DependabotEligibility(unittest.TestCase):
         gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
             "files": [{"filename": "src/x.js"}]
         }
-        result = self.eligibility()
+        result = self.eligibility(hold_majors=False)
         self.assertTrue(result.eligible, result.reason)
         # A fix commit may not touch .github/.
         gh = self.fake(
@@ -4215,7 +4410,7 @@ class DependabotEligibility(unittest.TestCase):
             "files": [{"filename": ".github/workflows/ci.yml"}]
         }
         self.assertEqual(
-            self.eligibility().reason,
+            self.eligibility(hold_majors=False).reason,
             "dependabot-fix-content:.github/workflows/ci.yml",
         )
 
@@ -4457,6 +4652,20 @@ class DependabotAssess(unittest.TestCase):
         result = self.assess_mode(None)
         self.assertEqual(result.reason, "ineligible:dependabot-merge-off")
         self.read.assert_not_called()
+
+    def test_the_majors_setting_reaches_the_eligibility_read(self) -> None:
+        for written, hold in ((None, True), ("hold", True), ("review", False)):
+            with self.subTest(written=written):
+                pipeline = LANE_PIPELINE + "  dependabot:\n    mode: enforce\n"
+                if written is not None:
+                    pipeline += f"    majors: {written}\n"
+                result = self.assess_mode(None, pipeline=pipeline)
+                self.assertIsNone(result.reason)
+                self.assertIs(self.read.call_args.kwargs["hold_majors"], hold)
+                self.assertEqual(
+                    result.report()["dependabot"]["majors"],
+                    "hold" if hold else "review",
+                )
 
     def test_tier_review_is_refused(self) -> None:
         tier = policy.dependabot.Classification("review", ("major:x",))

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    { "answer": [], "why": "edits nothing" },
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": ".worktrees/phase-2/src/routes/search.js" } }],
+      "why": "reads only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Edit", "input": { "file_path": ".worktrees/phase-2/src/routes/search.js", "old_string": "+ q +", "new_string": "?" } }],
+      "why": "fixes the finding instead of reporting it"
+    }
+  ]
+}
