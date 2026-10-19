@@ -17,8 +17,8 @@ Choose deliberately:
 
 ## Size crossings (when code-metrics is enabled)
 
-Before either path below, when `/code-metrics:audit-size` is among the available skills, run it
-over the changed files with `--base <base>`, the review diff base, so both counts share one base.
+Before either path below, when `/code-metrics:audit-size` is among the available skills and no
+`--worktree` is passed ([phase-boundary.md](phase-boundary.md)), run it over the changed files with `--base <base>`, the review diff base, so both counts share one base.
 Read the `file_lines` row of its References table (config key `size.file_lines`):
 
 - **Layer `bundled default`:** pass nothing. The plugin's own reference is not the consumer's

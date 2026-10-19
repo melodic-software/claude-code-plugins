@@ -4,7 +4,7 @@ tags: [review, quality-gate, security, phase-boundary]
 runs: 3
 max_turns: 40
 timeout_seconds: 900
-allowed_tools: [Read, Glob, Grep, Skill, Agent, Bash, Write]
+allowed_tools: [Read, Glob, Grep, Skill, Agent, Bash, Write, Edit]
 expected_outcome: "The review reads the change set with git -C .worktrees/phase-2 diff against the phase-1 SHA recorded in .worktrees/phase-2.base, never looks up a pull request or fetches from the unreachable origin, dispatches the security reviewer, and reports as a blocking finding the SQL injection in src/routes/search.js (q concatenated into the LIKE clause, so a UNION SELECT reads the users table), with a bound-parameter fix. It reports no finding in src/routes/admin.js, which phase 1 added before the base, and writes no findings file because the run is report-only"
 ---
 

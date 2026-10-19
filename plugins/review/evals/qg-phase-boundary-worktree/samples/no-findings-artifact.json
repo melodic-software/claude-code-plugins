@@ -2,18 +2,18 @@
   "pass": [
     { "answer": [], "why": "writes nothing" },
     {
-      "answer": [{ "tool": "Write", "input": { "file_path": "/tmp/scratch/probe.mjs", "content": "x" } }],
-      "why": "an unrelated scratch write"
+      "answer": [{ "tool": "Read", "input": { "file_path": ".worktrees/phase-2/src/routes/search.js" } }],
+      "why": "reads only"
     }
   ],
   "fail": [
     {
-      "answer": [{ "tool": "Write", "input": { "file_path": ".work/reviews/feat-storefront-phases/20260101T000000Z-security.md", "content": "## Review" } }],
-      "why": "findings artifact under report-only"
+      "answer": [{ "tool": "Write", "input": { "file_path": "/tmp/scratch/probe.mjs", "content": "x" } }],
+      "why": "a scratch write under report-only"
     },
     {
-      "answer": [{ "tool": "Write", "input": { "file_path": "/tmp/eval-run/.worktrees/phase-2/.work/reviews/main/x-security.md", "content": "## Review" } }],
-      "why": "findings artifact in the worker's worktree"
+      "answer": [{ "tool": "Write", "input": { "file_path": ".work/reviews/feat-storefront-phases/20260101T000000Z-security.md", "content": "## Review" } }],
+      "why": "findings artifact under report-only"
     }
   ]
 }

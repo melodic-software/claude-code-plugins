@@ -67,7 +67,7 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 | "does this match the spec/issue/plan", "did we build what was asked", scope-creep check, `spec [--spec <path\|id>]` | **spec** | [context/spec.md](context/spec.md) |
 | "close-out review", "review the container", "did the whole spec ship", a spec container whose last sub-item just closed, `close-out [--container <id>] [--dry-run]` | **close-out** | [context/close-out.md](context/close-out.md) |
 | "what could this break", "blast radius", "what else does this touch", "who calls this", a contract/signature/serialization change | **downstream** | [context/downstream.md](context/downstream.md) |
-| "review the PR", a PR exists for the branch | **pr** | [context/pr.md](context/pr.md) |
+| "review the PR", a PR exists for the branch (unchecked with `--base`) | **pr** | [context/pr.md](context/pr.md) |
 | "review criteria", "what should I check" | **criteria** | [context/criteria.md](context/criteria.md) |
 | `slice <name>`, "review testing", "review concurrency" | **slice** | [context/per-slice.md](context/per-slice.md) |
 | "restatement review", "SSOT drift", markdown-heavy diff | **restatement** | [context/restatement.md](context/restatement.md) |

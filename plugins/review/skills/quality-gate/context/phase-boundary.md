@@ -9,8 +9,8 @@ the table says which modes read each one.
 |---|---|---|---|
 | `--worktree <path>` | The checkout holding the change, separate from the invoking session's | all but `pr` and `close-out` | Every git command runs as `git -C <path> ...` and every file read resolves under `<path>`, starting with the repository-context gather (`git -C <path> branch --show-current`, `git -C <path> status --porcelain \| head -20`). The invoking checkout is never read as the change. A path where `git -C <path> rev-parse --show-toplevel` fails is a STOP. |
 | `--base <sha>` | The previous phase-boundary commit | `self`, `code`, `architecture`, `security`, `spec`, `downstream`, `slice`, `restatement` | The review diff base is `<sha>`. No pull-request lookup, fetch or remote read runs. The change set is `git -C <path> diff <sha>` (commits since the boundary plus uncommitted edits) and `git -C <path> ls-files --others --exclude-standard`. Without `--worktree`, the same commands run in the current checkout. |
-| `--quality-bar <prototype\|internal\|production>` | The `Quality bar:` line from the plan or Brief | `self`, `code`, `architecture`, `security`, `spec`, `downstream`, `slice`, `restatement`; `criteria` dispatches no reviewer and ignores it | Passed to the reviewer as the line `Quality bar: <value>`. Absent means `production`, and the report names that assumption. Tier tests stay those of the severity vocabulary in SKILL.md "Shared inputs". |
-| `--report-only` | The caller persists and acts on the result | every mode | The gate writes nothing and asks nothing: no findings artifact, no `downstream` probe (it runs as `report`), no Step 4 handoff. A point that would ask the user (an ambiguous mode, the `spec` rung-4 ask) is a STOP naming what is missing. The Step 3 report is the result. |
+| `--quality-bar <prototype\|internal\|production>` | The `Quality bar:` line from the plan or Brief | every mode that dispatches a reviewer: `self`, `code`, `architecture`, `security`, `spec`, `downstream`, `slice`, `restatement`, and, given no `--base` or `--worktree`, `pr` and `close-out`; `criteria` dispatches no reviewer and ignores it | Passed to each dispatched reviewer as the line `Quality bar: <value>`. Absent means `production`, and the report names that assumption. Tier tests stay those of the severity vocabulary in SKILL.md "Shared inputs". With `--base` or `--worktree`, `pr` and `close-out` STOP (Mode notes). |
+| `--report-only` | The caller persists and acts on the result | every mode | The gate writes nothing and asks nothing: no findings artifact, no `downstream` probe (it runs as `report`), no Step 4 handoff. A point that would ask the user (an ambiguous mode, the `spec` rung-4 ask) is a STOP naming what is missing, with one exception: the standards [Resolution ladder](../../../reference/standards-contract.md) skips its offer and ask rungs and takes its non-interactive rung, and the report names that assumption. The Step 3 report is the result. |
 
 ## Pre-flight with a base SHA
 
@@ -23,15 +23,20 @@ Step 0.5 runs against the base SHA in place of the "Shared inputs" ladder:
 
 ## Mode notes
 
+- With `--base`, Step 0 mode inference never checks whether a pull request exists for the branch.
 - `pr` and `close-out` take their change set from a pull request or a spec container, which only the
   forge or tracker holds. Given `--base` or `--worktree`, they STOP and name `code` as the mode that
   reviews a local diff.
 - `criteria` ignores `--base`; with `--worktree` it resolves standards from that checkout.
-- `code` with `--base` or `--worktree` skips the `pr-review-toolkit` primary path, whose command
-  reads the pull request and diffs the invoking checkout, and dispatches the `code-reviewer`
-  fallback, briefed as below. Under `--report-only` its size-crossing step writes no path file:
-  the loop reads `git -C <path> diff --name-only -z <sha>` with `read -r -d ''`, and the crossings
-  go in the gate's report.
+- `code` with `--base` or `--worktree` skips the `pr-review-toolkit` primary path and dispatches the
+  `code-reviewer` fallback, briefed as below.
+- `code` with `--worktree` skips the size-crossing step, which measures the invoking checkout; the
+  report says size crossings were not measured. Without `--worktree`, under `--report-only` that
+  step writes no path file: the loop reads `git diff --name-only -z <base>` with `read -r -d ''`,
+  where `<base>` is the `--base` SHA when given, else the review diff base ("Shared inputs"), and
+  the crossings go in the gate's report.
+- `restatement` with `--base` reviews no file inline: it dispatches a fresh-context
+  `review:brief-reviewer` for every batch, briefed as below.
 - `downstream` with `--base` skips the `downstream_probe` layer read from the default branch, which
   needs `git ls-remote` and `git fetch`. The floor is `report`, so no probe runs, and the report
   says the committed setting was not read.
@@ -41,13 +46,15 @@ Step 0.5 runs against the base SHA in place of the "Shared inputs" ladder:
 
 ## The reviewer's brief
 
-Dispatch each mode's own reviewer in fresh context, as its context file names, with only:
+Dispatch each mode's own reviewer in fresh context, as its context file names, with:
 
 - the change set commands above, with the worktree path and base SHA substituted;
 - the concern tag: the mode, or `slice <name>`;
 - the `Quality bar:` line;
-- in `spec` mode, the spec text read from the local `--spec <path>`, which the comparison needs.
+- the inputs the mode's own brief requires: the slice criteria file path in `slice`, the size
+  crossings in `code`, the finding-class table and the spec text read from the local
+  `--spec <path>` in `spec`, and the paved-path file from [criteria.md](criteria.md) step 2.
 
-Withhold the plan's rationale, the conversation and the implementer's account of the change, as
+Never give it the plan's rationale, the conversation or the implementer's account of the change, as
 [per-slice.md](per-slice.md) does: the reviewer judges the diff, not the story behind it. In `self`
 mode this replaces gathering the plan in the orchestrator sequence's first step.
