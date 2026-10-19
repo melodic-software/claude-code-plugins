@@ -246,7 +246,7 @@
     },
     "lane_app_slug": {
       "type": "string",
-      "title": "Lane GitHub App slug",
+      "title": "Lane GitHub app slug",
       "description": "Slug of the GitHub App whose installation token this lane runs under; babysit-loop's telemetry upsert resolves its write identity as <slug>[bot]. Absent: the identity comes from the token's user. Must match ^[a-z0-9][a-z0-9-]*$."
     },
     "promotion_evidence_binding": {

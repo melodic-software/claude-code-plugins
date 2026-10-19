@@ -278,6 +278,7 @@ check "invalid slug: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
 # 25b. A surviving ${user_config.lane_app_slug} placeholder or an empty slug is
 #      absent: with GET user failing, the identity stays unresolved (exit 5).
+# shellcheck disable=SC2016 # the literal placeholder is the input under test
 for slug in '${user_config.lane_app_slug}' ''; do
   setup "[$(c 41 "$OLD")]"
   STUB_USER=fail run --app-slug "$slug"
