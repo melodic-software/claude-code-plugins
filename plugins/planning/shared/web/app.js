@@ -4108,8 +4108,9 @@
         : ro ? `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Suggest a change above." : ""}`
         : lockedQ ? (Core.canModerate() ? "This question is locked. Edit or unlock it above." : "This question is locked. Suggest a change above.")
         : ownOpt ? "Your own option is your answer here. Change it above."
-        : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option first, then add a comment if you like."
-          : q?.format === "rank" ? "Save your ranking first, then add a comment if you like." : "Pick first, then add a comment if you like.")
+        // A phone's composer is one line: the first half alone, so it is never cut mid-word.
+        : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option first" : q?.format === "rank" ? "Save your ranking first" : "Pick first")
+          + (phone.matches ? "" : ", then add a comment if you like.")
         : q?.format === "choice" ? (picked ? "Add a comment (optional)…" : "Pick an option, or write your own answer…")
         : isFormat(q) ? "Add a comment (optional)…"
         : q?.format === "confirm" ? (picked && q.purpose === "poll" ? "Add a comment (optional)…" : "Not exactly? Say what you meant…")

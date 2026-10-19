@@ -136,6 +136,29 @@ async function main() {
     ok("its head folds it again", await until(ann, () => document.querySelector(".vf-clbody").hidden));
     ok("and opens it again", await openClaude(ann));
 
+    // ---------- the chat button never covers the end of the page ----------
+    for (const [w, h] of [[1440, 900], [390, 844]]) {
+      await ann.setViewportSize({ width: w, height: h });
+      await ann.waitForTimeout(200);
+      const hit = await ann.evaluate(() => {
+        const sc = document.querySelector(".vf-scroll"); sc.scrollTop = sc.scrollHeight;
+        const f = document.querySelector(".vf-fab").getBoundingClientRect();
+        return [...document.querySelectorAll(".vf-clsec :is(button, a[href], textarea, input, select)")].filter(e => e.getClientRects().length).map(e => [e, e.getBoundingClientRect()])
+          .filter(([, r]) => r.left < f.right && r.right > f.left && r.top < f.bottom && r.bottom > f.top).map(([e]) => e.className || e.textContent);
+      });
+      ok(`${w}x${h}: scrolled to the bottom, the chat button covers no control in the Claude section`, hit.length === 0, JSON.stringify(hit));
+    }
+    // ---------- the disabled composer's placeholder fits a phone's one line ----------
+    const cy = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
+    await joinAs(cy, "Cy");
+    await until(cy, t => document.querySelector(".vf-qtext")?.textContent === t, CHOICE);
+    const fit = await cy.evaluate(() => {
+      const ta = document.getElementById("vf-answer"), cs = getComputedStyle(ta), cx = document.createElement("canvas").getContext("2d");
+      cx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      return { text: ta.placeholder, need: Math.ceil(cx.measureText(ta.placeholder).width), room: Math.floor(ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)), disabled: ta.disabled };
+    });
+    ok("390: the disabled composer's placeholder fits its line", fit.disabled && fit.need <= fit.room, JSON.stringify(fit));
+
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
     ok("no page error", errs.length === 0, errs.slice(0, 3).join(" | "));

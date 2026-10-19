@@ -389,7 +389,8 @@
 .app .vf-focus, .app .vf-cmp, .app .vf-treev { min-height: 0; }
 .app .vf-center:not([data-mode="compare"]) .vf-cmp, .app .vf-center:not([data-mode="focus"]) .vf-focus, .app .vf-center:not([data-mode="tree"]) .vf-treev { display: none; }
 .app .vf-focus { display: flex; flex-direction: column; }
-.app .vf-scroll { flex: 1; overflow: auto; padding: 28px clamp(16px, 4vw, 48px) 20px; overscroll-behavior: contain; }
+/* The bottom clears the chat button (52px, 20px off the edge) by 16px, so the last control scrolls out from under it. */
+.app .vf-scroll { flex: 1; overflow: auto; padding: 28px clamp(16px, 4vw, 48px) calc(52px + 20px + 16px); overscroll-behavior: contain; }
 .app .vf-scroll > * { max-inline-size: 720px; margin-inline: auto; }
 .app .vf-qmeta { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 12px; margin-block-end: 10px; }
 .app .vf-qfrom { color: var(--accent-text); }
@@ -1104,7 +1105,7 @@
 @media (max-height: 560px) {
   .app { grid-template-rows: 44px minmax(0, 1fr) auto; }
   .app .vf-bar { padding-block: 4px; }
-  .app .vf-scroll { padding-block: 12px 12px; }
+  .app .vf-scroll { padding-block: 12px calc(44px + 8px + 16px); } /* clears the 44px chat button 8px off the edge */
   .app .vf-qtext { font-size: 19px; }
   .app .vf-onit { margin-block: 6px 12px; }
   /* the composer folds to one row beside its buttons, growing only while it has focus */
@@ -1117,6 +1118,7 @@
 }
 @media (max-height: 560px) and (max-width: 720px) {
   .app { --tabs-h: calc(48px + env(safe-area-inset-bottom)); }
+  .app .vf-scroll { padding-block-end: 12px; } /* the chat button sits in the tab bar here, not over the page */
   .app .vf-tab { min-block-size: 48px; }
   .app .vf-fab { inline-size: 64px; block-size: 48px; inset-block-end: env(safe-area-inset-bottom); }
   .app .vf-center[data-mode="focus"] .vf-bar { display: none; } /* Questions tab and Next cover moving between questions */
