@@ -63,6 +63,8 @@ permissions, and passes no App key.
 | `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, that job's `head-sha` output, passed to the gate and the broker (step 3) |
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-attempt` output, which names the replies artifact so a re-run of the reply job alone still finds it |
 | `output-mode` | `clean-tree` | Read file only: `clean-tree` fails a run that leaves the tree changed; `patch` uploads the change instead ([Patch output mode](#patch-output-mode)); any other value fails red before the head checkout |
+| `ci-context-attempt`, `ci-context-sha256` | `''` | Read file only: for [`prepare: ci-context`](#prepare-ci-context), the attempt naming the `ci-context-<attempt>` artifact and its file's SHA-256 |
+| `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity`, `reply-attempt` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the read model job's outputs and its activity name |
 
 The write file has six `workflow_call` outputs. `head-sha` is the PR head the gate passed, before
 any push of the run; `issue-run-started` is described below; `feedback-run-sha256` and
@@ -72,9 +74,10 @@ any push of the run; `issue-run-started` is described below; `feedback-run-sha25
 any model turn, or its reply script handed the PR to a person. `feedback-round` is `true` once a
 `prepare: review-threads` skill ran, so its reply job must run.
 
-The read file has four `workflow_call` outputs: `head-sha`, as in the write file, and
+The read file has five `workflow_call` outputs: `head-sha`, as in the write file,
 `patch-state`, `patch-sha256` and `patch-attempt`, described with
-[Patch output mode](#patch-output-mode).
+[Patch output mode](#patch-output-mode), and `reply-attempt`, the attempt in the name of the
+`skill-reply-<lane>-<activity>-<attempt>` artifact when the skill ran.
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
 files) is the only one. Variables: `CLAUDE_LANES_DISABLED` and `CLAUDE_LANES_REPO_DISABLED` (the org
@@ -187,7 +190,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
    SHA, and the lane must run the tip's config and actions and merge the tip. The checked-out SHA
    is the `base-sha` output either way, and the merge's second parent in
    [`prepare: merge-base`](#prepare-merge-base).
-5. `resolve-config`, with the gated `head-sha` and, in the write file, `prepare-supported: true`.
+5. `resolve-config`, with the gated `head-sha` and `prepare-supported: true`. The read file then
+   fails red for any `prepare` but [`ci-context`](#prepare-ci-context), and for `ci-context`
+   without `output-mode: patch`.
    An invalid config fails the step red and the check is a failure, never a skip. A config skip
    (`disabled-by-config`, `not-applicable-paths`, `not-applicable`, `awaiting-human`,
    `prerequisite-missing`) mints nothing. With a valid config, the read file fails red with
@@ -537,8 +542,8 @@ re-run of that job alone still finds it. Before applying it, that job must check
 - the artifact holds exactly `patch.diff`, a regular file within a size limit the job names, whose
   SHA-256 is `patch-sha256`;
 - the PR head is still `head-sha`;
-- `git apply --check --index`, with no `--unsafe-paths` or `--directory`, succeeds on a fresh
-  checkout of `head-sha`;
+- `git apply --check` with `--index` or `--cached`, and no `--unsafe-paths` or `--directory`,
+  succeeds on a fresh checkout of `head-sha`;
 - no entry has mode `120000` (symlink) or `160000` (gitlink), and no path is under a protected
   path such as `.github/**`, `.gitattributes`, `.gitmodules` or `.husky`.
 
@@ -825,6 +830,73 @@ warns of a [classifier gap](README.md#classifier-gaps).
 
    The runner accepts only those six reasons, and only with `dependency-verdict`.
 
+### prepare: ci-context
+
+pr-unblock's `fix-ci` fixes a lanes App pull request's failing checks in three jobs, so no model
+holds a write token: a base job, a read model job in this mode, and an
+[`apply-patch`](#prepare-apply-patch) script job.
+
+1. `pr-unblock.yml`'s `fix-ci-context` job runs the default branch tip's
+   `.github/scripts/pr-unblock/fix-ci-context.mjs` with a token that reads pull requests, checks
+   and Actions, and checks out no PR head. After the kill switch it hands the pull request to a
+   person (`ci-fix-round-cap`) once the lanes App has pushed `loop.fix-ci-rounds` commits with
+   the trailer `Lane-Activity: pr-unblock/fix-ci`. Otherwise it reads the head's latest check run
+   per name and keeps those that ended `failure`, `timed_out` or `startup_failure`, except
+   `ci-status` and any GitHub Actions check run that is no workflow job (a lane's own check),
+   at most 10. For each it writes the name, the workflow file that defines the job (or `null`),
+   at most 20 annotations of at most 500 characters, and the last 80 lines, at most 3,000
+   characters, of the job log, as `context.json`, uploaded as `ci-context-<run attempt>` with its
+   SHA-256 as a job output. A closed pull request or a head with no such check skips the rest.
+2. The read file, before the head checkout, downloads that artifact and fails red unless it
+   holds exactly one regular `context.json` of at most 1 MiB, with that SHA-256, written for the
+   head this run gated.
+3. `collect-base-activity` makes it read-only, grants `Read` on it, denies Edit and Write there,
+   and grants the skill Bash, Edit, Write and Agent with the web tools denied: the job holds no
+   write token, and the skill reruns the failing checks. The system prompt names the file.
+   Residual: the skill runs head code by design, so head code can reach what any step of a read
+   job can (the job's read-only token, the Actions runtime token through a process left running
+   or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
+   leaves is checked only by [`apply-patch`](#prepare-apply-patch), which refuses `.github/**` and
+   the agent instruction paths (the owner's 2026-10-18 path-guard decision); a change elsewhere,
+   such as `.gitattributes` or a check's own script, reaches the branch and its review.
+4. The run is in [patch output mode](#patch-output-mode); its `reply-attempt` output names the
+   skill's reply, whose `<check>: escalated <reason> <sentence>` lines are the report.
+
+### prepare: apply-patch
+
+A `mutate-branch` script leaf, the `apply-ci-fix` job after `fix-ci`, with no model. The caller
+passes the model job's `patch-state`, `patch-sha256`, `patch-attempt`, `head-sha` (as
+`patch-head-sha`) and `reply-attempt`, and its activity as `patch-activity`.
+
+1. Before the mint, the write file downloads `patch-<lane>-<patch-activity>-<patch-attempt>`
+   and the model job's reply, and runs the base's `apply-ci-fix.mjs select` with no token. A
+   gated head other than `patch-head-sha` skips `superseded-sha`. An `empty` patch escalates
+   `ci-fix-empty` (`ci-fix-escalated` when the report escalated a check). A `patch-state` other
+   than `written` or `empty`, or an artifact that is not exactly one regular `patch.diff` of at
+   most 1 MiB with that SHA-256, escalates `ci-fix-invalid`. Each skips `awaiting-human` with
+   nothing minted. A report that escalated a check sets `ci-fix-escalated` and proceeds, so the
+   fixes that landed are pushed and the rest go to a person.
+2. The hold-label step runs as for a skill, before the head checkout (depth 1).
+3. The script, from its base copy, with the lane token and `/usr/bin/git` under an allowlisted
+   environment (no hooks, fsmonitor, global or system config): checks the SHA-256 again, reads
+   the gated head into the index, runs `git apply --cached --check` then `git apply --cached`
+   (escalating `ci-fix-not-applied` on failure), writes the tree, and lists it against the gated
+   head with `git diff-tree -r --no-renames`. A path under `.github/` (thread-scope.mjs's
+   `isProtectedPath`, the rule the review-threads mode applies), or an agent instruction path at
+   any depth and in any case (`CLAUDE.md`, `AGENTS.md`, a `.claude/` or `.claude-plugin/` directory,
+   a plugin's `hooks/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), escalates
+   `ci-fix-protected-path` and pushes none of the patch, whatever the report escalated; a mode `120000` or `160000` on either side, or no change, escalates
+   `ci-fix-invalid`. It then re-reads the pull request and its labels and stops uncommitted
+   (`awaiting-human`) on a draft or a hold label, fails when `git/ref heads/<head ref>` is no
+   longer the gated head, uploads the changed blobs, builds the tree on the head's tree and fails
+   unless it hashes to the applied tree, creates the commit `Fix failing CI checks on <head ref>`
+   with the trailer `Lane-Activity: pr-unblock/fix-ci`, parent the gated head and no author,
+   committer or signature, so GitHub signs it as the App, moves the PR branch with
+   `force: false`, and confirms the move by reading the ref again.
+
+The run's `escalation-reason` output is the script's reason, else the select step's. The runner
+accepts the script's three reasons only in this mode.
+
 ## The summary job
 
 Write file, issue mode only: runs after the run job, unless the run was cancelled, when the run
@@ -947,7 +1019,8 @@ form, any case) and down through every reusable workflow those runs call. It fai
 such a run names `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a key or value, has a
 `private-key` key, passes `secrets: inherit`, or has a `${{ }}` expression, in a key, a value or a `#` line of
 a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` on the allowlist
-`claude_code_oauth_token`, `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
+`claude_code_oauth_token`, `automations_claude_code_oauth_token` (the lanes' Claude Code OAuth
+token), `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
 `secrets[...]` and bare `secrets` fail. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
 job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
