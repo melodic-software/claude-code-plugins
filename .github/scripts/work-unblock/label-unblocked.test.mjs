@@ -905,6 +905,111 @@ const withLimits = (limits) => {
   return { RESOLVED_CONFIG: path };
 };
 
+// Restarts after a turn cap (plan: turn-cap resume, PR 2): report-outcome
+// keeps agent-ready and leaves the turn-cap marker while
+// limits.turn-cap-restarts allows one, and the sweep restarts the issue at
+// once, the way it restarts a limit stop, with no reset to wait for. More
+// turn-cap markers since a person added agent-ready than the limit allows
+// (a forged or stale one) restart nothing.
+const capNote = (at, run = 7) => ({
+  id: 33,
+  body: `<!-- work-resolve-issue outcome=turn-cap cap=75 run=${run} -->\nThe work-resolve-issue lane stopped on this issue: turn cap 75 reached.`,
+  user: LANES_BOT,
+  created_at: at,
+});
+
+test("an issue the turn cap stopped is restarted while the limit allows it", async () => {
+  const { github, calls } = stopped({ comments: [note(), capNote("2026-10-16T11:55:00Z")] });
+  assert.equal(await sweep({ github }, withLimits({ "turn-cap-restarts": 1 })), 0);
+  assert.deepEqual(writes(calls), restarted(30));
+});
+
+test("turn-cap stops past the limit, or any with the limit at 0, restart nothing", async () => {
+  for (const [limits, comments] of [
+    [{ "turn-cap-restarts": 0 }, [note(), capNote("2026-10-16T11:55:00Z")]],
+    [{ "turn-cap-restarts": 1 }, [note(), capNote("2026-10-16T08:00:00Z", 6), capNote("2026-10-16T11:55:00Z")]],
+  ]) {
+    // An unlisted account's agent-ready between the stops resets nothing.
+    const { github, calls } = stopped({ comments, events: [added("2026-10-16T05:00:00Z", OWNER), added("2026-10-16T09:00:00Z", MAINTAINER)] });
+    assert.equal(await sweep({ github }, withLimits(limits)), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(limits));
+  }
+});
+
+test("the App's remove-and-re-add after a turn-cap stop is a restart, not a stop", async () => {
+  const unlabeled = { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
+  const { github, calls } = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note(), capNote("2026-10-16T06:00:00Z")] },
+    events: { 20: [unlabeled, added("2026-10-16T07:00:01Z")] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+// A funding stop (ci-workflows#781): report-outcome keeps agent-ready and
+// leaves a funding marker with the regain date, if one was stated. The sweep
+// restarts the issue after that date, never before, and never without one;
+// funding stops count toward limits.limit-stops-per-issue, not turn-cap-restarts.
+const fundingNote = (resets, at, run = 7) => ({
+  id: 34,
+  body: `<!-- work-resolve-issue outcome=funding${resets ? ` resets=${resets}` : ""} run=${run} -->\nStopped on the lane's funding.`,
+  user: LANES_BOT,
+  created_at: at,
+});
+
+test("a funding-stopped issue past its regain date is restarted", async () => {
+  const { github, calls } = stopped({ comments: [note(), fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), restarted(30));
+});
+
+test("a funding-stopped issue before its regain date, or with none, waits", async () => {
+  for (const resets of ["2026-10-17T00:00:00Z", ""]) {
+    const { github, calls } = stopped({ comments: [note(), fundingNote(resets, "2026-10-16T06:00:00Z")] });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], resets);
+  }
+});
+
+// Funding and limit stops share limits.limit-stops-per-issue, so an outage
+// that outlasts the reset clamp hands the issue to a person, not a loop.
+test("a third funding or limit stop since a person added agent-ready goes to a person", async () => {
+  const comments = [
+    note(),
+    fundingNote("2026-10-16T02:00:00Z", "2026-10-16T01:00:00Z", 4),
+    limitedNote("2026-10-16T04:00:00Z", "2026-10-16T03:00:00Z"),
+    fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z", 6),
+  ];
+  const { github, calls } = stopped({ comments, events: [added("2026-10-16T00:30:00Z", OWNER)] });
+  assert.equal(await sweep({ github }), 0);
+  const written = writes(calls);
+  assert.ok(written[0].includes("<!-- work-unblock escalated -->"), written[0]);
+  assert.deepEqual(written.slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+});
+
+test("a funding stop under the bound is restarted after its date", async () => {
+  const comments = [note(), fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z", 6)];
+  const { github, calls } = stopped({ comments, events: [added("2026-10-16T00:30:00Z", OWNER)] });
+  assert.equal(await sweep({ github }, withLimits({ "limit-stops-per-issue": 2 })), 0);
+  assert.deepEqual(writes(calls), restarted(30));
+});
+
+test("the App's remove-and-re-add after a funding stop is a restart, not a stop", async () => {
+  const unlabeled = { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
+  const { github, calls } = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note(), fundingNote("2026-10-16T06:30:00Z", "2026-10-16T06:00:00Z")] },
+    events: { 20: [unlabeled, added("2026-10-16T07:00:01Z")] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
 test("the resolved limits set the sweep's restarts per run, limit stops per issue and fallback reset", async () => {
   const numbers = [31, 32, 33, 34];
   const many = world({

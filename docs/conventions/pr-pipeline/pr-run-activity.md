@@ -55,6 +55,7 @@ permissions, and passes no App key.
 | `config-path` | `docs/conventions/pr-pipeline.yaml` | For test callers only (below) |
 | `pr-number` | `''` | The PR on `workflow_dispatch` |
 | `timeout-minutes` | `30` | The run job's timeout; the report job's is fixed at 10 |
+| `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3); in the write file also a `pr-feedback-dispatch.yml` run |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
@@ -645,17 +646,21 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
 1. After `resolve-config` and before the mint, the model job runs `address-feedback.mjs select`
    with the job's `GITHUB_TOKEN`. It keeps each unresolved thread whose first comment's review
    the reviewer bot (`claude[bot]` in the base's trusted-actors list, by id) submitted on a head
-   that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, when either every
-   comment is the reviewer bot's, or the lanes App's last comment is a reply the reply job left
-   open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and every comment after it is by a `human` on
-   that list, created after it, and never edited or last edited by such a human. Every other
-   comment must be the reviewer bot's, the lanes App's or such a human's, or the thread is left
-   alone. The thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and
-   marks the replies after the escalation `direction: true`, which the skill follows within the
-   same path rules. On a PR carrying the base's human-gated role label it keeps a thread only when
-   one of those replies is a fix request (a line starting `PR-fix lane: please fix this finding`,
-   any case, outside a fenced block) by a listed human whose permission on the repository reads
-   `write` or `admin` (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), and
+   that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, when every
+   comment is the reviewer bot's; or the lanes App never commented and one comment is a fix
+   request (a line starting `PR-fix lane: please fix this finding`, any case, outside a fenced
+   block) by a `human` on that list whose permission on the repository reads `write` or `admin`
+   (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`); or the lanes App's last
+   comment is a reply the reply job left open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and
+   every comment after it is by such a `human` (any permission), created after it. A human's
+   comment counts only when never edited or last edited by such a human. Every other comment must
+   be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. The
+   thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
+   `direction: true` the replies after the escalation, or with no escalation every human comment
+   from the first such fix request on,
+   which the skill follows within the same path rules. The reply job's re-read judges threads the
+   same way. On a PR carrying the base's human-gated role label it keeps a thread only when one of
+   those replies is such a fix request by a write-access human, and
    reports `fix-requested=true`, which lifts only the human-gated hold for the run. No kept thread
    skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
    `.github/**` escalates `feedback-protected-path`, and two earlier rounds escalate
@@ -1222,8 +1227,17 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   closed one was rejected or merged) and no lanes-App outcome marker for its run: the work was
   made and its report never posted. Branches that fail any of these are passed over, not stopped at, so an older unreported
   branch is reused even when a newer branch's run was handed back or limit-stopped. A branch whose
-  own run posted a hand-back or limited marker is never reused. Any failed read, or an answer of
-  the wrong shape, fails the step, so nothing is minted.
+  own run posted a hand-back or limited marker is never reused. With nothing to reuse, when the
+  newest lanes-App outcome marker is `turn-cap`, `stopped`, `limited` or `funding` (passing over
+  those markers that carry `branch=resumed`, left by a resumed run that kept no branch of its own)
+  and names a run whose newest lane branch passes the same commit, tip and PR checks
+  with every commit ahead of the default branch verified, authored by the lanes App and committed
+  by `web-flow` (a listing the compare cuts short resumes nothing), the run resumes it; when that
+  run's branch is gone or fails a check, the run starts from the default branch, never from an
+  older run's branch: `issue-prior`
+  outputs `resume-branch`, `resume-tip` (the tip it read) and `resume-cause`, and the job checks
+  out that tip and makes its lane branch there instead of at the default branch tip. Any failed
+  read, or an answer of the wrong shape, fails the step, so nothing is minted.
 - Before the skill, the runner writes the issue's number, title, body and labels to `issue.json`
   in the skill's scratch directory, with only the comments `select-trusted-text`'s author and edit
   rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
@@ -1234,9 +1248,12 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   by anyone never moves it, and the lanes App's remove-and-re-add after a limit stop anchors at
   the label it restarted): a
   comment created or edited after that is left out, and a title or body changed since fails the
-  step, so text edited after admission does not steer the run. The skill commits to a new branch,
+  step, so text edited after admission does not steer the run. On a resume, `issue.json` also
+  carries `resume`: the branch, the cause, the tip, the subject of each commit ahead of the trusted
+  base and each changed file with its line counts, from `GET /compare`. The skill commits to a new branch,
   `<lane>/issue-<n>-<run id>-<attempt>`, which is kept only when it holds commits. The skill's
-  `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty) are uploaded as the
+  `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty, and on a resume the
+  resumed branch, which a `done` run that committed nothing names when it hands the issue to a person, since the runner checks only its own branch) are uploaded as the
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
   was minted.
 - `report-outcome` downloads that artifact. On `done` it opens a ready (not draft) PR from the branch whose
@@ -1252,6 +1269,23 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   removes `agent-ready`. Each comment opens with the marker
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
   branches of that run (a marker naming no run covers every branch whose tip is older than it).
+  A run that wrote no readable outcome file and whose lane record has class `max-turns` is a
+  turn-cap stop: the comment opens with `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->`
+  and says "turn cap <n> reached" and names the branch. While the turn-cap markers since a person
+  listed human last added `agent-ready` are fewer than `limits.turn-cap-restarts`, it keeps `agent-ready` and
+  adds no label, and the work-unblock sweep restarts the issue as it does after a limit stop;
+  otherwise it hands back like `stopped`. `lane.json` carries the run's `max-turns` for the cap,
+  and the `pipeline/resolve-issue` status reads "Stopped at the turn cap.". A run that exited
+  non-zero, wrote no readable outcome file, and whose result carries `api_error_status` 400 with
+  "regain access on <date>" (a spend limit or no credit) or 401 (a disabled key) is a funding
+  stop, whatever its class or turn cap (`lane.json` carries `failed`, `api-error-status` and
+  `error-text`, read by the `Read the run's API error` step from the execution file's result
+  fields): the comment opens with `<!-- work-resolve-issue outcome=funding resets=<date> run=<run id> -->`
+  (no `resets` when no date is readable), it keeps `agent-ready` and adds no label, it counts
+  toward `limits.limit-stops-per-issue` with limit stops (not `turn-cap-restarts`), and work-unblock restarts the issue after the date, held
+  within `limits.reset-clamp-min` and `reset-clamp-max`; with no date a person restarts it. The
+  status reads "Stopped on the lane's funding.". The next run resumes a funding-stopped run's
+  branch like a `limited` one's.
 - On a reuse the skill run mints nothing, and the [summary job](#the-summary-job) has a read-only
   model pass describe the branch from its diff and the issue, as the `reuse-summary-<n>` artifact.
 - A non-empty `reuse-branch` also starts `report-outcome` and `report-statuses`, and reaches the

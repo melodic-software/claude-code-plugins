@@ -356,11 +356,52 @@ models:
     triage-issue: triage
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
+  # A run on an issue (resolve-issue) takes its budget from the issue's Size,
+  # Complexity and Uncertainty org issue fields, read by id. An empty field,
+  # or one whose latest setter is not a listed human or the lanes App, is not
+  # assessed and the lane refuses the issue (not-assessed); an unmapped
+  # option fails the run. Turn cap = base-turns x complexity factor, rounded
+  # up; it replaces the profile's max-turns.
+  issue-dimensions:
+    fields:
+      size:
+        field-id: 15462270
+        options: { "27053568": small, "27053567": medium, "27053566": large }
+      complexity:
+        field-id: 48625720
+        options: { "85127651": low, "85127652": medium, "85127653": high }
+      uncertainty:
+        field-id: 48625721
+        options: { "85127654": known, "85127655": knowable, "85127656": unknown }
+    sizes:
+      # 75 turns is the cap every lane run had; 50 minutes covers the high
+      # factor at the 20 seconds a turn the old 75-turn, 25-minute run allowed.
+      small: { base-turns: 75, timeout-minutes: 50 }
+      # Twice small's turns and time.
+      medium: { base-turns: 150, timeout-minutes: 100 }
+      # Too big for one run: the lane skips it (split-required) before any
+      # model turn, and triage sends it to /work-items:decompose.
+      large: split
+    complexity:
+      # Base turns as they are: a small low-complexity issue runs as before.
+      low: 1
+      # Half again, for an issue with several moving parts.
+      medium: 1.5
+      # Double, the most a size's timeout covers.
+      high: 2
+    uncertainty:
+      # The approach is known: run it.
+      known: run
+      # Answerable by reading or asking first: skip until it is (research-first).
+      knowable: research-first
+      # Only an experiment answers it: skip until a probe has (probe-first).
+      unknown: probe-first
 
 # The funding role whose secrets pay for each Claude lane's runs (README.md,
-# Funding). A lane on ci-workflows' run-claude-cli action (today only intake)
-# passes its role with <ROLE>_CLAUDE_API_KEY and <ROLE>_CLAUDE_CODE_OAUTH_TOKEN,
-# role upper-snake; the others are the role each lane takes when it moves there.
+# Funding). A lane on ci-workflows' run-claude-cli action (today intake and
+# pr-verify) passes its role with <ROLE>_CLAUDE_API_KEY and
+# <ROLE>_CLAUDE_CODE_OAUTH_TOKEN, role upper-snake; the others are the role each
+# lane takes when it moves there.
 funding:
   intake: automations
   pr-unblock: automations
@@ -391,6 +432,10 @@ limits:
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
   wip-cap: 12
+  # Restarts after a run reaches its turn cap, per agent-ready a person adds.
+  # 0 hands every capped run back to a person, naming the cap; it stays 0
+  # until the lane commits a capped run's leftover edits.
+  turn-cap-restarts: 0
   # Hours of issue-lane admissions the admitted backlog (open issues with
   # agent-ready) may hold before new agent-ready labels pause.
   admission-window-hours: 24
@@ -412,8 +457,9 @@ wip:
   # this" body line) count here, not against the cap. Step down to 30 later.
   held-cap: 60
   held-alarm-hours: 24
-  # Over the WIP or held cap the lane pauses from this date; the owner clears
-  # it to only alert. Empty: over a cap the lane alerts and keeps starting runs.
+  # Over the WIP cap the lane pauses from this date; the held cap only alerts.
+  # The owner clears it to only alert. Empty: over a cap the lane alerts and
+  # keeps starting runs.
   pause-from: "2026-10-18"
 
 merge:

@@ -134,8 +134,9 @@ the upstream run id from the event and reads the rest back. It dispatches `pr-un
 this repository, exactly one open non-draft PR into `main` has its head, the lanes App opened that
 PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
-reviewer bot, or answered by a trusted human after the lane escalated it; on a PR carrying the
-human-gated label, only one whose answer is a fix request, below), the head has no
+reviewer bot, one the lane never answered where a fix request, below, follows the reviewer bot's
+finding, or answered by a trusted human after the lane escalated it; on a PR carrying the
+human-gated label, only one whose answer is a fix request), the head has no
 `pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
@@ -146,11 +147,27 @@ In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is foll
 `publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the
 model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
 
+A fix request is a reply by a person on the trusted-actor list who holds write or admin
+permission on the repository, never edited, or last edited by a person on that list, with a line that starts with
+`PR-fix lane: please fix this finding`, in any letter case, outside a fenced code block (a quoted
+`>` line never matches). On a thread the lanes App never commented on, one fix request after the
+reviewer bot's finding makes the thread one `address-feedback` works, as long as every other
+comment is the reviewer bot's or a trusted person's; their comments from the first fix request on
+are direction.
+`pr-feedback-dispatch.yml` runs only when a review run completes, so a fix request posted after
+the head's review starts nothing on its own. To start the round, an account on the trusted-actor
+list dispatches the lane directly:
+
+```bash
+gh workflow run pr-unblock.yml -R melodic-software/claude-code-plugins -f pr-number=<n> -f activity=address-feedback
+```
+
+That run names no dispatcher run, so the gate checks that account as the actor, and the select
+step judges the threads as above.
+
 On a PR carrying the human-gated role label (`needs-human` unless the base's
-`.work-item-tracker.json` names another), `address-feedback` works a thread only when a reply
-after the lane's escalation, by a person on the trusted-actor list who holds write or admin
-permission on the repository, has a line that starts with `PR-fix lane: please fix this finding`,
-in any letter case, outside a fenced code block (a quoted `>` line never matches). Without such a
+`.work-item-tracker.json` names another), `address-feedback` works a thread only when it carries
+a fix request, after the lane's escalation when there is one. Without such a
 thread the dispatcher starts nothing and the select step skips with `awaiting-human`, so the PR
 stays held; with one, the write runner lifts only the human-gated hold for that run, and
 `do-not-merge` still stops it. `pr-merge` refuses the PR either way.
@@ -400,8 +417,11 @@ A skip reports as a neutral check with one reason from the schema's `$defs/skip-
 missed), `prerequisite-missing` (among others, mergeability still unknown at the gated head after
 bounded re-reads), `cost-gated`, `awaiting-human` (among others, a `labels-absent` label is on the
 PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no same-repository PR, or an
-actor or author not on the trusted-actor list) or `workflow-modified` (the token broker refused a
-write lane's mint for a workflow file the PR itself changes). Silence is not a skip, with three exceptions that
+actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
+write lane's mint for a workflow file the PR itself changes), or, for an issue run under
+`models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
+account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
+`split`). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
@@ -746,12 +766,15 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
 same-repository, non-draft pull request into main. It never runs the pull request's code: a model
 (the `verify-pr` route of [Models](#models)) reads the diff, the trusted pull request text and its linked issues as
-data, and judges whether the diff delivers the issue's intent correctly and safely. The run
+data, and judges whether the diff delivers the issue's intent correctly and safely. The model runs
+on ci-workflows' `run-claude-cli` as the `automations` role ([Funding](#funding)), with the Read
+tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The run
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON
 (`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
 account type, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one `pr-require-checks`
-ran on, never the pull request's live head. A model error or an output that fails the schema
-uploads nothing. A head that already has a counted verdict from a completed run (a `fail` under any
+ran on, never the pull request's live head. A model error, an output that fails the schema, a
+summary or note shaped like an Anthropic key or OAuth token, or a run with any permission denial
+uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again. Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
 
@@ -988,15 +1011,37 @@ activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `r
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `default` and 75 turns. `resolve-config` turns the run's profile into its
-`claude-args` and `settings-json` outputs, which the runners pass to claude-code-action as
-`claude_args` and `settings`; the values come only from this file on the base, never from text the
-run reads.
+`claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as
+`claude_args` and `settings`, and into `model`, `effort` and `max-turns`, which a run on
+`run-claude-cli` ([Funding](#funding)) passes as those inputs; `model` is empty for `default`,
+which that action cannot pass, so such a run fails. The values come only from this file on the
+base, never from text the run reads.
 
 This repository's block has five profiles: `standard` (model `default`, 75 turns, no effort),
 every skill activity's; `review` (`opus`, 60 turns, no effort), the verifier's; `pr-review`
 (`sonnet`, effort `high`, 75 turns), both review lanes'; `triage` (`sonnet`, effort `medium`,
 30 turns), intake triage's and the [lane sweep](#the-lane-sweep)'s; and `summary` (`sonnet`, effort `medium`, 10 turns), the reuse
 summary pass's.
+
+`models.issue-dimensions` budgets a skill activity with input `issue` from its issue's Size,
+Complexity and Uncertainty org issue fields. `fields` maps each field id and its single-select
+option ids to the keys of `sizes`, `complexity` and `uncertainty`; ids, not names, so a renamed
+option keeps its meaning. A field with no value, or whose latest setter (from the GraphQL field
+events) is neither a listed human on the trusted-actor list nor the lanes App, is not assessed;
+an option no entry maps fails the resolve with `unmapped-dimension`. Before any model turn the
+activity skips with `not-assessed` when a field is not assessed, then with its Uncertainty's
+mode when that is not `run` (`research-first` or `probe-first`), then with `split-required` when
+its Size is `split`. Otherwise its `max-turns` is the size's `base-turns` times the complexity
+factor, rounded up, replacing the profile's, and the size's `timeout-minutes` is the run job's
+timeout; a skip takes the shortest size timeout. resolve-config outputs `issue-dimensions`
+(`<size>/<complexity>/<uncertainty>`, or `not-assessed`) and `timeout-minutes`;
+work-resolve-issue.yml resolves them before its run job starts, since a job's timeout is fixed
+then, and passes the dimensions on (`issue-dimensions`), so a field set while the run waits for
+its slot cannot give it more turns than its timeout allows; without `issue-dimensions` the
+timeout is 25 minutes. This repository's budgets are owner-approved starting values, tuned in
+[`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.issue-dimensions`) from per-run measures. Large
+is `split`, and Uncertainty Known, Knowable and Unknown map to `run`, `research-first` and
+`probe-first`. No model name is set here.
 
 ## Funding
 
@@ -1009,9 +1054,9 @@ its role and secrets, and the runner policy admits them. This repository's map: 
 `pr-unblock`, `fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
 `claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
 
-Only `intake` runs on `run-claude-cli` today. Every other entry is the role its lane takes when it
-moves there: until then it runs claude-code-action with an OAuth token alone, and it never gets an
-API key, since claude-code-action runs are not paid from API credits.
+`intake` and `pr-verify` run on `run-claude-cli` today. Every other entry is the role its lane
+takes when it moves there: until then it runs claude-code-action with an OAuth token alone, and it
+never gets an API key, since claude-code-action runs are not paid from API credits.
 
 ## Loop caps
 
@@ -1026,7 +1071,7 @@ App may push to one PR; the next fix-ci run hands it to a person before any mode
 
 The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
 are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
-typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all eleven
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all twelve
 with defaults.
 
 | Key | Default | What it sets |
@@ -1036,8 +1081,9 @@ with defaults.
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
-| `limit-stops-per-issue` | 3 | Limit stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
+| `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
+| `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome hands the issue to a person; at most 5, and 0 never restarts. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `admission-window-hours` | 24 | Hours of issue-lane admissions the admitted backlog (open issues labeled `agent-ready`) may hold before new `agent-ready` labels pause. |
@@ -1046,8 +1092,8 @@ with defaults.
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
-the WIP cap check fails open and starts the run. This repository sets `wip-cap`, the two
-fix-ci limits, the two admission limits and the `wip` block.
+the WIP cap check fails open and starts the run. This repository sets `wip-cap`,
+`turn-cap-restarts` (0), the two fix-ci limits, the two admission limits and the `wip` block.
 
 `node .github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are
 open: the admitted backlog is under `admission-factor` times lane merges per hour (the last 24
@@ -1070,15 +1116,16 @@ and those opened in it.
 | `opened-to-merged-ratio` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. Not `limits.admission-factor`, which sizes the agent-ready backlog. |
 | `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap. |
 | `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
-| `pause-from` | empty | UTC date or date-time from which the lane pauses over a cap; empty never pauses. |
+| `pause-from` | empty | UTC date or date-time from which the lane pauses over the WIP cap; empty never pauses. |
 
 A held lane PR carries `needs-human` or `do-not-merge`, or has a body line exactly
 `Hold: a human merges this`. Held PRs never count against the WIP cap; countable PRs are the open
 lane PRs that are not held. Over the WIP cap (countable at or above it), over the held cap, over
 the admission share, or with a held PR past the alarm age, the check writes a warning annotation.
-Over either cap on or after `pause-from` it pauses the lane: work-resolve-issue starts no run and
-work-unblock re-fires none. A read that fails never caps; without a merged count the cap is
-`limits.wip-cap`. A held PR's age runs from when it opened.
+Over the WIP cap on or after `pause-from` it pauses the lane: work-resolve-issue starts no run and
+work-unblock re-fires none. The held cap only alerts; it never pauses the lane. A read that fails
+never caps; without a merged count the cap is `limits.wip-cap`. A held PR's age runs from when it
+opened.
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
 and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane pauses.

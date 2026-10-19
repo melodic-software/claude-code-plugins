@@ -16,14 +16,14 @@
   "dependencies": {
     "linkinator": "^8.1.0",
     "node-pptx-parser": "^1.0.1",
-    "playwright": "1.61.1",
+    "playwright": "1.64.1",
     "pptxgenjs": "^4.0.1",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.0.0",
-    "unpdf": "^1.4.0",
-    "zod": "^4.0.0"
+    "unpdf": "^1.9.0",
+    "zod": "^4.6.7"
   },
   "overrides": {
     "image-size": "^2.0.3"

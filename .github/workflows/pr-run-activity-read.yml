@@ -528,7 +528,7 @@ jobs:
           # A workflow_run after a lanes App push runs as the App, and a
           # dispatcher-sent run as github-actions; the trigger gate has
           # already admitted both, so the action's own bot check only needs
-          # them listed (the App as in pr-verify.yml).
+          # them listed (the App pushes the lane's PRs).
           allowed_bots: >-
             ${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions'
             || 'melodic-automation-lanes[bot]' }}

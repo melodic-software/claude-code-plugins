@@ -45,6 +45,7 @@ jobs:
     permissions:
       contents: read # check out the default branch for the WIP cap
       pull-requests: read # count the lanes App's open pull requests
+      issues: read # read the issue's Size, Complexity and Uncertainty fields
     env:
       # At most this many resolve-issue runs at once. The one place to change it.
       SLOTS: 3
@@ -52,11 +53,14 @@ jobs:
     outputs:
       slot: ${{ steps.slot.outputs.slot }}
       capped: ${{ steps.wip.outputs.capped }}
+      timeout-minutes: ${{ steps.dimensions.outputs.timeout-minutes }}
+      issue-dimensions: ${{ steps.dimensions.outputs.issue-dimensions }}
     steps:
-      # When the WIP cap check pauses the lane (over the WIP or held cap on or
-      # after wip.pause-from), resolve-issue is skipped: no slot, no token.
-      # work-unblock's sweep re-fires the issue once under the caps. The check
-      # publishes its status as the `wip` output; one that fails starts the run.
+      # When the WIP cap check pauses the lane (over the WIP cap on or after
+      # wip.pause-from; the held cap only alerts), resolve-issue is skipped: no
+      # slot, no token. work-unblock's sweep re-fires the issue once under the
+      # cap. The check publishes its status as the `wip` output; one that fails
+      # starts the run.
       - name: Check out the default branch tip
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -69,6 +73,22 @@ jobs:
         id: wip
         continue-on-error: true
         uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
+
+      # A job's timeout is fixed before it starts, so the run job's comes from
+      # here: the issue's Size, Complexity and Uncertainty fields read through
+      # the base config (models.issue-dimensions). The run job takes the same
+      # dimensions for its turn cap rather than reading the fields again, so a
+      # field set while it waits in its slot cannot outgrow the timeout.
+      # Without issue-dimensions the timeout is 25 minutes. A config that
+      # cannot be resolved, or an option it does not map, fails this job.
+      - name: Resolve the issue dimensions' timeout
+        id: dimensions
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: work-resolve-issue
+          activity: resolve-issue
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
 
       - name: Pick the slot
         id: slot
@@ -102,7 +122,8 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      timeout-minutes: 25
+      timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}
+      issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
 
