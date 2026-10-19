@@ -1035,7 +1035,7 @@ and those opened in it.
 |---|---|---|
 | `target-lead-time-hours` | 2 | Target open-to-merge hours. The WIP cap is merged lane PRs per hour times this, rounded up, at least 1. |
 | `merge-rate-window-hours` | 24 | Rolling window for the merged and opened counts. |
-| `admission-factor` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. |
+| `opened-to-merged-ratio` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. Not `limits.admission-factor`, which sizes the agent-ready backlog. |
 | `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap. |
 | `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
 | `pause-from` | empty | UTC date or date-time from which the lane pauses over a cap; empty never pauses. |
@@ -1061,7 +1061,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane
 | `wip_cap_source` | `computed` from the merge rate, or `config` (`limits.wip-cap`). |
 | `held_cap`, `held_alarm_hours` | The held buffer's cap and alarm age. |
 | `merged_lane_prs_window`, `merge_rate_per_hour`, `merge_rate_window_hours`, `target_lead_time_hours` | The merge rate and its inputs. |
-| `admitted_lane_prs_window`, `admission_cap`, `admission_factor` | Lane PRs opened in the window and their cap. |
+| `admitted_lane_prs_window`, `admission_cap`, `opened_to_merged_ratio` | Lane PRs opened in the window and their cap. |
 | `wip_over`, `held_over`, `admission_over`, `held_alarm` | Which limit is crossed. |
 | `alert` | Any of the four. |
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |

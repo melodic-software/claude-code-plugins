@@ -164,7 +164,7 @@
           "default": 24,
           "description": "Rolling window over which merged and opened lane PRs are counted."
         },
-        "admission-factor": {
+        "opened-to-merged-ratio": {
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 1,

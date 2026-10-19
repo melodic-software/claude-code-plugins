@@ -5,7 +5,7 @@
 // are not held count against it; a held one (needs-human, do-not-merge, or a
 // body line exactly "Hold: a human merges this") counts against the held
 // cap and its age alarm. Lane PRs opened in the window may be at most
-// admission-factor times those merged in it. Over a cap the check alerts; it
+// wip.opened-to-merged-ratio times those merged in it. Over a cap the check alerts; it
 // pauses the lane only on or after wip.pause-from. A read that fails never
 // caps.
 import assert from "node:assert/strict";
@@ -159,7 +159,7 @@ test("admissions may reach the admission factor times the merges, no more", asyn
   const over = status(await read({ merged: 10, admitted: 9 }));
   assert.equal(over.admission_over, true);
   assert.equal(over.alert, true);
-  assert.equal(status(await read({ merged: 10, admitted: 9 }), { "admission-factor": 1 }).admission_over, false);
+  assert.equal(status(await read({ merged: 10, admitted: 9 }), { "opened-to-merged-ratio": 1 }).admission_over, false);
 });
 
 test("the held buffer has its own cap from config", async () => {

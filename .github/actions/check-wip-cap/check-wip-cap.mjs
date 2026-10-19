@@ -9,7 +9,7 @@
 // needs-human or do-not-merge, or a body line exactly HOLD_LINE) counts
 // against wip.held-cap instead, and one older than wip.held-alarm-hours
 // raises the alarm. PRs opened in the window may be at most
-// wip.admission-factor times those merged in it. Over a cap, or on the alarm,
+// wip.opened-to-merged-ratio times those merged in it. Over a cap, or on the alarm,
 // the check alerts; it pauses the lane (work-resolve-issue starts no run,
 // work-unblock re-fires none) only over a cap on or after wip.pause-from. A
 // read that fails never caps.
@@ -104,7 +104,7 @@ export function wipStatus({ open, merged, admitted }, { limits, wip, now }) {
   const ages = held?.map((pr) => (now - pr.createdAt) / HOUR_MS).filter(Number.isFinite) ?? [];
   const computed = merged !== null;
   const wipCap = computed ? Math.max(1, Math.ceil((merged * wip["target-lead-time-hours"]) / window - 1e-9)) : limits["wip-cap"];
-  const admissionCap = computed ? Math.floor(wip["admission-factor"] * merged + 1e-9) : null;
+  const admissionCap = computed ? Math.floor(wip["opened-to-merged-ratio"] * merged + 1e-9) : null;
   const countable = open === null ? null : open.length - held.length;
   const heldCount = held === null ? null : held.length;
   const heldOverAlarm = held === null ? null : ages.filter((age) => age > wip["held-alarm-hours"]).length;
@@ -128,7 +128,7 @@ export function wipStatus({ open, merged, admitted }, { limits, wip, now }) {
     target_lead_time_hours: wip["target-lead-time-hours"],
     admitted_lane_prs_window: admitted,
     admission_cap: admissionCap,
-    admission_factor: wip["admission-factor"],
+    opened_to_merged_ratio: wip["opened-to-merged-ratio"],
     wip_over: wipOver,
     held_over: heldOver,
     admission_over: admissionOver,

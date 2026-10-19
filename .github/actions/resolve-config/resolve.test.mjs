@@ -378,7 +378,7 @@ test("limits: an unknown key, a value that is not an integer, or one out of its 
 const WIP = {
   "target-lead-time-hours": 2,
   "merge-rate-window-hours": 24,
-  "admission-factor": 0.8,
+  "opened-to-merged-ratio": 0.8,
   "held-cap": 60,
   "held-alarm-hours": 24,
   "pause-from": "",
@@ -390,7 +390,7 @@ test("wip: a config with no wip leaf resolves to the readers' defaults", () => {
 });
 
 test("wip: a set leaf overrides its default and leaves the others", () => {
-  const set = { "held-cap": 30, "admission-factor": 0.5, "pause-from": "2026-11-01" };
+  const set = { "held-cap": 30, "opened-to-merged-ratio": 0.5, "pause-from": "2026-11-01" };
   const config = edited((doc) => {
     doc.wip = set;
   });
@@ -399,7 +399,7 @@ test("wip: a set leaf overrides its default and leaves the others", () => {
 });
 
 test("wip: an unknown key, a wrong type, or a value out of range is rejected", () => {
-  for (const wip of [{ "held-caps": 30 }, { "target-lead-time-hours": 0 }, { "admission-factor": 1.5 }, { "admission-factor": 0 }, { "held-cap": 0 }, { "held-cap": 2.5 }, { "merge-rate-window-hours": 1.5 }, { "pause-from": "soon" }, { "pause-from": 20261101 }]) {
+  for (const wip of [{ "held-caps": 30 }, { "target-lead-time-hours": 0 }, { "opened-to-merged-ratio": 1.5 }, { "opened-to-merged-ratio": 0 }, { "held-cap": 0 }, { "held-cap": 2.5 }, { "merge-rate-window-hours": 1.5 }, { "pause-from": "soon" }, { "pause-from": 20261101 }]) {
     const config = edited((doc) => {
       doc.wip = wip;
     });

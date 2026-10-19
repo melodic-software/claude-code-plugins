@@ -42,7 +42,7 @@ export function readLimits(path) {
 export const WIP_DEFAULTS = Object.freeze({
   "target-lead-time-hours": 2,
   "merge-rate-window-hours": 24,
-  "admission-factor": 0.8,
+  "opened-to-merged-ratio": 0.8,
   "held-cap": 60,
   "held-alarm-hours": 24,
   "pause-from": "",
@@ -52,7 +52,7 @@ const positive = (value) => typeof value === "number" && Number.isFinite(value) 
 const WIP_VALID = {
   "target-lead-time-hours": positive,
   "merge-rate-window-hours": (value) => Number.isInteger(value) && value > 0,
-  "admission-factor": (value) => positive(value) && value <= 1,
+  "opened-to-merged-ratio": (value) => positive(value) && value <= 1,
   "held-cap": (value) => Number.isInteger(value) && value > 0,
   "held-alarm-hours": positive,
   "pause-from": (value) => value === "" || (typeof value === "string" && Number.isFinite(Date.parse(value))),
