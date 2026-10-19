@@ -433,15 +433,14 @@
       "id": 31,
       "name": "ship-it-drops-questions-not-gates",
       "prompt": "/planning:interview me — add a `--dry-run` flag to our `reports export` CLI command.\n\n[Session state: an engineering session, round 2 has just been answered. The register holds Q1 (flag name and short form) `answered`, Q2 (should dry-run print the rows it would write) `answered`, Q3 (exit code when dry-run finds nothing to export) `open`, and Q4 (whether dry-run also skips the audit-log write) `open`. The user's reply to round 2 ends: \"Honestly this is small, ship it. Stop asking.\" The model has not proposed ship-it; the user did.]",
-      "expected_output": "The user's ship-it request drops the remaining questions but no gate. Q3 and Q4 move from open to deferred with the user's reply as their resolution, and the assumption sweep is skipped, with the restatement saying so. Step 3 still runs: the register gate and the procedure check, a restatement with a register recap that shows the deferred rows, and a request for the user's confirmation, which is awaited rather than assumed. Step 4 then writes the Brief with each deferred row under Deferred questions, led by its Q id and tagged arbiter: USER-RESERVED, and the brief cross-check must exit 0 before the handoff. The handoff goes to implementation or design as the work warrants, never to /planning:plan, and lists Q3 and Q4 by id and question.",
+      "expected_output": "The user's ship-it request drops the remaining questions but no gate. Q3 and Q4 move from open to deferred with the user's reply as their resolution, and the assumption sweep is skipped, with the restatement saying so. Step 3 still runs: the register gate and the procedure check, a restatement with a register recap that shows the deferred rows and says the Brief will list them under Deferred questions tagged arbiter: USER-RESERVED, and a request for the user's confirmation. The turn ends at that request: the Brief, the brief cross-check and the handoff come only after the user confirms, so none of them happens in this run.",
       "files": [],
       "expectations": [
         "Q3 and Q4 are moved from open to deferred with the user's reply as the resolution, not left open and not recorded as answered with an invented answer",
         "The assumption sweep is skipped and the restatement says so",
         "The run does not skip the Step 3 confirmation gate: it restates with a register recap in which the deferred rows are visible and asks the user to confirm before writing the Brief",
-        "The Brief puts Q3 and Q4 under Deferred questions, each led by its Q id and tagged arbiter: USER-RESERVED",
-        "The run requires the --brief cross-check to exit 0 before it hands off",
-        "The handoff message lists Q3 and Q4 by id and question and does not route to /planning:plan"
+        "The restatement or its register recap says the Brief will list Q3 and Q4 under Deferred questions, each tagged arbiter: USER-RESERVED",
+        "The run stops at the confirmation request: it does not write the Brief, run the --brief cross-check, or send a handoff before the user confirms"
       ]
     },
     {
