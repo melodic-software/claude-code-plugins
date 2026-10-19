@@ -4,12 +4,6 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.25.0] - 2026-10-18
-
-### Added
-
-- `video-digest` watch records the primary entry's video, info JSON and caption file names in `watch.json` (`phases.acquire.metrics.primaryMedia`), and `relayout-slice.js` uses them, so a multi-video X post can be re-laid out with media. A session with more than one video and no recorded entry (an older `watch.json`) is still refused. (#7034)
-
 ## [0.24.0] - 2026-10-18
 
 ### Added
