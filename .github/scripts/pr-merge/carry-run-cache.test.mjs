@@ -1,5 +1,5 @@
-// carry-run-cache.mjs: only reads that cannot change, and that can only count
-// a FAIL, reach the next pr-merge run. The kept and dropped sections follow
+// carry-run-cache.mjs: only reads that cannot change reach the next pr-merge
+// run, each under a carried-* name the reader uses only to count a FAIL. The kept and dropped sections follow
 // babysit_run_cache.py's readers (babysit_verify_evidence.py: run-record,
 // fail-head-ref, on-branch; babysit_merge*.py: the MAX_AGE-bounded and
 // credential-keyed ones); record shapes follow GET .../actions/runs/{id}.
@@ -32,19 +32,24 @@ const origin = (id, overrides = {}) => ({
   ...overrides,
 });
 
-test("keeps origin run records, FAIL head refs and run heads on main, the last for a FAIL's run only", () => {
+test("keeps origin run records, FAIL head refs and run heads on main, each under a carried name", () => {
   const kept = carry(
     {
       "run-record": { [`${REPO}|7`]: entry(origin(7)) },
+      "carried-run-record": { [`${REPO}|6`]: entry(origin(6)) },
       "fail-head-ref": { [`${REPO}|70`]: entry({ head_ref: "feat/x" }) },
+      "carried-fail-head-ref": { [`${REPO}|60`]: entry({ head_ref: "feat/y" }) },
       "on-branch": { [`${REPO}|${MAIN_SHA}...main`]: entry(true) },
       "carried-on-branch": { [`${REPO}|${"e".repeat(40)}...main`]: entry(true) },
     },
     opts,
   );
   assert.deepEqual(kept, {
-    "run-record": { [`${REPO}|7`]: entry(origin(7)) },
-    "fail-head-ref": { [`${REPO}|70`]: entry({ head_ref: "feat/x" }) },
+    "carried-run-record": { [`${REPO}|6`]: entry(origin(6)), [`${REPO}|7`]: entry(origin(7)) },
+    "carried-fail-head-ref": {
+      [`${REPO}|60`]: entry({ head_ref: "feat/y" }),
+      [`${REPO}|70`]: entry({ head_ref: "feat/x" }),
+    },
     "carried-on-branch": {
       [`${REPO}|${"e".repeat(40)}...main`]: entry(true),
       [`${REPO}|${MAIN_SHA}...main`]: entry(true),
@@ -65,11 +70,14 @@ test("drops every section that can change between runs", () => {
     "trusted-humans",
   ];
   const restored = Object.fromEntries(sections.map((s) => [s, { [REPO]: entry("x") }]));
-  // An on-branch section a PASS's run reads is never restored under its name.
-  restored["on-branch"] = { [`${REPO}|${MAIN_SHA}...main`]: entry(true) };
+  // A section the reader trusts is never restored under its name: the
+  // restored entry may come from any job in the default branch's scope.
+  for (const s of ["on-branch", "run-record", "fail-head-ref"]) restored[s] = {};
+  restored["on-branch"][`${REPO}|${MAIN_SHA}...main`] = entry(true);
+  restored["run-record"][`${REPO}|7`] = entry(origin(7));
+  restored["fail-head-ref"][`${REPO}|70`] = entry({ head_ref: "feat/x" });
   const kept = carry(restored, opts);
-  assert.deepEqual(Object.keys(kept).sort(), ["carried-on-branch", "fail-head-ref", "run-record"]);
-  assert.equal(kept["on-branch"], undefined);
+  assert.deepEqual(Object.keys(kept).sort(), ["carried-fail-head-ref", "carried-on-branch", "carried-run-record"]);
 });
 
 test("drops a run record that would turn a FAIL away", () => {
@@ -84,10 +92,10 @@ test("drops a run record that would turn a FAIL away", () => {
   };
   for (const [label, overrides] of Object.entries(forgeries)) {
     const kept = carry({ "run-record": { [`${REPO}|7`]: entry(origin(7, overrides)) } }, opts);
-    assert.deepEqual(kept["run-record"], {}, label);
+    assert.deepEqual(kept["carried-run-record"], {}, label);
   }
   const otherRepo = carry({ "run-record": { "someone/fork|7": entry(origin(7)) } }, opts);
-  assert.deepEqual(otherRepo["run-record"], {});
+  assert.deepEqual(otherRepo["carried-run-record"], {});
 });
 
 test("drops a head ref or run head of no known shape", () => {
@@ -106,7 +114,7 @@ test("drops a head ref or run head of no known shape", () => {
     },
     opts,
   );
-  assert.deepEqual(kept["fail-head-ref"], {});
+  assert.deepEqual(kept["carried-fail-head-ref"], {});
   assert.deepEqual(kept["carried-on-branch"], {});
 });
 
@@ -143,10 +151,10 @@ test("carries file to file, and writes nothing when the file is missing or unrea
   writeFileSync(from, JSON.stringify({ "trusted-humans": { [REPO]: entry([1]) }, "run-record": { [`${REPO}|7`]: entry(origin(7)) } }));
   main(env, NOW);
   assert.deepEqual(JSON.parse(readFileSync(to, "utf8")), {
-    "run-record": { [`${REPO}|7`]: entry(origin(7)) },
-    "fail-head-ref": {},
+    "carried-run-record": { [`${REPO}|7`]: entry(origin(7)) },
+    "carried-fail-head-ref": {},
     "carried-on-branch": {},
   });
-  assert.equal(logs.at(-1), "run-record=1 fail-head-ref=0 carried-on-branch=0");
+  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=0");
   assert.equal(readFileSync(output, "utf8"), "carried=true\n");
 });

@@ -5,17 +5,19 @@
 // the file it saves with actions/cache; and before the gate, from the restored
 // file into this run's empty cache. Every entry is checked again on each pass.
 //
-// Kept, each read only on a FAIL's path, where a value can only count the
-// FAIL (babysit_verify_evidence.py):
-//   run-record        a pr-verify run's record, only when it names a run of
-//                     pr-verify.yml on the branch of this repository (origin);
-//                     these fields never change for a run id, and a record
-//                     that would turn a FAIL away is never carried
+// The restored file may come from any job in the default branch's cache
+// scope, so nothing in it is trusted: each kept read lands in a carried-*
+// section that babysit_verify_evidence.py reads only on a FAIL's path and
+// only where the value counts the FAIL; any other answer is read from GitHub.
+//   run-record        a pr-verify run's record of origin shape (a run of
+//                     pr-verify.yml on the branch of this repository), kept
+//                     as carried-run-record; used only when it shows origin
 //   fail-head-ref     the head ref an untied FAIL's verdict.json records, by
-//                     artifact id; an id names contents that never change
+//                     artifact id, kept as carried-fail-head-ref; used only
+//                     when it names the PR's head ref
 //   on-branch         a run head found on the branch (main forbids force
-//                     pushes), carried as carried-on-branch, which a PASS's
-//                     run never reads
+//                     pushes), kept as carried-on-branch; a yes counts a
+//                     FAIL's run as origin, and a PASS's run never reads it
 // Everything else is dropped: a read bounded by MAX_AGE, keyed by
 // credentials, or a sweep stamp can change between runs. So is an entry dated
 // in the future or more than RETENTION_DAYS ago, past the artifact retention
@@ -82,7 +84,7 @@ function onBranch(key, value, repo, branch) {
 
 // The sections of `data` kept for the next run, each entry as saved.
 export function carry(data, { repo, branch, now }) {
-  const out = { "run-record": {}, "fail-head-ref": {}, "carried-on-branch": {} };
+  const out = { "carried-run-record": {}, "carried-fail-head-ref": {}, "carried-on-branch": {} };
   if (!isObject(data)) return out;
   const take = (from, to, keep) => {
     if (!isObject(data[from])) return;
@@ -90,8 +92,13 @@ export function carry(data, { repo, branch, now }) {
       if (dated(entry, now) && keep(key, entry.value)) out[to][key] = { at: entry.at, value: entry.value };
     }
   };
-  take("run-record", "run-record", (k, v) => originRecord(k, v, repo, branch));
-  take("fail-head-ref", "fail-head-ref", (k, v) => headRef(k, v, repo));
+  // Each section is kept from this run's reads and from what it carried in.
+  for (const from of ["carried-run-record", "run-record"]) {
+    take(from, "carried-run-record", (k, v) => originRecord(k, v, repo, branch));
+  }
+  for (const from of ["carried-fail-head-ref", "fail-head-ref"]) {
+    take(from, "carried-fail-head-ref", (k, v) => headRef(k, v, repo));
+  }
   for (const from of ["carried-on-branch", "on-branch"]) {
     take(from, "carried-on-branch", (k, v) => onBranch(k, v, repo, branch));
   }

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -1198,6 +1199,85 @@ class ACarriedHeadServesOnlyAFail(unittest.TestCase):
         fake.on_main = set()
         self.assertEqual(read(fake).refusal, "verify:missing")
         self.assertEqual(self.compares(fake), 1)
+
+
+CARRY = (
+    pathlib.Path(__file__).resolve().parents[6]
+    / ".github/scripts/pr-merge/carry-run-cache.mjs"
+)
+
+
+class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
+    """pr-merge restores the newest `pr-merge-run-cache-` entry its ref can
+    read, which a job in the default branch's cache scope may have written.
+    Whatever that entry holds, carry-run-cache.mjs and the reader together
+    may only add refusals: a carried read that would turn a FAIL away is read
+    again from GitHub."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = pathlib.Path(tmp.name)
+        patcher = mock.patch.dict(
+            "os.environ", {"BABYSIT_RUN_CACHE": str(self.dir / "run.json")}
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def restore(self, sections: dict[str, Any]) -> None:
+        """Carry `sections`, as the cache restored them, into the run cache."""
+        at = datetime.now(UTC).isoformat()
+        restored = self.dir / "restored.json"
+        restored.write_text(
+            json.dumps(
+                {
+                    s: {k: {"at": at, "value": v} for k, v in e.items()}
+                    for s, e in sections.items()
+                }
+            )
+        )
+        subprocess.run(
+            ["node", str(CARRY)],
+            env={
+                "PATH": os.environ["PATH"],
+                "CARRY_FROM": str(restored),
+                "CARRY_TO": str(self.dir / "run.json"),
+                "GITHUB_REPOSITORY": REPO,
+            },
+            check=True,
+            capture_output=True,
+        )
+
+    def test_a_forged_run_head_does_not_turn_a_fail_away(self) -> None:
+        fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
+        forged = run(2, head_sha=OFF_MAIN)
+        for section in ("run-record", "carried-run-record"):
+            with self.subTest(section=section):
+                self.restore({section: {f"{REPO}|2": forged}})
+                self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_forged_head_ref_does_not_untie_an_earlier_fail(self) -> None:
+        name = named(UNRELATED, "fail", 99)
+        fake = passing(artifact(name, 2), runs={2: run(2)})
+        fake.records[name] = record(99, UNRELATED, head_ref="feat/x")
+        for section in ("fail-head-ref", "carried-fail-head-ref"):
+            with self.subTest(section=section):
+                self.restore({section: {f"{REPO}|20": {"head_ref": "feat/other"}}})
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_carried_reads_that_count_a_fail_spare_the_reads(self) -> None:
+        name = named(UNRELATED, "fail", 99)
+        fake = passing(artifact(name, 2), runs={2: run(2)})
+        self.restore(
+            {
+                "run-record": {f"{REPO}|2": run(2)},
+                "fail-head-ref": {f"{REPO}|20": {"head_ref": "feat/x"}},
+                "on-branch": {f"{REPO}|{MAIN_SHA}...main": True},
+            }
+        )
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertFalse(any(c[-1].endswith("/actions/runs/2") for c in fake.calls))
+        self.assertFalse(any(c[:3] == ["run", "download", "2"] for c in fake.calls))
 
 
 # --- A transient listing failure is read again --------------------------------

@@ -4,6 +4,7 @@ bump: patch
 
 ### Changed
 
-- The pr-merge verdict reader accepts a run head an earlier run found on the default branch
-  (`carried-on-branch` in the run cache) only for a FAIL's run, and a PASS never reuses a judgment
-  made on a FAIL's path.
+- The pr-merge verdict reader accepts what earlier runs read (`carried-run-record`,
+  `carried-fail-head-ref` and `carried-on-branch` in the run cache) only on a FAIL's path and only
+  where the value counts the FAIL; any other answer is read from GitHub, so a poisoned cache entry
+  can add a refusal but never remove one. A PASS never reuses a judgment made on a FAIL's path.

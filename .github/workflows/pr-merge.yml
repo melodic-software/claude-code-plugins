@@ -493,8 +493,10 @@ jobs:
       # read them all again on its first candidate. A cache key is never
       # overwritten, so each run saves a new one and restores the newest
       # (https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).
-      # Each kept read can only count a FAIL, never turn one away or allow a
-      # PASS; anything else is dropped. Rules:
+      # Any job in the default branch's cache scope can write that prefix, so
+      # the entry is untrusted: each kept read lands in a carried-* section the
+      # gate uses only where it counts a FAIL, never to turn one away or allow
+      # a PASS, and reads GitHub for any other answer. Rules:
       # .github/scripts/pr-merge/carry-run-cache.mjs. Any error leaves the
       # run cache empty, and the gate reads GitHub.
       - name: Restore the verdict reads the last run kept

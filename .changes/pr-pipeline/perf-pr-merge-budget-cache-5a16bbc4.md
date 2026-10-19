@@ -10,5 +10,6 @@ bump: patch
   candidates reached) goes to the log and the step summary. The action gains a `costs` output.
 - The merge job keeps the verdict reads that never change (FAIL run records of pr-verify origin,
   FAIL head refs by artifact id, run heads found on main) across runs with `actions/cache`, under a
-  new key per run, restored by prefix. Each kept read can only count a FAIL; everything else is
-  dropped (`.github/scripts/pr-merge/carry-run-cache.mjs`).
+  new key per run, restored by prefix. The restored entry is untrusted: each kept read lands in a
+  `carried-*` section the reader uses only to count a FAIL; everything else is dropped
+  (`.github/scripts/pr-merge/carry-run-cache.mjs`).
