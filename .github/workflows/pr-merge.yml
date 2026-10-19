@@ -13,9 +13,11 @@ name: pr-merge
 # Dependabot PRs are the other kind it merges, made only of Dependabot's own
 # verified commits and only once `ci-status` passes. A non-major bump from an
 # allowed publisher (tier `auto`) merges as is. Anything riskier (tier
-# `review`: a major bump, another Actions publisher, a red `ci-status`) merges
-# only after the pr-unblock lane's AI review leaves a `verdict=merge` marker,
-# written by the lanes App, for the PR's current commit.
+# `review`: another Actions publisher, a red `ci-status`) merges only after
+# the pr-unblock lane's AI review leaves a `verdict=merge` marker, written by
+# the lanes App, for the PR's current commit. A major bump, one whose version
+# cannot be read, or one whose title and commit metadata disagree, waits for a
+# human whatever the verdict while `merge.dependabot.majors` is `hold`.
 #
 # It runs no AI model and never checks out a PR's own code: every script it
 # runs comes from the main branch. The rules live in

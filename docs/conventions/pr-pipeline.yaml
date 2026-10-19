@@ -394,10 +394,13 @@ merge:
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge
-  # verdict at the head and ci-status passes. Owner decision: no Dependabot
-  # pull request waits on a human (docs/adr/0073).
+  # verdict at the head and ci-status passes. Owner decision 2026-10-18: a
+  # major update, or one whose version cannot be read (a SHA pin) or whose
+  # sources disagree, waits for a human whatever the verdict (`majors: hold`); `review` lets the verdict
+  # merge it.
   dependabot:
     mode: enforce
+    majors: hold
   # Owner decision Q624: the lane denies no path and applies no HIGH path
   # floor, size cap or C2 contradiction check; the verifier verdict, the kill
   # switch, the fork and Dependabot refusals, lane-author and single-closing-
