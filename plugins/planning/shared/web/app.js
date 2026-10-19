@@ -1116,7 +1116,7 @@
       const qid = ui.cur, text = discTa.value.trim();
       if (!qid || !text || discPost.disabled) return;
       discPost.disabled = true;
-      Core.comment(qid, text).then(j => { discTa.value = ""; grow(discTa); if (j.request) flash("Posted, and sent to Claude."); })
+      Core.comment(qid, text).then(j => { discTa.value = ""; grow(discTa); if (j.request) flash("Posted, and sent to Claude."); else if (j.requestRefused) flash(j.message); })
         .catch(fail).finally(() => { discPost.disabled = false; });
     };
     // Q84: References under the question: screenshots with a marked area, quoted excerpts with their source, titled links.

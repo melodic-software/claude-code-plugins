@@ -2166,6 +2166,45 @@ class TestDiscussion(ServerCase):
         named = next(q for q in self.app.session._digest(1)["questions"] if q["id"] == "Q1")["discussion"]
         self.assertEqual([c.get("by") for c in named], ["Ann", self.app.session.state["people"]["host"]["name"]])
 
+    def test_an_edit_to_a_hidden_comment_notifies_no_mention_and_carries_no_excerpt(self):
+        cid = self.say(self.ann, "Off topic")["id"]
+        self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": True}, self.owner)
+        self.assertEqual(self.post("/api/discussion/edit", {"qid": "Q1", "id": cid, "text": "Secret words for @Bo"}, self.ann)[0], 200)
+        notes = self.get("/api/state", self.bo)[2]["me"]["notifications"]
+        self.assertEqual([n for n in notes if n.get("comment") == cid], [])
+        self.assertNotIn("Secret words", json.dumps(self.get("/api/state", self.bo)[2]))
+
+    def test_the_caps_count_only_visible_comments_and_one_person_holds_at_most_their_own_share(self):
+        with mock.patch.object(session, "MAX_COMMENTS", 2), mock.patch.object(session, "MAX_MY_COMMENTS", 2):
+            cid = self.say(self.ann, "One")["id"]
+            self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": True}, self.owner)
+            self.say(self.bo, "Bo's")
+            time.sleep(1.05)
+            self.say(self.ann, "Two")  # the hidden one no longer fills the question
+            time.sleep(1.05)
+            code, _, out = self.post("/api/discussion", {"qid": "Q1", "text": "Three"}, self.ann)
+            self.assertEqual((code, out["error"]), (409, "too-many-comments"))  # Ann's own two, the hidden one too
+            code, _, out = self.post("/api/discussion", {"qid": "Q1", "text": "Kim's"}, self.owner)
+            self.assertEqual((code, out["error"]), (409, "discussion-full"))
+            time.sleep(1.05)
+            self.say(self.ann, "On Q2", qid="Q2")  # the per-person cap is per question
+
+    def test_at_claude_past_the_pending_cap_posts_the_comment_and_says_no_request_was_filed(self):
+        with mock.patch.object(session, "MAX_PENDING_REQUESTS", 1):
+            self.assertEqual(self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "first"}, self.ann)[0], 200)
+            out = self.say(self.ann, "@Claude and this too?")
+        self.assertNotIn("request", out)
+        self.assertEqual(out["requestRefused"], "too-many-pending")
+        self.assertEqual([c["text"] for c in self.comments(self.bo)], ["@Claude and this too?"])
+        self.assertEqual(len(self.app.session.state["requests"]), 1)
+
+    def test_at_claude_naming_a_participant_called_claude_files_no_request(self):
+        claude_pid, _ = self.join("Claude")
+        out = self.say(self.ann, "@Claude can you check the copy?")
+        self.assertNotIn("request", out)
+        self.assertEqual(self.comments(self.bo)[0]["text"], f"<@{claude_pid}> can you check the copy?")
+        self.assertEqual(self.app.session.state["requests"], [])
+
     def test_a_merge_moves_comments_reactions_and_seen_marks_to_the_kept_person(self):
         cid = self.say(self.bo, "Bo's comment")["id"]
         self.post("/api/discussion/react", {"qid": "Q1", "id": cid, "emoji": "👍", "on": True}, self.ann)

@@ -125,6 +125,13 @@ async function main() {
     ok("Claude's shared answer shows Bo from Discussion on its card", await until(bo, a => [...document.querySelectorAll(".vf-res")].some(li => li.textContent.includes(a) && !li.querySelector(".vf-fromdisc").hidden), ANSWER));
     ok("  and the comment now reads Sent to Claude · Answered", await until(bo, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && li.querySelector(".vf-cm-became-t").textContent === "Sent to Claude · Answered"), BO_ASK));
 
+    // ---------- @Claude past the waiting cap: posted, with no request, and the reason said ----------
+    await bo.evaluate(async () => { for (let i = 0; i < 10; i++) await window.Core.request("Q1", "ask", "filler " + i).catch(() => {}); });
+    const FULL = "@Claude one more?";
+    ok("an @Claude comment past the waiting cap still posts", await post(bo, FULL));
+    ok("  and Bo is told it was not sent to Claude", await until(bo, () => /^Posted, but not sent to Claude/.test(document.querySelector(".vf-toast.vf-on span")?.textContent || "")));
+    ok("  with no Sent to Claude line on it", (await shown(bo)).some(r => r.text === FULL && !r.became));
+
     // ---------- 390 phone ----------
     const fit = await bo.evaluate(() => {
       const r = document.querySelector(".vf-disc").getBoundingClientRect(), hd = document.querySelector(".vf-disc-head").getBoundingClientRect();

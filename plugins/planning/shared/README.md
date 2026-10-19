@@ -303,7 +303,7 @@ writing nothing when nothing would change:
 
 | Route | Body | Who and what |
 |---|---|---|
-| `/api/discussion` | `{qid, text}` | Anyone who may write. "@Claude" in the text also files an ask request with it (`request` on the comment), owner-gated like any guest request; the owner's own runs at once. People already in that Discussion get a rolled-up `discussion` notification; a mention notifies as usual |
+| `/api/discussion` | `{qid, text}` | Anyone who may write. "@Claude" in the text also files an ask request with it (`request` on the comment), owner-gated like any guest request; the owner's own runs at once. With too many requests waiting the comment still posts, with `requestRefused` and no request. A person keeps at most 30 comments on a question (hidden ones count); a question at most 200 and the session at most 2000 that everyone sees. People already in that Discussion get a rolled-up `discussion` notification; a mention notifies as usual |
 | `/api/discussion/edit`, `/delete` | `{qid, id, text?}` | The comment's author only; another person's comment reads as 404. A request it filed stays |
 | `/api/discussion/hide` | `{qid, id, on}` | Owner only. A hidden comment leaves every other snapshot and the digest; its author still sees it, with `hidden` |
 | `/api/discussion/react` | `{qid, id, emoji, on}` | The chat's emoji set and caps |

@@ -89,6 +89,7 @@ INBOX_STATUS = {"pending": "waiting", "running": "running", "declined": "decline
 NOTIFY_SHOWN = 100
 MAX_COMMENTS = 200  # judgment: Discussion comments kept on one question; at the cap a new one is refused, none dropped
 MAX_ALL_COMMENTS = 2000  # judgment: comments across the session, as MAX_CHAT; at the cap a new one is refused
+MAX_MY_COMMENTS = 30  # judgment: comments one person keeps on one question, as MAX_MY_NOTES; their hidden ones count too
 MAX_DIGEST_COMMENTS = 50  # judgment: a question's newest comments one digest lists; the rest are counted
 ASK_CLAUDE = re.compile(r"(?<![\w@])@claude(?![\w])", re.IGNORECASE)  # "@Claude" in a comment asks Claude about the question
 COMMENT_ID = re.compile(r"D[1-9][0-9]{0,8}")
@@ -3197,16 +3198,25 @@ class Session:
             if self._round(q["round"]) is None:
                 raise DomainError(409, "round-not-open", f"Round {q['round']} has not opened yet.")
             lst = st["discussions"].setdefault(q["id"], [])
-            if len(lst) >= MAX_COMMENTS:
+            if sum(1 for c in lst if c["pid"] == pid) >= MAX_MY_COMMENTS:  # hiding one gives no room back
+                raise DomainError(409, "too-many-comments", f"You can leave at most {MAX_MY_COMMENTS} comments on one question.", max=MAX_MY_COMMENTS)
+            # Only comments everyone sees fill a Discussion, so the owner's Hide clears room.
+            if sum(1 for c in lst if self._comment_shown(c)) >= MAX_COMMENTS:
                 raise DomainError(409, "discussion-full", f"A question's Discussion holds at most {MAX_COMMENTS} comments.", max=MAX_COMMENTS)
-            if sum(map(len, st["discussions"].values())) >= MAX_ALL_COMMENTS:
+            if sum(1 for x in st["discussions"].values() for c in x if self._comment_shown(c)) >= MAX_ALL_COMMENTS:
                 raise DomainError(409, "discussion-full", f"This session holds at most {MAX_ALL_COMMENTS} comments.", max=MAX_ALL_COMMENTS)
-            asks = bool(ASK_CLAUDE.search(text))
             text = self._tokenize(pid, text)
+            asks = bool(ASK_CLAUDE.search(text))  # after tokenizing: "@Claude" naming a person called Claude is their mention
             now = self.now()
             c = {"id": self._next("D"), "pid": pid, "text": text, "at": now}
+            refused = None
             if asks:
-                c["request"] = self._new_request(pid, q, "ask", text, "host", now)["id"]
+                try:
+                    c["request"] = self._new_request(pid, q, "ask", text, "host", now)["id"]
+                except DomainError as e:  # too many waiting: the comment still posts, without a request
+                    if e.code != "too-many-pending":
+                        raise
+                    refused = e
             lst.append(c)
             mentioned = self._mentioned(text, pid)
             self._notify_mentions(text, pid, f"in the Discussion on question {q['id']}", qid=q["id"], comment=c["id"])
@@ -3216,7 +3226,12 @@ class Session:
                     k = old["rollup"]["n"] + 1 if old else 1
                     self._notify(p, "discussion", f"{k} new comment{'' if k == 1 else 's'} in the Discussion on question {q['id']}.", actor=pid, rollup="disc:" + q["id"], qid=q["id"], comment=c["id"])
             st["discussionSeen"].setdefault(pid, {})[q["id"]] = now
-            return {"id": c["id"], **({"request": c["request"]} if asks else {})}
+            if refused:
+                return {"id": c["id"], "requestRefused": refused.code, "message": f"Posted, but not sent to Claude: {refused.message}"}
+            return {"id": c["id"], **({"request": c["request"]} if "request" in c else {})}
+
+    def _comment_shown(self, c):
+        return "hidden" not in c and self._active(c["pid"])
 
     def edit_comment(self, pid, body):
         """POST /api/discussion/edit: `{qid, id, text}`, the comment's author only; the same text writes nothing. A
@@ -3233,7 +3248,8 @@ class Session:
             before, c["text"] = c["text"], self._tokenize(pid, text)
             c["edited"] = self.now()
             self._drop_comment_excerpts(c["id"])
-            self._notify_mentions(c["text"], pid, f"in the Discussion on question {q['id']}", before=before, qid=q["id"], comment=c["id"])
+            if "hidden" not in c:  # a hidden comment's text reaches no one through a notice
+                self._notify_mentions(c["text"], pid, f"in the Discussion on question {q['id']}", before=before, qid=q["id"], comment=c["id"])
             return {"id": c["id"], "edited": True}
 
     def delete_comment(self, pid, body):
