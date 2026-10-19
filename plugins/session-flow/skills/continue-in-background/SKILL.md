@@ -154,8 +154,9 @@ fallback), then:
    Pointer: [Permission modes § When auto mode falls back](https://code.claude.com/docs/en/permission-modes#when-auto-mode-falls-back)
    and [agent view § Permission mode, model, and effort](https://code.claude.com/docs/en/agent-view#permission-mode-model-and-effort);
    as of 2026-10-19; recheck trigger: either section changes what a background session does when
-   an action is denied or auto mode falls back. The launch report does not promise where a
-   denied action is reported.
+   an action is denied or auto mode falls back. The launch report says auto mode may deny an
+   action and that where a denied action is reported is unverified; it never promises the final
+   hand-off.
 
    `claude --bg` starts the session as a background agent and returns immediately; the user
    manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required

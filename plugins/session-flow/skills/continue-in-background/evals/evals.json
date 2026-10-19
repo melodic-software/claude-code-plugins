@@ -11,7 +11,7 @@
         "A save-point is produced per the shared engine doc and the rails resume prompt is emitted first (transparency + manual fallback)",
         "The dirty-tree gate runs git status --porcelain -uall and exempts only save-point files under the handoff location",
         "A background agent is launched with the rails prompt via claude --bg and the launch result is reported, replacing the /clear-then-paste instruction",
-        "The claude --bg launch command carries --permission-mode auto, and the report does not promise that denied actions appear in the launched session's final hand-off",
+        "The claude --bg launch command carries --permission-mode auto, and the report states that auto mode may deny an action and that where a denied action is reported is unverified; a report that says nothing about denied actions fails, and so does one that promises they appear in the launched session's final hand-off",
         "The report surfaces launched-session behavior: the agent is a NEW session that inherits neither the current session's CLI flags nor its model/effort choices",
         "The skill STOPS after the launch report — no monitoring, polling, or new work items"
       ]
