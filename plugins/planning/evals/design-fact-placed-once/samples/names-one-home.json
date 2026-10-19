@@ -7,6 +7,14 @@
     {
       "answer": "**T1 Where the cap lives.** Recommend one shared settings module for every upload limit, so the size cap is defined once.",
       "why": "one shared module for the limits"
+    },
+    {
+      "answer": "1. **T1: Where the cap lives.** I recommend **A**: a new module `uploads/policy.py` that uses no Flask or requests code. The API, the template and the CLI all read from it.",
+      "why": "kept main run: a new module all three surfaces read from"
+    },
+    {
+      "answer": "**1. One place for all upload limits.**\nI recommend a new `uploads/limits.py` that the API, the form and the CLI all read from. I considered having the server publish its limits for the CLI to fetch, and rejected it: the CLI only ever talks to `localhost:5000` and lives in the same repo, so a new endpoint and a network call buy nothing.",
+      "why": "kept main run: one place for all upload limits"
     }
   ],
   "fail": [
@@ -29,6 +37,10 @@
     {
       "answer": "A single shared constant for the 25 MB cap isn't needed here.",
       "why": "a single home named only as not needed"
+    },
+    {
+      "answer": "Add a new constant for the 25 MB cap to each of api.py, upload.html and upload_cmd.py.",
+      "why": "a new constant per file, nothing all three read"
     }
   ]
 }
