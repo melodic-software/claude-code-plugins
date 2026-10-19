@@ -74,7 +74,7 @@ A prototype gets one line. Classify a bug fix or refactor from the request and c
 line, "Intent: not applicable?"; a refactor that extracts a new abstraction asks the full question.
 Under `lock`, a part 1 answer the user's own request states, or a bug fix or refactor it names as
 such, is recorded directly with no confirmation question, since invoking `lock` is the
-confirmation. One stated only upstream, missing, or contradictory is a gap: STOP and surface it.
+confirmation. One stated only upstream, missing, or contradictory is a gap: attended, STOP and surface it; unattended, the Unattended bullets below apply.
 Record under `### Captured assumptions`, the second form for a confirmed bug fix or refactor:
 
 ```text
