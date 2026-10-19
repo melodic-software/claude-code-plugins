@@ -355,6 +355,25 @@ a trust gate. An expedite label from a human with write access skips
 `refine`. A label counts only when the actor on its label event is a trusted human: a label the App
 set never resumes an item, expedites it, sets its work class or lifts a hold.
 
+A pr-unblock escalation whose reason repository state can settle is also cleared without a
+person. On its schedule, `pr-merge` rechecks each open PR into main carrying the human-gated
+label and removes it, after one comment naming the reason and the head, when every reason the
+lanes App's escalation comments recorded since the label went on no longer holds at the current
+head:
+
+| Reason | Cleared when |
+|---|---|
+| `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head |
+| `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
+| `feedback-protected-path` | the PR changes nothing under `.github/` |
+
+It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
+when any account but the lanes App commented or reviewed since that event, or when an App comment
+written or edited since then carries any marker other than pr-unblock's escalation (pr-merge's
+own `babysit-merge-*` escalations, another lane's). Every other reason
+(`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
+`ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
+
 ## Slots and order
 
 A lane's `slots:` list names the activities it runs. Stage order is fixed by the table above; the
