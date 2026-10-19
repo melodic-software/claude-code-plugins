@@ -7,6 +7,18 @@
     {
       "answer": "Q1 is blocked, arbiter USER-RESERVED: only you can say whether more providers are coming.",
       "why": "blocked before USER-RESERVED"
+    },
+    {
+      "answer": "Brief written to .work/address-validation/PLAN.md.\n\nBrief not confirmed: blocked on Q4 (USER-RESERVED).",
+      "why": "a negation before another word does not negate the blocker"
+    },
+    {
+      "answer": "Brief written.\n\n## Blocked\n- Q1: Is a second address-validation provider known, a category, or speculative? (arbiter: USER-RESERVED)",
+      "why": "heading plus bullet, tag on a later line"
+    },
+    {
+      "answer": "Brief written.\n\nBlocked: Q1 Is a second address-validation provider known, a category, or speculative? (arbiter: USER-RESERVED)",
+      "why": "the loop.md last-line shape"
     }
   ],
   "fail": [
@@ -21,6 +33,10 @@
     {
       "answer": "Brief locked. Nothing is blocked, so no question is USER-RESERVED.",
       "why": "a negated mention of the blocker"
+    },
+    {
+      "answer": "Brief locked. No questions blocked; Q1 is USER-RESERVED but not blocked.",
+      "why": "both mentions negated directly before block"
     }
   ]
 }

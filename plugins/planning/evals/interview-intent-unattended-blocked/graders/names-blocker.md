@@ -1,5 +1,6 @@
 ---
 type: regex
-pattern: '(?:^|\n)(?![^\n]*\b(?:no|not|nothing|none|never|without)\b[^\n]*\bblock)[^\n]*(?:\bblock(?:ed|er|ers|ing)?\b[^\n]{0,160}USER-RESERVED|USER-RESERVED[^\n]{0,160}\bblock(?:ed|er|ers|ing)?\b)'
+target: last_message
+pattern: '(?:^|[\n.;:,!?(])(?:(?!\b(?:no|nothing|none|not)\s+(?:\w+\s+){0,2}block)[^\n.;:,!?(])*?\bblock(?:ed|er|ers|ing)?\b[\s\S]{0,160}USER-RESERVED|USER-RESERVED(?:(?!\b(?:no|nothing|none|not)\s+(?:\w+\s+){0,2}block)[\s\S]){0,160}?\bblock(?:ed|er|ers|ing)?\b'
 flags: i
 ---
