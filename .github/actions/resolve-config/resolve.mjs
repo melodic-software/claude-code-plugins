@@ -7,6 +7,7 @@ import { posix } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseDocument } from "yaml";
 
+import { checkDimensions, dimensionBudget, issueDimensions, parsePin } from "./dimensions.mjs";
 import { MissingFact, appliesAll, factsFor } from "./predicate.mjs";
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
@@ -208,10 +209,18 @@ function checkLeaves(activities, activityRules) {
     if (isComposite(activity)) {
       continue;
     }
-    if (activity.prepare !== undefined && activity.effect === "read") {
+    // ci-context is the read runner's one mode, apply-patch a branch-writing
+    // script's; every other mode needs a skill that can write.
+    const needs = { "ci-context": "read", "apply-patch": "mutate-branch" }[activity.prepare];
+    if (
+      activity.prepare !== undefined &&
+      (needs ? activity.effect !== needs : activity.effect === "read")
+    ) {
       throw new Rejection(
         "invalid-prepare",
-        `activity \`${name}\` sets prepare with effect read; prepare needs a skill that can write`,
+        needs
+          ? `activity \`${name}\` sets prepare: ${activity.prepare}, which needs effect ${needs}`
+          : `activity \`${name}\` sets prepare with effect read; prepare needs a skill that can write`,
       );
     }
     const rule = Object.hasOwn(activityRules, name)
@@ -254,7 +263,16 @@ function checkModels(models, activities) {
       );
     }
   }
+  if (models["issue-dimensions"] !== undefined) {
+    checkDimensions(models["issue-dimensions"]);
+  }
 }
+
+// Whether a skill activity takes its budget from its issue's dimensions.
+const dimensionedBy = (activity, models) =>
+  models?.["issue-dimensions"] !== undefined &&
+  typeof activity.skill === "string" &&
+  (activity.inputs ?? []).includes("issue");
 
 // Rejections 1, 2, 4-9 and 3 over the whole file, whichever lane the run asked for.
 export function loadConfig(files, { configPath }) {
@@ -444,7 +462,7 @@ const decides = (index, selected) => selected < 0 || index === selected;
 
 // The facts the decided enabled slots read. Rejects the same files and request
 // resolve() would, before any fact is fetched.
-export function neededFacts(files, { lane, activity, configPath }) {
+export function neededFacts(files, { lane, activity, configPath, pinnedDimensions }) {
   const doc = loadConfig(files, { configPath });
   const entries = laneSlots(doc, lane);
   const selected = selectedIndex(entries, lane, activity);
@@ -456,6 +474,11 @@ export function neededFacts(files, { lane, activity, configPath }) {
       }
       if ((definition.inputs ?? []).includes("changed-paths")) {
         needed.add("changedPaths");
+      }
+      // The fields are read now, unless an earlier resolve pinned them.
+      if (dimensionedBy(definition, doc.models) && !pinnedDimensions) {
+        needed.add("fieldValues");
+        needed.add("fieldSetters");
       }
     }
   });
@@ -606,10 +629,11 @@ export function resolveRoute(files, { route, configPath }) {
 
 function resolveSlot(
   { name, activity, predicate, predicates, enabled, needs },
-  { effectGrants, codeowners },
+  { effectGrants, codeowners, trustedActors },
   facts,
   decided,
   models,
+  pinnedDimensions,
 ) {
   const grant = grantFor(effectGrants, activity.effect);
   let outcome = { applies: null, skipReason: null };
@@ -643,6 +667,34 @@ function resolveSlot(
     }
   }
   const kind = activity.skill === undefined ? "script" : "skill";
+  let runModels = kind === "skill" ? routeModels(models, name) : null;
+  let sizing = {};
+  if (dimensionedBy(activity, models)) {
+    const config = models["issue-dimensions"];
+    let dims;
+    if (pinnedDimensions) {
+      // What an earlier resolve read for this run, whose job timeout is
+      // already fixed: the fields are not read again.
+      dims = parsePin(pinnedDimensions, config);
+    } else if (decided) {
+      for (const fact of ["fieldValues", "fieldSetters"]) {
+        if (facts[fact] === undefined) {
+          throw new MissingFact(fact);
+        }
+      }
+      dims = issueDimensions(facts, config, trustedActors);
+    } else {
+      dims = parsePin("not-assessed", config);
+    }
+    const budget = dimensionBudget(dims, config);
+    if (budget.skip !== null && outcome.applies) {
+      outcome = { applies: false, skipReason: budget.skip };
+    }
+    if (budget.skip === null) {
+      runModels = { ...runModels, "max-turns": budget["max-turns"] };
+    }
+    sizing = { "issue-dimensions": budget.pin, "timeout-minutes": budget["timeout-minutes"] };
+  }
   return {
     name,
     kind,
@@ -650,6 +702,7 @@ function resolveSlot(
     ...(activity.args === undefined ? {} : { args: activity.args }),
     ...(activity.prepare === undefined ? {} : { prepare: activity.prepare }),
     ...(activity.checks === undefined ? {} : { checks: activity.checks }),
+    ...(activity["self-checks"] === undefined ? {} : { "self-checks": activity["self-checks"] }),
     ...(activity["verify-scripts"] === undefined ? {} : { "verify-scripts": activity["verify-scripts"] }),
     ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
     effect: activity.effect,
@@ -660,7 +713,8 @@ function resolveSlot(
     needs,
     ...(predicate === undefined ? {} : { "applies-when": predicate }),
     enabled,
-    models: kind === "skill" ? routeModels(models, name) : null,
+    models: runModels,
+    ...sizing,
     grant,
     applies: outcome.applies,
     "skip-reason": outcome.skipReason,
@@ -709,16 +763,61 @@ function resolveMerge(merge = {}, configPath) {
   };
 }
 
+// The `limits` leaf with every default applied, in hours and counts; the lane
+// scripts' copy of these defaults is
+// .github/scripts/work-resolve-issue/limits.mjs.
+const limitsOf = (limits = {}) => ({
+  "fallback-reset": limits["fallback-reset"] ?? 5,
+  "reset-clamp-min": limits["reset-clamp-min"] ?? 1,
+  "reset-clamp-max": limits["reset-clamp-max"] ?? 168,
+  "restarts-per-run": limits["restarts-per-run"] ?? 5,
+  "limit-stops-per-head": limits["limit-stops-per-head"] ?? 3,
+  "limit-stops-per-issue": limits["limit-stops-per-issue"] ?? 3,
+  "wip-cap": limits["wip-cap"] ?? 60,
+  "turn-cap-restarts": limits["turn-cap-restarts"] ?? 0,
+  "fix-ci-per-run": limits["fix-ci-per-run"] ?? 2,
+  "fix-ci-restarts": limits["fix-ci-restarts"] ?? 1,
+  "admission-window-hours": limits["admission-window-hours"] ?? 24,
+  "admission-factor": limits["admission-factor"] ?? 0.8,
+});
+
+const loopOf = (loop = {}) => ({
+  "review-rounds": loop["review-rounds"] ?? 2,
+  "no-progress": loop["no-progress"] ?? 3,
+  "dependency-review-rounds": loop["dependency-review-rounds"] ?? 2,
+  "fix-ci-rounds": loop["fix-ci-rounds"] ?? 3,
+});
+
+// The resolved loop caps alone, after the same file checks as resolve(), for
+// a job that resolves no lane slot (pr-unblock.yml's fix-ci-context).
+export function resolveLoop(files, { configPath }) {
+  return loopOf(loadConfig(files, { configPath }).loop);
+}
+
+// The resolved limits alone, after the same file checks as resolve(), for a
+// run that resolves no lane slot (pr-unblock-dispatch.yml).
+export function resolveLimits(files, { configPath }) {
+  return limitsOf(loadConfig(files, { configPath }).limits);
+}
+
+// The wip leaf as set, after the same file checks as resolve(), for the WIP
+// cap check. Its defaults have one copy, WIP_DEFAULTS in
+// .github/scripts/work-resolve-issue/limits.mjs, which its readers apply;
+// this module imports nothing outside this action's sparse checkout.
+export function resolveWipLeaf(files, { configPath }) {
+  return loadConfig(files, { configPath }).wip ?? {};
+}
+
 export function resolve(
   files,
-  { lane, activity, configPath, basePath, facts },
+  { lane, activity, configPath, basePath, facts, pinnedDimensions },
 ) {
   const doc = loadConfig(files, { configPath });
   const section = laneSection(doc, lane);
   const entries = laneSlots(doc, lane);
   const index = selectedIndex(entries, lane, activity);
   const slots = entries.map((entry, i) =>
-    resolveSlot(entry, files, facts, decides(i, index), doc.models),
+    resolveSlot(entry, files, facts, decides(i, index), doc.models, pinnedDimensions),
   );
   return {
     version: 1,
@@ -730,11 +829,9 @@ export function resolve(
       slots,
     },
     selected: index < 0 ? null : slots[index],
-    loop: {
-      "review-rounds": doc.loop?.["review-rounds"] ?? 2,
-      "no-progress": doc.loop?.["no-progress"] ?? 3,
-      "dependency-review-rounds": doc.loop?.["dependency-review-rounds"] ?? 2,
-    },
+    loop: loopOf(doc.loop),
+    limits: limitsOf(doc.limits),
+    wip: doc.wip ?? {},
     merge: resolveMerge(doc.merge, configPath),
   };
 }

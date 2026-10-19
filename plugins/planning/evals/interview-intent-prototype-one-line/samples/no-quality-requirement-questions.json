@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: Which order fields should the CSV carry?\nMy recommendation: **id, date, total, customer email**.\nQ2: Shopify only, kept specific?\nMy recommendation: **yes**.\n\nQuality requirements (performance, availability, security, scaling, monitoring) are deferred for this prototype.",
+      "why": "quality requirements named as deferred in a statement, never asked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: Which order fields should the CSV carry?\nQ2: What latency target should the export meet?",
+      "why": "asks a performance target"
+    },
+    {
+      "answer": "Q1: Should the script retry when Shopify's availability drops?",
+      "why": "asks an availability question"
+    },
+    {
+      "answer": "Q3: Do you want monitoring or alerts on the nightly run?",
+      "why": "asks an observability question"
+    }
+  ]
+}

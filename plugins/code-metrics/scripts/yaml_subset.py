@@ -47,13 +47,23 @@ def _is_item(content: str) -> bool:
     return content == "-" or content.startswith("- ")
 
 
+def _value_starts_at(text: str, index: int) -> bool:
+    """Whether a quote at `index` opens a quoted string: only where a value
+    starts (line start, after `: `, `- `, `[` or `,`), never inside a plain
+    value such as `it's`."""
+    before = text[:index].rstrip()
+    if before == "" or before.lstrip() == "-" or before[-1] in "[,":
+        return True
+    return before.endswith(":") and text[index - 1] in " \t"
+
+
 def _strip_comment(text: str) -> str:
     quote = None
     for index, ch in enumerate(text):
         if quote:
             if ch == quote:
                 quote = None
-        elif ch in ("'", '"'):
+        elif ch in ("'", '"') and _value_starts_at(text, index):
             quote = ch
         elif ch == "#" and (index == 0 or text[index - 1] in " \t"):
             return text[:index].rstrip()
@@ -213,8 +223,10 @@ class _Parser:
             )
         return self._mapping(indent)
 
-    def _mapping(self, indent: int) -> dict[str, Any]:
-        result: dict[str, Any] = {}
+    def _mapping(
+        self, indent: int, seed: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        result: dict[str, Any] = {} if seed is None else seed
         while self.pos < len(self.lines):
             line_indent, number, content = self.lines[self.pos]
             if line_indent < indent:
@@ -269,23 +281,20 @@ class _Parser:
                 # of its entries are indented to the item column.
                 item_indent = indent + 2
                 key, rest = split
-                mapping: dict[str, Any] = {}
+                first: Any
                 if rest == "":
-                    mapping[key] = self._nested(item_indent, number)
+                    first = self._nested(item_indent, number)
                 else:
-                    mapping[key] = _scalar(rest, number)
+                    first = _scalar(rest, number)
                 if (
                     self.pos < len(self.lines)
                     and self.lines[self.pos][0] == item_indent
                 ):
-                    more = self._mapping(item_indent)
-                    for extra_key, value in more.items():
-                        if extra_key in mapping:
-                            raise YamlSubsetError(
-                                number, f"duplicate key {extra_key!r}"
-                            )
-                        mapping[extra_key] = value
-                result.append(mapping)
+                    # Seeding the mapping with the first entry makes the
+                    # duplicate check fire on the duplicate key's own line.
+                    result.append(self._mapping(item_indent, {key: first}))
+                else:
+                    result.append({key: first})
                 continue
             result.append(_scalar(item, number))
         return result

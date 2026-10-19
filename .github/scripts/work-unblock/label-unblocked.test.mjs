@@ -11,7 +11,8 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { checkCloser, escalationComment, main, refireComment } from "./label-unblocked.mjs";
+import { refsHoldComment } from "../work-resolve-issue/report-outcome.mjs";
+import { checkCloser, escalationComment, main, refireComment, refsClosedComment, refsMergedComment } from "./label-unblocked.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "fixtures/trusted-actors.json");
@@ -65,8 +66,30 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // gives the blocking list of closed issues other than number 10.
 // `openReady` is what the sweep's open agent-ready listing answers.
 // `runs` is every work-resolve-issue run; the listing answers those created in
-// the `created` range it is asked for. `blobs` maps a path to its blob SHA on main.
-function world({ blocking, blockingOf = {}, closedList = [], openReady = [], issues = {}, blockedBy = {}, comments = {}, events = {}, runs = [], blobs = {}, failOn } = {}) {
+// the `created` range it is asked for; `jobs` are per run id. `openLanePrs` is
+// how many open lanes-App PRs, none held, the search lists; null makes the
+// listing fail. `mergedLanePrs` is the search's merged count in the window
+// (24 by default: a WIP cap of 2), null makes it fail.
+// `blobs` maps a path to its blob SHA on main.
+// `timeline` and `pulls` are per issue and per pull request number.
+function world({
+  blocking,
+  blockingOf = {},
+  closedList = [],
+  openReady = [],
+  issues = {},
+  blockedBy = {},
+  comments = {},
+  events = {},
+  runs = [],
+  jobs = {},
+  openLanePrs = 0,
+  mergedLanePrs = 24,
+  blobs = {},
+  timeline = {},
+  pulls = {},
+  failOn,
+} = {}) {
   const calls = [];
   const base = `/repos/${REPO}/issues`;
   const github = async (method, path, body) => {
@@ -87,6 +110,31 @@ function world({ blocking, blockingOf = {}, closedList = [], openReady = [], iss
       const [from, to] = params.get("created").split("..").map(Date.parse);
       const inRange = runs.filter((run) => Date.parse(run.created_at) >= from && Date.parse(run.created_at) <= to);
       return { workflow_runs: listed(inRange) };
+    }
+    if (method === "GET" && route === "/search/issues") {
+      const q = new URL(path, "https://x").searchParams.get("q");
+      if (q === `repo:${REPO} is:pr is:open author:app/melodic-automation-lanes`) {
+        if (openLanePrs === null) {
+          throw new Error(`${method} ${path} failed with status 403`);
+        }
+        const open = Array.from({ length: openLanePrs }, () => ({ labels: [], body: "", created_at: STAMP }));
+        return { total_count: openLanePrs, incomplete_results: false, items: open.slice((page - 1) * 100, page * 100) };
+      }
+      assert.match(q, /^repo:\S+ is:pr (is:merged )?author:app\/melodic-automation-lanes (merged|created):>=\S+$/);
+      if (q.includes("is:merged") && mergedLanePrs === null) {
+        throw new Error(`${method} ${path} failed with status 403`);
+      }
+      return { total_count: q.includes("is:merged") ? mergedLanePrs : 0, incomplete_results: false, items: [] };
+    }
+    if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/actions/runs/(\\d+)/jobs$`)))) {
+      assert.equal(new URL(path, "https://x").searchParams.get("filter"), "latest");
+      return { jobs: jobs[match[1]] ?? [] };
+    }
+    if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/pulls/(\\d+)$`))) && pulls[match[1]]) {
+      return pulls[match[1]];
+    }
+    if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/timeline$/))) {
+      return listed(timeline[match[1]] ?? []);
     }
     if (method === "GET" && (match = route.match(new RegExp(`^/repos/${REPO}/contents/(.+)$`))) && blobs[match[1]]) {
       assert.equal(new URL(path, "https://x").searchParams.get("ref"), "main");
@@ -110,7 +158,7 @@ function world({ blocking, blockingOf = {}, closedList = [], openReady = [], iss
     if (method === "POST" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
       return [];
     }
-    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/agent-ready$/)) {
+    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human)$/)) {
       return [];
     }
     const lookup = (number) =>
@@ -849,6 +897,143 @@ test("a third limit stop since a person added agent-ready adds needs-human with 
   assert.deepEqual(writes(reset.calls), restarted(30));
 });
 
+// The sweep reads the resolved config's `limits` (hours and counts) from the
+// file resolve-config wrote.
+const withLimits = (limits) => {
+  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-limits-")), "resolved-config.json");
+  writeFileSync(path, JSON.stringify({ limits }));
+  return { RESOLVED_CONFIG: path };
+};
+
+// Restarts after a turn cap (plan: turn-cap resume, PR 2): report-outcome
+// keeps agent-ready and leaves the turn-cap marker while
+// limits.turn-cap-restarts allows one, and the sweep restarts the issue at
+// once, the way it restarts a limit stop, with no reset to wait for. More
+// turn-cap markers since a person added agent-ready than the limit allows
+// (a forged or stale one) restart nothing.
+const capNote = (at, run = 7) => ({
+  id: 33,
+  body: `<!-- work-resolve-issue outcome=turn-cap cap=75 run=${run} -->\nThe work-resolve-issue lane stopped on this issue: turn cap 75 reached.`,
+  user: LANES_BOT,
+  created_at: at,
+});
+
+test("an issue the turn cap stopped is restarted while the limit allows it", async () => {
+  const { github, calls } = stopped({ comments: [note(), capNote("2026-10-16T11:55:00Z")] });
+  assert.equal(await sweep({ github }, withLimits({ "turn-cap-restarts": 1 })), 0);
+  assert.deepEqual(writes(calls), restarted(30));
+});
+
+test("turn-cap stops past the limit, or any with the limit at 0, restart nothing", async () => {
+  for (const [limits, comments] of [
+    [{ "turn-cap-restarts": 0 }, [note(), capNote("2026-10-16T11:55:00Z")]],
+    [{ "turn-cap-restarts": 1 }, [note(), capNote("2026-10-16T08:00:00Z", 6), capNote("2026-10-16T11:55:00Z")]],
+  ]) {
+    // An unlisted account's agent-ready between the stops resets nothing.
+    const { github, calls } = stopped({ comments, events: [added("2026-10-16T05:00:00Z", OWNER), added("2026-10-16T09:00:00Z", MAINTAINER)] });
+    assert.equal(await sweep({ github }, withLimits(limits)), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(limits));
+  }
+});
+
+test("the App's remove-and-re-add after a turn-cap stop is a restart, not a stop", async () => {
+  const unlabeled = { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
+  const { github, calls } = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note(), capNote("2026-10-16T06:00:00Z")] },
+    events: { 20: [unlabeled, added("2026-10-16T07:00:01Z")] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+// A funding stop (ci-workflows#781): report-outcome keeps agent-ready and
+// leaves a funding marker with the regain date, if one was stated. The sweep
+// restarts the issue after that date, never before, and never without one;
+// funding stops count toward limits.limit-stops-per-issue, not turn-cap-restarts.
+const fundingNote = (resets, at, run = 7) => ({
+  id: 34,
+  body: `<!-- work-resolve-issue outcome=funding${resets ? ` resets=${resets}` : ""} run=${run} -->\nStopped on the lane's funding.`,
+  user: LANES_BOT,
+  created_at: at,
+});
+
+test("a funding-stopped issue past its regain date is restarted", async () => {
+  const { github, calls } = stopped({ comments: [note(), fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), restarted(30));
+});
+
+test("a funding-stopped issue before its regain date, or with none, waits", async () => {
+  for (const resets of ["2026-10-17T00:00:00Z", ""]) {
+    const { github, calls } = stopped({ comments: [note(), fundingNote(resets, "2026-10-16T06:00:00Z")] });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], resets);
+  }
+});
+
+// Funding and limit stops share limits.limit-stops-per-issue, so an outage
+// that outlasts the reset clamp hands the issue to a person, not a loop.
+test("a third funding or limit stop since a person added agent-ready goes to a person", async () => {
+  const comments = [
+    note(),
+    fundingNote("2026-10-16T02:00:00Z", "2026-10-16T01:00:00Z", 4),
+    limitedNote("2026-10-16T04:00:00Z", "2026-10-16T03:00:00Z"),
+    fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z", 6),
+  ];
+  const { github, calls } = stopped({ comments, events: [added("2026-10-16T00:30:00Z", OWNER)] });
+  assert.equal(await sweep({ github }), 0);
+  const written = writes(calls);
+  assert.ok(written[0].includes("<!-- work-unblock escalated -->"), written[0]);
+  assert.deepEqual(written.slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+});
+
+test("a funding stop under the bound is restarted after its date", async () => {
+  const comments = [note(), fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z", 6)];
+  const { github, calls } = stopped({ comments, events: [added("2026-10-16T00:30:00Z", OWNER)] });
+  assert.equal(await sweep({ github }, withLimits({ "limit-stops-per-issue": 2 })), 0);
+  assert.deepEqual(writes(calls), restarted(30));
+});
+
+test("the App's remove-and-re-add after a funding stop is a restart, not a stop", async () => {
+  const unlabeled = { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
+  const { github, calls } = world({
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note(), fundingNote("2026-10-16T06:30:00Z", "2026-10-16T06:00:00Z")] },
+    events: { 20: [unlabeled, added("2026-10-16T07:00:01Z")] },
+  });
+  assert.equal(await main({ env: envFor(), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+test("the resolved limits set the sweep's restarts per run, limit stops per issue and fallback reset", async () => {
+  const numbers = [31, 32, 33, 34];
+  const many = world({
+    openReady: numbers.map((n) => ready(n)),
+    comments: Object.fromEntries(numbers.map((n) => [n, [note(), limitedNote(`2026-10-16T0${n - 30}:00:00Z`, "2026-10-16T00:30:00Z")]])),
+    events: Object.fromEntries(numbers.map((n) => [n, [added("2026-10-16T00:00:00Z")]])),
+  });
+  assert.equal(await sweep({ github: many.github }, withLimits({ "restarts-per-run": 2 })), 0);
+  assert.deepEqual(writes(many.calls), [31, 32].flatMap(restarted));
+
+  const stops = [limitedNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z"), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")];
+  const second = stopped({ comments: [note(), ...stops] });
+  assert.equal(await sweep({ github: second.github }, withLimits({ "limit-stops-per-issue": 2 })), 0);
+  assert.deepEqual(writes(second.calls).slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+
+  // No stated reset, stopped at 06:00: five hours has passed at 12:00, seven has not.
+  const bare = stopped({ resets: "" });
+  assert.equal(await sweep({ github: bare.github }), 0);
+  assert.deepEqual(writes(bare.calls), restarted(30));
+  const later = stopped({ resets: "" });
+  assert.equal(await sweep({ github: later.github }, withLimits({ "fallback-reset": 7 })), 0);
+  assert.deepEqual(writes(later.calls), []);
+});
+
 // After the DELETE, a failed re-add is tried once more; a second failure is an
 // ::error naming the issue and fails the run.
 test("a failed re-add after the removal is retried once, then reported", async (t) => {
@@ -1049,4 +1234,462 @@ test("a re-fire record and the App's re-add in the same second, on unchanged wor
   });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), []);
+});
+
+// A lane PR the newest agent-ready label's run opened ends the run without a
+// marker. The owner's ruling on the issue: a PR merged with `Refs:` or one a
+// person closed unmerged hands the issue to triage (needs-triage on,
+// agent-ready off), and re-running is a person adding agent-ready again; an
+// open one waits on the needs-human report-outcome added for a Refs PR, which
+// only that PR merging lifts. Only a PR the lanes App opened from
+// the issue's lane branch (report-outcome's `work-resolve-issue/issue-<n>-
+// <run>-<attempt>`), with head and base in this repository, counts.
+// The pump: a run that minted no lane token did no work, either because its
+// `Request the lane token` step failed (GitHub's rate limit past the retry
+// budget, say) or because the WIP cap skipped resolve-issue. It is re-fired
+// with the usual record, past once per workflow version, an hour after the
+// run ended (the broker's Retry-After is at most an hour, so the reset has
+// passed) and only while the WIP cap check does not pause the issue lane.
+const pickSlot = { name: "pick-slot", conclusion: "success", steps: [{ name: "Check the WIP cap", conclusion: "success" }] };
+const MINT_FAILED = [
+  pickSlot,
+  { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
+];
+const WIP_CAPPED = [pickSlot, { name: "resolve-issue", conclusion: "skipped", steps: [] }];
+function stalledRun({
+  number = 30,
+  jobs = MINT_FAILED,
+  conclusion = jobs === WIP_CAPPED ? "success" : "failure",
+  ended = "2026-10-16T10:05:00Z",
+  openLanePrs = 10,
+  mergedLanePrs = 24,
+  comments = [note()],
+  events = [added(LABELED_AT, OWNER)],
+  blobs = BLOBS,
+} = {}) {
+  const fake = world({
+    openReady: [ready(number)],
+    comments: { [number]: comments },
+    events: { [number]: events },
+    runs: [{ ...laneRun({ number, conclusion }), updated_at: ended }],
+    jobs: { [5000 + number]: jobs },
+    openLanePrs,
+    mergedLanePrs,
+    blobs,
+  });
+  return { ...fake, actions: fake.github };
+}
+
+test("a run whose lane token request failed is re-fired an hour after it ended, with no needs-human", async () => {
+  const { github, actions, calls } = stalledRun();
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.ok(!calls.some((call) => call.includes("needs-human")));
+});
+
+test("a run that did no work waits until an hour after it ended, past any rate-limit reset", async () => {
+  const { github, actions, calls } = stalledRun({ ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+// The sweep reads the resolved config's `limits` and `wip`; a past pause-from
+// lets the issue lane pause over its cap.
+const withConfig = (config) => {
+  const path = join(mkdtempSync(join(tmpdir(), "work-unblock-config-")), "resolved-config.json");
+  writeFileSync(path, JSON.stringify(config));
+  return { RESOLVED_CONFIG: path };
+};
+const PAUSING = withConfig({ wip: { "pause-from": "2026-10-01" } });
+
+test("a run the WIP cap skipped is re-fired once the issue lane is under its cap", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 1 });
+  assert.equal(await sweep({ github, actions }, PAUSING), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("while the issue lane is paused over its cap nothing is re-fired", async () => {
+  for (const openLanePrs of [2, 3]) {
+    for (const jobs of [WIP_CAPPED, MINT_FAILED]) {
+      const { github, actions, calls } = stalledRun({ jobs, openLanePrs });
+      assert.equal(await sweep({ github, actions }, PAUSING), 0);
+      assert.deepEqual(writes(calls), [], `${openLanePrs} open`);
+    }
+  }
+});
+
+test("over the cap with no pause-from the lane only alerts, so the run is re-fired", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 60 });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("a WIP read that fails re-fires: the read error blocks no lane work", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: null });
+  assert.equal(await sweep({ github, actions }, PAUSING), 0);
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("with the search rate limit spent the sweep makes no WIP read and re-fires", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 3 });
+  assert.equal(await sweep({ github, actions, rate: { remaining: () => 0 } }, PAUSING), 0);
+  assert.ok(!calls.some((call) => call.includes("/search/issues")));
+  assert.deepEqual(writes(calls), refired(30));
+});
+
+test("with no merged count the resolved limits.wip-cap sets the cap", async () => {
+  const config = withConfig({ limits: { "wip-cap": 20 }, wip: { "pause-from": "2026-10-01" } });
+  const at = stalledRun({ openLanePrs: 20, mergedLanePrs: null });
+  assert.equal(await sweep({ github: at.github, actions: at.actions }, config), 0);
+  assert.deepEqual(writes(at.calls), []);
+  const under = stalledRun({ openLanePrs: 19, mergedLanePrs: null });
+  assert.equal(await sweep({ github: under.github, actions: under.actions }, config), 0);
+  assert.deepEqual(writes(under.calls), refired(30));
+});
+
+// Each earlier re-fire left its record and the App's remove and re-add.
+const earlierPumps = (count) => {
+  const comments = [note()];
+  const events = [added("2026-10-16T05:00:00Z", OWNER)];
+  for (let hour = 6; hour < 6 + count; hour += 1) {
+    const at = `2026-10-16T0${hour}:00:00Z`;
+    comments.push(refireNote(KEY, at));
+    events.push({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
+    events.push(added(hour === 5 + count ? LABELED_AT : `2026-10-16T0${hour}:00:01Z`));
+  }
+  return { comments, events };
+};
+
+// limits.limit-stops-per-issue (3) bounds failed-mint re-fires per version of
+// the lane workflow files; a WIP cap skip made no mint attempt and has none.
+test("a failed mint is re-fired again on the same workflow files up to the bound, and never counts as a limit stop", async () => {
+  const { github, actions, calls } = stalledRun(earlierPumps(2));
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.ok(!calls.some((call) => call.includes("needs-human")));
+});
+
+test("a failed mint stops after limit-stops-per-issue re-fires on the same workflow files, with no needs-human", async () => {
+  const { github, actions, calls } = stalledRun(earlierPumps(3));
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+  const lower = stalledRun(earlierPumps(1));
+  assert.equal(await sweep({ github: lower.github, actions: lower.actions }, withLimits({ "limit-stops-per-issue": 1 })), 0);
+  assert.deepEqual(writes(lower.calls), []);
+});
+
+test("a failed mint past the bound is re-fired again once the lane workflow files change", async () => {
+  const { github, actions, calls } = stalledRun({ ...earlierPumps(3), blobs: { ...BLOBS, ".github/workflows/work-resolve-issue.yml": "3".repeat(40) } });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30, `${WRITE_SHA}-${"3".repeat(40)}`));
+});
+
+test("a run the WIP cap skipped keeps re-firing past the failed-mint bound", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, ...earlierPumps(3) });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.ok(!calls.some((call) => call.includes("needs-human")));
+});
+
+test("a run another gate stopped before its mint, with no WIP cap skip, is not re-fired", async () => {
+  const jobs = [pickSlot, { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "skipped" }] }];
+  const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("a run that minted its token and failed later keeps the once-per-version re-fire", async () => {
+  const jobs = [pickSlot, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const { github, actions, calls } = stalledRun({ jobs, ...earlierPumps(1) });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+test("re-fires of runs that did no work share the restarts-per-run cap", async () => {
+  const numbers = [31, 32, 33, 34, 35, 36];
+  const fake = world({
+    openReady: numbers.map((n) => ready(n)),
+    comments: Object.fromEntries(numbers.map((n) => [n, [note()]])),
+    events: Object.fromEntries(numbers.map((n) => [n, [added(LABELED_AT, OWNER)]])),
+    runs: numbers.map((n) => ({ ...laneRun({ number: n }), updated_at: "2026-10-16T10:05:00Z" })),
+    jobs: Object.fromEntries(numbers.map((n) => [5000 + n, MINT_FAILED])),
+    openLanePrs: 10,
+    blobs: BLOBS,
+  });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github }), 0);
+  assert.deepEqual(writes(fake.calls), numbers.slice(0, 5).flatMap((n) => refired(n)));
+});
+
+const PR_HEAD = "7f2a5812a65a663ce0b3381312e1cb94b063fd4e";
+const lanePull = ({
+  pr = 7805,
+  state = "closed",
+  merged = true,
+  body = "Refs: #30\n\nHold: a human merges this\n\n## Summary\n",
+  created = "2026-10-16T10:20:00Z",
+  closed = "2026-10-16T11:00:00Z",
+  user = LANES_BOT,
+  headRepo = REPO,
+  ref = "work-resolve-issue/issue-30-39070302636-1",
+  head = PR_HEAD,
+} = {}) => ({
+  number: pr,
+  state,
+  user,
+  body,
+  created_at: created,
+  closed_at: state === "closed" ? closed : null,
+  merged_at: state === "closed" && merged ? closed : null,
+  head: { ref, sha: head, repo: { full_name: headRepo } },
+  base: { ref: "main", repo: { full_name: REPO } },
+});
+const crossRef = (pull, repo = REPO) => ({
+  event: "cross-referenced",
+  created_at: pull.created_at,
+  source: {
+    type: "issue",
+    issue: {
+      number: pull.number,
+      user: pull.user,
+      created_at: pull.created_at,
+      repository_url: `${API}/repos/${repo}`,
+      pull_request: { url: `${API}/repos/${repo}/pulls/${pull.number}`, merged_at: pull.merged_at },
+    },
+  },
+});
+function lanePr({ pulls = [lanePull()], comments = [note()], events = [added(LABELED_AT, OWNER)], labels = [], runs = [] } = {}) {
+  const fake = world({
+    openReady: [ready(30, labels)],
+    comments: { 30: comments },
+    events: { 30: events },
+    timeline: { 30: pulls.map((pull) => crossRef(pull)) },
+    pulls: Object.fromEntries(pulls.map((pull) => [pull.number, pull])),
+    runs,
+  });
+  return { ...fake, actions: fake.github };
+}
+const triaged = (n, pr, body = refsMergedComment(pr)) => [
+  `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body })}`,
+  `POST /repos/${REPO}/issues/${n}/labels {"labels":["needs-triage"]}`,
+  `DELETE /repos/${REPO}/issues/${n}/labels/agent-ready`,
+];
+const CLOSED_PR = () => lanePull({ pr: 7493, merged: false, body: "Closes #30\n" });
+
+test("a lane PR merged with Refs: hands the issue to triage: the comment, needs-triage, then agent-ready off", async () => {
+  const { github, actions, calls } = lanePr();
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), triaged(30, 7805));
+  // The comment went out but a label write did not: only the labels move.
+  const retry = lanePr({ comments: [note(), { id: 60, body: refsMergedComment(7805), user: LANES_BOT, created_at: "2026-10-16T11:47:00Z" }] });
+  assert.equal(await sweep({ github: retry.github, actions: retry.actions }), 0);
+  assert.deepEqual(writes(retry.calls), triaged(30, 7805).slice(1));
+  // It needs no Actions token.
+  const bare = lanePr();
+  assert.equal(await sweep({ github: bare.github }), 0);
+  assert.deepEqual(writes(bare.calls), triaged(30, 7805));
+});
+
+test("a lane PR merged with Closes, or one that is not the lanes App's own lane PR, hands nothing off", async () => {
+  for (const [name, pull, repo] of [
+    ["Closes", lanePull({ body: "Closes #30\n\n## Summary\n" })],
+    ["Refs to another issue", lanePull({ body: "Refs: #31\n" })],
+    ["a person's PR", lanePull({ user: OWNER })],
+    ["a fork's head", lanePull({ headRepo: "someone/claude-code-plugins" })],
+    ["another issue's lane branch", lanePull({ ref: "work-resolve-issue/issue-300-39070302636-1" })],
+    ["a branch that is not a lane branch", lanePull({ ref: "fix/thing" })],
+    ["opened before the label", lanePull({ created: "2026-10-16T09:59:59Z" })],
+    ["cross-referenced from another repository", lanePull(), "someone/other"],
+  ]) {
+    const fake = world({
+      openReady: [ready(30)],
+      comments: { 30: [note()] },
+      events: { 30: [added(LABELED_AT, OWNER)] },
+      timeline: { 30: [crossRef(pull, repo)] },
+      pulls: { [pull.number]: pull },
+    });
+    assert.equal(await sweep({ github: fake.github }), 0, name);
+    assert.deepEqual(writes(fake.calls), [], name);
+  }
+});
+
+test("a lane PR closed unmerged hands the issue to triage and never re-runs it", async () => {
+  const { github, calls } = lanePr({ pulls: [CLOSED_PR()] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), triaged(30, 7493, refsClosedComment(7493)));
+  assert.ok(!writes(calls).includes(labeled(30)));
+  // The comment went out but a label write did not: only the labels move.
+  const record = { id: 61, body: refsClosedComment(7493), user: LANES_BOT, created_at: "2026-10-16T11:47:00Z" };
+  const unfinished = lanePr({ pulls: [CLOSED_PR()], comments: [note(), record] });
+  assert.equal(await sweep({ github: unfinished.github }), 0);
+  assert.deepEqual(writes(unfinished.calls), triaged(30, 7493).slice(1));
+  // A person adding agent-ready again starts a new run; the closed PR is
+  // behind that label and hands nothing off again.
+  const rerun = lanePr({
+    pulls: [CLOSED_PR()],
+    comments: [note(), record],
+    events: [
+      added(LABELED_AT, OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T11:47:01Z" },
+      added("2026-10-16T11:50:00Z", OWNER),
+    ],
+  });
+  assert.equal(await sweep({ github: rerun.github }), 0);
+  assert.deepEqual(writes(rerun.calls), []);
+});
+
+test("hand-offs after ended lane PRs share the five-a-run cap with restarts, the earliest end first", async () => {
+  const numbers = [31, 32, 33, 34, 35, 36];
+  const pullOf = (n) =>
+    lanePull({
+      pr: 7400 + n,
+      merged: false,
+      body: `Closes #${n}\n`,
+      ref: `work-resolve-issue/issue-${n}-39070302636-1`,
+      // Number 31's PR closed last, so it is the one left for the next run.
+      closed: n === 31 ? "2026-10-16T11:59:00Z" : `2026-10-16T11:0${n - 30}:00Z`,
+    });
+  const { github, calls } = world({
+    openReady: numbers.map((n) => ready(n)),
+    comments: Object.fromEntries(numbers.map((n) => [n, [note()]])),
+    events: Object.fromEntries(numbers.map((n) => [n, [added(LABELED_AT, OWNER)]])),
+    timeline: Object.fromEntries(numbers.map((n) => [n, [crossRef(pullOf(n))]])),
+    pulls: Object.fromEntries(numbers.map((n) => [7400 + n, pullOf(n)])),
+  });
+  assert.equal(await sweep({ github }), 0);
+  const refiredIssues = writes(calls)
+    .filter((call) => call.startsWith("DELETE "))
+    .map((call) => Number(call.match(/issues\/(\d+)\//)[1]));
+  assert.deepEqual(refiredIssues, [32, 33, 34, 35, 36]);
+});
+
+test("an open lane PR hands nothing off, whatever its body", async () => {
+  for (const body of ["Refs: #30\n", "Closes #30\n"]) {
+    const { github, calls } = lanePr({ pulls: [lanePull({ pr: 7793, state: "open", body })] });
+    assert.equal(await sweep({ github }), 0, body);
+    assert.deepEqual(writes(calls), [], body);
+  }
+});
+
+// report-outcome's hold on a Refs PR: the App added needs-human just after
+// opening the PR, with the refs-hold comment naming it.
+const holdNote = (pr = 7805, user = LANES_BOT) => ({ id: 64, body: refsHoldComment(pr, "needs-human"), user, created_at: "2026-10-16T10:20:06Z" });
+const humanLabeled = (at = "2026-10-16T10:20:05Z", actor = LANES_BOT, event = "labeled") => ({
+  event,
+  label: { name: "needs-human" },
+  actor,
+  created_at: at,
+});
+const refsHeld = (extra = {}) =>
+  lanePr({
+    labels: ["needs-human"],
+    comments: [note(), holdNote()],
+    events: [added(LABELED_AT, OWNER), humanLabeled()],
+    ...extra,
+  });
+
+test("a Refs PR merging lifts the needs-human report-outcome set for it: needs-triage on, needs-human and agent-ready off", async () => {
+  const { github, calls } = refsHeld();
+  assert.equal(await sweep({ github }), 0);
+  const [comment, triage, agentReady] = triaged(30, 7805);
+  assert.deepEqual(writes(calls), [comment, triage, `DELETE /repos/${REPO}/issues/30/labels/needs-human`, agentReady]);
+});
+
+test("a needs-human that report-outcome did not set for the merged PR, or a PR that has not merged, keeps the hold", async () => {
+  for (const [name, fake] of [
+    ["the marker by a person", refsHeld({ comments: [note(), holdNote(7805, OWNER)] })],
+    ["the marker names another PR", refsHeld({ comments: [note(), holdNote(7804)] })],
+    ["no marker", refsHeld({ comments: [note()] })],
+    ["needs-human added by a person", refsHeld({ events: [added(LABELED_AT, OWNER), humanLabeled("2026-10-16T10:20:05Z", OWNER)] })],
+    [
+      "a person re-added needs-human after the App",
+      refsHeld({
+        events: [
+          added(LABELED_AT, OWNER),
+          humanLabeled(),
+          humanLabeled("2026-10-16T10:30:00Z", OWNER, "unlabeled"),
+          humanLabeled("2026-10-16T10:31:00Z", OWNER),
+        ],
+      }),
+    ],
+    ["the PR is open", refsHeld({ pulls: [lanePull({ state: "open" })] })],
+    ["the PR closed unmerged", refsHeld({ pulls: [lanePull({ merged: false })] })],
+    ["another hold beside it", refsHeld({ labels: ["needs-human", "needs-owner-decision"] })],
+  ]) {
+    assert.equal(await sweep({ github: fake.github }), 0, name);
+    assert.deepEqual(writes(fake.calls), [], name);
+  }
+});
+
+// Both lane-PR hand-offs share one rule: a hold label on the issue, or a
+// person's removal of agent-ready, prevents them. The control run of each
+// case does write, so a refusal below is the hold or the removal, not the case.
+const LANE_PR_CASES = [
+  ["merged with Refs:", () => lanePull(), triaged(30, 7805)],
+  ["closed unmerged", CLOSED_PR, triaged(30, 7493, refsClosedComment(7493))],
+];
+
+test("a hold label on the issue prevents both hand-offs to triage", async () => {
+  for (const [name, pull, expected] of LANE_PR_CASES) {
+    const control = lanePr({ pulls: [pull()] });
+    assert.equal(await sweep({ github: control.github }), 0, name);
+    assert.deepEqual(writes(control.calls), expected, name);
+    for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
+      const held = lanePr({ pulls: [pull()], labels: [hold] });
+      assert.equal(await sweep({ github: held.github }), 0, `${name}: ${hold}`);
+      assert.deepEqual(writes(held.calls), [], `${name}: ${hold}`);
+    }
+  }
+});
+
+test("a person removing agent-ready after the lane PR prevents both hand-offs to triage", async () => {
+  const removed = { event: "unlabeled", label: { name: "agent-ready" }, actor: OWNER, created_at: "2026-10-16T11:30:00Z" };
+  for (const [name, pull, expected] of LANE_PR_CASES) {
+    const control = lanePr({ pulls: [pull()] });
+    assert.equal(await sweep({ github: control.github }), 0, name);
+    assert.deepEqual(writes(control.calls), expected, name);
+    // The listing can be older than the removal, so the events decide.
+    const fake = lanePr({ pulls: [pull()], events: [added(LABELED_AT, OWNER), removed] });
+    assert.equal(await sweep({ github: fake.github }), 0, name);
+    assert.deepEqual(writes(fake.calls), [], name);
+  }
+});
+
+test("a hand-off whose label write failed is finished by the next sweep with the labels only, no second comment", async (t) => {
+  const first = lanePr({ pulls: [CLOSED_PR()] });
+  const github = async (method, path, body) => {
+    if (method === "POST" && path.endsWith("/issues/30/labels")) {
+      first.calls.push(`${method} ${path} ${JSON.stringify(body)}`);
+      throw new Error("POST failed with status 502");
+    }
+    return first.github(method, path, body);
+  };
+  const log = t.mock.method(console, "log", () => {});
+  assert.equal(await sweep({ github }), 1);
+  log.mock.restore();
+  // agent-ready stays on, so the next sweep comes back to the issue.
+  assert.deepEqual(writes(first.calls), triaged(30, 7493, refsClosedComment(7493)).slice(0, 2));
+  const next = lanePr({
+    pulls: [CLOSED_PR()],
+    comments: [note(), { id: 63, body: refsClosedComment(7493), user: LANES_BOT, created_at: "2026-10-16T11:47:00Z" }],
+  });
+  assert.equal(await sweep({ github: next.github }), 0);
+  assert.deepEqual(writes(next.calls), triaged(30, 7493).slice(1));
+});
+
+// Runs from before the run name carried ` #<issue>` cannot be matched to an
+// issue, so the sweep says it cannot tell instead of that no run started.
+test("a run in the label's window whose title names no issue makes the sweep say it cannot tell", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github, actions, calls } = failedRun({ runs: [{ ...laneRun(), display_title: "fix(review): explain-change artifact medium" }] });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.some((line) => line.includes("#30 not restarted: cannot tell whether a lane run started")), lines.join("\n"));
+  assert.ok(!lines.some((line) => line.includes("no lane run since")));
+  log.mock.restore();
+  // With only other issues' runs in the window, it still says no run started.
+  const other = t.mock.method(console, "log", () => {});
+  const plain = failedRun({ runs: [laneRun({ number: 300 })] });
+  assert.equal(await sweep({ github: plain.github, actions: plain.actions }), 0);
+  assert.ok(other.mock.calls.some((call) => String(call.arguments[0]).includes("#30 not restarted: no lane run since agent-ready was added")));
 });

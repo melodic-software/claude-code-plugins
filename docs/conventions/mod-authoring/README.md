@@ -54,6 +54,23 @@ mod, one mod per plugin, the 2.1.287 floor, and what is committed.
 - **Recheck trigger**: a linked create section moves, hot reload changes, or
   `claude plugin validate` stops listing hooks and calls.
 
+Read Anthropic's maintained mods for working examples before writing your own; licensing and reuse
+terms are recorded in [docs/upstream/claude-code-mods/sources.md](../../upstream/claude-code-mods/sources.md).
+
+- **Pointer**: for sample mods, see the
+  [playground `claude-code/mods`](https://github.com/anthropics/claude-code-playground/tree/569c5283d9a0a7ee7938df85bb32e4f48cbb8c86/claude-code/mods)
+  samples
+  ([Token Weather](https://github.com/anthropics/claude-code-playground/tree/569c5283d9a0a7ee7938df85bb32e4f48cbb8c86/claude-code/mods/token-weather),
+  [Blast Radius](https://github.com/anthropics/claude-code-playground/tree/569c5283d9a0a7ee7938df85bb32e4f48cbb8c86/claude-code/mods/blast-radius),
+  [Replay Theater](https://github.com/anthropics/claude-code-playground/tree/569c5283d9a0a7ee7938df85bb32e4f48cbb8c86/claude-code/mods/replay-theater));
+  for built-in mods, see
+  [`mods/diff`](https://github.com/anthropics/claude-code/tree/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/mods/diff)
+  and
+  [`mods/agents-md`](https://github.com/anthropics/claude-code/tree/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/mods/agents-md).
+- **As of**: 2026-10-17, Claude Code 2.1.302 (playground `569c5283d9a0`, claude-code `dd6bee38458c`)
+- **Recheck trigger**: a pinned directory is renamed or removed upstream, or either repository
+  changes its license.
+
 ## Mod, settings hook, or skill
 
 Apply ADR 0052's rule for choosing a mod, which starts from upstream's comparison table.

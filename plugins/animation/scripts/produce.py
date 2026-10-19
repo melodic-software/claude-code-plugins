@@ -376,6 +376,24 @@ def cmd_cuts(prod):
     return 0
 
 
+def render_problems(meta, data):
+    """A render.json against shots.json: the same fps and size, a duration through the last t1, and one frame per
+    1/fps of it. render.py --shots and review both run it."""
+    last, fps = data['shots'][-1]['t1'], data['fps']
+    problems = []
+    if meta.get('fps') != fps:
+        problems.append(f'render.json fps {meta.get("fps")} != shots.json fps {fps}')
+    if meta.get('size') != data['size']:
+        problems.append(f'render.json size {meta.get("size")} != shots.json size {data["size"]}')
+    duration = meta.get('duration')
+    if not isinstance(duration, (int, float)) or abs(duration - last) > 1 / fps:
+        problems.append(f'render.json duration {duration} does not cover the shot list through {last}')
+    elif meta.get('frames') != (need := int(last * fps + 0.5)):   # half up, as capture.mjs's Math.round
+        problems.append(f'render.json has {meta.get("frames")} frames; the shot list through {last} s at {fps} fps '
+                        f'needs {need}')
+    return problems
+
+
 def cmd_review(prod, frames):
     closed = gate(prod)
     if closed:
@@ -392,15 +410,7 @@ def cmd_review(prod, frames):
     if err or not isinstance(meta, dict):
         print(f'produce: {err or "render.json is not an object"}')
         return 1
-    last = data['shots'][-1]['t1']
-    fps = data['fps']
-    if meta.get('fps') != fps:
-        problems.append(f'render.json fps {meta.get("fps")} != shots.json fps {fps}')
-    if meta.get('size') != data['size']:
-        problems.append(f'render.json size {meta.get("size")} != shots.json size {data["size"]}')
-    duration = meta.get('duration')
-    if not isinstance(duration, (int, float)) or abs(duration - last) > 1 / fps:
-        problems.append(f'render.json duration {duration} does not cover the shot list through {last}')
+    problems += render_problems(meta, data)
     scene = meta.get('scene')
     if not isinstance(scene, str) or not Path(scene).is_file():
         problems.append('render.json scene is not a file')

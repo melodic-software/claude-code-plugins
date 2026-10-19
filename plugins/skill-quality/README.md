@@ -20,7 +20,7 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 ## Checks
 
-`check` runs `check-skill.sh`. Twenty-nine checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
+`check` runs `check-skill.sh`. Thirty checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
@@ -135,6 +135,20 @@ the reviewer to confirm the description still names that intent, or to restore t
   with `origin` when that is unset, also warns; with no base, or for a new skill, the growth half
   is skipped with an INFO. `/playbooks:skill-authoring` (`## Descriptions`, `## Body`) owns the
   rule.
+- Settings tokens as conditions (`FAIL:`, blocking where a baseline applies). A sentence with `when`, `if` or `unless`
+  before a `${user_config.KEY}` token that is its subject (`is true`, `is on`, `is false`)
+  fails unless the same sentence states what an unexpanded token means, e.g. "(unexpanded, empty,
+  or any other value means `false`)", or describes substitution itself: an unset key can arrive
+  as the literal token, which is neither true nor false. Reads `SKILL.md` and every other skill
+  `.md`, prose only (frontmatter, fenced blocks, `evals/` and `vendor/` are skipped).
+  `scripts/settings-token-baseline.txt` (or `CHECK_SKILL_SETTINGS_TOKEN_BASELINE=<file>`) records
+  files whose hits predate the check, one `<repo-relative path> <hit count>` per line; those WARN
+  while the count holds, and a rise, a fall or a zero FAILs, so the list can only shrink. The
+  default file applies only when the checker runs from the repository holding the skill, which is
+  this marketplace checking its own skills. Anywhere else, a consumer repository or a plain tree
+  such as a plugin-cache install, every hit is a `WARN:`; point
+  `CHECK_SKILL_SETTINGS_TOKEN_BASELINE` at your own baseline file (an empty file lists nothing) to
+  make the check blocking.
 
 `listing-budget` runs `check-listing-budget.sh`. An always-advisory report on the **shared** budget
 every loaded skill draws from together (`skillListingBudgetFraction`). This is the aggregate limit
@@ -220,7 +234,7 @@ stands alone.
   identity, stale metadata, committed artifacts) skip with a note outside a repo so
   marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
-  twenty-eight still run.
+  twenty-nine still run.
 
 ## Description-invocation probes
 

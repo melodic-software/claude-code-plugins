@@ -102,6 +102,8 @@ jobs:
             --requirement .github/requirements-ci.txt \
             --requirement plugins/animation/requirements.txt
           python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
+          # The animation render tests capture through the locked playwright's headless Chromium.
+          node node_modules/playwright/cli.js install --only-shell chromium
       - name: Install DuckDB CLI
         env:
           DUCKDB_VERSION: v1.5.5

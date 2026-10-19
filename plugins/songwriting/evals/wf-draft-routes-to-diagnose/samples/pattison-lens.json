@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "This is a finished draft, so it goes to diagnosis.\n\n**Dominant problem:** the chorus is the least specific section. Verses 1 and 2 are full of concrete situation (the Greyhound, the shoebox), then the chorus falls back on \"through the rain and through the snow\", a stock phrase that could sit in any song. It's also stable and resolved every time, so it never repaints: \"I'm coming home\" means the same thing after verse 2 as after verse 1.\n\n**One focused revision:** let the chorus's second line change each time it comes back, so the repeated title gets recolored by what each verse revealed."
+    },
+    {
+      "answer": "Running `/songwriting:diagnose` on the draft.\n\nThe main problem is the chorus. Its rhymes (home/home, snow/know) make it very stable, which fits a homecoming, but the language is generic next to the verses. Prosody: the verses run long and unstable, the chorus short and resolved; that contrast works. The bridge is the place the doubt surfaces, and it's good.\n\nOne focused revision: replace \"through the rain and through the snow\" with a detail only this narrator would have."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The chorus is generic and the bridge is short. Make it more personal."
+    },
+    {
+      "answer": "The chorus feels flat. Try harder words.",
+      "why": "no method terms"
+    }
+  ]
+}
