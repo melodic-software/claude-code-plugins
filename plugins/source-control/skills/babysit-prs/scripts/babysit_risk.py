@@ -466,7 +466,9 @@ _FRONT_KEY = re.compile(r"([A-Za-z][A-Za-z0-9_-]*)[ \t]*:(?:[ \t]|$)")
 _INDIRECT = re.compile(r"(?:^|[\s:\[{,-])[&*!][^\s,\]}]|<<")
 # Unanchored, so a ```! after a quote marker, a list marker or text counts.
 _FENCED_BANG = re.compile(r"(?:`{3,}|~{3,})[ \t]*!")
-_ANY_FENCE = re.compile(r"`{3,}|~{3,}")
+# A closing fence starts its line, so a quoted fence inside a block never
+# ends it early: the block can only read longer.
+_CLOSING_FENCE = re.compile(r"[ \t]*(?:`{3,}|~{3,})")
 
 
 def is_capability_path(path: str) -> bool:
@@ -527,16 +529,17 @@ def _inline_lines(text: str) -> list[str]:
 
 def _bang_lines(text: str) -> set[int]:
     """The 1-based lines of `text` inside a ```! block, opener and closer
-    included; an unclosed block runs to the end."""
+    included; the block runs to the next line starting with a fence, or to the
+    end."""
     inside, found = False, set()
     for number, line in enumerate(text.split("\n"), 1):
         opener = None if inside else _FENCED_BANG.search(line)
         if opener:
-            inside = not _ANY_FENCE.search(line, opener.end())
+            inside = True
             found.add(number)
         elif inside:
             found.add(number)
-            inside = not _ANY_FENCE.search(line)
+            inside = not _CLOSING_FENCE.match(line)
     return found
 
 

@@ -2553,8 +2553,10 @@ def with_capability_contents(
             )
             after = _text_at(owner, name, changed.path, head)
             read.append(replace(changed, contents=(before, after)))
-        except (PolicyReadError, RuntimeError, ValueError) as exc:
-            read.append(replace(changed, contents_error=str(exc)))
+        except Exception as exc:  # noqa: BLE001 - any failure reads as unreadable (HIGH)
+            reason = f"{type(exc).__name__}: {exc}"
+            print(f"capability contents of {changed.path}: {reason}", file=sys.stderr)
+            read.append(replace(changed, contents_error=reason))
     return tuple(read)
 
 

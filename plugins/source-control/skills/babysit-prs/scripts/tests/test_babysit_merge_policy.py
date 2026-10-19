@@ -4766,6 +4766,13 @@ class CapabilityContents(unittest.TestCase):
         )
         self.assertEqual({path for path, _ in calls}, {quoted})
 
+    def test_any_exception_is_carried_with_its_type(self) -> None:
+        skill = self.changed("p/skills/s/SKILL.md")
+        texts = {("p/skills/s/SKILL.md", "b" * 40): TypeError("bad payload")}
+        out, _ = self.read([skill], texts)
+        self.assertIsNone(out[0].contents)
+        self.assertIn("TypeError", out[0].contents_error)
+
     def test_a_read_error_is_carried_for_the_scorer(self) -> None:
         skill = self.changed("p/skills/s/SKILL.md")
         texts = {
