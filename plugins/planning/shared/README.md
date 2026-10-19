@@ -125,7 +125,7 @@ the refused op's index).
 | `open-round` | `questions` (1..8), `placements?` | Closes the `working` round (or starts round 1) and opens the next |
 | `close-round` | `placements?`, `reason?` | `working` -> `closed`, no new round |
 | `ack-round` | `round` | `sent` -> `working` |
-| `result` | `qid?`, `request?`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Stores a result unpublished; the owner publishes or discards it. No `qid` answers a request about the whole session, which `request` must name (see [General asks](#general-asks)) |
+| `result` | `qid?`, `request?`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Stores a result, shared or not as [Sharing Claude's answers](#sharing-claudes-answers) says. No `qid` answers a request about the whole session, which `request` must name (see [General asks](#general-asks)) |
 | `fail-request` | `request`, `reason` | `running` -> `failed` |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | |
 | `add-asset` | `path`, `as?`, `scale?` | Copies a PNG, JPEG, WebP, SVG or HTML file (by its bytes, at most 10 MB) from the data folder, where captures go in `staging/`, into `assets/<16 hex>.<ext>`, named by its content; returns `{id, kind, bytes, at, scale}`. Usable from the next apply; a refused apply removes the files it copied and puts back any sidecar it rewrote |
@@ -278,10 +278,10 @@ for a free-form selector an earlier build took.
 ## Inbox
 
 The top bar's Inbox (in the bell's place) lists a person's own requests, newest first, with the
-status they see: `waiting`, `running`, `answered`, `unshared` (a guest's answer before the owner's
-Share, shown as "Answered, waiting for the host to share"), `shared`, `declined` or `failed`. The
-owner's also lists what waits on them under "Waiting on you": requests to run, results to share,
-open problem reports, merge requests and join requests. The snapshot's `inbox` carries these
+status they see: `waiting`, `running`, `answered` (an answer only its asker and the owner see),
+`unshared` (an answer waiting for the owner's Share, shown as "Answered, waiting for the host to
+share"), `shared`, `declined` or `failed`. The owner's also lists what waits on them under "Waiting
+on you": requests to run, results to share, open problem reports, merge requests and join requests. The snapshot's `inbox` carries these
 items, built by `session.py` for the viewer alone (never another person's request or a result its
 requester cannot see). `inboxSeen` in `state.json` keeps, per person, the status each item had
 when they opened it; an item whose status moved since is unread, and only
@@ -290,8 +290,7 @@ read. Notifications stay under the Inbox; its badge leaves out the `request` kin
 items already show. The owner gets no `queue` line for what its Inbox lists as waiting
 (requests, shares, reports, merges, joins); queue lines for proposals, suggestions and upload
 offers still count. The owner's own requests skip the queue: one starts running when
-sent, and Claude's result for it is shared at once. A guest's request, the owner's guest identity
-included, still waits for Run and Share.
+sent. A guest's request, the owner's guest identity included, still waits for Run.
 
 ## Discussion
 
@@ -323,7 +322,7 @@ message whose request is refused still posts with `requestRefused`; a filed one 
 request's `msg`. Chat has no edit, delete or hide, so nothing
 else applies. `request-run` lists it with `scope: "session"` and no `qid` or `question`, plus `from: "chat"` when a
 message asked; the `result` op answers it with no `qid`, and its result is kept under `results.session` with no
-`qid`, so a file from before loads as it is. Once shared (the owner's own at once), the result is also Claude's
+`qid`, so a file from before loads as it is. Once shared, the result is also Claude's
 chat message: the host's, marked `claude: {result}`, replying to the asking message while chat keeps it; the
 result's `msg` names it. With chat off it is not posted, and stays in Ask Claude. A reply to it carries
 `replyTo.claude`, so its quote reads Claude's wherever the page reads it. Reactions and replies to it tell no one,
@@ -331,6 +330,31 @@ and it cannot become a proposal. The Inbox, its
 toasts and the Run cards say General, or "about the session", where they name a question; the owner shares it from
 Ask Claude on "About the whole session", which lists those answers. A digest result carries `scope: "session"` in
 place of `qid`.
+
+## Sharing Claude's answers
+
+A request names who sees its answer: `audience` on `POST /api/request`, `everyone` (the default) or
+`me` ("Just me", kept on the request as `audience: "me"`; refused with `runner: "self"`, whose answer
+already waits for the owner). Ask Claude defaults to Everyone on a question and to Just me about the
+whole session; "@Claude" in chat or a Discussion always asks for everyone.
+
+- **When it arrives.** Asked for everyone, Claude's answer is shared at once (on its question, or
+  into chat for a general ask). Asked Just me, it is `private`: only its asker and the owner see it,
+  and it stays out of the digest. Either way the asker hears it is done. A result no request asked
+  for, and a guest's own Claude's, still waits for the owner's Share.
+- **Review.** The `reviewAnswers` setting (Host settings, "Review Claude's answers before they are
+  shared") holds every answer to a guest's request for the owner's Share, as sessions did before
+  it; the owner's Share of a held Just me answer sends it to its asker alone. A new session writes
+  it off; a state file from before it lacks it and so reviews, so a running session never changes
+  under its people. The owner's own requests need no review.
+- **Share later.** `POST /api/result/share {id}` shares a `private` answer with everyone: its asker
+  (one a second), or the owner (as `publish`). Another person's answer, or one they cannot see,
+  reads 404 `not-found`; a taken-down answer or a guest's own Claude's is the owner's to share (403
+  `host-only`).
+- **Take down.** The owner's `/api/request/act {action: "takedown", id}` unshares any shared answer:
+  it becomes `private` with `takenDown {at}`, its asker hears it, its chat message goes, and a chat
+  quote of that message reads "Taken down by the host." Only the owner shares it again; a digest
+  already sent keeps what it listed.
 
 ## Connect your Claude
 
@@ -341,8 +365,9 @@ tells nobody), and is read, claimed, answered or failed only by its requester, w
 or their watcher key, through `GET /api/mine/requests[?status=]` and
 `POST /api/mine/requests/{claim,result,fail}` (another person gets 404 `no-such-request`; one
 write a second per route). Its result, marked `by: guest-claude`, waits for the owner's Share
-like every result: until then only the requester ("Only you and the host see this until the
-host shares it") and the owner see it. The owner can also take a shared one down (`discard`);
+whatever the review setting: until then only the requester ("Only you and the host see this until the
+host shares it") and the owner see it. The owner can also take a shared one down (`takedown`, or
+`discard` to drop it);
 a removed guest's results leave every view and the digest. Shared, it shows as "Answer from
 Ann's own Claude", via "their own Claude" whatever tools it names in `used`, and reaches the
 round's digest with `from: "guest-claude"` (and `by` when `digestNames` is on). Nobody else
@@ -628,7 +653,8 @@ page keeps the rest of its last snapshot.
   ([Logs](#logs)).
 - **What a visitor reads.** Without identity, `/api/state` is `{title, ended, joinNeedsKey,
   schemaVersion}` only; a removed person and an owner link from before a rotation read nothing.
-  Results stay hidden from guests until the owner publishes them.
+  An unshared result reaches only its asker (a Just me answer, one taken down, their own Claude's)
+  and the owner.
 - **Guest text is data.** Answers, chat, proposals and requests reach Claude in the digest,
   delivered with session-bridge's data note; an instruction in them is a finding, never a request.
 - **Files.** `add-asset` reads only regular files under the data folder with no hidden folder or

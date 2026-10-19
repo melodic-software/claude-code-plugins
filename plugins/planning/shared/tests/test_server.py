@@ -815,6 +815,7 @@ class TestSnapshot(ServerCase):
         self.assertNotIn("share", self.get("/api/state", guest)[2])
 
     def test_a_result_stays_hidden_from_guests_until_the_owner_publishes_it(self):
+        self.assertEqual(self.post("/api/session/settings", {"reviewAnswers": True}, self.owner)[0], 200)
         self.open_round("Q1")
         _, guest = self.join("Ann")
         code, _, req = self.post("/api/request", {"qid": "Q1", "kind": "research", "text": "Find prior art"}, guest)
@@ -2391,6 +2392,7 @@ class TestGeneralAsk(ServerCase):
         self.assertEqual(len(self.app.session.state["requests"]), 1)
 
     def test_shared_answer_replies_in_the_chat_thread_and_guests_see_nothing_before_the_share(self):
+        self.assertEqual(self.post("/api/session/settings", {"reviewAnswers": True}, self.owner)[0], 200)
         asked = self.chat(self.ann, "@Claude what have we settled?")
         self.post("/api/request/act", {"action": "run", "ids": [asked["request"]]}, self.owner)
         res = self.answer(asked["request"], "Pinned headers, and the copy still open.")
@@ -2485,6 +2487,200 @@ class TestGeneralAsk(ServerCase):
             st["results"]["Q1"] = st["results"].pop("session")
             self.assertIn("names another place", " ".join(session.cross_field_errors(st)))
             st["results"]["session"] = st["results"].pop("Q1")
+
+
+class TestSharingDefault(ServerCase):
+    """Owner decision 2026-10-19: Claude's answer to a request on a question is shared there when it arrives; Ask
+    offers Everyone or Just me; a Just me answer reaches only its asker and the owner until one of them shares it; the
+    owner takes any shared answer down; "Review Claude's answers before they are shared" restores the owner's Share."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_round("Q1")
+        self.ann_pid, self.ann = self.join("Ann")
+        self.bo_pid, self.bo = self.join("Bo")
+
+    def ask(self, who, text="How do others do it?", **extra):
+        code, _, out = self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": text, **extra}, who)
+        self.assertEqual(code, 200, out)
+        return out["id"]
+
+    def go(self, rid):
+        self.assertEqual(self.post("/api/request/act", {"action": "run", "ids": [rid]}, self.owner)[0], 200)
+
+    def answer(self, rid, summary="Most shops pin it.", qid="Q1"):
+        op = {"op": "result", "request": rid, "kind": "ask", "used": [], "why": "", "summary": summary, "sources": [], "report": ""}
+        code, _, out = self.ops({**op, "qid": qid} if qid else op)
+        self.assertEqual(code, 200, out)
+        return out["results"][0]
+
+    def state(self, who):
+        return self.get("/api/state", who)[2]
+
+    def sees(self, who, summary, where="Q1"):
+        return summary in [x["summary"] for x in self.state(who)["results"].get(where, [])]
+
+    def status(self, who, rid):
+        return next(i["status"] for i in self.state(who)["inbox"] if i["key"] == rid)
+
+    def titles(self, pid):
+        return [n["title"] for n in self.app.session.state["notifications"].get(pid, []) if n["kind"] == "request"]
+
+    def test_a_new_session_starts_with_review_off(self):
+        self.assertIs(self.state(self.owner)["settings"]["reviewAnswers"], False)
+
+    def test_a_guests_question_request_still_waits_for_run_and_its_answer_is_shared_on_arrival(self):
+        rid = self.ask(self.ann)
+        self.assertFalse([e for e in self.app.session.state["log"]["events"] if e["kind"] == "request-run"])
+        self.go(rid)
+        res = self.answer(rid)
+        self.assertEqual(res["published"], True)
+        self.assertTrue(self.sees(self.bo, "Most shops pin it."))
+        self.assertEqual(self.status(self.ann, rid), "shared")
+        self.assertEqual(self.titles(self.ann_pid), ["Your request on question Q1 is done."])
+        self.assertNotIn("share", [i["kind"] for i in self.state(self.owner)["inbox"]])
+
+    def test_at_claude_in_a_discussion_comment_is_asked_for_everyone(self):
+        code, _, out = self.post("/api/discussion", {"qid": "Q1", "text": "@Claude is this common?"}, self.ann)
+        self.assertEqual(code, 200, out)
+        self.go(out["request"])
+        self.assertEqual(self.answer(out["request"], "Very common.")["published"], True)
+        self.assertTrue(self.sees(self.bo, "Very common."))
+
+    def test_a_just_me_answer_reaches_only_its_asker_and_the_owner(self):
+        rid = self.ask(self.ann, "Just for me", audience="me")
+        self.assertEqual(self.app.session.state["requests"][0]["audience"], "me")
+        self.go(rid)
+        res = self.answer(rid, "Only Ann reads this.")
+        self.assertEqual(res["published"], False)
+        self.assertTrue(self.sees(self.ann, "Only Ann reads this."))
+        self.assertTrue(self.sees(self.owner, "Only Ann reads this."))
+        self.assertNotIn("Only Ann reads this.", json.dumps(self.state(self.bo)))
+        self.assertEqual(self.status(self.ann, rid), "answered")
+        self.assertEqual(self.titles(self.ann_pid), ["Your request on question Q1 is done."])
+        self.assertNotIn("share", [i["kind"] for i in self.state(self.owner)["inbox"]])
+        self.assertEqual(self.app.session.summary()["queue"]["results"], 0)
+        self.post("/api/round/send", {}, self.owner)
+        ev = next(e for e in self.app.session.state["log"]["events"] if e["kind"] == "round-sent")
+        self.assertEqual(ev["digest"]["results"], [])
+
+    def test_the_asker_shares_their_just_me_answer_later(self):
+        rid = self.ask(self.ann, "Just for me", audience="me")
+        self.go(rid)
+        xid = self.answer(rid, "Ann shares this later.")["id"]
+        code, _, out = self.post("/api/result/share", {"id": xid}, self.ann)
+        self.assertEqual((code, out), (200, {"ok": True, "id": xid, "published": True}))
+        self.assertTrue(self.sees(self.bo, "Ann shares this later."))
+        self.assertEqual(self.status(self.ann, rid), "shared")
+
+    def test_a_general_just_me_answer_goes_into_chat_only_once_shared(self):
+        code, _, out = self.post("/api/request", {"scope": "session", "kind": "ask", "text": "Where are we?", "audience": "me"}, self.ann)
+        self.assertEqual(code, 200, out)
+        self.go(out["id"])
+        xid = self.answer(out["id"], "Halfway.", qid=None)["id"]
+        self.assertEqual(self.app.session.state["chat"], [])
+        self.assertTrue(self.sees(self.ann, "Halfway.", "session"))
+        self.assertFalse(self.sees(self.bo, "Halfway.", "session"))
+        self.assertEqual(self.post("/api/result/share", {"id": xid}, self.ann)[0], 200)
+        reply = self.state(self.bo)["chat"][-1]
+        self.assertEqual((reply["text"], reply["claude"]), ("Halfway.", {"result": xid}))
+
+    def test_at_claude_in_chat_is_asked_for_everyone(self):
+        out = self.post("/api/chat", {"text": "@Claude where are we?"}, self.ann)[2]
+        self.go(out["request"])
+        self.assertEqual(self.answer(out["request"], "Halfway.", qid=None)["published"], True)
+        self.assertEqual(self.state(self.bo)["chat"][-1]["text"], "Halfway.")
+
+    def test_the_owners_own_just_me_answer_stays_with_the_owner(self):
+        rid = self.ask(self.owner, "Owner only", audience="me")
+        xid = self.answer(rid, "For the owner.")["id"]
+        self.assertTrue(self.sees(self.owner, "For the owner."))
+        self.assertFalse(self.sees(self.ann, "For the owner."))
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
+        self.assertTrue(self.sees(self.ann, "For the owner."))
+
+    def test_just_me_with_the_askers_own_claude_is_refused(self):
+        code, _, out = self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "x", "runner": "self", "audience": "me"}, self.ann)
+        self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "audience"))
+
+    def test_only_the_asker_shares_a_just_me_answer_and_only_the_owner_takes_one_down(self):
+        rid = self.ask(self.ann, "Just for me", audience="me")
+        self.go(rid)
+        xid = self.answer(rid, "Ann's alone.")["id"]
+        code, _, out = self.post("/api/result/share", {"id": xid}, self.bo)
+        self.assertEqual((code, out["error"]), (404, "not-found"))
+        self.assertFalse(self.sees(self.bo, "Ann's alone."))
+        self.assertEqual(self.post("/api/result/share", {"id": xid}, self.ann)[0], 200)
+        code, _, out = self.post("/api/request/act", {"action": "takedown", "id": xid}, self.ann)
+        self.assertEqual((code, out["error"]), (403, "owner-only"))
+        self.assertTrue(self.sees(self.bo, "Ann's alone."))
+
+    def test_the_owner_takes_a_shared_answer_down_and_only_the_owner_shares_it_again(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        xid = self.answer(rid, "Taken down soon.")["id"]
+        code, _, out = self.post("/api/request/act", {"action": "takedown", "id": xid}, self.owner)
+        self.assertEqual((code, out), (200, {"ok": True, "id": xid, "published": False}))
+        self.assertNotIn("Taken down soon.", json.dumps(self.state(self.bo)))
+        self.assertTrue(self.sees(self.ann, "Taken down soon."))
+        self.assertEqual(self.status(self.ann, rid), "answered")
+        self.assertIn("The answer to your request on question Q1 was taken down.", self.titles(self.ann_pid))
+        code, _, out = self.post("/api/result/share", {"id": xid}, self.ann)
+        self.assertEqual((code, out["error"]), (403, "host-only"))
+        self.assertFalse(self.sees(self.bo, "Taken down soon."))
+        self.assertEqual(self.post("/api/request/act", {"action": "takedown", "id": xid}, self.owner)[2]["error"], "wrong-status")
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
+        self.assertTrue(self.sees(self.bo, "Taken down soon."))
+
+    def test_taking_down_a_general_answer_takes_its_chat_message_and_quotes_of_it_down(self):
+        out = self.post("/api/chat", {"text": "@Claude where are we?"}, self.ann)[2]
+        self.go(out["request"])
+        xid = self.answer(out["request"], "Secret-ish summary.", qid=None)["id"]
+        mid = self.app.session.state["chat"][-1]["id"]
+        time.sleep(1.05)
+        self.assertEqual(self.post("/api/chat", {"text": "Thanks", "replyTo": mid}, self.bo)[0], 200)
+        self.assertEqual(self.post("/api/request/act", {"action": "takedown", "id": xid}, self.owner)[0], 200)
+        chat = self.state(self.bo)["chat"]
+        self.assertNotIn(mid, [m["id"] for m in chat])
+        self.assertEqual(chat[-1]["replyTo"]["excerpt"], "Taken down by the host.")
+        self.assertNotIn("Secret-ish summary.", json.dumps(self.state(self.bo)))
+
+    def test_with_review_on_every_answer_waits_for_the_owners_share(self):
+        self.assertEqual(self.post("/api/session/settings", {"reviewAnswers": True}, self.owner)[0], 200)
+        rid = self.ask(self.ann)
+        self.go(rid)
+        xid = self.answer(rid, "Held for review.")["id"]
+        self.assertFalse(self.sees(self.ann, "Held for review."))
+        self.assertEqual(self.status(self.ann, rid), "unshared")
+        self.assertEqual(self.titles(self.ann_pid), [])
+        self.assertIn("share:" + xid, [i["key"] for i in self.state(self.owner)["inbox"]])
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
+        self.assertTrue(self.sees(self.bo, "Held for review."))
+
+    def test_with_review_on_the_owners_share_sends_a_just_me_answer_to_its_asker_alone(self):
+        self.assertEqual(self.post("/api/session/settings", {"reviewAnswers": True}, self.owner)[0], 200)
+        rid = self.ask(self.ann, "Just for me", audience="me")
+        self.go(rid)
+        xid = self.answer(rid, "Reviewed, then Ann's.")["id"]
+        self.assertFalse(self.sees(self.ann, "Reviewed, then Ann's."))
+        code, _, out = self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)
+        self.assertEqual((code, out), (200, {"ok": True, "id": xid, "published": False}))
+        self.assertTrue(self.sees(self.ann, "Reviewed, then Ann's."))
+        self.assertFalse(self.sees(self.bo, "Reviewed, then Ann's."))
+        self.assertEqual(self.status(self.ann, rid), "answered")
+
+    def test_review_turned_off_shares_answers_that_arrive_from_then_on(self):
+        self.assertEqual(self.post("/api/session/settings", {"reviewAnswers": True}, self.owner)[0], 200)
+        held = self.ask(self.ann, "first")
+        self.go(held)
+        self.answer(held, "Still held.")
+        self.assertEqual(self.post("/api/session/settings", {"reviewAnswers": False}, self.owner)[0], 200)
+        time.sleep(1.05)
+        later = self.ask(self.ann, "second")
+        self.go(later)
+        self.answer(later, "Shared at once.")
+        self.assertEqual((self.sees(self.bo, "Still held."), self.sees(self.bo, "Shared at once.")), (False, True))
+
 
 if __name__ == "__main__":
     unittest.main()
