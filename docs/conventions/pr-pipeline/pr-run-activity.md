@@ -918,7 +918,7 @@ passes the model job's `patch-state`, `patch-sha256`, `patch-attempt`, `head-sha
 The run's `escalation-reason` output is the script's reason, else the select step's. The runner
 accepts the script's three reasons only in this mode.
 
-The rules each producer's patch is held to are registered in
+The rules each producer's patch is to be held to are registered in
 [`patch-rules.json`](../../../.github/actions/resolve-config/patch-rules.json), one row per
 producer prepare mode ([README.md, Patch rules](README.md#patch-rules)): the refusals every row
 carries, what else a path must meet, a file cap, the producer output required, the commit's

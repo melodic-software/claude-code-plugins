@@ -15,10 +15,10 @@ bump: minor
   asked to fix instruction surfaces or CODEOWNERS paths. No activity in this repository sets it
   yet ([README](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#activities)).
 - `.github/actions/resolve-config/patch-rules.json`, with its schema, registers what an apply-patch
-  script admits from each producer's patch: one row per prepare mode, plus `default` and `issue`.
+  script is to admit from each producer's patch: one row per prepare mode, plus `default` and `issue`.
   Every row refuses `.github/**`, `.claude/**`, the root `.mcp.json`, `.gitmodules`,
   `**/settings*.json`, symbolic links, gitlinks, a new executable bit and a rename into any of
-  those; a row without that set, or a two-parent commit without `allow: merge-result`, is rejected.
+  those; a row without that set, or a two-parent commit whose `allow` is not exactly `[merge-result]`, is rejected.
   `resolve-config` checks the registry before every lane resolve and fails closed without it; the
   lanes token broker does not read it
   ([README](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#patch-rules)).

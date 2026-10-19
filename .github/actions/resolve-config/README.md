@@ -65,9 +65,10 @@ The step fails and writes no file when:
     `prepare: apply-patch`, or a lane that holds the producer lacks the target or its slot does not
     `needs` the producer (`invalid-applied-by`).
 14. The patch rules or their schema are missing, fail the schema, or a row does not refuse the
-    universal set, commits with the base as a parent without `allow: merge-result`, or a
-    patch-producing activity's prepare mode has no row (`patch-rules`). The action checks this
-    before any other step of a lane resolve, for every lane; `loadConfig` and `resolveGrant` do not,
+    universal set, commits with the base as a parent with an `allow` other than exactly
+    `[merge-result]`, or a patch-producing activity's prepare mode has no row (`patch-rules`). The
+    action checks this right after the config itself loads (rejections 1-13), before it gathers any
+    fact or resolves a slot, for every lane; `loadConfig` and `resolveGrant` do not,
     so the token broker never reads these files.
 15. The selected leaf applies and its `applied-by` sets a key `applied-by-supported` does not name
     (`applied-by-unsupported`). The action checks this; `resolveGrant` does not.

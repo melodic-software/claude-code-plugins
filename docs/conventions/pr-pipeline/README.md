@@ -288,8 +288,7 @@ Each leaf declares:
 - `applied-by` (optional, `skill` only, effect `read` and gating `advisory`): what the skill
   hands on, keyed by artifact (`patch`, `feedback-replies`, `dependency-verdict`,
   `work-outcome`), each naming the script activity that applies it. A `patch` target runs
-  `prepare: apply-patch`, which applies the patch under the producer's
-  [patch rules](#patch-rules). Every lane that holds the producer holds each target, in a slot
+  `prepare: apply-patch` ([patch rules](#patch-rules)). Every lane that holds the producer holds each target, in a slot
   whose `needs` names the producer. A runner hands on only the keys it passes as
   `applied-by-supported` to `resolve-config` (`pr-run-activity-read.yml` passes `patch`); an
   applying leaf with any other key fails red before the head checkout. A skill that hands on a
@@ -373,11 +372,14 @@ set never resumes an item, expedites it, sets its work class or lifts a hold.
 
 ## Patch rules
 
-[`patch-rules.json`](../../../.github/actions/resolve-config/patch-rules.json) holds what a
-`prepare: apply-patch` script admits from a producer's patch: one row per prepare mode a
-patch-producing skill uses (`ci-context`, `review-threads`, `dependency-review`, `merge-base`),
-`default` for one with no prepare mode, and `issue` for a patch that goes to a new issue-lane branch
-made at the run's base or resume tip. The apply reads it from the trusted base, never from the head.
+[`patch-rules.json`](../../../.github/actions/resolve-config/patch-rules.json) is the registry
+of what one `prepare: apply-patch` script is to admit from a producer's patch, read from the
+trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
+`review-threads`, `dependency-review`, `merge-base`), `default` for one with no prepare mode, and
+`issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip. No
+apply step reads it yet; that script lands later, and until then fix-ci's patch goes through
+`apply-ci-fix` with its own fixed refusal
+([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
 [`patch-rules.schema.json`](../../../.github/actions/resolve-config/patch-rules.schema.json) closes
 each row to these keys:
 
@@ -398,13 +400,11 @@ executable bit on a file not already executable, and a rename into any of those.
 [HIGH path floor](#merge-authority) holds a pull request that touches them for a human merge.
 `checkPatchRules` in
 [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs) rejects a row without that
-set, a `[head, base]` commit without `allow: merge-result`, a refusal, allow or requirement name
+set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name
 the schema does not list, and a patch-producing activity whose prepare mode has no row;
 `resolve-config` runs it before every lane resolve and fails closed when either file is missing.
 `loadConfig` and `resolveGrant` do not read the registry, so the lanes token broker needs neither
-file. fix-ci's
-patch is applied today by `apply-ci-fix`, which keeps its own fixed refusal
-([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
+file.
 
 ## Slots and order
 
@@ -435,7 +435,7 @@ The schema checks each file's shape. The config reader also rejects:
   `prepare: apply-patch`, or a lane holding the producer without the target in a slot that
   needs it;
 - a [patch rules](#patch-rules) row that does not refuse the universal set, or that commits with
-  the base as a parent without allowing only the merge result;
+  the base as a parent and whose `allow` is not exactly `[merge-result]`;
 - a lane or activity name missing from the vocabulary ([Names](#names));
 - an activity named `run` or `report`, `pr-run-activity`'s own job names;
 - any `extends:` value ([Not settled yet](#not-settled-yet)).

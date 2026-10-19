@@ -97,9 +97,27 @@ test("the broker's calls resolve this tree's config from the TRUST_FILES it read
   assert.ok(Object.keys(doc.lanes).length > 0);
 });
 
-// Each key loadConfig cannot do without, found by leaving it out.
+// Every file a lane run hands resolve.mjs (resolve-config.mjs filesUnderBase),
+// as read from this tree, whatever the fixture lists.
+const TREE_FILES = Object.freeze({
+  schema: "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
+  vocabulary: ".github/standards/github-actions-conventions/vocabulary.json",
+  codeowners: ".github/CODEOWNERS",
+  trustedActors: ".github/standards/trusted-actors/trusted-actors.json",
+  laneRules: ".github/actions/resolve-config/lane-rules.json",
+  effectGrants: ".github/actions/resolve-config/effect-grants.json",
+  activityRules: ".github/actions/resolve-config/activity-rules.json",
+  patchRules: ".github/actions/resolve-config/patch-rules.json",
+  patchRulesSchema: ".github/actions/resolve-config/patch-rules.schema.json",
+});
+
+// Each key loadConfig cannot do without, found by leaving it out of the full set.
 const neededKeys = () => {
-  const all = { ...brokerFiles(), patchRules: JSON.parse(read("./patch-rules.json")), patchRulesSchema: JSON.parse(read("./patch-rules.schema.json")) };
+  const all = {
+    config: read(`${ROOT}${LISTS.binding.config}`),
+    ...Object.fromEntries(Object.entries(TREE_FILES).map(([key, path]) => [key, fileAt(path)])),
+  };
+  loadConfig(all, { configPath: LISTS.binding.config });
   return Object.keys(all).filter((key) => {
     const { [key]: _dropped, ...rest } = all;
     try {
@@ -111,14 +129,33 @@ const neededKeys = () => {
   });
 };
 
+// What the broker would lack: each needed key its TRUST_FILES does not list,
+// and each needed file its tests are not served.
+function brokerGaps(needed, { trust_files: trustFiles, test_data: testData }, testFiles) {
+  return needed
+    .filter((key) => key !== "config")
+    .flatMap((key) => {
+      if (!Object.hasOwn(trustFiles, key)) {
+        return [`binding.mjs TRUST_FILES must add ${key} (${TREE_FILES[key]}), or every broker request fails`];
+      }
+      const served = testData[key] ?? trustFiles[key];
+      return testFiles.includes(served) ? [] : [`fetch-resolve-config.sh's test_files list must add ${served}`];
+    });
+}
+
 test("every file loadConfig needs is one the broker reads from main's tip and serves its tests", () => {
-  const testFiles = new Set(LISTS.fetch.test_files);
-  for (const key of neededKeys().filter((name) => name !== "config")) {
-    const path = LISTS.binding.trust_files[key];
-    assert.ok(path, `binding.mjs TRUST_FILES must add ${key}, or every broker request fails`);
-    const served = LISTS.binding.test_data[key] ?? path;
-    assert.ok(testFiles.has(served), `fetch-resolve-config.sh's test_files list must add ${served}`);
-  }
+  assert.deepEqual(brokerGaps(neededKeys(), LISTS.binding, LISTS.fetch.test_files), []);
+});
+
+test("a needed file the broker does not read is named by its key", () => {
+  const { activityRules: _dropped, ...trustFiles } = LISTS.binding.trust_files;
+  assert.deepEqual(brokerGaps(neededKeys(), { ...LISTS.binding, trust_files: trustFiles }, LISTS.fetch.test_files), [
+    "binding.mjs TRUST_FILES must add activityRules (.github/actions/resolve-config/activity-rules.json), or every broker request fails",
+  ]);
+  const testFiles = LISTS.fetch.test_files.filter((file) => !file.endsWith("lane-rules.json"));
+  assert.deepEqual(brokerGaps(neededKeys(), LISTS.binding, testFiles), [
+    "fetch-resolve-config.sh's test_files list must add .github/actions/resolve-config/lane-rules.json",
+  ]);
 });
 
 test("the patch rules are read by lane runs only, never by the broker's loadConfig", () => {

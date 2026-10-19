@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/melodic-software/claude-code-plugins/.github/actions/resolve-config/patch-rules.schema.json",
   "title": "Patch rules",
-  "description": "What apply-patch admits from a producer's patch: one row per prepare mode a patch-producing skill uses, `default` for one with no prepare mode, and `issue` for a patch that goes to a new issue-lane branch. Contract: docs/conventions/pr-pipeline/README.md, Patch rules.",
+  "description": "What the apply-patch script is to admit from a producer's patch: one row per prepare mode a patch-producing skill uses, `default` for one with no prepare mode, and `issue` for a patch that goes to a new issue-lane branch. Contract: docs/conventions/pr-pipeline/README.md, Patch rules.",
   "type": "object",
   "additionalProperties": false,
   "required": ["default", "issue"],

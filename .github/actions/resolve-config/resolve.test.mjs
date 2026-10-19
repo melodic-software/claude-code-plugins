@@ -1687,7 +1687,12 @@ for (const [name, why, message] of [
   [
     "patch-rules-merge-parents.json",
     "a two-parent commit without allow merge-result",
-    /row `merge-base` commits with the base as a parent without allow merge-result/,
+    /row `merge-base` commits with the base as a parent, so its allow must be exactly \[merge-result\]/,
+  ],
+  [
+    "patch-rules-merge-allow-any.json",
+    "a two-parent commit that also allows any path",
+    /row `merge-base` commits with the base as a parent, so its allow must be exactly \[merge-result\]/,
   ],
 ]) {
   test(`patch rules: ${why} is rejected (${name})`, () => {

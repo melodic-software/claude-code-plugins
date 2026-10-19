@@ -289,7 +289,7 @@ const UNIVERSAL_REFUSE = Object.freeze([
 
 // patch-rules.json against its schema, which names every refusal and allow
 // rule apply-patch knows; then what the schema cannot check: each row refuses
-// the universal set, a two-parent commit admits only the merge result, and
+// the universal set, a two-parent commit allows exactly merge-result, and
 // each prepare mode a patch-producing activity uses has a row.
 export function checkPatchRules(patchRules, schema, activities = {}) {
   const fail = (message) => {
@@ -309,8 +309,8 @@ export function checkPatchRules(patchRules, schema, activities = {}) {
     if (missing.length > 0) {
       fail(`patch-rules.json row \`${row}\` does not refuse ${missing.join(", ")}`);
     }
-    if (rules.commit.parents.includes("base") && !rules.allow.includes("merge-result")) {
-      fail(`patch-rules.json row \`${row}\` commits with the base as a parent without allow merge-result`);
+    if (rules.commit.parents.includes("base") && (rules.allow.length !== 1 || rules.allow[0] !== "merge-result")) {
+      fail(`patch-rules.json row \`${row}\` commits with the base as a parent, so its allow must be exactly [merge-result]`);
     }
   }
   for (const [name, activity] of Object.entries(activities)) {
