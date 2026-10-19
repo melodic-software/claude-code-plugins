@@ -923,11 +923,20 @@
     const orIntro = E("p", "vf-orient-intro"), orHow = E("p", "vf-orient-how");
     orWhy.append(orIntro, orHow);
     orRow.append(orStart, orWhyBtn, orTour);
-    const orHide = ibtn("vf-tbtn vf-icon-btn vf-orient-x", "x", "Hide this introduction");
+    // Follow-up item 6: this is the welcome card, shown once per person on each device until Skip or Start here; Skip
+    // closes it and the tour offer at once. "Show the tour again" in the person's settings brings both back.
+    const orLead = E("p", "vf-orient-lead", "Enter your name to join, then answer this round's questions.");
+    const orHide = btn("vf-btn vf-btn-ghost vf-btn-sm vf-orient-x", "Skip"); orHide.setAttribute("aria-label", "Skip the welcome and the tour");
     const orCatch = catchUpEl(() => { ui.orientHidden = true; });
-    orient.append(orHide, orH, orGoal, orAsk, orCatch, orRow, orWhy);
+    orient.append(orHide, orLead, orH, orGoal, orAsk, orCatch, orRow, orWhy);
     orWhyBtn.onclick = () => { ui.introOpen = !introOpen(); render(); };
-    orHide.onclick = () => { ui.orientHidden = true; render(); qText.focus({ preventScroll: true }); };
+    const WELCOME_SEEN = () => "vf-welcome-seen:" + (Core.me.cid || "anon");
+    const welcomeDone = () => { store.put(WELCOME_SEEN(), true); ui.welcomeAgain = false; ui.orientHidden = true; };
+    orHide.onclick = () => {
+      welcomeDone();
+      if (!pref("tour", "")) setPrefs({ tour: "skipped" });
+      render(); qText.focus({ preventScroll: true });
+    };
     const introOpen = () => !!ui.introOpen;
     const INTRO_SEEN = () => "vf-intro-seen:" + (Core.me.cid || "anon");
 
@@ -2763,7 +2772,7 @@
     helpTour.onclick = () => startTour(keysBtn.offsetParent ? keysBtn : null);
     orTour.onclick = () => startTour(orTour);
     orStart.onclick = () => {
-      const id = orStart._q; ui.orientHidden = true;
+      const id = orStart._q; welcomeDone();
       if (id) focusQuestion(id); else render();
       requestAnimationFrame(() => {
         const q = qById(ui.cur), sel = { choice: ".vf-optchoose:not(:disabled)", confirm: ".vf-pickbtn:not(:disabled)", multi: ".vf-check-box:not(:disabled)",
@@ -3910,6 +3919,18 @@
     }
     const COLOR_NAMES = ["Pink", "Blue", "Green", "Amber", "Violet", "Red", "Cyan", "Orange", "Lime", "Magenta"];
     const nameOf = (pid, fallback = "") => Core.state.people?.[pid]?.name || Core.state.presence.find(p => p.cid === pid)?.name || fallback || "Someone";
+    /** "Show the tour again": the welcome card and the tour offer come back, on this device and in my prefs. */
+    function showWelcomeAgain() {
+      store.put(WELCOME_SEEN(), false);
+      setPrefs({ tour: null });
+      hideCard();
+      if (Core.me.isOwner) { render(); return startTour(null); } // the owner has no welcome card: the tour itself
+      ui.orientHidden = false; ui.welcomeAgain = true;
+      setMode("focus"); if (phone.matches) setTab("answer");
+      render();
+      scroll.scrollTop = 0;
+      orStart.focus({ preventScroll: true });
+    }
     function fillPcard() {
       const c = ui.pcard; if (!c) return;
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
@@ -3959,7 +3980,9 @@
         adv.setAttribute("role", "switch"); adv.setAttribute("aria-checked", String(advOn));
         adv.append(E("span", "vf-sw-txt vf-sw-label", "Go to the next question after I answer"), E("span", "vf-switch"));
         adv.onclick = () => { setPrefs({ autoAdvance: !advOn }); if (advOn) stopAdvance(); fillPcard(); };
-        parts.push(adv);
+        const again = k(lbtn("vf-menu-item vf-menu-plain vf-tour-again", "help", "Show the tour again"), "tourAgain");
+        again.onclick = showWelcomeAgain;
+        parts.push(adv, again);
         if (c.pinned) {
           // Away by hand (the snooze): others see me as Away until my next key, click or touch.
           const awayB = k(lbtn("vf-menu-item vf-menu-plain vf-away-btn", "moon", Core.isAway() ? "You show as Away. Any key or tap ends it" : "Show me as Away"), "away");
@@ -6126,7 +6149,8 @@
       railEmpty.hidden = qs.length > 0;
       if (!qs.length) renderEmpty(S);
       // Triage 3: until a guest answers anything, the Focus view opens with the goal, the host's ask and where to start.
-      orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden || S.questions.some(x => ["answered", "took"].includes(myState(x.id)));
+      orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden
+        || (!ui.welcomeAgain && (!!store.get(WELCOME_SEEN(), false) || S.questions.some(x => ["answered", "took"].includes(myState(x.id)))));
       introBtn.hidden = !S.intro && !me.isOwner; msIntro.hidden = helpIntro.hidden = introBtn.hidden;
       if (!orient.hidden) {
         const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];
@@ -6149,6 +6173,7 @@
         orient.classList.toggle("vf-orient-open", !orWhy.hidden);
         orTour.hidden = !!pref("tour", "") || (phone.matches && !introOpen());
         if (phone.matches && !orTour.hidden) orWhy.append(orTour); else if (orTour.parentNode !== orRow) orRow.append(orTour);
+        if (phone.matches) { if (orHide.parentNode !== orRow) orRow.append(orHide); } else if (orHide.parentNode !== orient) orient.prepend(orHide);
       }
       if (q) {
         renderRefs(q);
