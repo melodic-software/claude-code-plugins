@@ -1001,7 +1001,7 @@ App may push to one PR; the next fix-ci run hands it to a person before any mode
 
 The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
 are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
-typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all nine
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all eleven
 with defaults.
 
 | Key | Default | What it sets |
@@ -1015,12 +1015,19 @@ with defaults.
 | `wip-cap` | 60 | Open lanes-App pull requests at or above which work-resolve-issue starts no run and work-unblock re-fires none; at most 500. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
+| `admission-window-hours` | 24 | Hours of issue-lane admissions the admitted backlog (open issues labeled `agent-ready`) may hold before new `agent-ready` labels pause. |
+| `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour; greater than 0, at most 1. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
-the WIP cap check fails open and starts the run. This repository sets `wip-cap` and the two
-fix-ci limits.
+the WIP cap check fails open and starts the run. This repository sets `wip-cap`, the two
+fix-ci limits and the two admission limits.
+
+`node .github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are
+open: the admitted backlog is under `admission-factor` times lane merges per hour (the last 24
+hours) times `admission-window-hours`. It prints one line and exits 0 open, 1 held, 2 on error.
+No lane reads it yet.
 
 ## Planning lane work
 
