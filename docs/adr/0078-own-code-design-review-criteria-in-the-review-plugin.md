@@ -21,10 +21,9 @@ Plugins install independently, so a skill in one plugin cites a skill in another
 ## Decision
 
 The review plugin owns the code-design review criteria and their severity, exposed as the
-`/review:quality-gate code-design` mode (`plugins/review/skills/quality-gate/SKILL.md:65`). The
-mode's context file holds the bundled criteria, the cascade rule that limits CRITICAL to introduced,
-unsynced Duplicated Code, and the consumer-criteria-win loading
-(`plugins/review/skills/quality-gate/context/code-design.md:8-66`).
+`/review:quality-gate code-design` mode. The
+mode holds the bundled criteria, the cascade rule that limits CRITICAL to introduced,
+unsynced Duplicated Code, and the consumer-criteria-win loading.
 
 Planning keeps design-time defaults only and cites the mode by invocation
 (`plugins/planning/reference/design-principles.md:96-99`). Implementation invokes the mode

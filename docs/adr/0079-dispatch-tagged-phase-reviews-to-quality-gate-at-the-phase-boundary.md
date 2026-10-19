@@ -17,7 +17,7 @@ commit. Plan-to-code drift surfaced only at PR review, after every later phase h
 `/implementation:implement` and `/implementation:implement-dispatch` run one
 `/review:quality-gate` call per `Review:` tag at the phase boundary, before the acceptance verdict
 and the boundary commit. A phase with no tag, or a tag outside the table, dispatches nothing
-(`plugins/implementation/skills/implement/SKILL.md:212-219`).
+(`/implementation:implement`, "Phase-boundary review").
 
 | Tag | Mode |
 |---|---|
@@ -30,12 +30,11 @@ and the boundary commit. A phase with no tag, or a tag outside the table, dispat
   `Quality bar:` line when present and the implementer's rationale withheld.
 - Findings are fixed inside the phase fence, then one re-review runs. A CRITICAL on the re-review
   goes to `DEVIATIONS.md` as a blocking `human-decision` entry and is escalated once, never looped
-  (`plugins/implementation/skills/implement/SKILL.md:221`,
-  `plugins/implementation/skills/implement/context/phase-review.md:36-47`).
+  (`/implementation:implement`).
 - In a dispatched run, an unattended permission mode that denies the review's reads means the
   review did not run: the orchestrator appends an `unverified` `discovery` entry naming the phase
   and tag, reports the phase as not reviewed, continues to the `phase-verifier`, and never retries
-  in another shape (`plugins/implementation/skills/implement-dispatch/SKILL.md:245`).
+  in another shape (`/implementation:implement-dispatch`).
 
 Shipped in [#8394](https://github.com/melodic-software/claude-code-plugins/pull/8394) (issue
 [#8331](https://github.com/melodic-software/claude-code-plugins/issues/8331)).
