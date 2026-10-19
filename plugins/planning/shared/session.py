@@ -91,6 +91,8 @@ MAX_COMMENTS = 200  # judgment: Discussion comments kept on one question; at the
 MAX_ALL_COMMENTS = 2000  # judgment: comments across the session, as MAX_CHAT; at the cap a new one is refused
 MAX_MY_COMMENTS = 30  # judgment: comments one person keeps on one question, as MAX_MY_NOTES; their hidden ones count too
 MAX_DIGEST_COMMENTS = 50  # judgment: a question's newest comments one digest lists; the rest are counted
+MAX_DIGEST_COMMENT = 500  # judgment: characters of one comment a digest lists
+MAX_DIGEST_DISCUSSION_CHARS = 30000  # judgment: comment characters one digest lists, as MAX_DIGEST_CHARS for results
 ASK_CLAUDE = re.compile(r"(?<![\w@])@claude(?![\w])", re.IGNORECASE)  # "@Claude" in a comment asks Claude about the question
 COMMENT_ID = re.compile(r"D[1-9][0-9]{0,8}")
 # Presence (amendment "Presence", 2026-10-16; values are judgment). Offline after OFFLINE_AFTER with
@@ -3213,10 +3215,13 @@ class Session:
             if asks:
                 try:
                     c["request"] = self._new_request(pid, q, "ask", text, "host", now)["id"]
-                except DomainError as e:  # too many waiting: the comment still posts, without a request
-                    if e.code != "too-many-pending":
+                except DomainError as e:  # too soon or too many waiting: the comment still posts, without a request
+                    if e.code not in ("slow-down", "too-many-pending"):
                         raise
                     refused = e
+            mark = st["discussionSeen"].get(pid, {}).get(q["id"], 0.0)
+            if not any(x["pid"] != pid and x["at"] > mark and self._comment_visible(pid, x) for x in lst):
+                st["discussionSeen"].setdefault(pid, {})[q["id"]] = now  # posting marks read nothing the author has not seen
             lst.append(c)
             mentioned = self._mentioned(text, pid)
             self._notify_mentions(text, pid, f"in the Discussion on question {q['id']}", qid=q["id"], comment=c["id"])
@@ -3225,7 +3230,8 @@ class Session:
                     old = next((n for n in reversed(st["notifications"].get(p, [])) if n.get("rollup", {}).get("key") == "disc:" + q["id"] and not n["read"]), None)
                     k = old["rollup"]["n"] + 1 if old else 1
                     self._notify(p, "discussion", f"{k} new comment{'' if k == 1 else 's'} in the Discussion on question {q['id']}.", actor=pid, rollup="disc:" + q["id"], qid=q["id"], comment=c["id"])
-            st["discussionSeen"].setdefault(pid, {})[q["id"]] = now
+            if "request" in c:
+                self._wrote(pid, "request", now)
             if refused:
                 return {"id": c["id"], "requestRefused": refused.code, "message": f"Posted, but not sent to Claude: {refused.message}"}
             return {"id": c["id"], **({"request": c["request"]} if "request" in c else {})}
@@ -3233,14 +3239,20 @@ class Session:
     def _comment_shown(self, c):
         return "hidden" not in c and self._active(c["pid"])
 
+    def _comment_visible(self, pid, c):
+        """Whether pid reads c: an active author's, and a hidden one only for the owner and its author."""
+        return self._active(c["pid"]) and ("hidden" not in c or pid in (HOST, c["pid"]))
+
     def edit_comment(self, pid, body):
         """POST /api/discussion/edit: `{qid, id, text}`, the comment's author only; the same text writes nothing. A
-        hidden comment stays hidden. Only mentions the edit adds notify; an edit never files a Claude request."""
+        hidden comment stays hidden. Only mentions the edit adds notify; one whose "@Claude" filed a request is refused."""
         text = _text(body, "text")
         with self._lock:
             self._writer(pid)
             self._throttle(pid, "discussion-edit", self.now())
             _, c = self._own_comment(pid, body)
+            if "request" in c:
+                raise DomainError(409, "sent-to-claude", "This comment went to Claude as a request, so its text stays as sent. Delete it or add a new comment.")
             if self._tokenize(pid, text) == c["text"]:
                 return {"id": c["id"], "edited": False}
         with self._write_as(pid, "discussion-edit"):
@@ -3264,7 +3276,8 @@ class Session:
 
     def hide_comment(self, pid, body):
         """POST /api/discussion/hide: `{qid, id, on}`, owner only. A hidden comment leaves every other person's view
-        and the digest; its author still sees it, marked. Asking for the state it is in writes nothing."""
+        and the digest; its author still sees it, marked, and a request it filed that still waits is declined. Asking for
+        the state it is in writes nothing."""
         on = _bool(body, "on")
         with self._lock:
             self._owner(pid)
@@ -3277,6 +3290,9 @@ class Session:
             if on:
                 c["hidden"] = {"by": pid, "at": self.now()}
                 self._drop_comment_excerpts(c["id"])
+                r = next((r for r in self.state["requests"] if r["id"] == c.get("request") and r["status"]["kind"] == "pending"), None)
+                if r is not None:  # what the owner hid does not go on to Claude: as the owner's Decline
+                    self._decline(r, pid)
             else:
                 c.pop("hidden", None)
             return {"id": c["id"], "hidden": on}
@@ -3319,7 +3335,7 @@ class Session:
 
     def read_discussion(self, pid, body):
         """POST /api/discussion/read: `{qid, at}`, this person opened the question's Discussion and saw the comments up
-        to `at` (the newest the page showed; never later than the newest there is). Allowed while ended; a read that
+        to `at` (the newest the page showed; never later than the newest they can see). Allowed while ended; a read that
         moves nothing writes nothing."""
         at = _body(body).get("at")
         if not (isinstance(at, (int, float)) and not isinstance(at, bool) and math.isfinite(at) and at >= 0):
@@ -3328,7 +3344,7 @@ class Session:
             self._person(pid)
             self._throttle(pid, "discussion-read", self.now())
             q = self._question(body.get("qid"))
-            newest = max((c["at"] for c in self.state["discussions"].get(q["id"], [])), default=0.0)
+            newest = max((c["at"] for c in self.state["discussions"].get(q["id"], []) if self._comment_visible(pid, c)), default=0.0)
             mark = min(float(at), newest)
             if mark <= self.state["discussionSeen"].get(pid, {}).get(q["id"], 0.0):
                 return {"qid": q["id"], "read": False}
@@ -3348,7 +3364,7 @@ class Session:
         for their own, the author (each with `hidden`)."""
         out = {}
         for qid, lst in self.state["discussions"].items():
-            shown = [self._comment_view(c, active) for c in lst if c["pid"] in active and ("hidden" not in c or pid in (HOST, c["pid"]))]
+            shown = [self._comment_view(c, active) for c in lst if self._comment_visible(pid, c)]
             if shown:
                 out[qid] = shown
         return out
@@ -3370,7 +3386,6 @@ class Session:
         now = self.now()
         with self._tx():
             self._writer(pid)
-            self._throttle(pid, "request", now)
             text = self._tokenize(pid, text)
             q = self._question(body.get("qid"))
             rid = self._new_request(pid, q, kind, text, runner, now)["id"]
@@ -3380,8 +3395,10 @@ class Session:
         return {"id": rid}
 
     def _new_request(self, pid, q, kind, text, runner, now):
-        """A request pid makes on q: past MAX_PENDING_REQUESTS refused; the host's own runs now, a guest's waits for Run."""
+        """A request pid makes on q: one a second on the "request" route, which the caller records once it commits;
+        past MAX_PENDING_REQUESTS refused; the host's own runs now, a guest's waits for Run."""
         st = self.state
+        self._throttle(pid, "request", now)
         pending = sum(1 for r in st["requests"] if r["pid"] == pid and (r["status"]["kind"] == "pending" or (r["runner"] == "self" and r["status"]["kind"] == "running")))
         if pending >= MAX_PENDING_REQUESTS:
             raise DomainError(429, "too-many-pending", f"You have {MAX_PENDING_REQUESTS} requests waiting already.")
@@ -3422,8 +3439,7 @@ class Session:
                 if text != r["text"]:
                     r["text"], r["edited"] = text, True
             elif action == "decline":
-                r["status"] = {"kind": "declined", "at": now}
-                self._notify(r["pid"], "request", f"Your request on question {r['qid']} was declined.", actor=pid, qid=r["qid"])
+                self._decline(r, pid)
             elif action == "fail":
                 r["status"] = {"kind": "failed", "at": now, "reason": "Cancelled by the owner.", "cancelled": True}
                 self._event("request-cancelled", request=r["id"])
@@ -3431,6 +3447,10 @@ class Session:
             else:
                 self._run([r])
             return {"id": r["id"], "status": r["status"]["kind"]}
+
+    def _decline(self, r, by):
+        r["status"] = {"kind": "declined", "at": self.now()}
+        self._notify(r["pid"], "request", f"Your request on question {r['qid']} was declined.", actor=by, qid=r["qid"])
 
     def _run(self, reqs):
         st = self.state
@@ -4242,7 +4262,7 @@ class Session:
             return {"by": st["people"][pid]["name"]} if names and pid in st["people"] else {}
 
         prev = self._previous_send(n)
-        questions = []
+        questions, discussion_chars = [], 0
         for q in st["questions"]:
             if q["round"] != n:
                 continue
@@ -4253,14 +4273,18 @@ class Session:
                 entry["disagreements"] = disagreements
             entry["outcome"] = self._outcome(q, by)
             entry.update(self._digest_turns(q, by))
-            comments = [c for c in st["discussions"].get(q["id"], []) if "hidden" not in c and self._active(c["pid"])]
-            if comments:
-                entry["discussion"] = [
-                    {"text": c["text"], **by(c["pid"]), **({"edited": True} if "edited" in c else {}), **({"askedClaude": True} if "request" in c else {})}
-                    for c in comments[-MAX_DIGEST_COMMENTS:]
-                ]
-                if len(comments) > MAX_DIGEST_COMMENTS:
-                    entry["discussionMore"] = f"{len(comments) - MAX_DIGEST_COMMENTS} earlier comments on the page"
+            comments = [c for c in st["discussions"].get(q["id"], []) if self._comment_shown(c)]
+            listed = []
+            for c in reversed(comments[-MAX_DIGEST_COMMENTS:]):  # newest first, until the digest's budget is spent
+                text = clip(c["text"], MAX_DIGEST_COMMENT)
+                if discussion_chars + len(text) > MAX_DIGEST_DISCUSSION_CHARS:
+                    break
+                discussion_chars += len(text)
+                listed.append({"text": text, **by(c["pid"]), **({"edited": True} if "edited" in c else {}), **({"askedClaude": True} if "request" in c else {})})
+            if listed:
+                entry["discussion"] = listed[::-1]
+            if len(comments) > len(listed):
+                entry["discussionMore"] = f"{len(comments) - len(listed)} earlier comments on the page"
             questions.append(entry)
         late = []
         for q in st["questions"]:
@@ -4942,7 +4966,9 @@ class Session:
         return base
 
     def _mentioned_anywhere(self):
-        return sorted({p for h, k in migrate.mention_texts(self.state) for p in MENTION.findall(h[k])})
+        """Who a text everyone may read mentions; a hidden comment's mentions name no one here."""
+        hidden = {id(c) for lst in self.state["discussions"].values() for c in lst if "hidden" in c}
+        return sorted({p for h, k in migrate.mention_texts(self.state) if id(h) not in hidden for p in MENTION.findall(h[k])})
 
     def _files(self, cards):
         """C44: what everyone reads of the files the shown answers carry (the owner accepted each): name, kind, size

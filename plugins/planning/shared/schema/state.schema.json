@@ -58,7 +58,7 @@
     "discussions": {
       "description": "Each question's Discussion, qid -> its comments oldest first.",
       "type": "object",
-      "additionalProperties": {"type": "array", "maxItems": 200, "items": {"$ref": "#/$defs/comment"}}
+      "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/comment"}}
     },
     "discussionSeen": {
       "description": "Per person, qid -> the time of the newest comment they saw when they last opened that question's Discussion; others' comments after it are new to them.",

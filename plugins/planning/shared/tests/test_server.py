@@ -2192,6 +2192,7 @@ class TestDiscussion(ServerCase):
     def test_at_claude_past_the_pending_cap_posts_the_comment_and_says_no_request_was_filed(self):
         with mock.patch.object(session, "MAX_PENDING_REQUESTS", 1):
             self.assertEqual(self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "first"}, self.ann)[0], 200)
+            time.sleep(1.05)  # past the request route's one a second, which the comment's request shares
             out = self.say(self.ann, "@Claude and this too?")
         self.assertNotIn("request", out)
         self.assertEqual(out["requestRefused"], "too-many-pending")
@@ -2204,6 +2205,88 @@ class TestDiscussion(ServerCase):
         self.assertNotIn("request", out)
         self.assertEqual(self.comments(self.bo)[0]["text"], f"<@{claude_pid}> can you check the copy?")
         self.assertEqual(self.app.session.state["requests"], [])
+
+    def test_more_than_two_hundred_stored_comments_on_one_question_load_when_some_are_hidden(self):
+        t = time.time()
+        with self.app.session._tx() as st:
+            st["discussions"]["Q1"] = [
+                {"id": f"D{i}", "pid": self.ann_pid, "text": f"c{i}", "at": t + i, **({"hidden": {"by": "host", "at": t + i}} if i < 5 else {})}
+                for i in range(1, 206)
+            ]
+        self.assertIsNone(session.document_error(self.app.session.state))
+        again = session.Session.load(self.app.session.path)
+        self.assertEqual(len(again.state["discussions"]["Q1"]), 205)
+
+    def test_at_claude_inside_a_word_or_an_address_files_no_request(self):
+        for who, text in ((self.ann, "@Claudette can you look?"), (self.bo, "Mail x@claude.ai about it")):
+            self.assertNotIn("request", self.say(who, text), text)
+        self.assertEqual(self.app.session.state["requests"], [])
+
+    def test_a_guests_at_claude_leaves_the_owner_no_queue_note(self):
+        self.assertIn("request", self.say(self.ann, "@Claude what do shops do?"))
+        self.assertEqual([n for n in self.app.session.state["notifications"].get("host", []) if n["kind"] == "queue"], [])
+
+    def test_at_claude_in_a_comment_shares_the_request_limit_and_still_posts(self):
+        self.assertEqual(self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "first"}, self.ann)[0], 200)
+        out = self.say(self.ann, "@Claude and this?")
+        self.assertEqual((out.get("requestRefused"), "request" in out), ("slow-down", False))
+        self.assertEqual(len(self.app.session.state["requests"]), 1)
+        time.sleep(1.05)
+        self.assertIn("request", self.say(self.bo, "@Claude from Bo"))
+        self.assertEqual(self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "again"}, self.bo)[0], 429)
+
+    def test_posting_marks_read_only_when_no_one_elses_comment_is_unseen(self):
+        self.say(self.ann, "One")
+        time.sleep(0.01)
+        self.say(self.bo, "Two")
+        self.assertEqual(self.get("/api/state", self.bo)[2]["me"]["discussionSeen"], {})  # Ann's One is still new to Bo
+        at = {c["text"]: c["at"] for c in self.app.session.state["discussions"]["Q1"]}
+        self.post("/api/discussion/read", {"qid": "Q1", "at": at["Two"]}, self.bo)
+        time.sleep(1.05)
+        self.say(self.bo, "Three")
+        three = self.app.session.state["discussions"]["Q1"][-1]["at"]
+        self.assertEqual(self.get("/api/state", self.bo)[2]["me"]["discussionSeen"], {"Q1": three})
+
+    def test_a_hidden_comment_names_no_removed_person_in_the_snapshot(self):
+        cid = self.say(self.ann, "Ask @Bo")["id"]
+        self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": True}, self.owner)
+        self.assertEqual(self.post("/api/person/remove", {"pid": self.bo_pid, "on": True}, self.owner)[0], 200)
+        self.assertNotIn(self.bo_pid, self.get("/api/state", self.owner)[2]["mentions"])
+        time.sleep(1.05)
+        self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": False}, self.owner)
+        self.assertIn(self.bo_pid, self.get("/api/state", self.owner)[2]["mentions"])
+
+    def test_reading_stops_at_the_newest_comment_this_viewer_sees(self):
+        self.say(self.ann, "One")
+        time.sleep(0.01)
+        cid = self.say(self.bo, "Two")["id"]
+        self.post("/api/discussion/hide", {"qid": "Q1", "id": cid, "on": True}, self.owner)
+        self.post("/api/discussion/read", {"qid": "Q1", "at": 9e12}, self.ann)
+        one = self.app.session.state["discussions"]["Q1"][0]["at"]
+        self.assertEqual(self.get("/api/state", self.ann)[2]["me"]["discussionSeen"], {"Q1": one})
+
+    def test_the_digest_clips_each_comment_and_holds_a_total_budget(self):
+        self.say(self.ann, "a" * 2000)
+        self.say(self.bo, "b" * 2000)
+        self.say(self.owner, "c" * 2000)
+        with mock.patch.object(session, "MAX_DIGEST_DISCUSSION_CHARS", 1000, create=True):
+            q1 = next(q for q in self.app.session._digest(1)["questions"] if q["id"] == "Q1")
+        self.assertEqual([c["text"] for c in q1["discussion"]], ["b" * 500, "c" * 500])
+        self.assertEqual(q1["discussionMore"], "1 earlier comments on the page")
+
+    def test_a_comment_sent_to_claude_cannot_be_edited_but_can_be_deleted(self):
+        cid = self.say(self.ann, "@Claude what do shops do?")["id"]
+        code, _, out = self.post("/api/discussion/edit", {"qid": "Q1", "id": cid, "text": "Changed"}, self.ann)
+        self.assertEqual((code, out["error"]), (409, "sent-to-claude"))
+        self.assertEqual(self.post("/api/discussion/delete", {"qid": "Q1", "id": cid}, self.ann)[0], 200)
+
+    def test_hiding_a_comment_declines_its_waiting_request(self):
+        out = self.say(self.ann, "@Claude what do shops do?")
+        self.post("/api/discussion/hide", {"qid": "Q1", "id": out["id"], "on": True}, self.owner)
+        req = next(r for r in self.app.session.state["requests"] if r["id"] == out["request"])
+        self.assertEqual(req["status"]["kind"], "declined")
+        notes = self.app.session.state["notifications"][self.ann_pid]
+        self.assertIn("Your request on question Q1 was declined.", [n["title"] for n in notes])
 
     def test_a_merge_moves_comments_reactions_and_seen_marks_to_the_kept_person(self):
         cid = self.say(self.bo, "Bo's comment")["id"]
