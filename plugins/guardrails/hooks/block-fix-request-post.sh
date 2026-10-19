@@ -53,7 +53,9 @@
 # (`Invoke-RestMethod`) that posts; a wrapper this guard does not step over
 # (`xargs`, `sudo` with an option other than -u/-g/-C/-D); a relative body
 # file after a `cd` in the same command, which resolves against the payload's
-# cwd instead; a body file past 1 MiB is read to that point only.
+# cwd instead; a body file another program writes or copies in the same
+# command (`cp`, a script) with no redirect; a body file past 1 MiB is read to
+# that point only.
 #
 # Escape: the `block_fix_request_post_enabled` userConfig option (true or false;
 # any other value keeps the guard on and says so). userConfig resolves at
