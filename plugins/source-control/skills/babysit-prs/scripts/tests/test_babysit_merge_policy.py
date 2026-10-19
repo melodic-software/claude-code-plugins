@@ -44,6 +44,7 @@ del _leaked_git_var
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_gh  # noqa: E402
 import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
 import babysit_postmerge  # noqa: E402
 
@@ -2644,6 +2645,99 @@ class LocalEnabledSince(unittest.TestCase):
         self.git(self.clone, "replace", "--graft", middle)
         self.assertEqual(policy._local_history(self.base), whole)
 
+    def test_the_base_config_comes_from_the_clone(self) -> None:
+        # Before the clone read: two contents-API calls per candidate.
+        self.commit(policy.SOURCE_CONTROL_PATH, SOURCE_CONTROL, "2026-10-01T00:00:00Z")
+        base = self.pipeline(PIPELINE, "2026-10-02T00:00:00Z")
+        gh = self.local()
+        config = policy.read_config_at(REPO, base)
+        self.assertEqual(
+            (config.authority, config.agent_identity, config.loop_merge),
+            ("local-babysit", IDENTITY, "c2-mechanical"),
+        )
+        self.assertEqual(gh.calls, [])
+
+    def test_a_symlinked_config_reads_the_api_as_before(self) -> None:
+        # The contents API follows an in-repository symlink to a file; the
+        # clone read hands such a path to it rather than refusing it.
+        self.commit("docs/source-control.md", SOURCE_CONTROL, "2026-10-01T00:00:00Z")
+        (self.clone / policy.SOURCE_CONTROL_PATH).parent.mkdir(exist_ok=True)
+        (self.clone / policy.SOURCE_CONTROL_PATH).symlink_to(
+            "../docs/source-control.md"
+        )
+        self.git(self.clone, "add", policy.SOURCE_CONTROL_PATH)
+        base = self.pipeline(PIPELINE, "2026-10-02T00:00:00Z")
+        gh = self.local()
+        api = f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={base}"
+        gh.rest[api] = file_payload(SOURCE_CONTROL)
+        config = policy.read_config_at(REPO, base)
+        self.assertEqual(config.loop_merge, "c2-mechanical")
+        self.assertEqual(gh.calls, [["api", api]])
+
+    def test_a_base_missing_from_the_clone_reads_the_api_not_no_config(
+        self,
+    ) -> None:
+        self.pipeline(DISABLED, "2026-10-01T00:00:00Z")
+        gh = self.fake([], {SHA: PIPELINE}, clones=(self.scripts,))
+        config = policy.read_config_at(REPO, SHA)
+        self.assertEqual(
+            (config.authority, config.agent_identity), ("local-babysit", IDENTITY)
+        )
+        self.assertIn(
+            ["api", f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"], gh.calls
+        )
+
+    def test_changed_file_modes_come_from_the_clone(self) -> None:
+        # Before the clone read: one trees-API call per side.
+        base = self.commit("tool.sh", "echo\n", "2026-10-01T00:00:00Z")
+        (self.clone / "tool.sh").chmod(0o755)
+        self.git(self.clone, "add", "tool.sh")
+        self.git(self.clone, "commit", "-q", "-m", "x", date="2026-10-02T00:00:00Z")
+        head = self.git(self.clone, "rev-parse", "HEAD")
+        gh = self.local()
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = [
+            {
+                "filename": "tool.sh",
+                "status": "modified",
+                "additions": 0,
+                "deletions": 0,
+            }
+        ]
+        pr = {
+            "number": 7,
+            "changed_files": 1,
+            "head": {"sha": head},
+            "base": {"sha": base},
+        }
+        files, complete = policy.changed_files(REPO, pr)
+        self.assertTrue(complete)
+        self.assertEqual(
+            [(f.path, f.mode, f.previous_mode) for f in files],
+            [("tool.sh", "100755", "100644")],
+        )
+        self.assertEqual(
+            gh.calls,
+            [
+                [
+                    "api",
+                    f"repos/{REPO}/pulls/7/files?per_page=100",
+                    "--paginate",
+                    "--slurp",
+                ]
+            ],
+        )
+
+    def test_a_tree_missing_from_the_clone_reads_the_api(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        gh = self.fake([], {}, clones=(self.scripts,))
+        gh.rest[f"repos/{REPO}/git/trees/{SHA}?recursive=1"] = {
+            "truncated": False,
+            "tree": [{"path": "docs/a.md", "mode": "100644"}],
+        }
+        self.assertEqual(
+            policy._tree_modes("owner", "repo", SHA), {"docs/a.md": "100644"}
+        )
+
     def test_a_clone_without_the_base_falls_back_to_the_api(self) -> None:
         self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
         self.fake(
@@ -4249,6 +4343,14 @@ class DependabotEligibility(unittest.TestCase):
             "dependabot-review:provenance-missing:x;review-verdict-missing",
         )
         self.assertEqual(result.dependabot.tier, "review")
+
+    def test_a_candidate_scope_reads_the_commits_once(self) -> None:
+        gh = self.fake(commits=[dependabot_commit(sha=self.HEAD)])
+        with babysit_gh.candidate_reads():
+            first, again = self.eligibility(), self.eligibility()
+        self.assertEqual(first, again)
+        self.assertTrue(first.eligible, first.reason)
+        self.assertEqual(sum(self.COMMITS in call for call in gh.calls), 1)
 
     def test_an_unreadable_registry_waits_for_a_review(self) -> None:
         self.fake(registry={})
