@@ -4,4 +4,4 @@ bump: minor
 
 ### Added
 
-- `round.sh supersede` and `round.sh resolve` (#6124): terminal commands that set an answered register row of a ledger to `superseded-by-plan` (taking its resolution as `was`) and clear it by `reconfirm` or `restore`. They escape through the exporter, back the ledger up, print the `check-open-questions.sh` verdict, and need no page. `/planning:plan` "Plan changes after the Brief" names them instead of describing the grammar.
+- `round.sh supersede` and `round.sh resolve` (#6124): terminal commands that set an answered register row of a ledger to `superseded-by-plan` (taking its resolution as `was`, written `was plain::` or `was answer::` to record the row's form so `restore` gives it back byte for byte; a bare `was::` still loads) and clear it by `reconfirm` or `restore`. They escape through the exporter, back the ledger up, print the `check-open-questions.sh` verdict, and need no page. `/planning:plan` "Plan changes after the Brief" names them instead of describing the grammar.

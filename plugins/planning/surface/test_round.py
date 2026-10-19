@@ -3331,6 +3331,75 @@ class TestSupersedeResolve(DirCase):
         self.edit("resolve", "Q1", "restore")
         self.assertEqual(self.ledger.read_bytes(), before)
 
+    def test_a_single_named_row_restores_byte_identical(self):
+        import exporters
+
+        self.ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Which store? | "
+            + exporters.encode({"answer": "accepted: Postgres"}, None)
+            + "\n\n## Deferred questions\n\nNone.\n",
+            encoding="utf-8",
+        )
+        before = self.ledger.read_bytes()
+        self.edit("supersede", "Q1", "--proposes", "x")
+        self.edit("resolve", "Q1", "restore")
+        self.assertEqual(self.ledger.read_bytes(), before)
+
+    def test_a_plain_row_beside_a_reconfirmed_row_restores_byte_identical(self):
+        self.edit("supersede", "Q1", "--proposes", "SQLite")
+        self.edit("resolve", "Q1", "reconfirm")
+        before = self.ledger.read_bytes()
+        self.edit("supersede", "Q4", "--proposes", "x")
+        self.edit("resolve", "Q4", "restore")
+        self.assertEqual(self.ledger.read_bytes(), before)
+
+    def test_a_was_row_with_no_form_still_restores(self):
+        import exporters
+
+        old = exporters.encode({"proposal": "x", "was": "accepted: Postgres"}, None)
+        for neighbour, want in (
+            ("accepted: SQS", "accepted: Postgres"),
+            (
+                exporters.encode({"answer": "accepted: SQS"}, None),
+                exporters.encode({"answer": "accepted: Postgres"}, None),
+            ),
+        ):
+            self.ledger.write_text(
+                "# Interview ledger\n\n## Open-question register\n\n"
+                f"- Q1 | superseded-by-plan | round 1 | Which store? | {old}\n"
+                f"- Q2 | answered | round 1 | Which queue? | {neighbour}\n",
+                encoding="utf-8",
+            )
+            self.edit("resolve", "Q1", "restore")
+            self.assertEqual(
+                self.row(1), f"- Q1 | answered | round 1 | Which store? | {want}"
+            )
+
+    def test_the_was_form_survives_import_and_export(self):
+        import exporters
+
+        self.ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Which store? | "
+            + exporters.encode({"answer": "accepted: Postgres"}, None)
+            + "\n",
+            encoding="utf-8",
+        )
+        self.edit("supersede", "Q1", "--proposes", "x")
+        superseded = self.row(1)
+        self.assertIn("was answer:: accepted: Postgres", superseded)
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out, err = run_round(fresh, "import-ledger", "--ledger", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+        exported = self.tmp / "exported.md"
+        rc, out, err = run_round(fresh, "export-ledger", "--out", str(exported))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(
+            superseded.split("|", 4)[4].strip(), exported.read_text(encoding="utf-8")
+        )
+
     def test_a_named_row_with_a_note_is_refused(self):
         self.named_ledger()
         before = self.ledger.read_bytes()
