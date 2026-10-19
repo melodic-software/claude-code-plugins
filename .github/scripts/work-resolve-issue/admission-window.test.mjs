@@ -53,6 +53,13 @@ test("at or over the release point admissions are held and exit 1", async () => 
   assert.deepEqual(lines, ["merged24h=30 hourly=1.25 admitted=25 release_point=24 admissions=held allowed_per_hour=1"]);
 });
 
+test("a release point that is whole by hand holds at that count", async () => {
+  // 25 merges: 0.8 x 25/24 x 24 = 20, which a naive float product makes 20.000000000000004.
+  const { code, lines } = await report({ merged: 25, admitted: 20 });
+  assert.equal(code, 1);
+  assert.deepEqual(lines, ["merged24h=25 hourly=1.04 admitted=20 release_point=20 admissions=held allowed_per_hour=0.83"]);
+});
+
 test("the window scales the release point", async () => {
   // 36 merges, window 12: 0.8 x 1.5 x 12 = 14.4; 15 admitted holds, 14 opens.
   assert.equal((await report({ merged: 36, admitted: 15, windowHours: 12 })).code, 1);

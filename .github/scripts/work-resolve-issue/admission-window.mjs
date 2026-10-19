@@ -41,7 +41,7 @@ export function counts(run, { repo, now }) {
 
 export function decide({ merged24h, admitted, windowHours, factor }) {
   const hourly = merged24h / 24;
-  const releasePoint = factor * hourly * windowHours;
+  const releasePoint = Number(((factor * merged24h * windowHours) / 24).toFixed(9));
   return { merged24h, hourly, admitted, releasePoint, open: admitted < releasePoint, allowedPerHour: factor * hourly };
 }
 
