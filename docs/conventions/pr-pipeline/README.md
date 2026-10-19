@@ -153,7 +153,8 @@ permission on the repository, never edited, or last edited by a person on that l
 `>` line never matches). On a thread the lanes App never commented on, one fix request after the
 reviewer bot's finding makes the thread one `address-feedback` works, as long as every other
 comment is the reviewer bot's or a trusted person's; their comments from the first fix request on
-are direction.
+are direction. Such a thread is worked even when its review is on an earlier head than the one
+the reviewed-head markers name.
 `pr-feedback-dispatch.yml` runs only when a review run completes, so a fix request posted after
 the head's review starts nothing on its own. To start the round, an account on the trusted-actor
 list dispatches the lane directly:
