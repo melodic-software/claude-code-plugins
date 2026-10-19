@@ -13,10 +13,10 @@ execution:
   timeout_seconds: 600
 graders:
   - name: states-no-task-tools
-    type: regex
-    pattern: '\b(?:no|without)[ \t]+(?:live[ \t]+)?task[ \t]+(?:tools|list)\b[\s\S]{0,300}?workflow-checklist'
-    flags: 'i'
-    target: trace
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*\.work/handoffs/[^"]*"[\s\S]*\b[Nn]o[ ]+(?:live[ ]+)?task[ ]+tools\b[\s\S]{0,300}?workflow-checklist'
+    min: 1
     arm: with-only
   - name: no-recreate-calls
     type: tool_used
