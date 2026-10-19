@@ -1570,6 +1570,39 @@ assert_contains "divergences real: the row names the blocked part" "$REPORT_TEXT
 # named worktrees) are plain checkouts; zeta's present pin already sits at the
 # highest version, so only its absent pin is the skew and the row is blocked.
 
+# The run stands in a linked worktree whose own pin is skewed: that pin is
+# converge-actionable here, never classed `worktree`, while a sibling worktree's
+# skewed pin in the same fleet stays `worktree`.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+for name in alpha beta; do catalog_plugin "$case_dir" market1 "$name" 0.2.0; done
+mkdir -p "$case_dir/wt" "$case_dir/wt2"
+printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/wt/.git"
+printf 'gitdir: %s/main/.git/worktrees/wt2\n' "$case_dir" >"$case_dir/wt2/.git"
+p_wt=$(norm_path "$case_dir/wt")
+p_wt2=$(norm_path "$case_dir/wt2")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_wt\", \"installPath\": \"a\", \"version\": \"0.1.0\"}],
+    \"beta@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"b\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_wt2\", \"installPath\": \"b\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir/wt" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --audit --install-new none
+assert_exit "divergences current worktree: exit 0" 0 "$REPORT_RC"
+assert_eq "divergences current worktree: its own pin is actionable here, the sibling's stays a worktree" \
+  '{"post":2,"actionable_here":1,"actionable_elsewhere":0,"in_worktrees":1,"blocked":0}' \
+  "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
+
 # --- an install that left userConfig options unset ---------------------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
