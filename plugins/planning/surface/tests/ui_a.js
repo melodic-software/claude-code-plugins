@@ -185,6 +185,7 @@ async page => {
   await page.evaluate(() => scrollTo(0, 0)); await page.click('.qbtn[data-q="N2"]').catch(() => {});
   await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(250);
   ok("the meter title states the archived count", /\d+ archived/.test(await page.getAttribute("#meterText", "title")), await page.getAttribute("#meterText", "title"));
+  ok("the header shows live and archived counts as visible text", /^\d+ live, \d+ archived$/.test(await page.textContent("#qCounts")), await page.textContent("#qCounts"));
   await page.selectOption("#filter", "pending"); await page.waitForTimeout(200);
   ok("a filter that matches nothing says so in the rail, not a blank list", (await page.$$(".rail-list .qbtn")).length > 0 || /No questions match/.test(await page.textContent("#railList")));
   await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
