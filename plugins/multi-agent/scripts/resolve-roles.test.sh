@@ -127,11 +127,26 @@ fixture badname
 printf 'schema: 1\nworkloads:\n  "a b": true\n' >"$T/badname/repo/.claude/multi-agent.yaml"
 out="$(run badname worker --session-model opus)"
 assert_eq "bad workload name still exits 0" 0 "$?"
-assert_contains "bad workload name rejected" "$out" "workloads.a b ignored: a workload name holds only letters, digits, _ and -"
+assert_contains "bad workload name rejected" "$out" "workloads.a b ignored: a workload name holds only letters, digits, _ and -, and does not start with -"
 
 # The route skill passes its second positional argument as the workload.
 out="$("$SCRIPT_DIR/../skills/route/scripts/route.sh" worker deep session=opus --root "$T/declared/repo" --home "$T/declared/home" 2>/dev/null)"
 assert_contains "route.sh passes a declared workload" "$out" '"workload":"deep"'
+
+# Names that differ only in `-` against `_H_` stay distinct workloads.
+fixture collide
+printf 'schema: 1\nworkloads:\n  a-b: true\n  a_H_b: false\nroles:\n  worker:\n    workloads:\n      a-b:\n        model: opus\n' >"$T/collide/repo/.claude/multi-agent.yaml"
+out="$(run collide worker --session-model sonnet --workload a-b)"
+assert_eq "a-b stays declared beside a withdrawn a_H_b" 0 "$?"
+printf 'schema: 1\nworkloads:\n  a-b: true\n  a_H_b: true\nroles:\n  worker:\n    workloads:\n      a-b:\n        model: opus\n      a_H_b:\n        model: sonnet\n' >"$T/collide/repo/.claude/multi-agent.yaml"
+out="$(run collide worker --session-model opus --workload a-b)"
+assert_contains "a-b keeps its own model beside a_H_b" "$out" '"single":{"model":"opus"'
+
+# A name starting with `-` would parse as an option in route.sh, so it is refused.
+fixture dashname
+printf 'schema: 1\nworkloads:\n  "-deep": true\n' >"$T/dashname/repo/.claude/multi-agent.yaml"
+out="$(run dashname worker --session-model opus)"
+assert_contains "leading-hyphen workload name rejected" "$out" "workloads.-deep ignored: a workload name holds only letters, digits, _ and -, and does not start with -"
 
 run plain nosuch >/dev/null
 assert_eq "unknown role exits 2" 2 "$?"

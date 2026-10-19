@@ -30,7 +30,7 @@ and an explicit yes.
 |---|---|---|
 | `roles.<role>.model` | `inherit`, or an alias: `opus`, `sonnet`, `haiku`, `fable` | per role |
 | `roles.<role>.effort` | `low`, `medium`, `high`, `xhigh`, `max` | per role |
-| `workloads.<w>` | `true` declares workload `<w>`, `false` withdraws it; `<w>` holds only letters, digits, `_` and `-` | `code`, `research` and `mechanical` declared |
+| `workloads.<w>` | `true` declares workload `<w>`, `false` withdraws it; `<w>` holds only letters, digits, `_` and `-`, and does not start with `-` | `code`, `research` and `mechanical` declared |
 | `roles.<role>.workloads.<w>.model` / `.effort` | as above; `<w>` is a declared workload | `worker.workloads.mechanical.model: sonnet` (opt out with `roles.worker.workloads.mechanical.model: inherit` in any layer); a layer may set others, for example `worker.workloads.mechanical.effort: low` |
 | `frontier` | comma-separated aliases treated as frontier | `fable` |
 | `fanout.frontier_guard` | `true`, `false` | `true` |

@@ -142,9 +142,11 @@ fi
   die "unknown session model '$SESSION_MODEL' (valid:$ALIASES; omit when unknown)"
 
 # Bash 3.2 (stock macOS) has no associative arrays, so each dotted key maps to
-# a VAL_<key> and SRC_<key> variable. Keys hold only [A-Za-z0-9_.-].
+# a VAL_<key> and SRC_<key> variable. Keys hold only [A-Za-z0-9_.-]; `_` is
+# escaped first, so `a-b` and `a_H_b` get distinct names.
 kv_name() {
-  local n="${1//-/_H_}"
+  local n="${1//_/_U_}"
+  n="${n//-/_H_}"
   printf '%s' "${n//./_D_}"
 }
 set_kv() { # set_kv <key> <value> <source layer>
@@ -172,7 +174,7 @@ LAYERS_JSON=()
 # layers are read, whichever layer declares it.
 WL_NAMES=()
 WL_KEYS=()
-WL_NAME_RE='^[A-Za-z0-9_-]+$'
+WL_NAME_RE='^[A-Za-z0-9_][A-Za-z0-9_-]*$'
 
 while IFS=$'\t' read -r key value; do
   [[ -n "$key" ]] || continue
@@ -229,7 +231,7 @@ apply_layer() {
       if [[ "$key" =~ ^workloads\.([^.]+)$ ]]; then
         w="${BASH_REMATCH[1]}" field=declared
         if [[ ! "$w" =~ $WL_NAME_RE ]]; then
-          NOTES+=("$label: ${key//[^[:print:]]/?} ignored: a workload name holds only letters, digits, _ and -")
+          NOTES+=("$label: ${key//[^[:print:]]/?} ignored: a workload name holds only letters, digits, _ and -, and does not start with -")
           continue
         fi
       elif [[ "$key" =~ ^roles\.([^.]+)\.(model|effort)$ ]]; then
@@ -237,7 +239,7 @@ apply_layer() {
       elif [[ "$key" =~ ^roles\.([^.]+)\.workloads\.([^.]+)\.(model|effort)$ ]]; then
         role="${BASH_REMATCH[1]}" w="${BASH_REMATCH[2]}" field="${BASH_REMATCH[3]}"
         if [[ ! "$w" =~ $WL_NAME_RE ]]; then
-          NOTES+=("$label: ${key//[^[:print:]]/?} ignored: a workload name holds only letters, digits, _ and -")
+          NOTES+=("$label: ${key//[^[:print:]]/?} ignored: a workload name holds only letters, digits, _ and -, and does not start with -")
           continue
         fi
       elif [[ "$key" =~ ^(roles\.[^.]+|fanout)\.(pointer[^.]*|basis_[^.]*|claim_[^.]*|reason_[^.]*|as_of|recheck)$ ]]; then
