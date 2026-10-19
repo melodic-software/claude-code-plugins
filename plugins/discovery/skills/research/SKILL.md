@@ -60,13 +60,13 @@ Agent({
 })
 ```
 
-Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded at `Budget: low`). **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
+Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded: "Effort, source breadth"). **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
 
 ## Outcome gate (run before presenting)
 
 Research is not done when the phases finish. It's done when it passes this gate. Check what the run ACHIEVED against what good research requires, **grounded in the run's own artifacts** (the evidence table, the Phase 1/2 written gap lists, the fetch log), NOT in your recollection of "did I do a good job." The context that ran the phases is the one grading them, so only artifact-grounded binary criteria bite.
 
-Each criterion is binary. **Any FAIL returns to the named phase (bounded at `Budget: low`: "Effort, source breadth"); do not present until all pass.** And **the Owner column is not decoration.** Rows the run can read off an artifact stay with the run. A row where the run would judge the quality of *its own choices* belongs to a **verifier**, a fresh context that never saw the run, dispatched by the parent as a sibling once the artifact is on disk. One row needs the consuming project's conventions and belongs to the **parent**. So a dispatched run returns `verification: pending` and renders no verdict on a verifier row; an inline run hands those rows to a fresh context too. The Owner column governs over any enumeration of these rows in an agent definition or sibling skill.
+Each criterion is binary. **Any FAIL returns to the named phase (a verifier-owned row's rework is bounded: "Effort, source breadth"); do not present until all pass.** And **the Owner column is not decoration.** Rows the run can read off an artifact stay with the run. A row where the run would judge the quality of *its own choices* belongs to a **verifier**, a fresh context that never saw the run, dispatched by the parent as a sibling once the artifact is on disk. One row needs the consuming project's conventions and belongs to the **parent**. So a dispatched run returns `verification: pending` and renders no verdict on a verifier row; an inline run hands those rows to a fresh context too. The Owner column governs over any enumeration of these rows in an agent definition or sibling skill.
 
 | # | Binary criterion | Owner | FAIL → |
 |---|---|---|---|
@@ -76,7 +76,7 @@ Each criterion is binary. **Any FAIL returns to the named phase (bounded at `Bud
 | 4 | Every accepted claim has ≥2 INDEPENDENT `current` corroborators (not 2 cites of one upstream pool, as in the discipline file's "Single-publisher facts"; a `historical` source never counts), or is a first-party content claim flagged `single source` that states why only one publisher exists; a repost is not a second source, and a behavior claim gets no flag | **verifier** | Phase 2. Widen sources |
 | 5 | The Phase 2 falsification query ran and is recorded | run | Phase 2. Run it |
 | 6 | Recency gate satisfied for every tool/library/API claim: the LATEST upstream changelog/release was fetched THIS turn and cross-checked against the claim. Read the confirmed-latest release and the verdict off the fetch log's changelog entry, an absent verdict or an `invalidated` one FAILs, and `unresolved` passes only as an enumerated Gap, never under an accepted claim. Windows, and what a major bump invalidates: the discipline file's "Recency gate" | run | Phase 2. Fetch changelog |
-| 7 | Every accepted claim is HIGH confidence, or `HIGH (single source)` under row 4's flag; a MEDIUM or LOW claim listed in the Gaps section is not accepted | **verifier** | Phase 4 follow-up. Iterate to HIGH or list as a Gap |
+| 7 | Every accepted claim is HIGH confidence, or `HIGH (single source)` under row 4's flag; a MEDIUM or LOW claim listed in the Gaps section is not accepted | **verifier** | Phase 4 follow-up (one rework round), or list as a Gap |
 | 8 | Project fit checked against the consuming project's own conventions and stated direction | **parent** | revisit before presenting |
 | 9 | For every ACCEPTED claim taken from any publisher's own artifacts, vendor, OSS maintainer, standards body alike, the fetch log ACCOUNTS FOR every artifact-ladder rung above the one the claim came from, each carrying one of the outcome values and none left unaccounted. Rungs, outcome vocabulary, and what earns nonexistence rather than `unresolved`: the discipline file's "Primary-source-first protocol". A rung that exists, is reachable, and carries the claim IS where the claim comes from | run | Phase 2. Walk the ladder from rung 1, fetching and searching each reachable rung and recording its outcome |
 | 10 | Every reported absence names both the sources checked and the sources left unchecked. No bare "unsourced" / "not found" | run | revisit before presenting |
@@ -85,7 +85,7 @@ Each criterion is binary. **Any FAIL returns to the named phase (bounded at `Bud
 | 13 | **Source applicability recorded and consistent**: `${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py <slice>` exits 0. It checks that every claim names its target `applies_to:`, every source its `published:`, `applies_to:` and `standing:`, that each stored `standing:` matches the one derived from those fields, and each non-Gap primary is dated and `current`. Cite the **exit status**; 1 and 2 FAIL, and so does a script that could not run. Applies to every run with claims, inline included | run, **script verdict** | Phase 2. Record the fields, or relabel the source, or find a `current` primary |
 | 14 | The index's `accepted:` counts the claims neither in Gaps nor unresolved in Conflicts; at 0 the Summary opens `Inconclusive: no claim accepted.` A zero with that line passes; a missing or wrong count, or a bare zero, FAILs | **verifier** | revisit before presenting |
 
-**A claim that cannot pass the gate is a Gap, not a finding**, never laundered into the answer. Report the gate result (pass, or which criterion failed and what you re-ran); no limit on iterations. Tier-3 reconciliation: "Reconciling sources at the gate" below.
+**A claim that cannot pass the gate is a Gap, not a finding**, never laundered into the answer. Report the gate result (pass, or which criterion failed and what you re-ran); no limit on iterations for run-owned rows. Tier-3 reconciliation: "Reconciling sources at the gate" below.
 
 ## Topic
 
@@ -144,12 +144,15 @@ below the doubled minimums. For a single named artifact or folder, read it direc
 against the cap. A claim still short of its sources at the cap is a gap named in the artifact, not
 a reason to search on.
 
-**The verify-and-rework loop at `low` is bounded.** A verifier FAIL on a verifier-owned row (Owner
+**The verify-and-rework loop is bounded at every budget.** At `low`, a verifier FAIL on a verifier-owned row (Owner
 column, "Outcome gate") is not reworked: no `SendMessage` resume of the researcher. Record it in the
 artifact as a Gap or Conflicts entry, lowering `accepted:` to match (criterion 14), or leave it as the named `verification: fail rows` value, and
 present the result with that caveat. Medium and above return a FAIL row to its phase as the gate
-routes. Rows the run owns and gate exit codes stay mandatory at every budget, and an ungradeable or
-missing artifact still takes the recovery ladder, resume before discard.
+routes, for **one rework round**: the rework, then one re-verify. A row still FAIL after that
+re-verify is not reworked again: record it in the artifact as a Gap or Conflicts entry, lowering
+`accepted:` to match (criterion 14), or leave it as the named `verification: fail rows` value, and
+present the result with that caveat. Rows the run owns and gate exit codes stay mandatory at every
+budget, and an ungradeable or missing artifact still takes the recovery ladder, resume before discard.
 
 ## The deep tier
 
@@ -160,6 +163,11 @@ In the main conversation, take the deep tier when any of these holds, and read [
 - **A leading `deep` token** in the arguments: strip it from the topic, then route as above. A `breadth=` token with it wins, and the run takes the standard dispatch.
 
 Otherwise the standard dispatch runs: one researcher, whatever the task's size. A dispatched or forked run never selects the deep tier, because it cannot count on `Workflow` or a dependable `Agent` spawn (pointers: [context/deep-tier.md](context/deep-tier.md), the "Main context only" paragraph under its title, which has no heading anchor; as of 2026-10-11; recheck when that paragraph moves or its pointers change): it runs inline, and never promises the workflow engine.
+
+**Who writes `RESEARCH.md`.** In the standard dispatch the `discovery:researcher` subagent writes it
+into its slice (the parent authors none of it; on the by-value rung it only persists what the researcher returned). In the deep tier's workflow path the workflow cannot
+write files, so this session writes it from the sweep result; on the multi-topic path each topic's
+researcher writes its own sub-slice index and this session writes only the slice-root synthesis.
 
 ## Pre-dispatch envelope and baseline
 

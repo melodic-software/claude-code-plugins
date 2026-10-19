@@ -305,7 +305,9 @@ class TestExportBrief(SessionCase):
             [
                 "## Brief",
                 "### TLDR",
+                "### Problem",
                 "### Goal",
+                "### Work size",
                 "### Constraints",
                 "### Acceptance criteria",
                 "### Captured assumptions",
@@ -319,6 +321,30 @@ class TestExportBrief(SessionCase):
         self.assertRegex(text, r"- Q2: .*\*\*arbiter: USER-RESERVED\*\*")
         self.assertTrue(text.rstrip().endswith("## Plan"))
         self.assertNotIn("superseded-by-plan", text)
+        # Field labels from context/problem-framing.md "Problem fields" and "Work size".
+        self.assertIn(
+            "### Problem\n\n- Gap: unknown\n- Who / how many: unknown\n- Frequency: unknown\n"
+            "- Trend: unknown\n- Cost: unknown\n- Evidence: unknown\n\n### Goal",
+            text,
+        )
+        self.assertIn(
+            "### Work size\n\n- Appetite: not assessed\n- Size: not assessed\n"
+            "- Uncertainty: not assessed\n- Split signals: not assessed\n\n### Constraints",
+            text,
+        )
+
+    def test_exported_brief_passes_the_procedure_heading_check(self):
+        self.deferred_session()
+        rc, out = self.check(
+            "--ledger",
+            self.export("ledger"),
+            "--brief",
+            self.export("brief"),
+            "--procedure",
+        )
+        self.assertNotIn("Brief is missing the section", out)
+        self.assertIn("procedure=ok", out)
+        self.assertEqual(rc, 0, out)
 
     def acceptance_section(self, acceptance, verdicts=("confirm",)):
         self.session(
@@ -363,11 +389,13 @@ class TestExportBrief(SessionCase):
         text, section = self.acceptance_section("# Sneaky\n```\n~~~")
         headings = [x for x in text.splitlines() if x.startswith("#")]
         self.assertEqual(
-            headings[:5],
+            headings[:7],
             [
                 "## Brief",
                 "### TLDR",
+                "### Problem",
                 "### Goal",
+                "### Work size",
                 "### Constraints",
                 "### Acceptance criteria",
             ],
@@ -577,6 +605,23 @@ class TestBriefRestatements(SessionCase):
         self.assertIn("- Restatement: confirmed at rev 1,", text)
         self.assertEqual(self.section(text, "Goal"), ["Legacy goal."])
 
+    def test_restated_problem_and_work_size_fill_their_sections(self):
+        text = self.brief(
+            [
+                self.rev(
+                    1,
+                    problem="- Gap: builds lose their cache\n- Evidence: observed",
+                    workSize="- Size: Small",
+                )
+            ],
+            [self.confirm(2, 1)],
+        )
+        self.assertEqual(
+            self.section(text, "Problem"),
+            ["- Gap: builds lose their cache", "- Evidence: observed"],
+        )
+        self.assertEqual(self.section(text, "Work size"), ["- Size: Small"])
+
     def test_no_restatement_writes_no_stamp(self):
         self.session([question("Q1")], [event(1, "Q1", "accept")])
         self.assertNotIn(
@@ -588,7 +633,9 @@ class TestBriefRestatements(SessionCase):
             [
                 self.rev(
                     1,
+                    problem="# Sneaky problem",
                     goal="# Sneaky goal",
+                    workSize="```\n### Sneaky size",
                     constraints="# Sneaky\n```\n~~~",
                     outOfScope="## Also sneaky",
                 )
@@ -596,7 +643,7 @@ class TestBriefRestatements(SessionCase):
             [self.confirm(2, 1)],
         )
         headings = [x for x in text.splitlines() if x.startswith("#")]
-        self.assertEqual(len(headings), 9, headings)
+        self.assertEqual(len(headings), 11, headings)
         self.assertFalse(
             any(x.startswith(("```", "~~~", "# Sneaky")) for x in text.splitlines())
         )

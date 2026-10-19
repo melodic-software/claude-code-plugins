@@ -12,11 +12,6 @@
 //                                exactly `true` (a default-off option).
 //   --run-if-unset-or-true NAME  run unless that variable is set to something
 //                                other than `true` (a default-on option).
-//   --skip-if-all-false A,B,...  skip only when every named variable is
-//                                exactly `false`. Unset, empty, `true` or any
-//                                other value runs, so a row whose script holds
-//                                several default-on switches skips only when
-//                                all of them are provably off.
 //   --skip-unless-stdin-contains TEXT
 //                                buffer stdin; skip when the payload lacks
 //                                TEXT, else write the same bytes to the script.
@@ -154,12 +149,6 @@ const FLAGS = {
     parse: oneName,
     problem: ONE_NAME,
     open: (names, env) => unsetOrTrue(optionValues(names, env)[0]),
-  },
-  "--skip-if-all-false": {
-    phase: "env",
-    parse: nameList,
-    problem: NAME_LIST,
-    open: (names, env) => !optionValues(names, env).every((v) => v === "false"),
   },
   "--run-if-any-set": {
     phase: "any",
