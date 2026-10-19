@@ -1,5 +1,5 @@
 {
-  "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations and commit conventions on Bash and PowerShell; and recursive deletes aimed at a filesystem root, an empty or bare-variable operand, or a target outside the session's git tree, temp directories and scratchpad, and commands whose output is a credential, on Bash and PowerShell.",
+  "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations and commit conventions on Bash and PowerShell; and recursive deletes aimed at a filesystem root, an empty or bare-variable operand, or a target outside the session's git tree, temp directories and scratchpad, and commands whose output is a credential, on Bash and PowerShell; and an agent-posted PR-fix lane fix request, on Bash, PowerShell and the GitHub MCP write tools.",
   "hooks": {
     "SessionStart": [
       {
@@ -85,6 +85,22 @@
         ]
       },
       {
+        "matcher": "^mcp__(plugin_.+_)?github__(add_issue_comment|update_issue_comment|issue_write|create_issue|update_issue|create_pull_request|update_pull_request|add_comment_to_pending_review|add_reply_to_pull_request_comment|pull_request_review_write|create_pull_request_review|create_and_submit_pull_request_review|submit_pending_pull_request_review|discussion_comment_write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
+              "block-fix-request-post.sh"
+            ],
+            "timeout": 60,
+            "statusMessage": "Checking the GitHub comment for the PR-fix lane fix request..."
+          }
+        ]
+      },
+      {
         "matcher": "Bash|PowerShell",
         "hooks": [
           {
@@ -108,10 +124,11 @@
               "block-exported-msys-pathconv.sh",
               "block-root-delete-target.sh",
               "block-credential-read.sh",
-              "block-unresolved-pr-merge.sh"
+              "block-unresolved-pr-merge.sh",
+              "block-fix-request-post.sh"
             ],
             "timeout": 60,
-            "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, Windows path, root-delete, credential-read, and PR-merge guards..."
+            "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, Windows path, root-delete, credential-read, PR-merge, and fix-request guards..."
           }
         ]
       },
