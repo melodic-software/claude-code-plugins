@@ -725,6 +725,15 @@ App token the broker mints for that file on `main`. A finished `ci-status` or re
 up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
 must start them more slowly than they finish to stay under GitHub's cap on queued runs.
 
+After the gate, the job writes each candidate's verdict on its head as one `pr-merge / gate` check
+run with its own `GITHUB_TOKEN` (`checks: write`; the lane token holds no Checks permission):
+neutral and titled with the top refusal, the gate's reason or else its first blocker, with the
+blockers in the summary; success once enqueued or merged, only over a refusal already on show. It
+reads the heads' existing check runs in one GraphQL query per 50 candidates and writes only where
+the title or conclusion changed, so an unchanged sweep writes nothing. The check is never required
+and is not part of `ci-status`, and the gate reads neutral as passing, so it holds no merge. Not
+while `merge.report-only` is true.
+
 #### Review-only dependencies
 
 A non-major release of a hijacked package passes tier `auto` on a green `ci-status`. A dependency
@@ -871,8 +880,10 @@ refusal on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, and
 for `verify:fail` quoting as data the first 1500 characters of the `summary` in the newest head
 `fail` verdict when its record can be read and names this pull request. The comment is rewritten
-only when any of these changes, and a failed read of the record leaves a comment that already
-quotes a summary for the same refusal and head as it is; then the lane adds the tracker's human-gated role label (`needs-human` unless
+only when any of these changes. A `verify:fail` whose record cannot be read, or a
+`verify:earlier-fail`, quotes the summary the lane's last such comment quoted, under the head it
+was given at, so a failed read rewrites nothing and the reason outlives a push; an earlier-fail
+whose last quote is a fail at this head stays `verify:fail`. Then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run; a rerun that
 finds both writes nothing. While it is true the refusal is only reported. The

@@ -314,7 +314,9 @@ jobs:
       # The gate's pr-verify verdict reads (artifact listing, run records,
       # download); the lane token holds no Actions permission.
       actions: read
-      checks: read # read a refused lane run's annotations and its PR head's checks
+      # Read a refused lane run's annotations and its PR head's checks; write
+      # each candidate's `pr-merge / gate` check run (gate-check.mjs).
+      checks: write
       id-token: write # prove to the token broker which workflow this is
     outputs:
       # `true` when the lane can merge (its own PRs are not report-only, or
@@ -920,6 +922,21 @@ jobs:
           path: ${{ runner.temp }}/pr-merge-sweep.json
           retention-days: 30
           if-no-files-found: ignore
+
+      # Each candidate the gate judged shows its verdict on its head as one
+      # `pr-merge / gate` check run: neutral, titled with the top refusal, or
+      # success over a refusal once enqueued or merged. Not `ci-status`, so
+      # never required. One GraphQL read per 50 candidates; a write only where
+      # the title or conclusion changed. Not while the lane is report-only.
+      # Rules: .github/scripts/pr-merge/gate-check.mjs.
+      - name: Show each candidate's refusal as a check run
+        if: always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false'
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUMMARY_PATH: ${{ runner.temp }}/pr-merge-summary.json
+        run: node .base/.github/scripts/pr-merge/gate-check.mjs
 
       # A pr-refine or pr-unblock run the broker refused as
       # workflow-modified cannot pass on a rerun, which keeps its first

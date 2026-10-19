@@ -546,6 +546,20 @@ test("the budget comes from the pipeline config, rotation runs before the gate, 
   assert.match(upload, /\n {10}name: pr-merge-gate-cursor\n/);
 });
 
+// #8451: the lane token holds no Checks permission, so the check runs are
+// written with the job's own token, after the gate wrote the summary.
+test("each candidate's check run is written after the gate with the job's own checks: write token", () => {
+  assert.match(job, /\n {6}checks: write\n/);
+  const names = steps.map((s) => s.name);
+  const show = "Show each candidate's refusal as a check run";
+  assert.ok(names.indexOf("Run the merge gate on each candidate") < names.indexOf(show));
+  const block = step(show);
+  assert.match(block, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+  assert.match(block, /\n {10}SUMMARY_PATH: \$\{\{ runner\.temp \}\}\/pr-merge-summary\.json\n/);
+  assert.match(block, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'/);
+  assert.match(block, /\n {8}continue-on-error: true\n/);
+});
+
 // #8399 (option B): a red attempt 1 of a full run the lane dispatched gets its
 // one re-run from the early job, under its own token, and a record the
 // post-merge check requires before it credits that github-actions[bot] attempt.

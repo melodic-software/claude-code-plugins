@@ -3193,32 +3193,75 @@ def upsert_marker_comment(
     return outcome
 
 
-def verify_escalation_body(refusal: str, head: str, summary: str | None = None) -> str:
+def verify_escalation_body(
+    refusal: str,
+    head: str,
+    summary: str | None = None,
+    carried: tuple[str, str] | None = None,
+) -> str:
     """The needs-human comment for a verifier refusal: a function of the
-    refusal, the head and the verdict's summary only, so a rerun renders the
+    refusal, the head and the quoted fail summary only, so a rerun renders the
     same body. The summary is model text, quoted as data in a text fence and
-    cut to `VERIFY_SUMMARY_MAX` characters."""
+    cut to `VERIFY_SUMMARY_MAX` characters. `carried`, the (head, text) an
+    earlier comment quoted (`_carried_quote`), is quoted as it was when there
+    is no `summary`."""
     lines = [
         VERIFY_ESCALATION_MARKER,
         f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
         f"`{head}`. That refusal needs a human, who merges in person; the "
         "pr-merge lane will not merge this pull request.",
     ]
+    quote = carried
     if summary:
         text = _CONTROL.sub("?", summary.replace("\r\n", "\n"))
         if len(text) > VERIFY_SUMMARY_MAX:
             text = text[:VERIFY_SUMMARY_MAX] + " [cut]"
         # A lone surrogate from a JSON escape cannot be encoded for `gh`.
         text = text.encode("utf-8", "replace").decode("utf-8")
+        quote = (head, text.replace("```", "'''"))
+    if quote:
         lines += [
             "",
-            "The verdict's summary, as the verifier wrote it:",
+            f"The verifier's summary of its fail verdict at `{quote[0]}`, as it "
+            "wrote it:",
             "",
             "```text",
-            text.replace("```", "'''"),
+            quote[1],
             "```",
         ]
     return "\n".join(lines)
+
+
+_QUOTE_RE = re.compile(
+    r"\nThe verifier's summary of its fail verdict at `([0-9a-f]{40})`, as it "
+    r"wrote it:\n\n```text\n(.*)\n```\Z",
+    re.S,
+)
+
+
+def _carried_quote(
+    comments: list[dict[str, Any]], identity: str
+) -> tuple[str, str] | None:
+    """The (head, text) the identity's newest verify escalation quotes, read
+    back verbatim so a rerun that cannot read the summary renders the same
+    body, and an earlier-fail keeps the reason of the fail before it."""
+    mine = [
+        c
+        for c in comments
+        if merge_policy.actor_key(
+            {
+                "__typename": json_object(c.get("user")).get("type"),
+                "login": json_object(c.get("user")).get("login"),
+            }
+        )
+        == identity.casefold()
+        and VERIFY_ESCALATION_MARKER in _marker_lines(c.get("body"))
+    ]
+    if not mine:
+        return None
+    newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
+    match = _QUOTE_RE.search(str(newest.get("body") or ""))
+    return (match[1], match[2]) if match else None
 
 
 def major_escalation_body(majors: str, head: str) -> str:
@@ -3247,30 +3290,39 @@ def escalate_verify(
     refusal: str,
     inputs: Mapping[str, Any],
     summary: str | None = None,
-    keep_quote: bool = False,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal. `keep_quote`, set when
-    the summary could not be read, leaves a comment that already quotes one
-    for this refusal and head as it is rather than dropping its quote."""
+    """`escalate` for a needs-human verifier refusal. A `verify:fail` or
+    `verify:earlier-fail` with no `summary` (unreadable, or a fail at an
+    earlier head) quotes the last fail summary its comment carried, so an
+    unreadable artifact rewrites nothing and the reason outlives the head.
+    An earlier-fail whose carried quote is a fail at this head is that fail
+    read as unreadable this run: it stays `verify:fail`."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
-    body = verify_escalation_body(refusal, head, summary)
-    return escalate(
-        repo,
-        number,
-        identity,
-        body,
-        VERIFY_ESCALATION_MARKER,
-        inputs,
-        keep_prefix=body + "\n" if keep_quote else None,
-    )
+    carried = None
+    if summary is None and refusal in (
+        verify_evidence.FAIL,
+        verify_evidence.EARLIER_FAIL,
+    ):
+        comments = inputs.get("comments")
+        if comments is None:
+            comments = fetch_paginated_api(
+                f"repos/{repo}/issues/{number}/comments?per_page=100",
+                f"#{number} comments",
+            )
+            inputs = {**inputs, "comments": comments}
+        carried = _carried_quote(comments, identity)
+        if carried and carried[0] == head:
+            refusal = verify_evidence.FAIL
+    body = verify_escalation_body(refusal, head, summary, carried)
+    return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
 
 
 def _fail_summary(
     verify: Mapping[str, Any], inputs: Mapping[str, Any], number: int
-) -> tuple[str | None, bool]:
+) -> str | None:
     """The summary of the head FAIL a `verify:fail` refusal names, read
-    through the gate's verdict reader (None for any other refusal), and
-    whether the record was read: False when its read failed."""
+    through the gate's verdict reader; None for any other refusal or when the
+    record cannot be read."""
     fail = json_object(verify.get("headFail"))
     reader = inputs.get("verify_reader")
     run_id, name = fail.get("run"), fail.get("artifact")
@@ -3280,11 +3332,11 @@ def _fail_summary(
         or not isinstance(run_id, int)
         or not isinstance(name, str)
     ):
-        return None, True
+        return None
     try:
-        return reader.fail_summary(run_id, name, number, str(verify.get("head"))), True
+        return reader.fail_summary(run_id, name, number, str(verify.get("head")))
     except verify_evidence.SummaryUnreadable:
-        return None, False
+        return None
 
 
 def escalate(
@@ -3294,7 +3346,6 @@ def escalate(
     body: str,
     marker: str,
     inputs: Mapping[str, Any],
-    keep_prefix: str | None = None,
 ) -> dict[str, Any]:
     """The escalation contract (loop-lane README §2): one comment carrying
     `marker`, then the tracker's human-gated role label on the pull request,
@@ -3310,7 +3361,6 @@ def escalate(
         body,
         inputs.get("comments"),
         marker=marker,
-        keep_prefix=keep_prefix,
     )
     try:
         label = human_gated_label(repo)
@@ -3520,15 +3570,13 @@ def unattended_writes(
     verify = json_object((policy.details or {}).get("verify"))
     if not stopped and verify.get("needsHuman") is True:
         try:
-            summary, read = _fail_summary(verify, inputs, number)
             report["escalation"] = escalate_verify(
                 repo,
                 number,
                 identity,
                 str(verify.get("refusal")),
                 inputs,
-                summary,
-                keep_quote=not read,
+                _fail_summary(verify, inputs, number),
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")
