@@ -424,8 +424,10 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
                 )
             raise AssertionError(f"unexpected gh call: {args}")
 
-        # The process seams every real gh read reaches, whichever module makes it.
+        # The process seams every real gh read reaches, whichever module makes
+        # it; no local clone holds the SHA, so the config comes from the API.
         with (
+            mock.patch.object(policy, "_history_checkouts", return_value=[]),
             mock.patch.object(policy, "gh_capture", side_effect=fake_gh),
             mock.patch.object(gh, "_run_gh", side_effect=AssertionError("gh call")),
             mock.patch.object(
@@ -574,6 +576,13 @@ class Unattended(unittest.TestCase):
             raise self.lane_error
         return self.lanes, self.comments
 
+    def _paginated(self, endpoint: str, label: str, **kwargs: Any) -> Any:
+        # The comments a write reads itself when no lane evidence was read
+        # (a verifier refusal skips it).
+        if endpoint == f"repos/owner/repo/issues/{PR}/comments?per_page=100":
+            return self.comments
+        return self._real_paginated(endpoint, label, **kwargs)
+
     def _default_branch(self, repo: str, *, shared: bool = False) -> str:
         if self.default_branch is None:
             raise policy.PolicyReadError("the default branch could not be read")
@@ -651,6 +660,7 @@ class Unattended(unittest.TestCase):
         argv += list(flags)
         out = io.StringIO()
         self._real_get = policy._get
+        self._real_paginated = merge.fetch_paginated_api
         patches = [
             mock.patch.object(sys, "argv", argv),
             mock.patch.object(policy, "_get", side_effect=self._get),
@@ -724,6 +734,9 @@ class Unattended(unittest.TestCase):
                 ),
             ),
             mock.patch.object(merge, "_lane_evidence", side_effect=self._lane_evidence),
+            mock.patch.object(
+                merge, "fetch_paginated_api", side_effect=self._paginated
+            ),
             mock.patch.object(
                 policy,
                 "recheck_opt_in",
@@ -1551,6 +1564,77 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(self.log, ["disarm"])
         self.assertIs(out["unattended"]["enqueue"]["disarmed"], True)
 
+    def test_a_head_the_queue_ejected_twice_is_not_enqueued_again(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        with mock.patch.object(merge, "_failed_merge_group_runs", return_value=[]):
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertFalse([e for e in self.log if not e.startswith("write:")], self.log)
+        self.assertTrue(
+            any("queue-ejected:2" in b and HEAD in b for b in out["blockers"]),
+            out["blockers"],
+        )
+
+    def test_a_refused_head_gets_one_marked_comment_naming_its_runs(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        url = "https://github.com/owner/repo/actions/runs/7"
+        with mock.patch.object(
+            merge, "_failed_merge_group_runs", return_value=[url]
+        ) as runs:
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        runs.assert_called_once_with("owner/repo", "main", PR)
+        (write,) = [
+            c.args[0]
+            for c in self.capture.call_args_list
+            if any(merge.QUEUE_EJECTION_MARKER in a for a in c.args[0])
+        ]
+        self.assertIn("POST", write)
+        body = write[-1].removeprefix("body=")
+        self.assertTrue(body.startswith(merge.QUEUE_EJECTION_MARKER + "\n"))
+        self.assertIn(f"`{HEAD}`", body)
+        self.assertIn(url, body)
+        self.assertIn("A push resets the count.", body)
+        self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "created")
+        # A rerun finds the same comment and writes nothing.
+        self.comments = [
+            {
+                "id": 91,
+                "user": {"login": IDENTITY, "type": "Bot"},
+                "created_at": "2026-10-12T10:00:00Z",
+                "body": body,
+            }
+        ]
+        self.capture.reset_mock()
+        with mock.patch.object(merge, "_failed_merge_group_runs", return_value=[url]):
+            _, out = self.run_main()
+        self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "unchanged")
+        self.assertFalse(
+            any(
+                merge.QUEUE_EJECTION_MARKER in a
+                for c in self.capture.call_args_list
+                for a in c.args[0]
+            )
+        )
+
+    def test_one_ejection_still_enqueues(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=1)
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_the_ejection_cap_is_the_configured_one(self) -> None:
+        self.config = dataclasses.replace(self.config, max_queue_ejections=3)
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+
+    def test_unreadable_ejections_refuse_the_enqueue(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=None)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+
     def test_a_base_without_a_merge_queue_is_refused(self) -> None:
         # C4: an unattended merge only ever enqueues.
         self.rules = fixtures.RULES
@@ -1892,6 +1976,29 @@ class GateReviewFixes(Unattended):
         self.async_merge.assert_not_called()
 
 
+class FloorReadsCapabilityText(Unattended):
+    """With the floor on, the scorer gets each capability file's base and head
+    text, so a prose-only SKILL.md edit scores LOW instead of unreadable."""
+
+    def test_a_prose_only_skill_edit_scores_low(self) -> None:
+        self.config = dataclasses.replace(self.config, high_path_floor=True)
+        path = "plugins/foo/skills/bar/SKILL.md"
+        self.files = (
+            (ChangedFile(path, None, "modified", 1, 1, True, "100644", "100644"),),
+            True,
+        )
+        front = "---\nname: bar\ndescription: y\n---\n\n"
+        texts = {BASE: front + "Old prose.\n", HEAD: front + "New prose.\n"}
+        policy._TEXT_AT.clear()
+        self.addCleanup(policy._TEXT_AT.clear)
+        with mock.patch.object(
+            policy, "_file_at", side_effect=lambda o, n, p, sha: texts[sha]
+        ):
+            code, out = self.run_main(merge_flag=False)
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+
+
 class ReasonsComment(Unattended):
     """MED/HIGH on an eligible pull request: one upserted comment (T14, D15)."""
 
@@ -1915,6 +2022,29 @@ class ReasonsComment(Unattended):
         self.assertTrue(body.startswith(f"body={merge.RISK_MARKER}\n"))
         self.assertIn("evidence-unbound:claude-review", body)
         self.assertIn(HEAD, body)
+
+    def test_a_floor_hold_says_a_human_merges_it(self) -> None:
+        # Owner decision Q648: only the owner merges a floor-held PR.
+        self.files = ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)
+        self.run_main()
+        body = next(
+            c.args[0][-1]
+            for c in self.capture.call_args_list
+            if "babysit-merge-risk" in " ".join(c.args[0])
+        )
+        self.assertIn("high-path:.github/**", body)
+        self.assertIn("a human merges it in person, never an agent or a lane", body)
+
+    def test_a_med_hold_does_not_claim_the_floor(self) -> None:
+        self.assertNotIn("never an agent", self.body())
+
+    def test_an_unsafe_path_hold_does_not_claim_the_floor(self) -> None:
+        # A symlink or unreadable list scores this code with the floor off.
+        unsafe = merge.babysit_risk.Reason(
+            merge.babysit_risk.UNSAFE_PATH_CODE, merge.babysit_risk.Risk.HIGH, "x"
+        )
+        risk = merge.babysit_risk.RiskResult(merge.babysit_risk.Risk.HIGH, (unsafe,))
+        self.assertNotIn("never an agent", merge.risk_comment_body(risk, HEAD))
 
     def test_an_unchanged_assessment_is_not_rewritten(self) -> None:
         body = self.body()
@@ -2053,6 +2183,125 @@ class HeadPushers(unittest.TestCase):
         bot = {"login": IDENTITY}
         lanes, _ = self.read([{"sha": "a" * 40, "author": bot, "committer": bot}])
         self.assertEqual(len(lanes), 2)
+
+
+class CandidateReadsOnce(unittest.TestCase):
+    """One candidate's gate process reads the pull request's commits once
+    per head, and the record's commit count once, across the policy, the
+    lane evidence, the verifier reader and the signature check. Before the
+    scope existed those readers made three commit-list reads and a second
+    record read (the pr-merge profile in the scope notes)."""
+
+    BASE = "b" * 40
+
+    def run_readers(self, rows: list[dict[str, Any]], *, scoped: bool) -> list[str]:
+        """Every gh REST endpoint the four readers request, in order."""
+        record = {
+            "number": PR,
+            "commits": len(rows),
+            "created_at": "2026-10-12T00:00:00Z",
+            "user": {"login": IDENTITY},
+            "base": {"ref": "main", "sha": self.BASE},
+            "head": {"ref": "feat", "sha": HEAD},
+        }
+        endpoints: list[str] = []
+
+        def fake_gh(args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+            endpoint = args[1]
+            endpoints.append(endpoint + (" --jq" if "--jq" in args else ""))
+            if "--jq" in args:
+                payload: Any = record["commits"]
+            elif endpoint.endswith("/commits?per_page=100"):
+                payload = [rows]
+            elif "--paginate" in args:
+                payload = [[]]
+            elif endpoint == f"repos/owner/repo/pulls/{PR}":
+                payload = record
+            else:
+                raise AssertionError(f"unexpected gh call: {args}")
+            return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
+
+        scope = gh.candidate_reads() if scoped else contextlib.nullcontext()
+        with (
+            mock.patch.object(gh, "_run_gh", side_effect=fake_gh),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            mock.patch.object(merge, "collect_lane_runs", return_value=[]),
+            scope,
+        ):
+            pr = policy.pull_request("owner/repo", PR)
+            merge._lane_evidence(
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write"
+            )
+            reader = merge.verify_evidence.Reader("owner/repo", "main")
+            self.assertEqual(
+                reader._commits(PR, HEAD), {str(row["sha"]) for row in rows}
+            )
+            blockers, _ = merge.evaluate_required_signatures("owner/repo", PR, HEAD)
+            self.assertEqual(blockers, [])
+        return endpoints
+
+    def signed(self, *shas: str) -> list[dict[str, Any]]:
+        bot = {"login": IDENTITY}
+        verified = {"verification": {"verified": True, "reason": "valid"}}
+        return [
+            {"sha": sha, "author": bot, "committer": bot, "commit": verified}
+            for sha in shas
+        ]
+
+    def counts(self, endpoints: list[str]) -> tuple[int, int, int]:
+        """(commit-list reads, record reads, record count reads)."""
+        commits = f"repos/owner/repo/pulls/{PR}/commits?per_page=100"
+        record = f"repos/owner/repo/pulls/{PR}"
+        return (
+            endpoints.count(commits),
+            endpoints.count(record),
+            endpoints.count(record + " --jq"),
+        )
+
+    def test_outside_a_candidate_scope_every_reader_reads(self) -> None:
+        endpoints = self.run_readers(self.signed("a" * 40, HEAD), scoped=False)
+        self.assertEqual(self.counts(endpoints), (3, 1, 1))
+
+    def test_a_candidate_scope_reads_the_commits_and_the_record_once(self) -> None:
+        endpoints = self.run_readers(self.signed("a" * 40, HEAD), scoped=True)
+        self.assertEqual(self.counts(endpoints), (1, 1, 0))
+
+    def test_a_list_not_ending_at_the_head_is_read_again(self) -> None:
+        # Read while the head moved: no reader reuses it.
+        endpoints = self.run_readers(self.signed("a" * 40, "c" * 40), scoped=True)
+        # The record's count is for the head, so the signature check reads a
+        # count alongside rows that do not end there.
+        self.assertEqual(self.counts(endpoints), (3, 1, 1))
+
+    def test_a_moved_head_at_the_cap_is_refused_on_a_live_count(self) -> None:
+        # The record counted 249 at the head; the head moved to 260 commits
+        # and the list stops at 250. The old count would pass the cap check.
+        rows = self.signed(*(f"{n:040x}" for n in range(250)))
+        with (
+            gh.candidate_reads(),
+            mock.patch.object(gh, "fetch_paginated_api", return_value=rows),
+            mock.patch.object(gh, "gh_json", return_value=260),
+        ):
+            gh.record_pull_request_total("owner/repo", PR, HEAD, 249)
+            with self.assertRaisesRegex(RuntimeError, "walked 250 of 260"):
+                gh.fetch_pull_request_commits("owner/repo", PR, HEAD)
+
+    def test_another_head_is_read_fresh(self) -> None:
+        rows = self.signed(HEAD)
+        with (
+            gh.candidate_reads(),
+            mock.patch.object(
+                gh, "fetch_paginated_api", side_effect=[rows, self.signed("d" * 40)]
+            ) as read,
+        ):
+            for head in (HEAD, HEAD, "d" * 40):
+                gh.pull_request_commits_once(
+                    "owner/repo",
+                    PR,
+                    head,
+                    lambda: gh.fetch_paginated_api("commits", "label"),
+                )
+        self.assertEqual(read.call_count, 2)
 
 
 class QueueRead(unittest.TestCase):

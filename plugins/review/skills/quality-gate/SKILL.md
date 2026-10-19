@@ -1,6 +1,6 @@
 ---
-description: "Single-lens review checkpoint between 'code works' and 'code is ready': self, code, architecture, security, spec, close-out, downstream, pr, criteria, slice or restatement mode, each delegated to the matching reviewer. Use when the user asks to 'review this', for a 'self-review' or 'quality gate', a code, architecture or security review, whether the change 'matches the spec/issue/plan', a 'close-out review' of a shipped spec container, 'what could this break' or the 'blast radius' of a written change, or after implementation completes."
-argument-hint: "[self|code|architecture|security|spec|close-out|downstream|pr|criteria|slice|restatement]"
+description: "Single-lens review checkpoint between 'code works' and 'code is ready': self, code, code-design, architecture, security, spec, close-out, downstream, pr, criteria, slice or restatement mode, each delegated to its reviewer. Use when asked to 'review this', for a 'self-review' or 'quality gate', a code, architecture or security review, whether the change 'matches the spec/issue/plan', a 'close-out review' of a shipped spec container, 'what could this break' or the 'blast radius' of a written change, or after implementation completes."
+argument-hint: "[self|code|code-design|architecture|security|spec|close-out|downstream|pr|criteria|slice…]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch --show-current)", "Bash(git status --porcelain | head -20)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref origin)", "Bash(git ls-remote --symref origin:*)", "Bash(git fetch origin)", "Bash(git fetch origin:*)", "Bash(git remote get-url:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)"]
@@ -10,7 +10,7 @@ metadata:
   summary: Single-lens review checkpoint routed to the matching reviewer
 ---
 
-**Arguments.** `[self|code|architecture|security|spec|close-out|downstream|pr|criteria|slice|restatement]`. `spec` takes `[--spec <path|id>]`, `close-out` takes `[--container <id>] [--dry-run]`, and `slice` takes `<name>`. Every mode also takes the phase-boundary inputs `[--worktree <path>] [--base <sha>] [--quality-bar <prototype|internal|production>] [--report-only]` ("Shared inputs").
+**Arguments.** `[self|code|code-design|architecture|security|spec|close-out|downstream|pr|criteria|slice…]`; the full set ends `slice|restatement]`. `spec` takes `[--spec <path|id>]`, `close-out` takes `[--container <id>] [--dry-run]`, and `slice` takes `<name>`. Every mode also takes the phase-boundary inputs `[--worktree <path>] [--base <sha>] [--quality-bar <prototype|internal|production>] [--report-only]` ("Shared inputs").
 
 ## Repository context. Gather first
 
@@ -62,6 +62,7 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 |--------|------|-------------|
 | Just finished implementing, "review my work", bare invocation with uncommitted changes | **self** | [context/self.md](context/self.md) |
 | "review the code", "code review" | **code** | [context/code.md](context/code.md) |
+| "code-design review", one fact copied into several files, one change cascading across files, a plan phase tagged `Review: code-design` | **code-design** | [context/code-design.md](context/code-design.md) |
 | "architecture review", new modules, cross-cutting structure | **architecture** | [context/architecture.md](context/architecture.md) |
 | "security review", auth/input handling, API endpoints | **security** | [context/security.md](context/security.md) |
 | "does this match the spec/issue/plan", "did we build what was asked", scope-creep check, `spec [--spec <path\|id>]` | **spec** | [context/spec.md](context/spec.md) |

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "edits nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "services/shipping/retry.js"
+          }
+        }
+      ],
+      "why": "reads only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "services/shipping/retry.js",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "fixes the finding instead of reporting it"
+    }
+  ]
+}

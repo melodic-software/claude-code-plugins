@@ -40,6 +40,7 @@ open | closed | all) ;;
 *) wit_usage_error "--state must be open|closed|all (got: $state)" ;;
 esac
 
+wit_require_graphql_session "list-items"
 # $() swallows wit_run_gh's exit-on-error; propagate its code (see create-item.sh).
 target_repo="$(wit_resolve_repo "$repo_override")" || exit "$?"
 limit="$(jq -r '.limits.list_items_max' "$WIT_GH_ADAPTER_DIR/capabilities.json")"

@@ -32,7 +32,7 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -53,8 +53,10 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     is_owner_repo_pair,
+    pull_request_commits_once,
+    record_pull_request_total,
 )
-from babysit_risk import ChangedFile, glob_match
+from babysit_risk import ChangedFile, glob_match, is_capability_path
 from babysit_util import (
     is_json_array,
     is_json_object,
@@ -121,6 +123,11 @@ ISSUES_PAGE_LIMIT = 10
 
 class PolicyReadError(RuntimeError):
     """A policy input could not be read; callers fail closed."""
+
+
+class _SymlinkAt(PolicyReadError):
+    """A clone holds a symlink where a file was asked for. The contents API
+    follows an in-repository symlink, so the caller reads it there instead."""
 
 
 @dataclass(frozen=True)
@@ -430,15 +437,34 @@ class PipelineConfig:
     # decision Q624): absent, the HIGH path floor and the C2 contradictions
     # are off and there is no file cap (`max_changed_lines` None: no line
     # cap); a value other than true or false turns a switch on. The local
-    # babysit lane ignores them and keeps every check.
+    # babysit lane ignores them, except that `high_path_floor` gates the floor
+    # additions there too (`babysit_risk.RiskInput.floor_extensions`).
     high_path_floor: bool = False
+    # `merge.diff-check.floor-paths`: globs joined to the floor (owner
+    # decision Q641); they hold a pull request for a human, unlike
+    # denied-paths, which makes it ineligible.
+    floor_paths: tuple[str, ...] = ()
+    # `merge.diff-check.floor-script-scopes`: globs inside which a `.ps1` or
+    # `.cjs` file, or a file with git mode 100755, holds the same way (owner
+    # decision Q646).
+    floor_script_scopes: tuple[str, ...] = ()
     c2_contradictions: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
     # Absent, or anything but a whole number of at least 1, is 1. The gate
     # reads it at the default branch head instead (`_run_max_in_flight`).
     max_in_flight: int = 1
+    # `merge.max-queue-ejections`: failed-check merge-queue removals since
+    # the head last changed at which the gate stops enqueuing that head.
+    # Absent, or anything but a whole number from 1 to
+    # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
+    max_queue_ejections: int = 2
 
+
+# The most `merge.max-queue-ejections` may be, and the timeline items the
+# enqueue reads back. A full read with no head change in it may have missed
+# older removals, so it counts as unreadable and refuses.
+MAX_QUEUE_EJECTIONS_LIMIT = 20
 
 LOCAL_BABYSIT = "local-babysit"
 PR_MERGE = "pr-merge"
@@ -518,17 +544,24 @@ def read_config_at(
 ) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
     from `.claude/source-control.md`, both read at `base_sha` through
-    `file_at(path, sha)` (text, or None when absent), by default the contents
-    API. A pipeline file the shared reader rejects is off; an absent one has
-    no merge block (rung off, authority unset). Raises `PolicyReadError` when
-    the pipeline file cannot be read.
+    `file_at(path, sha)` (text, or None when absent), by default a local clone
+    holding `base_sha` (`_clones_holding`), else the contents API. A pipeline
+    file the shared reader rejects is off; an absent one has no merge block
+    (rung off, authority unset). Raises `PolicyReadError` when the pipeline
+    file cannot be read.
     """
     owner, name = _split_repo(repo)
     if not SHA_RE.fullmatch(base_sha or ""):
         raise PolicyReadError(f"base SHA is not a 40-hex commit id: {base_sha!r}")
     if file_at is None:
+        root = next(_clones_holding(base_sha), None)
 
         def file_at(path: str, sha: str) -> str | None:
+            if root is not None:
+                try:
+                    return _git_file_at(root, path, sha)
+                except _SymlinkAt:
+                    pass
             return _file_at(owner, name, path, sha)
 
     notes: list[str] = []
@@ -554,11 +587,14 @@ def read_config_at(
             ("merge.diff-check.high-path-floor", False),
             ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
+            ("merge.diff-check.floor-paths", True),
+            ("merge.diff-check.floor-script-scopes", True),
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
             ("merge.dependabot.mode", False),
             ("merge.dependabot.majors", False),
             ("merge.max-in-flight", False),
+            ("merge.max-queue-ejections", False),
         ],
     )
     if values is None:
@@ -616,6 +652,16 @@ def read_config_at(
             f"merge.max-in-flight {in_flight_cap!r} is not a count of 1 or more"
         )
         in_flight_cap = None
+    ejections = scalar("merge.max-queue-ejections")
+    if ejections is not None and not (
+        re.fullmatch(r"[1-9][0-9]?", ejections)
+        and int(ejections) <= MAX_QUEUE_EJECTIONS_LIMIT
+    ):
+        notes.append(
+            f"merge.max-queue-ejections {ejections!r} is not a count from 1 to "
+            f"{MAX_QUEUE_EJECTIONS_LIMIT}"
+        )
+        ejections = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -630,9 +676,12 @@ def read_config_at(
         dependabot_mode=dependabot_mode,
         dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
+        floor_paths=tuple(values["merge.diff-check.floor-paths"]),
+        floor_script_scopes=tuple(values["merge.diff-check.floor-script-scopes"]),
         c2_contradictions=c2_contradictions,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
+        max_queue_ejections=int(ejections) if ejections else 2,
     )
 
 
@@ -1672,9 +1721,14 @@ def dependabot_eligibility(
             author.get("login")
         ):
             return Eligibility(False, "not-dependabot-authored")
-        commits = _paginated(
-            f"repos/{owner}/{name}/pulls/{number}/commits?per_page=100",
-            f"#{number} commits",
+        commits = pull_request_commits_once(
+            f"{owner}/{name}",
+            number,
+            json_object(pr.get("head")).get("sha"),
+            lambda: _paginated(
+                f"repos/{owner}/{name}/pulls/{number}/commits?per_page=100",
+                f"#{number} commits",
+            ),
         )
         total = pr.get("commits")
         if (
@@ -2292,6 +2346,7 @@ def pull_request(repo: str, number: int) -> dict[str, Any]:
         and isinstance(head.get("ref"), str)
     ):
         raise PolicyReadError(f"#{number} could not be read (status {status})")
+    record_pull_request_total(repo, number, head.get("sha"), pr.get("commits"))
     return pr
 
 
@@ -2340,7 +2395,9 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
     if not entry:
         return None
     mode, kind = entry.split(" ", 2)[:2]
-    if kind != "blob" or mode == "120000":
+    if mode == "120000":
+        raise _SymlinkAt(f"{path} at {sha} is a symlink")
+    if kind != "blob":
         raise PolicyReadError(f"{path} at {sha} is not a file")
     text = _git(root, "cat-file", "blob", f"{sha}:{path}")
     if text is None:
@@ -2348,13 +2405,10 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
     return text
 
 
-def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
-    """The pipeline file's commits from `base_sha`, newest first, as (SHA,
-    committer date), from the first clone in `_history_checkouts` that holds
-    `base_sha` with its whole history (not shallow or partial); None when
-    none does.
-    A commit id names its whole ancestry, so any clone holding it answers
-    for the repository."""
+def _clones_holding(sha: str) -> Iterator[Path]:
+    """The top of each clone in `_history_checkouts` that holds `sha` with its
+    whole history (not shallow or partial). A commit id names its whole
+    ancestry and tree, so any clone holding it answers for the repository."""
     for checkout in _history_checkouts():
         # Pathspecs resolve against the working directory, so run at the top.
         top = _git(checkout, "rev-parse", "--show-toplevel")
@@ -2367,8 +2421,16 @@ def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
         promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
         if _git(root, "config", "--get-regexp", promisor) is not None:
             continue
-        if _git(root, "cat-file", "-e", f"{base_sha}^{{commit}}") is None:
+        if _git(root, "cat-file", "-e", f"{sha}^{{commit}}") is None:
             continue
+        yield root
+
+
+def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
+    """The pipeline file's commits from `base_sha`, newest first, as (SHA,
+    committer date), from the first clone holding `base_sha`
+    (`_clones_holding`); None when none does."""
+    for root in _clones_holding(base_sha):
         log = _git(
             root,
             "-c",
@@ -2470,7 +2532,18 @@ def merged_since_floor(
 
 
 def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
-    """Each path's git mode at `sha`, or None when the listing is truncated."""
+    """Each path's git mode at `sha`, or None when the listing is truncated:
+    from a local clone holding `sha` (`_clones_holding`), else the trees API."""
+    for root in _clones_holding(sha):
+        listing = _git(root, "ls-tree", "-r", "-t", "-z", "--full-tree", sha)
+        if listing is not None:
+            # Each entry is `<mode> <type> <id>\t<path>`.
+            return {
+                path: meta.split(" ", 1)[0]
+                for meta, _, path in (
+                    entry.partition("\t") for entry in listing.split("\0") if entry
+                )
+            }
     status, payload = _get(f"repos/{owner}/{name}/git/trees/{sha}?recursive=1")
     if status != 200 or not is_json_object(payload):
         raise PolicyReadError(f"the tree at {sha} could not be read (status {status})")
@@ -2485,7 +2558,7 @@ def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
 def _changed_files(
     owner: str, name: str, pr: dict[str, Any], base_sha: str
 ) -> tuple[tuple[ChangedFile, ...], bool]:
-    """The pull request's files with git modes from the trees API (the files
+    """The pull request's files with git modes from `_tree_modes` (the files
     API carries none): the head side at its head, the previous side at
     `base_sha`. Complete only when every listing reads to its end."""
     number, head = pr.get("number"), pr.get("headRefOid")
@@ -2514,6 +2587,7 @@ def _changed_files(
                 additions=entry.get("additions"),
                 deletions=entry.get("deletions"),
                 has_patch="patch" in entry,
+                patch=entry.get("patch"),
                 mode=(side or {}).get(path),
                 previous_mode=None
                 if status in ("added", "removed")
@@ -2537,6 +2611,56 @@ def changed_files(
     return _changed_files(
         owner, name, shaped, str(json_object(pr.get("base")).get("sha"))
     )
+
+
+# Capability file text by (owner, name, path, sha): a SHA pins the text, so a
+# run reads each side of each file once.
+_TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
+
+
+def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
+    key = (owner, name, path, sha)
+    if key not in _TEXT_AT:
+        # Quoted, so a `?` or `#` in a changed path cannot pick another ref.
+        _TEXT_AT[key] = _file_at(owner, name, quote(path, safe="/"), sha)
+    return _TEXT_AT[key]
+
+
+def with_capability_contents(
+    repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
+) -> tuple[ChangedFile, ...]:
+    """Each changed capability file (not removed) with its base text at the
+    base SHA, from its previous path on a rename or copy, and its head text
+    at the head SHA, or the reason either could not be read."""
+    owner, name = _split_repo(repo)
+    base = json_object(pr.get("base")).get("sha")
+    head = json_object(pr.get("head")).get("sha")
+    read = []
+    for changed in files:
+        if changed.status == "removed" or not is_capability_path(changed.path):
+            read.append(changed)
+            continue
+        try:
+            if not (isinstance(base, str) and base and isinstance(head, str) and head):
+                raise PolicyReadError(
+                    "the pull request record names no base or head SHA"
+                )
+            before = (
+                None
+                if changed.status == "added"
+                else _text_at(owner, name, changed.previous_path or changed.path, base)
+            )
+            after = _text_at(owner, name, changed.path, head)
+            read.append(replace(changed, contents=(before, after)))
+        except Exception as exc:  # noqa: BLE001 - any failure reads as unreadable (HIGH)
+            reason = f"{type(exc).__name__}: {exc}"
+            # repr escapes a newline in the author-controlled path, so the line
+            # cannot start a workflow command.
+            print(
+                f"capability contents of {changed.path!r}: {reason!r}", file=sys.stderr
+            )
+            read.append(replace(changed, contents_error=reason))
+    return tuple(read)
 
 
 # --- Promotion evidence -----------------------------------------------------------------------

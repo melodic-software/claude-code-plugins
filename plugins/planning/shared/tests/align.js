@@ -278,6 +278,15 @@ function views(page, CFG) {
       if (await phone()) return more("Report a problem");
       await page.keyboard.press("?"); await W(120); return clickIn(".vf-help-report");
     },
+    // Your reports: the owner files one the first time (one report every 10 s), then opens the list from More or Help
+    "my-reports": async () => {
+      if (!(await page.evaluate(() => (window.Core.state.myReports || []).length))) {
+        await page.evaluate(() => window.Core.report("The Send button did nothing on the payment question", window.Core.reportContext()));
+        await page.waitForFunction(() => (window.Core.state.myReports || []).length > 0, null, { timeout: 5000 }).catch(() => {});
+      }
+      if (await phone()) return more("Your reports");
+      await page.keyboard.press("?"); await W(120); return clickIn(".vf-help-myreps");
+    },
     "ask-panel": async () => ((await phone()) ? more("Ask Claude") : clickIn(".vf-asktop")),
     "thread": async () => { await gotoQ("Q1"); return claudeTab(); },
     "choice": () => gotoQ("Q11"),
