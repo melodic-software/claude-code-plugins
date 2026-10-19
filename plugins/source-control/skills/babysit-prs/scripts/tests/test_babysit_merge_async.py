@@ -60,6 +60,7 @@ def _queue(
     required: bool = True,
     merged: bool = False,
     armed: bool = False,
+    timeline: list[Any] | None = None,
 ) -> dict[str, Any]:
     """A GraphQL `PullRequest` merge-queue read; a position puts the PR in the queue."""
     in_queue = position is not None
@@ -69,8 +70,17 @@ def _queue(
         "isMergeQueueEnabled": required,
         "mergeQueueEntry": {"state": state, "position": position} if in_queue else None,
         "autoMergeRequest": {"enabledAt": "2026-10-04T00:00:00Z"} if armed else None,
+        "timelineItems": {"nodes": timeline or []},
     }
     return {"data": {"repository": {"pullRequest": pull_request}}}
+
+
+COMMIT = {"__typename": "PullRequestCommit"}
+FORCE_PUSH = {"__typename": "HeadRefForcePushedEvent"}
+
+
+def _removed(reason: str = "failed_checks") -> dict[str, Any]:
+    return {"__typename": "RemovedFromMergeQueueEvent", "reason": reason}
 
 
 NO_QUEUE = _queue(required=False, merged=True)
@@ -887,6 +897,29 @@ class MergeQueueReadBack(unittest.TestCase):
         ):
             result = merge.read_merge_queue("owner/repo", 5)
         self.assertIn("gh: boom", result["readError"])
+
+    def test_failed_check_removals_count_since_the_newest_head_change(self) -> None:
+        for timeline, expected in (
+            ([], 0),
+            ([COMMIT, _removed(), _removed()], 2),
+            ([_removed(), _removed(), _removed()], 3),
+            ([_removed(), _removed(), COMMIT], 0),
+            ([_removed(), _removed(), FORCE_PUSH, _removed()], 1),
+            ([COMMIT, _removed("manually_removed"), _removed()], 1),
+        ):
+            with self.subTest(timeline=timeline):
+                result = self._read(_queue(timeline=timeline))
+                self.assertEqual(result["failedEjections"], expected)
+
+    def test_an_unreadable_timeline_counts_nothing(self) -> None:
+        for timeline in (None, [{"__typename": "IssueComment"}, _removed()], [None]):
+            with self.subTest(timeline=timeline):
+                payload = _queue()
+                pr = payload["data"]["repository"]["pullRequest"]
+                pr["timelineItems"] = None if timeline is None else {"nodes": timeline}
+                result = self._read(payload)
+                self.assertIsNone(result["readError"])
+                self.assertIsNone(result["failedEjections"])
 
 
 def _listed(number: int, sha: str, *, merged: bool = False) -> dict[str, Any]:

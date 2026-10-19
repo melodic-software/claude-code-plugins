@@ -571,6 +571,13 @@ class Unattended(unittest.TestCase):
             raise self.lane_error
         return self.lanes, self.comments
 
+    def _paginated(self, endpoint: str, label: str, **kwargs: Any) -> Any:
+        # The comments a write reads itself when no lane evidence was read
+        # (a verifier refusal skips it).
+        if endpoint == f"repos/owner/repo/issues/{PR}/comments?per_page=100":
+            return self.comments
+        return self._real_paginated(endpoint, label, **kwargs)
+
     def _default_branch(self, repo: str, *, shared: bool = False) -> str:
         if self.default_branch is None:
             raise policy.PolicyReadError("the default branch could not be read")
@@ -648,6 +655,7 @@ class Unattended(unittest.TestCase):
         argv += list(flags)
         out = io.StringIO()
         self._real_get = policy._get
+        self._real_paginated = merge.fetch_paginated_api
         patches = [
             mock.patch.object(sys, "argv", argv),
             mock.patch.object(policy, "_get", side_effect=self._get),
@@ -721,6 +729,9 @@ class Unattended(unittest.TestCase):
                 ),
             ),
             mock.patch.object(merge, "_lane_evidence", side_effect=self._lane_evidence),
+            mock.patch.object(
+                merge, "fetch_paginated_api", side_effect=self._paginated
+            ),
             mock.patch.object(
                 policy,
                 "recheck_opt_in",
@@ -1527,6 +1538,34 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assert_no_merge(code)
         self.assertEqual(self.log, ["disarm"])
         self.assertIs(out["unattended"]["enqueue"]["disarmed"], True)
+
+    def test_a_head_the_queue_ejected_twice_is_not_enqueued_again(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+        self.assertTrue(
+            any("queue-ejected:2" in b and HEAD in b for b in out["blockers"]),
+            out["blockers"],
+        )
+
+    def test_one_ejection_still_enqueues(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=1)
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_the_ejection_cap_is_the_configured_one(self) -> None:
+        self.config = dataclasses.replace(self.config, max_queue_ejections=3)
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+
+    def test_unreadable_ejections_refuse_the_enqueue(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=None)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
 
     def test_a_base_without_a_merge_queue_is_refused(self) -> None:
         # C4: an unattended merge only ever enqueues.

@@ -1079,9 +1079,8 @@ class OneRunSharesItsVerifierReads(unittest.TestCase):
 
 
 class OneRunSharesItsFailRunReads(unittest.TestCase):
-    """With `BABYSIT_RUN_CACHE` named, a FAIL's run record (for
-    `run_cache.MAX_AGE`) and an untied FAIL's recorded head ref are read
-    once per run. A PASS's run is read by every gate process, so a re-run
+    """With `BABYSIT_RUN_CACHE` named, a FAIL's run record and an untied
+    FAIL's recorded head ref are read once per run. A PASS's run is read by every gate process, so a re-run
     that undoes a completed success never allows on a shared record."""
 
     OTHER = UNRELATED
@@ -1131,14 +1130,16 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
         self.assertEqual(self.downloads(fake, 2), 2)
 
-    def test_a_fail_run_past_the_bound_is_read_again(self) -> None:
+    def test_a_fail_run_is_not_read_again_past_the_shared_bound(self) -> None:
+        # Origin rests on fields a re-run keeps, so the record serves the
+        # whole run, however long the sweep takes.
         clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
         fake = self.other_fail()
         with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
             read(fake)
-            clock[0] += ve.run_cache.MAX_AGE + timedelta(seconds=1)
+            clock[0] += ve.run_cache.MAX_AGE * 20
             read(fake)
-        self.assertEqual(self.run_reads(fake, 2), 2)
+        self.assertEqual(self.run_reads(fake, 2), 1)
 
     def test_a_re_run_of_a_counted_pass_does_not_allow(self) -> None:
         fake = passing()
@@ -1613,8 +1614,23 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertIn(f"dequeue:[{other}]", self.log)
         self.read.assert_called_once_with(other, self.scored_head)
 
-    def test_a_risk_refusal_stays_the_reason(self) -> None:
+    def test_a_verifier_refusal_is_judged_before_the_diff(self) -> None:
+        # The refusal stands whatever the diff scores, so neither the lane
+        # evidence nor the score is read, and the reason is the verifier's.
         self.verdicts[unattended.PR] = evidence("verify:fail")
+        self.lanes = unattended.UNBOUND
+        self.queued = [unattended.PR]
+        self._lane_evidence = mock.Mock(return_value=(self.lanes, self.comments))
+        with mock.patch.object(merge.babysit_risk, "score") as score:
+            code, out = self.lane()
+        self.assert_no_merge(code)
+        self._lane_evidence.assert_not_called()
+        score.assert_not_called()
+        self.assertEqual(out["unattended"]["reason"], "verify:fail")
+        self.assertNotIn("risk", out["unattended"])
+        self.assertIn(f"dequeue:[{unattended.PR}]", self.log)
+
+    def test_a_risk_refusal_is_the_reason_when_the_verifier_passes(self) -> None:
         self.lanes = unattended.UNBOUND
         _, out = self.lane()
         self.assertTrue(out["unattended"]["reason"].startswith("risk:"))
@@ -1721,7 +1737,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.verdicts[unattended.PR] = evidence("verify:missing")
         code, out = self.lane()
         self.assert_no_merge(code)
-        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+        self.assertNotIn("risk", out["unattended"])
         self.assertEqual(out["unattended"]["reason"], "verify:missing")
 
 

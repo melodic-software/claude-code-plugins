@@ -476,6 +476,10 @@ that fails counts as a refusal.
   refuses at the cap, and an entry enqueued past it (another host's came first) dequeues itself. A
   red full run or canary run charges every unverified merge whose commit it contains, so a breakage
   found with several in flight demotes the rung and fails the post-merge check for all of them.
+- **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the
+  wrapper enqueuing a head the merge queue has removed that many times for failed checks since the
+  head last changed; the queue would eject it again on the same commits. A push resets the count,
+  and an unreadable timeline refuses the enqueue.
 - **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
   pr-merge lane owns Dependabot pull requests (below).
 

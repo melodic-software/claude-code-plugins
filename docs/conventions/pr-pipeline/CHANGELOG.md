@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 2.15.0 - 2026-10-18
+
+New config: `merge.max-queue-ejections` (default 2, 1 to 20). The unattended merge gate refuses to
+enqueue a head the merge queue has removed that many times for failed checks since the head last
+changed (a pushed commit or a force push); an unreadable timeline also refuses. `version` stays 2.
+
 ## 2.14.0 - 2026-10-18
 
 `prepare` gains `ci-context`, the one mode for a `read` skill, and `apply-patch`, the one mode for
