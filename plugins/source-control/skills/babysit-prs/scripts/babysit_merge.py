@@ -2737,6 +2737,8 @@ def queued_entry_hold(
 
 RISK_MARKER = "<!-- babysit-merge-risk -->"
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
+# The most of a verdict's summary a verify:fail escalation quotes (judgment).
+VERIFY_SUMMARY_MAX = 1500
 QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
 # The attended queue's escalation marker (work-items reference
@@ -3189,17 +3191,30 @@ def upsert_marker_comment(
     return outcome
 
 
-def verify_escalation_body(refusal: str, head: str) -> str:
+def verify_escalation_body(refusal: str, head: str, summary: str | None = None) -> str:
     """The needs-human comment for a verifier refusal: a function of the
-    refusal and the head only, so a rerun renders the same body."""
-    return "\n".join(
-        [
-            VERIFY_ESCALATION_MARKER,
-            f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
-            f"`{head}`. That refusal needs a human, who merges in person; the "
-            "pr-merge lane will not merge this pull request.",
+    refusal, the head and the verdict's summary only, so a rerun renders the
+    same body. The summary is model text, quoted as data in a text fence and
+    cut to `VERIFY_SUMMARY_MAX` characters."""
+    lines = [
+        VERIFY_ESCALATION_MARKER,
+        f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
+        f"`{head}`. That refusal needs a human, who merges in person; the "
+        "pr-merge lane will not merge this pull request.",
+    ]
+    if summary:
+        text = _CONTROL.sub("?", summary.replace("\r\n", "\n"))
+        if len(text) > VERIFY_SUMMARY_MAX:
+            text = text[:VERIFY_SUMMARY_MAX] + " [cut]"
+        lines += [
+            "",
+            "The verdict's summary, as the verifier wrote it:",
+            "",
+            "```text",
+            text.replace("```", "'''"),
+            "```",
         ]
-    )
+    return "\n".join(lines)
 
 
 def major_escalation_body(majors: str, head: str) -> str:
@@ -3222,7 +3237,12 @@ def major_escalation_body(majors: str, head: str) -> str:
 
 
 def escalate_verify(
-    repo: str, number: int, identity: str, refusal: str, inputs: Mapping[str, Any]
+    repo: str,
+    number: int,
+    identity: str,
+    refusal: str,
+    inputs: Mapping[str, Any],
+    summary: str | None = None,
 ) -> dict[str, Any]:
     """`escalate` for a needs-human verifier refusal."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
@@ -3230,10 +3250,27 @@ def escalate_verify(
         repo,
         number,
         identity,
-        verify_escalation_body(refusal, head),
+        verify_escalation_body(refusal, head, summary),
         VERIFY_ESCALATION_MARKER,
         inputs,
     )
+
+
+def _fail_summary(verify: Mapping[str, Any], inputs: Mapping[str, Any]) -> str | None:
+    """The summary of the head FAIL a `verify:fail` refusal names, read
+    through the gate's verdict reader; None for any other refusal or when it
+    cannot be read."""
+    fail = json_object(verify.get("headFail"))
+    reader = inputs.get("verify_reader")
+    run_id, name = fail.get("run"), fail.get("artifact")
+    if (
+        verify.get("refusal") != verify_evidence.FAIL
+        or not isinstance(reader, verify_evidence.Reader)
+        or not isinstance(run_id, int)
+        or not isinstance(name, str)
+    ):
+        return None
+    return reader.fail_summary(run_id, name, str(verify.get("head")))
 
 
 def escalate(
@@ -3463,7 +3500,12 @@ def unattended_writes(
     if not stopped and verify.get("needsHuman") is True:
         try:
             report["escalation"] = escalate_verify(
-                repo, number, identity, str(verify.get("refusal")), inputs
+                repo,
+                number,
+                identity,
+                str(verify.get("refusal")),
+                inputs,
+                _fail_summary(verify, inputs),
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")

@@ -827,11 +827,13 @@ login posts as that owner, so until agent sessions have their own GitHub identit
 acting as that account wrote it. The owner accepts that risk: unattended merge is on
 (`merge.report-only: false`) before that identity exists (#7711).
 
-`verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
-human. While `merge.report-only` is false the lane escalates such a refusal on the pull request
-([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it keeps one
-`<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, rewritten only
-when either changes, then adds the tracker's human-gated role label (`needs-human` unless
+`verify:fail`, `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and
+`verify:untrusted-spec` need a human. While `merge.report-only` is false the lane escalates such a
+refusal on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
+keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, and
+for `verify:fail` quoting as data the first 1500 characters of the `summary` in the newest head
+`fail` verdict when its record can be read. The comment is rewritten only when any of these
+changes, then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run; a rerun that
 finds both writes nothing. While it is true the refusal is only reported. The
