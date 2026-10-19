@@ -23,8 +23,10 @@ const FILES = {
   laneRules: json("./lane-rules.json"),
   effectGrants: json("./effect-grants.json"),
   activityRules: json("./activity-rules.json"),
+  trustedActors: json("../../standards/trusted-actors/trusted-actors.json"),
 };
-// A conflicting, ready, unlabeled PR that changed one Markdown file.
+// A conflicting, ready, unlabeled PR that changed one Markdown file; as an
+// issue, a listed human set it Small, Low and Known (the org's option ids).
 const FACTS = {
   event: "dispatch",
   changedPaths: ["docs/guide.md"],
@@ -33,6 +35,12 @@ const FACTS = {
   workClasses: [],
   mergeable: "conflicting",
   draft: false,
+  fieldValues: [
+    { field: 15462270, option: 27053568 },
+    { field: 48625720, option: 85127651 },
+    { field: 48625721, option: 85127654 },
+  ],
+  fieldSetters: { 15462270: 153232337, 48625720: 153232337, 48625721: 153232337 },
 };
 const selected = (lane, activity, facts = {}) =>
   resolve(FILES, {

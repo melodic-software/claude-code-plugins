@@ -400,8 +400,11 @@ A skip reports as a neutral check with one reason from the schema's `$defs/skip-
 missed), `prerequisite-missing` (among others, mergeability still unknown at the gated head after
 bounded re-reads), `cost-gated`, `awaiting-human` (among others, a `labels-absent` label is on the
 PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no same-repository PR, or an
-actor or author not on the trusted-actor list) or `workflow-modified` (the token broker refused a
-write lane's mint for a workflow file the PR itself changes). Silence is not a skip, with three exceptions that
+actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
+write lane's mint for a workflow file the PR itself changes), or, for an issue run under
+`models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
+account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
+`split`). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
@@ -995,6 +998,26 @@ every skill activity's; `review` (`opus`, 60 turns, no effort), the verifier's; 
 30 turns), intake triage's and the [lane sweep](#the-lane-sweep)'s; and `summary` (`sonnet`, effort `medium`, 10 turns), the reuse
 summary pass's.
 
+`models.issue-dimensions` budgets a skill activity with input `issue` from its issue's Size,
+Complexity and Uncertainty org issue fields. `fields` maps each field id and its single-select
+option ids to the keys of `sizes`, `complexity` and `uncertainty`; ids, not names, so a renamed
+option keeps its meaning. A field with no value, or whose latest setter (from the GraphQL field
+events) is neither a listed human on the trusted-actor list nor the lanes App, is not assessed;
+an option no entry maps fails the resolve with `unmapped-dimension`. Before any model turn the
+activity skips with `not-assessed` when a field is not assessed, then with its Uncertainty's
+mode when that is not `run` (`research-first` or `probe-first`), then with `split-required` when
+its Size is `split`. Otherwise its `max-turns` is the size's `base-turns` times the complexity
+factor, rounded up, replacing the profile's, and the size's `timeout-minutes` is the run job's
+timeout; a skip takes the shortest size timeout. resolve-config outputs `issue-dimensions`
+(`<size>/<complexity>/<uncertainty>`, or `not-assessed`) and `timeout-minutes`;
+work-resolve-issue.yml resolves them before its run job starts, since a job's timeout is fixed
+then, and passes the dimensions on (`issue-dimensions`), so a field set while the run waits for
+its slot cannot give it more turns than its timeout allows; without `issue-dimensions` the
+timeout is 25 minutes. This repository's budgets are owner-approved starting values, tuned in
+[`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.issue-dimensions`) from per-run measures. Large
+is `split`, and Uncertainty Known, Knowable and Unknown map to `run`, `research-first` and
+`probe-first`. No model name is set here.
+
 ## Funding
 
 `funding` maps each Claude lane or activity id to the funding role whose secrets pay for its runs:
@@ -1023,7 +1046,7 @@ App may push to one PR; the next fix-ci run hands it to a person before any mode
 
 The optional `limits` block sets when the lanes restart work the usage limit stopped. Durations
 are whole hours, at most 720; stop caps are at most 10 and `restarts-per-run` at most 50, so a
-typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all eleven
+typo cannot let a forged limit stop restart a lane without bound. resolve-config emits all twelve
 with defaults.
 
 | Key | Default | What it sets |
@@ -1033,8 +1056,9 @@ with defaults.
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
-| `limit-stops-per-issue` | 3 | Limit stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
+| `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
+| `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome hands the issue to a person; at most 5, and 0 never restarts. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `admission-window-hours` | 24 | Hours of issue-lane admissions the admitted backlog (open issues labeled `agent-ready`) may hold before new `agent-ready` labels pause. |
@@ -1043,8 +1067,8 @@ with defaults.
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
-the WIP cap check fails open and starts the run. This repository sets `wip-cap`, the two
-fix-ci limits, the two admission limits and the `wip` block.
+the WIP cap check fails open and starts the run. This repository sets `wip-cap`,
+`turn-cap-restarts` (0), the two fix-ci limits, the two admission limits and the `wip` block.
 
 `node .github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are
 open: the admitted backlog is under `admission-factor` times lane merges per hour (the last 24

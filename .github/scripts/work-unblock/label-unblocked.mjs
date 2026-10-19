@@ -19,8 +19,11 @@
 // issue whose newest lanes-App outcome marker is `limited`, past its reset,
 // with no agent-ready label added since (so no lane run started after the
 // stop), and no hold label gets agent-ready removed and
-// added again by the App, which starts the lane. At most limits.restarts-per-run
-// issues per run, longest-waiting first.
+// added again by the App, which starts the lane. An issue whose newest marker
+// is `turn-cap` (report-outcome kept agent-ready, so a restart is left) is
+// restarted the same way at once, while its turn-cap markers since a person
+// last added agent-ready are within limits.turn-cap-restarts. At most
+// limits.restarts-per-run issues per run, longest-waiting first.
 //
 // It re-fires the same way an open agent-ready issue whose newest
 // work-resolve-issue run (the one its newest agent-ready label started, by a
@@ -139,15 +142,18 @@ const appMarkers = (comments, bot) =>
     .map((comment) => ({ ...parseMarker(comment.body), at: Date.parse(comment.created_at) }))
     .filter((marker) => marker.outcome !== undefined && Number.isFinite(marker.at));
 
+// The App's markers after which its removal of agent-ready is a restart.
+const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding"]);
+
 // A removal of agent-ready is a restart, not a stop, only when the App made
-// it, the App's newest marker before it is `limited` or a re-fire, and the next agent-ready
+// it, the App's newest marker before it is `limited`, `turn-cap` or a re-fire, and the next agent-ready
 // event after it is the App adding the label back. Any other removal stops the
 // lane, a pushback after a restart included.
 function isRestart(events, index, markers, bot) {
   const removal = events[index];
   const at = Date.parse(removal.created_at);
   const newest = markers.filter((marker) => marker.at <= at).at(-1)?.outcome;
-  if (removal.actor?.login !== bot || (newest !== "limited" && newest !== "refired")) {
+  if (removal.actor?.login !== bot || !RESTARTS.has(newest)) {
     return false;
   }
   const next = events.slice(index + 1).find((event) => isLabel(event, "labeled") || isLabel(event, "unlabeled"));
@@ -578,21 +584,40 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
   }
-  if (marker?.outcome !== "limited") {
-    return { reason: "no limit stop is its newest lane outcome" };
-  }
-  // A limit that keeps stopping the lane goes to a person: count the limit
-  // stops since a person last added agent-ready.
   const since = events
     .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-  const stops = markers.filter((item) => item.outcome === "limited" && item.at > since).length;
+  // report-outcome keeps agent-ready after a turn cap only while a restart is
+  // left, and hands the issue back otherwise; the count here bounds a forged
+  // or stale marker the same way.
+  if (marker?.outcome === "turn-cap") {
+    // Only a listed human's agent-ready resets the turn-cap count, so another
+    // labeler cannot buy restarts.
+    const humanSince = events
+      .filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id))
+      .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
+    const caps = markers.filter((item) => item.outcome === "turn-cap" && item.at > humanSince).length;
+    return caps > limits["turn-cap-restarts"]
+      ? { reason: `${caps} turn-cap stops since a person last added ${LABEL}` }
+      : { reason: null, resets: marker.at };
+  }
+  const funding = marker?.outcome === "funding";
+  if (!funding && marker?.outcome !== "limited") {
+    return { reason: "no limit stop is its newest lane outcome" };
+  }
+  // A limit or funding stop (ci-workflows#781) that keeps stopping the lane
+  // goes to a person: count both since a person last added agent-ready.
+  const stops = markers.filter((item) => (item.outcome === "limited" || item.outcome === "funding") && item.at > since).length;
   if (stops >= limits["limit-stops-per-issue"]) {
     const explained = comments.some(
       (comment) =>
         comment.user?.login === bot && String(comment.body ?? "").startsWith(ESCALATED) && Date.parse(comment.created_at) > since,
     );
     return { reason: `${stops} limit stops since a person last added ${LABEL}`, escalate: stops, explained };
+  }
+  // A funding stop with no regain date waits for a person.
+  if (funding && marker.resets === null) {
+    return { reason: "waiting for a person to restore the lane's funding" };
   }
   const resets = clampReset(marker.resets, marker.at, limits);
   if (now < resets) {
