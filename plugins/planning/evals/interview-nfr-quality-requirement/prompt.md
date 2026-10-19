@@ -1,5 +1,5 @@
 ---
-description: "Production lock whose request states a latency target, a degraded-provider behavior and a logging restriction: the Brief records each under Constraints as a Quality requirement line, and records the Intent and Quality bar lines under Captured assumptions"
+description: "Unattended production lock whose request states a latency target, a degraded-provider behavior and a logging restriction: the Brief records each under Constraints as a Quality requirement line, and records the Intent and Quality bar lines under Captured assumptions"
 tags: [interview, quality-requirements, nfr, engineering-defaults]
 runs: 3
 max_turns: 30
@@ -9,6 +9,8 @@ expected_outcome: ".work/address-validation/PLAN.md has, under ### Constraints, 
 ---
 
 /planning:interview lock
+
+This run is unattended: nobody will answer questions, so record anything only I can decide as blocked and keep going.
 
 Lock the Brief. Use the topic slug `address-validation`.
 

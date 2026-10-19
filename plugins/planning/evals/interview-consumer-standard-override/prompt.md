@@ -10,6 +10,8 @@ expected_outcome: "The interview reads docs/standards/integrations.md, and .work
 
 /planning:interview lock
 
+This run is unattended: nobody will answer questions, so record anything only I can decide as blocked and keep going.
+
 Lock the Brief. Use the topic slug `address-validation`.
 
 Goal: checkout catches an undeliverable delivery address before payment, using the Loqate API. This goes to production. Loqate is the only provider and nothing says another is coming.
