@@ -129,7 +129,7 @@ input makes the reader fetch the PR's files even without a `paths` predicate.
 
 Step outputs: `enabled` and `slots` (a JSON list of names); with `activity`, also `kind`,
 `effect`, `gating` (`gate` or `advisory`), `skill`, `script`, `profile`, `claude-args`,
-`settings-json`, `max-turns`, `reads-untrusted`, `applies`, `skip-reason`, `contents`,
+`settings-json`, `max-turns`, `model`, `effort`, `reads-untrusted`, `applies`, `skip-reason`, `contents`,
 `pull-requests`, `issues` and `can-commit` (`false` only when `contents` is `read`), `prepare`
 only when the leaf sets it, and `issue-dimensions` and `timeout-minutes` only when the slot reads
 issue dimensions. `args` is free text and stays in the file.
@@ -137,12 +137,14 @@ issue dimensions. `args` is free text and stays in the file.
 `claude-args` is `--model <alias>` unless the model is `default`, then `--max-turns <n>`, then
 `--effort <level>` when the profile sets one; `settings-json` is
 `{"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"<alias>"}}`, or empty for `inherit`. Both are built only
-from schema enums and an integer, and the step fails on any other `claude-args` shape. A script
-gets all four model outputs empty.
+from schema enums and an integer, and the step fails on any other `claude-args` shape. `model` and
+`effort` are the same values for a caller on ci-workflows' `run-claude-cli`: `model` is the alias,
+or empty for `default`, which that action cannot pass, so such a caller fails on an empty `model`;
+`effort` is empty when the profile sets none. A script gets all six model outputs empty.
 
 With `model-route` the step resolves no lane: the file holds `version`, `source`, `route` and
-`models`, and the step outputs are `profile`, `claude-args`, `settings-json` and `max-turns` for
-that route.
+`models`, and the step outputs are `profile`, `claude-args`, `settings-json`, `max-turns`, `model`
+and `effort` for that route.
 
 ## Token broker entry point
 

@@ -211,7 +211,7 @@ async function gatherFacts(
 const MODEL_ARGS = /^(?:--model [a-z]+ )?--max-turns [1-9][0-9]*(?: --effort [a-z]+)?$/;
 function modelOutputs(models) {
   if (models === null) {
-    return { profile: "", "claude-args": "", "settings-json": "", "max-turns": "" };
+    return { profile: "", "claude-args": "", "settings-json": "", "max-turns": "", model: "", effort: "" };
   }
   const args = modelArgs(models);
   if (!MODEL_ARGS.test(args)) {
@@ -222,6 +222,10 @@ function modelOutputs(models) {
     "claude-args": args,
     "settings-json": modelSettings(models),
     "max-turns": String(models["max-turns"]),
+    // run-claude-cli inputs: `default` has no --model to pass, so it is empty
+    // and the caller fails on it.
+    model: models.model === "default" ? "" : models.model,
+    effort: models.effort ?? "",
   };
 }
 
