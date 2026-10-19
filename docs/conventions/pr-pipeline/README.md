@@ -730,9 +730,11 @@ run with its own `GITHUB_TOKEN` (`checks: write`; the lane token holds no Checks
 neutral and titled with the top refusal, the gate's reason or else its first blocker, with the
 blockers in the summary; success once enqueued or merged, only over a refusal already on show. It
 reads the heads' existing check runs in one GraphQL query per 50 candidates and writes only where
-the title or conclusion changed, so an unchanged sweep writes nothing. The check is never required
-and is not part of `ci-status`, and the gate reads neutral as passing, so it holds no merge. Not
-while `merge.report-only` is true.
+the title or conclusion changed, so an unchanged sweep writes nothing; the step logs one line of
+written and unchanged counts per sweep. It reads and rewrites only check runs carrying its own
+external id, since every workflow's `GITHUB_TOKEN` posts as the same GitHub Actions app. The check
+is display-only: it is never required and is not part of `ci-status`, and the gate reads neutral as
+passing, so it holds no merge. Not while `merge.report-only` is true.
 
 #### Review-only dependencies
 

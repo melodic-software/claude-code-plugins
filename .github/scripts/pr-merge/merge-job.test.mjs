@@ -546,7 +546,7 @@ test("the budget comes from the pipeline config, rotation runs before the gate, 
   assert.match(upload, /\n {10}name: pr-merge-gate-cursor\n/);
 });
 
-// #8451: the lane token holds no Checks permission, so the check runs are
+// The lane token holds no Checks permission, so the check runs are
 // written with the job's own token, after the gate wrote the summary.
 test("each candidate's check run is written after the gate with the job's own checks: write token", () => {
   assert.match(job, /\n {6}checks: write\n/);
