@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again after the escape_like fix (9c2e5d71).\n\nNext: no third fix or review; Phase 4 stays unmarked and the run parks for a person.",
+      "why": "negated mention of another round"
+    },
+    {
+      "answer": "- human-decision (blocking): re-review rated api/search.py:42 CRITICAL a second time.\n\nThe run parks with a handoff; it never loops back to another fix brief.",
+      "why": "never-loops statement"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again.\n\nNext: dispatch another fix brief that switches to a parameterized query, then re-review.",
+      "why": "another fix round"
+    },
+    {
+      "answer": "- discovery: escape_like fix insufficient.\n\nNext: run a third /review:quality-gate security after parameterizing.",
+      "why": "third review"
+    },
+    {
+      "answer": "Next: one more re-review with the full phase base to confirm.",
+      "why": "one more review"
+    }
+  ]
+}

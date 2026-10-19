@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: pb-tagged-phase-reviews-before-commit
+graders:
+  - name: review-invocation
+    type: regex
+    pattern: '^(?=[^\n]*/review:quality-gate[ \t]+code-design\b)(?=[^\n]*--base[ =]+[`"'']?4b1d9e07)(?=[^\n]*--worktree[ =]+[`"'']?/srv/wt/shop-pricing)(?=[^\n]*--quality-bar[ =]+[`"'']?internal\b)(?=[^\n]*--report-only)'
+    flags: 'mi'
+    target: last_message
+  - name: review-before-commit
+    type: regex
+    pattern: '\A(?:^(?:(?![^\n]*\bgit\b[^\n]*\bcommit\b)|(?=[^\n]*(?:\b(?:not|never|until|after)\b|n''t\b)))[^\n]*\n)*[^\n]*?/review:quality-gate[ \t]+code-design[\s\S]*?^(?![^\n]*(?:\b(?:not|never)\b|n''t\b))[^\n]*\bgit\b[^\n]*\bcommit\b'
+    flags: 'mi'
+    target: last_message
+  - name: verifier-after-review
+    type: regex
+    pattern: '/review:quality-gate[ \t]+code-design[\s\S]*\bphase-verifier\b'
+    flags: 'i'
+    target: last_message

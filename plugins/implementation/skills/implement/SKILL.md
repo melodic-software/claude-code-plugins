@@ -209,6 +209,17 @@ For non-trivial implementations (3+ steps), track each major logical block from 
 
 In-session task state lives in the harness and does not survive a context clear. The durable mirror is the plan artifact plus handoff notes. Where these live: per the lifecycle artifact protocol ([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)). Plan progress is marked in the plan file in the memory slice (`<memory_dir>/<slug>/PLAN.md`, default `.work/`), handoff entries are timestamped notes in the memory slice's handoffs home. Both are self-ignored and never committed, so when marking changes the plan, refresh its paste in the pull request body or the linked issue. Write a pull-request body refresh before the push that carries the phase's commit, or after the last push's CI run has finished, never as its own edit right after a push: a body edit re-runs every workflow that triggers on `edited`, and one that lands while the push's run is still going adds a second run on the same head.
 
+**Phase-boundary review, before the ritual.** A phase whose plan entry carries a `Review:` concern tag gets one review per tag, invoked via the Skill tool before item 1's verdict and item 3's commit; a phase with no tag gets none, and a `Review:` value outside this table (an evidence description) dispatches nothing.
+
+| `Review:` tag | Invocation |
+|---|---|
+| `architecture` | `/review:quality-gate architecture` |
+| `security` | `/review:quality-gate security` |
+| `code-design` | `/review:quality-gate code-design` |
+| `concurrency` | `/review:quality-gate slice concurrency` |
+
+Each call passes `--base <previous phase-boundary commit>` and `--report-only`, plus `--quality-bar <value>` only when the plan has a `Quality bar:` line, and carries no rationale: the gate's fresh-context reviewer gets the phase diff, the tag and that line. Sequence: review, fix inside the phase fence, one re-review scoped to the fixed hunks, then item 1's verdict last. A finding rated CRITICAL again on the re-review goes to `DEVIATIONS.md` as a blocking `human-decision` entry and is escalated once; it never loops. Inputs, fixes, the re-review and the escalation: [context/phase-review.md](context/phase-review.md).
+
 **At every phase boundary** (the phase's sanity check passes), perform this ritual atomically:
 
 1. **Verify acceptance criteria, then mark plan progress**. Before setting the completed phase's tag to `[DONE]`, confirm the phase's acceptance criteria hold. Self-review is the floor; for any phase beyond a mechanical, behavior-preserving change (where an objective build/test/lint pass is verification enough), and for every phase, mechanical ones included, when `verify_mechanical_phases` resolves `true`, that verdict is rendered by an agent that did NOT produce the phase's changes: a fresh-context verifier handed binary criteria and the diff, withholding your rationale, or the cross-vendor option `/verification:confirm` names, never the producing context auditing itself, which converges on approval rather than detection. Resolve `verify_mechanical_phases` once per run, before the first phase boundary, from the default `false`, `${user_config.verify_mechanical_phases}` and the repository's `docs/conventions/implementation.yaml`, by the floor, root and invalid-value rules in [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md), and report the value and the layer that supplied it in one line. Then set the tag to `[DONE]` in the plan artifact and tick its step boxes; keep any parent/roadmap documents that mirror phase status in sync in the same turn
@@ -267,7 +278,7 @@ When all planned work is done:
 |-----------|--------|
 | Before writing first test | Invoke `/tdd:principles` via Skill tool (when installed) for test design guidance |
 | After each logical block | Invoke `/toolchain:check` via Skill tool (when the `toolchain` plugin is installed; else the project's own build) |
-| At every phase boundary | Run the Step 4 ritual (plan marks + status + commit, then route the continuation last; a handoff entry with its resume prompt only on Step 4's own stop conditions or when the router routes there) |
+| At every phase boundary | A `Review:`-tagged phase first gets its Step 4 phase-boundary review; then run the Step 4 ritual (plan marks + status + commit, then route the continuation last; a handoff entry with its resume prompt only on Step 4's own stop conditions or when the router routes there) |
 | Worker-routed phase or autonomous orchestration | Invoke `/implementation:implement-dispatch` via Skill tool |
 | Divergence detected (major) | Route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) |
 | Technical question mid-implementation | Invoke `/discovery:research` via the Skill tool (when installed), otherwise disciplined multi-source research |

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "1. `/review:quality-gate code-design --worktree /srv/wt/shop-pricing --base 4b1d9e07 --quality-bar internal --report-only`\n2. Fix any CRITICAL or IMPORTANT finding with one fix brief, then one re-review.\n3. Dispatch `implementation:phase-verifier`.\n4. Mark Phase 3 `[DONE]`.\n5. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`\n6. `git -C /srv/wt/shop-pricing push`",
+      "why": "review first, commit last"
+    },
+    {
+      "answer": "Do not git commit until the review and the verifier have passed.\n\n1. /review:quality-gate code-design --worktree /srv/wt/shop-pricing --base 4b1d9e07 --quality-bar internal --report-only\n2. implementation:phase-verifier\n3. git -C /srv/wt/shop-pricing add src/pricing && git -C /srv/wt/shop-pricing commit -m \"feat: pricing rules\"",
+      "why": "negated commit mention ahead of the review"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "1. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`\n2. `/review:quality-gate code-design --worktree /srv/wt/shop-pricing --base 4b1d9e07 --quality-bar internal --report-only`\n3. Dispatch `implementation:phase-verifier`.",
+      "why": "commit before the review"
+    },
+    {
+      "answer": "1. Dispatch `implementation:phase-verifier`.\n2. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
+      "why": "no review at all"
+    },
+    {
+      "answer": "1. `/review:quality-gate code-design --worktree /srv/wt/shop-pricing --base 4b1d9e07 --quality-bar internal --report-only`\n2. Dispatch `implementation:phase-verifier`.\n3. Mark Phase 3 `[DONE]`; never git commit here.",
+      "why": "no commit step after the review"
+    }
+  ]
+}
