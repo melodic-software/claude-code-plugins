@@ -140,10 +140,8 @@ async function main() {
     // ---------- a general answer taken down leaves every open chat, and its asker's line says so ----------
     await ann.waitForTimeout(1100);
     await ann.evaluate(t => window.Core.chat(t), CHAT_ASK);
-    const grid = await owner.evaluate(async t => {
-      for (let i = 0; i < 50 && !(window.Core.state.requests || []).some(r => r.text === t); i++) await new Promise(r => setTimeout(r, 100));
-      return window.Core.state.requests.find(r => r.text === t).id;
-    }, CHAT_ASK);
+    ok("the host's page holds the chat @Claude ask", await until(owner, t => (window.Core.state.requests || []).some(r => r.text === t), CHAT_ASK, 10000));
+    const grid = await owner.evaluate(t => window.Core.state.requests.find(r => r.text === t).id, CHAT_ASK);
     await owner.evaluate(id => window.Core.requestAct(id, "run"), grid);
     const gx = s.apply(A.dir, [{ op: "result", request: grid, kind: "ask", summary: CHAT_ANS, sources: [], report: "", used: [], why: "" }]).results[0].id;
     await openChat(bo);
@@ -158,10 +156,8 @@ async function main() {
     // ---------- a Discussion ask taken down says so on its comment ----------
     await ann.waitForTimeout(1100);
     await ann.evaluate(t => window.Core.comment("Q2", t), DISC_ASK);
-    const drid = await owner.evaluate(async t => {
-      for (let i = 0; i < 50 && !(window.Core.state.requests || []).some(r => r.text === t); i++) await new Promise(r => setTimeout(r, 100));
-      return window.Core.state.requests.find(r => r.text === t).id;
-    }, DISC_ASK);
+    ok("the host's page holds the Discussion @Claude ask", await until(owner, t => (window.Core.state.requests || []).some(r => r.text === t), DISC_ASK, 10000));
+    const drid = await owner.evaluate(t => window.Core.state.requests.find(r => r.text === t).id, DISC_ASK);
     await owner.evaluate(id => window.Core.requestAct(id, "run"), drid);
     const dx = s.apply(A.dir, [{ op: "result", qid: "Q2", request: drid, kind: "ask", summary: DISC_ANS, sources: [], report: "", used: [], why: "" }]).results[0].id;
     await until(ann, a => (window.Core.state.research.Q2 || []).some(x => x.summary === a), DISC_ANS, 10000);

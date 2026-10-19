@@ -104,14 +104,14 @@ bad_json="$TEST_TMPDIR/blocking-skip.json"
 cat >"$bad_json" <<'EOF'
 {"hooks": {
   "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "node",
-    "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--skip-if-all-false", "BLOCK_NO_VERIFY_ENABLED",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--skip-unless-stdin-contains", "x",
       "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh", "block-no-verify.sh"]}]}],
   "PostToolUse": [{"matcher": "Write|Edit", "hooks": [
     {"type": "command", "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--skip-unless-stdin-contains", "x",
         "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh", "block-credential-read.sh"]},
     {"type": "command", "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--skip-if-all-false", "CLI_FLAG_VERIFY_ENABLED",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--skip-unless-stdin-contains", "x",
         "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh", "cli-flag-verify.sh"]}]}]
 }}
 EOF

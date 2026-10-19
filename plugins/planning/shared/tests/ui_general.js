@@ -130,6 +130,7 @@ async function main() {
     // ---------- a reply to Claude's answer quotes Claude ----------
     await ann.keyboard.press("Escape");
     await openChat(ann);
+    ok("Ann's chat holds Claude's answer after the reload", await until(ann, a => (window.Core.state.chat || []).some(m => m.claude && m.text === a), ANSWER, 10000));
     const cmid = await ann.evaluate(a => window.Core.state.chat.find(m => m.claude && m.text === a)?.id, ANSWER);
     await ann.evaluate(id => window.Core.chat("Thanks, Claude", id), cmid);
     ok("Bo sees a reply to Claude's answer quoting Claude, not the host", await until(bo, () => [...document.querySelectorAll(".vf-msg")].some(li =>
