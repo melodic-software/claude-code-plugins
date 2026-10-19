@@ -15,7 +15,10 @@
 # this hook as derived FROM the tracked config, so convention-inference tooling
 # must not count it as an independent signal.
 #
-# No tracked pattern, or one that is not POSIX ERE: no enforcement, exit 0.
+# No tracked pattern: no enforcement, exit 0, silent. A pattern that is not POSIX
+# ERE, an unreadable config or a resolver that cannot run also exits 0, but
+# prints a notice with the resolver's diagnostic to stderr (this hook has no
+# model channel): exit 1 with empty stderr is "no pattern", anything else a failure.
 # Fixup, squash and amend subjects pass, as rebase --autosquash consumes them.
 # A violation prints how to fix the subject and exits 1; this hook never
 # suggests skipping it.
@@ -32,7 +35,25 @@ resolver="$here/resolve-convention-pattern.sh"
 [[ -f "$resolver" ]] || exit 0
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
-subject_ere="$(bash "$resolver" "$repo_root" subject_pattern 2>/dev/null)" || subject_ere=""
+errf="$(mktemp 2>/dev/null)" || errf=/dev/null
+subject_ere="$(bash "$resolver" "$repo_root" subject_pattern 2>"$errf")"
+rc=$?
+if ((rc != 0)); then
+  err=""
+  IFS= read -r -d '' err <"$errf" || true
+  err="${err//[$'\r\n\t']/ }"
+  err="${err#"${err%%[![:space:]]*}"}"
+  err="${err%"${err##*[![:space:]]}"}"
+  [[ "$errf" == /dev/null ]] || rm -f "$errf"
+  # Exit 1 with empty stderr is "no convention tracked": quiet. Any other
+  # failure means this check did not run; it still lets the commit through.
+  if [[ -n "$err" || $rc -ne 1 ]]; then
+    [[ -n "$err" ]] || err="exit status $rc, no message"
+    echo "guardrails: the commit-msg convention check did not run, so this subject was not checked. The convention resolver reported \"${err:0:300}\"." >&2
+  fi
+  exit 0
+fi
+[[ "$errf" == /dev/null ]] || rm -f "$errf"
 [[ -n "$subject_ere" ]] || exit 0
 
 # The subject is the first non-empty line git keeps. Git drops comment lines

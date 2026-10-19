@@ -653,7 +653,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), whose review may be on any
    head, so a request on a thread from an earlier review is worked; or the lanes App's last
    comment is a reply the reply job left open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and
-   every comment after it is by such a `human` (any permission), created after it. A human's
+   every comment after it is by such a `human` (any permission), created after it, whose review
+   may also be on any head. A human's
    comment counts only when never edited or last edited by such a human. Every other comment must
    be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. The
    thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
@@ -664,11 +665,15 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    those replies is such a fix request by a write-access human, and
    reports `fix-requested=true`, which lifts only the human-gated hold for the run. No kept thread
    skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
-   `.github/**` escalates `feedback-protected-path`, and two earlier rounds escalate
-   `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR commits
-   carrying a `github-actions` `pr-unblock / address-feedback` check run that ended `success` or
-   `failure` (a round whose reply job was refused still counts). Both skip `awaiting-human` with
-   nothing minted. Otherwise
+   `.github/**` escalates `feedback-protected-path`, and `loop.review-rounds` earlier rounds
+   escalate `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR
+   commits carrying a `github-actions` `pr-unblock / address-feedback` check run that ended
+   `success` or `failure` (a round whose reply job was refused still counts). At the cap, a kept
+   thread with a write-access human's fix request created after the newest counted round (its
+   latest marker, or the completion of a model check run that ended `success`, `failure`,
+   `cancelled` or `timed_out`) still runs one more round, on those threads only; a
+   round with no readable time grants none. Both escalations skip `awaiting-human` with nothing
+   minted. Otherwise
    it writes `$RUNNER_TEMP/lane-feedback/threads.json`.
 2. `collect-base-activity` makes that directory read-only and stages a wrapper over the base's
    `feedback-thread.sh` there. The skill keeps the commit tool and gets `Bash(<wrapper> *)`; Edit
@@ -858,7 +863,9 @@ holds a write token: a base job, a read model job in this mode, and an
    at most 10. For each it writes the name, the workflow file that defines the job (or `null`),
    at most 20 annotations of at most 500 characters, and the last 80 lines, at most 3,000
    characters, of the job log, as `context.json`, uploaded as `ci-context-<run attempt>` with its
-   SHA-256 as a job output. A closed pull request or a head with no such check skips the rest.
+   SHA-256 as a job output. A closed pull request or a head with no such check skips the rest,
+   and a scripted job posts the fix-ci check neutral `not-applicable` on that head with
+   `report-check-run`'s `not-run-reason`, so the dispatcher counts the head as handled.
 2. The read file, before the head checkout, downloads that artifact and fails red unless it
    holds exactly one regular `context.json` of at most 1 MiB, with that SHA-256, written for the
    head this run gated.
