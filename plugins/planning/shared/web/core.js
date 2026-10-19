@@ -212,6 +212,7 @@
     view.joinRequests = (s.joinRequests || []).map(j => ({ pid: j.pid, name: j.name, ts: j.at, n: j.n, device: j.device || "", browser: j.browser || "" }));
     // Answers their authors cleared after the owner hid or edited them (owner only); Core.cardHistory reads one.
     view.cleared = Object.entries(s.cleared || {}).flatMap(([qid, lst]) => lst.map(t => ({ qid, ref: t.ref, cid: t.pid, name: nameOf(t.pid), ts: t.clearedAt, hidden: t.hidden })));
+    view.research = {}; // never DEFAULTS.research itself: a question whose last result came down must lose its key
     for (const [qid, lst] of Object.entries(s.results || {})) {
       view.research[qid] = lst.map(x => {
         const r = x.request ? reqText.get(x.request) : null, by = x.by?.kind === "guest-claude" ? x.by.pid : r?.pid;
