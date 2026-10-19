@@ -153,8 +153,8 @@ permission on the repository, never edited, or last edited by a person on that l
 `>` line never matches). On a thread the lanes App never commented on, one fix request after the
 reviewer bot's finding makes the thread one `address-feedback` works, as long as every other
 comment is the reviewer bot's or a trusted person's; their comments from the first fix request on
-are direction. Such a thread is worked even when its review is on an earlier head than the one
-the reviewed-head markers name.
+are direction. Such a thread, and one a trusted person answered after the lane escalated it, is
+worked even when its review is on an earlier head than the one the reviewed-head markers name.
 `pr-feedback-dispatch.yml` runs only when a review run completes, so a fix request posted after
 the head's review starts nothing on its own. To start the round, an account on the trusted-actor
 list dispatches the lane directly:
@@ -354,6 +354,25 @@ while that label is on the PR; a human removes the label, then dispatches the la
 a trust gate. An expedite label from a human with write access skips
 `refine`. A label counts only when the actor on its label event is a trusted human: a label the App
 set never resumes an item, expedites it, sets its work class or lifts a hold.
+
+A pr-unblock escalation whose reason repository state can settle is also cleared without a
+person. On its schedule, `pr-merge` rechecks each open PR into main carrying the human-gated
+label and removes it, after one comment naming the reason and the head, when every reason the
+lanes App's escalation comments recorded since the label went on no longer holds at the current
+head:
+
+| Reason | Cleared when |
+|---|---|
+| `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head |
+| `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
+| `feedback-protected-path` | the PR changes nothing under `.github/` |
+
+It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
+when any account but the lanes App commented or reviewed since that event, or when an App comment
+written or edited since then carries any marker other than pr-unblock's escalation (pr-merge's
+own `babysit-merge-*` escalations, another lane's). Every other reason
+(`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
+`ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
 
 ## Slots and order
 
@@ -827,11 +846,14 @@ login posts as that owner, so until agent sessions have their own GitHub identit
 acting as that account wrote it. The owner accepts that risk: unattended merge is on
 (`merge.report-only: false`) before that identity exists (#7711).
 
-`verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and `verify:untrusted-spec` need a
-human. While `merge.report-only` is false the lane escalates such a refusal on the pull request
-([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it keeps one
-`<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, rewritten only
-when either changes, then adds the tracker's human-gated role label (`needs-human` unless
+`verify:fail`, `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and
+`verify:untrusted-spec` need a human. While `merge.report-only` is false the lane escalates such a
+refusal on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
+keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, and
+for `verify:fail` quoting as data the first 1500 characters of the `summary` in the newest head
+`fail` verdict when its record can be read and names this pull request. The comment is rewritten
+only when any of these changes, and a failed read of the record leaves a comment that already
+quotes a summary for the same refusal and head as it is; then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run; a rerun that
 finds both writes nothing. While it is true the refusal is only reported. The
@@ -1066,7 +1088,9 @@ role's token as the run's credential.
 One counter per PR, in the findings store, is shared by every lane. After `loop.review-rounds`
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
 escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
-rounds have run. The default is 2; this repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
+rounds have run, unless a write-access trusted person asked for a fix on a thread after the
+newest round: that runs one more round, on the requested threads only. The default is 2; this
+repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
 App may push to one PR; the next fix-ci run hands it to a person before any model turn.
 
