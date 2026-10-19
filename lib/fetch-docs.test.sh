@@ -848,6 +848,31 @@ printf '%s' 'https://elsewhere.test/guide/page' >"$src/page.effective"
 gen_run "$src" go-r2 "$PYOK" $G1 "$PAGE_URL"
 assert_eq "generic: a redirect off origin is unread" "unread redirected-off-origin" "$(gpage go-r2 '"\(.state) \(.reason)"')"
 
+# A redirect between an allowed host pair is followed; any other host pair is not.
+src="$TEST_TMPDIR/gs-pair"
+mkdir -p "$src"
+printf '%s\n' '# Post' 'body' >"$src/post"
+printf '%s' 'https://claude.dev/blog/post' >"$src/post.effective"
+gen_run "$src" go-pair1 "$PYOK" $G1 'https://claude.com/blog/post'
+assert_eq "redirect pair: claude.com to claude.dev on the same path is read" "read markdown" \
+  "$(gpage go-pair1 '"\(.state) \(.format)"')"
+printf '%s' 'https://claude.dev/blog/other' >"$src/post.effective"
+gen_run "$src" go-pair2 "$PYOK" $G1 'https://claude.com/blog/post'
+assert_eq "redirect pair: claude.com to claude.dev off the path is unread" "unread redirected-off-path" \
+  "$(gpage go-pair2 '"\(.state) \(.reason)"')"
+printf '%s' 'https://elsewhere.test/blog/post' >"$src/post.effective"
+gen_run "$src" go-pair3 "$PYOK" $G1 'https://claude.com/blog/post'
+assert_eq "redirect pair: claude.com to a host outside the pairs is unread" "unread redirected-off-origin" \
+  "$(gpage go-pair3 '"\(.state) \(.reason)"')"
+printf '%s' 'https://claude.com/blog/post' >"$src/post.effective"
+gen_run "$src" go-pair4 "$PYOK" $G1 'https://claude.dev/blog/post'
+assert_eq "redirect pair: the reverse direction, claude.dev to claude.com, is unread" "unread redirected-off-origin" \
+  "$(gpage go-pair4 '"\(.state) \(.reason)"')"
+printf '%s' 'https://claude.dev/blog/post' >"$src/post.effective"
+gen_run "$src" go-pair5 "$PYOK" $G1 'https://www.claude.com/blog/post'
+assert_eq "redirect pair: a subdomain of an allowed host is not in the pair" "unread redirected-off-origin" \
+  "$(gpage go-pair5 '"\(.state) \(.reason)"')"
+
 # Python resolution.
 src="$TEST_TMPDIR/gs-py"
 mkdir -p "$src"

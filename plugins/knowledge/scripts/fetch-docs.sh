@@ -32,7 +32,8 @@
 # answers with markdown, the page's HTML is converted by html2md.py beside this
 # script, run by the first of python3 and python whose probe prints 3, with
 # PYTHONUTF8=1. Identity: the page's own request must end on the requested
-# origin and path, or the page is unread. With --cache the page's title (its
+# origin and path, or the page is unread; a redirect between a listed origin
+# pair (REDIRECT_PAIRS) ends on the requested origin. With --cache the page's title (its
 # first heading, else the HTML <title>) is stored, and an entry whose title
 # differs from the one it replaces quarantines the cache key (docs-cache.sh).
 #
@@ -610,15 +611,23 @@ url_parts() {
   [[ -n "$U_PATH" ]] || U_PATH="/"
 }
 
+# Origin pairs "<requested> <effective>" a redirect may cross and still count
+# as the requested origin, one way only. Both hosts of a pair have one owner,
+# so following it trusts no new publisher.
+REDIRECT_PAIRS=("https://claude.com https://claude.dev")
+
 # landed <requested> <effective>: same, off-origin or off-path.
 landed() {
-  local o p
+  local o p pair
   url_parts "$1" || return 1
   o="$U_ORIGIN" p="$U_PATH"
   url_parts "$2" || {
     printf off-origin
     return 0
   }
+  for pair in "${REDIRECT_PAIRS[@]}"; do
+    [[ "$o $U_ORIGIN" != "$pair" ]] || o="$U_ORIGIN"
+  done
   if [[ "$U_ORIGIN" != "$o" ]]; then
     printf off-origin
   elif [[ "$U_PATH" != "$p" ]]; then
