@@ -10,7 +10,7 @@ bump: minor
   row of the producer's prepare mode (`default` when it has none), read from the trusted base
   checkout. It refuses the whole patch on any change under `.github/` (any case, any `..` segment)
   or `.claude/`, to the root `.mcp.json`, `.gitmodules` or a `settings*.json`, on a symbolic link,
-  gitlink or new executable bit, on a rename into any of those, on more paths than the row's
+  gitlink or new executable bit, on a rename into any of those, on a path holding a backslash, on more paths than the row's
   `max-files`, on a path its allow predicates refuse, and on an Anthropic API key, OAuth token or
   GitHub token shape in the patch or a patched blob. A row without the universal refusals, or with
   an unknown predicate, throws before any write. A head that moved since the model job takes the

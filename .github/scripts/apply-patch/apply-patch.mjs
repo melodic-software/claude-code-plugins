@@ -70,11 +70,15 @@ const PATH_RULES = {
   settings: (s) => /^settings[^/]*\.json$/.test(s.at(-1) ?? ""),
 };
 const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
-const pathRefused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path)));
+const pathRefused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path))) || path.includes("\\");
 
-// The refusal table. Every row must name every refusal; any match refuses the
-// whole patch, and `kind` picks the row's escalation reason.
+// The refusal table. Every row must name every refusal but those in ALWAYS,
+// which apply to every row unnamed; any match refuses the whole patch, and
+// `kind` picks the row's escalation reason.
+export const ALWAYS = ["backslash"];
 export const REFUSALS = {
+  // A backslash reads as a directory separator on Windows checkouts.
+  backslash: { kind: "protected-path", test: (entry) => entry.path.includes("\\") },
   github: { kind: "protected-path", test: pathRule("github") },
   claude: { kind: "protected-path", test: pathRule("claude") },
   "mcp-config": { kind: "protected-path", test: pathRule("mcp-config") },
@@ -151,7 +155,7 @@ export function checkRow(row) {
   const fail = (message) => {
     throw new Error(`patch-rules.json row \`${row.name}\` ${message}`);
   };
-  const missing = Object.keys(REFUSALS).filter((name) => !row.refuse?.includes(name));
+  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !row.refuse?.includes(name));
   if (missing.length > 0) {
     fail(`does not refuse ${missing.join(", ")}`);
   }
@@ -365,8 +369,10 @@ export async function push({
   }
   const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", headSha, tree]));
   // One refused entry refuses the whole patch, before anything is written.
-  for (const entry of [...entries, ...renames]) {
-    const [refusal] = refusalsOf(entry, row.refuse);
+  // A rename is checked as one first; every entry then meets the rest.
+  const checks = [...renames.map((entry) => [entry, ["rename-into-refused"]]), ...entries.map((entry) => [entry, [...row.refuse, ...ALWAYS]])];
+  for (const [entry, names] of checks) {
+    const [refusal] = refusalsOf(entry, names);
     if (refusal) {
       return escalate(REFUSALS[refusal].kind, `refused (${refusal}): ${entry.path}`);
     }

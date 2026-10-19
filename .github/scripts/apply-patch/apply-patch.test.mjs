@@ -180,7 +180,15 @@ test("refuses a rename from an allowed path into .github/", async (t) => {
     { renames: true },
   );
   assert.match(readFileSync(fix.patchFile, "utf8"), /^rename to \.github\/notes\.md$/m);
-  assert.ok(refusalsOf({ ...entry(".github/notes.md"), renamedFrom: "notes.md" }).includes("rename-into-refused"));
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.deepEqual(await pushWith(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.deepEqual(lines, ["refused (rename-into-refused): .github/notes.md"]);
+  assert.deepEqual(api.calls, []);
+});
+
+test("refuses a patched path holding a backslash, such as a .github\\x.yml add", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, ".github\\x.yml"), "on: push\n"));
   const api = fakeApi(fix.repo, fix.head);
   assert.deepEqual(await pushWith(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" });
   assert.deepEqual(api.calls, []);
