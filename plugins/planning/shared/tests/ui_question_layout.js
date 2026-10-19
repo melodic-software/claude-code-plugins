@@ -14,7 +14,7 @@ const { loadPlaywright, suite, recorder, until, joinAs, openClaude } = require("
 
 const CHOICE = "Which payment method should checkout offer first?", TEXT = "Where should the order summary sit?";
 const ASK = "How do the big shops place the order summary?", ANSWER = "Most keep it in a right column on desktop.";
-const ASK2 = "And on phones?";
+const ASK2 = "And on phones?", LOCKQ = "Which side should the totals sit on?";
 const OPTS = [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "A wallet such as PayPal, Apple Pay or Google Pay, whichever the shopper already has" },
   { id: "opt-3", label: "Bank transfer" }, { id: "opt-4", label: "Pay later in three parts, with no interest for the first month" }];
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
@@ -42,7 +42,7 @@ async function main() {
   try {
     const A = await s.start("qlayout");
     s.apply(A.dir, [{ op: "set-title", title: "Question layout checks" }, { op: "open-round", questions: [
-      q("Q1", CHOICE, { kind: "choice", options: OPTS }), q("Q2", TEXT, { kind: "text" })] }]);
+      q("Q1", CHOICE, { kind: "choice", options: OPTS }), q("Q2", TEXT, { kind: "text" }), q("Q3", LOCKQ, { kind: "text" })] }]);
     const owner = await rec.open(A.ownerUrl);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     const ann = await rec.open(A.localUrl, { context: { viewport: { width: 1440, height: 900 } } });
@@ -159,7 +159,29 @@ async function main() {
     });
     ok("390: the disabled composer's placeholder fits its line", fit.disabled && fit.need <= fit.room, JSON.stringify(fit));
 
-    ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
+    // ---------- a lock and a last suggestion that go clear on another page without a reload ----------
+    await ann.setViewportSize({ width: 1440, height: 900 });
+    await go(ann, LOCKQ);
+    await ann.evaluate(() => window.Core.answerCiting("Q3", "Put it on the right.", []));
+    await until(owner, () => window.Core.snapshot().cards?.Q3?.length > 0);
+    await owner.evaluate(() => window.Core.lock("Q3", window.Core.snapshot().cards.Q3[0].ref));
+    const lockShown = page => page.evaluate(() => !document.querySelector(".vf-lock").hidden && /Locked/.test(document.querySelector(".vf-lock").textContent));
+    ok("the owner locks the question and Ann's page shows Locked", await until(ann, () => !document.querySelector(".vf-lock").hidden && /Locked/.test(document.querySelector(".vf-lock").textContent), null, 10000), String(await lockShown(ann)));
+    await owner.evaluate(() => window.Core.unlock("Q3"));
+    ok("after the owner unlocks, Ann's page loses the lock block without a reload", await until(ann, () => document.querySelector(".vf-lock").hidden && !window.Core.snapshot().locks?.Q3, null, 10000), String(await lockShown(ann)));
+    await owner.evaluate(() => window.Core.lock("Q3", window.Core.snapshot().cards.Q3[0].ref));
+    await until(ann, () => !document.querySelector(".vf-lock").hidden, null, 10000);
+    await bo.evaluate(() => window.Core.suggest("Q3", "Put it on the left."));
+    ok("Bo's only suggestion on the locked question shows on Ann's page", await until(ann, () => document.querySelectorAll(".vf-slist > li").length === 1, null, 10000));
+    const sugId = await owner.evaluate(async () => {
+      for (let i = 0; i < 40 && !(window.Core.snapshot().suggestions?.Q3 || []).length; i++) await new Promise(r => setTimeout(r, 100));
+      return window.Core.snapshot().suggestions.Q3[0]?.id;
+    });
+    await owner.evaluate(id => window.Core.dismissSuggestion("Q3", id), sugId);
+    ok("once the owner dismisses it, Ann's page no longer lists it, without a reload", await until(ann, () => document.querySelectorAll(".vf-slist > li").length === 0 && !(window.Core.snapshot().suggestions?.Q3 || []).some(x => x.status === "open"), null, 10000),
+      await ann.evaluate(() => JSON.stringify(window.Core.snapshot().suggestions?.Q3)));
+
+    ok("no page broke the server's CSP",(await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
     ok("no page error", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {

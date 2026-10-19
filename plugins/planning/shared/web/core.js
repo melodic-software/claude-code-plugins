@@ -108,7 +108,7 @@
     MENTIONS = { live: labels(live.map(p => p.pid)), all: labels([...Object.keys(people), ...Object.keys(s.mentions || {})]), label };
     const plain = t => (typeof t === "string" && t.includes("<@") ? t.replace(TOKEN, (_, p) => "@" + label(p)) : t);
     const view = {
-      ...DEFAULTS,
+      ...structuredClone(DEFAULTS), // its own maps: a question whose last answer, lock, suggestion or result went must lose its key
       schemaVersion: s.schemaVersion, rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", ended: !!s.ended, serverTime: s.serverTime,
       settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always" },
       people, ownerPid: "host",
@@ -212,7 +212,6 @@
     view.joinRequests = (s.joinRequests || []).map(j => ({ pid: j.pid, name: j.name, ts: j.at, n: j.n, device: j.device || "", browser: j.browser || "" }));
     // Answers their authors cleared after the owner hid or edited them (owner only); Core.cardHistory reads one.
     view.cleared = Object.entries(s.cleared || {}).flatMap(([qid, lst]) => lst.map(t => ({ qid, ref: t.ref, cid: t.pid, name: nameOf(t.pid), ts: t.clearedAt, hidden: t.hidden })));
-    view.research = {}; // never DEFAULTS.research itself: a question whose last result came down must lose its key
     for (const [qid, lst] of Object.entries(s.results || {})) {
       view.research[qid] = lst.map(x => {
         const r = x.request ? reqText.get(x.request) : null, by = x.by?.kind === "guest-claude" ? x.by.pid : r?.pid;
