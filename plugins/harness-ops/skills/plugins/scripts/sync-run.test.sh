@@ -125,6 +125,22 @@ case "$verb" in
     echo "${id%@*} is already at the latest version ($cur)."
     exit 0
   fi
+  # CLAUDE_STUB_CONCURRENT_IDS: something else already moved these ids since the
+  # run's last read, so the CLI says they are current at the version that move
+  # wrote, CLAUDE_STUB_CONCURRENT_VERSION (a different version from the installed
+  # one), and this call writes nothing.
+  case " ${CLAUDE_STUB_CONCURRENT_IDS:-} " in
+  *" $id "*)
+    moved_to="${CLAUDE_STUB_CONCURRENT_VERSION:-9.9.9}"
+    jq --arg id "$id" --arg sc "$scope" --arg v "$moved_to" \
+      '.plugins[$id] = [.plugins[$id][] | if .scope == $sc then .version = $v else . end]' \
+      "$CLAUDE_STUB_INSTALLED_JSON" >"$CLAUDE_STUB_INSTALLED_JSON.next" &&
+      mv "$CLAUDE_STUB_INSTALLED_JSON.next" "$CLAUDE_STUB_INSTALLED_JSON"
+    echo "${id%@*} is already at the latest version ($moved_to)."
+    exit 0
+    ;;
+  *) ;;
+  esac
   new="${CLAUDE_STUB_NEW_VERSION:-9.9.9}"
   # CLAUDE_STUB_MISFIRE_PATH: the CLI moves only the record keyed to that path,
   # as it did to a sibling worktree's record, whatever the cwd.
@@ -1129,6 +1145,115 @@ assert_eq "render self-update: the digest names this plugin's own row" \
   "$(jq -c '.marketplaces[0].self_update' <<<"$REPORT_DIGEST")"
 assert_golden "render self-update: the note names this plugin" self-update-not-first.txt "$REPORT_TEXT"
 
+# --- an id the CLI calls current while the snapshots show it moved -------------
+# The stub prints "already at the latest version (X)" for alpha after something
+# else moved it. X differs from the mid snapshot's version, so the id is a
+# moved-during-run row, not a noop; the same line with X equal to the installed
+# version is a true noop.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.2.0 0.1.0 true
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_CONCURRENT_IDS=alpha@market1 CLAUDE_STUB_CONCURRENT_VERSION=0.2.0 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_exit "moved during run: exit 0" 0 $?
+assert_eq "moved during run: the id is a moved row with old to new" \
+  '[{"id":"alpha@market1","scope":"user","kind":"user_sweep","old":"0.1.0","new":"0.2.0","direction":"forward"}]' \
+  "$(jq -c '.marketplaces[0].moved_during_run' <<<"$out")"
+assert_eq "moved during run: it is not an Updated row" "0" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated | length' <<<"$out")"
+assert_eq "moved during run: it is not counted as unverified" "0" \
+  "$(jq -r '.marketplaces[0].noop_unverified' <<<"$out")"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.2.0 0.1.0 true
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_exit "true noop: exit 0" 0 $?
+assert_eq "true noop: a printed version equal to the old one makes no row" "0" \
+  "$(jq -r '.marketplaces[0].moved_during_run | length' <<<"$out")"
+assert_eq "true noop: and nothing is unverified" "0" \
+  "$(jq -r '.marketplaces[0].noop_unverified' <<<"$out")"
+assert_eq "true noop: and nothing is updated" "0" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated | length' <<<"$out")"
+
+# A concurrent move to a LOWER version lands under Downgraded, flagged.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.3.0 0.2.0 true
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_CONCURRENT_IDS=alpha@market1 CLAUDE_STUB_CONCURRENT_VERSION=0.1.0 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+assert_exit "moved backward: exit 0" 0 "$REPORT_RC"
+assert_eq "moved backward: the downgraded row carries the concurrent flag" \
+  '[{"id":"alpha@market1","scope":"user","old":"0.2.0","new":"0.1.0","concurrent":true}]' \
+  "$(jq -c '.marketplaces[0].downgraded' <<<"$REPORT_DIGEST")"
+assert_contains "moved backward: the report qualifies the downgrade" "$REPORT_TEXT" \
+  "  - alpha@market1 (user): 0.2.0 → 0.1.0 (moved during this run)"
+
+# A snapshot version that cannot be read leaves the id a noop and counts it.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.2.0 0.1.0 true
+# shellcheck disable=SC2016  # the stub body is literal script text, expanded when the stub runs
+write "$case_dir/stubs/claude-unreadable" '#!/usr/bin/env bash
+if [[ "${1:-} ${2:-}" == "plugin update" ]]; then
+  echo "alpha is already at the latest version (0.2.0)."
+  # The id leaves the install records after the call, so the post read has no version.
+  printf %s "{\"version\":1,\"plugins\":{}}" >"$CLAUDE_STUB_INSTALLED_JSON"
+  exit 0
+fi
+exec "$(dirname "$0")/claude" "$@"
+'
+chmod +x "$case_dir/stubs/claude-unreadable"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" SYNC_RUN_CLAUDE_BIN="$case_dir/stubs/claude-unreadable" CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_exit "unverified noop: exit 0" 0 $?
+assert_eq "unverified noop: no moved row is invented" "0" \
+  "$(jq -r '.marketplaces[0].moved_during_run | length' <<<"$out")"
+assert_eq "unverified noop: the id is counted as unverified" "1" \
+  "$(jq -r '.marketplaces[0].noop_unverified' <<<"$out")"
+
+# --- this plugin's own install moved during the run -----------------------------
+# zeta is the plugin running the sync. The CLI calls it current, but its install
+# moved on disk: the flag is set and the note names zeta, not the first moved row.
+# beta is updated by the sweep and alpha moved during the run, each with a project
+# record elsewhere, so each creates a new divergence: the split credits the sweep
+# for beta and the concurrent move for alpha.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+catalog_plugin "$case_dir" market1 beta 0.2.0
+catalog_plugin "$case_dir" market1 zeta 0.2.0
+mkdir -p "$case_dir/self/.claude-plugin" "$case_dir/other"
+write "$case_dir/self/.claude-plugin/plugin.json" '{"name":"zeta","version":"0.1.0"}'
+other=$(norm_path "$case_dir/other")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$other\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"}],
+    \"beta@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/beta\", \"version\": \"0.1.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$other\", \"installPath\": \"$case_dir/cache/beta\", \"version\": \"0.1.0\"}],
+    \"zeta@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/zeta\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}, {"name": "zeta", "source": "zeta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true, "zeta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_PLUGIN_ROOT="$case_dir/self" CLAUDE_STUB_NEW_VERSION=0.2.0
+  CLAUDE_STUB_CONCURRENT_IDS="alpha@market1 zeta@market1" CLAUDE_STUB_CONCURRENT_VERSION=0.2.0 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+assert_exit "moved self: exit 0" 0 "$REPORT_RC"
+assert_eq "moved self: the flag is set" "true" "$(jq -r '.marketplaces[0].self_updated' <<<"$REPORT_DIGEST")"
+assert_eq "moved self: the digest names this plugin's own row" \
+  '{"id":"zeta@market1","scope":"user","old":"0.1.0","new":"0.2.0"}' \
+  "$(jq -c '.marketplaces[0].self_update' <<<"$REPORT_DIGEST")"
+assert_eq "moved self: the divergence split credits concurrent and sweep separately" \
+  '{"in_repo":0,"user_sweep":1,"concurrent":1}' \
+  "$(jq -c '.marketplaces[0].divergences.new_by_interval' <<<"$REPORT_DIGEST")"
+assert_golden "render moved during run: moved rows, self-update note and the split's own cause" moved-during-run.txt "$REPORT_TEXT"
+
 # --- stale project records plus a cache-content finding ----------------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1342,7 +1467,7 @@ needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enab
 # than the first moved row.
 assert_contains "self-update render: a digest without the row names no plugin" \
   "$(needs_digest sync '{"self_updated":true,"user_sweep":{"updated":[{"id":"a@m","scope":"user","old":"1","new":"2"}]}}' |
-    jq -r -f "$SCRIPT_DIR/render-report.jq")" "Note: this run updated this plugin. The algorithm"
+    jq -r -f "$SCRIPT_DIR/render-report.jq")" "Note: this plugin moved during this run. The algorithm"
 
 # --- an install that left userConfig options unset ---------------------------
 CASE_NUM=$((CASE_NUM + 1))
@@ -1596,19 +1721,23 @@ case_dir=$(new_case_dir)
 nojq_bin="$case_dir/nojq-bin"
 mkdir -p "$nojq_bin"
 for tool in bash cat dirname date; do
-  ln -s "$(command -v "$tool")" "$nojq_bin/$tool"
+  ln -s "$(command -v "$tool")" "$nojq_bin/$tool" 2>/dev/null
 done
-out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --help 2>&1)
-rc=$?
-assert_exit "--help without jq: exit 0" 0 "$rc"
-assert_contains "--help lists the exit codes" "$out" "Exit: 0 the run completed"
-out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --nonsense 2>&1)
-rc=$?
-assert_exit "usage error without jq: exit 2" 2 "$rc"
-out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --marketplace market1 --journal-root "$case_dir/j" 2>&1)
-rc=$?
-assert_exit "run without jq: exit 2" 2 "$rc"
-assert_contains "run without jq: actionable notice" "$out" "jq required"
+if [[ -L "$nojq_bin/bash" ]] && [[ "$(env PATH="$nojq_bin" "$nojq_bin/bash" -c 'echo ok' 2>/dev/null)" == "ok" ]]; then
+  out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --help 2>&1)
+  rc=$?
+  assert_exit "--help without jq: exit 0" 0 "$rc"
+  assert_contains "--help lists the exit codes" "$out" "Exit: 0 the run completed"
+  out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --nonsense 2>&1)
+  rc=$?
+  assert_exit "usage error without jq: exit 2" 2 "$rc"
+  out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --marketplace market1 --journal-root "$case_dir/j" 2>&1)
+  rc=$?
+  assert_exit "run without jq: exit 2" 2 "$rc"
+  assert_contains "run without jq: actionable notice" "$out" "jq required"
+else
+  printf 'SKIP: no-jq cases — ln -s cannot make a runnable link on this host (Windows without the symlink privilege)\n' >&2
+fi
 
 # ============================================================================
 # Case: version_direction reads every segment in base 10

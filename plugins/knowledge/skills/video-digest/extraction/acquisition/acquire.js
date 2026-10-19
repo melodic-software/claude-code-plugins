@@ -66,7 +66,7 @@ const LEGACY_ACQUIRE_PHASE_GAP_ENV = "YOUTUBE_ACQUIRE_PHASE_GAP_SEC";
  * @typedef {Object} AcquisitionResult
  * @property {MediaArtifacts} artifacts
  * @property {VideoMetadata} metadata
- * @property {import('./select-caption.js').CaptionSelection} caption
+ * @property {import('./select-caption.js').CaptionSelection|null} caption - null only in full mode when the caption ladder is exhausted
  * @property {string} workDir
  * @property {object} [acquireMetrics]
  */
@@ -373,7 +373,10 @@ export async function acquireYouTubeMedia(
     }
   }
 
-  if (!captionResult.success) {
+  // Full mode holds the downloaded video, so an exhausted ladder proceeds caption-less and the
+  // transcript strategy picks ASR or records a degradation. Transcript mode has no media and stops.
+  const captionOptional = mode === "full" && Boolean(artifacts.videoPath);
+  if (!captionResult.success && !captionOptional) {
     return failVideo(captionResult.error);
   }
 
@@ -408,12 +411,12 @@ export async function acquireYouTubeMedia(
   const finalCaption = selectCaptionFile(artifacts.captionPaths, source.captionClass, {
     manualLanguages,
   });
-  if (!finalCaption.success) {
+  if (!finalCaption.success && !captionOptional) {
     return failVideo(finalCaption.error);
   }
 
-  let caption = finalCaption.selection;
-  if (captionError) {
+  let caption = finalCaption.success ? finalCaption.selection : null;
+  if (caption && captionError) {
     // A failed track beside the chosen one is recorded, not dropped.
     const errorLine = captionErrorLine(captionError);
     caption = {
