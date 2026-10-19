@@ -341,8 +341,8 @@ For `auto`: classify intent against `context/loop.md` "Step 1.5. Auto-detect" cr
 
 **Unattended path: the guard holds, the run does not idle.** `/planning:interview` can be reached with no human to answer (a loop, a spawned worker, another skill's chain). The condition is **declared by the caller, never sniffed**. There is no supported way for a session to observe that it is non-interactive. Unattended, codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded `auto-resolved (unattended)`; a decision genuinely the user's is recorded `blocked` in the register, written to the Brief's `### Deferred questions` with **arbiter: USER-RESERVED**, and named as a blocker in the output. That extends the auto-guard rather than excepting it. The guard forbids the choice *disappearing*, and a named blocker is the choice made maximally visible. Stop on blockers; never wait indefinitely, and never read absence of objection as confirmation. Full ladder: [`context/loop.md`](context/loop.md) "Unattended path".
 
-For `me` / `me <topic>`: skip Step 1.5, force Q&A.
-For `scope` / `scope <topic>`: skip Step 1.5; with no topic, scope the current task. Run Step 2–3, then the **`scope` persist path** below instead of the engineering Brief in Step 4. Do not offer `/planning:plan` handoff; stop after returning decisions.
+For `me` / `me <topic>`: skip Step 1.5 except loop.md's "Problem first" paragraph, force Q&A.
+For `scope` / `scope <topic>`: skip Step 1.5 except loop.md's "Problem first" paragraph; with no topic, scope the current task. Run Step 2–3, then the **`scope` persist path** below instead of the engineering Brief in Step 4. Do not offer `/planning:plan` handoff; stop after returning decisions.
 For `lock`: skip Step 1.5 AND Step 2, synthesize directly. If a gap surfaces mid-synthesis, STOP and surface; do not fudge.
 
 ### Step 2. Drive the frontier-rounds loop

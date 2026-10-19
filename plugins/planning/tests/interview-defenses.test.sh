@@ -577,11 +577,13 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
   "24345865fa0f8200906a8635127237bee6c00bdac4728b6178d0ede76ea97567"
+# The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
+# question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
   "### Step 2. Drive the frontier-rounds loop" \
-  "622c2becabb3a7e8315758acf56681dbeb1f52278c4ab8b8030155610e820acf"
+  "eba42e92c8cc1d48d2510d28ab146b8ed019790b34e226fb60c40e84bc0598c9"
 # The "Problem first" paragraph makes `lock` ask one registered problem question and sends a
 # solution-shaped goal to rethink-or-accept; it adds a question and leaves the STOP line byte-identical.
 # An unattended pre-confirmed item counts as accept for rethink-or-accept, per problem-framing.md "Pre-confirmed"; STOP-on-gap is unchanged.
