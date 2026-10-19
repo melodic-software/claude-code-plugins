@@ -286,8 +286,10 @@ items, built by `session.py` for the viewer alone (never another person's reques
 requester cannot see). `inboxSeen` in `state.json` keeps, per person, the status each item had
 when they opened it; an item whose status moved since is unread, and only
 `POST /api/inbox/read {keys}` (keys of the caller's own Inbox; others mark nothing) marks one
-read. Notifications stay under the Inbox; its badge leaves out the `request` and `queue` kinds,
-which its items already show. The owner's own requests skip the queue: one starts running when
+read. Notifications stay under the Inbox; its badge leaves out the `request` kind, which its
+items already show. The owner gets no `queue` line for what its Inbox lists as waiting
+(requests, shares, reports, merges, joins); queue lines for proposals, suggestions and upload
+offers still count. The owner's own requests skip the queue: one starts running when
 sent, and Claude's result for it is shared at once. A guest's request, the owner's guest identity
 included, still waits for Run and Share.
 
