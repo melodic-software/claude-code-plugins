@@ -42,6 +42,9 @@ Markdown means Markdown prose files; code is every other changed file.
 
 ### The cascade rule
 
+In a code-design review this rule overrides the severity vocabulary's "code duplication" IMPORTANT
+example: repetition is CRITICAL or SUGGESTION as the table rates it.
+
 A repetition finding is CRITICAL only when all of these hold; there is no file-count threshold:
 
 - the diff introduces the copy (a copy that predates the base is at most SUGGESTION);

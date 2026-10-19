@@ -23,6 +23,10 @@
       "why": "rated IMPORTANT"
     },
     {
+      "answer": "| 1 | CRITICAL | high | Missing Tests | The new free-shipping threshold banner has no test | src/cart/banner.js:2 | Add a test |",
+      "why": "CRITICAL about something else that only mentions the threshold"
+    },
+    {
       "answer": "No code-design issues found.\n\nCRITICAL 0, IMPORTANT 0, SUGGESTION 0",
       "why": "approves"
     }

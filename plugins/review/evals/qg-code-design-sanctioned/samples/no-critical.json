@@ -7,6 +7,10 @@
     {
       "answer": "| 1 | SUGGESTION | low | Shotgun Surgery | A handler needs its file and a registry line | src/handlers/index.js:7 | Optional: derive the registry |",
       "why": "SUGGESTION only"
+    },
+    {
+      "answer": "Not CRITICAL: src/handlers/index.js is the declared registry and src/lib/money.js is a move.\n\nCRITICAL 0, IMPORTANT 0, SUGGESTION 0",
+      "why": "negated mention of CRITICAL beside a file name"
     }
   ],
   "fail": [

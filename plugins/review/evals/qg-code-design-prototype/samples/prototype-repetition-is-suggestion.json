@@ -3,6 +3,10 @@
     {
       "answer": "Quality bar: prototype\n\n| 1 | SUGGESTION | high | Duplicated Code | app/upload.py and app/form.py hardcode 25, a copy of MAX_UPLOAD_MB | app/upload.py:6 | Read config.MAX_UPLOAD_MB |\n\nCRITICAL 0, IMPORTANT 0, SUGGESTION 1",
       "why": "SUGGESTION under the prototype bar"
+    },
+    {
+      "answer": "Quality bar: prototype\n\nNot CRITICAL: app/upload.py copies 25 under the prototype bar.\n\n| 1 | SUGGESTION | high | Duplicated Code | app/upload.py hardcodes 25, a copy of MAX_UPLOAD_MB | app/upload.py:6 | Read config.MAX_UPLOAD_MB |",
+      "why": "negated mention of CRITICAL beside a file name"
     }
   ],
   "fail": [
