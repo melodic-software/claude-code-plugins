@@ -436,11 +436,15 @@ Upstream link formats (volatile; read the pages, never copy their limits here):
 
 Off until the owner turns on Uploads (`shared_session.uploads`). Every place people write (the answer
 box, Ask Claude, a question's ask box, a suggestion, chat, the Discussion and Propose) then has an
-Attach button that offers "Upload a file" and lists the person's files the owner accepted. A picture
-pasted into any of those fields (PNG, JPEG, WebP or GIF on the clipboard) is made at most 1600 px and
-512 KB in the browser, offered as a file, and shown as a thumbnail chip, never as text in the field;
-it reads "Waiting for the host" until the owner accepts it, and the form will not send until then.
-While Uploads is off no upload control shows and a pasted picture adds nothing.
+Attach button that offers "Upload a file" and lists the person's files the owner accepted. Every
+picture (PNG, JPEG, WebP or GIF), picked or pasted into any of those fields, is redrawn in the browser
+at most 1600 px and 512 KB, so no metadata such as EXIF or GPS leaves the device, then offered as a
+file. A pasted one shows as a thumbnail chip, never as text in the field; it reads "Waiting for the
+host" until the owner accepts it, and taking it off the form withdraws it (or removes it once
+received). Each question keeps its own unsent chips. Send waits while a file is waiting for the
+host, and takes off, naming it, a file declined, withdrawn, failed or removed meanwhile; a sent form
+drops only the chips it sent. While Uploads is off no upload control shows and a pasted picture adds
+nothing.
 
 What carries files (C44, at most four, each an upload of the writer's own the owner accepted, each
 once): `attachments` on `POST /api/answer` and `POST /api/pick` replaces the list, left out it is
@@ -448,7 +452,10 @@ kept; on `/api/chat`, `/api/request`, `/api/suggest`, `/api/propose` and `/api/d
 optional and refused (403 `uploads-off`) while Uploads is off, and on `/api/request` with `runner:
 self` (400 `bad-field`). A request filed by "@Claude" in chat or a comment carries that message's
 files, a proposal forwarded from chat its message's, and `request-run` lists a request's
-`attachments`. Declining or withdrawing a file takes it off everything that carries it.
+`attachments`, and a proposal placed as a suggestion keeps its proposal's. Declining or withdrawing a
+file takes it off everything that carries it, and so does `remove` (`POST /api/upload/act`, the
+owner's or the uploader's, on a received file): its status becomes `removed` (`at`, `by`) and its
+file is deleted.
 
 1. `POST /api/upload/offer` `{file, size, type, qid?, thumb?}` (96 KB) records the offer; the file
    stays in the browser (IndexedDB, or memory where a private window refuses it) until the owner
@@ -488,15 +495,25 @@ snapshot never carries a path: `myUploads` (one's own), `uploads` (the owner's, 
 preview) and `files` (name, kind, size and status of the files on what that viewer reads: shown
 answers, chat, comments and suggestions, plus their own hidden answers and comments, the proposals
 they see and their own requests, every one for the owner). A file shows only where what carries it
-shows, so a Just me request's, a proposal's or a hidden comment's never reaches another guest.
+shows, so a Just me request's, a proposal's or a hidden comment's never reaches another guest. The
+snapshot's `files` covers the chat window only; `GET /api/chat` answers each page with the `files`
+its messages carry.
 
-Only a received picture is read back. `files`, `myUploads` and `uploads` mark one `image` when it is
-done, of kind PNG, JPEG, JPG, WebP or GIF (never SVG or HTML), and at most 10 MB.
-`GET /api/upload/image?id=` (auth class person) answers its uploader, the owner, and whoever's
-`files` lists it with `{id, image}`, a data: URL whose type comes from the bytes' magic number,
-under the usual JSON headers (`nosniff`); any other id is 404 `not-found`. The page shows it as a
-tile that opens the viewer; the page policy's `img-src 'self' data:` is unchanged. Claude reads an
-upload only through the Read-only `upload-reader` agent. Each start deletes pending files no upload names, declines files still
+Only a received picture is read back: done, of kind PNG, JPEG, JPG, WebP or GIF (never SVG or HTML),
+and at most 512 KB (what the page makes of one); a larger file shows as a file. A guest's reaches
+anyone but its uploader and the owner only once the owner approves the bytes that arrived:
+`POST /api/upload/act {id, action: "approve"}` (owner only) sets the upload's `shown`, and the Host
+queue lists each received guest picture waiting for it, showing the picture itself, with Approve
+picture and Remove. The owner's own pictures need no approval. `myUploads` and `uploads` mark a
+received picture `image` (and `shown` once approved); `files` marks it `image` once others may see
+it, else `awaitsHost`, where the page shows "Waiting for the host" in its place.
+`GET /api/upload/image?id=` (auth class person) answers its uploader, the owner, and, once approved,
+whoever reads something that carries it, with `{id, image}`, a data: URL whose type comes from the
+bytes' magic number, under the usual JSON headers (`nosniff`); every other id is 404 `not-found`,
+and past 120 reads a minute per person 429 `slow-down`. It decides from a list kept per `rev`, never
+by building a snapshot. The page shows the picture as a tile that opens the viewer and keeps the 24
+it used last; the page policy's `img-src 'self' data:` is unchanged. Claude reads an upload only
+through the Read-only `upload-reader` agent. Each start deletes pending files no upload names, declines files still
 on their way from someone no longer in the session, and cuts a partial file back to the pieces its
 record counts. A state whose upload id, extension or received name is not one the server makes
 does not load.
@@ -822,11 +839,15 @@ while Uploads is off, an offer held in the guest's browser, the owner's Accept, 
 that resumes after a dropped piece and a reload, the file attached to a pick and shown to another
 guest, and a declined file deleted from the browser and shown as "Not accepted".
 
-`ui_attach_paste.js` checks attach and paste on a desktop guest: with Uploads off a pasted picture adds nothing; on,
-the answer box, Ask Claude, chat, the Discussion and Propose each show Attach, and a picture pasted into each becomes a
-thumbnail chip reading "Waiting for the host" with the field's text left as typed; chat will not send before the
-owner's Accept; once received, another guest sees the picture as a tile on the chat message, the answer and the
-comment, and it opens in the viewer, while the proposal's, the request's and, once hidden, the comment's stay from him.
+`ui_attach_paste.js` checks attach and paste on desktop guests: with Uploads off a pasted picture adds nothing; a
+Propose form opened before Uploads went on takes a paste, and taking that chip off withdraws it; on, the answer box,
+Ask Claude, chat, the Discussion and Propose each show Attach, and a picture pasted into each becomes a thumbnail chip
+reading "Waiting for the host" with the field's text left as typed; chat will not send before the owner's Accept;
+received, another guest sees "Waiting for the host" until the owner's Approve picture in the Host queue, then a tile
+on the chat message, the answer and the comment that opens in the viewer, while the proposal's, the request's and,
+once hidden, the comment's stay from him. It also checks a Discussion chip staying on its own question, Send taking a
+declined file off by name, a picked JPEG reaching the host redrawn without its EXIF, the owner's own paste, the
+question's ask box and Suggest taking a paste, and the owner's Remove.
 
 `ui_report.js` checks Report a problem with Uploads off: on a 390x844 phone from More, the sent
 list before Send, a 3200x1800 screenshot re-encoded to 1600 px, the field and Send report above a
