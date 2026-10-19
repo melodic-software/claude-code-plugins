@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubApi, main, maxRoundsFrom, select, trustedHumansFrom } from "./address-feedback.mjs";
+import { createGitHubApi, currentThreads, main, maxRoundsFrom, select, trustedHumansFrom } from "./address-feedback.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -302,6 +302,32 @@ for (const [label, overrides] of [
 ]) {
   test(`with no escalation, ${label} is not kept`, async () => {
     const result = await run(fakeApi(overrides));
+    assert.equal(result.decision, "skip");
+    assert.equal(result.skipReason, "not-applicable");
+  });
+}
+
+// #8031: the thread's review is on an earlier head than the one the markers name.
+const OLD_REVIEW = { reviews: [{ id: 10, user: { id: REVIEWER }, commit_id: OLD_HEAD }] };
+
+test("a fix request works a thread whose review is on an earlier head, in the select step and the re-read", async () => {
+  const api = fakeApi({ ...asked([[101, HUMAN, REQUEST]]), ...OLD_REVIEW });
+  const result = await run(api);
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.file.threads[0].review_commit, OLD_HEAD);
+  const { kept } = await currentThreads({ api, pr: 42, reviewerId: REVIEWER, appId: APP, trustedHumans: new Set([HUMAN]) });
+  assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
+});
+
+for (const [label, overrides] of [
+  ["a reviewer-bot-only thread", {}],
+  ["an escalation answered by a trusted person", escalated()],
+  ["an escalation answered with a fix request", escalated({ replies: [[102, HUMAN, REQUEST]] })],
+  ["an untrusted person's fix request", { ...asked([[101, STRANGER, REQUEST]]), permissions: { stranger: "admin" } }],
+  ["a fix request by a review another account submitted", { ...asked([[101, HUMAN, REQUEST]]), reviews: [{ id: 10, user: { id: HUMAN }, commit_id: OLD_HEAD }] }],
+]) {
+  test(`on an earlier head, ${label} is not kept`, async () => {
+    const result = await run(fakeApi({ ...OLD_REVIEW, ...overrides }));
     assert.equal(result.decision, "skip");
     assert.equal(result.skipReason, "not-applicable");
   });
