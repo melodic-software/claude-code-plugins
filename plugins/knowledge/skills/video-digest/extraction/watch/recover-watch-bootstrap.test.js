@@ -12,7 +12,15 @@ import {
 } from "./recover-watch-bootstrap.js";
 import { createWatchState, writeWatchState } from "./watch-state.js";
 
-const captured = vi.hoisted(() => ({ stderr: /** @type {string[]} */ ([]) }));
+const captured = vi.hoisted(() => ({
+  stderr: /** @type {string[]} */ ([]),
+  probedDurationSec: /** @type {number|null} */ (null),
+}));
+
+vi.mock("@melodic/video-digestion/media/ffprobe-duration", () => ({
+  probeVideoDuration: async () =>
+    captured.probedDurationSec === null ? null : { durationSec: captured.probedDurationSec },
+}));
 
 vi.mock("@melodic/video-digestion/shared/terminal", () => ({
   writeStderr: (/** @type {unknown} */ text) => {
@@ -135,9 +143,10 @@ describe("recovery maximum frame gap", () => {
  * contact-sheet dirs an interrupted run leaves behind, then run recovery.
  *
  * @param {{ maxFrameGapSec?: unknown }} [recorded] - fields the original run recorded
+ * @param {Record<string, unknown>} [info] - extra fields for the seeded info.json
  * @returns {Promise<number>} the recovery CLI's exit code
  */
-async function recoverSeededSlice(recorded = {}) {
+async function recoverSeededSlice(recorded = {}, info = {}) {
   const workDir = path.join(sliceDir, "work");
   const framesDir = path.join(sliceDir, "frames");
   const sheetsDir = path.join(sliceDir, "sheets");
@@ -160,7 +169,7 @@ async function recoverSeededSlice(recorded = {}) {
   );
   await fs.writeFile(
     path.join(workDir, "abc123.info.json"),
-    JSON.stringify({ id: "abc123", title: "T", description: "" }),
+    JSON.stringify({ id: "abc123", title: "T", description: "", ...info }),
   );
   for (const file of [
     "scene_0001.png",
@@ -188,6 +197,50 @@ async function recoverSeededSlice(recorded = {}) {
     sheetsDir,
   ]);
 }
+
+describe("recovery duration mismatch", () => {
+  beforeEach(async () => {
+    sliceDir = await fs.mkdtemp(path.join(os.tmpdir(), "recover-mismatch-"));
+    captured.stderr.length = 0;
+    await fs.writeFile(path.join(sliceDir, "README.md"), "# Slice\n");
+  });
+
+  afterEach(async () => {
+    captured.probedDurationSec = null;
+    await fs.rm(sliceDir, { recursive: true, force: true });
+  });
+
+  it("records a metadata versus probed mismatch in watch.json and the README", async () => {
+    captured.probedDurationSec = 3995;
+
+    expect(await recoverSeededSlice({}, { duration: 10446 })).toBe(0);
+
+    const state = JSON.parse(
+      await fs.readFile(path.join(sliceDir, "run-state", "watch.json"), "utf8"),
+    );
+    expect(state.durationMismatch).toMatchObject({
+      metadataDurationSec: 10446,
+      probedDurationSec: 3995,
+    });
+    expect(await fs.readFile(path.join(sliceDir, "README.md"), "utf8")).toContain(
+      "## Duration mismatch",
+    );
+  });
+
+  it("records nothing when the durations agree", async () => {
+    captured.probedDurationSec = 10446;
+
+    expect(await recoverSeededSlice({}, { duration: 10446 })).toBe(0);
+
+    const state = JSON.parse(
+      await fs.readFile(path.join(sliceDir, "run-state", "watch.json"), "utf8"),
+    );
+    expect(state.durationMismatch).toBeUndefined();
+    expect(await fs.readFile(path.join(sliceDir, "README.md"), "utf8")).not.toContain(
+      "## Duration mismatch",
+    );
+  });
+});
 
 describe("recovery CLI argument validation", () => {
   beforeEach(() => {

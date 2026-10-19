@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/greet.sh"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "TaskList",
+          "input": {}
+        }
+      ]
+    }
+  ]
+}

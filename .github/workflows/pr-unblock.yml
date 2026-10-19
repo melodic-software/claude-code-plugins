@@ -69,6 +69,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: resolve-conflicts
       pr-number: ${{ inputs.pr-number }}
@@ -91,6 +92,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: address-feedback
       pr-number: ${{ inputs.pr-number }}
@@ -117,6 +119,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: publish-feedback
       pr-number: ${{ inputs.pr-number }}
@@ -197,6 +200,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: review-dependency
       pr-number: ${{ inputs.pr-number }}
@@ -218,6 +222,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: apply-dependency-verdict
       pr-number: ${{ inputs.pr-number }}
@@ -306,6 +311,8 @@ jobs:
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill reruns the failing checks, fixes
   # them and reruns them; the runner uploads its uncommitted edits as a patch.
+  # The run's own concurrency group already holds one fix-ci run per PR. A job
+  # group with the same name waits on its own run and never starts.
   fix-ci:
     needs: fix-ci-context
     if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
@@ -314,9 +321,6 @@ jobs:
       pull-requests: read
       checks: write
       id-token: write
-    concurrency:
-      group: pr-unblock-fix-ci-${{ inputs.pr-number }}
-      queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
       lane: pr-unblock
@@ -324,6 +328,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       output-mode: patch
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
       # Reproducing, fixing and rerunning several checks outlasts the default.
@@ -351,6 +356,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: apply-ci-fix
       pr-number: ${{ inputs.pr-number }}
@@ -428,6 +434,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: report-escalation
       pr-number: ${{ inputs.pr-number }}

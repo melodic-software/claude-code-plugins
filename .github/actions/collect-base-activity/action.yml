@@ -260,8 +260,9 @@ runs:
             # The activity's checks run from a base copy outside the working
             # directory, which the skill cannot edit, against the checkout,
             # through a wrapper with the flags fixed: the Bash rule allows the
-            # wrapper alone, with no arguments.
-            mapfile -t checks < <(jq -r '.selected.checks // [] | .[]' "$RESOLVED")
+            # wrapper alone, with no arguments. The skill runs checks and
+            # self-checks alike; only checks does the runner run again.
+            mapfile -t checks < <(jq -r '(.selected.checks // []) + (.selected["self-checks"] // []) | .[]' "$RESOLVED")
             if ((${#checks[@]})); then
               [[ $CHECKS_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
                 fail "the checks directory or workspace has a name a rule cannot carry"
@@ -271,14 +272,28 @@ runs:
               done
               mkdir -p "$CHECKS_DIR/bin"
               cp -R "$BASE_PATH/scripts" "$CHECKS_DIR/"
+              # check-affected.sh lints with the configs beside its copy, and
+              # run-ruff.sh reads its version pin there.
+              for config in .shellcheckrc .markdownlint-cli2.jsonc .github/requirements-ci.txt; do
+                [ ! -f "$BASE_PATH/$config" ] || { mkdir -p "$CHECKS_DIR/$(dirname "$config")" && cp "$BASE_PATH/$config" "$CHECKS_DIR/$config"; }
+              done
               wrappers=""
               for check in "${checks[@]}"; do
                 script=${check%% *}
                 flags=${check#"$script"}
                 wrapper="$CHECKS_DIR/bin/$(basename "$script" .sh)"
                 [ ! -e "$wrapper" ] || fail "two checks run the same script"
-                printf '#!/usr/bin/env bash\ncd %q || exit 2\nCHECK_DATA_ROOT=%q exec %q%s\n' \
-                  "$WORKSPACE" "$WORKSPACE" "$CHECKS_DIR/$script" "$flags" >"$wrapper"
+                # The same environment as a verify-script's wrapper below:
+                # no GitHub token, and no system, global, hook or fsmonitor
+                # git config.
+                {
+                  printf '#!/usr/bin/env bash\ncd %q || exit 2\n' "$WORKSPACE"
+                  printf '%s\n' \
+                    'unset GH_TOKEN GITHUB_TOKEN' \
+                    'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
+                    'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null'
+                  printf 'CHECK_DATA_ROOT=%q exec %q%s\n' "$WORKSPACE" "$CHECKS_DIR/$script" "$flags"
+                } >"$wrapper"
                 chmod +x "$wrapper"
                 allowed="$allowed,Bash($wrapper)"
                 wrappers="$wrappers $wrapper"
@@ -286,7 +301,12 @@ runs:
               # The skill's bare Edit and Write must not reach the copy it runs.
               chmod -R a-w "$CHECKS_DIR"
               disallowed="${disallowed:+$disallowed,}Edit(/$CHECKS_DIR/**),Write(/$CHECKS_DIR/**)"
-              system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers."
+              system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers. Fix each failure a check reports in the working tree and run the check again; name any failure you could not fix in your report."
+              # The checks read the working tree, so a run that commits runs
+              # them first and commits after, or its fixes stay uncommitted.
+              if [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
+                system_prompt="$system_prompt Run the checks before you commit: run them, fix, run them again, then commit your changes and the fixes."
+              fi
             fi
             # The activity's verify-scripts run with any arguments from a
             # read-only base copy of the script's plugin (or of scripts/),

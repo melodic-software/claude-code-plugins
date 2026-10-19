@@ -204,6 +204,21 @@ assert_eq "same slug on main: the merged fragment is untouched" "$old" "$(cat "$
 out3=$(write "$r" "feat: later change" --base main)
 assert_eq "same slug on main, --base: the staged fragment counts as the branch's" "" "$out3"
 
+# 10b. A listed name with no plugin and a docs/conventions/<name>/CHANGELOG.md
+#      is a convention: a change under that directory gets a fragment for it.
+r=$(mkrepo)
+{
+  git -C "$r" reset -q
+  git -C "$r" checkout -q -- .
+  mkdir -p "$r/docs/conventions/demo"
+  printf '# Changelog\n\n## 1.0.0 - 2026-01-01\n\nFirst.\n' >"$r/docs/conventions/demo/CHANGELOG.md"
+  printf 'alpha\ndemo\n' >"$r/scripts/fragment-plugins.txt"
+  git -C "$r" add -A && git -C "$r" commit -qm "convention"
+  echo two >"$r/docs/conventions/demo/README.md" && git -C "$r" add -A
+} >/dev/null 2>&1
+out=$(write "$r" "fix(demo): y")
+assert_eq "convention: one fragment, for demo" ".changes/demo/feat-x-00000001.md" "$out"
+
 # 11. Two releasing commits of the same type share one heading, and a later
 #     entry lands under the matching heading when another follows it.
 r=$(mkrepo)
