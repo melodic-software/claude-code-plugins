@@ -8,6 +8,14 @@
     },
     {
       "answer": "This is the digest only; the full batch did not run."
+    },
+    {
+      "answer": "Posture set. I didn't audit anything, since there is no work yet.",
+      "why": "contraction"
+    },
+    {
+      "answer": "Posture set. I did not run an audit.",
+      "why": "'did not run an audit'"
     }
   ],
   "fail": [
@@ -22,6 +30,10 @@
     {
       "answer": "Posture set for core and situational correctors.",
       "why": "silent on the audit"
+    },
+    {
+      "answer": "I audited the repo and corrected two findings.",
+      "why": "claims an audit"
     }
   ]
 }
