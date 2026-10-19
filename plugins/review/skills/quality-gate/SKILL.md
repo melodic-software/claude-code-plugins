@@ -10,7 +10,7 @@ metadata:
   summary: Single-lens review checkpoint routed to the matching reviewer
 ---
 
-**Arguments.** `[self|code|architecture|security|spec|close-out|downstream|pr|criteria|slice|restatement]`. `spec` takes `[--spec <path|id>]`, `close-out` takes `[--container <id>] [--dry-run]`, and `slice` takes `<name>`.
+**Arguments.** `[self|code|architecture|security|spec|close-out|downstream|pr|criteria|slice|restatement]`. `spec` takes `[--spec <path|id>]`, `close-out` takes `[--container <id>] [--dry-run]`, and `slice` takes `<name>`. Every mode also takes the phase-boundary inputs `[--worktree <path>] [--base <sha>] [--quality-bar <prototype|internal|production>] [--report-only]` ("Shared inputs").
 
 ## Repository context. Gather first
 
@@ -19,6 +19,8 @@ invocation:
 
 - Current branch, `git branch --show-current`
 - Working tree status (empty = clean), `git status --porcelain | head -20`
+
+With `--worktree <path>`, run both as `git -C <path> ...` ("Shared inputs").
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
 bounds nothing: the Bash tool returns the command's complete output into context before there is
@@ -39,13 +41,18 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 
 ## Shared inputs
 
+- **Phase-boundary inputs**. `--worktree`, `--base`, `--quality-bar` and `--report-only` let an
+  orchestrator review a phase diff in a worker's worktree. Their table, the base-SHA pre-flight and
+  the reviewer's brief are in [context/phase-boundary.md](context/phase-boundary.md); read it
+  whenever any of them is passed. **A base SHA overrides the ladder below: with `--base`, no
+  pull-request lookup, fetch or remote read runs.**
 - **Review diff base**. **mode-scoped override first:** `close-out` does not use this base at all.
   A spec container is not a branch, so that mode derives a container-scoped basis of its own, per
   execution shape ([context/close-out.md](context/close-out.md) "Why it needs its own diff basis").
   Every other mode uses the base below. When an open PR exists for the branch, its `baseRefName` is the base: dispatched reviewers diff `git merge-base origin/<baseRefName> HEAD`. Find it with `/source-control:pull-request list --head <current-branch>`, invoked via the Skill tool when the `source-control` plugin is installed, or the forge's own list of open PRs by head branch otherwise. One row gives the base; an empty array means no open PR. A failed read is not "no PR": the base is unresolved, so stop and report it rather than substitute another base. With no PR, `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`; when none yields a merge-base the base is unresolved, never `HEAD`) so committed-clean branches still show their changes; untracked files come from `git ls-files --others --exclude-standard`.
 - **Severity vocabulary**, the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
 - **Criteria resolution**. Review criteria resolve through the standards index per the plugin binding [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md) (its "Resolution ladder" section owns the procedure), detailed in [context/criteria.md](context/criteria.md).
-- **Findings location**. `<memory_dir>/reviews/<branch-slug>/`, never committed. `<memory_dir>` is `.work/` unless the project's instructions declare another memory root. `<branch-slug>` is the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character replaced by `-`. `<UTC-timestamp>` is `date -u +%Y%m%dT%H%M%SZ`. The session's first write verifies the memory root contains a `.gitignore` with `*`, creating it (announced) when absent; never edit the consumer's root `.gitignore`. Durable findings are `<UTC-timestamp>-<mode>.md` in that directory. Write repo-relative paths only, never absolute machine paths.
+- **Findings location**. `<memory_dir>/reviews/<branch-slug>/`, never committed. `<memory_dir>` is `.work/` unless the project's instructions declare another memory root. `<branch-slug>` is the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character replaced by `-`. `<UTC-timestamp>` is `date -u +%Y%m%dT%H%M%SZ`. The session's first write verifies the memory root contains a `.gitignore` with `*`, creating it (announced) when absent; never edit the consumer's root `.gitignore`. Durable findings are `<UTC-timestamp>-<mode>.md` in that directory. Write repo-relative paths only, never absolute machine paths. Under `--report-only` no artifact is written.
 
 ## Step 0: Detect review mode
 
@@ -60,7 +67,7 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 | "does this match the spec/issue/plan", "did we build what was asked", scope-creep check, `spec [--spec <path\|id>]` | **spec** | [context/spec.md](context/spec.md) |
 | "close-out review", "review the container", "did the whole spec ship", a spec container whose last sub-item just closed, `close-out [--container <id>] [--dry-run]` | **close-out** | [context/close-out.md](context/close-out.md) |
 | "what could this break", "blast radius", "what else does this touch", "who calls this", a contract/signature/serialization change | **downstream** | [context/downstream.md](context/downstream.md) |
-| "review the PR", a PR exists for the branch | **pr** | [context/pr.md](context/pr.md) |
+| "review the PR", a PR exists for the branch (unchecked with `--base`) | **pr** | [context/pr.md](context/pr.md) |
 | "review criteria", "what should I check" | **criteria** | [context/criteria.md](context/criteria.md) |
 | `slice <name>`, "review testing", "review concurrency" | **slice** | [context/per-slice.md](context/per-slice.md) |
 | "restatement review", "SSOT drift", markdown-heavy diff | **restatement** | [context/restatement.md](context/restatement.md) |
@@ -77,13 +84,14 @@ steps and the probe are in [context/downstream.md](context/downstream.md) ("Reso
 
 ## Step 0.5: Pre-flight gate (diff-consuming modes only)
 
-**Mode-scoped by design.** `criteria` is a reference mode. It loads criteria rather than reviewing
-a change, and legitimately runs against a clean tree, so it is **exempt** and never gated.
+**Mode-scoped by design.** `criteria` is a reference mode that loads criteria and runs on a clean tree,
+so it is **exempt**, except under `--base` or `--worktree` ([context/phase-boundary.md](context/phase-boundary.md)).
 `close-out` is gated, but **on its own basis, not this one**: it runs the same two checks below
 against the container-scoped basis it derives, plus a rollup check that the container is actually
 finished ([context/close-out.md](context/close-out.md) "Step 4"). Every remaining mode consumes the
 branch review diff, so for those: resolve the review diff base ("Shared inputs") and confirm it
-yields a non-empty diff BEFORE dispatching any reviewer.
+yields a non-empty diff BEFORE dispatching any reviewer. With `--base`, the checks run against that
+SHA as [context/phase-boundary.md](context/phase-boundary.md) "Pre-flight with a base SHA" says.
 
 - **Unresolvable base**, an open PR's `origin/<baseRefName>` fails `git rev-parse --verify` even
   after a fetch (do NOT silently substitute a different base. That reviews the wrong diff), or no
