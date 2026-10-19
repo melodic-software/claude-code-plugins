@@ -17,7 +17,7 @@
       round: null, rstat: null, freshRound: 0, cmpRound: null, lastUnread: 0,
       order: store.get("vf-order", "new"), seen: store.get("vf-seen", {}), seenAt: null,
       propFilter: "new", reqSeen: new Set(), reqEditing: new Set(),
-      resClosed: new Set(), askOpen: false, askKind: "research", exp: new Set(), pcard: null, mergeFrom: "", mergeTo: "",
+      resClosed: new Set(), askOpen: false, askKind: "ask", exp: new Set(), pcard: null, mergeFrom: "", mergeTo: "",
       bumped: false, heard: {}, renaming: false, tie: null,
       // round 8
       revealed: new Set(), clOpen: new Map(), cites: {}, hostFilter: "all", treeClosed: new Set(),
