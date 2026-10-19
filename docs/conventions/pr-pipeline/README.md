@@ -350,6 +350,10 @@ activity in a trailer. A verdict is bound to the commit it judged and is not reu
 When an activity needs a human, it escalates with a resume key and exits instead of blocking. An
 activity whose `labels-absent` lists `needs-human` or `do-not-merge` skips with `awaiting-human`
 while that label is on the PR; a human removes the label, then dispatches the lane, to resume it.
+`labels-absent` reads only whether a label is present, not who set or removed it: it is a hold, not
+a trust gate. An expedite label from a human with write access skips
+`refine`. A label counts only when the actor on its label event is a trusted human: a label the App
+set never resumes an item, expedites it, sets its work class or lifts a hold.
 
 A pr-unblock escalation whose reason repository state can settle is also cleared without a
 person. On its schedule, `pr-merge` rechecks each open PR into main carrying the human-gated
@@ -369,10 +373,6 @@ written or edited since then carries any marker other than pr-unblock's escalati
 own `babysit-merge-*` escalations, another lane's). Every other reason
 (`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
 `ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
-`labels-absent` reads only whether a label is present, not who set or removed it: it is a hold, not
-a trust gate. An expedite label from a human with write access skips
-`refine`. A label counts only when the actor on its label event is a trusted human: a label the App
-set never resumes an item, expedites it, sets its work class or lifts a hold.
 
 ## Slots and order
 
