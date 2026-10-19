@@ -262,6 +262,11 @@ describe("runWatchCli envelope consumption", () => {
 
     const state = await readWatchJson();
     expect(state.phases.acquire.metrics.entryCount).toBe(2);
+    expect(state.phases.acquire.metrics.primaryMedia).toEqual({
+      video: "video.mp4",
+      infoJson: "info.json",
+      caption: "first.en.vtt",
+    });
     expect(state.phases.transcript.metrics.transcriptCount).toBe(2);
 
     await expect(

@@ -86,7 +86,9 @@ Contract enforced here (encoded as code, not convention):
   queue, an eligible MED or HIGH pull request gets one upserted
   `<!-- babysit-merge-risk -->` comment, a verifier refusal that needs a
   human gets the tracker's human-gated role label and one upserted
-  `<!-- babysit-merge-verify-escalation -->` comment, and a ready LOW pull request is
+  `<!-- babysit-merge-verify-escalation -->` comment, a Dependabot update held
+  under `merge.dependabot.majors: hold` gets the same label and one upserted
+  `<!-- babysit-merge-dependabot-major -->` comment, and a ready LOW pull request is
   enqueued at its pinned head after a second kill-switch read, an armed
   auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment; a
   later run that reads the queued entry back as merged at that head
@@ -127,6 +129,7 @@ on stdout.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import time
@@ -219,7 +222,35 @@ BODY_MERGE_HOLD_RE = re.compile(
 )
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
-MERGE_HOLD_LABEL = "do-not-merge"
+MERGE_HOLD_LABELS = ("do-not-merge",)
+# Where this process's gate processes share the resolved human-gated label.
+HUMAN_GATED_SECTION = "human-gated-label"
+
+
+def human_gated_label(repo: str) -> str:
+    """The tracker's human-gated role label for `repo` (`needs-human` unless
+    `.work-item-tracker.json` maps it): the label the verifier escalation adds
+    and an autonomous merge holds on. Shared across a run's gate processes.
+    A failed read other than a 404 raises `PostMergeReadError` and is never
+    shared."""
+    cached = run_cache.get(HUMAN_GATED_SECTION, repo, run_cache.MAX_AGE)
+    if isinstance(cached, str) and cached:
+        return cached
+    owner, name = repo.split("/", 1)
+    label = postmerge._role_label(owner, name, strict=True)
+    run_cache.put(HUMAN_GATED_SECTION, repo, label)
+    return label
+
+
+def merge_hold_label(labels: Iterable[Any], *, human_gated: str | None) -> str | None:
+    """The first hold label among `labels`, matched case-insensitively. An
+    autonomous merge passes the resolved `human_gated` label, which holds it
+    too: autonomous sessions must not resolve what carries it. An attended
+    merge, the person that label asks for, passes None."""
+    names = {str(name).casefold() for name in labels}
+    holds = (*MERGE_HOLD_LABELS, *((human_gated,) if human_gated else ()))
+    return next((label for label in holds if label.casefold() in names), None)
+
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
 
@@ -1512,10 +1543,21 @@ def evaluate(
             "PR body holds the merge (do not merge, or a Hold: line) -- a human "
             "hold, report it and leave it"
         )
-    if any(str(name).casefold() == MERGE_HOLD_LABEL for name in labels):
+    # Autonomous: the unattended policy or the autopilot merge tier, both
+    # merging with no person present; only an attended merge lifts the
+    # human-gated hold.
+    autonomous = unattended is not None or tier is not None
+    try:
+        human_gated = human_gated_label(repo) if autonomous else None
+    except postmerge.PostMergeReadError as exc:
+        human_gated = None
         blockers.append(
-            f"PR carries the {MERGE_HOLD_LABEL!r} label -- a human hold, "
-            "report it and leave it"
+            f"the human-gated role label is unreadable ({exc}) -- an autonomous "
+            "merge cannot tell which label holds it"
+        )
+    if held_by := merge_hold_label(labels, human_gated=human_gated):
+        blockers.append(
+            f"PR carries the {held_by!r} label -- a human hold, report it and leave it"
         )
     if pr.get("mergeable") != "MERGEABLE":
         blockers.append(
@@ -1818,7 +1860,7 @@ def evaluate(
         "mergeStateStatus": pr.get("mergeStateStatus"),
         "reviewDecision": review_decision,
         "headRefOid": head,
-        "labels": labels,  # surfaced for agent reasoning; only do-not-merge is hardcoded
+        "labels": labels,  # surfaced for agent reasoning; only the hold labels are hardcoded
         "expectedHead": expected_head,
         "headMatches": head_matches,
         "effectiveRules": rules,
@@ -2164,7 +2206,7 @@ def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
     ]
     if is_json_object(entry):
         # An entry is a live enqueue even beside errors: reported enqueued so
-        # it is recorded and checked against the one-in-flight rule.
+        # it is recorded and checked against the merge.max-in-flight cap.
         record["status"] = "enqueued"
         record["success"] = True
         record["mergeQueue"] = {
@@ -2660,6 +2702,11 @@ def queued_entry_hold(
 
 RISK_MARKER = "<!-- babysit-merge-risk -->"
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
+MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
+# The attended queue's escalation marker (work-items reference
+# escalation-marker.md): first line of the held-major comment, so
+# /work-items:attend-queue lists the pull request as escalated.
+ATTEND_QUEUE_MARKER = "<!-- work-items:escalation lane=pr-merge kind=escalated -->"
 UNATTENDED_REFUSED = "unattended merge refused: "
 # Refusals that stop the path: the identity's own queued entries leave the queue.
 STOP_REFUSALS = (
@@ -2951,6 +2998,7 @@ def assess_unattended(
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
     shared: merge_policy.SharedPostMerge | None = None,
+    share: Callable[[merge_policy.SharedPostMerge], object] | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -2985,12 +3033,18 @@ def assess_unattended(
         lane_kill_switch=lane_kill_switch,
         lane_rung_cap=lane_rung_cap,
         shared=shared,
+        share=share,
     )
     return score_unattended(repo, number, policy, self_logins)
 
 
 def _first_line(text: Any) -> str:
     return str(text or "").split("\n", 1)[0].rstrip("\r")
+
+
+def _marker_lines(text: Any) -> list[str]:
+    """The first two lines, where a lane comment carries its markers."""
+    return [line.rstrip("\r") for line in str(text or "").split("\n", 2)[:2]]
 
 
 def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
@@ -3018,8 +3072,8 @@ def upsert_marker_comment(
     comments: list[dict[str, Any]] | None,
     marker: str = RISK_MARKER,
 ) -> str:
-    """Post or rewrite the identity's one comment whose first line is
-    `marker` (the reasons comment, Design T14, by default): `unchanged` when
+    """Post or rewrite the identity's one comment whose first or second line
+    is `marker` (the reasons comment, Design T14, by default): `unchanged` when
     the newest one already says this, else `updated` or `created`. Raises
     `RuntimeError` on a failed read or write."""
     if comments is None:
@@ -3036,7 +3090,7 @@ def upsert_marker_comment(
             }
         )
         == identity.casefold()
-        and _first_line(c.get("body")) == marker
+        and marker in _marker_lines(c.get("body"))
     ]
     if mine:
         newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
@@ -3071,28 +3125,62 @@ def verify_escalation_body(refusal: str, head: str) -> str:
     )
 
 
+def major_escalation_body(majors: str, head: str) -> str:
+    """The needs-human comment for a Dependabot major update held under
+    `merge.dependabot.majors: hold`: a function of the updates and the head
+    only, so a rerun renders the same body."""
+    return "\n".join(
+        [
+            ATTEND_QUEUE_MARKER,
+            MAJOR_ESCALATION_MARKER,
+            f"Unattended merge: `{majors}` is a major version update, one whose "
+            "version cannot be read (`(unreadable)`), or one whose title and "
+            f"commit metadata disagree (`(disagree)`), at head `{head}`. This "
+            "repository "
+            "holds those Dependabot updates for a human "
+            "(`merge.dependabot.majors: hold`), whatever the review verdict "
+            "says; the pr-merge lane will not merge this pull request.",
+        ]
+    )
+
+
 def escalate_verify(
     repo: str, number: int, identity: str, refusal: str, inputs: Mapping[str, Any]
 ) -> dict[str, Any]:
-    """The escalation contract for a needs-human verifier refusal (loop-lane
-    README §2): one marked comment naming the refusal and the head, then the
-    tracker's human-gated role label on the pull request, added only when no
-    label matches it case-insensitively. The comment goes first so a label
-    never stands unexplained; a failed label is retried by the next run,
-    which finds the comment unchanged. Raises `RuntimeError` on a failed
-    write."""
-    pr = json_object(inputs.get("pr"))
-    head = str(json_object(pr.get("head")).get("sha"))
-    comment = upsert_marker_comment(
+    """`escalate` for a needs-human verifier refusal."""
+    head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
+    return escalate(
         repo,
         number,
         identity,
         verify_escalation_body(refusal, head),
-        inputs.get("comments"),
-        marker=VERIFY_ESCALATION_MARKER,
+        VERIFY_ESCALATION_MARKER,
+        inputs,
     )
-    owner, name = repo.split("/", 1)
-    label = postmerge._role_label(owner, name)
+
+
+def escalate(
+    repo: str,
+    number: int,
+    identity: str,
+    body: str,
+    marker: str,
+    inputs: Mapping[str, Any],
+) -> dict[str, Any]:
+    """The escalation contract (loop-lane README §2): one comment carrying
+    `marker`, then the tracker's human-gated role label on the pull request,
+    added only when no label matches it case-insensitively. The comment goes
+    first so a label never stands unexplained; a failed label is retried by
+    the next run, which finds the comment unchanged. Raises `RuntimeError` on
+    a failed write."""
+    pr = json_object(inputs.get("pr"))
+    comment = upsert_marker_comment(
+        repo, number, identity, body, inputs.get("comments"), marker=marker
+    )
+    try:
+        label = human_gated_label(repo)
+    except postmerge.PostMergeReadError:
+        label = postmerge.DEFAULT_ROLE_LABEL
     labels = pr.get("labels")
     present = is_json_array(labels) and any(
         str(json_object(item).get("name") or "").casefold() == label.casefold()
@@ -3148,7 +3236,9 @@ def unattended_writes(
     this run refused it for itself (`own_refusal`) or scored it above LOW
     (`risk:<score>`). Then the reasons comment for an eligible
     MED or HIGH pull request on a path not stopped, and the escalation
-    (`escalate_verify`) for a verifier refusal that needs a human. Nothing is written before
+    (`escalate_verify`) for a verifier refusal that needs a human, or for a
+    Dependabot update held under `merge.dependabot.majors: hold`, keyed on the
+    eligibility reason. Nothing is written before
     the identity and the credential chokepoint passed (`inputs["identity"]`)."""
     inputs = policy.inputs or {}
     identity, branch = inputs.get("identity"), inputs.get("branch")
@@ -3253,6 +3343,25 @@ def unattended_writes(
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")
+    # A held major Dependabot update gets the same signal, so it reaches the
+    # human queue, whatever refusal tops it (an `in-flight:` one included).
+    held = f"{merge_policy.MAJOR_HELD}:"
+    eligibility = str(
+        json_object((policy.details or {}).get("eligibility")).get("reason") or ""
+    )
+    if not stopped and eligibility.startswith(held):
+        head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
+        try:
+            report["majorEscalation"] = escalate(
+                repo,
+                number,
+                identity,
+                major_escalation_body(eligibility.removeprefix(held), head),
+                MAJOR_ESCALATION_MARKER,
+                inputs,
+            )
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            report["errors"].append(f"major escalation: {exc}")
     return report
 
 
@@ -3309,10 +3418,11 @@ def unattended_enqueue(
     kill switch and the opt-in label are read again; the pin comment is
     posted before the enqueue and the enqueue goes nowhere without it; after
     the enqueue the queue is
-    re-read and, when another identity entry was enqueued earlier, this one
-    dequeues itself. In the pr-merge lane the kill switch "read again" is the
-    value the workflow passed at the start of its run, so a flip during the
-    run does not stop this enqueue."""
+    re-read and, when the identity entries enqueued earlier and the unverified
+    lane merges already fill `merge.max-in-flight`, this one dequeues itself.
+    In the pr-merge lane the kill switch "read again" is the value the
+    workflow passed at the start of its run, so a flip during the run does not
+    stop this enqueue."""
     inputs = policy.inputs or {}
     identity, branch = str(inputs["identity"]), str(inputs["branch"])
     pin = str(result.get("headRefOid") or "")
@@ -3363,7 +3473,11 @@ def unattended_enqueue(
         # The Dependabot class is read again whole: a human blocking comment
         # or a `ci-status` rerun since the first read refuses.
         opt_in = merge_policy.dependabot_eligibility(
-            repo, number, pr=inputs["pr"], agent_identity=identity
+            repo,
+            number,
+            pr=inputs["pr"],
+            agent_identity=identity,
+            hold_majors=inputs["config"].dependabot_majors == "hold",
         ).reason
     elif inputs.get("authority") == merge_policy.PR_MERGE:
         opt_in = merge_policy.recheck_lane_issue(
@@ -3414,9 +3528,20 @@ def unattended_enqueue(
     entries = _identity_queue_entries(repo, branch, identity)
     numbers = [json_object(e.get("pullRequest")).get("number") for e in entries or []]
     step["identityEntries"] = numbers
-    if entries is None or not numbers or numbers[0] != number:
-        # Another host's entry came first, or the order cannot be read: this
-        # entry leaves so only one unattended merge is in flight.
+    # Room for queued entries: `merge.max-in-flight`, read again uncached at
+    # the default branch head, less the unverified lane merges the policy
+    # counted. A failed read keeps the lower of the base's cap and the one
+    # the assessment applied, so a cap lowered on main still holds.
+    cap, source = merge_policy._run_max_in_flight(
+        repo, branch, None, inputs["config"], shared=False
+    )
+    if source == "base":
+        cap = min(cap, inputs.get("flight_cap", cap))
+    room = cap - inputs["flight"].unverified
+    if entries is None or number not in numbers[: max(room, 0)]:
+        # Earlier entries (another host's) fill the room, or the order cannot
+        # be read: this entry leaves so no more than `merge.max-in-flight`
+        # unattended merges are in flight.
         mine = next(
             (
                 e
@@ -3434,7 +3559,7 @@ def unattended_enqueue(
             postmerge.DEQUEUE_MUTATION, node_id
         )
         why = (
-            "another unattended merge is in flight"
+            "the merge.max-in-flight cap is full"
             if entries is not None
             else "the queue could not be re-read whole"
         )
@@ -3886,6 +4011,14 @@ def main() -> int:
                 lane_kill_switch=args.lane_kill_switch,
                 lane_rung_cap=args.lane_rung_cap,
                 shared=shared,
+                # Each recompute goes back to the file for the next candidate.
+                share=(
+                    None
+                    if args.postmerge_result is None
+                    else functools.partial(
+                        postmerge.write_shared, args.postmerge_result
+                    )
+                ),
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)

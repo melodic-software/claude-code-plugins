@@ -78,12 +78,13 @@
       "id": 7,
       "name": "tiers-wide-fanout-cheaper-default",
       "prompt": "We're already primed with the orchestration imperatives. Before I kick anything off: I need to audit about thirty independent config files for one specific misconfiguration, then have someone adjudicate the findings that conflict. What tier should each stage run at, and why?",
-      "expected_output": "This is a follow-up question to an ALREADY-primed session, not a fresh skill invocation, so a substantive answer is in contract. The session classifies the scan as a large, genuinely-independent surface earning a wide fan-out, and applies imperative 7's tiering: past a wide fan-out the CHEAPER model/effort tier becomes the default the scanning fleet inherits, because volume multiplies every notch of over-provisioning. The adjudication stage is the standing exception — judgment-heavy, so it keeps the parent tier. Every spawn still gets an explicit tier (imperative 2), since an unspecified one silently inherits the parent session's.",
+      "expected_output": "This is a follow-up question to an ALREADY-primed session, not a fresh skill invocation, so a substantive answer is in contract. The session classifies the scan as a large, genuinely-independent surface earning a wide fan-out, and applies imperative 7's tiering: the per-file scan is mechanical work, so the CHEAPER model/effort tier is the default the scanning fleet inherits, because volume multiplies every notch of over-provisioning. The tier follows the work, never usage or rate-limit headroom. The adjudication stage is the standing exception — judgment-heavy, so it keeps the parent tier. Every spawn still gets an explicit tier (imperative 2), since an unspecified one silently inherits the parent session's.",
       "files": [],
       "expectations": [
         "The per-file scanning fleet is explicitly assigned a cheaper tier (cheaper model, lower effort, or both) rather than inheriting the parent's",
         "The adjudication/judgment stage is called out as keeping the stronger tier, as a deliberate per-stage exception",
         "Tier is stated as an explicit per-stage spawn decision rather than left unspecified",
+        "The tier is justified by the work (mechanical versus judgment), not by usage or rate-limit headroom, and worker count is not capped on headroom",
         "The scan is sized as large / wide fan-out rather than kept single-agent"
       ]
     },

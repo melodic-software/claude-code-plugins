@@ -3,6 +3,18 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4] - 2026-10-18
+
+### Changed
+
+- **Bump the pip-minor-patch group in /plugins/speech with 2 updates** (#7488).
+  - `numpy` 2.5.3→2.5.4
+  - `onnxruntime` 1.30.0→1.31.0
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.4.3] - 2026-10-16
 
 ### Changed

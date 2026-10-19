@@ -1037,6 +1037,37 @@ class TestSupersedeRepoint(DirCase):
         self.assertEqual(self.q("Q2")["dependsOn"], ["Q6"])
 
 
+class TestSupersedeShortAndDuplicateId(DirCase):
+    """A superseding question needs its own short title; a duplicate id refusal says nothing was written."""
+
+    def test_superseding_with_the_predecessors_short_is_refused(self):
+        short = self.q("Q1")["short"]
+        new = question("Q6", supersedes="Q1", short=f"  {short.upper()} ")
+        before = self.doc()
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": [{"op": "add", "question": new}]})
+        )
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("reuses its short title", out + err)
+        self.assertEqual(self.doc(), before)
+
+    def test_duplicate_id_says_nothing_was_written_and_names_the_first(self):
+        ops = {
+            "ops": [
+                {"op": "add", "question": question("Q7")},
+                {"op": "add", "question": question("Q1")},
+                {"op": "add", "question": question("Q2")},
+            ]
+        }
+        before = self.doc()
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("duplicate id: Q1", out + err)
+        self.assertNotIn("Q2 (", out + err)
+        self.assertIn("nothing was written", out + err)
+        self.assertEqual(self.doc(), before)
+
+
 class TestStatus(DirCase):
     """status: withdrawn events are not unhandled; event text is quoted data on one line."""
 

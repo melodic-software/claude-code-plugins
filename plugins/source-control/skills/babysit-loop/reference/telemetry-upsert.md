@@ -16,11 +16,14 @@ mode, `usage_sample`) to a file, then run:
 ```bash
 bash <plugin-root>/skills/babysit-loop/scripts/telemetry-upsert.sh \
   --repo <owner/repo> --issue <telemetry issue number> \
-  --instance '${user_config.lane_instance}' --body-file <telemetry file>
+  --instance '${user_config.lane_instance}' --app-slug '${user_config.lane_app_slug}' \
+  --body-file <telemetry file>
 ```
 
 Keep the single quotes: an unsubstituted placeholder inside double quotes is a bash
-`bad substitution` error, while single quotes pass it through for the fallback below.
+`bad substitution` error, while single quotes pass it through for the fallback below. The same
+holds for `--app-slug`: an empty `lane_app_slug`, or a surviving literal `${user_config.…}`
+placeholder, is treated as absent, like an unset `lane_instance`.
 
 The script writes the sentinel line
 `<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@<instance> -->` above the body,
@@ -39,9 +42,9 @@ resolves that identity before any lookup:
 
 1. `gh api user` reporting a `User`: that login (a personal or machine-user token).
 2. That call failing or reporting a `Bot`: the token is treated as a GitHub App's, and the
-   identity is `<slug>[bot]` from `--app-slug <slug>`. A lane running under an App installation
-   token passes `--app-slug` on every call; a workflow that mints the token takes the slug from
-   whatever minted it.
+   identity is `<slug>[bot]` from `--app-slug <slug>`. Every call passes
+   `--app-slug '${user_config.lane_app_slug}'`; a lane running under an App installation token sets
+   `lane_app_slug`, and a workflow that mints the token takes the slug from whatever minted it.
 3. A `Bot` report with no `--app-slug`: the reported login, with the `[bot]` suffix added when
    missing.
 
@@ -106,10 +109,10 @@ comments directly:
 ```bash
 bash <plugin-root>/skills/babysit-loop/scripts/telemetry-upsert.sh \
   --repo <owner/repo> --issue <telemetry issue number> \
-  --instance '${user_config.lane_instance}' --read
+  --instance '${user_config.lane_instance}' --app-slug '${user_config.lane_app_slug}' --read
 ```
 
-Add `--app-slug <slug>` under an App token, as for the write. It prints the canonical comment's
+It passes `--app-slug` as the write does. It prints the canonical comment's
 body, or nothing when this identity has no sentinel comment yet (the marker is unclaimed), and
 writes nothing. A non-zero exit means the state is unknown, not absent: do no work and do not claim
 the marker this cycle.
