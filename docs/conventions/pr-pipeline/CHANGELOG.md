@@ -1,10 +1,18 @@
 # Changelog for the PR pipeline convention
 
-## 2.15.0 - 2026-10-18
+## 2.16.0 - 2026-10-18
 
 New config: `funding`, a map from Claude lane id to its funding role (`reviews`, `automations` or
 `issue-lane`), whose `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` secrets the lane
 passes to ci-workflows' run-claude-cli action ([README.md, Funding](README.md#funding)). `version` stays 2.
+
+## 2.15.0 - 2026-10-18
+
+`pr-unblock-dispatch.yml` starts pr-unblock's `fix-ci` for open lanes App pull requests whose
+head's `ci-status` failed, from one GraphQL query per page with its `rateLimit.cost` logged, at
+most `limits.fix-ci-per-run` per run and, on a head whose earlier runs all failed, at most
+`limits.fix-ci-restarts` more times ([README](README.md#lanes)). Its job's concurrency group
+now cancels a run in progress. `version` stays 2.
 
 ## 2.14.0 - 2026-10-18
 

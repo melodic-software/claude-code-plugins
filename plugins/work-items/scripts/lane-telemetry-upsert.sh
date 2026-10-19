@@ -30,7 +30,9 @@
 #                 so a body composed without it would never be found again and
 #                 the next cycle would post a second comment.
 #   --app-slug    The GitHub App whose installation token gh runs under; its
-#                 writes land as <slug>[bot].
+#                 writes land as <slug>[bot]. An empty value, or a surviving
+#                 literal ${user_config.…} placeholder, means the key is unset
+#                 and is treated as absent.
 #   --help
 #
 # WRITE IDENTITY. The `gh api user` login when that call reports a User; when it
@@ -197,6 +199,13 @@ esac
 # shellcheck disable=SC2016  # the placeholder is matched literally, never expanded
 case "$INSTANCE" in
 '${user_config.'*) INSTANCE="" ;;
+*) : ;;
+esac
+
+# The same holds for --app-slug: an unset key is absent, not a malformed slug.
+# shellcheck disable=SC2016  # the placeholder is matched literally, never expanded
+case "$APP_SLUG" in
+'${user_config.'*) APP_SLUG="" ;;
 *) : ;;
 esac
 
