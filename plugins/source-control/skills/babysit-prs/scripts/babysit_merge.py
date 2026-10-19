@@ -84,8 +84,9 @@ Contract enforced here (encoded as code, not convention):
   report's `unattended` block says which. With `--merge`, a stop refusal
   dequeues the identity's queued entries, a held identity entry leaves the
   queue, an eligible MED or HIGH pull request gets one upserted
-  `<!-- babysit-merge-risk -->` comment, a verifier refusal that needs a
-  human gets the tracker's human-gated role label and one upserted
+  `<!-- babysit-merge-risk -->` comment (and the human-gated role label once
+  an earlier run's comment names the same head), a verifier refusal that
+  needs a human gets the tracker's human-gated role label and one upserted
   `<!-- babysit-merge-verify-escalation -->` comment, a Dependabot update held
   under `merge.dependabot.majors: hold` gets the same label and one upserted
   `<!-- babysit-merge-dependabot-major -->` comment, and a ready LOW pull request is
@@ -3143,6 +3144,27 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     return "\n".join(lines)
 
 
+def _newest_marker_comment(
+    comments: list[dict[str, Any]], identity: str, marker: str
+) -> dict[str, Any] | None:
+    """The identity's newest comment whose first or second line is `marker`."""
+    mine = [
+        c
+        for c in comments
+        if merge_policy.actor_key(
+            {
+                "__typename": json_object(c.get("user")).get("type"),
+                "login": json_object(c.get("user")).get("login"),
+            }
+        )
+        == identity.casefold()
+        and marker in _marker_lines(c.get("body"))
+    ]
+    if not mine:
+        return None
+    return max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
+
+
 def upsert_marker_comment(
     repo: str,
     number: int,
@@ -3160,20 +3182,8 @@ def upsert_marker_comment(
         comments = fetch_paginated_api(
             f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
         )
-    mine = [
-        c
-        for c in comments
-        if merge_policy.actor_key(
-            {
-                "__typename": json_object(c.get("user")).get("type"),
-                "login": json_object(c.get("user")).get("login"),
-            }
-        )
-        == identity.casefold()
-        and marker in _marker_lines(c.get("body"))
-    ]
-    if mine:
-        newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
+    newest = _newest_marker_comment(comments, identity, marker)
+    if newest is not None:
         current = str(newest.get("body") or "")
         if current == body or (keep_prefix and current.startswith(keep_prefix)):
             return "unchanged"
@@ -3417,7 +3427,8 @@ def unattended_writes(
     hold (D3) leaves the queue, as does this pull request's own entry when
     this run refused it for itself (`own_refusal`) or scored it above LOW
     (`risk:<score>`). Then the reasons comment for an eligible
-    MED or HIGH pull request on a path not stopped, and the escalation
+    MED or HIGH pull request on a path not stopped, escalated (`escalate`)
+    when the comment read before this run already names this head, and the escalation
     (`escalate_verify`) for a verifier refusal that needs a human, or for a
     Dependabot update held under `merge.dependabot.majors: hold`, keyed on the
     eligibility reason. Nothing is written before
@@ -3505,14 +3516,31 @@ def unattended_writes(
     # reasons comment would only say so on every pull request.
     if not stopped and risk is not None and risk.score is not babysit_risk.Risk.LOW:
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
+        body = risk_comment_body(risk, head)
         try:
-            report["riskComment"] = upsert_marker_comment(
-                repo,
-                number,
-                identity,
-                risk_comment_body(risk, head),
-                inputs.get("comments"),
-            )
+            comments = inputs.get("comments")
+            if comments is None:
+                comments = fetch_paginated_api(
+                    f"repos/{repo}/issues/{number}/comments?per_page=100",
+                    f"#{number} comments",
+                )
+            # A reasons comment an earlier run wrote at this head means the
+            # refusal persisted across two sweeps: escalate it.
+            prior = _newest_marker_comment(comments, identity, RISK_MARKER)
+            if prior is not None and any(
+                f"at head `{head}`." in line
+                for line in _marker_lines(prior.get("body"))
+            ):
+                escalation = escalate(
+                    repo, number, identity, body, RISK_MARKER,
+                    {**inputs, "comments": comments},
+                )  # fmt: skip
+                report["riskComment"] = escalation["comment"]
+                report["riskEscalation"] = escalation
+            else:
+                report["riskComment"] = upsert_marker_comment(
+                    repo, number, identity, body, comments
+                )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"reasons comment: {exc}")
     # A verifier refusal that needs a human gets the durable escalation

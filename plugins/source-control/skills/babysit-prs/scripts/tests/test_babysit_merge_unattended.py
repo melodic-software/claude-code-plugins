@@ -2046,21 +2046,109 @@ class ReasonsComment(Unattended):
         risk = merge.babysit_risk.RiskResult(merge.babysit_risk.Risk.HIGH, (unsafe,))
         self.assertNotIn("never an agent", merge.risk_comment_body(risk, HEAD))
 
-    def test_an_unchanged_assessment_is_not_rewritten(self) -> None:
-        body = self.body()
-        self.setUp()
+    LABEL = (
+        f"write:api -X POST repos/owner/repo/issues/{PR}/labels -f labels[]=needs-human"
+    )
+
+    def earlier_sweep(self, body: str, login: str = IDENTITY) -> None:
+        """The reasons comment an earlier run left, read before this one."""
         self.comments = [
             {
                 "id": 77,
-                "user": {"login": IDENTITY, "type": "Bot"},
+                "user": {
+                    "login": login,
+                    "type": "Bot" if login == IDENTITY else "User",
+                },
                 "created_at": "2026-10-12T10:00:00Z",
                 "body": body,
             }
         ]
+
+    def test_the_first_sweep_comments_without_a_label(self) -> None:
         self.lanes = UNBOUND
         _, out = self.run_main()
-        self.assertEqual(out["unattended"]["writes"]["riskComment"], "unchanged")
+        self.assertEqual(self.log, ["risk-comment:POST"])
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_a_second_sweep_at_the_same_head_adds_the_human_gated_label(self) -> None:
+        # Issue #8450: a MED or HIGH refusal on two sweeps at one head is
+        # labeled, the reasons comment unchanged.
+        for name, files in (
+            ("MED", ((LOW_FILE,), True)),
+            ("HIGH", ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)),
+        ):
+            with self.subTest(name):
+                self.setUp()
+                self.files = files
+                body = self.body()
+                self.setUp()
+                self.files = files
+                self.lanes = UNBOUND
+                self.earlier_sweep(body)
+                _, out = self.run_main()
+                self.assertEqual(out["unattended"]["risk"]["score"], name)
+                self.assertEqual(self.log, [self.LABEL])
+                self.assertEqual(
+                    out["unattended"]["writes"]["riskEscalation"],
+                    {"label": "added", "comment": "unchanged"},
+                )
+
+    def test_a_changed_assessment_at_the_same_head_comments_before_the_label(
+        self,
+    ) -> None:
+        self.earlier_sweep(f"{merge.RISK_MARKER}\nrisk **HIGH** at head `{HEAD}`.")
+        self.lanes = UNBOUND
+        self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+
+    def test_a_same_head_rerun_with_the_label_writes_nothing(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.pr_labels = [{"name": "Needs-Human"}]
+        self.lanes = UNBOUND
+        _, out = self.run_main()
         self.assertEqual(self.log, [])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
+    def test_a_new_head_rewrites_the_comment_without_a_label(self) -> None:
+        self.earlier_sweep(f"{merge.RISK_MARKER}\nrisk **MED** at head `{'d' * 40}`.")
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH"])
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_another_accounts_comment_at_the_head_is_not_an_earlier_sweep(
+        self,
+    ) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body, login="maintainer")
+        self.lanes = UNBOUND
+        self.run_main()
+        self.assertEqual(self.log, ["risk-comment:POST"])
+
+    def test_a_low_score_after_an_earlier_sweep_writes_nothing(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        _, out = self.run_main()
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+        self.assertNotIn(self.LABEL, self.log)
+        self.assertFalse(any(e.startswith("risk-comment") for e in self.log))
+
+    def test_report_only_writes_nothing_after_an_earlier_sweep(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.config = dataclasses.replace(self.config, report_only=True)
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertIs(out["unattended"]["reportOnly"], True)
+        self.capture.assert_not_called()
 
     def test_a_changed_assessment_rewrites_the_identitys_comment(self) -> None:
         self.comments = [

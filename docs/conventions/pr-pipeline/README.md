@@ -613,6 +613,20 @@ except six:
 - **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
+An eligible pull request scored MED or HIGH gets one `<!-- babysit-merge-risk -->` reasons comment
+naming the score, the reasons and the head. While `merge.report-only` is false, a run that finds the
+lane identity's reasons comment from an earlier run already naming the current head escalates the
+refusal ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it rewrites the comment if
+the reasons changed, then adds the tracker's human-gated role label when no label matches it
+ignoring case, so the pull request leaves the WIP count and reaches the attended queue. A new head,
+or a score back at LOW, writes nothing new, and only a human removes the label.
+
+A review finding stops counting toward the score only when the lane's newest review chain covering
+the head no longer reports it; a resolved thread closes only when a human resolved it, that chain
+reports no finding, or it is outdated with none of its flagged lines left at the head
+(`_open_findings` in `babysit_review_evidence.py`; owner decision, #8347). That rule is the owner's
+answer to whether a clean incremental review or a newer whole review closes a finding (#8450).
+
 While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
 no full CI run either; its summary says whether it would have.
 
