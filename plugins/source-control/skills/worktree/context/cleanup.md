@@ -61,13 +61,15 @@ Collect the stranded-work record in the same pass, per `status.md`'s data-collec
 | 3 | (orphaned metadata) | none | Directory no longer exists |
 | 4 | <worktree-root>/old-lane | feat/old-lane | Reap age (nothing unpushed, last commit 3d ago); locked: `lane active on <host> session <id> since <utc>`; stale: session <id> on <host> has no transcript change in 120 minutes |
 
-**Action:** Remove these 4 items? (yes/no/select)
+**Action:** Remove these 4 items and delete their local branches? (yes/no/select)
 ```
+
+That yes is the confirmation Step 4b relies on, so the prompt names what it authorizes. On Linux and macOS: deleting each removed worktree's local branch with `git branch -D`, and, when this session's own worktree is listed, removing it (name its path). On Windows, where Step 4b emits those commands for the user instead, ask only "Remove these N items?".
 
 ## Step 4: Execute or report
 
 - **`--dry-run`**: Report candidates only, take no action. Exit.
-- **Otherwise**: Ask for confirmation. On "yes", record the free space first (below), then run each candidate through phases 4a → 4b. Phase 4a runs the guards first, then the file-lock release, the Workspace `down`, the reap and the removal; a row any guard keeps has no side effects: no process is stopped and nothing is reaped.
+- **Otherwise**: Ask for confirmation with the Step 3 prompt. On "yes", record the free space first (below), then run each candidate through phases 4a → 4b. Phase 4a runs the guards first, then the file-lock release, the Workspace `down`, the reap and the removal; a row any guard keeps has no side effects: no process is stopped and nothing is reaped.
 
 **Free space before removal.** Step 5 reports how much disk the run gave back, so take the first
 reading before any removal on a directory the removal leaves in place: the worktree root that
@@ -97,7 +99,7 @@ git worktree remove <path>
 
 **Two guards, the file-lock release, the workspace `down` and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → file-lock release → `down` → reap → removal.** For a locked candidate, the `worktree-claim.sh stale` proof (exit 0) is part of guard 2: it is a read-only check, and a row where it fails is kept before the release, `down` and the reap. The guards only read state, so a row any guard keeps has no side effects: no process is stopped, no `down` runs and nothing is reaped. The file-lock release and `down` come after the guards so a worktree they keep keeps its processes and services. The stranded-work guard first, because it can abort the removal outright. Running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last before the removal for the same reason inverted: the process stop and the reap are the steps that are *not* undoable, so neither may fire for a worktree the guards are about to save.
 
-**1. Stranded-work guard:** removal itself is recoverable, since `git worktree remove` unregisters the directory and leaves the branch ref intact, but a detached-HEAD worktree has no branch ref holding its commits, and for every other candidate the `git branch -D` emitted in Step 4b finishes the job one step later. Both are covered here, at the point where the candidate is still on disk.
+**1. Stranded-work guard:** removal itself is recoverable, since `git worktree remove` unregisters the directory and leaves the branch ref intact, but a detached-HEAD worktree has no branch ref holding its commits, and for every other candidate the `git branch -D` that Step 4b runs (Linux and macOS) or emits for the user (Windows, or when a hook blocks it) finishes the job one step later. Both are covered here, at the point where the candidate is still on disk.
 
 Read the candidate's row from the record collected in Step 2:
 
