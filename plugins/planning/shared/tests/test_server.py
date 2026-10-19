@@ -1983,6 +1983,9 @@ class TestUploads(ServerCase):
         for who, uid in ((self.ann, shown), (self.bo, hidden)):
             for i in range(2):
                 self.assertEqual(self.chunk(who, uid, i, pic)[0], 200)
+        for uid in (shown, hidden):
+            self.assertEqual(self.post("/api/upload/act", {"id": uid, "action": "approve"}, self.owner)[0], 200)
+            time.sleep(session.WRITE_INTERVAL)
         code, _, out = self.post("/api/chat", {"text": "Look", "attachments": [shown]}, self.ann)
         self.assertEqual(code, 200, out)
         time.sleep(session.WRITE_INTERVAL)
@@ -1997,6 +2000,21 @@ class TestUploads(ServerCase):
         self.assertEqual(self.get(f"/api/upload/image?id={hidden}", self.bo)[2]["image"], url)
         self.assertEqual(self.get(f"/api/upload/image?id={hidden}", self.owner)[2]["image"], url)
         self.assertEqual(self.get(f"/api/upload/image?id={shown}", {})[0], 401)
+
+    def test_reading_pictures_back_is_rate_limited_per_person(self):
+        pic = b"\x89PNG\r\n\x1a\n" + bytes(100)
+        uid = self.accepted(self.ann, name="a.png", data=pic)
+        self.assertEqual(self.chunk(self.ann, uid, 0, pic)[0], 200)
+        self.assertEqual(self.post("/api/upload/act", {"id": uid, "action": "approve"}, self.owner)[0], 200)
+        self.assertEqual(self.post("/api/chat", {"text": "Look", "attachments": [uid]}, self.ann)[0], 200)
+        self.assertEqual(server.IMAGE_PER_MINUTE, 120)
+        self.app.image_bucket = server.Bucket(0, 2)  # no refill: two reads, then the limit
+        self.assertEqual([self.get(f"/api/upload/image?id={uid}", self.bo)[0] for _ in range(2)], [200, 200])
+        code, _, out = self.get(f"/api/upload/image?id={uid}", self.bo)
+        self.assertEqual((code, out["error"]), (429, "slow-down"))
+        self.assertEqual(self.get(f"/api/upload/image?id={uid}", self.ann)[0], 200)  # another person's count is their own
+        self.app.image_bucket = server.Bucket(0, 9)
+        self.assertEqual(self.get("/api/upload/image?id=U9-00000000", self.bo)[2]["error"], "not-found")
 
     def test_sizes_are_checked_before_any_body_is_read(self):
         uid = self.accepted(self.ann)

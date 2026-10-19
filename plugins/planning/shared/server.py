@@ -140,6 +140,7 @@ CLIENT_LOG_MAX = 4096  # bytes: a 500-character message in any script, plus the 
 CLIENT_FIELDS = {"kind": 20, "message": CLIENT_MESSAGE_MAX, "source": 200, "route": 200, "code": 60, "ua": 60, "fp": 16}
 CLIENT_KINDS = ("error", "rejection", "api", "layout", "summary")
 USAGE_KINDS = ("summary",)  # held for the next summary batch, on their own rate bucket
+IMAGE_PER_MINUTE = 120  # judgment: pictures one person's pages read back a minute; a page holds at most a few dozen tiles
 CLIENT_PER_MINUTE = 20  # judgment: entries one person's page may log a minute; a page in an error loop stops there
 SUMMARY_PER_MINUTE = 6  # judgment: a page sends one summary each time it hides; tab switching rarely passes this
 SUMMARY_BATCH_SECONDS = 600  # judgment: summaries held per batch; long enough that many people's summaries share one
@@ -224,6 +225,7 @@ ROUTES = {
     "/api/report/add": ("person", "add_to_report"),
 }
 UPLOAD_CHUNK = "/api/upload/chunk"
+UPLOAD_IMAGE = "/api/upload/image"
 CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chunk-Total", "sha256": "X-Chunk-Sha256", "fileSha256": "X-File-Sha256"}
 GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history"), "/api/report/image": ("owner", "report_image"),
               "/api/upload/image": ("person", "upload_image")}
@@ -772,6 +774,8 @@ class GuestHandler(BaseHTTPRequestHandler):
             if url.path in GET_ROUTES:
                 auth, method = GET_ROUTES[url.path]
                 pid = self.authorize(auth)
+                if url.path == UPLOAD_IMAGE and not self.app.image_bucket.take(pid):
+                    raise DomainError(429, "slow-down", f"At most {IMAGE_PER_MINUTE} pictures a minute.")
                 query = {k: v[0] for k, v in parse_qs(url.query).items()}
                 return self.send(200, {"ok": True, **getattr(self.app.session, method)(pid, query)})
         except DomainError as exc:
@@ -964,6 +968,7 @@ class App:
         self.build = build_hash()
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
         self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)  # keyed by pid
+        self.image_bucket = Bucket(IMAGE_PER_MINUTE / 60, IMAGE_PER_MINUTE)  # GET /api/upload/image, keyed by pid
         self.summary_bucket = Bucket(SUMMARY_PER_MINUTE / 60, SUMMARY_PER_MINUTE)  # keyed by pid, kept in memory only
         self._summary_lock, self._summaries, self._summary_bytes, self._dropped = threading.Lock(), [], 0, 0
         self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS

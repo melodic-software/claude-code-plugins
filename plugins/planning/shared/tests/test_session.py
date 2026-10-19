@@ -5126,10 +5126,35 @@ class TestAttachmentsEverywhere(UploadCase):
     own uploads the owner accepted, at most four, each once; refused while Uploads is off. A file shows only where its
     item shows, and a received picture (PNG, JPEG, WebP or GIF) is read back as a data: URL by whoever sees it."""
 
-    def sent_pic(self, pid, name="shot.png", data=PIC):
+    def sent_pic(self, pid, name="shot.png", data=PIC, approve=True):
+        """A received picture; a guest's approved by the owner unless approve is False."""
         uid = self.offered_and_accepted(pid, name=name, data=data)
         self.send_all(pid, uid, data)
+        if approve and pid != HOST and uid in [u["id"] for u in self.s.state["uploads"] if session._shows_as_image(u)]:
+            self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
         return uid
+
+    def test_a_guests_picture_reaches_others_only_once_the_owner_approves_it(self):
+        pic = self.sent_pic(self.ann, approve=False)
+        own = self.sent_pic(HOST, name="host.png")
+        self.act("chat", self.ann, {"text": "Mine", "attachments": [pic]})
+        self.act("chat", HOST, {"text": "The host's", "attachments": [own]})
+        files = self.s.snapshot(self.bo)["files"]
+        self.assertEqual((files[pic], files[own].get("image")), ({"file": "shot.png", "ext": "png", "size": 308, "status": "done", "awaitsHost": True}, True))
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": pic}).http, 404)
+        self.assertEqual(self.s.upload_image(self.bo, {"id": own})["id"], own)  # the owner's own needs no approval
+        self.assertEqual(self.s.upload_image(self.ann, {"id": pic})["id"], pic)
+        self.assertEqual(self.s.upload_image(HOST, {"id": pic})["id"], pic)
+        self.assertEqual(self.refused("owner-only", "act_on_upload", self.ann, {"id": pic, "action": "approve"}).http, 403)
+        self.refused("owner-only", "act_on_upload", self.bo, {"id": pic, "action": "approve"})
+        self.assertNotIn("shown", next(u for u in self.s.snapshot(HOST)["uploads"] if u["id"] == pic))
+        self.assertEqual(self.act("act_on_upload", HOST, {"id": pic, "action": "approve"}), {"id": pic, "status": "done"})
+        self.assertEqual((self.upload(pic)["shown"], next(u for u in self.s.snapshot(HOST)["uploads"] if u["id"] == pic)["shown"]), (True, True))
+        self.assertEqual(self.s.snapshot(self.bo)["files"][pic]["image"], True)
+        self.assertEqual(self.s.upload_image(self.bo, {"id": pic})["id"], pic)
+        self.refused("wrong-status", "act_on_upload", HOST, {"id": pic, "action": "approve"})
+        self.refused("wrong-status", "act_on_upload", HOST, {"id": self.offered_and_accepted(self.ann, name="c.png"), "action": "approve"})
+        self.assertIsNone(session.document_error(self.disk()))
 
     def test_each_form_keeps_its_attachments(self):
         uid = self.offered_and_accepted(self.ann)
@@ -5245,6 +5270,109 @@ class TestAttachmentsEverywhere(UploadCase):
         self.act("act_on_upload", HOST, {"id": uid, "action": "decline"})
         self.assertEqual(held(), [])
         self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_picture_reads_back_to_others_only_up_to_the_pasted_picture_cap(self):
+        self.assertEqual(session.SHOWN_IMAGE_MAX, 512 * 1024)
+        ids = {}
+        for name, size in (("at.png", 512 * 1024), ("over.png", 512 * 1024 + 1)):
+            data = PIC[:8] + bytes(size - 8)
+            with mock.patch.object(session, "CHUNK_SIZE", 1024 * 1024):
+                uid = self.offered_and_accepted(self.ann, name=name, data=data)
+                self.clock.tick()
+                self.s.upload_chunk(self.ann, piece_meta(uid, 0, 1, data, data), data)
+            ids[name] = uid
+            self.clock.tick()
+        self.act("act_on_upload", HOST, {"id": ids["at.png"], "action": "approve"})
+        self.refused("wrong-status", "act_on_upload", HOST, {"id": ids["over.png"], "action": "approve"})  # over the cap it is a file, not a picture
+        self.act("chat", self.ann, {"text": "Two", "attachments": list(ids.values())})
+        files = self.s.snapshot(self.bo)["files"]
+        self.assertEqual([files[ids["at.png"]].get("image"), files[ids["over.png"]].get("image")], [True, None])
+        self.assertEqual(self.s.upload_image(self.bo, {"id": ids["at.png"]})["id"], ids["at.png"])
+        self.refused("not-found", "upload_image", self.bo, {"id": ids["over.png"]})
+
+    def test_reading_a_picture_back_builds_no_snapshot(self):
+        pic = self.sent_pic(self.ann)
+        self.act("chat", self.ann, {"text": "Look", "attachments": [pic]})
+        with mock.patch.object(self.s, "snapshot", side_effect=AssertionError("a snapshot was built")):
+            self.assertEqual(self.s.upload_image(self.bo, {"id": pic})["id"], pic)
+            self.refused("not-found", "upload_image", self.bo, {"id": self.sent_pic(self.ann, name="b.png")})
+
+    def test_a_leader_reads_a_proposals_picture_and_a_guest_does_not(self):
+        lee = self.join("Lee")[0]
+        self.act("set_role", HOST, {"pid": lee, "role": "leader"})
+        pic = self.sent_pic(self.ann)
+        self.act("propose", self.ann, {"text": "Ask it", "attachments": [pic]})
+        self.assertEqual(self.s.upload_image(lee, {"id": pic})["id"], pic)
+        self.refused("not-found", "upload_image", self.bo, {"id": pic})
+
+    def test_files_follow_the_chat_window_and_an_older_page_brings_its_own(self):
+        pic = self.sent_pic(self.ann)
+        with mock.patch.object(session, "CHAT_WINDOW", 2):
+            old = self.act("chat", self.ann, {"text": "Old", "attachments": [pic]})["id"]
+            newer = [self.act("chat", self.bo, {"text": f"New {i}"})["id"] for i in range(2)]
+            self.assertNotIn(pic, self.s.snapshot(self.bo)["files"])
+            page = self.s.chat_page(self.bo, {"before": newer[0]})
+        self.assertEqual([m["id"] for m in page["chat"]], [old])
+        self.assertEqual(page["files"], {pic: {"file": "shot.png", "ext": "png", "size": 308, "status": "done", "image": True}})
+        self.assertEqual(self.s.upload_image(self.bo, {"id": pic})["id"], pic)
+
+    def test_the_owner_or_the_uploader_removes_a_received_file(self):
+        pic, own = self.sent_pic(self.ann), self.sent_pic(self.ann, name="b.png")
+        self.act("chat", self.ann, {"text": "Look", "attachments": [pic, own]})
+        self.refused("no-such-upload", "act_on_upload", self.bo, {"id": pic, "action": "remove"})
+        stored = self.tmp / self.upload(pic)["status"]["stored"]
+        self.assertEqual(self.act("act_on_upload", HOST, {"id": pic, "action": "remove"}), {"id": pic, "status": "removed"})
+        self.assertEqual(self.upload(pic)["status"], {"kind": "removed", "at": self.clock.t, "by": HOST})
+        self.assertFalse(stored.exists())
+        self.assertEqual(self.s.state["chat"][-1]["attachments"], [own])
+        self.refused("not-found", "upload_image", self.ann, {"id": pic})
+        self.assertEqual(self.act("act_on_upload", self.ann, {"id": own, "action": "remove"})["status"], "removed")
+        self.assertNotIn("attachments", self.s.state["chat"][-1])
+        self.assertEqual(self.refused("wrong-status", "act_on_upload", HOST, {"id": pic, "action": "remove"}).details["status"], "removed")
+        sending = self.offered_and_accepted(self.ann, name="c.pdf")
+        self.refused("wrong-status", "act_on_upload", HOST, {"id": sending, "action": "remove"})
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_proposal_placed_as_a_suggestion_keeps_its_files(self):
+        uid = self.offered_and_accepted(self.ann)
+        prop = self.act("propose", self.ann, {"text": "Ask it", "attachments": [uid]})["id"]
+        self.act("lock", HOST, {"qid": "Q1", "card": "c:rec"})
+        self.send()
+        self.ack(1)
+        self.open_round(text_q("Q3"), placements=[{"proposal": prop, "as": "suggestion", "target": "Q1"}])
+        self.assertEqual(self.s.state["suggestions"]["Q1"][-1]["attachments"], [uid])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_message_forwarded_as_a_proposal_keeps_its_files(self):
+        uid = self.offered_and_accepted(self.ann)
+        mid = self.act("chat", self.ann, {"text": "Ask it", "attachments": [uid]})["id"]
+        prop = self.act("propose_from_chat", HOST, {"id": mid})["proposal"]
+        self.assertEqual(next(p for p in self.s.state["proposals"] if p["id"] == prop)["attachments"], [uid])
+
+    def test_a_withdrawn_upload_leaves_every_record_suggestions_included(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("chat", self.ann, {"text": "Look", "attachments": [uid]})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "See", "view": "focus", "attachments": [uid]})
+        self.send()
+        self.act("suggest", self.ann, {"qid": "Q1", "text": "Change it", "attachments": [uid]})
+        self.act("act_on_upload", self.ann, {"id": uid, "action": "withdraw"})
+        st = self.s.state
+        self.assertEqual([x for x in [*st["chat"], *st["suggestions"]["Q1"], *st["cards"]["Q1"]] if "attachments" in x], [])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_state_holding_a_file_twice_or_five_or_on_claudes_card_does_not_load(self):
+        mine = [self.offered_and_accepted(self.ann, name=f"f{i}.pdf") for i in range(5)]
+        self.act("chat", self.ann, {"text": "Files", "attachments": mine[:1]})
+        for case, edit in (("twice", lambda d: d["chat"][-1].update(attachments=[mine[0], mine[0]])),
+                           ("five", lambda d: d["chat"][-1].update(attachments=mine)),
+                           ("claude", lambda d: next(c for c in d["cards"]["Q1"] if c["kind"] == "claude").update(attachments=[mine[0]]))):
+            with self.subTest(case=case):
+                doc = self.disk()
+                edit(doc)
+                self.assertIsNotNone(session.document_error(doc))
+        doc = self.disk()
+        doc["chat"][-1]["attachments"] = [mine[0], mine[0]]
+        self.assertIn(f"carries {mine[0]} twice", session.document_error(doc))
 
     def test_a_state_whose_message_names_another_persons_upload_does_not_load(self):
         uid = self.offered_and_accepted(self.ann)

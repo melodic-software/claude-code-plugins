@@ -139,12 +139,12 @@ ASSET_MAX = 10 * 1024 * 1024
 CHUNK_SECONDS = 300.0  # judgment: one whole chunk arrives within this on a 0.25 MB/s phone link
 CHUNK_INTERVAL = WRITE_INTERVAL  # chunks are writes: one a second per person; read at call time
 MAX_ATTACHMENTS = 4  # uploads one answer, pick, message, request, suggestion, proposal or comment carries (the page's attach slot holds four)
-SHOWN_IMAGE_MAX = ASSET_MAX  # judgment: bytes of a received picture GET /api/upload/image reads back; a larger one shows as a file
 MAX_FILE_NAME = 200  # characters of an upload's display name
 MAX_THUMB = 64000  # characters of an offered picture's data: URL preview, which only the owner sees
 PERSON_THUMB_MAX = 4 * MAX_THUMB  # judgment: preview characters one person's files keep in state.json
 SESSION_THUMB_MAX = 1_000_000  # judgment: preview characters state.json and the owner's snapshot carry in all
 REPORT_IMAGE_MAX = 512 * 1024  # bytes of a report's screenshot, which the page re-encodes to 1600 px at most
+SHOWN_IMAGE_MAX = REPORT_IMAGE_MAX  # bytes of a received picture GET /api/upload/image reads back, what the page makes of a picked or pasted one; a larger one shows as a file
 REPORT_MAX = BODY_MAX + -(-REPORT_IMAGE_MAX // 3) * 4 + 32  # a report's body: that picture as a data: URL, plus its text
 REPORT_INTERVAL = 10.0  # judgment: seconds between one person's reports
 MAX_OPEN_REPORTS = 5  # judgment: reports one person has waiting for the owner
@@ -391,11 +391,20 @@ def _upload_errors(doc):
                 and (u["status"]["kind"] != "done" or STORED_PATH.fullmatch(u["status"]["stored"]))):
             errors.append(f"Upload {u['id'][:40]} holds an id, extension or file name the server never makes.")
     for where, rec in _attaching(doc):
-        for uid in rec.get("attachments", []):
+        atts = rec.get("attachments", [])
+        if len(atts) > MAX_ATTACHMENTS:
+            errors.append(f"{where} carries more than {MAX_ATTACHMENTS} files.")
+        errors += [f"{where} carries {uid[:40]} twice." for uid in sorted({x for x in atts if atts.count(x) > 1})]
+        for uid in atts:
             u = by_id.get(uid)
-            if u is None or u["pid"] != rec["pid"] or u["status"]["kind"] not in UPLOAD_ACCEPTED:
+            if u is None or u["pid"] != rec.get("pid") or u["status"]["kind"] not in UPLOAD_ACCEPTED:
                 errors.append(f"{where} carries {uid[:40]}, not an accepted upload of its author.")
     return errors
+
+
+def _answers(cards):
+    """People's answers in a qid -> cards map: the only cards that carry files."""
+    return [c for lst in cards.values() for c in lst if c.get("kind") == "person"]
 
 
 def _flat(by_qid):
@@ -408,11 +417,16 @@ def _shows_as_image(u):
     return u["status"]["kind"] == "done" and u["ext"] in IMAGE_KINDS and u["size"] <= SHOWN_IMAGE_MAX
 
 
+def _approved(u):
+    """A received picture others may see: the owner's own at once, a guest's once the owner approved it (`shown`)."""
+    return u["pid"] == HOST or u.get("shown") is True
+
+
 def _attaching(doc):
     """(where, record) for every record that may carry `attachments`: answers, chat messages, requests, suggestions,
     proposals and Discussion comments."""
     for qid, lst in doc["cards"].items():
-        yield from ((f"An answer on {qid}", c) for c in lst if c.get("kind") == "person")
+        yield from ((f"An answer on {qid}", c) for c in lst)
     yield from (("A chat message", m) for m in doc["chat"])
     yield from (("A request", r) for r in doc["requests"])
     yield from (("A proposal", p) for p in doc["proposals"])
@@ -1717,6 +1731,9 @@ class Session:
                 st["suggestionVotes"][qid] = {v: s for v, s in fixed.items() if authors.get(s) != v}
         for rec in [*st["proposals"], *st["chat"], *st["requests"], *st["uploads"], *st["annotations"]]:
             rec["pid"] = swap(rec["pid"])
+        for u in st["uploads"]:
+            if "by" in u["status"]:
+                u["status"]["by"] = swap(u["status"]["by"])
         for rep in st.get("reports", {}).values():
             rep["by"] = swap(rep["by"])
         for p in st["proposals"]:
@@ -3907,23 +3924,33 @@ class Session:
     def act_on_upload(self, pid, body):
         """POST /api/upload/act: the owner accepts or declines an offered file, and its uploader withdraws it. Accepting
         is refused past SESSION_UPLOAD_MAX. Declining or withdrawing deletes what arrived so far and takes the file off
-        every answer; the browser deletes its copy."""
-        action = _choice(body, "action", ("accept", "decline", "withdraw"))
+        every answer; the browser deletes its copy. `remove`, by the owner or the uploader, ends a received file: it
+        leaves everything that carries it and is deleted from the data folder. `approve`, the owner's, lets everyone who
+        sees what carries a guest's received picture see the picture (`shown`)."""
+        action = _choice(body, "action", ("accept", "decline", "withdraw", "remove", "approve"))
         uid = _ident(body, "id")
         now = self.now()
         with self._tx():
-            if action == "withdraw":
+            if action in ("withdraw", "remove") and pid != HOST:
                 self._writer(pid)
                 self._throttle(pid, "upload-act", now)
             else:
                 self._owner(pid)
             u = self._upload(uid)
-            if action == "withdraw" and u["pid"] != pid:
+            if (action == "withdraw" or pid != HOST) and u["pid"] != pid:
                 raise DomainError(404, "no-such-upload", f"No upload {uid[:40]}.")
             kind = u["status"]["kind"]
-            if kind not in (("offered",) if action == "accept" else UPLOAD_LIVE):
+            if kind not in {"accept": ("offered",), "remove": ("done",), "approve": ("done",)}.get(action, UPLOAD_LIVE):
                 raise DomainError(409, "wrong-status", f"That file is {kind}.", status=kind)
+            if action == "approve" and not (_shows_as_image(u) and not _approved(u)):
+                raise DomainError(409, "wrong-status", "Only a guest's received picture waits for approval.", status="shown" if _approved(u) else kind)
             doomed = None
+            if action == "approve":
+                u["shown"] = True
+            if action == "remove":
+                stored = u["status"]["stored"]
+                self._end_upload(u, {"kind": "removed", "at": now, "by": pid})
+                doomed = self.path.parent / stored if STORED_PATH.fullmatch(stored) else None
             if action == "accept":
                 if not self._active(u["pid"]):
                     raise DomainError(409, "wrong-status", "Its sender is no longer in the session.", status="removed")
@@ -3934,9 +3961,9 @@ class Session:
                         field="accept", max=SESSION_UPLOAD_MAX, left=max(0, SESSION_UPLOAD_MAX - total),
                     )
                 u["status"] = {"kind": "accepted", "tmp": self.ids.hex(16)}
-            else:
+            elif action not in ("remove", "approve"):
                 doomed = self._end_upload(u, {"kind": "declined" if action == "decline" else "withdrawn", "at": now})
-        if action == "withdraw":
+        if action in ("withdraw", "remove") and pid != HOST:
             self._wrote(pid, "upload-act", now)
         if doomed:
             self._discard(doomed)
@@ -4098,6 +4125,8 @@ class Session:
         out = {k: u[k] for k in ("id", "pid", "at", "qid", "file", "ext", "size", "chunks")}
         if _shows_as_image(u):
             out["image"] = True
+            if _approved(u):
+                out["shown"] = True
         out["status"] = {k: v for k, v in u["status"].items() if k not in ("tmp", "stored")}
         out["chunkSize"] = CHUNK_SIZE
         if owner and "thumb" in u:
@@ -4981,7 +5010,8 @@ class Session:
                 target, text, note = suggestion
                 sid = self._next("S")
                 st["suggestions"].setdefault(target, []).append(
-                    {"id": sid, "pid": prop["pid"], "text": text, "note": note, "at": self.now(), "fromProposal": prop["id"], "status": {"kind": "open"}}
+                    {"id": sid, "pid": prop["pid"], "text": text, "note": note, "at": self.now(), "fromProposal": prop["id"], "status": {"kind": "open"},
+                     **({"attachments": list(prop["attachments"])} if "attachments" in prop else {})}
                 )
                 status = {"kind": "suggested", "question": target, "suggestion": sid}
                 self._flag(target, {"kind": "suggested", "suggestion": sid})
@@ -5237,10 +5267,12 @@ class Session:
                 if v["pid"] in active
             ],
             "requestCounts": self._request_counts(),
-            "files": self._files_of([*_flat(cards), *chat, *_flat(discussions), *_flat(suggestions)]),
+            "files": self._files_of([*_answers(cards), *chat[-CHAT_WINDOW:], *_flat(discussions), *_flat(suggestions)]),
             # the last names of people no longer here whom a text mentions, so <@pid> still reads as them
             "mentions": {p: st["people"][p]["name"] for p in self._mentioned_anywhere() if p in st["people"] and p not in active},
         }
+        # every upload what everyone reads carries, older chat included: who may read a picture back (upload_image)
+        self._public_uploads = {uid for r in [*_answers(cards), *chat, *_flat(discussions), *_flat(suggestions)] for uid in r.get("attachments", [])}
         if len(chat) > CHAT_WINDOW:
             base["chatBefore"] = base["chat"][0]["id"]  # older messages exist: GET /api/chat?before=<it> reads them
             touched = max((self._chat_touch.get(m["id"], 0) for m in chat[:-CHAT_WINDOW]), default=0)
@@ -5264,7 +5296,9 @@ class Session:
             for uid in rec.get("attachments", []):
                 u = ups.get(uid)
                 if u is not None and u["status"]["kind"] in UPLOAD_ACCEPTED:
-                    out[uid] = {"file": u["file"], "ext": u["ext"], "size": u["size"], "status": u["status"]["kind"], **({"image": True} if _shows_as_image(u) else {})}
+                    pic = _shows_as_image(u)
+                    out[uid] = {"file": u["file"], "ext": u["ext"], "size": u["size"], "status": u["status"]["kind"],
+                                **({"image": True} if pic and _approved(u) else {"awaitsHost": True} if pic else {})}
         return out
 
     def upload_image(self, pid, body):
@@ -5272,9 +5306,9 @@ class Session:
         the owner, and whoever reads something that carries it. Any other upload, or one the viewer does not see, is 404."""
         uid = _ident(_body(body), "id")
         with self._lock:
-            self._person(pid)
+            me = self._person(pid)
             u = next((u for u in self.state["uploads"] if u["id"] == uid), None)
-            shown = u is not None and _shows_as_image(u) and (pid in (HOST, u["pid"]) or uid in self.snapshot(pid)["files"])
+            shown = u is not None and _shows_as_image(u) and self._sees_upload(pid, me, u)
             stored = u["status"]["stored"] if shown else ""
         f = self.path.parent / stored if stored and STORED_PATH.fullmatch(stored) else None
         data = f.read_bytes() if f is not None and f.is_file() and f.stat().st_size <= SHOWN_IMAGE_MAX else b""
@@ -5282,6 +5316,19 @@ class Session:
         if mime is None:
             raise DomainError(404, "not-found", f"No picture {uid[:40]}.")
         return {"id": uid, "image": f"data:{mime};base64,{base64.b64encode(data).decode()}"}
+
+    def _sees_upload(self, pid, me, u):
+        """Whether pid reads something that carries u. A record carries only its author's uploads, so beyond what
+        everyone reads (the cached _public_uploads) only the uploader, the owner, and a moderator through a proposal
+        see one: a hidden answer or comment and a request reach their author and the owner alone."""
+        self._base()
+        if pid in (HOST, u["pid"]):
+            return True
+        if not _approved(u):
+            return False
+        if u["id"] in self._public_uploads:
+            return True
+        return me["role"] == "leader" and self._active(u["pid"]) and any(u["id"] in p.get("attachments", ()) for p in self.state["proposals"])
 
     def _public_card(self, qid, c, active):
         """One card as people read it: never `view`, `deviceInfo` or `history`; with its ref, the
@@ -5343,6 +5390,8 @@ class Session:
             end = at if before else min(len(msgs), max(0, at - limit // 2) + limit)
             start = max(0, end - limit)
             out = {"chat": copy.deepcopy(self._masked_chat(msgs[start:end], pid))}
+            if files := self._files_of(msgs[start:end]):
+                out["files"] = files  # what the page's messages carry, as the snapshot's files reads
             if start:
                 out["before"] = msgs[start]["id"]
             return out
@@ -5431,7 +5480,7 @@ class Session:
                     snap["results"] = {**snap["results"], qid: copy.deepcopy([r for r in lst if self._result_shown(r) or r["id"] in held])}
             snap["myMergeRequests"] = copy.deepcopy([m for m in st["mergeRequests"] if m["from"] == pid])
             snap["myUploads"] = [self._upload_view(u, owner=owner) for u in st["uploads"] if u["pid"] == pid]
-            seen = [*(_flat(own) if own else []), *(_flat(snap["discussions"]) if snap["discussions"] is not base["discussions"] else []),
+            seen = [*(_answers(own) if own else []), *(_flat(snap["discussions"]) if snap["discussions"] is not base["discussions"] else []),
                     *visible, *snap["myRequests"], *(st["requests"] if owner else [])]
             if any("attachments" in r for r in seen):  # what only this viewer reads: hidden answers and comments, proposals, requests
                 snap["files"] = {**base["files"], **self._files_of(seen)}

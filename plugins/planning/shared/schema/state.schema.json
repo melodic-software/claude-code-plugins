@@ -1019,6 +1019,7 @@
         "mime": {"type": "string"},
         "size": {"type": "integer", "minimum": 0},
         "thumb": {"type": "string"},
+        "shown": {"const": true, "description": "The owner approved this guest's received picture: everyone who sees what carries it sees it."},
         "chunks": {"type": "integer", "minimum": 0},
         "status": {
           "oneOf": [
@@ -1045,6 +1046,13 @@
               "required": ["kind", "stored", "sha256"],
               "additionalProperties": false,
               "properties": {"kind": {"enum": ["done"]}, "stored": {"type": "string"}, "sha256": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at", "by"],
+              "additionalProperties": false,
+              "description": "A received file its uploader or the owner removed: it left every record, and its file was deleted.",
+              "properties": {"kind": {"enum": ["removed"]}, "at": {"$ref": "#/$defs/ts"}, "by": {"$ref": "#/$defs/pid"}}
             },
             {
               "type": "object",
