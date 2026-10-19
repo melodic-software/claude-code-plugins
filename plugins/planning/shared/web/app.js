@@ -4616,11 +4616,12 @@
       });
     }
     // ---------- item 10: the Discussion ----------
-    /** The request a comment's @Claude filed, as this viewer knows it: its result if it shows here, else its card. */
+    /** The request a comment's @Claude filed, as this viewer knows it: its result if it shows here, else its card;
+     * someone who sees neither (not the owner, not the requester) gets no status. */
     function discReq(S, q, c) {
       const x = (S.research?.[q.id] || []).find(r => r.requestId === c.request);
       const r = (Core.me.isOwner ? S.requests || [] : []).concat(S.myRequests || []).find(r2 => r2.id === c.request);
-      return { x, r, label: x ? (x.published === false ? "Answered, waiting for the host to share" : "Answered") : r ? rstat(r) : "Waiting for the host" };
+      return { x, r, label: x ? (x.published === false ? "Answered, waiting for the host to share" : "Answered") : r ? rstat(r) : "" };
     }
     /** Show a comment: the question, its Discussion open, the comment in view. */
     function openComment(qid, id) {
@@ -4686,10 +4687,11 @@
       k.text.hidden = editing; k.ed.hidden = !editing;
       li._req = c.request ? discReq(S, q, c) : null;
       k.became.hidden = !li._req;
-      if (li._req) k.becameTxt.textContent = `Sent to Claude · ${li._req.label}`;
+      if (li._req) k.becameTxt.textContent = li._req.label ? `Sent to Claude · ${li._req.label}` : "Sent to Claude";
       fillReactChips(k, c, (id, e, on) => Core.reactComment(q.id, id, e, on));
       k.reactAdd.hidden = ro || c.hidden;
       k.edit.hidden = k.del.hidden = !mine || ro || editing;
+      k.edit.hidden ||= !!c.request; // its text went to Claude as sent: Delete only
       k.hide.hidden = !owner || ro;
       k.hide.textContent = c.hidden ? "Show" : "Hide";
       k.acts.hidden = k.reactAdd.hidden && k.edit.hidden && k.hide.hidden;

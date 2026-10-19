@@ -108,6 +108,8 @@ async function main() {
     await bo.waitForTimeout(1100);
     await post(bo, BO_ASK);
     ok("Bo's @Claude comment reads Sent to Claude, waiting", await until(bo, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && li.querySelector(".vf-cm-became-t").textContent.startsWith("Sent to Claude")), BO_ASK), JSON.stringify(await shown(bo)));
+    ok("  and offers Delete but no Edit on it", (await shown(bo)).some(r => r.text === BO_ASK && r.acts.join() === "Delete"), JSON.stringify(await shown(bo)));
+    ok("Ann, who sees neither the request nor its answer, reads Sent to Claude with no status", await until(ann, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && li.querySelector(".vf-cm-became-t").textContent === "Sent to Claude"), BO_ASK), JSON.stringify(await shown(ann)));
     const rid = await owner.evaluate(async t => {
       for (let i = 0; i < 50 && !(window.Core.state.requests || []).some(r => r.text === t); i++) await new Promise(r => setTimeout(r, 100));
       return (window.Core.state.requests || []).find(r => r.text === t);
@@ -127,6 +129,7 @@ async function main() {
 
     // ---------- @Claude past the waiting cap: posted, with no request, and the reason said ----------
     await bo.evaluate(async () => { for (let i = 0; i < 10; i++) await window.Core.request("Q1", "ask", "filler " + i).catch(() => {}); });
+    await bo.waitForTimeout(1100); // past the one request a second the comment's request shares with the fillers
     const FULL = "@Claude one more?";
     ok("an @Claude comment past the waiting cap still posts", await post(bo, FULL));
     ok("  and Bo is told it was not sent to Claude", await until(bo, () => /^Posted, but not sent to Claude/.test(document.querySelector(".vf-toast.vf-on span")?.textContent || "")));
