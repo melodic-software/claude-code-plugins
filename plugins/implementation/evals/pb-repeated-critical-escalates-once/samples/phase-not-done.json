@@ -15,6 +15,10 @@
     {
       "answer": "- **Plan said:** Phase 4 must pass its security review before it can be marked `[DONE]`.\n- **Chose:** Phase 4 stays unmarked.",
       "why": "a can-be form of the same plan rule"
+    },
+    {
+      "answer": "- **Plan said:** Phase 4 passes its `security` phase-boundary review before the `phase-verifier` runs, the phase is marked `[DONE]`, and the boundary commit is made.\n- **Chose:** Phase 4 stays unmarked.",
+      "why": "the Plan said field restates the plan by design"
     }
   ],
   "fail": [
