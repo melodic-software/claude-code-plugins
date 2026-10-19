@@ -1155,6 +1155,51 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         self.assertEqual(self.run_reads(fake, 2), 1)
 
 
+class ACarriedHeadServesOnlyAFail(unittest.TestCase):
+    """A run head an earlier pr-merge run found on main reaches this run's
+    cache as `carried-on-branch` (carry-run-cache.mjs). Only a FAIL's run may
+    rest on it, where it can only count the FAIL; a PASS's run is compared by
+    this run, so a wrong carried yes can never allow."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.path = pathlib.Path(tmp.name, "run.json")
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": str(self.path)})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        at = datetime.now(UTC).isoformat()
+        entry = {f"{REPO}|{MAIN_SHA}...main": {"at": at, "value": True}}
+        self.path.write_text(json.dumps({"carried-on-branch": entry}))
+
+    @staticmethod
+    def compares(fake: FakeGitHub) -> int:
+        return sum("/compare/" in " ".join(c) for c in fake.calls)
+
+    def test_a_fail_run_rests_on_the_carried_head_with_no_compare(self) -> None:
+        fake = FakeGitHub([artifact(named(HEAD, "fail"), 2)], {2: run(2)})
+        self.assertEqual(read(fake).refusal, "verify:fail")
+        self.assertEqual(self.compares(fake), 0)
+
+    def test_a_carried_yes_the_branch_denies_still_counts_the_fail(self) -> None:
+        fake = FakeGitHub([artifact(named(HEAD, "fail"), 2)], {2: run(2)})
+        fake.on_main = set()
+        self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_pass_run_is_compared_and_not_counted_off_the_branch(self) -> None:
+        # The same run uploads another PR's FAIL first: its judgment rests on
+        # the carried yes, and the PASS must not reuse it.
+        other = named(UNRELATED, "fail", 99)
+        fake = FakeGitHub(
+            [artifact(other, 1), artifact(named(HEAD, "pass"), 1)],
+            {1: run(1)},
+            {named(HEAD, "pass"): record(), other: record(99, UNRELATED, head_ref="o")},
+        )
+        fake.on_main = set()
+        self.assertEqual(read(fake).refusal, "verify:missing")
+        self.assertEqual(self.compares(fake), 1)
+
+
 # --- A transient listing failure is read again --------------------------------
 
 # Every test runs without the backoff sleep; `judge` reads the waits off it.

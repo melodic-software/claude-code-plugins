@@ -127,6 +127,9 @@ UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
 # The run cache's section of run records, and the fields `_run_state` reads.
 RUN_SECTION = "run-record"
 RECORD_SECTION = "fail-head-ref"
+# Run heads an earlier pr-merge run found on the branch, copied into this
+# run's cache by .github/scripts/pr-merge/carry-run-cache.mjs.
+CARRIED_ON_BRANCH = "carried-on-branch"
 RUN_FIELDS = (
     "id",
     "path",
@@ -391,15 +394,19 @@ class Reader:
         except ValueError as exc:
             raise _Unreadable(f"{label}: {exc}") from exc
 
-    def _contains(self, sha: str) -> bool:
+    def _contains(self, sha: str, *, shared: bool = False) -> bool:
         """Whether the branch holds `sha`, read under the Actions token (a
         contents read). A yes stays true while the branch only moves forward
         (main's ruleset forbids force pushes), so the run shares it; a no is
-        read again by each gate process."""
+        read again by each gate process. A yes an earlier run found
+        (`CARRIED_ON_BRANCH`) serves a FAIL's run only (`shared`), where it
+        can only count the FAIL."""
         if sha not in self._on_branch:
             key = f"{self.repo}|{sha}...{self.branch}"
             if run_cache.get("on-branch", key, None) is True:
                 self._on_branch[sha] = True
+                return True
+            if shared and run_cache.get(CARRIED_ON_BRANCH, key, None) is True:
                 return True
             compare = json_object(
                 self._actions(
@@ -420,7 +427,7 @@ class Reader:
         head) plus a live branch check, never on status, conclusion or
         attempt, so a stale record cannot turn a FAIL away. A PASS needs a
         completed success, which a re-run can undo, so its run is read by
-        this process."""
+        this process, never taken from a FAIL's judgment."""
         if run_id in self._runs and (shared or run_id not in self._shared_runs):
             return self._runs[run_id]
         key = f"{self.repo}|{run_id}"
@@ -445,16 +452,17 @@ class Reader:
                 == self.repo
                 and isinstance(head, str)
                 and merge_policy.SHA_RE.fullmatch(head) is not None
-                and self._contains(head)
+                and self._contains(head, shared=shared)
             )
         except _Unreadable:
             self._shared_runs.discard(run_id)
             self._runs[run_id] = UNREAD
             return UNREAD
-        if cached:
+        if cached or shared:
             self._shared_runs.add(run_id)
         else:
             self._shared_runs.discard(run_id)
+        if not cached:
             self._started[run_id] = record.get("run_started_at")
             run_cache.put(RUN_SECTION, key, {k: record.get(k) for k in RUN_FIELDS})
         done = (
