@@ -168,7 +168,7 @@ async function main() {
     for (const [what, refuse] of [["answered 429", route => route.fulfill({ status: 429, contentType: "application/json", headers: { "x-test-refusal": "1" }, body: '{"error":"slow-down","message":"Wait a moment."}' })],
       ["lost to the network", route => route.abort("failed")]]) {
       let beats = 0;
-      const hit = async ctx => ctx.route("**/api/heartbeat", route => (++beats <= 2 ? refuse(route) : route.continue()));
+      const hit = async ctx => ctx.route("**/api/heartbeat", route => (++beats <= 2 ? refuse(route) : route.continue()).catch(() => {}));
       const p = await openPage(upB.localUrl, { ...seed, arg: { secret: ANN } }, hit);
       for (let i = 0; i < 60 && beats < 3; i++) await p.waitForTimeout(250);
       ok(`a first heartbeat ${what} twice: the guest keeps the stored secret and comes back as their pid`,
