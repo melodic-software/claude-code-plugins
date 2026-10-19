@@ -10,5 +10,4 @@ bump: minor
   ``at head `<sha>` ``, a head other than the current one, it posts one comment naming
   `head-moved`, the old head and the new one, then removes the label so pr-merge judges the new head
   and escalates again if its refusal still holds. A head that does not parse as 40-hex, any other
-  marker, a label a person added, or a comment by any account but the lanes App since the label
-  keeps it.
+  marker, a label a person added, or a person speaking since the label keeps it.

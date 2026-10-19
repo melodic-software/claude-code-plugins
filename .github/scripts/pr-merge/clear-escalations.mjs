@@ -15,8 +15,10 @@
 //   one counts. Text anyone else writes, a marker included, is never read.
 // - No lanes App comment written or edited since then carries any other
 //   marker (pr-merge's, another lane's): unknown keeps it.
-// - No account but the lanes App commented or reviewed since the label went
-//   on: a person, or another bot asking for one, may want the lane to wait.
+// - No person commented, reviewed, or left a review or commit comment since
+//   the label went on: they may want the lane to wait. Bot accounts (AI
+//   review, other lanes) are not someone speaking; an App marker is judged
+//   by the rule above instead.
 // - Every recorded reason no longer holds at the current head:
 //     workflow-staged          main changed nothing under .github/workflows/
 //                              since its merge base with the head, so merging
@@ -184,9 +186,9 @@ async function verdict({ github, repo, number, label, bot, mainSha }) {
   if (foreign !== undefined) {
     return { reason: `a lanes App comment since ${label} went on carries another marker: ${foreign.slice(0, 120)}` };
   }
-  // Only the lanes App's own comments are exempt: a person, or another bot
-  // asking for a person, keeps the label.
-  const speaker = timeline.flatMap(spoken).find(({ user, at }) => !(at <= since) && !isApp(user, bot));
+  // Only a person speaking keeps the label; an account GitHub marks Bot does
+  // not. An unknown author counts as a person.
+  const speaker = timeline.flatMap(spoken).find(({ user, at }) => !(at <= since) && user?.type !== "Bot");
   if (speaker !== undefined) {
     return { reason: `${speaker.user?.login ?? "an account"} commented or reviewed after ${label} went on` };
   }
