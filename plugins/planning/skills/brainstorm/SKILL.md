@@ -44,7 +44,7 @@ stop).
    [`${CLAUDE_PLUGIN_ROOT}/context/problem-framing.md`](../../context/problem-framing.md).
 3. **Diverge**. Generate the candidate list (default ~10; scale to the problem), ordered
    **cheapest → most ambitious**. Every candidate is codebase-grounded and names the
-   files/mechanisms it would touch, one line each: what, where, effort tier, expected impact. Do
+   files/mechanisms it would touch, one line each: what, where, effort tier (a `work_size` size level), expected impact. Do
    not self-censor the ambitious end; the user calibrates, not you.
 4. **React**. The user marks what resonates. A prose numbered list is the default reaction
    surface; for a large or multi-axis spread, offer an interactive view (candidates from cheapest to
