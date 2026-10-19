@@ -1424,6 +1424,35 @@ if [[ $rc -eq 0 ]]; then ok "the release pull request passes: a consumed fragmen
 fragment_case release release/plugins-copy
 if [[ $rc -eq 1 && "$out" == *"FRAGMENT-MODE RELEASE: alpha"* ]]; then ok "only the exact release branch may version a fragment-mode plugin"; else fail "near-miss branch treated as the release: rc=$rc out='$out'"; fi
 
+# A listed convention (docs/conventions/<name>/) is versioned by its CHANGELOG
+# heading alone, so only the release pull request may add one.
+convention_case() {
+  mk_repo repo
+  git_init_test_repo "$repo"
+  mk_plugin "$repo" alpha 1.0.0 yes
+  printf 'alpha\n%s\n' "$1" >"$repo/scripts/fragment-plugins.txt"
+  mkdir -p "$repo/docs/conventions/demo"
+  printf '# Changelog\n\n## 2.0.0 - 2026-01-01\n\n- one\n' >"$repo/docs/conventions/demo/CHANGELOG.md"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+  local base
+  base="$(git -C "$repo" rev-parse HEAD)"
+  printf '# Changelog\n\n## 2.1.0 - 2026-01-02\n\n- two\n\n## 2.0.0 - 2026-01-01\n\n- one\n' >"$repo/docs/conventions/demo/CHANGELOG.md"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm change
+  out="$(cd "$repo" && CHANGELOG_HEAD_REF="${2:-}" bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+  rc=$?
+  rm -rf "$repo"
+}
+convention_case demo
+if [[ $rc -eq 1 && "$out" == *"FRAGMENT-MODE RELEASE: demo"*"adds the version heading(s) 2.1.0"* ]]; then
+  ok "a non-release change set that adds a listed convention's CHANGELOG heading fails"
+else
+  fail "added heading on a listed convention not caught: rc=$rc out='$out'"
+fi
+convention_case demo release/plugins
+if [[ $rc -eq 0 ]]; then ok "the release pull request may add a listed convention's heading"; else fail "release heading on a convention wrongly failed: rc=$rc out='$out'"; fi
+convention_case ''
+if [[ $rc -eq 0 ]]; then ok "an unlisted convention's heading stays the change set's own"; else fail "unlisted convention heading wrongly failed: rc=$rc out='$out'"; fi
+
 fragment_case re_release release/plugins
 if [[ $rc -eq 1 && "$out" == *"BUMP WITHOUT CHANGE: alpha went 1.0.0 -> 1.1.0"* ]]; then
   ok "a release bump that consumes no fragment still fails BUMP WITHOUT CHANGE"

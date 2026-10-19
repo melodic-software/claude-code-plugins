@@ -12,10 +12,11 @@
 # (git-worktree(1) "lock" / "LIST OUTPUT FORMAT" porcelain `locked [reason]`).
 #
 # Verbs:
-#   report [--repo-dir DIR]
+#   report [--repo-dir DIR] [--root DIR]
 #     List each linked worktree as CLAIMED <path> <reason> or UNCLAIMED <path>.
 #     Exit 1 when any linked worktree lacks a lock reason; 0 when every linked
-#     worktree carries one (or none exist).
+#     worktree carries one (or none exist). With --root, a further summary line
+#     counts the UNCLAIMED worktrees that lie outside that worktree root.
 #   claim <path> [--repo-dir DIR] [--session-id ID]
 #     Lock this unlocked linked worktree with a session-distinct reason.
 #     Refuses to rewrite an existing reason (helper-created trees keep theirs).
@@ -86,7 +87,7 @@ EX_ENV=5
 usage() {
   cat >&2 <<EOF
 Usage:
-  $PROG report [--repo-dir DIR]
+  $PROG report [--repo-dir DIR] [--root DIR]
   $PROG claim <path> [--repo-dir DIR] [--session-id ID]
   $PROG claim --all-unclaimed [--repo-dir DIR] [--session-id ID]
   $PROG check-enter <path> [--repo-dir DIR] [--session-id ID]
@@ -243,6 +244,7 @@ session_id=""
 path=""
 all_unclaimed=0
 idle_minutes=120
+root_dir=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -254,6 +256,11 @@ while [[ $# -gt 0 ]]; do
   --session-id)
     [[ $# -ge 2 ]] || usage
     session_id="$2"
+    shift 2
+    ;;
+  --root)
+    [[ $# -ge 2 ]] || usage
+    root_dir="$2"
     shift 2
     ;;
   --idle-minutes)
@@ -331,6 +338,10 @@ if [[ ! "$idle_minutes" =~ ^[0-9]{1,9}$ ]]; then
   printf '%s: --idle-minutes must be a non-negative integer\n' "$PROG" >&2
   exit "$EX_USAGE"
 fi
+if [[ -n "$root_dir" && "$cmd" != "report" ]]; then
+  printf '%s: --root applies to report only\n' "$PROG" >&2
+  exit "$EX_USAGE"
+fi
 if [[ "$cmd" == "report" && -n "$path" ]]; then
   printf '%s: report takes no path\n' "$PROG" >&2
   exit "$EX_USAGE"
@@ -361,7 +372,8 @@ if ! parse_worktrees "$repo_dir"; then
 fi
 
 do_report() {
-  local i unclaimed=0 linked=0
+  local i unclaimed=0 linked=0 outside=0 root=""
+  [[ -z "$root_dir" ]] || root="$(canonicalize_path "$root_dir")"
   for i in "${!WT_PATHS[@]}"; do
     ((WT_IS_LINKED[i])) || continue
     linked=$((linked + 1))
@@ -370,10 +382,16 @@ do_report() {
     else
       printf 'UNCLAIMED\t%s\n' "${WT_PATHS[i]}"
       unclaimed=$((unclaimed + 1))
+      if [[ -n "$root" && "${WT_PATHS[i]}" != "$root"/* ]]; then
+        outside=$((outside + 1))
+      fi
     fi
   done
   printf '%s: %d linked, %d unclaimed, %d claimed\n' \
     "$PROG" "$linked" "$unclaimed" "$((linked - unclaimed))" >&2
+  if [[ -n "$root" ]]; then
+    printf '%s: %d unclaimed outside the worktree root %s\n' "$PROG" "$outside" "$root" >&2
+  fi
   if ((unclaimed > 0)); then
     return "$EX_UNCLAIMED_REPORT"
   fi

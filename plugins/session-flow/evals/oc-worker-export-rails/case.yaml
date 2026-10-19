@@ -3,7 +3,7 @@ name: oc-worker-export-rails
 description: 'The worker export emits a paste-ready brief between two bare U+2500 dashed rails: the did-not-inherit-context line first, then the seven numbered imperatives and the closing Discipline line, with no code fence around the rails. The skill emits text only and spawns nothing, so Agent is granted for the must-not check. Needs no scaffold and no --allow-tools grant.'
 tags: [orchestrate, export, worker]
 plugins: ["../.."]
-expected_outcome: 'The answer prints a top rail of U+2500 characters, then as its first line the instruction that the reader is a spawned worker that did not inherit the parent session context, then the seven numbered imperatives 1 to 7 and the Discipline line, then a bottom rail; any commentary sits outside the rails, and the rails are not inside a code fence. No Agent call is made.'
+expected_outcome: 'The answer prints a top rail of U+2500 characters, then as its first line the instruction that the reader is a spawned worker that did not inherit the parent session context, then the waiting instruction (poll in the foreground or return what you have, never end the turn to wait on your own background job) before imperative 1, then the seven numbered imperatives 1 to 7 and the Discipline line, then a bottom rail; any commentary sits outside the rails, and the rails are not inside a code fence. No Agent call is made.'
 execution:
   prompt: '/session-flow:orchestrate worker — I am about to spawn a subagent to port the billing CSV exporters to the new report API, and I will paste its standing instructions into the spawn prompt myself.'
   allowed_tools: [Read, Grep, Glob, Agent]
@@ -19,6 +19,11 @@ graders:
     type: regex
     pattern: '^[ \t]*─{10,}[ \t]*$(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t*_>-]*1\.(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t*_>-]*2\.(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t*_>-]*3\.(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t*_>-]*4\.(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t*_>-]*5\.(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t*_>-]*6\.(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t*_>-]*7\.(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t*_>-]*Discipline\b(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t]*─{10,}[ \t]*$'
     flags: 'm'
+    arm: both
+  - name: waiting-line-before-imperatives
+    type: regex
+    pattern: '─{10,}[ \t]*\r?\n(?:(?!^[ \t]*─{10,})[\s\S])*?\bbackground\s+job\b(?:(?!^[ \t]*─{10,})[\s\S])*?^[ \t*_>-]*1\.'
+    flags: 'im'
     arm: both
   - name: rails-not-fenced
     type: regex

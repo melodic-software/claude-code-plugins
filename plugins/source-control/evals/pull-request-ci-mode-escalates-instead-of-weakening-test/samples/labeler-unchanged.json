@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints the label for a pull request title: feat is enhancement, fix is bug, anything else chore.\npick_label() {\n  case \"${1%%[:(]*}\" in\n    fix | feat) echo bug ;;\n    *) echo chore ;;\n  esac\n}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints the label for a pull request title: feat is enhancement, fix is bug, anything else chore.\npick_label() {\n  case \"$1\" in\n    feat:* | feat\\(*) echo enhancement ;;\n    fix:* | fix\\(*) echo bug ;;\n    *) echo chore ;;\n  esac\n}\n",
+      "why": "edited a file under .github/"
+    }
+  ]
+}

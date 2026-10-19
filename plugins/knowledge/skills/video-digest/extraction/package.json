@@ -17,11 +17,11 @@
   "dependencies": {
     "@melodic/repo-analysis": "file:../../../vendor/repo-analysis",
     "@melodic/video-digestion": "file:../../../vendor/video-digestion",
-    "mdast-util-from-markdown": "~2.0.3"
+    "mdast-util-from-markdown": "~2.1.0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.6.5",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.5"
   }
 }

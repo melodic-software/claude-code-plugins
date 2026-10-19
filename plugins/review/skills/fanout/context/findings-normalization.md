@@ -8,7 +8,7 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 
 | Surface | Native severity | Native confidence | Line basis |
 |---|---|---|---|
-| `code-reviewer` | CRITICAL / IMPORTANT / SUGGESTION | high / medium / low (smells capped at medium) | `file:line` (inferred) |
+| `code-reviewer` | CRITICAL / IMPORTANT / SUGGESTION | high / medium / low (smells capped at medium, except a Duplicated Code finding naming the diverging change, which may be high) | `file:line` (inferred) |
 | `security-reviewer` | P1–P5 (CVSS); A04 tier-less | high / medium / low | `file:line` or `module` (inferred) |
 | `architecture-guardian` | Violations / Risks / Opportunities | high / medium / low | file-only (Violations); none (Risks/Opportunities) |
 | `doc-drift-detector` | Stale / Missing / Aspirational | high / medium / low (table column) | doc-file line (table) |

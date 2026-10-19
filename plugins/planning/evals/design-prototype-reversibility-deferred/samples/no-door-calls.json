@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Lifecycle and reversibility: deferred (prototype): revisit if it heads for production.\n1. Storage: JSON files. Recommend one file per recipe.",
+      "why": "no door classification"
+    },
+    {
+      "answer": "Prototype bar, so the one-way/two-way door calls are skipped.",
+      "why": "names the skipped calls without classing a decision"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**T1 Storage format.** Door: one-way. Recommend SQLite.",
+      "why": "classes a decision"
+    },
+    {
+      "answer": "The import API is a two-way door, so decide it fast.",
+      "why": "classes a decision in prose"
+    }
+  ]
+}

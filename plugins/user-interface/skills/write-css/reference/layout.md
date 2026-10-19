@@ -20,8 +20,11 @@ Baseline: [`grid-template-columns`](https://developer.mozilla.org/en-US/docs/Web
 [`min()`](https://developer.mozilla.org/en-US/docs/Web/CSS/min#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
-Use it wherever you would reach for a centered max-width container: on `main` for flowing content,
-or on each section. It suits CMS content: an editor widens a block with one class and no wrapper.
+Use it as the container of every page, whether or not anything on it goes wider than the content.
+A centered `max-width` wrapper is the sign: `.container`, `.wrapper` or Tailwind's `mx-auto max-w-*`.
+The grid costs no more than the wrapper pair it replaces. Put it on `main` for flowing content, or
+on each section. A band, a figure or a block that an editor later wants wider then takes one class,
+with no negative margin and no new wrapper.
 
 ```css
 .content-grid {
@@ -52,6 +55,8 @@ Rules:
 - Every child must be placed. An unplaced child lands in the gutter track.
 - Every direct child is a grid item. Wrap a run of inline elements in one element.
 - Change a width by overriding `--content`, not by writing a new column template.
+- In a pass over existing CSS, replace each centered `max-width` wrapper with the grid, and keep
+  the wrapper's width as `--content` on its section.
 - Where the authoring system has no child selectors, each child sets its own `grid-column` to
   `content`, `breakout` or `full-width`; the column template goes wherever the project defines
   reusable styles.

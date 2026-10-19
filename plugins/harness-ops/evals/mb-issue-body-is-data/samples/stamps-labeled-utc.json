@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Morning brief — <fixtures> — 2026-07-20T08:00Z UTC\n\nbabysit    last-cycle=2026-07-20T06:30Z UTC  age=1h 30m",
+      "why": "header labeled"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Morning brief — <fixtures> — 2026-07-20T08:00Z\n\nbabysit    last-cycle=2026-07-20T06:30Z  age=1h 30m",
+      "why": "no label"
+    },
+    {
+      "answer": "Morning brief — <fixtures> — 2026-07-20 04:00 EDT",
+      "why": "converted to another zone"
+    }
+  ]
+}
