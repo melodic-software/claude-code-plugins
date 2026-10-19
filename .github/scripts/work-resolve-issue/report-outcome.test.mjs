@@ -13,6 +13,7 @@ import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
+  checkClosingKeywords,
   countTurnCapRestarts,
   decide,
   findPrior,
@@ -112,6 +113,64 @@ test('done with "link": "refs" opens a PR that starts Refs: #N and carries the h
     assert.ok(!plan.body.includes("Closes #77"), plan.body);
     assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
   });
+});
+
+// The closing-keyword check: GitHub's keywords (close, fix, resolve and their
+// -s and -d forms) before `#N`, `owner/repo#N` or an issue URL close that
+// issue on merge, so a lane body may close the admitted issue (77, in o/r)
+// and no other.
+const LINKED = { issueNumber: 77, repo: "o/r" };
+
+test("the closing-keyword check passes a body that closes the admitted issue unchanged", () => {
+  const body = "Closes #77\n\n## Summary\n\ntext\n\n## Related\n\n#77";
+  assert.equal(checkClosingKeywords(body, { ...LINKED, link: "closes" }), body);
+});
+
+test("the closing-keyword check passes a partial run's Refs: #N body unchanged", () => {
+  const body = "Refs: #77\n\nHold: a human merges this\n\n## Summary\n\ntext";
+  assert.equal(checkClosingKeywords(body, { ...LINKED, link: "refs" }), body);
+});
+
+test("the closing-keyword check passes decide's own bodies unchanged", () => {
+  for (const link of ["closes", "refs"]) {
+    withDir({ "work-outcome.json": JSON.stringify({ ...done, link }) }, (dir) => {
+      const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
+      assert.equal(checkClosingKeywords(plan.body, { ...LINKED, link }), plan.body, link);
+    });
+  }
+});
+
+test("the closing-keyword check ignores a reference that no keyword closes", () => {
+  const body = "Closes #77\n\nSee #78 and o/r#79; this unfixes nothing in #80.\n\n## Related\n\n#78";
+  assert.equal(checkClosingKeywords(body, { ...LINKED, link: "closes" }), body);
+});
+
+test("the closing-keyword check rejects a body that closes another issue, naming both", () => {
+  for (const line of [
+    "Closes #7909",
+    "fixes: #7909",
+    "Resolved o/r#7909",
+    "Closes #77, closes #7909",
+    "Fixed https://github.com/o/r/issues/7909",
+    "Closes x/y#77",
+  ]) {
+    const want = line.endsWith("x/y#77") ? /x\/y#77/ : /#7909/;
+    assert.throws(
+      () => checkClosingKeywords(`${line}\n\n## Summary`, { ...LINKED, link: "closes" }),
+      (error) => want.test(error.message) && /#77\b/.test(error.message),
+      line,
+    );
+  }
+});
+
+test("the closing-keyword check corrects a body that does not name the admitted issue", () => {
+  assert.equal(checkClosingKeywords("## Summary\n\ntext", { ...LINKED, link: "closes" }), "Closes #77\n\n## Summary\n\ntext");
+  assert.equal(checkClosingKeywords("Refs: #78\n\n## Summary", { ...LINKED, link: "closes" }), "Closes #77\n\nRefs: #78\n\n## Summary");
+  assert.equal(checkClosingKeywords("## Summary\n\ntext", { ...LINKED, link: "refs" }), "Refs: #77\n\n## Summary\n\ntext");
+});
+
+test("the closing-keyword check rejects a Refs body that closes the admitted issue", () => {
+  assert.throws(() => checkClosingKeywords("Refs: #77\n\nCloses #77", { ...LINKED, link: "refs" }), /Refs/);
 });
 
 test("an unknown link value still closes the issue", () => {
