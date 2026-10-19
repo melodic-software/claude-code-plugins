@@ -20,12 +20,12 @@ set -uo pipefail
 
 UPSTREAM_REPO="vojtaholik/good-css"
 UPSTREAM_BRANCH="main"
-PIN="b645ab15b9fcd059c0227c21b6a144bb70639f1a"
+PIN="92d436ba1937d1b1407c47e35abb3e199eaace2e"
 # upstream path|pinned blob SHA|vendored copy under the plugin root (empty: absorbed only)
 PINNED=(
   "scripts/check-css.mjs|6fa72714ba18cf02f698fa8015f63df043b3af85|skills/write-css/vendor/check-css.mjs"
   "LICENSE|66a325d82e56f2f41ebd14812517d6c50f5b66da|skills/write-css/vendor/LICENSE"
-  "PRACTICES.md|7d746e65d56ee4910572b75738051482f4735f38|"
+  "PRACTICES.md|b8a6cb6e6a30331d852e151504d2c7b5567dfc20|"
 )
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 

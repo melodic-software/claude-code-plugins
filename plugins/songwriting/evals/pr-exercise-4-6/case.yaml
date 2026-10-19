@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: pr-exercise-4-6
+graders:
+  - name: target-word-heart
+    type: regex
+    pattern: '\bheart\b'
+    flags: 'i'
+    target: last_message
+  - name: family-rhymes
+    type: regex
+    pattern: '(?<!\bnot )(?<!\bno )\bfamily\s+(?:rhyme|rhymes|rhyming)\b'
+    flags: 'i'
+    target: last_message
+  - name: perfect-then-family
+    type: regex
+    pattern: '\bperfect\s+(?:rhyme|rhymes)\b[\s\S]{0,300}?\bfamily\b'
+    flags: 'i'
+    target: last_message
+  - name: final-t-substitution
+    type: regex
+    pattern: '\b(?:final|last|ending)\s+(?:consonant\b[^\n]{0,20}?)?[`''\"“*_]{0,2}(?:t|/t/)\b|\bfinal consonant\b|\bsubstitut(?:e|es|ed|ing)\b[^\n]{0,80}?(?:[`''\"“*_]{1,2}t[`''\"”*_]{1,2}|/t/|\bthe t\b)'
+    flags: 'i'
+    target: last_message

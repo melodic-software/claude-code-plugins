@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: sf-chorus-inventory
+graders:
+  - name: form-named
+    type: regex
+    pattern: '\bverse\s*(?:/|-|–|and)\s*chorus\b'
+    flags: 'i'
+    target: last_message
+  - name: show-tell-rule
+    type: regex
+    pattern: '\bverses?\b[^\n]{0,60}\bshow(?:s|ing)?\b[\s\S]{0,200}?\bchorus(?:es)?\b[^\n]{0,40}\btell(?:s|ing)?\b|\bchorus(?:es)?\b[^\n]{0,40}\btell(?:s|ing)?\b[\s\S]{0,200}?\bverses?\b[^\n]{0,60}\bshow(?:s|ing)?\b|\bverses?\b[^\n]{0,60}\b(?:situation|image)[^\n]{0,60};?[^\n]{0,20}\bchorus(?:es)?\b[^\n]{0,20}\btell(?:s|ing)?\b|^(?=[\s\S]*\bverses?\b[^\n]{0,60}\bshow(?:s|ing)?\b)(?=[\s\S]*\bchorus(?:es)?\b[^\n]{0,60}\b(?:tell(?:s|ing)?|states?|stating|statement|sums? up|summariz(?:e|es|ing)|comments? on)\b)'
+    flags: 'i'
+    target: last_message
+  - name: inventory-diagnosis
+    type: regex
+    pattern: '\bverse materials?\b|\bbelongs? in (?:a |the )?verse\b|\b(?:list|inventory|catalog|catalogue) of (?:concrete |specific )?(?:images|objects|details|things)\b|\bconcrete inventory\b|\b(?:image|object) (?:list|inventory)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-replacement-chorus
+    type: regex
+    pattern: '^[ \t#>*]*(?:\*\*)?(?:revised|new|rewritten|suggested|improved|fixed|replacement|possible)\s+chorus\b'
+    flags: 'im'
+    match: not_contains
+    target: last_message

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/shipped-webhook/design/design-threads.md",
+            "content": "# Design threads\n"
+          }
+        }
+      ],
+      "why": "a design artifact is allowed"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "orders/webhooks.py",
+            "content": "def send_shipped(order): ...\n"
+          }
+        }
+      ],
+      "why": "wrote code"
+    }
+  ]
+}

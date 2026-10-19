@@ -31,6 +31,12 @@ not enabled in. There no snapshot is written, so `context-zone.sh` answers `unkn
 zone consumer takes its conservative path. **That `unknown` is structural, not a defect and not a
 broken install.**
 
+- **Pointer**: the WSL clause rests on
+  [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session),
+  which lists connectors and plugins among the features not available there.
+- **As of**: 2026-10-18.
+- **Recheck trigger**: that section drops plugins from its unavailable list.
+
 **As of 2026-08-21, no documented Claude Code channel other than the status line delivered
 per-session context-window occupancy to a local writer outside a mod.** Two other channels do carry
 real occupancy numbers for the running session, and neither can be turned into a snapshot: the
@@ -245,7 +251,10 @@ A configured `statusLine` no longer decides either branch: the module needs none
 Nothing, for the sessions mods reach. The remaining gaps are where the module does not run, and
 each would close by a change to Claude Code, not to this plugin:
 
-- **Plugins in Desktop WSL sessions.** The mods overview lists plugins as unavailable there.
+- **Plugins in Desktop WSL sessions.** The Desktop WSL page lists plugins as unavailable there
+  ([What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session);
+  as of 2026-10-18; recheck when that section's unavailable list changes), and the mods overview's
+  "Where mods run" table repeats it.
 - **A context field on hook stdin**, so a settings hook could write the snapshot where mods are off
   and settings hooks still run (an organization's `allowManagedModsOnly`, for example): add the
   `context_window` object (or its `used_percentage` alone) to the documented common input fields.

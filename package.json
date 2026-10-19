@@ -8,15 +8,15 @@
     "node": ">=24"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-code": "2.1.302",
+    "@anthropic-ai/claude-code": "2.1.303",
     "@biomejs/biome": "2.5.15",
     "@playwright/cli": "0.1.22",
     "htmlhint": "1.9.2",
     "markdownlint-cli2": "0.23.3"
   },
   "overrides": {
-    "smol-toml": "1.9.0",
-    "katex": "0.18.2"
+    "smol-toml": "^1.9.0",
+    "katex": "~0.18.2"
   },
   "allowScripts": {
     "@anthropic-ai/claude-code@2.1.246": true

@@ -24,7 +24,10 @@ const WORKFLOW_USES = new RegExp(
 const APP_KEY = /automation_lanes_app_private_key|app-private-key/i;
 const APP_KEY_INPUTS = new Set(["app-private-key", "private-key"]);
 // Secrets a read run may name, compared lower-cased with `-` read as `_`.
-const ALLOWED_SECRETS = new Set(["claude_code_oauth_token", "github_token"]);
+// automations_claude_code_oauth_token is the lanes' Claude Code OAuth token,
+// the same kind of credential as claude_code_oauth_token under the automation
+// account's name; pr-unblock.yml's fix-ci read job runs on it.
+const ALLOWED_SECRETS = new Set(["claude_code_oauth_token", "automations_claude_code_oauth_token", "github_token"]);
 const KEY = "references the App key";
 
 const root = path.resolve(import.meta.dirname, "..");

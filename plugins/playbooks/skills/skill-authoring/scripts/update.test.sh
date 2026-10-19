@@ -158,6 +158,32 @@ assert_not_contains "old synced removed" "$mutated" "2026-03-17"
 missing_sha=$(file_sha "$TEST_TMPDIR/does-not-exist.txt")
 assert_eq "file_sha returns empty for missing path" "" "$missing_sha"
 
+# --- 8. run_check exit-code contract (0 no drift, 1 drift, 2 unverifiable) ---------
+# The fetch is stubbed. The vendored copy and the upstream copy start as the
+# same bytes, and the frontmatter version matches the upstream file's.
+
+FRONTMATTER_FILE="$FIXTURE_SKILL"
+VENDOR_FILE="$TEST_TMPDIR/vendor-skill.md"
+UPSTREAM_COPY="$TEST_TMPDIR/upstream-skill.md"
+printf -- '---\nversion: 1.0.0\n---\n\n# Upstream body\n' >"$VENDOR_FILE"
+cp "$VENDOR_FILE" "$UPSTREAM_COPY"
+stub_fetch=ok
+fetch_upstream() { [[ "$stub_fetch" == ok ]] && printf '%s' "$UPSTREAM_COPY"; }
+
+out=$(run_check 2>&1)
+assert_exit "version and bytes match: exit 0" 0 "$?"
+assert_contains "version and bytes match: reports no drift" "$out" "No drift"
+
+printf -- '---\nversion: 1.1.0\n---\n\n# Upstream body\n' >"$UPSTREAM_COPY"
+out=$(run_check 2>&1)
+assert_exit "upstream version and bytes moved: exit 1" 1 "$?"
+assert_contains "upstream moved: names both versions" "$out" "1.0.0 → 1.1.0"
+cp "$VENDOR_FILE" "$UPSTREAM_COPY"
+
+stub_fetch=fail
+out=$(run_check 2>&1)
+assert_exit "upstream unreachable: exit 2" 2 "$?"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
