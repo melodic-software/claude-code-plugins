@@ -93,7 +93,8 @@ MAX_MY_COMMENTS = 30  # judgment: comments one person keeps on one question, as 
 MAX_DIGEST_COMMENTS = 50  # judgment: a question's newest comments one digest lists; the rest are counted
 MAX_DIGEST_COMMENT = 500  # judgment: characters of one comment a digest lists
 MAX_DIGEST_DISCUSSION_CHARS = 30000  # judgment: comment characters one digest lists, as MAX_DIGEST_CHARS for results
-ASK_CLAUDE = re.compile(r"(?<![\w@])@claude(?![\w])", re.IGNORECASE)  # "@Claude" in a comment asks Claude about the question
+ASK_CLAUDE = re.compile(r"(?<![\w@])@claude(?![\w])", re.IGNORECASE)  # "@Claude" in a comment asks Claude about the question; in chat, about the session
+GENERAL = "session"  # a request about the whole session has no qid: its results sit under this key, which no question id (QID) can be
 COMMENT_ID = re.compile(r"D[1-9][0-9]{0,8}")
 # Presence (amendment "Presence", 2026-10-16; values are judgment). Offline after OFFLINE_AFTER with
 # no heartbeat, which outlasts hidden tabs whose timers browsers throttle to about once a minute.
@@ -363,6 +364,7 @@ def cross_field_errors(doc):
     errors += [f"A person holds one reaction twice, or both thumbs and down, on an answer to {qid}." for qid, rs in held if len(set(rs)) < len(rs) or {"thumbs", "down"} <= set(rs)]
     errors += _upload_errors(doc)
     errors += [f"A Discussion comment on {qid[:40]} has an id the server never makes." for qid, lst in doc["discussions"].items() for c in lst if not COMMENT_ID.fullmatch(c["id"])]
+    errors += [f"A result under {key[:40]} names another place." for key, lst in doc["results"].items() for r in lst if r.get("qid", GENERAL) != key]
     errors += [f"Report {fid[:40]} holds an id or picture name the server never makes." for fid, r in doc.get("reports", {}).items()
                if not REPORT_ID.fullmatch(fid) or not (r.get("image") is None or re.fullmatch(rf"{REPORTS_DIR}/{fid}\.(png|jpg|webp)", r["image"]))]
     return errors
@@ -472,6 +474,16 @@ def card_ref(card):
 def _moderated(card):
     """Whether the owner hid or edited this person card (or a cleared one): only then are its versions kept."""
     return any(k in card for k in ("hidden", "edited", "history"))
+
+
+def _on(x):
+    """Where a request or result is, for a notice: "on question Q2", or "about the session" with no qid."""
+    return f"on question {x['qid']}" if "qid" in x else "about the session"
+
+
+def _where(x):
+    """A request's or result's place for the Inbox and the digest: its qid, or `scope: session`."""
+    return {"qid": x["qid"]} if "qid" in x else {"scope": GENERAL}
 
 
 def _answer_where(qid):
@@ -3044,13 +3056,26 @@ class Session:
                 if to is None:
                     raise DomainError(404, "not-found", "The message you replied to is gone.")
                 msg["replyTo"] = {"id": to["id"], "pid": to["pid"], "excerpt": clip(one_line(to["text"]), MAX_EXCERPT)}
-                self._notify(to["pid"], "reply", "replied to your message.", actor=pid, by=pid, body=clip(one_line(text), 160), msg=msg["id"])
-                skip = (to["pid"],)
+                if "claude" not in to:  # Claude's answer is written as the host's message, but it is not the host's to hear about
+                    self._notify(to["pid"], "reply", "replied to your message.", actor=pid, by=pid, body=clip(one_line(text), 160), msg=msg["id"])
+                    skip = (to["pid"],)
+            refused = None
+            if ASK_CLAUDE.search(text):  # after tokenizing, as in a comment: a person called Claude is their mention
+                try:  # a general ask: no question, owner-gated as any guest request; Claude's answer replies to this message
+                    msg["request"] = self._new_request(pid, None, "ask", text, "host", now)["id"]
+                except DomainError as e:  # too soon or too many waiting: the message still posts, without a request
+                    if e.code not in ("slow-down", "too-many-pending"):
+                        raise
+                    refused = e
             st["chat"].append(msg)
             del st["chat"][:-MAX_CHAT]
             self._notify_mentions(text, pid, "in chat", skip=skip, msg=msg["id"])
         self._wrote(pid, "chat", now)
-        return {"id": msg["id"]}
+        if "request" in msg:
+            self._wrote(pid, "request", now)
+        if refused:
+            return {"id": msg["id"], "requestRefused": refused.code, "message": f"Posted, but not sent to Claude: {refused.message}"}
+        return {"id": msg["id"], **({"request": msg["request"]} if "request" in msg else {})}
 
     def react_chat(self, pid, body):
         """POST /api/chat/react: `{id, emoji, on}` adds or takes back one's own emoji on a chat message.
@@ -3081,7 +3106,7 @@ class Session:
                 reactions[emoji] = [*pids, pid]
                 n = sum(len(ps) for ps in reactions.values())
                 self._notify(
-                    msg["pid"],
+                    None if "claude" in msg else msg["pid"],  # Claude's answer has no author to tell
                     "reaction",
                     f"{n} {'reaction' if n == 1 else 'reactions'} on your chat message.",
                     actor=pid,
@@ -3115,6 +3140,8 @@ class Session:
                 raise DomainError(404, "not-found", "No such message.")
             if msg.get("proposed"):
                 raise DomainError(409, "wrong-status", "This message is already a proposal.", status="proposed")
+            if "claude" in msg:
+                raise DomainError(409, "wrong-status", "Claude's answer is not anyone's proposal.", status="claude")
             prop = self._new_proposal(msg["pid"], msg["text"], {"kind": "chat", "message": mid, "by": pid})
             msg["proposed"] = prop["id"]
             self._touch_chat(mid)
@@ -3379,24 +3406,31 @@ class Session:
         return r
 
     def request(self, pid, body):
-        """POST /api/request: ask Claude; waits in the owner's queue (`runner: self` runs on the requester's Claude)."""
+        """POST /api/request: ask Claude; waits in the owner's queue (`runner: self` runs on the requester's Claude).
+        `scope: "session"` in place of `qid` asks about the whole session, on the host's Claude only."""
         kind = _choice(body, "kind", REQUEST_KINDS)
         text = _text(body, "text")
         runner = _choice(body, "runner", ("host", "self"), optional=True) or "host"
+        general = _choice(body, "scope", (GENERAL,), optional=True) is not None
+        if general and _body(body).get("qid") is not None:
+            raise _bad("qid", "A request about the whole session names no question.")
+        if general and runner == "self":
+            raise _bad("runner", "A request about the whole session runs on the host's Claude.")
         now = self.now()
         with self._tx():
             self._writer(pid)
             text = self._tokenize(pid, text)
-            q = self._question(body.get("qid"))
+            q = None if general else self._question(body.get("qid"))
             rid = self._new_request(pid, q, kind, text, runner, now)["id"]
             if runner == "host":
-                self._notify_mentions(text, pid, f"in a request on question {q['id']}", qid=q["id"])
+                self._notify_mentions(text, pid, f"in a request {'on question ' + q['id'] if q else 'about the session'}", qid=q and q["id"])
         self._wrote(pid, "request", now)
         return {"id": rid}
 
     def _new_request(self, pid, q, kind, text, runner, now):
-        """A request pid makes on q: one a second on the "request" route, which the caller records once it commits;
-        past MAX_PENDING_REQUESTS refused; the host's own runs now, a guest's waits for Run."""
+        """A request pid makes on q, or about the whole session when q is None (no qid): one a second on the "request"
+        route, which the caller records once it commits; past MAX_PENDING_REQUESTS refused; the host's own runs now, a
+        guest's waits for Run."""
         st = self.state
         self._throttle(pid, "request", now)
         pending = sum(1 for r in st["requests"] if r["pid"] == pid and (r["status"]["kind"] == "pending" or (r["runner"] == "self" and r["status"]["kind"] == "running")))
@@ -3404,7 +3438,7 @@ class Session:
             raise DomainError(429, "too-many-pending", f"You have {MAX_PENDING_REQUESTS} requests waiting already.")
         rid = self._next("R")
         st["requests"].append(
-            {"id": rid, "pid": pid, "qid": q["id"], "at": now, "kind": kind, "text": text, "edited": False, "runner": runner, "status": {"kind": "pending"}}
+            {"id": rid, "pid": pid, **({"qid": q["id"]} if q else {}), "at": now, "kind": kind, "text": text, "edited": False, "runner": runner, "status": {"kind": "pending"}}
         )
         r = st["requests"][-1]
         if runner == "host" and pid == HOST:  # the host's own request needs no Run: it reaches Claude now
@@ -3443,24 +3477,31 @@ class Session:
             elif action == "fail":
                 r["status"] = {"kind": "failed", "at": now, "reason": "Cancelled by the owner.", "cancelled": True}
                 self._event("request-cancelled", request=r["id"])
-                self._notify(r["pid"], "request", f"Your request on question {r['qid']} was cancelled.", actor=pid, qid=r["qid"])
+                self._notify(r["pid"], "request", f"Your request {_on(r)} was cancelled.", actor=pid, qid=r.get("qid"))
             else:
                 self._run([r])
             return {"id": r["id"], "status": r["status"]["kind"]}
 
     def _decline(self, r, by):
         r["status"] = {"kind": "declined", "at": self.now()}
-        self._notify(r["pid"], "request", f"Your request on question {r['qid']} was declined.", actor=by, qid=r["qid"])
+        self._notify(r["pid"], "request", f"Your request {_on(r)} was declined.", actor=by, qid=r.get("qid"))
 
     def _run(self, reqs):
         st = self.state
         ev = self._event(
             "request-run",
-            requests=[{"id": r["id"], "qid": r["qid"], "kind": r["kind"], "text": r["text"], "question": self._question(r["qid"])["text"]} for r in reqs],
+            requests=[{"id": r["id"], **self._run_where(r), "kind": r["kind"], "text": r["text"]} for r in reqs],
         )
         for r in reqs:
             r["status"] = {"kind": "running", "since": self.now(), "eventSeq": ev["seq"]}
         return st
+
+    def _run_where(self, r):
+        """Where a run request was written, for Claude: its question, or `scope: session` with no qid, and `from: chat`
+        when a chat message's "@Claude" filed it (its answer then replies in chat)."""
+        if "qid" in r:
+            return {"qid": r["qid"], "question": self._question(r["qid"])["text"]}
+        return {"scope": GENERAL, **({"from": "chat"} if any(m.get("request") == r["id"] for m in self.state["chat"]) else {})}
 
     def _from_active(self, res):
         """A result is the host's, or its guest is still in: a removed guest's own Claude's results leave every view."""
@@ -3486,17 +3527,33 @@ class Session:
         if action == "publish":
             res["published"] = True
             res["publishedAt"] = self.now()
+            self._claude_says(res, req)
             if req:
-                self._notify(req["pid"], "request", f"Your request on question {req['qid']} is done.", actor=pid, qid=req["qid"], body=one_line(res["summary"])[:160])
+                self._notify(req["pid"], "request", f"Your request {_on(req)} is done.", actor=pid, qid=req.get("qid"), msg=res.get("msg"), body=one_line(res["summary"])[:160])
         else:
-            lst = self.state["results"][res["qid"]]
+            key = res.get("qid", GENERAL)
+            lst = self.state["results"][key]
             lst.remove(res)
             if not lst:
-                self.state["results"].pop(res["qid"])
+                self.state["results"].pop(key)
             if req:
                 req["status"] = {"kind": "failed", "at": self.now(), "reason": "The owner did not share the result.", "cancelled": False}
-                self._notify(req["pid"], "request", f"Your request on question {req['qid']} was not shared.", actor=pid, qid=req["qid"])
+                self._notify(req["pid"], "request", f"Your request {_on(req)} was not shared.", actor=pid, qid=req.get("qid"))
         return {"id": res["id"], "published": action == "publish"}
+
+    def _claude_says(self, res, req):
+        """A result about the whole session, once shared, is also Claude's chat message (`claude`, written as the host's
+        so it stays while anyone reads chat), replying to the message whose "@Claude" asked for it when that is kept."""
+        if "qid" in res:
+            return
+        st = self.state
+        msg = {"id": self._next("M"), "pid": HOST, "text": clip(res["summary"], MAX_TEXT), "at": self.now(), "claude": {"result": res["id"]}}
+        asked = next((m for m in st["chat"] if req and m.get("request") == req["id"] and self._active(m["pid"])), None)
+        if asked:
+            msg["replyTo"] = {"id": asked["id"], "pid": asked["pid"], "excerpt": clip(one_line(asked["text"]), MAX_EXCERPT)}
+        st["chat"].append(msg)
+        del st["chat"][:-MAX_CHAT]
+        res["msg"] = msg["id"]
 
     def _new_result(self, qid, req, body, by, published):
         summary = _text(body, "summary", limit=MAX_SUMMARY)
@@ -3504,7 +3561,7 @@ class Session:
         why = _text(body, "why", limit=MAX_TEXT, empty_ok=True)
         res = {
             "id": self._next("X"),
-            "qid": qid,
+            **({"qid": qid} if qid else {}),
             "at": self.now(),
             "request": req["id"] if req else None,
             "kind": req["kind"] if req else _choice(body, "kind", REQUEST_KINDS),
@@ -3516,7 +3573,7 @@ class Session:
             "by": by,
             "published": published,
         }
-        self.state["results"].setdefault(qid, []).append(res)
+        self.state["results"].setdefault(qid or GENERAL, []).append(res)
         if req:
             req["status"] = {"kind": "done", "at": self.now(), "result": res["id"]}
         return res
@@ -4131,7 +4188,7 @@ class Session:
             if r["pid"] != pid:
                 continue
             kind = r["status"]["kind"]
-            item = {"key": r["id"], "group": "mine", "kind": "request", "id": r["id"], "qid": r["qid"], "at": r["at"]}
+            item = {"key": r["id"], "group": "mine", "kind": "request", "id": r["id"], **_where(r), "at": r["at"]}
             item["changed"] = r["status"].get("at", r["status"].get("since", r["at"]))
             if kind == "done":
                 res = results.get(r["status"]["result"])
@@ -4146,9 +4203,9 @@ class Session:
             out.append({**item, "status": status})
         if pid == HOST:
             waiting = [
-                *({"key": "run:" + r["id"], "kind": "run", "id": r["id"], "qid": r["qid"], "by": r["pid"], "at": r["at"]}
+                *({"key": "run:" + r["id"], "kind": "run", "id": r["id"], **_where(r), "by": r["pid"], "at": r["at"]}
                   for r in st["requests"] if r["runner"] == "host" and r["status"]["kind"] == "pending" and r["pid"] != HOST and self._active(r["pid"])),
-                *({"key": "share:" + x["id"], "kind": "share", "id": x["id"], "qid": x["qid"], **({"by": x["by"]["pid"]} if "pid" in x["by"] else {}), "at": x["at"]}
+                *({"key": "share:" + x["id"], "kind": "share", "id": x["id"], **_where(x), **({"by": x["by"]["pid"]} if "pid" in x["by"] else {}), "at": x["at"]}
                   for lst in st["results"].values() for x in lst if not x["published"] and self._from_active(x)),
                 *({"key": "report:" + f, "kind": "report", "id": f, "by": rep["by"], "at": rep["ts"]}
                   for f, rep in st.get("reports", {}).items() if rep["status"] == "open"),
@@ -4313,7 +4370,7 @@ class Session:
                 more += 1
                 continue
             guest = r["by"]["kind"] == "guest-claude"
-            results.append({"qid": r["qid"], "id": r["id"], "kind": r["kind"], "summary": r["summary"], **({"from": "guest-claude", **by(r["by"]["pid"])} if guest else {})})
+            results.append({**_where(r), "id": r["id"], "kind": r["kind"], "summary": r["summary"], **({"from": "guest-claude", **by(r["by"]["pid"])} if guest else {})})
         proposals = [{"id": p["id"], "text": p["text"], **by(p["pid"])} for p in st["proposals"] if p["status"]["kind"] == "new" and self._active(p["pid"])]
         proposals_more = len(proposals) - MAX_DIGEST_PROPOSALS
         proposals = proposals[:MAX_DIGEST_PROPOSALS]
@@ -4727,18 +4784,22 @@ class Session:
         return placed
 
     def _op_result(self, op):
-        q = self._question(op["qid"])
+        """A result on a question, or with no qid the answer to a request about the whole session (`request` required)."""
+        q = None if op.get("qid") is None else self._question(op["qid"])
         req = None
         if op.get("request") is not None:
             req = self._request(op["request"], runner="host")
             if req["status"]["kind"] != "running":
                 raise DomainError(409, "wrong-status", f"Request {req['id']} is {req['status']['kind']}.", status=req["status"]["kind"])
-            if req["qid"] != q["id"]:
-                raise _bad("qid", f"Request {req['id']} is on question {req['qid']}.")
+            if req.get("qid") != (q and q["id"]):
+                raise _bad("qid", f"Request {req['id']} is {_on(req)}.")
+        elif q is None:
+            raise _bad("qid", "A result names its question, or the request about the whole session it answers.")
         own = req is not None and req["pid"] == HOST  # the host's own request: its result needs no Share
-        res = self._new_result(q["id"], req, op, {"kind": "host-claude"}, own)
+        res = self._new_result(q and q["id"], req, op, {"kind": "host-claude"}, own)
         if own:
             res["publishedAt"] = res["at"]
+            self._claude_says(res, req)
         return {"id": res["id"], "published": own}
 
     def _op_fail_request(self, op):
@@ -4747,7 +4808,7 @@ class Session:
             raise DomainError(409, "wrong-status", f"Request {req['id']} is {req['status']['kind']}.", status=req["status"]["kind"])
         reason = _text(op, "reason", limit=MAX_NOTE)
         req["status"] = {"kind": "failed", "at": self.now(), "reason": reason, "cancelled": False}
-        self._notify(req["pid"], "request", f"Your request on question {req['qid']} failed.", qid=req["qid"], body=reason)
+        self._notify(req["pid"], "request", f"Your request {_on(req)} failed.", qid=req.get("qid"), body=reason)
         return {"id": req["id"], "status": "failed"}
 
     def _op_add_reference(self, op):
@@ -5071,7 +5132,8 @@ class Session:
         by_q = {}
         for r in self.state["requests"]:
             if r["runner"] == "host" and r["status"]["kind"] in ("pending", "running") and self._active(r["pid"]):
-                by_q[r["qid"]] = by_q.get(r["qid"], 0) + 1
+                key = r.get("qid", GENERAL)
+                by_q[key] = by_q.get(key, 0) + 1
         return {"open": sum(by_q.values()), "byQ": by_q}
 
     def snapshot(self, pid):

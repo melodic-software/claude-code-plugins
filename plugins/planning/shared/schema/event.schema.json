@@ -17,6 +17,7 @@
     "at": {"type": "string"},
     "qid": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/questionId"},
     "requestKind": {"enum": ["ask", "research", "explore", "design", "prototype"]},
+    "scope": {"enum": ["session"], "description": "About the whole session: no qid. A request or result has either qid or scope."},
     "round-sent": {
       "type": "object",
       "required": ["seq", "at", "kind", "round", "digest"],
@@ -69,14 +70,16 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "qid", "kind", "text", "question"],
+            "required": ["id", "kind", "text"],
             "additionalProperties": false,
             "properties": {
               "id": {"type": "string"},
               "qid": {"$ref": "#/$defs/qid"},
+              "question": {"type": "string"},
+              "scope": {"$ref": "#/$defs/scope"},
+              "from": {"enum": ["chat"], "description": "With scope: session, a chat message's \"@Claude\" asked it; the answer replies in chat."},
               "kind": {"$ref": "#/$defs/requestKind"},
-              "text": {"type": "string"},
-              "question": {"type": "string"}
+              "text": {"type": "string"}
             }
           }
         }
@@ -237,10 +240,11 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["qid", "id", "kind", "summary"],
+            "required": ["id", "kind", "summary"],
             "additionalProperties": false,
             "properties": {
               "qid": {"$ref": "#/$defs/qid"},
+              "scope": {"$ref": "#/$defs/scope"},
               "id": {"type": "string"},
               "kind": {"type": "string"},
               "summary": {"type": "string", "maxLength": 4000},

@@ -969,7 +969,7 @@
 /* ---------- shortcuts ---------- */
 .app .vf-keys { inline-size: 320px; }
 .app .vf-help-rec .core-rec-line { color: var(--faint); font-size: 12px; }
-.app .vf-help-rec .core-rec-link { color: var(--accent-text, var(--accent)); }
+.app .vf-help-rec .core-rec-link { color: var(--accent-text); }
 .app .vf-keylist { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 14px; margin: 10px 0 0; align-items: center; }
 .app .vf-keylist dt { display: flex; gap: 4px; }
 .app .vf-keylist dd { margin: 0; color: var(--muted); }
@@ -1503,6 +1503,12 @@
 .app .vf-cm-acts .vf-cm-react { display: inline-flex; }
 .app .vf-cm-acts .vf-cm-react[hidden] { display: none; }
 .app .vf-disc-hint { color: var(--faint); font-size: 12px; }
+/* Chat: "@Claude" asks Claude about the whole session; its message says so, and Claude's answer replies in the thread. */
+.app .vf-mhint { margin: 0; padding: 6px 14px 0; color: var(--faint); font-size: 12px; }
+.app .vf-msent { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-block-size: 24px; color: var(--faint); font-size: 12px; }
+.app .vf-msent:hover { color: var(--text); }
+.app :is(.vf-mhint, .vf-msent, .vf-apgen, .vf-ixq)[hidden] { display: none; }
+.app .vf-ixq.vf-ixgen { font-weight: 600; color: var(--accent-text); }
 .app .vf-disc-form .vf-crow { flex-wrap: wrap; }
 .app .vf-chip-new { color: var(--on-accent); background: var(--accent); border: 1px solid transparent; }
 .app .vf-chip[hidden] { display: none; }

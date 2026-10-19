@@ -2297,5 +2297,155 @@ class TestDiscussion(ServerCase):
         self.assertIn("Q1", self.get("/api/state", self.ann)[2]["me"]["discussionSeen"])
 
 
+
+class TestGeneralAsk(ServerCase):
+    """"@Claude" in chat, and Ask Claude's "About the whole session", file a request with no question: owner-gated as
+    any guest request, answered by the `result` op with no qid, and once shared, Claude's chat message."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_round("Q1")
+        self.ann_pid, self.ann = self.join("Ann")
+        self.bo_pid, self.bo = self.join("Bo")
+
+    def chat(self, who, text):
+        code, _, out = self.post("/api/chat", {"text": text}, who)
+        self.assertEqual(code, 200, out)
+        return out
+
+    def req(self, rid):
+        return next(r for r in self.app.session.state["requests"] if r["id"] == rid)
+
+    def answer(self, rid, summary="Most shops pin it."):
+        code, _, out = self.ops({"op": "result", "request": rid, "kind": "ask", "used": [], "why": "", "summary": summary, "sources": [], "report": ""})
+        self.assertEqual(code, 200, out)
+        return out["results"][0]
+
+    def test_at_claude_in_chat_files_a_general_ask_that_waits_for_the_owners_run(self):
+        out = self.chat(self.ann, "@Claude what have we settled so far?")
+        r = self.req(out["request"])
+        self.assertNotIn("qid", r)
+        self.assertEqual((r["kind"], r["runner"], r["status"]["kind"], r["pid"]), ("ask", "host", "pending", self.ann_pid))
+        self.assertEqual([m.get("request") for m in self.get("/api/state", self.bo)[2]["chat"]], [out["request"]])
+        (mine,) = self.get("/api/state", self.ann)[2]["inbox"]
+        self.assertEqual((mine["key"], mine.get("qid"), mine["scope"]), (out["request"], None, "session"))
+        run = next(i for i in self.get("/api/state", self.owner)[2]["inbox"] if i["kind"] == "run")
+        self.assertEqual((run["id"], run.get("qid"), run["scope"]), (out["request"], None, "session"))
+        self.assertFalse([e for e in self.app.session.state["log"]["events"] if e["kind"] == "request-run"])
+        self.post("/api/request/act", {"action": "run", "ids": [out["request"]]}, self.owner)
+        (ev,) = [e for e in self.app.session.state["log"]["events"] if e["kind"] == "request-run"]
+        self.assertEqual(ev["requests"], [{"id": out["request"], "scope": "session", "from": "chat", "kind": "ask", "text": "@Claude what have we settled so far?"}])
+
+    def test_the_owners_own_at_claude_in_chat_runs_at_once(self):
+        out = self.chat(self.owner, "@claude sum up the session")
+        self.assertEqual(self.req(out["request"])["status"]["kind"], "running")
+
+    def test_at_claude_in_chat_matches_only_the_word(self):
+        claude_pid, _ = self.join("Claude")
+        for who, text in ((self.ann, "@Claudette can you look?"), (self.bo, "Mail x@claude.ai about it")):
+            self.assertNotIn("request", self.chat(who, text), text)
+        time.sleep(1.05)
+        self.assertNotIn("request", self.chat(self.ann, "@Claude can you check the copy?"))  # the person called Claude
+        self.assertEqual(self.app.session.state["requests"], [])
+        self.assertEqual(self.app.session.state["chat"][-1]["text"], f"<@{claude_pid}> can you check the copy?")
+        self.post("/api/person/remove", {"pid": claude_pid, "on": True}, self.owner)
+        self.assertIn("request", self.chat(self.bo, "(@Claude, check the copy)"))  # with no one called Claude, the word asks
+
+    def test_a_refused_chat_request_still_posts_the_message(self):
+        self.assertEqual(self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "first"}, self.ann)[0], 200)
+        out = self.chat(self.ann, "@Claude and this?")
+        self.assertEqual((out.get("requestRefused"), "request" in out), ("slow-down", False))
+        with mock.patch.object(session, "MAX_PENDING_REQUESTS", 1):
+            time.sleep(1.05)
+            out = self.chat(self.ann, "@Claude and this too?")
+        self.assertEqual((out.get("requestRefused"), "request" in out), ("too-many-pending", False))
+        self.assertEqual([m["text"] for m in self.get("/api/state", self.bo)[2]["chat"]], ["@Claude and this?", "@Claude and this too?"])
+        self.assertEqual(len(self.app.session.state["requests"]), 1)
+
+    def test_shared_answer_replies_in_the_chat_thread_and_guests_see_nothing_before_the_share(self):
+        asked = self.chat(self.ann, "@Claude what have we settled?")
+        self.post("/api/request/act", {"action": "run", "ids": [asked["request"]]}, self.owner)
+        res = self.answer(asked["request"], "Pinned headers, and the copy still open.")
+        self.assertEqual(res["published"], False)
+        for who in (self.ann, self.bo):
+            snap = self.get("/api/state", who)[2]
+            self.assertNotIn("Pinned headers", json.dumps(snap))
+        owner = self.get("/api/state", self.owner)[2]
+        self.assertEqual([x["id"] for x in owner["results"]["session"]], [res["id"]])
+        share = next(i for i in owner["inbox"] if i["kind"] == "share")
+        self.assertEqual((share.get("qid"), share["scope"]), (None, "session"))
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": res["id"]}, self.owner)[0], 200)
+        chat = self.get("/api/state", self.bo)[2]["chat"]
+        reply = chat[-1]
+        self.assertEqual((reply["pid"], reply["claude"], reply["text"]), ("host", {"result": res["id"]}, "Pinned headers, and the copy still open."))
+        self.assertEqual(reply["replyTo"]["id"], asked["id"])
+        self.assertEqual(self.get("/api/state", self.bo)[2]["results"]["session"][0]["msg"], reply["id"])
+        note = next(n for n in self.app.session.state["notifications"][self.ann_pid] if n["kind"] == "request")
+        self.assertEqual((note["title"], note["msg"]), ("Your request about the session is done.", reply["id"]))
+        self.assertEqual(next(i for i in self.get("/api/state", self.ann)[2]["inbox"] if i["key"] == asked["request"])["status"], "shared")
+        self.post("/api/round/send", {}, self.owner)
+        ev = next(e for e in self.app.session.state["log"]["events"] if e["kind"] == "round-sent")
+        self.assertEqual(ev["digest"]["results"], [{"scope": "session", "id": res["id"], "kind": "ask", "summary": "Pinned headers, and the copy still open."}])
+
+    def test_the_hosts_own_general_answer_is_shared_into_chat_at_once(self):
+        asked = self.chat(self.owner, "@Claude where are we?")
+        res = self.answer(asked["request"], "Halfway.")
+        self.assertEqual(res["published"], True)
+        reply = self.get("/api/state", self.ann)[2]["chat"][-1]
+        self.assertEqual((reply["text"], reply["replyTo"]["id"]), ("Halfway.", asked["id"]))
+
+    def test_ask_claude_about_the_whole_session_files_a_general_request_and_its_answer_posts_to_chat(self):
+        code, _, out = self.post("/api/request", {"scope": "session", "kind": "research", "text": "What do other teams do?"}, self.ann)
+        self.assertEqual(code, 200, out)
+        self.assertNotIn("qid", self.req(out["id"]))
+        self.assertEqual(self.post("/api/request", {"scope": "session", "qid": "Q1", "kind": "ask", "text": "x"}, self.bo)[2]["field"], "qid")
+        time.sleep(1.05)
+        self.assertEqual(self.post("/api/request", {"scope": "session", "kind": "ask", "text": "x", "runner": "self"}, self.bo)[2]["field"], "runner")
+        self.post("/api/request/act", {"action": "run", "ids": [out["id"]]}, self.owner)
+        res = self.answer(out["id"], "Three patterns.")
+        self.post("/api/request/act", {"action": "publish", "id": res["id"]}, self.owner)
+        reply = self.get("/api/state", self.bo)[2]["chat"][-1]
+        self.assertEqual((reply["text"], reply["claude"], "replyTo" in reply), ("Three patterns.", {"result": res["id"]}, False))
+
+    def test_the_result_op_keeps_a_general_answer_and_a_question_answer_apart(self):
+        general = self.chat(self.ann, "@Claude what now?")["request"]
+        time.sleep(1.05)
+        on_q1 = self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "On Q1"}, self.ann)[2]["id"]
+        self.post("/api/request/act", {"action": "run", "ids": [general, on_q1]}, self.owner)
+        base = {"op": "result", "kind": "ask", "used": [], "why": "", "summary": "s", "sources": [], "report": ""}
+        for op, field in (({**base, "request": general, "qid": "Q1"}, "qid"), ({**base, "request": on_q1}, "qid"), (base, "qid")):
+            code, _, out = self.ops(op)
+            self.assertEqual((code, out.get("field")), (400, field), op)
+        self.assertEqual(self.ops({**base, "request": on_q1, "qid": "Q1"})[0], 200)
+
+    def test_declining_a_general_request_tells_its_asker_about_the_session(self):
+        rid = self.chat(self.ann, "@Claude anything?")["request"]
+        self.post("/api/request/act", {"action": "decline", "id": rid}, self.owner)
+        titles = [n["title"] for n in self.app.session.state["notifications"][self.ann_pid]]
+        self.assertIn("Your request about the session was declined.", titles)
+
+    def test_claudes_chat_message_tells_no_one_of_reactions_or_replies_and_is_no_proposal(self):
+        rid = self.chat(self.owner, "@Claude where are we?")["request"]
+        self.answer(rid, "Halfway.")
+        mid = self.app.session.state["chat"][-1]["id"]
+        self.assertEqual(self.post("/api/chat/react", {"id": mid, "emoji": "👍", "on": True}, self.ann)[0], 200)
+        time.sleep(1.05)
+        self.assertEqual(self.post("/api/chat", {"text": "Thanks", "replyTo": mid}, self.ann)[0], 200)
+        self.assertEqual([n for n in self.app.session.state["notifications"].get("host", []) if n["kind"] in ("reaction", "reply")], [])
+        code, _, out = self.post("/api/chat/propose", {"id": mid}, self.owner)
+        self.assertEqual((code, out["error"]), (409, "wrong-status"))
+
+    def test_a_state_holding_general_requests_and_results_is_valid_and_loads_again(self):
+        rid = self.chat(self.ann, "@Claude where are we?")["request"]
+        self.post("/api/request/act", {"action": "run", "ids": [rid]}, self.owner)
+        self.answer(rid, "Halfway.")
+        self.assertIsNone(session.document_error(self.app.session.state))
+        again = session.Session.load(self.app.session.path)
+        self.assertEqual([x["request"] for x in again.state["results"]["session"]], [rid])
+        with self.app.session._tx() as st:  # a result filed under the wrong place does not load
+            st["results"]["Q1"] = st["results"].pop("session")
+            self.assertIn("names another place", " ".join(session.cross_field_errors(st)))
+            st["results"]["session"] = st["results"].pop("Q1")
+
 if __name__ == "__main__":
     unittest.main()

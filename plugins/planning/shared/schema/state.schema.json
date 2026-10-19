@@ -39,7 +39,11 @@
     "proposals": {"type": "array", "items": {"$ref": "#/$defs/proposal"}},
     "chat": {"type": "array", "items": {"$ref": "#/$defs/chatMessage"}},
     "requests": {"type": "array", "items": {"$ref": "#/$defs/request"}},
-    "results": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/result"}}},
+    "results": {
+      "description": "qid -> its results; `session` -> the results about the whole session, which carry no qid.",
+      "type": "object",
+      "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/result"}}
+    },
     "uploads": {"type": "array", "items": {"$ref": "#/$defs/upload"}},
     "annotations": {"type": "array", "items": {"$ref": "#/$defs/annotation"}},
     "prefs": {"type": "object", "additionalProperties": {"$ref": "#/$defs/prefs"}},
@@ -834,6 +838,14 @@
           "properties": {"id": {"type": "string"}, "pid": {"$ref": "#/$defs/pid"}, "excerpt": {"type": "string", "maxLength": 140}}
         },
         "proposed": {"type": "string"},
+        "request": {"type": "string", "description": "The request about the whole session its \"@Claude\" filed."},
+        "claude": {
+          "description": "Claude's shared answer to a request about the whole session, written as the host's message.",
+          "type": "object",
+          "required": ["result"],
+          "additionalProperties": false,
+          "properties": {"result": {"type": "string"}}
+        },
         "reactions": {
           "description": "emoji -> the people who put it on this message; at most 20 emoji, from the page's fixed set (session.CHAT_EMOJI).",
           "type": "object",
@@ -869,7 +881,8 @@
     "requestKind": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/event#/$defs/requestKind"},
     "request": {
       "type": "object",
-      "required": ["id", "pid", "qid", "at", "kind", "text", "edited", "runner", "status"],
+      "description": "No qid: a request about the whole session (a chat message's \"@Claude\", or Ask Claude's \"About the whole session\"), on the host's Claude only.",
+      "required": ["id", "pid", "at", "kind", "text", "edited", "runner", "status"],
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string"},
@@ -939,11 +952,13 @@
     "report": {"type": "string", "maxLength": 60000},
     "result": {
       "type": "object",
-      "required": ["id", "qid", "at", "request", "kind", "used", "why", "summary", "sources", "report", "by", "published"],
+      "description": "No qid: the answer to a request about the whole session, kept under results.session. `msg`: the chat message that shows it once shared.",
+      "required": ["id", "at", "request", "kind", "used", "why", "summary", "sources", "report", "by", "published"],
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string"},
         "qid": {"$ref": "#/$defs/qid"},
+        "msg": {"type": "string"},
         "at": {"$ref": "#/$defs/ts"},
         "request": {"type": ["string", "null"]},
         "kind": {"$ref": "#/$defs/requestKind"},

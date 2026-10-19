@@ -125,7 +125,7 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `open-round` | `questions` (1 to 8), `placements` | Close the round Claude is working on (or start round 1) and open the next |
 | `close-round` | `placements`, `reason` | Close the round without a new one (only placements, or the interview is done) |
 | `ack-round` | `round` | Tell the page Claude has the round |
-| `result` | `qid`, `request`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Attach a request's result |
+| `result` | `qid`, `request`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Attach a request's result; no `qid` for a request with `scope: "session"` |
 | `fail-request` | `request`, `reason` | A request that cannot be done |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | A screenshot, diagram, quoted excerpt or link on a question |
 | `set-purpose` | `qid`, `purpose` | Correct a question's purpose (`decide`, `gather`, `poll`) that no longer fits it |
@@ -261,6 +261,10 @@ session right now, and say why in `why`:
 - `explore`: look inside what the session has: answers, chat, uploads, and the linked project.
 - `research`: look outside: the web, official docs, other products.
 - `design`, `prototype`: a design pass, or a throwaway variant to react to.
+
+A request with `scope: "session"` and no `qid` asks about the whole session (`from: "chat"` when a chat
+message's "@Claude" asked it): answer from the session as a whole. Its result, in a digest too, carries
+`scope: "session"` in place of `qid`; once shared, it also shows in chat.
 
 Record what ran in `used` (`{name, type}`, `type` one of `skill`, `workflow`, `mcp`, `cli`). The
 page names actions, never skills or tools; the result card says what was used. A result waits in the owner's
