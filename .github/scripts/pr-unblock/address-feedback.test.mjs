@@ -457,6 +457,53 @@ test("model-job check runs count rounds the reply job never recorded", async () 
   }
 });
 
+// At the cap of 3, round markers posted at minute 10, a reviewer-bot thread
+// (PRRT_2) and a thread (PRRT_1) where `user` asked for a fix at `minute`.
+function pastCap({ user = HUMAN, minute = 20, body = REQUEST, rounds = 3, roundAt = at(10), checks, permissions } = {}) {
+  const reviewComments = [
+    comment(100, REVIEWER, { created_at: at(0) }),
+    comment(101, user, { body, created_at: at(minute) }),
+    comment(200, REVIEWER, { created_at: at(0) }),
+  ];
+  const issueComments = [
+    { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
+    ...Array.from({ length: rounds }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}`, created_at: roundAt })),
+  ];
+  const api = fakeApi({ reviewComments, issueComments, threads: [thread("PRRT_1", [100, 101]), thread("PRRT_2", [200])], checks, permissions });
+  return select({ api, pr: 42, headSha: HEAD, laneBranch: "lane-commits/x", repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), maxRounds: 3 });
+}
+
+test("at the cap, a write-access fix request newer than the last round runs one more round on its thread only", async () => {
+  const result = await pastCap();
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.rounds, 3);
+  assert.deepEqual(result.threads.map((row) => row.id), ["PRRT_1"]);
+  assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1"]);
+});
+
+test("below the cap, a fix request changes nothing: every kept thread runs", async () => {
+  const result = await pastCap({ rounds: 2, minute: 5 });
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1", "PRRT_2"]);
+});
+
+const check = (completedAt) => ({ name: "pr-unblock / address-feedback", conclusion: "success", app: { slug: "github-actions" }, completed_at: completedAt });
+for (const [label, overrides] of [
+  ["a fix request older than the last round marker", { minute: 5 }],
+  ["a fix request older than the last round's model check run", { checks: { [HEAD]: [check(at(25))] } }],
+  ["a round with no readable time", { roundAt: null }],
+  ["an untrusted person's fix request", { user: STRANGER, permissions: { stranger: "admin" } }],
+  ["a trusted person's fix request without write access", { permissions: { "kyle-sexton": "read" } }],
+  ["a trusted person's newer reply that asks no fix", { body: DECISION }],
+]) {
+  test(`at the cap, ${label} escalates feedback-round-cap`, async () => {
+    const result = await pastCap(overrides);
+    assert.equal(result.decision, "escalate");
+    assert.equal(result.escalationReason, "feedback-round-cap");
+    assert.equal(result.file, undefined);
+  });
+}
+
 test("round markers count only when the lanes App posted them as the first line", async () => {
   const comments = [
     { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
