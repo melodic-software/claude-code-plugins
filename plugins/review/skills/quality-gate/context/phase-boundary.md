@@ -8,8 +8,8 @@ the table says which modes read each one.
 | Input | Meaning | Modes that read it | Effect |
 |---|---|---|---|
 | `--worktree <path>` | The checkout holding the change, separate from the invoking session's | all but `pr` and `close-out` | Every git command runs as `git -C <path> ...` and every file read resolves under `<path>`, starting with the repository-context gather (`git -C <path> branch --show-current`, `git -C <path> status --porcelain \| head -20`). The invoking checkout is never read as the change. A path where `git -C <path> rev-parse --show-toplevel` fails is a STOP. |
-| `--base <sha>` | The previous phase-boundary commit | `self`, `code`, `architecture`, `security`, `spec`, `downstream`, `slice`, `restatement`, `criteria` | The review diff base is `<sha>`. No pull-request lookup, fetch or remote read runs. The change set is `git -C <path> diff <sha>` (commits since the boundary plus uncommitted edits) and `git -C <path> ls-files --others --exclude-standard`. Without `--worktree`, the same commands run in the current checkout. |
-| `--quality-bar <prototype\|internal\|production>` | The `Quality bar:` line from the plan or Brief | every mode that dispatches a reviewer: `self`, `code`, `architecture`, `security`, `spec`, `downstream`, `slice`, `restatement`, `criteria` given `--base` or `--worktree`, and, given neither, `pr` and `close-out`; `criteria` without either reviews inline and ignores it | Passed to each dispatched reviewer as the line `Quality bar: <value>`. Absent means `production`, and the report names that assumption. Tier tests stay those of the severity vocabulary in SKILL.md "Shared inputs". With `--base` or `--worktree`, `pr` and `close-out` STOP (Mode notes). |
+| `--base <sha>` | The previous phase-boundary commit | `self`, `code`, `code-design`, `architecture`, `security`, `spec`, `downstream`, `slice`, `restatement`, `criteria` | The review diff base is `<sha>`. No pull-request lookup, fetch or remote read runs. The change set is `git -C <path> diff <sha>` (commits since the boundary plus uncommitted edits) and `git -C <path> ls-files --others --exclude-standard`. Without `--worktree`, the same commands run in the current checkout. |
+| `--quality-bar <prototype\|internal\|production>` | The `Quality bar:` line from the plan or Brief | every mode that dispatches a reviewer: `self`, `code`, `code-design`, `architecture`, `security`, `spec`, `downstream`, `slice`, `restatement`, `criteria` given `--base` or `--worktree`, and, given neither, `pr` and `close-out`; `criteria` without either reviews inline and ignores it | Passed to each dispatched reviewer as the line `Quality bar: <value>`. Absent means `production`, and the report names that assumption. Tier tests stay those of the severity vocabulary in SKILL.md "Shared inputs". With `--base` or `--worktree`, `pr` and `close-out` STOP (Mode notes). |
 | `--report-only` | The caller persists and acts on the result | every mode | The gate writes nothing and asks nothing: no findings artifact, no `downstream` probe (it runs as `report`), no Step 4 handoff. A point that would ask the user (an ambiguous mode, the `spec` rung-4 ask) is a STOP naming what is missing, with one exception: the standards [Resolution ladder](../../../reference/standards-contract.md) skips its offer and ask rungs and takes its non-interactive rung, and the report names that assumption. The Step 3 report is the result. |
 
 ## Pre-flight with a base SHA
@@ -37,6 +37,8 @@ Step 0.5 runs against the base SHA in place of the "Shared inputs" ladder:
   step writes no path file: the loop reads `git diff --name-only -z <base>` with `read -r -d ''`,
   where `<base>` is the `--base` SHA when given, else the review diff base ("Shared inputs"), and
   the crossings go in the gate's report.
+- `code-design` resolves consumer criteria from the change's checkout and always dispatches
+  `review:brief-reviewer`, briefed as below.
 - `restatement` with `--base` or `--worktree` reviews no file inline: it dispatches a fresh-context
   `review:brief-reviewer` for every batch, briefed as below.
 - `downstream` with `--base` skips the `downstream_probe` layer read from the default branch, which
@@ -63,7 +65,8 @@ Dispatch each mode's own reviewer in fresh context, as its context file names, w
 - the `Quality bar:` line;
 - the inputs the mode's own brief requires: the slice criteria file path in `slice`, the size
   crossings in `code`, the finding-class table and the spec text read from the local
-  `--spec <path>` in `spec`, the resolved criteria (file paths and sections) in `criteria`, and
+  `--spec <path>` in `spec`, the resolved criteria (file paths and sections) in `criteria`, the
+  consumer criteria paths and the bundled criteria path in `code-design`, and
   the paved-path file from [criteria.md](criteria.md) step 2.
 
 Never give it the plan's rationale, the conversation or the implementer's account of the change,
