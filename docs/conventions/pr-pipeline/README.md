@@ -148,7 +148,7 @@ In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is foll
 model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
 
 A fix request is a reply by a person on the trusted-actor list who holds write or admin
-permission on the repository, edited by no one else, with a line that starts with
+permission on the repository, never edited or last edited by a person on that list, with a line that starts with
 `PR-fix lane: please fix this finding`, in any letter case, outside a fenced code block (a quoted
 `>` line never matches). On a thread the lanes App never commented on, one fix request after the
 reviewer bot's finding makes the thread one `address-feedback` works, as long as every other
