@@ -2594,7 +2594,11 @@ def with_capability_contents(
             read.append(replace(changed, contents=(before, after)))
         except Exception as exc:  # noqa: BLE001 - any failure reads as unreadable (HIGH)
             reason = f"{type(exc).__name__}: {exc}"
-            print(f"capability contents of {changed.path}: {reason}", file=sys.stderr)
+            # repr escapes a newline in the author-controlled path, so the line
+            # cannot start a workflow command.
+            print(
+                f"capability contents of {changed.path!r}: {reason!r}", file=sys.stderr
+            )
             read.append(replace(changed, contents_error=reason))
     return tuple(read)
 

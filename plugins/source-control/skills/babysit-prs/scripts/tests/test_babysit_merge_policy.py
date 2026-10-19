@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import dataclasses
+import io
 import json
 import os
 import pathlib
@@ -4878,6 +4879,18 @@ class CapabilityContents(unittest.TestCase):
         out, _ = self.read([skill], texts)
         self.assertIsNone(out[0].contents)
         self.assertIn("TypeError", out[0].contents_error)
+
+    def test_the_logged_path_cannot_start_a_workflow_command(self) -> None:
+        # Review thread L2597: a newline in a changed path must stay escaped.
+        path = "p/agents/a\n::set-output name=dispatch::true\nb.md"
+        texts = {(path, "b" * 40): TypeError("bad\n::error::x")}
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.read([self.changed(path)], texts)
+        self.assertTrue(err.getvalue())
+        self.assertFalse(
+            [line for line in err.getvalue().splitlines() if line.startswith("::")]
+        )
 
     def test_a_read_error_is_carried_for_the_scorer(self) -> None:
         skill = self.changed("p/skills/s/SKILL.md")
