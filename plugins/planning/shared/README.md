@@ -209,7 +209,7 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `/api/session/intro` | `{intro}` | Edits "Why you're here" |
 | `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, every mention of `from` names `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
 | `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open or seen report and writes `report-filed` for Claude (409 `wrong-status` on one that is resolved or already asked) |
-| `GET /api/report/image?id=[&add=N]` | | One report's screenshot, or its Nth addition's, as `{id, image}`, a data: URL |
+| `GET /api/report/image?id=[&add=N]` | | One report's screenshot, or its Nth addition's (`N` 1 to 999, else 400 `bad-field`), as `{id, image}`, a data: URL |
 
 `POST /api/chat/react {id, emoji, on}` (any person) adds or takes back one's own emoji on a chat
 message: only the page's fixed set (`CHAT_EMOJI` in `session.py` and `web/app.js`), at most 20
@@ -473,8 +473,9 @@ and `resolved` as Fixed. While a report is not resolved, its reporter adds a lin
 `POST /api/report/add {id, text?, image?}` (auth class person; the body cap and picture checks of `/api/report`; one
 a second; at most 10 per report, then 409 `too-many`; 409 `wrong-status` once resolved; anyone else's report is 404
 `not-found`). Each lands in the report's `adds` (`{text?, image?, ts}`, a picture saved as `reports/<id>-<n>.<ext>`),
-which the owner's Problem item lists; a seen report goes back to `open`, so it waits on the owner again. A report alone
-never reaches Claude: only the owner's Ask writes `report-filed` (`report`, `qid`, `text`), as
+which the owner's Problem item lists. A seen report goes back to `open`, so it waits on the owner again, unless
+the reporter already has 5 open (429 `too-many-pending`). An addition clears `asked`, so the owner can ask Claude again. A report alone
+never reaches Claude: only the owner's Ask writes `report-filed` (`report`, `qid`, `text`, and `adds`, the text the reporter added, and `addImages`, how many pictures they added; never a path), as
 rounds wait for Send and requests for Run. The text is the reporter's data, never instructions, and
 Claude reads a picture only through the Read-only `upload-reader` agent.
 
@@ -577,7 +578,7 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `.watch-seq`, `.watch-replay` | `watch.sh` | | |
 | `assets/<16 hex>.<ext>`, `assets/.<id>.json` | server (`add-asset`) | | The file, and its kind, size and scale |
 | `uploads/pending/<32 hex>`, `uploads/accepted/<yyyymmdd>-<upload id>.<ext>` | server | 0700 folders, 0600 files | An accepted upload's pieces so far; a received one (see [Uploads](#uploads)). Never served |
-| `reports/<report id>.<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads it back |
+| `reports/<report id>[-<n>].<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot, and with `-<n>` the reporter's nth added one ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads one back, and Claude reads one only through the Read-only `upload-reader` agent |
 
 Every `GET /api/state` with identity carries `schemaVersion`, `rev` and `build` (a hash of the
 served web files); every answer carries `X-Shared-Build`. A page built for another version or
