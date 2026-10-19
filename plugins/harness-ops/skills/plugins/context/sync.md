@@ -547,8 +547,8 @@ the CLI's `updated from X to Y` line: when that line names the version `Y` and t
 `X`, the id is reported as a failed row naming the record that moved, never as an Updated row. A line
 that names no version leaves the row Updated with direction `unknown`. The same re-read catches the
 opposite report: when the CLI says "already at the latest version" and the run's own project/local
-record is still below the catalog version, the id is a failed row too, never a quiet no-op. In a linked
-git worktree this is the ordinary outcome (#6713), and the row's reason carries the label
+record is still below the catalog version, the id is a failed row too, never a quiet no-op. For a record
+in a linked git worktree ([scope-semantics.md](scope-semantics.md)), the row's reason carries the label
 `update ineffective; uninstall clears it` that `fleet-state.sh` puts on the record. This check covers
 this step only; an `--allow-downgrade` project/local rollback is not compared.
 

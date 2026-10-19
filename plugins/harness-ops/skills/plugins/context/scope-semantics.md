@@ -179,16 +179,16 @@ checkout that has a linked worktree holding a record of the same id, showing `up
 updating the record keyed to the literal cwd. On a confirmed fix, drop the read-back in `converge.md`
 Step 4 and `sync.md` Step 2 and the `currentProject` filter in `sync-run.sh`.
 
-**In a linked worktree, `update -s project` is a no-op.** Measured on Claude Code 2.1.296
-(harness-ops 3.13.2, 2026-10-12; issue #6713): 116 of 116 calls against records keyed to linked
-worktrees of one repository printed "already at the latest version" and left the record unchanged, while
-43 of 43 against plain directories and 6 of 7 against the main checkout moved it. The cause is not
-known; it is consistent with the CLI judging a record other than the worktree's own, as in #7445. The
-session loads the user-scope build, so such a record is inert for what loads, but it still counts as a
-divergence. `fleet-state.sh` marks each project/local record `linkedWorktree` and labels a lagging one
-`update ineffective; uninstall clears it`. `uninstall` is the only verb that clears it, and it edits that
-worktree's tracked settings file ([converge.md](converge.md) Step 5). **Recheck trigger**: the same
-release note or re-probe as the paragraph above, run from a linked worktree.
+**A lagging record in a linked worktree is labeled, counted, and cleared by `uninstall`, never
+trusted to `update`.** `fleet-state.sh` marks each project/local record `linkedWorktree` and labels a
+lagging one `update ineffective; uninstall clears it`; the row stays a divergence, and any update the
+run does make is verified by re-reading the record ([converge.md](converge.md) Step 4). `uninstall`
+clears it and edits that worktree's tracked settings file ([converge.md](converge.md) Step 5).
+**Record**: pointer, the update-strategy results of the 2026-10-12 converge run in
+[#6713 (comment)](https://github.com/melodic-software/claude-code-plugins/issues/6713#issuecomment-6125445322);
+as-of 2026-10-12. **Recheck trigger**: a Claude Code release note that changes how `update -s project`
+treats a record keyed to a linked worktree, or a re-run of that probe (the converge update strategy
+against lagging records in linked worktrees, then a re-read) showing the records move.
 
 When reading a record out of a `fleet-state.sh` report, a `project`/`local` record belongs to the run
 only when its `currentProject` flag is `true`; matching on id and scope alone returns whichever

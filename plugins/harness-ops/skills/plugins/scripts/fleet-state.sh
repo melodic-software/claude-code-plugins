@@ -95,7 +95,7 @@
 #   Each of those records also carries linkedWorktree: true|false|null — whether
 #   its projectPath is a linked git worktree (the git dir differs from the git
 #   common dir: `.git` is a file whose gitdir line points into a `worktrees/`
-#   directory). null means not applicable, or the path is not present so nothing
+#   directory that holds a `commondir` file). null means not applicable, or the path is not present so nothing
 #   could be read. `label` is "update ineffective; uninstall clears it" on a
 #   linked-worktree record whose version is below the catalog's (else below the
 #   highest any record of the id holds), and null otherwise. In a linked worktree
@@ -1013,6 +1013,9 @@ for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
     # `/worktrees/` segment and excludes a later `/modules/` segment (a
     # submodule inside a linked worktree). Builtins only, no process per path.
     # The common dir's name is not constrained (a bare layout uses `.bare`).
+    # A `/worktrees/` segment alone also matches a separate-git-dir main checkout
+    # kept under a `worktrees/` parent, so the git dir must hold the `commondir`
+    # file git writes only into a linked worktree's admin directory.
     pp_linked="false"
     if [[ -f "$pp_fs/.git" ]]; then
       pp_gitfile=""
@@ -1021,7 +1024,15 @@ for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
       pp_gitfile="${pp_gitfile//\\//}"
       case "$pp_gitfile" in
       gitdir:*/worktrees/*/modules/*) ;;
-      gitdir:*/worktrees/*) pp_linked="true" ;;
+      gitdir:*/worktrees/*)
+        pp_gd="${pp_gitfile#gitdir:}"
+        pp_gd="${pp_gd# }"
+        case "$pp_gd" in
+        /* | ?:/*) ;;
+        *) pp_gd="$pp_fs/$pp_gd" ;;
+        esac
+        [[ -f "$pp_gd/commondir" ]] && pp_linked="true"
+        ;;
       *) ;;
       esac
     fi

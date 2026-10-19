@@ -93,17 +93,17 @@ the other: each needs its own `cd`. Per [scope-semantics.md](scope-semantics.md)
 `projectPath` on the literal cwd while `fleet-state.sh` matches on the checkout root. That gap is a
 blind spot in its own right, recorded in [gotchas.md](gotchas.md).
 
-### Linked-worktree rows: the update strategy has no effect
+### Linked-worktree rows: no update strategy
 
 A row whose `scopes[].linkedWorktree` is `true` (the git dir differs from the git common dir;
 `fleet-state.sh` reads it from the worktree's `.git` file) never gets the update strategy, proposed or
-run. The CLI behavior behind that, and the trigger to recheck it, are in
+run. The record behind that decision, and the trigger to recheck it, are in
 [scope-semantics.md](scope-semantics.md). Emit it as:
 
 ```text
-- <id>@<marketplace>: update has no effect here: "<projectPath>" is a linked worktree, where
-  the update strategy does not move the record from <version>. The uninstall
-  strategy clears it, and edits that worktree's tracked `.claude/settings.json` (Step 5).
+- <id>@<marketplace>: update is not offered here: "<projectPath>" is a linked worktree, and
+  its record is at <version>. The uninstall strategy clears it, and edits that worktree's
+  tracked `.claude/settings.json` (Step 5).
 ```
 
 The row keeps the label `fleet-state.sh` gave it, `update ineffective; uninstall clears it`, and stays
