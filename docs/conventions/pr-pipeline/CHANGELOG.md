@@ -1,11 +1,16 @@
 # Changelog for the PR pipeline convention
 
-## 2.16.0 - 2026-10-18
+## 2.15.1 - 2026-10-18
 
-New config: `merge.max-queue-ejections` (default 2, 1 to 20). The unattended merge gate refuses to
-enqueue a head the merge queue has removed that many times for failed checks since the head last
-changed (a pushed commit or a force push), and posts one marked comment naming the failing
-`merge_group` runs; an unreadable timeline, or 20 items with no head change, also refuses.
+`work-resolve-issue` no longer takes the model's word that its checks passed. A new `run-checks`
+job, on a fresh runner after `resolve-issue`, runs each of the activity's `checks` from the default
+branch tip's copy against a checkout of the lane branch whose `scripts/` is the base's, so
+`scripts/fragment-plugins.txt` comes from the base and only the branch's own files, such as
+`.changes/`, are checked. It hands the results (branch, tip, each check's exit status) to
+`report-outcome` as a job output, never through the outcome artifact that code the model started
+can rewrite, and only when `run-checks` succeeded. `report-outcome` lists those results under
+Verification and stops a done run whose checks failed, are missing, or ran on a tip the branch has
+since left, even when the outcome file's `not_done` is empty ([#7497](https://github.com/melodic-software/claude-code-plugins/issues/7497)).
 `version` stays 2.
 
 ## 2.15.0 - 2026-10-18

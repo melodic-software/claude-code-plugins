@@ -39,7 +39,7 @@ autonomy plugin, and this doc points at them.
 | `README.md` | This contract. No config values. |
 | `pr-pipeline.schema.json` | Schema for a repository's pipeline config. |
 | `examples/` | Worked configs that show the shape. Script paths in them are placeholders until their lanes land. |
-| `CHANGELOG.md` | Contract versions. |
+| `CHANGELOG.md` | Contract versions, written by the release pull request from fragments under `.changes/pr-pipeline/`. |
 
 A repository's config lives at `docs/conventions/pr-pipeline.yaml` unless the lane passes another
 path as the config reader's `config-path` input. The reader reads that path at the base SHA; it
@@ -1057,3 +1057,8 @@ list. The config reader reads the synced copy from the base SHA's
 ## Versioning
 
 The schema's `version` is the contract major. [`CHANGELOG.md`](CHANGELOG.md) records each change.
+A pull request that changes this directory does not edit `CHANGELOG.md`: it adds a changelog
+fragment, `scripts/new-changelog-fragment.sh pr-pipeline <major|minor|patch|none>`, and the release
+pull request writes the fragments into one `CHANGELOG.md` entry
+([ADR 0048](../../adr/0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md)).
+A `major` fragment's pull request also raises the schema's `version`.
