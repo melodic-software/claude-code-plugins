@@ -59,7 +59,8 @@ valid layer wins. Layers:
 3. `downstream_probe` in the repository's `docs/conventions/review.yaml`, read from the **default
    branch**, never from the working tree or the branch under review. Apply SKILL.md's root rule
    first: when the root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) is not in a
-   git working tree, or is `$HOME` or an ancestor of it, skip this layer and say so. Otherwise
+   git working tree, or is `$HOME` or an ancestor of it, skip this layer and say so. With `--base`,
+   skip it and treat the floor as `report` ([phase-boundary.md](phase-boundary.md)). Otherwise
    resolve `<default>` from `git ls-remote --symref origin HEAD` (the name after `refs/heads/` on
    its `ref:` line). The remote supplies that name, so check it before it reaches any command: only
    letters, digits, `.`, `_`, `/` and `-`, no leading `-` and no `..`, the same check the reader
