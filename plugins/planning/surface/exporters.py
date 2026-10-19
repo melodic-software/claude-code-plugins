@@ -8,8 +8,8 @@ Each exporter reads only questions.json and responses.json from a data dir and r
   export_brief   the PLAN.md `## Brief` sections and an empty `## Plan`; given a ledger's text it
                  numbers as that ledger and carries its ledger-only rows. Problem, Goal, Work size,
                  Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed
-                 restatement rev (Problem reads `unknown` and Work size `not assessed` without
-                 one), and the TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
+                 restatement rev (without one, each Problem field reads `unknown` and each Work
+                 size field `not assessed`), and the TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
   export_report  one self-contained HTML file (no external resources; everything escaped); it
                  also inlines each file visual that resolves inside the data dir
 import_ledger seeds an empty questions document from a ledger's register rows.
@@ -103,6 +103,9 @@ ADDED = re.compile(r"\(added in round\s+([0-9]+)\)", re.IGNORECASE)
 # Register statuses that leave a question unresolved; superseded-by-plan is a plan's
 # displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
+# The Brief's field labels, per context/problem-framing.md "Problem fields" and "Work size".
+PROBLEM_FIELDS = ("Gap", "Who / how many", "Frequency", "Trend", "Cost", "Evidence")
+WORK_SIZE_FIELDS = ("Appetite", "Size", "Uncertainty", "Split signals")
 PROPOSES = re.compile(r"^plan proposes:\s*(.*?);\s*was:\s*(.*)$", re.IGNORECASE)
 # An open row held on research or on the user; a research hold carries the answer it keeps,
 # and an unanswered one the commitments confirmed on it.
@@ -950,12 +953,16 @@ def export_brief(d, text=None):
             stamp = f"UNCONFIRMED (latest rev {latest}); no rev was confirmed"
         out.append(f"- Restatement: {stamp}")
     title = (doc.get("meta") or {}).get("title") or "Interview decisions"
-    out += ["", "### Problem", "", *(bullets(sections.get("problem")) or ["- unknown"])]
+    unset_problem = [f"- {f}: unknown" for f in PROBLEM_FIELDS]
+    out += ["", "### Problem", "", *(bullets(sections.get("problem")) or unset_problem)]
     out += ["", "### Goal", "", para(sections.get("goal")) or para(title), ""]
     out += [
         "### Work size",
         "",
-        *(bullets(sections.get("workSize")) or ["- not assessed"]),
+        *(
+            bullets(sections.get("workSize"))
+            or [f"- {f}: not assessed" for f in WORK_SIZE_FIELDS]
+        ),
     ]
     out += ["", "### Constraints", ""]
     out += [

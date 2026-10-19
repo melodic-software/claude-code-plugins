@@ -321,8 +321,17 @@ class TestExportBrief(SessionCase):
         self.assertRegex(text, r"- Q2: .*\*\*arbiter: USER-RESERVED\*\*")
         self.assertTrue(text.rstrip().endswith("## Plan"))
         self.assertNotIn("superseded-by-plan", text)
-        self.assertIn("### Problem\n\n- unknown\n\n### Goal", text)
-        self.assertIn("### Work size\n\n- not assessed\n\n### Constraints", text)
+        # Field labels from context/problem-framing.md "Problem fields" and "Work size".
+        self.assertIn(
+            "### Problem\n\n- Gap: unknown\n- Who / how many: unknown\n- Frequency: unknown\n"
+            "- Trend: unknown\n- Cost: unknown\n- Evidence: unknown\n\n### Goal",
+            text,
+        )
+        self.assertIn(
+            "### Work size\n\n- Appetite: not assessed\n- Size: not assessed\n"
+            "- Uncertainty: not assessed\n- Split signals: not assessed\n\n### Constraints",
+            text,
+        )
 
     def test_exported_brief_passes_the_procedure_heading_check(self):
         self.deferred_session()
