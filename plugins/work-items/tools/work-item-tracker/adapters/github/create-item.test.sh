@@ -156,6 +156,18 @@ EOF
   assert_contains "create-item on a refused gh 2.94 create POSTs over REST" "$CALLS" \
     "api --method POST repos/o/r/issues"
 
+  # The refused native create degrades --type to a label, which the REST POST must carry.
+  GH_STUB_REFUSE=1 GH_STUB_VERSION=2.94.0 run_create --title t --type Task --labels a --repo o/r >/dev/null 2>&1
+  rc=$?
+  assert_eq "create-item --type on a refused gh 2.94 create falls back → exit 0" "0" "$rc"
+  CALLS="$(<"$STUB/calls.log")"
+  assert_contains "create-item --type on a refused gh 2.94 create POSTs over REST" "$CALLS" \
+    "api --method POST repos/o/r/issues"
+  assert_contains "create-item --type on a refused gh 2.94 create keeps the given label" "$CALLS" \
+    "labels[]=a"
+  assert_contains "create-item --type on a refused gh 2.94 create sends the type label" "$CALLS" \
+    "labels[]=type: task"
+
   GH_STUB_REFUSE=1 GH_STUB_VERSION=2.94.0 run_create --title t --parent github:o/r#1 --repo o/r >/dev/null 2>&1
   assert_eq "create-item --parent on a refused gh 2.94 create → usage error" "2" "$?"
 
