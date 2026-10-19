@@ -333,6 +333,57 @@ commit "$f" "legacy pull request"
 expect "--check-release HEAD^1 passes a queued pull request that bumps a plugin with no fragments" 0 "for the 1 plugin(s) it bumps" "$f" --check-release 'HEAD^1'
 rm -rf "$f"
 
+# --- a listed convention under docs/conventions/<name>/ ---------------------------
+# convention_fixture <out-var>: alpha and the convention demo (2.0.0) listed.
+convention_fixture() {
+  base_fixture "$1" alpha demo || return 1
+  mkdir -p "${!1}/docs/conventions/demo"
+  printf '# Changelog for demo\n\n## 2.0.0 - 2026-10-01\n\nFirst.\n' >"${!1}/docs/conventions/demo/CHANGELOG.md"
+  printf 'v1\n' >"${!1}/docs/conventions/demo/README.md"
+  commit "${!1}" convention
+}
+
+convention_fixture f
+fragment "$f" demo feat-x-0123abcd minor
+expect "--check accepts a fragment for a listed convention" 0 "All 1 changelog fragment(s)" "$f" --check
+rm -rf "$f"
+
+convention_fixture f
+git_test_config "$f" checkout -qb feat/x
+printf 'v2\n' >"$f/docs/conventions/demo/README.md"
+commit "$f" change
+expect "--check-required fails a listed convention change with no fragment" 1 "MISSING FRAGMENT: this change set changes files under docs/conventions/demo/" "$f" --check-required main
+fragment "$f" demo feat-x-0123abcd patch
+commit "$f" fragment
+expect "--check-required passes a listed convention change once a fragment is added" 0 "has a fragment" "$f" --check-required main
+rm -rf "$f"
+
+convention_fixture f
+git_test_config "$f" checkout -qb feat/x
+printf 'v2\n' >"$f/docs/conventions/demo/README.md"
+printf '%s\n' '# fragment mode' alpha >"$f/scripts/fragment-plugins.txt"
+commit "$f" change
+expect "--check-required leaves an unlisted convention alone" 0 "has a fragment" "$f" --check-required main
+rm -rf "$f"
+
+convention_fixture f
+fragment "$f" demo feat-x-0123abcd minor
+commit "$f" pending
+git_test_config "$f" checkout -qb release/plugins
+git_test_config "$f" rm -q .changes/demo/feat-x-0123abcd.md
+printf '# Changelog for demo\n\n## [2.1.0] - 2026-10-02\n\n### Fixed\n\n- A fix.\n\n## 2.0.0 - 2026-10-01\n\nFirst.\n' >"$f/docs/conventions/demo/CHANGELOG.md"
+commit "$f" release
+HEAD_REF=release/plugins
+expect "--check-required exempts the release pull request's convention CHANGELOG.md" 0 "has a fragment" "$f" --check-required main
+HEAD_REF=""
+expect "--check-release counts a new convention heading as a bump" 0 "for the 1 plugin(s) it bumps" "$f" --check-release main
+git_test_config "$f" checkout -q main
+fragment "$f" demo late-z-fedcba98 patch
+commit "$f" late
+git_test_config "$f" checkout -q release/plugins
+expect "--check-release fails on a convention fragment that landed after the cut" 1 "UNCONSUMED FRAGMENT: .changes/demo/late-z-fedcba98.md" "$f" --check-release main
+rm -rf "$f"
+
 # --- usage ------------------------------------------------------------------------
 base_fixture f alpha
 expect "no arguments exits 2" 2 "usage" "$f"
@@ -402,12 +453,8 @@ commit "$f" "a commit pushed onto the Dependabot branch"
 run_dependabot "--check-required does not exempt a Dependabot pull request carrying another author's commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
 rm -rf "$f"
 
-# pr-bump-plugin-version.yml's bump commit for a legacy plugin, beside a
-# fragment-mode one in the same update.
-actions_commit() {
-  GIT_AUTHOR_NAME='github-actions[bot]' GIT_AUTHOR_EMAIL='41898282+github-actions[bot]@users.noreply.github.com' \
-    GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com commit "$1" "$2"
-}
+# A verified github-actions[bot] commit, even one touching only a plugin outside
+# fragment mode, makes the change set more than Dependabot's.
 base_fixture f alpha
 mkdir -p "$f/.git/stub"
 # shellcheck disable=SC2016  # the stub expands these when it runs
@@ -415,19 +462,11 @@ printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$GH_ANSWER"\nexit "${GH_RC:-0}"\n'
 chmod +x "$f/.git/stub/gh"
 git_test_config "$f" checkout -qb dependabot/npm
 printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
-printf 'v2\n' >"$f/plugins/beta/skills/a.md"
 dependabot_commit "$f" "build(deps): bump zod"
-printf '{\n  "name": "beta",\n  "version": "1.0.1"\n}\n' >"$f/plugins/beta/.claude-plugin/plugin.json"
 printf '\n## [1.0.1] - 2026-10-09\n' >>"$f/plugins/beta/CHANGELOG.md"
-actions_commit "$f" "chore(plugins): release bump for Dependabot update [dependabot skip]"
-run_dependabot "--check-required exempts a Dependabot pull request carrying the workflow's legacy bump commit" 0 "Dependabot-only change to plugins/alpha/" 'dependabot[bot]' true 0
-printf '{\n  "name": "alpha",\n  "version": "1.0.1"\n}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
-actions_commit "$f" "a workflow commit that versions a fragment-mode plugin"
-run_dependabot "--check-required does not exempt a workflow commit that touches a fragment-mode plugin" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
-git_test_config "$f" reset -q --hard HEAD~1
-printf 'v3\n' >"$f/plugins/beta/skills/a.md"
-actions_commit "$f" "a workflow commit that changes shipped files"
-run_dependabot "--check-required does not exempt a workflow commit beyond plugin.json and CHANGELOG.md" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
+GIT_AUTHOR_NAME='github-actions[bot]' GIT_AUTHOR_EMAIL='41898282+github-actions[bot]@users.noreply.github.com' \
+  GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com commit "$f" "chore(plugins): release bump for Dependabot update [dependabot skip]"
+run_dependabot "--check-required does not exempt a Dependabot pull request carrying a github-actions[bot] commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
 rm -rf "$f"
 
 base_fixture f alpha

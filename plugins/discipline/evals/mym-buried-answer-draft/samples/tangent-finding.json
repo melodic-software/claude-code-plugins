@@ -11,6 +11,14 @@
     },
     {
       "answer": "The packaging-tool aside (Poetry, Hatch, PDM) is a digression; removed."
+    },
+    {
+      "answer": "Relation: I cut the paragraph on the Poetry/Hatch/PDM comparison; Dana asked only about pip.",
+      "why": "cut word before the tool names"
+    },
+    {
+      "answer": "Removed the Poetry, Hatch and PDM comparison.",
+      "why": "removed word before the tool names"
     }
   ],
   "fail": [
@@ -37,6 +45,14 @@
     {
       "answer": "Kept the Poetry/Hatch/PDM sentence; not removed.",
       "why": "negation on removed"
+    },
+    {
+      "answer": "I did not cut the Poetry/Hatch/PDM comparison.",
+      "why": "negation before the cut word"
+    },
+    {
+      "answer": "Didn't touch the Poetry/Hatch/PDM comparison.",
+      "why": "no cut"
     }
   ]
 }

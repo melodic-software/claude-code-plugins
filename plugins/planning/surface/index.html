@@ -10,8 +10,8 @@
 :root{
   color-scheme:light;
   --ground:#f3f4f6; --panel:#ffffff; --ink:#1a2130; --muted:#5d6678; --faint:#657082;
-  --line:#dde1e8; --line-strong:#c6ccd6; --accent:#2f5d8a; --accent-soft:#e6eef7;
-  --ok:#2d7a4b; --ok-soft:#e3f2e8; --chg:#9a5b00; --chg-soft:#fbefd9;
+  --line:#dde1e8; --line-strong:#c6ccd6; --edge:#7d8799; --accent:#2f5d8a; --accent-soft:#e6eef7;
+  --ok:#2d7a4b; --ok-ink:#25663e; --ok-soft:#e3f2e8; --chg:#9a5b00; --chg-soft:#fbefd9;
   --def:#62489a; --def-soft:#eee8f8; --wait:#5f6878; --wait-soft:#eceef1;
   --warn:#a3382b; --warn-soft:#fbe7e4; --res:#0f766e; --res-soft:#dcf2ef;
   --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -24,8 +24,8 @@
   :root:not([data-theme="light"]){
     color-scheme:dark;
     --ground:#12151b; --panel:#1a1f27; --ink:#e7eaf0; --muted:#a3abb9; --faint:#8b93a2;
-    --line:#2a313c; --line-strong:#3a4250; --accent:#8fb6e0; --accent-soft:#1f2c3b;
-    --ok:#7fcf9c; --ok-soft:#18301f; --chg:#f0b766; --chg-soft:#35270f;
+    --line:#2a313c; --line-strong:#3a4250; --edge:#67748a; --accent:#8fb6e0; --accent-soft:#1f2c3b;
+    --ok:#7fcf9c; --ok-ink:#7fcf9c; --ok-soft:#18301f; --chg:#f0b766; --chg-soft:#35270f;
     --def:#b9a3ec; --def-soft:#2a2240; --wait:#9aa1ad; --wait-soft:#232830;
     --warn:#f09a8c; --warn-soft:#3a1d19; --res:#5fd3c4; --res-soft:#12302d;
   }
@@ -33,8 +33,8 @@
 :root[data-theme="dark"]{
   color-scheme:dark;
   --ground:#12151b; --panel:#1a1f27; --ink:#e7eaf0; --muted:#a3abb9; --faint:#8b93a2;
-  --line:#2a313c; --line-strong:#3a4250; --accent:#8fb6e0; --accent-soft:#1f2c3b;
-  --ok:#7fcf9c; --ok-soft:#18301f; --chg:#f0b766; --chg-soft:#35270f;
+  --line:#2a313c; --line-strong:#3a4250; --edge:#67748a; --accent:#8fb6e0; --accent-soft:#1f2c3b;
+  --ok:#7fcf9c; --ok-ink:#7fcf9c; --ok-soft:#18301f; --chg:#f0b766; --chg-soft:#35270f;
   --def:#b9a3ec; --def-soft:#2a2240; --wait:#9aa1ad; --wait-soft:#232830;
   --warn:#f09a8c; --warn-soft:#3a1d19; --res:#5fd3c4; --res-soft:#12302d;
 }
@@ -49,6 +49,7 @@ header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-botto
 .eyebrow{font:500 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 #roundLbl:not(:empty)+#eyebrow:not(:empty)::before{content:" \00b7  "}
 .mlink{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.qcount::before{content:"\00b7  ";color:var(--faint)}
 .mlink.sep::before{content:"\00b7  ";color:var(--faint)}
 #pendBtn{color:var(--res)}
 .cline{flex:1 1 12em;min-width:0;text-align:left;border:0;background:none;padding:2px 0;cursor:pointer;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -88,7 +89,7 @@ button{font:inherit;color:inherit}
 .tbtn:disabled{opacity:.45;cursor:not-allowed}
 .tbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .tbtn.primary{background:var(--ok);border-color:var(--ok);color:var(--panel)}
-.tbtn.small{font-size:12px;padding:2px 7px}
+.tbtn.small{font-size:12px;padding:2px 7px;min-height:24px}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 .layout{position:relative;display:grid;grid-template-columns:var(--rail-w) minmax(0,1fr) var(--strip-w);gap:var(--gap);min-height:0}
@@ -105,7 +106,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .seg button:focus-visible{outline-offset:-3px}
 .seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
 .trow{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12.5px;color:var(--muted)}
-.trow select{font:12.5px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--line-strong);border-radius:5px;padding:3px 4px}
+.trow select{font:12.5px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--edge);border-radius:5px;padding:3px 4px}
 .order-note{font:500 11.5px/1.3 var(--mono);color:var(--faint)}
 .rail-list{overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:12px;padding:2px 6px 24px 2px}
 .sumbtn{width:100%;text-align:left;border:1px dashed var(--line-strong);border-radius:6px;background:transparent;padding:7px 10px;font:500 13px var(--sans);cursor:pointer;color:var(--muted)}
@@ -257,21 +258,23 @@ section.answer[hidden]{display:none}
 .compose{align-content:start}
 fieldset.decide{display:flex;flex-direction:column;min-height:0}
 fieldset{border:1px solid var(--line);border-radius:6px;margin:0;padding:6px 10px 8px;min-width:0}
-legend{font:500 11.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:0 4px}
+legend{font:500 13px var(--sans);color:var(--muted);padding:0 4px}
 .choices{display:grid;align-content:start;gap:4px;padding:2px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
 #decideRow{flex:none}
-.choice{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;padding:4px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:13.5px}
-.choice:hover{border-color:var(--line-strong)}
+.choice{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;padding:4px 8px;border:1px solid var(--edge);border-radius:6px;cursor:pointer;font-size:13.5px}
+.choice:hover{border-color:var(--muted)}
 .choice input{margin:0;accent-color:var(--accent)}
 .choice .t{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .choice.armed{border-color:var(--accent);background:var(--accent-soft)}
 .choice.rec .t b{color:var(--ok)}
+.choice.armed.rec .t b{color:var(--ok-ink)}
 .choice.rec .t{display:block;-webkit-line-clamp:unset;line-clamp:none}
 .choice .yours{font-size:11px;font-weight:600;color:var(--accent);margin-right:6px}
 .choices.nudge{animation:flash 1.2s ease-out}
 .arow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
 .compose{display:grid;gap:8px}
-textarea{width:100%;min-height:64px;max-height:40vh;resize:none;overflow-y:auto;font:14px/1.5 var(--sans);color:var(--ink);background:var(--ground);border:1px solid var(--line-strong);border-radius:6px;padding:8px 12px}
+textarea{width:100%;min-height:64px;max-height:40vh;resize:none;overflow-y:auto;font:14px/1.5 var(--sans);color:var(--ink);background:var(--ground);border:1px solid var(--edge);border-radius:6px;padding:8px 12px}
+textarea::placeholder{color:var(--muted);opacity:1}
 button.act{font:500 13.5px var(--sans);padding:6px 12px;border-radius:6px;border:1px solid var(--line-strong);background:var(--panel);color:var(--ink);cursor:pointer;white-space:nowrap}
 button.act:hover:not(:disabled){border-color:var(--ink)}
 button.act.primary{background:var(--ok);border-color:var(--ok);color:var(--panel)}
@@ -301,7 +304,7 @@ aside.fly.open{display:grid;position:absolute;top:0;right:calc(var(--strip-w) + 
 @keyframes slide{from{transform:translateX(24px);opacity:0}}
 .fhead{display:grid;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)}
 .frow{display:flex;gap:6px;align-items:center}
-.frow .ttl{flex:1;font:500 12px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.frow .ttl{flex:1;font:500 13px var(--sans);color:var(--muted)}
 .tabs{display:flex;flex-wrap:wrap;gap:4px}
 .tabs button{border:1px solid var(--line);background:var(--ground);border-radius:5px;padding:4px 8px;font:12.5px var(--sans);cursor:pointer}
 .tgroup{margin-bottom:6px}
@@ -325,9 +328,10 @@ aside.fly.open{display:grid;position:absolute;top:0;right:calc(var(--strip-w) + 
 .nthread{display:grid;gap:10px}
 .nmsg{border:1px solid var(--line);border-radius:6px;padding:8px 10px;display:grid;gap:4px;font-size:13.5px}
 .nmsg.claude{border-color:var(--accent);background:var(--accent-soft)}
+.nmsg.claude .hl time,.nmsg.claude .hl .dot{color:var(--muted)}
 .setrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 .setrow .src{grid-column:1/-1;font:11px var(--mono);color:var(--faint)}
-.setrow select,.setrow input[type=number]{font:13px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--line-strong);border-radius:5px;padding:3px 6px}
+.setrow select,.setrow input[type=number]{font:13px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--edge);border-radius:5px;padding:3px 6px}
 .setrow input[type=number]{width:70px}
 .keys{font-size:12.5px;color:var(--muted);display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 12px}
 .keys kbd{font:11.5px var(--mono);border:1px solid var(--line-strong);border-radius:4px;padding:0 5px;justify-self:start}
@@ -351,7 +355,7 @@ table.sum td .kbd{display:block;overflow-wrap:break-word}
 #restate h5{font:600 16px var(--sans);margin:.8em 0 .3em}
 #sumRest{display:grid;gap:var(--gap)}
 table.sum th,table.sum td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-table.sum th{font:500 11.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+table.sum th{font:500 13px var(--sans);color:var(--muted)}
 ul.loose .ask{padding:6px 8px;border:1px solid var(--chg);border-radius:6px;background:var(--chg-soft);display:grid;gap:6px}
 ul.loose textarea{width:100%;box-sizing:border-box;font:inherit}
 ul.loose{margin:0;padding-left:20px;display:grid;gap:4px}
@@ -379,8 +383,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   h1{font-size:20px;margin-top:2px}
   header.top{gap:4px;padding-bottom:4px}
   .cline{white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
+  button.act,.choice{min-height:44px}
   .notice{max-width:100%}
   aside.fly.open{position:fixed;inset:0;width:auto;border-radius:0}
+  .layout.pinned aside.fly.open{position:fixed;inset:0;width:auto;border-radius:0}
+  #pinBtn{display:none}
 }
 @media (prefers-reduced-motion: reduce){*,*::before{animation:none!important;transition:none!important}}
 </style>
@@ -396,6 +403,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       </div>
       <div class="hright">
         <div class="meter"><button class="mlink" id="meterText" title="Next item needing you (n)">0 of 0 answered</button><span class="bar"><i id="meterBar" style="width:0%"></i></span>
+          <span class="qcount" id="qCounts"></span>
           <button class="mlink sep" id="pendBtn" title="Show the questions pending Claude's research" hidden></button>
           <button class="mlink sep" id="revBtn" title="Show the answered questions to review" hidden></button>
           <button class="mlink sep assume" id="assumeCount" hidden></button>
@@ -758,14 +766,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function railItem(q, sec, carry, fresh){ // inside a button: esc only
     const st = stateOf(q), d = decisionOf(q), chips = [], up = q.state === "upstream-pending" && st !== "arch";
     if (st === "wait" || st === "need") {
-      chips.push('<span class="chip s-' + st + '" title="' + esc(waitText(q)) + '">' + esc(trunc(waitText(q), 60)) + "</span>");
+      chips.push('<span class="chip s-' + esc(st) + '" title="' + esc(waitText(q)) + '">' + esc(trunc(waitText(q), 60)) + "</span>");
       if (d && d.decision) chips.push(d.aside ? '<span class="chip aside">Set aside</span>' : '<span class="chip plain">' + LABEL[d.decision] + "</span>");
     } else if (st === "open" && blocked(q)) chips.push('<span class="chip s-blocked" title="Waits on a question you have not answered">Blocked</span>');
-    else chips.push('<span class="chip s-' + st + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
+    else chips.push('<span class="chip s-' + esc(st) + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
     if (isStale(q)) chips.push('<span class="chip hot">' + ((q.upstreamChanged || []).length ? "Upstream changed" : "Stale") + "</span>");
     if (up) chips.push('<span class="chip plain" title="' + esc("Reconfirm " + waitOn(q).join(", ") + " (under Review), or answer this one anyway") + '">Waiting on ' + esc(waitOn(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled your answer to this question yet.">Answer not handled yet</span>');
-    if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">carried ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
+    if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">asked ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " ago, unanswered</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
     const aa = live(q) && afterAnswer(q);
     if (aa) chips.push('<span class="chip hot">' + esc(afterText(aa)) + "</span>");
@@ -810,9 +818,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       for (const s of secs) {
         const items = s.items.filter(passes);
         if (!items.length && S.filter !== "all") continue;
+        const o = lsGet("col:" + s.key, null), coll = s.collapsed && !(S.filter !== "all" && !(o && o.d === s.done)); // a filter opens a section with no applicable stored toggle that holds a match
         const elig = s.items.filter(q => op.has(q.id) && eligible(q)), aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
-        html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + s.collapsed + '" data-dflt="' + s.done + '">' +
-          '<div class="sec-top"><button class="sec-h" aria-expanded="' + !s.collapsed + '"><span class="caret">&#9662;</span><h2>' + esc(s.title) + '</h2><span class="cnt">' + s.open + " open / " + s.items.length + (s.review ? ", " + s.review + " to review" : "") + "</span></button>" +
+        html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + coll + '" data-dflt="' + s.done + '">' +
+          '<div class="sec-top"><button class="sec-h" aria-expanded="' + !coll + '"><span class="caret">&#9662;</span><h2>' + esc(s.title) + '</h2><span class="cnt">' + s.open + " open / " + s.items.length + (s.review ? ", " + s.review + " to review" : "") + "</span></button>" +
           (elig.length && aa ? '<button class="tbtn small" ' + aa + ' data-submit="1" title="Accept the recommendation on the open questions you have opened here">Accept all (' + elig.length + ")</button>" : "") +
           (elig.length && s.round && !s.gid ? '<button class="tbtn small" data-auditround="' + esc(s.round) + '" data-submit="1" title="Accept the recommendation on the open questions you have opened here and have agents check the answers">Accept all and have agents check them</button>' : "") + "</div>" +
           (s.lock.length ? '<div class="lock">Locked: opens after ' + s.lock.map(g => esc(groupTitle(g))).join(", ") + "</div>" : "") +
@@ -820,7 +829,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
           '<ul class="qlist">' + (items.length ? items.map(q => "<li>" + railItem(q, s, carry, fresh) + "</li>").join("") : '<li class="empty">None.</li>') + "</ul></div>";
       }
     }
-    if (S.filter !== "all" && !railOrder().length) html += '<p class="empty">No questions match this filter.</p>';
+    if (S.filter !== "all" && !railOrder().length) html += '<p class="empty">No questions match this filter.' + (S.filter === "pending" ? " Pending means waiting on research, on another person's answer, on an earlier question, or on Claude's reply." : "") + "</p>";
     list.innerHTML = html;
     list.scrollTop = top;
     (flashIds || []).forEach(id => list.querySelectorAll('.qbtn[data-q="' + CSS.escape(id) + '"]').forEach(el => el.classList.add("flash")));
@@ -890,7 +899,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("title").textContent = m.title || "Interview";
     const l = S.doc.questions.filter(live), done = l.filter(settled).length, wn = l.filter(q => stateOf(q) === "wait").length;
     $("meterText").textContent = done + " of " + l.length + " answered";
-    $("meterText").title = "Next item needing you (n). " + S.doc.questions.filter(q => stateOf(q) === "arch").length + " archived, not counted."; $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
+    const na0 = S.doc.questions.filter(q => stateOf(q) === "arch").length;
+    $("qCounts").textContent = l.length + " live, " + na0 + " archived"; $("qCounts").title = "Question ids run on one session counter, so the highest id is not the number of questions.";
+    $("meterText").title = "Next item needing you (n). " + na0 + " archived, not counted."; $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
     const pb = $("pendBtn"); pb.hidden = !wn; pb.textContent = wn + " pending research";
     const rn = l.filter(q => isAnswered(stateOf(q)) && needsYou(q)).length, rb = $("revBtn"); rb.hidden = !rn; rb.textContent = rn + " to review"; // the Review filter's predicate
     const [cls, word] = conn(), pill = $("pill");
@@ -1103,7 +1114,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const marks = (S.doc.meta || {}).emojiMarkers === true;
     let h = checkpointBanner();
     h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + addedChip(q) + (g ? "<span>" + esc(g.title) + "</span>" : "") +
-      '<span class="chip s-' + st + '">' + LABEL[st] + '</span><span class="grow"></span>' +
+      '<span class="chip s-' + esc(st) + '">' + LABEL[st] + '</span><span class="grow"></span>' +
       (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + inline(q.title) + "</h3>" +
       (counted(q) ? '<p class="youans">' + esc(answerLine(q)) + (aa ? ' <span class="chip hot">' + esc(afterText(aa)) + "</span>" : "") + "</p>" : "") + (waitingReply(q) ? '<p class="youans"><span class="chip hot">Waiting for Claude\'s reply</span></p>' : "") + "</div>";
     const kids = S.doc.questions.filter(x => x.followUpOf === q.id).map(x => x.id);
@@ -1123,7 +1134,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q.revised) { // the full banner until the user has opened the question since its latest revision, then a chip
       const rr = recRev(q), prev = q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + md(q.previousRecommendation) + "</details>" : "";
       h += S.revSeen === rr ? '<div class="revchip"><span class="chip plain" title="Recommendation revised">Revised</span>' + prev + "</div>"
-        : '<div class="banner"><b>Recommendation revised.</b> ' + inline(q.revised === true || q.revised === "Recommendation revised." ? "" : q.revised) + prev + "</div>";
+        : '<div class="banner"><b>Recommendation revised.</b> ' + (q.revised === true || q.revised === "Recommendation revised." ? "" : "<b>Claude's reason:</b> " + inline(q.revised)) + prev + "</div>";
       const rs = lsGet("revSeen", {}); if (rs[q.id] !== rr) { rs[q.id] = rr; lsSet("revSeen", rs); }
     }
     if (q.claudeNote) h += '<div class="note"><b>Claude:</b> ' + inline(q.claudeNote) + "</div>";
@@ -1138,7 +1149,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         return '<div class="crow' + (on ? " ok" : "") + '"><input type="checkbox" id="' + id + '" data-confirm="' + i + '" data-cq="' + esc(q.id) + '"' + (on ? " checked" : "") + (acc ? "" : " disabled") + '><label for="' + id + '">' + inline(c) +
           (by ? ' <span class="kbd">Confirmed by Claude: ' + esc(by.reason) + "</span>" : "") + "</label>" +
           '<button type="button" class="tbtn small" data-challenge="' + i + '" title="Ask Claude about this commitment">Challenge</button></div>';
-      }).join("") + "</div>" + (acc && q.commits.some((c, i) => !cf.has(String(i))) ? '<div class="arow"><button type="button" class="tbtn small" data-toconfirm="' + esc(q.id) + '">Open in To confirm</button></div>' : "") + "</section>";
+      }).join("") + "</div>" + (acc && q.commits.some((c, i) => !cf.has(String(i))) ? '<div class="arow"><button type="button" class="tbtn small" data-toconfirm="' + esc(q.id) + '">Review commitments to confirm</button></div>' : "") + "</section>";
     }
     let more = "";
     if (q.facts) more += '<section class="blk"><h4>What we know</h4>' + md(q.facts) + "</section>";
@@ -1172,7 +1183,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       ? '<span class="aside-why">Claude set your earlier answer (' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.text ? ": <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ") aside" +
         (st === "need" ? " because it needs your decision." : ". It no longer counts.") + '</span><button class="act primary" data-again="1">Answer again</button>'
       : d && d.decision
-      ? '<span class="chip s-' + d.decision + '">' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + "</span>" +
+      ? '<span class="chip s-' + esc(d.decision) + '">' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + "</span>" +
         '<span class="when">' + esc(fmt(d.updatedAt)) + (d.src === "terminal" ? ", in the terminal" : "") + "</span>" + (d.src === "page" && d.seq ? receipts(d.seq) : "") +
         (st === "wait" ? '<span class="kbd">Counts once Claude\'s research on ' + esc(q.id) + " returns.</span>" : "")
       : '<span class="kbd">No decision yet.' + (setting("shortcuts") ? " Number keys pick; Ctrl+Enter saves." : " Ctrl+Enter saves.") + "</span>" + (last ? receipts(last) : "");
@@ -1297,7 +1308,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const r = S.doc.restatement;
     return r ? events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn && e.contentRev === r.rev).pop() || null : null;
   }
-  const USECT = [["goal", "Goal"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
+  const USECT = [["problem", "Problem"], ["goal", "Goal"], ["workSize", "Work size"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
   function confirmedRev(){ // the newest earlier restatement whose newest live verdict is a Confirm
     const cur = S.doc.restatement, vs = events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn);
     return cur && (S.doc.restatements || []).filter(r => r.rev < cur.rev).reverse().find(r => (vs.filter(e => e.contentRev === r.rev).pop() || {}).alt === "confirm") || null;
@@ -1306,7 +1317,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const r = S.doc.restatement, old = confirmedRev(); if (!r || !old) return "";
     const sec = (x, k) => String((x.sections || {})[k] || "").trim() + "\n";
     const rows = USECT.filter(([k]) => sec(old, k) !== sec(r, k)).map(([k, t]) => "<h5>" + t + '</h5><div class="diff">' + wordDiff(sec(old, k), sec(r, k), /^/m) + "</div>");
-    return '<div class="rediff" id="reDiff"><b>Changed since the version you confirmed (rev ' + old.rev + ", " + esc(fmt(old.at)) + ")</b>" + (rows.join("") || "<p>No section text changed.</p>") + "</div>";
+    return '<div class="rediff" id="reDiff"><b>Changed since the version you confirmed (rev ' + esc(old.rev) + ", " + esc(fmt(old.at)) + ")</b>" + (rows.join("") || "<p>No section text changed.</p>") + "</div>";
   }
   function uBoxHtml(){ // the draft is never part of this markup, so typing does not rebuild the box
     const r = S.doc.restatement;
@@ -1500,7 +1511,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const th = body.querySelector(".nthread"); if (th.lastElementChild) th.lastElementChild.scrollIntoView({block: "nearest"});
   }
   function renderSettings(body){
-    const row = (k, label, ctl) => '<div class="setrow" data-key="' + k + '"><label for="set-' + k + '">' + label + "</label>" + ctl + '<div class="src">From ' + settingSrc(k) + (settingSrc(k) === "this browser" ? ' <button class="tbtn small" data-reset="' + k + '">Reset</button>' : "") + "</div></div>";
+    const row = (k, label, ctl) => '<div class="setrow" data-key="' + k + '"><label for="set-' + k + '">' + label + "</label>" + ctl + '<div class="src">From ' + esc(settingSrc(k)) + (settingSrc(k) === "this browser" ? ' <button class="tbtn small" data-reset="' + k + '">Reset</button>' : "") + "</div></div>";
     const sel = (k, opts) => '<select id="set-' + k + '" data-set="' + k + '">' + opts.map(([v, t]) => '<option value="' + v + '"' + (String(setting(k)) === String(v) ? " selected" : "") + ">" + t + "</option>").join("") + "</select>";
     const num = (k, min, max) => '<input type="number" id="set-' + k + '" data-set="' + k + '" min="' + min + '" max="' + max + '" value="' + esc(setting(k)) + '">';
     const ro = k => '<span class="val" id="set-' + k + '">' + esc(setting(k)) + "</span>";

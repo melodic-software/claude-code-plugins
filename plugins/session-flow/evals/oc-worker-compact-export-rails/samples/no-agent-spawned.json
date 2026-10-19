@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "text only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "port exporters",
+            "prompt": "Port the billing CSV exporters."
+          }
+        }
+      ],
+      "why": "spawned an agent"
+    }
+  ]
+}

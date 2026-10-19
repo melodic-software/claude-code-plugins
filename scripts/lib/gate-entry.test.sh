@@ -290,7 +290,6 @@ BASE_REF_ALLOW=(
   'check-stale-base-overlap.sh|base_tip="$(git rev-parse "${base_ref}^{commit}")"|captures the resolved sha'
   "check-changelog-parity.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
   "check-changelog-fragments.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
-  "dependabot-plugin-bump.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
   "changelog-fragments.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
 )
 

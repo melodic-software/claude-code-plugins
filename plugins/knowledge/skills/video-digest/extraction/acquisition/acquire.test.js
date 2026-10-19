@@ -1,3 +1,7 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -126,6 +130,47 @@ describe("acquireYouTubeMedia", () => {
     expect(result.error).toContain("ladder exhausted");
   });
 
+  it("returns caption: null in full mode when the ladder is exhausted but the video downloaded", async () => {
+    const workDir = "/tmp/fake-work";
+    const result = await acquireYouTubeMedia(
+      DRIVER_WATCH_URL,
+      { workDir, mode: "full", videoId: DRIVER_VIDEO_ID },
+      {
+        ...NO_THROTTLE,
+        sleep: async () => {},
+        spawn: spawnOk,
+        listFiles: async () => [
+          `${workDir}/7zZy1QTvokM.mp4`,
+          `${workDir}/7zZy1QTvokM.info.json`,
+        ],
+        readFile: async () => JSON.stringify({ id: "7zZy1QTvokM", title: "Driver Video" }),
+      },
+    );
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data?.caption).toBeNull();
+      expect(result.data?.artifacts.videoPath).toBe(`${workDir}/7zZy1QTvokM.mp4`);
+    }
+  });
+
+  it("still fails in full mode when no video downloaded and no captions exist", async () => {
+    const workDir = "/tmp/fake-work";
+    const result = await acquireYouTubeMedia(
+      DRIVER_WATCH_URL,
+      { workDir, mode: "full", videoId: DRIVER_VIDEO_ID },
+      {
+        ...NO_THROTTLE,
+        sleep: async () => {},
+        spawn: spawnOk,
+        listFiles: async () => [`${workDir}/7zZy1QTvokM.info.json`],
+        readFile: async () => JSON.stringify({ id: "7zZy1QTvokM", title: "Driver Video" }),
+      },
+    );
+
+    expect(result.success).toBe(false);
+  });
+
   it("classifies a bare .en.vtt as platform-asr when the source declares that class", async () => {
     const workDir = "/tmp/fake-work";
     const videoId = "1001551417340022785";
@@ -168,9 +213,26 @@ describe("acquireYouTubeMedia", () => {
 });
 
 describe("listWorkDirFiles", () => {
-  it("lists files in the real temp directory for integration smoke", async () => {
-    const files = await listWorkDirFiles("/tmp");
-    expect(Array.isArray(files)).toBe(true);
+  it("lists files recursively in its own temp fixture for integration smoke", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "acquire-list-"));
+    try {
+      await fs.mkdir(path.join(root, "nested"));
+      await fs.writeFile(path.join(root, "a.vtt"), "");
+      await fs.writeFile(path.join(root, "b.info.json"), "{}");
+      await fs.writeFile(path.join(root, "nested", "c.mp4"), "");
+
+      const files = await listWorkDirFiles(root);
+
+      expect([...files].sort()).toEqual(
+        [
+          path.join(root, "a.vtt"),
+          path.join(root, "b.info.json"),
+          path.join(root, "nested", "c.mp4"),
+        ].sort(),
+      );
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 });
 
