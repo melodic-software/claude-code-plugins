@@ -49,7 +49,9 @@ describe.skipIf(process.platform === "win32")("run-watch interrupted by a signal
     await fs.mkdir(bin);
     await fs.writeFile(
       path.join(bin, "yt-dlp"),
-      `#!/bin/sh\ntouch "${started}"\nexec sleep 60\n`,
+      // Keeps writing into the work dir, as a real download would, so a signal that
+      // leaves it running races the cleanup and recreates files after the rm.
+      `#!/bin/sh\ntouch "${started}"\nwhile :; do\n  for d in "$TMPDIR"/video-extraction-*; do\n    [ -d "$d" ] && echo x >> "$d/partial.part"\n  done\n  sleep 0.05\ndone\n`,
       { mode: 0o755 },
     );
   });
@@ -78,6 +80,9 @@ describe.skipIf(process.platform === "win32")("run-watch interrupted by a signal
 
     child.kill(signal);
     expect(await exited).toEqual({ code: exitCode, sig: null });
+    expect(await watchTempDirs()).toEqual([]);
+    // A surviving fake yt-dlp would recreate the work dir's file within one tick.
+    await new Promise((resolve) => setTimeout(resolve, 300));
     expect(await watchTempDirs()).toEqual([]);
   });
 });
