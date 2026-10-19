@@ -84,8 +84,8 @@ steps and the probe are in [context/downstream.md](context/downstream.md) ("Reso
 
 ## Step 0.5: Pre-flight gate (diff-consuming modes only)
 
-**Mode-scoped by design.** `criteria` is a reference mode. It loads criteria rather than reviewing
-a change, and legitimately runs against a clean tree, so it is **exempt** and never gated.
+**Mode-scoped by design.** `criteria` is a reference mode that loads criteria and runs on a clean tree,
+so it is **exempt**, except under `--base` or `--worktree` ([context/phase-boundary.md](context/phase-boundary.md)).
 `close-out` is gated, but **on its own basis, not this one**: it runs the same two checks below
 against the container-scoped basis it derives, plus a rollup check that the container is actually
 finished ([context/close-out.md](context/close-out.md) "Step 4"). Every remaining mode consumes the

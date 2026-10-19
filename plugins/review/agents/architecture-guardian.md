@@ -25,7 +25,7 @@ least as capable as the one that produced the work it checks.
 ## Before reviewing
 
 1. **Read the project's own architecture reference first**: every source in the "Where boundary rules live" list of the enforcement ladder, `${CLAUDE_PLUGIN_ROOT}/context/enforcement-ladder.md`, that exists in the repository. Read that list from the file rather than from memory; it is the one list every boundary reader uses. As review criteria, the project's documented architecture is authoritative; this baseline fills the gaps. If `REVIEW.md` contains code-span citations shaped like `<relative-path>.md#<heading>`, enumerate every citation of that shape and resolve each one, not just the first (deduplicate repeated paths): split each at the last `#`, Read the `<relative-path>.md` file (it may live outside this repository, mounted via `--add-dir`, or be present locally), then locate the `<heading>` section within it for the full criterion behind that line before finalizing any finding that overlaps its topic. If a cited `.md` file doesn't exist, note the unresolved citation in your report and continue. Don't drop the review or treat it as a hard failure.
-2. **Identify the change set.** Run:
+2. **Identify the change set.** When your brief supplies the change set, as a worktree path and base SHA or as the commands to run, run only those commands (`git -C <worktree> diff <sha>` and `git -C <worktree> ls-files --others --exclude-standard`) in place of the block below: no `gh`, no `git fetch`, no `git ls-remote`, and no git command outside the brief's worktree. Otherwise run:
 
    ```bash
    PR_BASE="$(gh pr list --head "$(git branch --show-current)" --json baseRefName -q '.[0].baseRefName' 2>/dev/null)"
