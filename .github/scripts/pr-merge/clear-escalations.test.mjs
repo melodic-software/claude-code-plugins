@@ -1,4 +1,4 @@
-// Expected values come from issue #8387's acceptance and report-escalation.sh's
+// Expected values come from the needs-human recheck acceptance criteria and report-escalation.sh's
 // comment format: an App-set needs-human on a PR escalated as workflow-staged
 // comes off within one sweep once main stages no .github/workflows/ change into
 // the head, with one comment naming the reason and the head; a label a person
@@ -24,7 +24,7 @@ const labeled = (actor, at) => ({ event: "labeled", actor, label: { name: "needs
 const commented = (user, body, at, updatedAt = at) => ({ event: "commented", user, actor: user, body, created_at: at, updated_at: updatedAt });
 const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10:00:05Z" } = {}) => commented(user, escalationBody(reason), at);
 
-// One open PR #7 labeled needs-human; `timeline` is its timeline and
+// One open pull request (number 7) labeled needs-human; `timeline` is its timeline and
 // `mainFiles` the files main changed since its merge base with the head.
 function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [] }) {
   const calls = [];
