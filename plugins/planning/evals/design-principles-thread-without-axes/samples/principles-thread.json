@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# Design threads: loyalty-points\n\n## T1 Module boundary\nStatus: resolved. `shop/points.py` exposes `points_for(order) -> int`; checkout calls it and holds no rule.\n\n## Principles\nStatus: resolved.\n- Single responsibility: the points rules live in one module; checkout only asks for the result.\n- Deep module, information hiding: one function hides the gift-card, tenure and floor rules.\n- YAGNI: no rule engine or strategy interface.\n- Generalize now or wait: wait. The Brief's Intent line records second variant = none expected and one caller, so the rules stay plain code until a second rule set exists.\n",
+      "why": "names principles and settles generalize-now-or-wait from the Intent line"
+    },
+    {
+      "answer": "# Design threads\n\n## T3 Principles\nShaped by: information hiding (callers never see the rules), pure functions over the Order value (no I/O), DRY of knowledge (the gift-card exclusion is stated once).\nGeneralize-now-or-wait: blocked, USER-RESERVED. The Brief expects no second variant, recommend wait; only the user can commit to a pluggable rule set.\n",
+      "why": "principles named, generalize question recorded as blocked for the user with a recommendation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty file"
+    },
+    {
+      "answer": "# Design threads\n\n## T1 Module boundary\nStatus: resolved. `points_for(order)` in `shop/points.py`.\n\n## T2 Rounding\nStatus: resolved. Round down per order total, as today.\n",
+      "why": "no principles thread at all"
+    },
+    {
+      "answer": "# Design threads\n\n## Principles\n- Single responsibility: checkout stops owning the points rules.\n- Information hiding: one entry point.\n",
+      "why": "principles named but generalize-now-or-wait never settled"
+    },
+    {
+      "answer": "# Design threads\n\n## T1 Module boundary\nStatus: resolved. One function, `points_for`. We will wait to generalize until a second rule set appears.\n",
+      "why": "generalize outcome recorded but no principles thread naming the principles"
+    }
+  ]
+}

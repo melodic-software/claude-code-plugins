@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/loyalty-points/design/design-threads.md",
+            "content": "# Design threads\n"
+          }
+        }
+      ],
+      "why": "a design artifact is allowed"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "shop/points.py",
+            "content": "def points_for(order): ...\n"
+          }
+        }
+      ],
+      "why": "wrote code"
+    }
+  ]
+}
