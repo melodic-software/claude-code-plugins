@@ -1,16 +1,17 @@
 # Changelog for the PR pipeline convention
 
-## 2.16.0 - 2026-10-18
+## 2.15.1 - 2026-10-18
 
-A new optional `wip` block derives the issue lane's WIP cap from the lane merge rate: merged lanes-App
-pull requests per hour over `merge-rate-window-hours` (24) times `target-lead-time-hours` (2),
-rounded up, at least 1; `limits.wip-cap` applies only when the merged count cannot be read. Held
-lane pull requests (`needs-human`, `do-not-merge`, or a body line exactly `Hold: a human merges
-this`) no longer count against it and form their own buffer, `held-cap` (60), with an alarm past
-`held-alarm-hours` (24). Lane PRs opened in the window may be at most `admission-factor` (0.8) of
-those merged. Over a cap the check alerts, and pauses the lane only on or after `pause-from`
-(empty: never). The check publishes its status as the `wip` step output, the step summary and its
-log line ([README, WIP cap](README.md#wip-cap)). `version` stays 2.
+`work-resolve-issue` no longer takes the model's word that its checks passed. A new `run-checks`
+job, on a fresh runner after `resolve-issue`, runs each of the activity's `checks` from the default
+branch tip's copy against a checkout of the lane branch whose `scripts/` is the base's, so
+`scripts/fragment-plugins.txt` comes from the base and only the branch's own files, such as
+`.changes/`, are checked. It hands the results (branch, tip, each check's exit status) to
+`report-outcome` as a job output, never through the outcome artifact that code the model started
+can rewrite, and only when `run-checks` succeeded. `report-outcome` lists those results under
+Verification and stops a done run whose checks failed, are missing, or ran on a tip the branch has
+since left, even when the outcome file's `not_done` is empty ([#7497](https://github.com/melodic-software/claude-code-plugins/issues/7497)).
+`version` stays 2.
 
 ## 2.15.0 - 2026-10-18
 

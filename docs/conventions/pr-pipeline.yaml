@@ -166,7 +166,10 @@ activities:
     # Validates the format of every changelog fragment before the skill
     # reports done. A missing fragment is caught on the PR by ci-status
     # (--check-required needs committed work, and the lane commits through
-    # the API, not in the checkout).
+    # the API, not in the checkout). After the skill, work-resolve-issue.yml's
+    # run-checks job runs each check again itself, from the base copy against
+    # the lane branch with the base's scripts/, and report-outcome stops a done
+    # run whose checks failed or did not run, whatever the outcome file says.
     checks: ["scripts/check-changelog-fragments.sh --check"]
     # Repository scripts the run may call with any arguments it chooses, to
     # check its work the way an issue's done-when says. Each runs from a
