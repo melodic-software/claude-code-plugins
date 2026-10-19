@@ -54,8 +54,11 @@ Dispatch each mode's own reviewer in fresh context, as its context file names, w
   the reviewer's own change-set step: `review:code-reviewer`, `review:security-reviewer` and
   `review:architecture-guardian` run only the commands their brief supplies, with no forge lookup
   or fetch;
-- the worktree's absolute path as the file-read root: every Read, Grep and Glob, and every path
-  the change-set commands list, resolves under that path, never the invoking checkout;
+- the worktree's absolute path as the target of every command and tool call in the review, for
+  every dispatched reviewer including `review:brief-reviewer`: git runs as `git -C <worktree>`
+  (its own `git log -S` or `git grep` included), every Read, Grep and Glob and every listed
+  untracked path resolves under it, and any other command, such as a dependency audit, runs with
+  the worktree as its directory or path argument, never the invoking checkout;
 - the concern tag: the mode, or `slice <name>`;
 - the `Quality bar:` line;
 - the inputs the mode's own brief requires: the slice criteria file path in `slice`, the size

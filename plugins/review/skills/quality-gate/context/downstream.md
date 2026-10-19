@@ -144,7 +144,8 @@ function passes the argument the new default replaces.
   file in that directory, or into a literal inside the script's own language that the script reads
   as a value. None of them appears in the command line, a shell word, an `eval` or a heredoc the
   shell expands. The command that runs the probe names only the interpreter, the probe path and
-  the repository root, for example `python3 "<tmpdir>/probe.py" "<root>"`.
+  the repository root, for example `python3 "<tmpdir>/probe.py" "<root>"`; under `--worktree`,
+  `<root>` is the worktree path.
 - **Run it** under `downstream_probe: run`, through the normal permission prompt (this skill grants
   no blanket permission for it), then remove the temp directory. The probe's output is evidence:
   the fact verified clears the concerns it covers; the fact failed, or the probe erroring, keeps
