@@ -2,7 +2,7 @@
 // reads the prototype's state names; toView() builds them from the contract snapshot, and each action
 // below sends the contract route's body. The map: .work/shared-interview-ui/snapshot-map.md.
 (() => {
-  const SCHEMA_VERSION = 3; // the session file version this page was built for; another one reloads it
+  const SCHEMA_VERSION = 5; // the session file version this page was built for; another one reloads it
   const memory = new Map();
   const store = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })()
     || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
@@ -51,7 +51,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
-    goal: "", intro: "", annotations: [], uploads: [], reports: [], passes: {}, myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
+    goal: "", intro: "", annotations: [], uploads: [], reports: [], passes: {}, myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
@@ -108,7 +108,7 @@
     MENTIONS = { live: labels(live.map(p => p.pid)), all: labels([...Object.keys(people), ...Object.keys(s.mentions || {})]), label };
     const plain = t => (typeof t === "string" && t.includes("<@") ? t.replace(TOKEN, (_, p) => "@" + label(p)) : t);
     const view = {
-      ...DEFAULTS,
+      ...structuredClone(DEFAULTS), // its own maps: a question whose last answer, lock, suggestion or result went must lose its key
       schemaVersion: s.schemaVersion, rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", ended: !!s.ended, serverTime: s.serverTime,
       settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always" },
       people, ownerPid: "host",
@@ -206,6 +206,10 @@
     view.chat = (s.chat || []).map(m => ({ id: m.id, cid: m.pid, name: nameOf(m.pid), text: plain(m.text), ts: m.at, ...(m.gapAbove ? { gapAbove: true } : {}),
       ...(m.replyTo ? { replyTo: { id: m.replyTo.id, cid: m.replyTo.pid, name: nameOf(m.replyTo.pid), text: plain(m.replyTo.excerpt) } } : {}),
       ...(m.proposed ? { forwarded: m.proposed } : {}), reactions: m.reactions || {} }));
+    // Each question's Discussion, oldest first; `seen` is when I last opened it, so others' comments after it are new.
+    view.discussions = Object.fromEntries(Object.entries(s.discussions || {}).map(([qid, lst]) => [qid, lst.map(c => ({ id: c.id, cid: c.pid, name: nameOf(c.pid),
+      text: plain(c.text), ts: c.at, edited: !!c.edited, hidden: !!c.hidden, request: c.request || "", reactions: c.reactions || {} }))]));
+    view.discussionSeen = s.me?.discussionSeen || {};
     // Q98: notes pinned on prototype variants, oldest first.
     view.annotations = (s.annotations || []).map(a => ({ id: a.id, cid: a.pid, name: nameOf(a.pid), qid: a.qid, variant: a.variant, text: plain(a.text), ts: a.at,
       selector: a.anchor?.selector || "", rect: a.anchor?.rect || null }));
@@ -226,6 +230,10 @@
       status: r.status.kind, runner: r.runner, ...(r.status.reason ? { reason: r.status.reason } : {}) });
     view.requests = (s.requests || []).map(req);
     view.myRequests = (s.myRequests || []).map(req);
+    // The Inbox: my own requests with the status I see, and for the owner what waits on them; the server decides both.
+    // A person asking to join is not in people yet: their name comes from joinRequests.
+    const joinName = pid => (s.joinRequests || []).find(j => j.pid === pid)?.name;
+    view.inbox = (s.inbox || []).map(i => ({ ...i, ts: i.at, changedTs: i.changed, ...(i.by ? { byCid: i.by, by: people[i.by] ? nameOf(i.by) : joinName(i.by) || nameOf(i.by) } : {}) }));
     view.mergeRequests = (s.mergeRequests || []).map(m => ({ id: m.id, from: m.from, to: m.to, fromName: nameOf(m.from), toName: nameOf(m.to), ts: m.at, status: m.status.kind }));
     view.myMergeRequests = (s.myMergeRequests || []).map(m => ({ id: m.id, status: m.status.kind, toName: nameOf(m.to) }));
     // Uploads: my own files, everyone's for the owner (with a picture's preview), and what everyone reads of the
@@ -494,10 +502,31 @@
         chat.push({ id, pid, text, at: s.serverTime, ...(to ? { replyTo: { id: to.id, pid: to.pid, excerpt: to.text } } : {}) });
       } }).then(r => { chatTypingUntil = 0; return r; });
     },
+    /** Inbox items I opened, by key: each reads at the status in `saw` (what the page showed), else at its status now. */
+    readInbox: (keys, saw) => act("/api/inbox/read", { keys, ...(saw ? { saw } : {}) }, { key: "inbox:" + keys.join(","),
+      patch: s => { for (const i of s.inbox || []) if (keys.includes(i.key) && (!saw || saw[i.key] === i.status)) i.unread = false; } }),
     readNotifications: ids => act("/api/notifications/read", ids === "all" ? { all: true } : { ids }),
     addReference: (qid, reference) => act("/api/question/reference", { qid, reference }),
     removeReference: (qid, index) => act("/api/question/reference", { qid, remove: index }),
     forward: id => act("/api/chat/propose", { id }, { ok: j => patchKept(id, m => { m.proposed = j.proposal; }) }),
+    /** The Discussion under a question: add, edit or delete my comment, the owner's Hide, an emoji, and having read it up to `at`. */
+    comment: (qid, text) => act("/api/discussion", { qid, text }),
+    editComment: (qid, id, text) => act("/api/discussion/edit", { qid, id, text }),
+    deleteComment: (qid, id) => act("/api/discussion/delete", { qid, id }, { key: "disc-del:" + id, patch: s => {
+      if (s.discussions?.[qid]) s.discussions[qid] = s.discussions[qid].filter(c => c.id !== id);
+    } }),
+    hideComment: (qid, id, on) => act("/api/discussion/hide", { qid, id, on }),
+    reactComment: (qid, id, emoji, on) => act("/api/discussion/react", { qid, id, emoji, on }, { key: `discreact:${id}:${emoji}`, patch: (s, pid) => {
+      const c = (s.discussions?.[qid] || []).find(x => x.id === id);
+      if (!c) return;
+      c.reactions ||= {};
+      const pids = without(c.reactions[emoji], pid);
+      if (on) pids.push(pid);
+      if (pids.length) c.reactions[emoji] = pids; else delete c.reactions[emoji];
+    } }),
+    readDiscussion: (qid, at) => act("/api/discussion/read", { qid, at }, { key: "discread:" + qid, patch: s => {
+      if (s.me) s.me.discussionSeen = { ...s.me.discussionSeen, [qid]: Math.max(at, s.me.discussionSeen?.[qid] || 0) };
+    } }),
     /** One of my emoji on a chat message, on or off (the server takes only its fixed set). */
     chatReact: (id, emoji, on) => {
       const react = (m, pid) => {
@@ -675,8 +704,9 @@
   // than a second there.
   const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
     "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree", "/api/pass",
-    "/api/go-with", "/api/notifications/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail",
-    "/api/upload/offer", "/api/upload/act", "/api/upload/chunk"]);
+    "/api/go-with", "/api/notifications/read", "/api/inbox/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail",
+    "/api/upload/offer", "/api/upload/act", "/api/upload/chunk", "/api/discussion", "/api/discussion/edit", "/api/discussion/delete",
+    "/api/discussion/hide", "/api/discussion/react", "/api/discussion/read"]);
   const GAP = 1050; // ms: the server's one-a-second limit, plus a margin for clock rounding
   const lanes = new Map(); // path -> {tail: promise of the last write, done: when it answered}
   const wait = ms => new Promise(res => setTimeout(res, Math.max(0, ms)));
@@ -949,7 +979,8 @@
   const repaint = () => { if (snap) { Core.state = view(); emit(); } };
   // The routes whose text can mention people: their "@Name" go out as <@pid> (Core.tokenize); the server does the same
   // for full names, so a name the page shows masked still reaches the person it names.
-  const MENTION_ROUTES = new Set(["/api/answer", "/api/pick", "/api/card/edit", "/api/suggest", "/api/lock/edit", "/api/propose", "/api/chat", "/api/annotate", "/api/request", "/api/request/act"]);
+  const MENTION_ROUTES = new Set(["/api/answer", "/api/pick", "/api/card/edit", "/api/suggest", "/api/lock/edit", "/api/propose", "/api/chat", "/api/annotate", "/api/request", "/api/request/act",
+    "/api/discussion", "/api/discussion/edit"]);
   function act(path, body, opt) {
     if (MENTION_ROUTES.has(path)) for (const k of ["text", "comment", "other", "note"]) if (typeof body[k] === "string") body[k] = Core.tokenize(body[k]);
     const entry = opt?.patch && { patch: opt.patch, after: null }, t0 = performance.now();

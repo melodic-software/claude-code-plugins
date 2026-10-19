@@ -11,6 +11,10 @@
     {
       "answer": "ADR prompt for T1 (the payload schema, a one-way door): want me to run /architecture:record-decision after this round?",
       "why": "ADR named before the one-way call on the same line"
+    },
+    {
+      "answer": "After this round: once you answer Q2 and Q4, I'll draft the contract and sequence diagrams. Once you answer Q2 and Q7, I'll settle security. Then come type modeling and the naming pass. The ADR tool isn't available here, so each one-way door (Q1, Q2, Q3, Q4, Q7) will need a manual ADR once it's decided.",
+      "why": "kept branch run: 'isn't available' is about the tool, the one-way doors still get an ADR"
     }
   ],
   "fail": [
@@ -41,6 +45,10 @@
     {
       "answer": "T1 payload is a one-way door, but it stays internal for now, so I won't prompt an ADR.",
       "why": "declined ADR prompt"
+    },
+    {
+      "answer": "The ADR tool isn't available, so I won't prompt an ADR for the one-way door.",
+      "why": "tool unavailable and the ADR prompt declined"
     }
   ]
 }

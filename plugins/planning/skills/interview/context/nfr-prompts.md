@@ -18,7 +18,8 @@ targets wins over this one.
 
 Ask for a measurable target (a number, a unit and a condition) only where a wrong guess would
 change the design or a check will grade it. Otherwise record the requirement in words; "no target
-needed" counts as captured.
+needed" counts as captured. Stumble: with no slot for quality requirements, agents either skipped
+them or invented targets.
 
 Record each answer under the Brief's `### Constraints`, one line per requirement, starting
 `Quality requirement:` so it reads apart from true constraints, which are decisions already made
@@ -28,9 +29,12 @@ Record each answer under the Brief's `### Constraints`, one line per requirement
 - Quality requirement: <prompt>: <requirement>[; target: <measurable target>]
 ```
 
+Stumble: the Brief, PRD and plan had no slot for quality requirements, so agents skipped them.
+
 Unattended, a measurable target nobody stated is not `blocked`: record the requirement as above
 and the target under `### Captured assumptions` as
-`- <prompt> target assumed: <value>: revisit if <trigger>`.
+`- <prompt> target assumed: <value>: revisit if <trigger>`. Stumble: with no slot for an assumed
+target, an unattended agent invented one silently.
 
 - **Pointer**: ISO/IEC 25010:2023, Foreword, "The main changes are as follows"
   (<https://www.iso.org/standard/78176.html>; the Foreword is readable in the preview at

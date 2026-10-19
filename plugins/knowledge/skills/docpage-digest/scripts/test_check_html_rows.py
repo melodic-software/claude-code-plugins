@@ -70,6 +70,23 @@ class TestGoodRows(unittest.TestCase):
         self.assertEqual(self.lines[-1], "2 F row(s) checked, 0 failure(s)")
 
 
+class TestFigureSection(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.proc = run(SOURCE, fixture("figure-section.md"))
+        cls.lines = cls.proc.stdout.splitlines()
+
+    def test_exits_zero(self):
+        self.assertEqual(self.proc.returncode, 0, self.proc.stdout)
+
+    def test_title_subtitle_id_and_control_rows_pass(self):
+        for num, line in ((1, 17), (2, 23), (3, 29), (4, 35)):
+            self.assertIn(f"EXACT figure-section.md F{num} (line {line})", self.lines)
+
+    def test_only_the_f_rows_are_counted(self):
+        self.assertEqual(self.lines[-1], "4 F row(s) checked, 0 failure(s)")
+
+
 class TestBadRows(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

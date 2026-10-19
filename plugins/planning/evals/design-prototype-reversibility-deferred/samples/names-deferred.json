@@ -11,6 +11,10 @@
     {
       "answer": "Lifecycle and reversibility: deferred (prototype) [RESEARCH: make the door calls if it heads for production]",
       "why": "the TAGGED-DEFERRED thread line"
+    },
+    {
+      "answer": "- **Skipped for now:** the core design principles and the call on which decisions are hard to undo. Each is recorded as deferred until this heads for production.",
+      "why": "kept branch run: door calls named as decisions hard to undo, deferred"
     }
   ],
   "fail": [
@@ -29,6 +33,14 @@
     {
       "answer": "I did not skip the reversibility pass.",
       "why": "negated skip"
+    },
+    {
+      "answer": "- Basis: verified, PLAN.md:17-19 (prototype, quality requirements deferred).",
+      "why": "kept main run: only the quality requirements are deferred"
+    },
+    {
+      "answer": "Decisions here are hard to undo, so I have not deferred the door calls.",
+      "why": "negated deferral"
     }
   ]
 }

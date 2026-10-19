@@ -192,3 +192,159 @@ test("the summary does not call a full run unneeded when only the gate's dispatc
   assert.doesNotMatch(summary, /not needed/);
   assert.match(summary, /earlier lane merges are the post-merge-dispatch job's/);
 });
+
+// Runs the gate step with a fake gate whose second candidate kills the loop,
+// as a cancelled run would stop it mid-sweep.
+const runCancelledGate = () => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-gate-"));
+  try {
+    const bin = join(dir, "bin");
+    execFileSync("mkdir", ["-p", bin, join(dir, ".base")]);
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "5000/5000 reset=1"\n`);
+    writeFileSync(
+      join(dir, ".base", "gate"),
+      `#!/usr/bin/env bash\ncase "\${@: -1}" in *#2) kill -9 $PPID ;; esac\n` +
+        `echo '{"ready": false, "blockers": ["x"], "unattended": {"reason": "verify:missing"}}'\nexit 10\n`,
+    );
+    chmodSync(join(bin, "gh"), 0o755);
+    chmodSync(join(dir, ".base", "gate"), 0o755);
+    writeFileSync(join(dir, "resolved-config.json"), '{"selected": {"args": ""}}');
+    writeFileSync(join(dir, "held.json"), '[{"number": 9, "head": "c", "updatedAt": "u", "reason": "label"}]');
+    writeFileSync(
+      join(dir, "candidates.json"),
+      '[{"number": 1, "head": "a", "updatedAt": "u"}, {"number": 2, "head": "b", "updatedAt": "u"}]',
+    );
+    spawnSync("bash", ["-c", runScript("Run the merge gate on each candidate")], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        RUNNER_TEMP: dir,
+        GITHUB_OUTPUT: join(dir, "output"),
+        GITHUB_STEP_SUMMARY: join(dir, "step-summary"),
+        SCRIPT: "gate",
+        BABYSIT_VERIFY_GH_TOKEN: "t",
+        KILL_SWITCH: "proceed",
+        RUNG_CAP: "",
+        REPO: "o/r",
+        OWNER: "o",
+      },
+    });
+    const summary = join(dir, "pr-merge-summary.json");
+    return existsSync(summary) ? JSON.parse(readFileSync(summary, "utf8")) : null;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("a sweep stopped mid-loop keeps the verdicts it reached in the summary", () => {
+  const summary = runCancelledGate();
+  assert.ok(summary, "pr-merge-summary.json written before the loop ended");
+  assert.deepEqual(
+    summary.map((row) => [row.pr, row.reason]),
+    [
+      [9, "prefilter:label"],
+      [1, "verify:missing"],
+    ],
+  );
+});
+
+// Runs the gate step over three candidates with a fake clock: `date +%s`
+// answers each value of `clock` in turn (the first is the loop's start).
+const runBudgetedGate = (budget, clock) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-budget-"));
+  try {
+    const bin = join(dir, "bin");
+    execFileSync("mkdir", ["-p", bin, join(dir, ".base")]);
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "5000/5000 reset=1"\n`);
+    writeFileSync(
+      join(bin, "date"),
+      `#!/usr/bin/env bash\nn=$(($(cat "${dir}/ticks" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/ticks"\n` +
+        `t=(${clock.join(" ")})\necho "\${t[$((n - 1))]:-\${t[-1]}}"\n`,
+    );
+    writeFileSync(
+      join(dir, ".base", "gate"),
+      `#!/usr/bin/env bash\necho "\${@: -1}" >>"${dir}/gated"\n` +
+        `echo '{"ready": false, "blockers": ["x"], "unattended": {"reason": "verify:missing"}}'\nexit 10\n`,
+    );
+    for (const file of [join(bin, "gh"), join(bin, "date"), join(dir, ".base", "gate")]) chmodSync(file, 0o755);
+    writeFileSync(join(dir, "resolved-config.json"), '{"selected": {"args": ""}}');
+    writeFileSync(join(dir, "held.json"), "[]");
+    writeFileSync(
+      join(dir, "candidates.json"),
+      JSON.stringify([7, 3, 5].map((number) => ({ number, head: `h${number}`, updatedAt: "u" }))),
+    );
+    const result = spawnSync("bash", ["-c", runScript("Run the merge gate on each candidate")], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        RUNNER_TEMP: dir,
+        GITHUB_OUTPUT: join(dir, "output"),
+        GITHUB_STEP_SUMMARY: join(dir, "step-summary"),
+        SCRIPT: "gate",
+        BABYSIT_VERIFY_GH_TOKEN: "t",
+        KILL_SWITCH: "proceed",
+        RUNG_CAP: "",
+        REPO: "o/r",
+        OWNER: "o",
+        BUDGET_MINUTES: budget,
+      },
+    });
+    const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
+    return {
+      status: result.status,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      gated: read("gated").split("\n").filter(Boolean),
+      cursor: read("gate-cursor/cursor.json"),
+      stepSummary: read("step-summary"),
+      summary: JSON.parse(read("pr-merge-summary.json") || "null"),
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("the gate starts no candidate once the budget is used and records where it stopped", () => {
+  // Start at 0; the second candidate starts at 30 s, the third would at 60 s.
+  const run = runBudgetedGate("1", [0, 0, 30, 60]);
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(run.gated, ["o/r#7", "o/r#3"]);
+  assert.deepEqual(JSON.parse(run.cursor), { last: 3 });
+  assert.deepEqual(
+    run.summary.map((row) => row.pr),
+    [7, 3],
+  );
+  assert.match(run.stdout, /^::notice::the 1-minute gate budget is used after 2 of 3 candidates; the next run starts after #3$/m);
+  assert.match(run.stepSummary, /^budget-stop: /m);
+  assert.match(run.stepSummary, / reached=2$/m);
+});
+
+test("with no budget, or an unreadable one, the gate checks every candidate", () => {
+  for (const budget of ["", "ten"]) {
+    const run = runBudgetedGate(budget, [0, 0, 9999, 99999]);
+    assert.equal(run.status, 0, run.stderr);
+    assert.deepEqual(run.gated, ["o/r#7", "o/r#3", "o/r#5"]);
+    assert.deepEqual(JSON.parse(run.cursor), { last: 5 });
+    assert.doesNotMatch(run.stepSummary, /budget-stop/);
+    assert.equal(/::warning::merge\.gate-budget-minutes/.test(run.stdout), budget === "ten");
+  }
+});
+
+test("the budget comes from the pipeline config, rotation runs before the gate, and the upload step runs under always()", () => {
+  assert.match(step("Read report-only"), /echo "gate-budget-minutes=\$\(yq '\.merge\."gate-budget-minutes" \/\/ ""' "\$config"\)"/);
+  assert.match(step("Run the merge gate on each candidate"), /BUDGET_MINUTES: \$\{\{ steps\.mode\.outputs\.gate-budget-minutes \}\}/);
+  const names = steps.map((s) => s.name);
+  const rotation = names.indexOf("Start after the candidate the last run reached");
+  const gate = names.indexOf("Run the merge gate on each candidate");
+  const record = names.indexOf("Record where the gate stopped");
+  assert.ok(names.indexOf("List the candidate PRs") < rotation && rotation < gate && gate < record);
+  assert.match(step("Start after the candidate the last run reached"), /\n {8}continue-on-error: true\n/);
+  const upload = step("Record where the gate stopped");
+  assert.match(upload, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.match(upload, /\n {10}name: pr-merge-gate-cursor\n/);
+});

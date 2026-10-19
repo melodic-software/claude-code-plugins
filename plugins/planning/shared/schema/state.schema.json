@@ -7,12 +7,12 @@
   "required": [
     "schemaVersion", "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
     "questions", "cards", "votes", "reactions", "locks", "suggestions", "suggestionVotes", "proposals",
-    "chat", "requests", "results", "uploads", "annotations", "prefs", "notifications", "mergeRequests",
-    "aboutYou", "log"
+    "chat", "requests", "results", "uploads", "annotations", "prefs", "notifications", "inboxSeen",
+    "discussions", "discussionSeen", "mergeRequests", "aboutYou", "log"
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": {"enum": [3]},
+    "schemaVersion": {"enum": [5]},
     "pluginVersion": {"type": "string"},
     "writtenBy": {"type": "string"},
     "rev": {"type": "integer", "minimum": 0},
@@ -46,6 +46,24 @@
     "notifications": {
       "type": "object",
       "additionalProperties": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/notification"}}
+    },
+    "inboxSeen": {
+      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join: and an id for the owner) and the status each had then; an item whose status moved since is unread.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {"enum": ["waiting", "running", "answered", "unshared", "shared", "declined", "failed", "open"]}
+      }
+    },
+    "discussions": {
+      "description": "Each question's Discussion, qid -> its comments oldest first.",
+      "type": "object",
+      "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/comment"}}
+    },
+    "discussionSeen": {
+      "description": "Per person, qid -> the time of the newest comment they saw when they last opened that question's Discussion; others' comments after it are new to them.",
+      "type": "object",
+      "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ts"}}
     },
     "mergeRequests": {"type": "array", "items": {"$ref": "#/$defs/mergeRequest"}},
     "aboutYou": {"type": "object", "additionalProperties": {"$ref": "#/$defs/aboutYou"}},
@@ -150,7 +168,8 @@
             "U": {"type": "integer", "minimum": 0},
             "N": {"type": "integer", "minimum": 0},
             "A": {"type": "integer", "minimum": 0},
-            "F": {"type": "integer", "minimum": 0}
+            "F": {"type": "integer", "minimum": 0},
+            "D": {"type": "integer", "minimum": 0}
           }
         }
       }
@@ -822,6 +841,31 @@
         }
       }
     },
+    "comment": {
+      "description": "One Discussion comment. `edited`: when its author last changed it. `hidden`: the owner hid it; only the owner and its author see it. `request`: the ask request its \"@Claude\" filed.",
+      "type": "object",
+      "required": ["id", "pid", "text", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "text": {"$ref": "#/$defs/text"},
+        "at": {"$ref": "#/$defs/ts"},
+        "edited": {"$ref": "#/$defs/ts"},
+        "hidden": {
+          "type": "object",
+          "required": ["by", "at"],
+          "additionalProperties": false,
+          "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
+        },
+        "request": {"type": "string"},
+        "reactions": {
+          "description": "emoji -> the people who put it on this comment, as on a chat message.",
+          "type": "object",
+          "additionalProperties": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pid"}}
+        }
+      }
+    },
     "requestKind": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/event#/$defs/requestKind"},
     "request": {
       "type": "object",
@@ -1035,7 +1079,7 @@
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string"},
-        "kind": {"enum": ["mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction", "report"]},
+        "kind": {"enum": ["mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction", "report", "discussion"]},
         "title": {"type": "string"},
         "at": {"$ref": "#/$defs/ts"},
         "read": {"type": "boolean"},
@@ -1043,6 +1087,7 @@
         "body": {"type": "string"},
         "qid": {"$ref": "#/$defs/qid"},
         "msg": {"type": "string"},
+        "comment": {"type": "string", "description": "The Discussion comment the notification is about, on question `qid`."},
         "rollup": {
           "type": "object",
           "required": ["key", "since", "n"],
