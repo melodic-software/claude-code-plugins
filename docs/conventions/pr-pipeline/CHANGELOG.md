@@ -7,8 +7,8 @@ while `high-path-floor` applies; a pull request touching one waits for a human, 
 makes it ineligible. With the floor, a changed SKILL.md, agents/**/*.md or commands/**/*.md file
 is compared by its base and head text, each read once: it scores HIGH when its frontmatter gains or
 changes `hooks`, `allowed-tools`, `tools`, `permissionMode`, `mcpServers`, `memory` or another
-capability key `babysit_risk.py` lists, when it gains a `!` backtick command or a ```` ```! ````
-block, when a changed line falls inside a ```` ```! ```` block, or when either side or changed
+capability key `babysit_risk.py` lists, when it adds or changes a `!` backtick command or gains a
+```` ```! ```` block, when a changed line falls inside a ```` ```! ```` block, or when either side or changed
 frontmatter cannot be read. `merge.diff-check.floor-script-scopes` (a list of globs) holds a
 `.ps1` or `.cjs` file, or one with git mode 100755, inside one of them or at the top level the same
 way. This repository lists `bin/`, `.lsp.json`, `settings*.json` and the scripts of the plugins

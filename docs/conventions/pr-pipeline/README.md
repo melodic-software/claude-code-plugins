@@ -521,7 +521,8 @@ except six:
   `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH, and a SKILL.md,
   agents/**/*.md or commands/**/*.md file whose head text, compared with its base text, gains or
   changes `hooks`, `allowed-tools`, `tools`, `permissionMode`, `mcpServers`, `memory` or another
-  frontmatter key `babysit_risk.py` lists, gains a `!` backtick command or ```` ```! ```` block,
+  frontmatter key `babysit_risk.py` lists, adds or changes a `!` backtick command, gains a
+  ```` ```! ```` block,
   changes a line inside a ```` ```! ```` block, has changed frontmatter the strict reader cannot
   follow, or cannot be read, and a rename or copy into such a path), `floor-paths` (globs joined to
   that floor while it applies; a HIGH pull request waits for a human), `floor-script-scopes`

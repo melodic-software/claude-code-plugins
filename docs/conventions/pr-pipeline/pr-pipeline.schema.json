@@ -586,7 +586,7 @@
             "high-path-floor": {
               "type": "boolean",
               "default": false,
-              "description": "true scores a diff touching the risk scorer's fixed HIGH path floor or floor-paths HIGH, as it does a SKILL.md, agents/**/*.md or commands/**/*.md file whose head text, compared with its base text, gains or changes hooks, allowed-tools, tools, permissionMode, mcpServers, memory or another capability key babysit_risk.py lists in its frontmatter, gains a ! backtick command or ```! block, changes a line inside a ```! block, or cannot be read, and a script file in floor-script-scopes HIGH. Absent or false: only denied-paths count. The local babysit lane keeps the rest of the fixed floor, but false also leaves out floor-paths, floor-script-scopes, the capability check and the plugin monitors and workflows floor entries there."
+              "description": "true scores a diff touching the risk scorer's fixed HIGH path floor or floor-paths HIGH, as it does a SKILL.md, agents/**/*.md or commands/**/*.md file whose head text, compared with its base text, gains or changes hooks, allowed-tools, tools, permissionMode, mcpServers, memory or another capability key babysit_risk.py lists in its frontmatter, adds or changes a ! backtick command, gains a ```! block, changes a line inside a ```! block, or cannot be read, and a script file in floor-script-scopes HIGH. Absent or false: only denied-paths count. The local babysit lane keeps the rest of the fixed floor, but false also leaves out floor-paths, floor-script-scopes, the capability check and the plugin monitors and workflows floor entries there."
             },
             "floor-paths": {
               "type": "array",

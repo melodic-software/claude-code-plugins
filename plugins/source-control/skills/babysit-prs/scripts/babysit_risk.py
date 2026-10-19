@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import enum
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
@@ -463,7 +464,6 @@ _HUNK = re.compile(r"@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@")
 _FRONT_KEY = re.compile(r"([A-Za-z][A-Za-z0-9_-]*)[ \t]*:(?:[ \t]|$)")
 # Anchors, aliases, tags and merge keys let one entry change another's value.
 _INDIRECT = re.compile(r"(?:^|[\s:\[{,-])[&*!][^\s,\]}]|<<")
-_INLINE_BANG = re.compile(r"!`")
 # Unanchored, so a ```! after a quote marker, a list marker or text counts.
 _FENCED_BANG = re.compile(r"(?:`{3,}|~{3,})[ \t]*!")
 _ANY_FENCE = re.compile(r"`{3,}|~{3,}")
@@ -521,6 +521,10 @@ def _front_entries(block: str) -> dict[str, str] | None:
     return {k: "\n".join(v).rstrip() for k, v in entries.items()}
 
 
+def _inline_lines(text: str) -> list[str]:
+    return [line for line in text.split("\n") if "!`" in line]
+
+
 def _bang_lines(text: str) -> set[int]:
     """The 1-based lines of `text` inside a ```! block, opener and closer
     included; an unclosed block runs to the end."""
@@ -572,8 +576,10 @@ def _content_triggers(before: str, after: str, raw: Any) -> list[str]:
                 for k in sorted(_CAPABILITY_KEYS)
                 if base.get(k) != head.get(k)
             ]
-    if len(_INLINE_BANG.findall(after)) > len(_INLINE_BANG.findall(before)):
-        triggers.append("adds a !` command")
+    # Every line holding a `!` command, compared as a multiset, so a rewritten
+    # or swapped command counts as well as an added one.
+    if Counter(_inline_lines(after)) - Counter(_inline_lines(before)):
+        triggers.append("adds or changes a !` command")
     if len(_FENCED_BANG.findall(after)) > len(_FENCED_BANG.findall(before)):
         triggers.append("adds a ```! block")
     block = _bang_lines(after)
