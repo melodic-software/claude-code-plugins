@@ -32,7 +32,7 @@ contains git. The dated record for that composition claim is the worktree skill'
 
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. `time_units` user layer for [`problem-framing.md`](../../context/problem-framing.md) "Time units": `${user_config.time_units}` (unexpanded means unset).
 
 ## Purpose
 
