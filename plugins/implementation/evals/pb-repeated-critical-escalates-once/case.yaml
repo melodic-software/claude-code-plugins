@@ -8,13 +8,13 @@ graders:
     target: last_message
   - name: no-third-round
     type: regex
-    pattern: '^(?![^\n]*(?:\b(?:no|not|never|without|instead|rather|stop|stops|nor)\b|n''t\b))[^\n]*\b(?:another|third|one more)\b[^\n]*\b(?:fix|re-?review|review|quality-gate)\b'
+    pattern: '^(?![^\n]*(?:\b(?:no|not|never|without|nor)\b|n''t\b))[^\n]*\b(?:another|third|one more)\b[^\n]*\b(?:fix|re-?review|review|quality-gate)\b'
     flags: 'mi'
     match: not_contains
     target: last_message
   - name: phase-not-done
     type: regex
-    pattern: '^(?![^\n]*(?:\b(?:no|not|never|without|unmarked|leave|leaves|left|stays|remains)\b|n''t\b))[^\n]*\bmark[^\n]*\[DONE\]'
+    pattern: '^(?![^\n]*(?:\b(?:no|not|never|without)\b|n''t\b))[^\n]*\bmark[^\n]*\[DONE\]'
     flags: 'mi'
     match: not_contains
     target: last_message

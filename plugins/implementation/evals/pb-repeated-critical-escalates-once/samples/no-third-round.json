@@ -21,6 +21,10 @@
     {
       "answer": "Next: one more re-review with the full phase base to confirm.",
       "why": "one more review"
+    },
+    {
+      "answer": "Instead of parking, dispatch another fix brief.",
+      "why": "instead is not a negator"
     }
   ]
 }

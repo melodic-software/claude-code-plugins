@@ -17,6 +17,10 @@
     {
       "answer": "Next: mark Phase 4 `[DONE]` and commit.",
       "why": "marks done"
+    },
+    {
+      "answer": "Leave the entry, mark Phase 4 [DONE].",
+      "why": "leave is not a negator"
     }
   ]
 }
