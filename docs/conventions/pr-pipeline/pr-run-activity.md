@@ -347,7 +347,7 @@ the working directory, writes a wrapper there that runs the copy with the entry'
 `CHECK_DATA_ROOT` naming the checkout, makes the copy read-only and denies `Edit` and `Write` on
 it, allows `Bash(<wrapper>)` with no arguments, and names the
 wrappers in `--append-system-prompt` as checks to run before reporting done, with what a check
-reports fixed and committed and anything left unfixed named in the report. For each entry in
+reports fixed in the working tree and anything left unfixed named in the report. For each entry in
 the activity's `verify-scripts`, it checks the path's shape and that the base holds the script,
 copies the script's whole base plugin directory (or the base `scripts/`) to
 `$RUNNER_TEMP/lane-verify`, so the files the script reads beside itself come along, fails if that

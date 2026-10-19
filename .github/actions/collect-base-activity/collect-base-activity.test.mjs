@@ -179,10 +179,13 @@ test("a listed check gets a no-argument wrapper that runs the base copy against 
 });
 
 // #8310: check-affected.sh passes shellcheck and markdownlint the configs beside
-// its copy; without them the lane's shellcheck reports what CI's does not.
-test("a listed check's copy carries the base's shellcheck and markdownlint configs", () => {
+// its copy, and run-ruff.sh reads its pin from .github/requirements-ci.txt there;
+// without them the lane's shellcheck reports what CI's does not and ruff skips.
+test("a listed check's copy carries the base's shellcheck, markdownlint and ruff-pin files", () => {
+  mkdirSync(path.join(base, ".github"), { recursive: true });
   writeFileSync(path.join(base, ".shellcheckrc"), "external-sources=true\n");
   writeFileSync(path.join(base, ".markdownlint-cli2.jsonc"), '{ "config": { "MD013": false } }\n');
+  writeFileSync(path.join(base, ".github", "requirements-ci.txt"), "ruff==0.0.1\n");
   try {
     const { status, checksDir } = withChecks(["scripts/check-x.sh --check"]);
     assert.equal(status, 0);
@@ -191,13 +194,26 @@ test("a listed check's copy carries the base's shellcheck and markdownlint confi
       readFileSync(path.join(checksDir, ".markdownlint-cli2.jsonc"), "utf8"),
       '{ "config": { "MD013": false } }\n',
     );
+    assert.equal(readFileSync(path.join(checksDir, ".github", "requirements-ci.txt"), "utf8"), "ruff==0.0.1\n");
   } finally {
     rmSync(path.join(base, ".shellcheckrc"));
     rmSync(path.join(base, ".markdownlint-cli2.jsonc"));
+    rmSync(path.join(base, ".github"), { recursive: true });
   }
 });
 
-for (const check of ["scripts/check-x.sh; rm -rf /","../scripts/check-x.sh", "scripts/check-x.sh --x=$(id)", "plugins/a.sh"]) {
+// A skill with checks but no commit tool (merge-base: the runner commits what
+// the skill staged) must not be told to commit its check fixes.
+test("prepare: merge-base with checks is never told to commit", () => {
+  const { status, args, allowed } = withChecks(["scripts/check-x.sh --check"], { PREPARE: "merge-base" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.includes(COMMIT_TOOL), allowed.join(" | "));
+  const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
+  assert.match(systemPrompt, /run each of these repository checks/);
+  assert.doesNotMatch(systemPrompt, /\bcommit/i);
+});
+
+for (const check of ["scripts/check-x.sh; rm -rf /", "../scripts/check-x.sh", "scripts/check-x.sh --x=$(id)", "plugins/a.sh"]) {
   test(`a check outside the allowed shape fails red: ${check}`, () => {
     const { status, stdout, args } = withChecks([check]);
     assert.notEqual(status, 0);
