@@ -69,6 +69,7 @@ class TestValidSamples(unittest.TestCase):
                 "request-cancelled",
                 "session-ended",
                 "upload-received",
+                "upload-removed",
                 "report-filed",
             },
         )

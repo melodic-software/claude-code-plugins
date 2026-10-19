@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: rh-window-menu-no-winner
+graders:
+  - name: tier-labels-span
+    type: regex
+    pattern: '(?=[\s\S]*(?:\bfamily\b|\bcousins?\b|\b(?:voiced|voiceless|unvoiced)\b))(?=[\s\S]*(?:\b(?:additive|subtractive)\b|\b(?:sound|consonant)s?\s+(?:dropped|added|removed)\b|\b(?:drops?|adds?)\s+(?:a|an|the|one)\s+(?:extra\s+)?(?:sound|consonant)\b|\bextra consonant\b))(?=[\s\S]*(?:\b(?:assonance|consonance)\b|\bvowel[- ](?:match|only)\b|\bsame (?:stressed )?vowel\b))'
+    flags: 'i'
+    target: last_message
+  - name: mosaic-entry
+    type: regex
+    pattern: '(?<!\bno )(?<!\bnot )\b(?:mosaic|multi-word)\b'
+    flags: 'i'
+    target: last_message
+  - name: eight-plus-candidates
+    type: regex
+    pattern: '(?:[\s\S]*?(?:^|\n)[ \t]*(?:[-*+•]|\d{1,2}[.)]|\|(?![ \t]*:?-{2}))[ \t]*\S){8}'
+    target: last_message
+  - name: no-single-winner
+    type: regex
+    pattern: '\b(?:the|my)\s+(?:single\s+)?(?:best|top|strongest)\s+(?:one|rhyme|metaphor|option|choice|pick|fit|candidate)\s+(?:here\s+)?(?:is|would be)\b(?!\s+(?:whichever|the one that|the one you|up to you|yours|your call|a matter))|\bmy\s+(?:top\s+|one\s+|single\s+|own\s+)?(?:pick|choice|recommendation|vote|favorite)\s*(?:is|would be|:)|\bI(?:[''’]d| would)\s+(?:go with|pick|choose|use)\b|^[ \t>*#-]*(?:\*\*)?winner(?:\*\*)?\s*:(?!(?:\*\*)?\s*(?:skipped|declined|none)\b)|\bthe answer is\b|\bgo with\s+[\"“*_]'
+    flags: 'im'
+    match: not_contains
+    target: last_message

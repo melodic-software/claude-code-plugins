@@ -153,7 +153,8 @@ permission on the repository, never edited, or last edited by a person on that l
 `>` line never matches). On a thread the lanes App never commented on, one fix request after the
 reviewer bot's finding makes the thread one `address-feedback` works, as long as every other
 comment is the reviewer bot's or a trusted person's; their comments from the first fix request on
-are direction.
+are direction. Such a thread is worked even when its review is on an earlier head than the one
+the reviewed-head markers name.
 `pr-feedback-dispatch.yml` runs only when a review run completes, so a fix request posted after
 the head's review starts nothing on its own. To start the round, an account on the trusted-actor
 list dispatches the lane directly:
@@ -1055,8 +1056,10 @@ its role and secrets, and the runner policy admits them. This repository's map: 
 `claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
 
 `intake` and `pr-verify` run on `run-claude-cli` today. Every other entry is the role its lane
-takes when it moves there: until then it runs claude-code-action with an OAuth token alone, and it
-never gets an API key, since claude-code-action runs are not paid from API credits.
+takes when it moves there: until then it runs claude-code-action with its role's OAuth token alone,
+and it never gets an API key, since claude-code-action runs are not paid from API credits. A lane
+on pr-run-activity-write.yml passes its role as the `role` input, and the lane record names that
+role's token as the run's credential.
 
 ## Loop caps
 

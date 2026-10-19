@@ -1145,10 +1145,11 @@
     discForm.onsubmit = e => {
       e.preventDefault();
       const qid = ui.cur, text = discTa.value.trim();
-      if (!qid || !text || discPost.disabled) return;
+      if (!qid || !text || discPost.disabled || attWaits(discSlot)) return;
       discPost.disabled = true;
-      Core.comment(qid, text).then(j => {
-        ui.discDrafts.delete(qid);
+      const ex = attExtra(discSlot);
+      Core.comment(qid, text, ex).then(j => {
+        ui.discDrafts.delete(qid); discSlot.sent(ex);
         if (ui.cur === qid) { discTa.value = ""; grow(discTa); } // a question switched to meanwhile keeps its own draft
         if (j.request) flash("Posted, and sent to Claude."); else if (j.requestRefused) flash(j.message); })
         .catch(fail).finally(() => { discPost.disabled = false; });
@@ -2034,7 +2035,7 @@
     const sameCites = qid => JSON.stringify(ui.cites[qid] || []) === JSON.stringify(myRec(qid)?.cites || []);
     async function submit() {
       const text = ta.value.trim(), qid = ui.cur, q = qById(qid), rec = myRec(qid);
-      if (!qid || Core.lockOf(qid) || readOnly(q) || (text === Core.myAnswer(qid) && sameCites(qid) && sameAtt(qid))) return;
+      if (!qid || Core.lockOf(qid) || readOnly(q) || (text === Core.myAnswer(qid) && sameCites(qid) && sameAtt(qid)) || attWaits(cSlot)) return;
       sendBtn.disabled = true;
       const extra = attExtra(cSlot);
       try {
@@ -2346,14 +2347,14 @@
       fab.classList.add(cls);
     }
     async function sendChat() {
-      const text = mInput.value.trim(); if (!text) return;
+      const text = mInput.value.trim(); if (!text || attWaits(chatSlot)) return;
       // The message shows at once and the box empties; a refusal puts the text back.
-      const reply = ui.replyTo, sent = Core.chat(text, reply?.id, attExtra(chatSlot));
+      const reply = ui.replyTo, ex = attExtra(chatSlot), sent = Core.chat(text, reply?.id, ex);
       mInput.value = ""; mCount.textContent = ""; grow(mInput); mScroll.scrollTop = mScroll.scrollHeight;
       ui.replyTo = null; paintReply();
       try {
         const j = await sent;
-        chatSlot.clear();
+        chatSlot.sent(ex);
         if (j?.request) flash(Core.me.isOwner ? "Sent, and sent to Claude. Its answer replies here." : "Sent, and sent to Claude. It runs once the host presses Run.");
         else if (j?.requestRefused) flash(j.message);
       } catch (e) {
@@ -2412,9 +2413,11 @@
       e.preventDefault();
       const text = apTa.value.trim(); if (!text) return apTa.focus();
       const mode = guestKind(ui.askMode, ui.apWeb), qid = apQWrap.s.value || ui.cur || Core.GENERAL, own = selfAsk(), aud = apAudV();
+      if (!own && attWaits(apSlot)) return;
       apSend.disabled = true;
-      Core.request(qid, mode, text, attExtra(apSlot), own ? "self" : "host", own ? undefined : aud).then(() => {
-        apTa.value = ""; grow(apTa); apSlot.clear(); ui.apWeb = false;
+      const ex = own ? undefined : attExtra(apSlot);
+      Core.request(qid, mode, text, ex, own ? "self" : "host", own ? undefined : aud).then(() => {
+        apTa.value = ""; grow(apTa); if (ex) apSlot.sent(ex); ui.apWeb = false;
         flash(own ? "Added to your requests. Run it on your own Claude from there."
           : Core.me.isOwner ? (aud === "me" ? "Sent to Claude. Only you see the answer, in Ask Claude and your Inbox." : `Sent to Claude. The answer shows ${qid === Core.GENERAL ? genWhere() : "on the question"} and in your Inbox.`)
           : "Sent to the host. It runs once they press Run.");
@@ -3051,15 +3054,45 @@
     // ---------- attachments: one picker and one renderer for answers, chat, requests, suggestions, proposals and references ----------
     const httpUrl = u => { try { return ["http:", "https:"].includes(new URL(u).protocol) ? u : ""; } catch { return ""; } };
     const domainOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
-    // C44: an answer or pick carries files (uploads the owner accepted). Chat, requests, suggestions and proposals have
-    // no attachment field in the contract, so their attach buttons stay hidden.
-    const fileOf = a => (a?.upload && (Core.state.files?.[a.upload] || [...(Core.state.myUploads || []), ...(Core.state.uploads || [])].find(u => u.id === a.upload))) || null;
+    // C44: an answer, pick, chat message, request, suggestion, proposal or comment carries files (uploads the owner
+    // accepted). A received picture shows to whoever sees what carries it, read from the server as a data: URL.
+    // The uploader and the owner see a received picture at once; everyone else once the owner approves it (`image` in files).
+    const fileOf = a => {
+      if (!a?.upload) return null;
+      const f = Core.state.files?.[a.upload], own = [...(Core.state.myUploads || []), ...(Core.state.uploads || [])].find(u => u.id === a.upload);
+      return f ? (own?.image ? { ...f, image: true } : f) : own || null;
+    };
     // A diagram reference is an SVG Claude made, shown like a picture, with its required alt text on the image.
     const attAsset = a => (a?.kind === "image" ? a.asset || fileOf(a)?.asset || "" : a?.kind === "diagram" ? a.asset || "" : "");
+    const PIC_EXT = new Set(["png", "jpg", "jpeg", "gif", "webp"]);
+    // upload id -> the promise of its picture's data: URL, the 24 used last (each at most 512 KB); an older one is read again
+    const upPics = new Map(), UP_PICS = 24;
+    const upPic = id => {
+      const p = upPics.get(id) || Core.uploadImage(id).catch(e => { upPics.delete(id); throw e; });
+      upPics.delete(id); upPics.set(id, p);
+      while (upPics.size > UP_PICS) upPics.delete(upPics.keys().next().value);
+      return p;
+    };
+    const localPics = new Map(); // upload id -> a thumbnail this browser made of a picture it offered
+    /** Drop a cached picture the page may no longer show (removed, or no longer carried by anything it reads). */
+    function prunePics() {
+      for (const id of [...upPics.keys()]) if (!fileOf({ upload: id })?.image) upPics.delete(id);
+    }
+    /** A placeholder where a picture will show: to its uploader and the host until it arrives, and to everyone else
+     *  until the host approves it once it has. */
+    const picWaits = a => {
+      const f = fileOf(a);
+      return !!f && !f.image && (!!f.awaitsHost || (PIC_EXT.has(f.ext) && ["offered", "accepted", "uploading"].includes(f.status)
+        && (Core.me.isOwner || (Core.state.myUploads || []).some(u => u.id === a.upload))));
+    };
+    const isPic = a => !!attAsset(a) || !!fileOf(a)?.image;
+    /** The viewer's items for a record's pictures: an asset, or a received upload read from the server. */
+    const picItems = pics => Promise.all(pics.map(async p => (attAsset(p) ? { asset: attAsset(p), title: attTitle(p), rect: p.rect || null }
+      : { src: await upPic(p.upload), title: attTitle(p) })));
     const attTitle = a => a.caption || fileOf(a)?.file || (a.kind === "diagram" ? "Diagram" : "Picture");
-    const attKey = list => JSON.stringify((list || []).map(a => [a, fileOf(a)?.status || "", attAsset(a)]));
+    const attKey = list => JSON.stringify((list || []).map(a => [a, fileOf(a)?.status || "", attAsset(a), !!fileOf(a)?.image, !!fileOf(a)?.awaitsHost, localPics.has(a.upload)]));
     const ATT_STAT = { offered: "Waiting for the host to accept", accepted: "Accepted, sending", uploading: "Sending", done: "Received by the host",
-      declined: "Not accepted", withdrawn: "Withdrawn", failed: "Failed" };
+      declined: "Not accepted", withdrawn: "Withdrawn", failed: "Failed", removed: "Removed" };
     /** One attachment, drawn the same everywhere. open(from) shows an inline picture in the viewer. */
     function attNode(a, open) {
       const li = E("li", "vf-ref"), asset = attAsset(a);
@@ -3074,6 +3107,28 @@
         b.setAttribute("aria-label", diagram ? `View larger: ${attTitle(a)}. ${a.alt || ""}`.trim() : `View larger: ${attTitle(a)}${a.rect ? ", with a marked area" : ""}`);
         b.onclick = () => open(b);
         li.append(b);
+      } else if (a.kind === "file" && (fileOf(a)?.image || picWaits(a))) {
+        const f = fileOf(a), thumb = E("span", "vf-ref-thumb"), img = E("img");
+        img.alt = ""; thumb.append(img);
+        li.dataset.kind = "image";
+        if (f.image) {
+          const b = btn("vf-ref-img vf-uppic");
+          img.hidden = true;
+          upPic(a.upload).then(u => { img.src = u; img.hidden = false; }).catch(() => {});
+          thumb.append(zoomTag());
+          b.append(thumb, E("span", "vf-ref-cap", attTitle(a)));
+          b.setAttribute("aria-label", `View larger: ${attTitle(a)}`);
+          b.onclick = () => open(b);
+          li.append(b);
+          if (open.removable && (Core.me.isOwner || (Core.state.myUploads || []).some(u => u.id === a.upload))) li.append(removeBtn(a.upload, f.file));
+        } else {
+          // Not received yet: only its uploader and the host see this, with the thumbnail this browser made, if any.
+          const box = E("div", "vf-ref-img vf-uppic vf-uppic-wait"), local = localPics.get(a.upload) || "";
+          if (local) img.src = local; else img.hidden = true;
+          thumb.append(E("span", "vf-uppic-stat", f.status === "offered" || f.awaitsHost ? "Waiting for the host" : ATT_STAT[f.status]));
+          box.append(thumb, E("span", "vf-ref-cap", attTitle(a)));
+          li.append(box);
+        }
       } else if (a.kind === "file" || a.kind === "image") {
         const f = fileOf(a), box = E("div", "vf-ref-file"), t = E("span", "vf-ref-lt");
         t.append(icon(a.kind === "image" ? "image" : "file"), E("span", "vf-ref-title", f?.file || (a.kind === "image" ? "A picture" : "A file")));
@@ -3107,8 +3162,16 @@
       const key = attKey(atts);
       if (ul._key === key) return;
       ul._key = key;
-      const pics = atts.filter(attAsset), items = pics.map(p => ({ asset: attAsset(p), title: attTitle(p), rect: p.rect || null }));
-      ul.replaceChildren(...atts.map(a => attNode(a, from => openLb("att", null, pics.indexOf(a), from, items, meta))));
+      const pics = atts.filter(isPic);
+      const open = a => Object.assign(from => picItems(pics).then(items => openLb("att", null, pics.indexOf(a), from, items, meta)).catch(fail), { removable: true });
+      ul.replaceChildren(...atts.map(a => attNode(a, open(a))));
+    }
+    /** The owner's or the uploader's Remove on a received picture: it leaves everything that carries it and is deleted. */
+    function removeBtn(id, file) {
+      const x = ibtn("vf-tbtn vf-icon-btn vf-ref-x vf-upremove", "x", `Remove ${file}`);
+      x.onclick = guarded({ title: `Remove ${file}?`, ok: "Remove picture", body: "It disappears from everything that carries it, for everyone, and is deleted from the host's computer." },
+        () => Core.uploadAct(id, "remove").then(() => flash("Removed.")).catch(fail));
+      return x;
     }
     const attRowEl = () => { const ul = E("ul", "vf-reflist vf-attlist"); ul.setAttribute("aria-label", "Attachments"); ul.hidden = true; return ul; };
 
@@ -3167,20 +3230,20 @@
     adForm.append(adTitle, adSeg, ...Object.values(adF), adNote, adMineHead, adMine, adErr, adRow);
     attDlg.append(adForm);
     root.append(attDlg);
-    const AD = { kind: "link", qid: "", ref: false, files: false, taken: [], onAdd: null, from: null };
-    /** Which tabs the picker shows. A reference takes a link or a quote. An answer or pick (files) takes an upload,
-     *  and only while Uploads is on; every other form takes nothing yet. Pictures come from Claude's add-asset. */
-    function attKinds(ref, files) {
+    const AD = { kind: "link", qid: "", ref: false, taken: [], onAdd: null, from: null };
+    /** Which tabs the picker shows. A reference takes a link or a quote. Every form people write in takes an upload,
+     *  and only while Uploads is on. Pictures come from Claude's add-asset. */
+    function attKinds(ref) {
       if (ref) return { file: false, image: false, link: true, quote: true };
-      return { file: !!files && !!st().uploads, image: false, link: false, quote: false };
+      return { file: !!st().uploads, image: false, link: false, quote: false };
     }
     /** My uploads the host accepted (the owner's own are accepted at once), newest first, not already attached. */
     const acceptedMine = taken => (Core.state.myUploads || []).filter(u => ["accepted", "uploading", "done"].includes(u.status) && !taken.includes(u.id))
       .sort((a, b) => b.ts - a.ts);
     const adFirst = () => ({ file: adFile, image: adImg, link: adUrl, quote: adQText })[AD.kind];
     function openAttach(o) {
-      Object.assign(AD, { qid: "", ref: false, files: false, taken: [], onAdd: null, from: null }, o);
-      const ok = attKinds(AD.ref, AD.files);
+      Object.assign(AD, { qid: "", ref: false, taken: [], onAdd: null, from: null }, o);
+      const ok = attKinds(AD.ref);
       if (!ok[AD.kind]) AD.kind = Object.keys(ok).find(k => ok[k]) || "link";
       for (const x of [adFile, adImg, adCap, adUrl, adLTitle, adQText, adQSrc, adQUrl]) x.value = "";
       adErr.textContent = "";
@@ -3189,7 +3252,7 @@
       adFirst()?.focus();
     }
     function paintAttach() {
-      const ok = attKinds(AD.ref, AD.files), k = AD.kind, owner = Core.me.isOwner, trusted = owner || Core.me.isTrusted;
+      const ok = attKinds(AD.ref), k = AD.kind, owner = Core.me.isOwner, trusted = owner || Core.me.isTrusted;
       adTitle.textContent = AD.ref ? "Add a reference" : "Attach to this";
       for (const [kk, b] of Object.entries(adKinds)) { b.hidden = !ok[kk]; b.setAttribute("aria-pressed", String(kk === k)); }
       adSeg.hidden = Object.values(ok).filter(Boolean).length < 2;
@@ -3251,41 +3314,95 @@
     adCancel.onclick = () => attDlg.close();
     attDlg.addEventListener("close", () => { if (AD.from?.isConnected) AD.from.focus({ preventScroll: true }); });
 
-    /** A form's attachments before it is sent: chips with a remove button, and the button that opens the picker.
-     *  store.get/set keep the list somewhere else (the answer composer keeps one per question). */
-    function attSlot(getQid, btnEl, store, files = false) {
+    /** A form's attachments before it is sent: chips with a remove button, the button that opens the picker, and a
+     *  picture pasted into its field. store.get/set keep the list somewhere else (the answer composer keeps one per question). */
+    function attSlot(getQid, btnEl, store, field, enabled = () => true) {
+      store ||= null;
       const b = btnEl || ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach");
-      b.setAttribute("aria-label", files ? "Attach a file" : "Attach a file, image, link or quote"); b.title = "Attach"; b.setAttribute("aria-haspopup", "dialog");
+      b.setAttribute("aria-label", "Attach a file"); b.title = "Attach"; b.setAttribute("aria-haspopup", "dialog");
       const chips = E("ul", "vf-reflist vf-attlist vf-attdraft"); chips.setAttribute("aria-label", "Attached, not sent yet"); chips.hidden = true;
       let own = [];
-      const slot = { btn: b, chips, files, get: store?.get || (() => own), set: store?.set || (l => { own = l; }) };
+      const slot = { btn: b, chips, qid: getQid, get: store?.get || (() => own), set: store?.set || (l => { own = l; }) };
       slot.put = l => { slot.set(l); paintSlot(slot); };
-      slot.clear = () => slot.put([]);
-      b.onclick = () => {
-        if (slot.get().length >= 4) return flash("An answer carries four files at most.");
-        openAttach({ qid: getQid(), files, taken: slot.get().map(a => a.upload), from: b, onAdd: att => slot.put([...slot.get(), att]) });
+      /** After a send: only the files it carried leave the form, on the question it was sent from. */
+      slot.sent = ex => {
+        const ids = ex?.attachments || [], q = ex?.from?.qid, mine = store?.getFor ? store.getFor(q) : slot.get();
+        const rest = mine.filter(a => !ids.includes(a.upload));
+        if (store?.setFor) store.setFor(q, rest); else slot.set(rest);
+        paintSlot(slot);
       };
+      /** The draft list of the question in view now, kept for a paste that finishes after the reader moved on. */
+      slot.here = () => {
+        const q = ui.cur;
+        return store?.getFor ? { get: () => store.getFor(q), put: l => { store.setFor(q, l); paintSlot(slot); } } : { get: slot.get, put: slot.put };
+      };
+      b.onclick = () => {
+        if (slot.get().length >= 4) return flash("Four files at most go with one post.");
+        openAttach({ qid: getQid(), taken: slot.get().map(a => a.upload), from: b, onAdd: att => slot.put([...slot.get(), att]) });
+      };
+      if (field) on(field, "paste", e => {
+        const pics = [...(e.clipboardData?.files || [])].filter(f => /^image\/(png|jpeg|webp|gif)$/.test(f.type));
+        if (!pics.length || !st().uploads || field.disabled || field.readOnly || !enabled()) return; // the paste goes on as usual
+        e.preventDefault();
+        (async () => { for (const f of pics) await pastePic(slot, f); })();
+      });
       return slot;
+    }
+    /** A pasted picture: offered to the host (offerFile redraws it) and attached as a thumbnail chip. */
+    async function pastePic(slot, file) {
+      if (slot.get().length >= 4) return flash("Four files at most go with one post.");
+      const here = slot.here(), qid = slot.qid(); // the question pasted on, whichever the reader is on when the offer lands
+      try {
+        const named = new File([file], `pasted-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "")}.png`, { type: file.type });
+        const r = await offerFile(named, qid);
+        here.put([...here.get(), { kind: "file", upload: r.id, pasted: true }]);
+      } catch (x) { flash(x?.error || `Not attached: ${Core.errorText(x)}`); }
+    }
+    /** Sending waits while a file in the form is waiting for the host; one the host declined, or that was withdrawn,
+     *  failed, removed or is gone, leaves the form. Either way it names the file and the form stays unsent. */
+    function attWaits(slot) {
+      const list = slot.get(), stat = a => fileOf(a)?.status, name = a => fileOf(a)?.file || "A file";
+      const gone = list.filter(a => a.upload && !["offered", "accepted", "uploading", "done"].includes(stat(a)));
+      if (gone.length) {
+        slot.put(list.filter(a => !gone.includes(a)));
+        flash(`${gone.map(name).join(", ")} ${gone.length === 1 ? "is" : "are"} no longer available, so ${gone.length === 1 ? "it was" : "they were"} taken off. Send again.`);
+        return true;
+      }
+      const waiting = list.find(a => a.upload && stat(a) === "offered");
+      if (waiting) flash(`${name(waiting)} is waiting for the host. Send once they accept it, or remove it.`);
+      return !!waiting;
     }
     function paintSlot(slot, ro = false) {
       const list = slot.get(), full = list.length >= 4;
-      slot.btn.hidden = ro || !Object.values(attKinds(false, slot.files)).some(Boolean);
+      slot.btn.hidden = ro || !Object.values(attKinds(false)).some(Boolean);
       slot.btn.setAttribute("aria-disabled", String(full));
       slot.btn.title = full ? "Four attachments at most" : "Attach";
       slot.chips.hidden = ro || !list.length;
       const key = attKey(list);
       if (slot.chips._key === key) return;
       slot.chips._key = key;
-      const pics = list.filter(attAsset), items = pics.map(p => ({ asset: attAsset(p), title: attTitle(p), rect: null }));
+      const pics = list.filter(isPic);
       slot.chips.replaceChildren(...list.map((a, i) => {
-        const li = attNode(a, from => openLb("att", null, pics.indexOf(a), from, items, "Not sent yet"));
+        const li = attNode(a, from => picItems(pics).then(items => openLb("att", null, pics.indexOf(a), from, items, "Not sent yet")).catch(fail));
         const x = ibtn("vf-tbtn vf-icon-btn vf-ref-x", "x", "Remove this attachment");
-        x.onclick = () => { const l = slot.get().slice(); l.splice(i, 1); slot.put(l); (slot.chips.querySelector(".vf-ref-x") || slot.btn).focus(); };
+        x.onclick = () => {
+          const l = slot.get().slice(); l.splice(i, 1); slot.put(l); (slot.chips.querySelector(".vf-ref-x") || slot.btn).focus();
+          // A pasted picture belongs to this draft alone: taking it off withdraws it, unless something sent carries it.
+          const st2 = fileOf(a)?.status;
+          if (a.pasted && !(a.upload in (Core.state.files || {})) && ["offered", "accepted", "uploading", "done"].includes(st2)) {
+            Core.uploadAct(a.upload, st2 === "done" ? "remove" : "withdraw").then(() => forget(a.upload)).catch(fail);
+          }
+        };
         li.append(x); return li;
       }));
     }
-    /** What a send carries: the upload ids of an answer's or pick's files; nothing for forms with no attachment field. */
-    const attExtra = slot => (slot.files ? { attachments: slot.get().map(a => a.upload).filter(Boolean) } : undefined);
+    /** What a send carries: the upload ids of the form's files, and (not sent) where they came from, for slot.sent. */
+    const attExtra = slot => Object.defineProperty({ attachments: slot.get().map(a => a.upload).filter(Boolean) }, "from", { value: { qid: slot.qid() } });
+    /** A draft list per question for a form that writes on the question in view. */
+    const perQuestion = () => {
+      const by = {};
+      return { get: () => by[ui.cur] || [], set: l => { by[ui.cur] = l; }, getFor: q => by[q] || [], setFor: (q, l) => { by[q] = l; } };
+    };
 
     // ---------- QR code: byte mode, error correction M, versions 1 to 10, built here with no library ----------
     function qrMatrix(text) {
@@ -3479,15 +3596,25 @@
       } catch {}
       return "";
     }
+    /** A picture as this browser redraws it before it is offered: at most 1600 px and 512 KB (shrinkShot), so no
+     *  metadata (EXIF, GPS) survives and others can be shown it; the name keeps its stem with the new kind's extension. */
+    async function redrawn(file) {
+      const shot = await shrinkShot(file).catch(() => { throw { error: `${file.name} could not be read as a picture.` }; });
+      const type = shot.url.slice(5, shot.url.indexOf(";")), bytes = Uint8Array.from(atob(shot.url.slice(shot.url.indexOf(",") + 1)), c => c.charCodeAt(0));
+      return new File([bytes], `${file.name.replace(/\.[^.]*$/, "")}.${type === "image/webp" ? "webp" : "jpg"}`, { type });
+    }
     /** Offer a file to the host; resolves to {id, status}, rejects with {error} or the server's refusal. */
     async function offerFile(file, qid) {
       const ext = (file.name.split(".").pop() || "").toLowerCase(), owner = Core.me.isOwner, trusted = owner || Core.me.isTrusted;
       if (!trusted && !GUEST_EXT.has(ext)) throw { error: "Guests can send pictures, PDF, text, CSV and Office files. Ask the host to trust you for other kinds." };
       if (!owner && file.size > GUEST_MAX) throw { error: `That file is ${sizeTxt(file.size)}. Guests can send up to 100 MB in all.` };
       if (!file.size) throw { error: "That file is empty." };
-      const thumb = /^image\/(png|jpeg|webp|gif)$/.test(file.type) ? await makeThumb(file) : "";
+      const pic = /^image\/(png|jpeg|webp|gif)$/.test(file.type);
+      if (pic) file = await redrawn(file);
+      const thumb = pic ? await makeThumb(file) : "";
       const r = await Core.uploadOffer({ file: file.name, size: file.size, type: file.type.slice(0, 200), ...(qid ? { qid } : {}), ...(thumb ? { thumb } : {}) });
       up.files.set(r.id, file);
+      if (thumb) localPics.set(r.id, thumb);
       try { await idb.put(r.id, file); flash(owner ? "Sending the file to your computer." : "Offered to the host. The file stays on this device until they accept."); }
       catch { up.memOnly.add(r.id); flash("Offered. This browser cannot keep files (private mode?), so keep this tab open until it is sent."); }
       render();
@@ -3530,13 +3657,13 @@
       } finally { up.running.delete(u.id); }
     }
     const UPSTAT = { offered: "Waiting for the host. The file stays on this device.", accepted: "Accepted, starting", uploading: "Sending",
-      done: "Sent", declined: "Not accepted", withdrawn: "Withdrawn", failed: "Failed" };
+      done: "Sent", declined: "Not accepted", withdrawn: "Withdrawn", failed: "Failed", removed: "Removed" };
     function makeUpRow(host) {
       const li = E("li", "vf-uprow");
       // the host sees an offered picture before accepting it: the thumbnail opens the viewer
       const thumbImg = E("img"); thumbImg.alt = "";
       const thumb = btn("vf-imgbtn vf-upthumb"); thumb.append(thumbImg); thumb.hidden = true;
-      thumb.onclick = () => openLb("att", null, 0, thumb, [{ src: li._u.thumb, title: li._u.file }], `Offered by ${disp(li._u.by)}, not accepted yet`);
+      thumb.onclick = () => openLb("att", null, 0, thumb, [{ src: thumbImg.src, title: li._u.file }], li._u.status === "done" ? `Sent by ${disp(li._u.by)}, not approved yet` : `Offered by ${disp(li._u.by)}, not accepted yet`);
       const ico = E("span", "vf-upico"); ico.append(icon("file"));
       const mid = E("div", "vf-upmid");
       const name = E("span", "vf-upname"), stat = E("span", "vf-upstat");
@@ -3545,14 +3672,18 @@
       mid.append(name, stat, bar2);
       const acts = E("div", "vf-upacts");
       const accept = btn("vf-btn vf-btn-primary vf-btn-sm", "Accept"), decline = btn("vf-btn vf-btn-ghost vf-btn-sm", "Decline");
-      const withdraw = btn("vf-btn vf-btn-ghost vf-btn-sm", "Withdraw");
-      acts.append(withdraw, decline, accept);
+      const withdraw = btn("vf-btn vf-btn-ghost vf-btn-sm", "Withdraw"), remove = btn("vf-btn vf-btn-ghost vf-btn-sm vf-upremove", "Remove");
+      const approve = btn("vf-btn vf-btn-primary vf-btn-sm vf-upapprove", "Approve picture");
+      acts.append(withdraw, remove, decline, accept, approve);
       li.append(thumb, ico, mid, acts);
       accept.onclick = () => Core.uploadAct(li._u.id, "accept").then(() => flash("Accepted. Their browser sends it now.")).catch(fail);
       decline.onclick = guarded(() => ({ title: `Decline ${li._u.file}?`, ok: "Decline file", body: `The file is not sent, and ${isMe(li._u.cid) ? "your" : disp(li._u.by) + "'s"} browser deletes its copy. ${li._u.status === "offered" ? "" : "What arrived so far is deleted. "}They can offer it again.` }),
         () => Core.uploadAct(li._u.id, "decline").then(() => flash("Declined. Their browser deletes it.")).catch(fail));
       withdraw.onclick = () => Core.uploadAct(li._u.id, "withdraw").then(() => { forget(li._u.id); flash("Withdrawn."); }).catch(fail);
-      li._k = { thumb, thumbImg, ico, name, stat, bar2, accept, decline, withdraw, host };
+      remove.onclick = guarded(() => ({ title: `Remove ${li._u.file}?`, ok: "Remove file", body: "It disappears from everything that carries it, for everyone, and is deleted from the host's computer." }),
+        () => Core.uploadAct(li._u.id, "remove").then(() => flash("Removed.")).catch(fail));
+      approve.onclick = () => Core.uploadAct(li._u.id, "approve").then(() => flash("Approved. Everyone who sees what carries it sees the picture now.")).catch(fail);
+      li._k = { thumb, thumbImg, ico, name, stat, bar2, accept, decline, withdraw, remove, approve, host };
       return li;
     }
     function fillUpRow(li, u) {
@@ -3561,7 +3692,9 @@
       const bytes = Math.max(u.bytes || 0, mine ? up.sent[u.id] || 0 : 0), pct = u.size ? Math.floor((bytes / u.size) * 100) : 0;
       // the host decides on the server's extension, not on a name that may hide one
       k.name.textContent = `${u.file} · ${host ? (u.ext ? u.ext.toUpperCase() : "no extension") + " · " : ""}${sizeTxt(u.size)}`;
-      if (host && u.thumb) { if (k.thumbImg.src !== u.thumb) k.thumbImg.src = u.thumb; k.thumb.hidden = false; k.ico.hidden = true; k.thumb.setAttribute("aria-label", `View larger: ${u.file}`); }
+      // the host decides on the received picture itself: its row shows the bytes that arrived
+      if (host && u.image && !k.thumb._real) { k.thumb._real = true; upPic(u.id).then(src => { k.thumbImg.src = src; }).catch(() => {}); }
+      if (host && (u.thumb || k.thumb._real)) { if (u.thumb && k.thumbImg.src !== u.thumb && !k.thumb._real) k.thumbImg.src = u.thumb; k.thumb.hidden = false; k.ico.hidden = true; k.thumb.setAttribute("aria-label", `View larger: ${u.file}`); }
       else { k.thumb.hidden = true; k.ico.hidden = false; }
       const q = u.qid && qById(u.qid);
       const where = q ? ` · ${q.id}` : "";
@@ -3582,6 +3715,9 @@
       k.accept.hidden = !(host && Core.me.isOwner && u.status === "offered");
       k.decline.hidden = !(host && Core.me.isOwner && ["offered", "accepted", "uploading"].includes(u.status));
       k.withdraw.hidden = !(mine && ["offered", "accepted", "uploading"].includes(u.status));
+      k.remove.hidden = !((mine || Core.me.isOwner) && u.status === "done");
+      k.approve.hidden = !(host && Core.me.isOwner && !mine && u.status === "done" && u.image && !u.shown);
+      if (!k.approve.hidden) k.stat.textContent = `${disp(u.by)} · Received. Approve the picture before others see it.`;
     }
     /** Progress moves between polls: repaint just the rows. */
     function paintUploads() {
@@ -3589,16 +3725,21 @@
     }
     // One attach picker on every form; the answer keeps a draft list per question, prefilled from my answer.
     ui.attDraft = {};
-    const cSlot = attSlot(() => ui.cur, attachBtn, { get: () => ui.attDraft[ui.cur] ?? (myRec(ui.cur)?.att || []), set: l => { ui.attDraft[ui.cur] = l; } }, true);
+    const cSlot = attSlot(() => ui.cur, attachBtn, { get: () => ui.attDraft[ui.cur] ?? (myRec(ui.cur)?.att || []), set: l => { ui.attDraft[ui.cur] = l; },
+      getFor: q => ui.attDraft[q] ?? (myRec(q)?.att || []), setFor: (q, l) => { ui.attDraft[q] = l; } }, ta);
     composer.insertBefore(cSlot.chips, ta);
-    const apSlot = attSlot(() => (askGeneral() ? "" : apQWrap.s.value || ui.cur), apAttach);
+    const apSlot = attSlot(() => (askGeneral() ? "" : apQWrap.s.value || ui.cur), apAttach, null, apTa, () => !selfAsk());
     apForm.insertBefore(apSlot.chips, apNote);
-    const askSlot = attSlot(() => ui.cur);
+    const askSlot = attSlot(() => ui.cur, null, perQuestion(), askTa);
     askRow.prepend(askSlot.btn); askForm.insertBefore(askSlot.chips, askForm.querySelector(".vf-asknote"));
-    const sugSlot = attSlot(() => ui.cur);
+    const sugSlot = attSlot(() => ui.cur, null, perQuestion(), sugTa);
     sugRow.prepend(sugSlot.btn); sugForm.insertBefore(sugSlot.chips, sugRow);
-    const chatSlot = attSlot(() => "");
+    const chatSlot = attSlot(() => "", null, null, mInput);
     mForm.prepend(chatSlot.btn); chat.insertBefore(chatSlot.chips, mForm);
+    const discSlot = attSlot(() => ui.cur, null, perQuestion(), discTa);
+    discRow.prepend(discSlot.btn); discForm.insertBefore(discSlot.chips, discRow);
+    const propSlot = attSlot(() => "", null, null, propTa);
+    propRowB.prepend(propSlot.btn); proposePop.insertBefore(propSlot.chips, propRowB);
     const sameAtt = qid => attKey(ui.attDraft[qid] ?? (myRec(qid)?.att || [])) === attKey(myRec(qid)?.att || []);
 
     // ---------- notices for changes that concern me ----------
@@ -3665,6 +3806,7 @@
       evNext.hidden = owner;
       evNext.textContent = Core.owner() ? `${disp(Core.owner().name)} is here and setting up.` : "The host is not here right now.";
       evPropose.hidden = (!!S.ended && !owner) || !!S.youRemoved;
+      paintSlot(propSlot);
       if (S.youWaiting) { // Approve new joins: nothing to read or do until the host lets this person in
         evTitle.textContent = "Waiting for the host to let you in";
         evNote.textContent = "The host approves each new person. This page opens by itself once they do; keep it open.";
@@ -3793,10 +3935,11 @@
     on(sugTa, "input", () => Core.setTyping());
     sugForm.onsubmit = e => {
       e.preventDefault();
-      const text = sugTa.value.trim(); if (!text) return;
+      const text = sugTa.value.trim(); if (!text || attWaits(sugSlot)) return;
       sugSend.disabled = true;
-      Core.suggest(ui.cur, text, sugNote.value.trim(), attExtra(sugSlot)).then(() => {
-        sugTa.value = ""; sugNote.value = ""; sugSlot.clear(); sugForm.hidden = true; ui.suggestOpen = false; flash("Suggestion sent.");
+      const ex = attExtra(sugSlot);
+      Core.suggest(ui.cur, text, sugNote.value.trim(), ex).then(() => {
+        sugTa.value = ""; sugNote.value = ""; sugSlot.sent(ex); sugForm.hidden = true; ui.suggestOpen = false; flash("Suggestion sent.");
       }).catch(fail).finally(() => { sugSend.disabled = false; });
     };
     reviewClear.onclick = () => Core.clearReview(ui.cur).then(() => flash("Marked reviewed.")).catch(fail);
@@ -3805,10 +3948,12 @@
     askForm.onsubmit = e => {
       e.preventDefault();
       const text = askTa.value.trim(); if (!text) return askTa.focus();
+      if (attWaits(askSlot)) return;
       askSend.disabled = true;
       const aud = ui.askAud || "everyone";
-      Core.request(ui.cur, guestKind(ui.askKind, ui.askWeb), text, attExtra(askSlot), "host", aud).then(() => {
-        askTa.value = ""; askSlot.clear(); ui.askOpen = false; ui.askWeb = false; ui.askAud = null; renderAsk();
+      const ex = attExtra(askSlot);
+      Core.request(ui.cur, guestKind(ui.askKind, ui.askWeb), text, ex, "host", aud).then(() => {
+        askTa.value = ""; askSlot.sent(ex); ui.askOpen = false; ui.askWeb = false; ui.askAud = null; renderAsk();
         flash(Core.me.isOwner ? `Sent to Claude. The answer shows on the question${aud === "me" ? ", for you alone," : ""} and in your Inbox.` : "Sent to the host. It runs once they press Run.");
       }).catch(fail).finally(() => { askSend.disabled = false; });
     };
@@ -3826,6 +3971,7 @@
       const from = document.activeElement;
       if (ui.chatOpen) setChat(false);
       if (text != null) propTa.value = text;
+      paintSlot(propSlot);
       openPop(proposePop, proposeBtn);
       proposePop._return = from;
     }
@@ -3836,8 +3982,10 @@
     proposePop.onsubmit = e => {
       e.preventDefault();
       const text = propTa.value.trim(); if (!text) return propTa.focus();
+      if (attWaits(propSlot)) return;
       propSend.disabled = true;
-      Core.idea(text).then(() => { propTa.value = ""; propBack(); flash("Proposed. You can see it under Your proposals."); })
+      const ex = attExtra(propSlot);
+      Core.idea(text, ex).then(() => { propTa.value = ""; propSlot.sent(ex); propBack(); flash("Proposed. You can see it under Your proposals."); })
         .catch(fail).finally(() => { propSend.disabled = false; });
     };
     // ---------- Report a problem ----------
@@ -5002,7 +5150,8 @@
       const acts = E("div", "vf-cm-acts");
       const edit = btn("vf-lbtn", "Edit"), del = btn("vf-lbtn", "Delete"), hide = btn("vf-lbtn vf-cm-hide");
       acts.append(reactAdd, edit, del, hide);
-      col.append(head, text, ed, became, reactRow, acts);
+      const att = attRowEl();
+      col.append(head, text, att, ed, became, reactRow, acts);
       li.append(E("span", "vf-cm-av"), col);
       const react = (id, e, on) => Core.reactComment(li._q, id, e, on);
       reactAdd.onclick = () => (ui.pop === reactPop && ui.reactMsg?.id === li._c?.id ? closePop() : openReactPop(li._c, reactAdd, react));
@@ -5019,7 +5168,7 @@
         () => Core.deleteComment(li._q, li._c.id).then(() => flash("Comment deleted.")).catch(fail));
       hide.onclick = () => { const on = !li._c.hidden; Core.hideComment(li._q, li._c.id, on).then(() => flash(on ? "Hidden. Only you and its author see it." : "Shown to everyone again.")).catch(fail); };
       view.onclick = () => { const k = li._req; if (k?.x) showResult(li._q, k.x.id); else { ui.clOpen.set(li._q, true); render(); keepClInView(); } };
-      li._k = { name, tm, edited, hid, dot, text, ed, edTa, became, becameTxt, reactRow, reactAdd, acts, edit, del, hide };
+      li._k = { name, tm, edited, hid, dot, text, att, ed, edTa, became, becameTxt, reactRow, reactAdd, acts, edit, del, hide };
       return li;
     }
     function fillComment(li, c, q, S, from) {
@@ -5034,6 +5183,7 @@
       li.classList.toggle("vf-cm-ishidden", c.hidden);
       k.dot.hidden = mine || c.ts <= from;
       setRich(k.text, c.text);
+      fillAtts(k.att, c.att, `Comment from ${mine ? "you" : disp(c.name)}`);
       const editing = ui.discEdit === c.id && mine && !ro;
       k.text.hidden = editing; k.ed.hidden = !editing;
       li._req = c.request ? discReq(S, q, c) : null;
@@ -5066,6 +5216,7 @@
       sync(discList, list, c => c.id, makeComment, (li, c) => fillComment(li, c, q, S, from));
       discEmpty.hidden = list.length > 0;
       discForm.hidden = (!!S.ended && !Core.me.isOwner) || !!S.youRemoved || notOpenYet(q);
+      paintSlot(discSlot, discForm.hidden);
     }
     /** "from Discussion" on a Claude card whose request a comment's @Claude filed. */
     function fillFromDisc(b, S, q, rid) {
@@ -5651,7 +5802,7 @@
       }
       const ro = (!!S.ended && !Core.me.isOwner) || !!S.youRemoved;
       apSend.disabled = ro; apTa.disabled = ro; apPointer.hidden = ro;
-      paintSlot(apSlot, ro);
+      paintSlot(apSlot, ro || own);
       const mine = (S.myRequests || []).slice().sort((a, b) => b.ts - a.ts);
       sync(apReqs, mine, r => r.id, () => {
         const li = E("li", "vf-pitem vf-apreq");
@@ -5696,7 +5847,7 @@
       for (const [qid, lst] of Object.entries(S.suggestions || {})) if (Core.lockOf(qid)) for (const x of lst) if (x.status === "open") out.push({ t: "suggestion", id: "s:" + x.id, ts: x.ts, x, qid });
       if (owner) for (const m of S.mergeRequests || []) out.push({ t: "merge", id: "m:" + m.id, ts: m.ts, m });
       if (owner) for (const j of S.joinRequests || []) out.push({ t: "join", id: "j:" + j.pid, ts: j.ts, j });
-      if (owner) for (const u of S.uploads || []) if (["offered", "accepted", "uploading"].includes(u.status)) out.push({ t: "upload", id: "u:" + u.id, ts: u.ts, u });
+      if (owner) for (const u of S.uploads || []) if (["offered", "accepted", "uploading"].includes(u.status) || (u.status === "done" && u.image && !u.shown && !isMe(u.cid))) out.push({ t: "upload", id: "u:" + u.id, ts: u.ts, u });
       if (owner) for (const f of S.reports || []) out.push({ t: "report", id: "f:" + f.id, ts: f.ts, f });
       if (R.ready && R.status === "open") out.push({ t: "ready", id: "ready:" + R.current, ts: R.ready.ts, ready: R.ready });
       return out.sort((a, b) => a.ts - b.ts);
@@ -6000,7 +6151,7 @@
         }
       }
       notices(S);
-      pumpUploads();
+      pumpUploads(); prunePics();
       // New answers from others on the question I am on: one polite summary, never the list itself.
       const heardQ = ui.cur, others0 = Core.answersFor(heardQ).filter(a => !isMe(a.cid)).length;
       if (ui.heard.q === heardQ && others0 > ui.heard.n) announce(`${others0 - ui.heard.n} new answer${others0 - ui.heard.n > 1 ? "s" : ""} on ${heardQ}`);

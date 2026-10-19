@@ -229,9 +229,9 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
 }
 
 // A thread is kept when it is unresolved, its first comment belongs to a
-// review the reviewer bot submitted on a marker-confirmed head, and
-// threadAuthors accepts its comments. A thread with more comments than one
-// page reads is left alone.
+// review the reviewer bot submitted on a marker-confirmed head (any head for
+// a thread a fix request started), and threadAuthors accepts its comments.
+// A thread with more comments than one page reads is left alone.
 export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
   const reviewsById = new Map(reviews.map((review) => [review.id, review]));
@@ -255,8 +255,15 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
       })),
       { reviewerId, appId, trustedHumans, requesters, fixers },
     );
+    if (authors === null) {
+      continue;
+    }
+    // A thread with a trusted person's comment and none by the lanes App is
+    // one threadAuthors accepted for a fix request: the person asked for it,
+    // so its review may be on an earlier head.
+    const requested = authors.some((a) => a.author === "trusted-human") && !authors.some((a) => a.author === "lane");
     const review = reviewsById.get(rows[0].pull_request_review_id);
-    if (authors === null || review?.user?.id !== reviewerId || !heads.has(review.commit_id)) {
+    if (review?.user?.id !== reviewerId || (!requested && !heads.has(review.commit_id))) {
       continue;
     }
     kept.push({

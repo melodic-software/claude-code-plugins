@@ -1,11 +1,9 @@
 ---
-description: "Build and balance song structure with Pat Pattison's methods. Section identification (verse/chorus/bridge/refrain), forms (AABA, verse/chorus, verse/refrain), the candy-bar rewrite, hook placement and hot spots, repetition/repainting (You-I-We, Past-Present-Future, hidden questions/commands), verse development and the box model, bridge writing, and Essential Guide to Lyric Form and Structure worked examples. Use when: 'is this verse/chorus or AABA', 'where should the title go', 'my chorus does not land', 'my second verse repeats the first', 'what goes in verse 2/3', 'write me a bridge', 'do I need a bridge'. For stability/scansion use /songwriting:meter-prosody."
+description: "Song structure with Pat Pattison's methods: section identification, forms (AABA, verse/chorus, verse/refrain), the candy-bar rewrite, hook placement and hot spots, repetition and repainting (You-I-We, Past-Present-Future, hidden questions/commands), verse development, the box model, bridges, and Essential Guide to Lyric Form and Structure worked examples. Use when: 'is this verse/chorus or AABA', 'where should the title go', 'my chorus does not land', 'my second verse repeats the first', 'what goes in verse 2/3', 'write me a bridge', 'do I need a bridge'. For stability/scansion use /songwriting:meter-prosody."
 argument-hint: "[form|song-forms|hook|repetition|verse|box-model|bridge|section-building] [args]"
 user-invocable: true
 disable-model-invocation: false
 ---
-
-**Arguments.** `[form|song-forms|hook|repetition|verse|box-model|bridge|section-building] [args]`. e.g., /songwriting:song-form, /songwriting:song-form bridge, /songwriting:song-form box-model Full actions in body
 
 ## Mandatory pre-flight. Response Filter
 
@@ -16,9 +14,7 @@ Before emitting a form recommendation, section rewrite, hook placement, or bridg
 
 ## Purpose
 
-The architecture layer: how sections are identified, contrasted, balanced, and repeated so the form
-serves the song. Covers form selection, hook/title placement, repetition and repainting, verse
-division of labor (box model), verse development, and bridges.
+How sections are identified, contrasted, balanced and repeated so the form serves the song.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
 author's method plugs in at `context/<author>/` without changing this skill, the author seam per
@@ -26,7 +22,8 @@ the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 
-`/songwriting:song-form <action> [args]`. Parse `$ARGUMENTS`: first token = action when it matches a listed action, remainder = args; otherwise treat all of `$ARGUMENTS` as payload for the default.
+`/songwriting:song-form <action> [args]`. Parse `$ARGUMENTS`: first token = action when it matches
+a listed action, remainder = args; otherwise treat all of `$ARGUMENTS` as payload for the default.
 No action → route on context (a structural question → `form`; "write me a bridge" → `bridge`).
 
 | Action | Use when the user asks for | Load |
@@ -42,20 +39,19 @@ No action → route on context (a structural question → `form`; "write me a br
 
 ## Handlers
 
-- **Pre-flight:** run response-filter §6 (+ §5 for hook/title) before output.
 - Name the form and what each section is DOING; recommend the smallest structural change that fixes
   the problem, not a wholesale rewrite.
-- Repetition is repainting, not stagnation, a repeated chorus should mean something new by its
+- Repetition is repainting, not stagnation: a repeated chorus should mean something new from its
   surrounding context each time.
 
 ## Persistence and template overrides
 
 Write generated files to the paths in
-[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)
-"Where generated work persists", and honor a consuming project's own songwriting layout when it
-defines one. Before loading any bundled `templates/<name>.md`, check
+[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md) "Where
+generated work persists", and honor a consuming project's own songwriting layout when it defines
+one. Before loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
-override wins over the bundled skill default, first match, per that file's "Template override".
+override wins over the bundled default, first match, per that file's "Template override".
 
 ## Boundary. What this skill must NOT emit
 
@@ -72,18 +68,17 @@ section's problem does not authorize it to write that section's replacement.
 
 Routing means invoking that skill, not summarizing what you believe it would say.
 
-**Why this boundary is load-bearing.** A structural skill in the middle of a structural
-conversation is exactly where line emission gets substituted for structural work: the generative
-checks get named as passed rather than run, and a chorus draft ships with zero rhyme candidates
-against a mandatory eight, zero mosaic against a mandatory three, and no object writing behind it.
-Naming a filter box is not running it.
+**Why this boundary is load-bearing.** A structural conversation is exactly where line emission
+gets substituted for structural work: the generative checks get named as passed rather than run,
+and a chorus draft ships with zero rhyme candidates against a mandatory eight, zero mosaic against
+a mandatory three, and no object writing behind it. Naming a filter box is not running it.
 
 Two section-type rules bind before any line-level judgment here, both from
 [repetition](../../context/pat-pattison/research/repetition.md):
 
 - **Verses show; the chorus tells.** Verses carry specific situation, image, and action; the chorus
   makes the broader statement the verses keep recoloring. State which mode a section is in before
-  judging its material, a chorus full of concrete inventory is verse material in the wrong box.
+  judging its material: a chorus full of concrete inventory is verse material in the wrong box.
 - **A chorus is sung back.** Length and singability are structural properties, not polish.
 
 ## Related skills
