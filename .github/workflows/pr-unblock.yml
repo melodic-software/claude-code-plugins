@@ -323,6 +323,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       output-mode: patch
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
       # Reproducing, fixing and rerunning several checks outlasts the default.

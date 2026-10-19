@@ -16,15 +16,21 @@
 // The same run then starts review-dependency for review-tier Dependabot PRs
 // (dependency-dispatch.mjs) and fix-ci for lanes App PRs whose ci-status
 // failed (fix-ci-dispatch.mjs), and their run ids join the same record.
+// Both read the one open-PR listing. A head whose check runs handle it for
+// good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
+// carries to the next run through the Actions cache; the next run skips that
+// head's check-run read, and its UNKNOWN re-queries.
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
+import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { dispatchCiFixes, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
-import { anyHandles } from "./limit-stop.mjs";
+import { anyHandles, permanentlyHandles } from "./limit-stop.mjs";
+import { budgetedFetch } from "./request-budget.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -64,7 +70,7 @@ function isPending(node, base) {
   );
 }
 
-async function listAll(api, base) {
+export async function listAll(api, base) {
   const nodes = [];
   let after;
   for (;;) {
@@ -92,16 +98,27 @@ export async function dispatchConflicting({
   unknownDelayMs = DEFAULTS.unknownDelayMs,
   now = Date.now(),
   limits,
+  listed,
+  record = emptyRecord(),
 }) {
-  const listed = await listAll(api, base);
-  const candidates = listed.filter((node) => isCandidate(node, base));
-  let pending = listed.filter((node) => isPending(node, base)).map((node) => node.number);
+  const nodes = listed ?? (await listAll(api, base));
+  // A recorded head is skipped whatever its mergeable state, so it is neither
+  // read nor re-queried.
+  const recorded = (node) => {
+    if (!isHandled(record, checkName, node.headRefOid)) {
+      return false;
+    }
+    log(`skip #${node.number}: head ${node.headRefOid} already has a ${checkName} check run (recorded)`);
+    return true;
+  };
+  const candidates = nodes.filter((node) => isCandidate(node, base) && !recorded(node));
+  let pending = nodes.filter((node) => isPending(node, base) && !recorded(node)).map((node) => node.number);
 
   for (let attempt = 1; pending.length > 0 && attempt <= unknownRetries; attempt += 1) {
     await sleep(unknownDelayMs);
-    const nodes = await api.getPulls(pending);
-    candidates.push(...nodes.filter((node) => isCandidate(node, base)));
-    pending = nodes.filter((node) => isPending(node, base)).map((node) => node.number);
+    const requeried = await api.getPulls(pending);
+    candidates.push(...requeried.filter((node) => isCandidate(node, base) && !recorded(node)));
+    pending = requeried.filter((node) => isPending(node, base) && !recorded(node)).map((node) => node.number);
   }
   for (const number of pending) {
     log(
@@ -141,6 +158,9 @@ export async function dispatchConflicting({
     try {
       const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
       handled = anyHandles(existing, { now, limits });
+      if (permanentlyHandles(existing)) {
+        markHandled(record, checkName, node.headRefOid);
+      }
     } catch (error) {
       failed += 1;
       log(
@@ -315,6 +335,21 @@ export async function loadBaseLimits(env) {
   return limitsFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
 }
 
+// Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
+// returns, so a run cancelled mid-step still records what it sent.
+function wrapRunIds(base, env) {
+  return {
+    ...base,
+    async dispatchWorkflow(request) {
+      const result = await base.dispatchWorkflow(request);
+      if (env.RUN_IDS_FILE && RUN_ID.test(String(result.workflowRunId))) {
+        appendFileSync(env.RUN_IDS_FILE, `${result.workflowRunId}\n`);
+      }
+      return result;
+    },
+  };
+}
+
 // Writes the dispatched run ids, lowest PR first, as the step output run-ids,
 // which the workflow records as an artifact on this run.
 export async function main(
@@ -332,6 +367,7 @@ export async function main(
       throw new Error(`${key} is not set`);
     }
   }
+  const budget = api ? null : budgetedFetch({ log });
   const base =
     api ??
     createGitHubApi({
@@ -339,25 +375,29 @@ export async function main(
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: budget.fetch,
     });
-  // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
-  // returns, so a run cancelled mid-step still records what it sent.
-  const client = {
-    ...base,
-    async dispatchWorkflow(request) {
-      const result = await base.dispatchWorkflow(request);
-      if (env.RUN_IDS_FILE && RUN_ID.test(String(result.workflowRunId))) {
-        appendFileSync(env.RUN_IDS_FILE, `${result.workflowRunId}\n`);
-      }
-      return result;
-    },
-  };
+  try {
+    return await dispatchAll(env, { client: wrapRunIds(base, env), sleep, log, loadLimits, now });
+  } finally {
+    if (budget) {
+      log(budget.summary());
+    }
+  }
+}
+
+async function dispatchAll(env, { client, sleep, log, loadLimits, now }) {
   const limits = await loadLimits(env);
-  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits, now });
+  const listed = await listAll(client, DEFAULTS.base);
+  const { record, text } = readRecord(env.DISPATCH_RECORD);
+  pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));
+  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits, now, listed, record });
   const reviews = await dispatchDependencyReviews({
     api: client,
     runId: env.GITHUB_RUN_ID,
     log,
+    listed,
+    record,
     config: readConfig(env.DEPENDABOT_CONFIG ?? ".base/.github/dependabot.yml", log),
     policy: readPolicy(env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`, log),
     repository: env.GITHUB_REPOSITORY,
@@ -381,6 +421,9 @@ export async function main(
   if (dispatched.length > 0) {
     const ids = dispatched.map((run) => run.workflowRunId).join(" ");
     appendFileSync(env.GITHUB_OUTPUT, `run-ids=${ids}\n`);
+  }
+  if (writeRecord(env.DISPATCH_RECORD, record, text)) {
+    appendFileSync(env.GITHUB_OUTPUT, "record-changed=true\n");
   }
   log(`dispatched ${dispatched.length} run(s), ${failed} failure(s)`);
   return failed === 0 ? 0 : 1;
