@@ -279,6 +279,14 @@ test("with no escalation, a write-access trusted person's fix request is kept as
   assert.deepEqual(api.permissionReads, ["kyle-sexton"]);
 });
 
+test("with no escalation, a trusted comment before the fix request is context, not direction", async () => {
+  const result = await run(fakeApi(asked([[101, HUMAN, DECISION], [102, REVIEWER, "finding 102"], [103, HUMAN, REQUEST]])));
+  assert.deepEqual(
+    result.file.threads[0].comments.map((row) => [row.id, row.author, row.direction ?? false]),
+    [[100, "reviewer", false], [101, "trusted-human", false], [102, "reviewer", false], [103, "trusted-human", true]],
+  );
+});
+
 test("with no escalation, on a needs-human PR, a write-access trusted person's fix request is kept", async () => {
   const result = await run(fakeApi({ ...asked([[101, HUMAN, REQUEST]]), labels: ["needs-human"] }));
   assert.equal(result.decision, "proceed");

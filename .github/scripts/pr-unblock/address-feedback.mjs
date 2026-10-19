@@ -18,7 +18,9 @@
 //
 // Every comment body is copied into the thread file and never logged or
 // interpolated into a command. Only a trusted person's reply to the lane's
-// escalation is marked as direction; every other body is data.
+// escalation, or with no escalation a trusted person's comment from the first
+// write-access fix request on, is marked as direction; every other body is
+// data.
 
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -160,7 +162,8 @@ export function humanGatedLabelFrom(path) {
 // - the lanes App never commented, every later comment is the reviewer bot's
 //   or a trusted person's, and one is a fix request (isFixRequest) by one of
 //   `fixers` (the trusted people with write access who wrote a fix request,
-//   fixRequesters); the trusted people's comments are direction;
+//   fixRequesters); the trusted people's comments from the first such
+//   request on are direction;
 // - the lanes App's last comment escalated the thread and every comment after
 //   it is a trusted person's reply, which is direction.
 // A comment by anyone else, a trusted person's comment last edited by anyone
@@ -186,12 +189,13 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
     if (!humanAsks(fixers) || (requesters && !humanAsks(requesters))) {
       return null;
     }
+    const asked = comments.findIndex((comment) => isHuman(comment) && asks(fixers, comment));
     const authors = [];
-    for (const comment of comments) {
+    for (const [i, comment] of comments.entries()) {
       if (comment.authorId === reviewerId) {
         authors.push({ author: "reviewer" });
       } else if (isHuman(comment)) {
-        authors.push({ author: "trusted-human", direction: true });
+        authors.push(i >= asked ? { author: "trusted-human", direction: true } : { author: "trusted-human" });
       } else {
         return null;
       }

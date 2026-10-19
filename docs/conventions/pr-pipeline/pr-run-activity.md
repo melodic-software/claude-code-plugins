@@ -656,7 +656,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    comment counts only when never edited or last edited by such a human. Every other comment must
    be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. The
    thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
-   `direction: true` the replies after the escalation, or with no escalation every human comment,
+   `direction: true` the replies after the escalation, or with no escalation every human comment
+   from the first such fix request on,
    which the skill follows within the same path rules. The reply job's re-read judges threads the
    same way. On a PR carrying the base's human-gated role label it keeps a thread only when one of
    those replies is such a fix request by a write-access human, and
