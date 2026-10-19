@@ -13,7 +13,8 @@
 # runs only on files with a name safe as a prompt word, never on an instruction
 # surface (CLAUDE.md, CLAUDE.local.md, AGENTS.md, SKILL.md, or anything under a
 # .claude, .claude-plugin, skills, agents, commands, hooks, output-styles or
-# prompts directory) and never under .github/ or .changes/. An untracked file's
+# prompts directory), never under .github/ or .changes/, and never a symbolic
+# link, which could point at any of those. An untracked file's
 # every line is new, so its run line drops an `--added-since <base>` pair.
 #
 # Exit: 0 routed, 2 usage or a git failure.
@@ -50,7 +51,7 @@ while IFS= read -r -d '' record; do
 done < <(git diff --no-ext-diff --no-textconv --no-renames --numstat -z HEAD)
 wait "$!" || { echo "$self: git diff failed" >&2; exit 2; }
 while IFS= read -r -d '' path; do
-  [[ -L $path ]] || total=$((total + $(wc -l <"$path")))
+  [[ ! -f $path || -L $path ]] || total=$((total + $(wc -l <"$path")))
   untracked[$path]=1
   paths+=("$path")
 done < <(git ls-files -z --others --exclude-standard)
@@ -82,6 +83,12 @@ eligible() {
   esac
 }
 
+# An area name goes into output the model reads, so one outside the safe name
+# set prints as <unprintable>.
+printable() {
+  if [[ $1 =~ ^[A-Za-z0-9_@+./\ -]*$ ]]; then printf '%s' "$1"; else printf '<unprintable>'; fi
+}
+
 kind() {
   case "${1,,}" in
     *.md) echo markdown ;;
@@ -97,7 +104,7 @@ for path in "${paths[@]}"; do
   [[ -z $a ]] || areas[$a]=1
   k="$(kind "$path")"
   [[ $k == markdown || -z $a ]] || docs_only=false
-  if [[ -z $k || ! -e $path ]] || ! eligible "$path"; then continue; fi
+  if [[ -z $k || ! -f $path || -L $path ]] || ! eligible "$path"; then continue; fi
   if [[ $k == code ]]; then code+=("$path"); else markdown+=("$path"); fi
 done
 
@@ -107,7 +114,7 @@ if ((${#paths[@]} == 0)); then
 fi
 if ((${#areas[@]} > 1)); then
   mapfile -t names < <(printf '%s\n' "${!areas[@]}" | sort)
-  echo "route: skip areas ${#areas[@]}: ${names[*]}"
+  echo "route: skip areas ${#areas[@]}: $(printable "${names[*]}")"
   exit 0
 fi
 if ((total > max)); then
@@ -143,7 +150,7 @@ if ((${#lines[@]} == 0)); then
 fi
 scope=code
 [[ $docs_only == false ]] || scope=docs-only
-area_name="${!areas[*]}"
+area_name="$(printable "${!areas[*]}")"
 echo "route: run"
 echo "scope: $scope, files ${#paths[@]}, lines $total, area ${area_name:-none}"
 printf '%s\n' "${lines[@]}"

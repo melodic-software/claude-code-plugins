@@ -1121,6 +1121,8 @@ test("tidy allows exactly the listed skills, installs their plugins once, and gr
   assert.deepEqual(plugins, ["work-items@melodic-software", "code-tidying@melodic-software", "ai-slop@melodic-software"]);
   assert.deepEqual(wrapperRules(allowed), [`Bash(${router})`]);
   assert.ok(denied.includes(`Edit(/${tidyDir}/**)`) && denied.includes(`Write(/${tidyDir}/**)`), denied.join(" | "));
+  // ai-slop:audit's allowed-tools grant Bash(git:*), and git -c runs any command.
+  assert.ok(denied.includes("Bash(git:*)") && denied.includes("Bash(git *)"), denied.join(" | "));
   const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
   assert.ok(systemPrompt.includes(`run ${router} with no arguments`), systemPrompt);
   assert.ok(systemPrompt.includes("at most 15 turns"), systemPrompt);

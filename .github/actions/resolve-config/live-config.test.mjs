@@ -344,6 +344,25 @@ test("live config: resolve-issue tidies its diff with the four passes in order; 
   assert.deepEqual(others, []);
 });
 
+// The write runner denies git to a run with tidy passes, since git -c runs any
+// command, and grants a pass no Bash of its own. If a pass's allowed-tools
+// applied anyway, each other grant must be the pass's own scripts or a command
+// that runs nothing else. Bundled skills (no plugin) are not in this checkout.
+const HARMLESS = new Set(["echo", "grep", "head", "wc", "mkdir", "sha256sum", "shasum"]);
+test("live config: no tidy pass's allowed-tools grant Bash beyond its scripts, git and harmless commands", () => {
+  for (const { skill } of selected("work-resolve-issue", "resolve-issue", ISSUE).tidy.passes) {
+    if (!skill.includes(":")) continue;
+    const [plugin, name] = skill.split(":");
+    const body = readFileSync(new URL(`../../../plugins/${plugin}/skills/${name}/SKILL.md`, import.meta.url), "utf8");
+    const line = /^allowed-tools: (\[.*\])$/m.exec(body)?.[1] ?? "[]";
+    for (const rule of JSON.parse(line).filter((r) => r.startsWith("Bash("))) {
+      const command = rule.slice(5).replace(/^"/, "").split(/[ :"]/)[0];
+      const ok = command.startsWith("${CLAUDE_SKILL_DIR}/scripts/") || command === "git" || HARMLESS.has(command);
+      assert.ok(ok, `${skill}: ${rule}`);
+    }
+  }
+});
+
 test("live config: resolve-issue may only write its branch; report-outcome may only write PRs and issues", () => {
   const grant = (activity) =>
     resolveGrant(FILES, { lane: "work-resolve-issue", activity, configPath: CONFIG_PATH });

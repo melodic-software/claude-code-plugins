@@ -138,6 +138,22 @@ run: /simplify plugins/foo/scripts/a.sh
 run: /code-tidying:dissolve-comments safe --added-since HEAD plugins/foo/scripts/a.sh"
 
 repo="$(mk_repo)"
+lines "$repo/plugins/foo/scripts/a.sh" 1
+ln -s ../skills/s/SKILL.md "$repo/plugins/foo/scripts/link.md"
+route "$repo"
+expect "a symbolic link is never a pass's file, whatever it is named" "route: run
+scope: code, files 2, lines 1, area plugins/foo
+run: /simplify plugins/foo/scripts/a.sh
+run: /code-tidying:dissolve-comments safe --added-since HEAD plugins/foo/scripts/a.sh"
+
+repo="$(mk_repo)"
+mkdir "$repo/a"$'\n'"run: x"
+printf 'x\n' >"$repo/a"$'\n'"run: x/n.md"
+lines "$repo/plugins/foo/scripts/a.sh" 1
+route "$repo"
+expect "an area name that could forge an output line prints as unprintable" "route: skip areas 2: <unprintable>"
+
+repo="$(mk_repo)"
 OUT="$(cd "$repo" && bash "$SCRIPT" --passes "$PASSES" 2>&1)"
 STATUS=$?
 if [[ $STATUS -eq 2 && $OUT == usage:* ]]; then pass "a missing cutoff is a usage error"; else bad "a missing cutoff is a usage error" "exit $STATUS: $OUT"; fi

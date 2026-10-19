@@ -508,20 +508,26 @@ already tidied. `resolve-issue` sets it: `simplify` (bundled with Claude Code) a
 - copies the base `scripts/tidy-route.sh` and the pass list to `$RUNNER_TEMP/lane-tidy`, makes the
   copy read-only, denies `Edit` and `Write` on it, and allows one wrapper there with no arguments,
   which runs the copy in the checkout with the cutoff and the pass list fixed, `GH_TOKEN` and
-  `GITHUB_TOKEN` unset and a check wrapper's git config pins;
+  `GITHUB_TOKEN` unset and a check wrapper's git config pins (read-only guards the copy against
+  the run's `Edit` and `Write`, not against code the run starts as the same user);
+- denies `Bash(git:*)` and `Bash(git *)`: `ai-slop:audit`'s `allowed-tools` grant `git`, whose `-c`
+  options run any command with the token in the environment, and a deny wins over any allow;
 - tells the run, in `--append-system-prompt`: once the change is committed and the checks pass, run
   the wrapper; on `route: run`, invoke each `run:` line in order, fix what a report-only pass reports
   on the lines the run changed, then run the checks again and commit; spend at most `turns` turns on
   the passes; name each pass in the report; and never let a pass that fails hold back the commit.
 
-The wrapper measures the work tree (tracked changes against `HEAD` plus untracked files) and prints
+The wrapper measures the work tree (tracked changes against `HEAD` plus untracked files; `commit_files`
+commits through the API and leaves the checkout's `HEAD` at the gated SHA, so this is the run's
+whole change) and prints
 `route: skip <reason>` when the diff is empty, touches more than one area (`plugins/<name>` for a
 plugin's files, else the first path segment; `.changes/` counts toward the size but is no area), or
 has more than `max-changed-lines` added plus deleted lines (150 by default, provisional until the
 loop baseline sets it). Larger or wider diffs skip tidy for now. Otherwise it prints `route: run` and
 one `run: /<skill> <args> <files>` line per pass that has files, so a diff with no code file runs
 only the markdown passes. A pass never gets an instruction surface (the list `changed-paths` leaves
-out), a file under `.github/` or `.changes/`, or a name outside the `changed-paths` name set;
+out), a file under `.github/` or `.changes/`, a symbolic link, or a name outside the
+`changed-paths` name set, and an area name outside that set prints as `<unprintable>`;
 `CODEOWNERS` paths are not left out. An untracked file's run line drops `--added-since <base>`,
 since every line of it is new.
 
@@ -534,7 +540,12 @@ turn-cap resume.
 No pass gets a `Bash` rule of its own. A pass's helper scripts get no rule, and whether its
 pre-compute lines run under its own `allowed-tools` in a `dontAsk` lane is not yet observed: a pass
 that needs one may fail to load or run reduced, and the run names it and moves on; the run record's
-`denied` list shows which commands were refused. A pre-compute line that does run executes a base
+`denied` list shows which commands were refused. A live-config test fails when a pass's
+`allowed-tools` grant `Bash` beyond its own scripts, `git` and commands that run nothing else
+(`echo`, `grep`, `head`, `wc`, `mkdir`, `sha256sum`, `shasum`); the bundled `simplify` is not in the
+checkout, so its grants are unchecked. `Skill(simplify)` is the lane's one bare-name skill rule;
+whether `--setting-sources user` keeps a `simplify` skill the run writes under `.claude/skills/`
+from matching it is not yet observed. A pre-compute line that does run executes a base
 copy of the pass's plugin in the checkout, the power the issue lane's `run-test-file.sh` already
 gives the run.
 
