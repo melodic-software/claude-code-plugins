@@ -13,6 +13,10 @@
     {
       "answer": ".countdown { font-variant-numeric: tabular-nums; }\n.countdown[data-loading] { block-size: 1.2em; inline-size: 5ch; }",
       "why": "tabular digits and a skeleton at the final size, but the loaded number has no fixed-width slot"
+    },
+    {
+      "answer": ".countdown { font-variant-numeric: tabular-nums; min-inline-size: 5ch; }\n.countdown[data-loading] { block-size: 0; inline-size: 0; }",
+      "why": "tabular digits in a ch slot, but the skeleton is zero-size, not the final size"
     }
   ]
 }
