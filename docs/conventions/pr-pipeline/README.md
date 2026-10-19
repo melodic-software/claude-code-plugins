@@ -605,6 +605,22 @@ position is the `pr-merge-gate-cursor` artifact, read only from a scheduled or h
 `pr-merge.yml` run on the default branch, found through that workflow's run list; it sets the order
 and never a verdict.
 
+Before the loop, the workflow sets aside each candidate the last gating run refused on inputs that
+have not changed, and reports it with that refusal, marked `carried`. A skip only repeats a refusal:
+it never enqueues. The inputs are the head and `updatedAt`, labels, base SHA, check rollup at the
+head, reviews, review threads, comments, closing issues, the verdict artifacts naming the pull request
+or its head, the gate's config and code on the default branch, and the rung cap. Check runs and
+statuses do not move `updatedAt`, so that is never the key alone. Only `risk:MED`, `risk:HIGH` and
+the `verify:` refusals `fail`, `earlier-fail`, `missing`, `too-old`, `spec-changed` and
+`untrusted-spec` are skipped. A refusal whose gate process failed a write or has a review re-run due
+is not. Neither is a pull request in the merge queue, nor `verify:missing` while a PASS artifact
+names the head. `merge.skip-unchanged` bounds each skip: `max-minutes` (default 60) after the
+refusal was judged, or `max-skips` (default 3) runs in a row, the candidate is gated again. `0` in
+either turns skipping off. When every candidate would be skipped, the first is gated, and any read
+that fails or comes back incomplete gates the candidate (`babysit_merge_skip.py`). The refusals live
+in the same `actions/cache` entry as the carried verdict reads, so a forged entry can only repeat a
+refusal, for at most `max-minutes` from the judgment time it names.
+
 ### Dependabot pull requests
 
 No Dependabot pull request waits on a human
