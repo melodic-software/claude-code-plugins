@@ -606,7 +606,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   review verdict says; when the title and the commit metadata disagree, every update is held,
   written `<name>(disagree)` unless it is already major or unreadable. The lane escalates every
   held pull request once, as for a verifier refusal below: one upserted
-  `<!-- babysit-merge-dependabot-major -->` comment, then the tracker's human-gated role label, so
+  `<!-- babysit-merge-dependabot-major -->` comment, whose first line is the attended queue's
+  `<!-- work-items:escalation lane=pr-merge kind=escalated -->` marker so
+  `/work-items:attend-queue` lists it, then the tracker's human-gated role label, so
   a person merges it. `review` leaves it tier `review`, merged on the verdict above.
 
 The class is `babysit_dependabot.py` beside the wrapper. Auto-merge armed with `GITHUB_TOKEN` is not used: GitHub's

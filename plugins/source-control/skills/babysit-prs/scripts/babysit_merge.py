@@ -2703,6 +2703,10 @@ def queued_entry_hold(
 RISK_MARKER = "<!-- babysit-merge-risk -->"
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
+# The attended queue's escalation marker (work-items reference
+# escalation-marker.md): first line of the held-major comment, so
+# /work-items:attend-queue lists the pull request as escalated.
+ATTEND_QUEUE_MARKER = "<!-- work-items:escalation lane=pr-merge kind=escalated -->"
 UNATTENDED_REFUSED = "unattended merge refused: "
 # Refusals that stop the path: the identity's own queued entries leave the queue.
 STOP_REFUSALS = (
@@ -3038,6 +3042,11 @@ def _first_line(text: Any) -> str:
     return str(text or "").split("\n", 1)[0].rstrip("\r")
 
 
+def _marker_lines(text: Any) -> list[str]:
+    """The first two lines, where a lane comment carries its markers."""
+    return [line.rstrip("\r") for line in str(text or "").split("\n", 2)[:2]]
+
+
 def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     """The reasons comment: a function of the score, the reasons and the head
     only, so an unchanged assessment renders the same body."""
@@ -3063,8 +3072,8 @@ def upsert_marker_comment(
     comments: list[dict[str, Any]] | None,
     marker: str = RISK_MARKER,
 ) -> str:
-    """Post or rewrite the identity's one comment whose first line is
-    `marker` (the reasons comment, Design T14, by default): `unchanged` when
+    """Post or rewrite the identity's one comment whose first or second line
+    is `marker` (the reasons comment, Design T14, by default): `unchanged` when
     the newest one already says this, else `updated` or `created`. Raises
     `RuntimeError` on a failed read or write."""
     if comments is None:
@@ -3081,7 +3090,7 @@ def upsert_marker_comment(
             }
         )
         == identity.casefold()
-        and _first_line(c.get("body")) == marker
+        and marker in _marker_lines(c.get("body"))
     ]
     if mine:
         newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
@@ -3122,6 +3131,7 @@ def major_escalation_body(majors: str, head: str) -> str:
     only, so a rerun renders the same body."""
     return "\n".join(
         [
+            ATTEND_QUEUE_MARKER,
             MAJOR_ESCALATION_MARKER,
             f"Unattended merge: `{majors}` is a major version update, one whose "
             "version cannot be read (`(unreadable)`), or one whose title and "

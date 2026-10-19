@@ -19,6 +19,7 @@ import dataclasses
 import io
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -2434,7 +2435,11 @@ class DependabotMajorEscalation(unittest.TestCase):
         comment, label = self.calls
         self.assertIn(f"repos/{self.REPO}/issues/{self.PR}/comments", comment)
         body = comment[-1].removeprefix("body=")
-        self.assertTrue(body.startswith(merge.MAJOR_ESCALATION_MARKER + "\n"))
+        self.assertTrue(
+            body.startswith(
+                f"{merge.ATTEND_QUEUE_MARKER}\n{merge.MAJOR_ESCALATION_MARKER}\n"
+            )
+        )
         self.assertIn("`x`", body)
         self.assertIn(self.HEAD, body)
         self.assertIn("`(disagree)`", body)
@@ -2471,6 +2476,48 @@ class DependabotMajorEscalation(unittest.TestCase):
         self.assertEqual(self.calls, [])
         self.assertEqual(
             out["majorEscalation"], {"label": "present", "comment": "unchanged"}
+        )
+
+    def test_the_first_line_is_the_attend_queue_escalation_marker(self) -> None:
+        # The grammar and kinds come from the work-items reference, so a
+        # change there fails here.
+        reference = (
+            pathlib.Path(__file__).resolve().parents[6]
+            / "plugins/work-items/reference/escalation-marker.md"
+        ).read_text(encoding="utf-8")
+        template = re.search(
+            r"## Comment prefix.*?```text\n(.+?)\n```", reference, re.S
+        ).group(1)
+        grammar = re.escape(template)
+        grammar = grammar.replace(re.escape("<lane>"), r"(?P<lane>[a-z-]+)")
+        grammar = grammar.replace(re.escape("<kind>"), r"(?P<kind>[a-z0-9-]+)")
+        kinds = re.search(r"\| `<kind>` \| (.+?) \|\n", reference).group(1)
+        body = merge.major_escalation_body("x", self.HEAD)
+        match = re.fullmatch(grammar, body.split("\n", 1)[0])
+        self.assertIsNotNone(match)
+        self.assertIn(f"`{match['kind']}`", kinds)
+        # attend-queue lists `escalated` and `routed-advisory` as escalated rows.
+        self.assertIn(match["kind"], ("escalated", "routed-advisory"))
+
+    def test_an_old_format_comment_is_rewritten_not_duplicated(self) -> None:
+        self.pr_labels = [{"name": "status: needs-decision"}]
+        old = merge.major_escalation_body("x", self.HEAD).removeprefix(
+            merge.ATTEND_QUEUE_MARKER + "\n"
+        )
+        self.comments = [
+            {
+                "id": 92,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": old,
+            }
+        ]
+        out = self.writes("ineligible:dependabot-major-held:x")
+        (comment,) = self.calls
+        self.assertIn("PATCH", comment)
+        self.assertIn(f"repos/{self.REPO}/issues/comments/92", comment)
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "updated"}
         )
 
     def test_a_held_major_under_an_earlier_refusal_escalates_once(self) -> None:
