@@ -142,7 +142,8 @@ status.
 ## Merge after AI review
 
 ```bash
-[ "$(gh repo view --json owner --jq .owner.login)" = melodic-software ] \
+REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner) || exit 1
+[ "${REPO%%/*}" = melodic-software ] \
   || { echo 'not a melodic-software repository: wait for the user' >&2; exit 1; }
 : "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 RULES=$(gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/<baseRefName>" | jq 'add')
@@ -165,27 +166,27 @@ for _ in $(seq 5); do
   sleep 60
 done
 [ "$S" = clean ] || { echo "PR reads ${S:-nothing} at the pinned head, not clean: hold" >&2; exit 1; }
-if jq -e 'any(.[]; .type == "merge_queue")' <<<"$RULES" >/dev/null; then
-  echo "merge-ready $HEAD_SHA queue"
-else
-  echo "merge-ready $HEAD_SHA squash"
-fi
+MODE=squash STRATEGY=' --squash'
+jq -e 'any(.[]; .type == "merge_queue")' <<<"$RULES" >/dev/null && MODE=queue STRATEGY=''
+echo "merge-ready $HEAD_SHA $MODE"
+GUARD='(.author.login=="kyle-sexton" or .author.login=="app/melodic-automation-lanes") and (.isCrossRepository|not) and (.isDraft|not) and ([.files[].path|select(test("^\\.github/(workflows|actions)/|(^|/)\\.claude/|(^|/)dot_claude/|^\\.chezmoi(data|templates)/|(^|/)(CLAUDE|AGENTS)\\.md(\\.tmpl)?$|(^|/)\\.claude-plugin/|^plugins/[^/]+/(hooks|lib|bin|monitors|workflows|server)/|(^|/)\\.mcp\\.json$|(^|/)\\.lsp\\.json$|(^|/)settings[^/]*\\.json$|^scripts/.+\\.(sh|bash|py|mjs|cjs|js|ts|ps1|psm1)$|^scripts/([^/]+/)*[^/.]+$|^plugins/[^/]+/skills/.+/scripts/"))]|length==0) and ([.statusCheckRollup[]|select(.name=="ci-status")]|length>0 and (max_by(.completedAt).conclusion=="SUCCESS")) and ([.statusCheckRollup[]|select((.name//"")|test("review"))] as $r|($r|length>0) and ($r|all(.status=="COMPLETED" and (.conclusion=="SUCCESS" or .conclusion=="NEUTRAL" or .conclusion=="SKIPPED"))) and ($r|group_by(.workflowName)|all(any(.[]; .conclusion!="SKIPPED" and .conclusion!="NEUTRAL"))))'
+printf "gh pr view %s -R %s --json headRefOid,author,isCrossRepository,isDraft,files,statusCheckRollup --jq '.headRefOid==\"%s\" and %s' | grep -qx true && gh pr merge %s -R %s%s --match-head-commit %s\n" \
+  <pr_number> "$REPO" "$HEAD_SHA" "$GUARD" <pr_number> "$REPO" "$STRATEGY" "$HEAD_SHA"
 ```
 
-The script does not merge. When it prints `merge-ready <sha> <queue|squash>`, run the merge as its
-own Bash command in the shape below, with nothing chained before it and every value written
-literally: the PR number, `-R <owner>/<repo>`, your own login (`gh api user --jq .login`) and the
-full 40-character sha the script printed, never a variable, a command substitution or a loop. The
-guard re-checks the head, author, fork, draft, changed files, review checks (none failed) and
-`ci-status` inside the command that merges, so an auto-mode allow entry that requires that guard
-can match it, and a check rerun after the script cannot slip a failed review or an armed auto-merge
-past it. Add `--squash` only
-when the script printed `squash`; behind a merge queue the queue sets the strategy. Keep each
-`|not` clause in its parentheses: jq's `|` binds looser than `and`, so without them a wrong head
-would pass.
+The script does not merge. After `merge-ready <sha> <queue|squash>` it prints the guarded merge
+command with the PR number, repository and full 40-character head sha filled in. Run that line
+as-is, alone, as one Bash command: never retype it, chain anything before it, or swap a value for a
+variable, a command substitution or a loop. It has the shape below. The guard re-checks the head,
+author, fork, draft, changed files, `ci-status` and review checks inside the command that merges,
+so the auto-mode allow entry that requires that guard can match it, and a check rerun after the
+script cannot slip a failed review or an armed auto-merge past it. It carries `--squash` only when
+the script printed `squash`; behind a merge queue the queue sets the strategy. Each `|not` clause
+stays in its parentheses: jq's `|` binds looser than `and`, so without them a wrong head would
+pass.
 
 ```bash
-gh pr view <pr_number> -R <owner>/<repo> --json headRefOid,author,isCrossRepository,isDraft,files,statusCheckRollup --jq '.headRefOid=="<sha>" and .author.login=="<login>" and (.isCrossRepository|not) and (.isDraft|not) and ([.files[].path|select(test("^\\.github/(workflows|actions)/|(^|/)\\.claude/|(^|/)dot_claude/|^\\.chezmoi(data|templates)/|(^|/)(CLAUDE|AGENTS)\\.md(\\.tmpl)?$"))]|length==0) and ([.statusCheckRollup[]|select((.name//"")|test("review"))] as $r|($r|length>0) and ($r|all(.status=="COMPLETED")) and ($r|group_by(.workflowName)|all(any(.[]; .conclusion!="SKIPPED")))) and ([.statusCheckRollup[]|select((.name//"")|test("review"))]|all(.conclusion|IN("SUCCESS","SKIPPED"))) and ([.statusCheckRollup[]|select(.name=="ci-status")]|length>0 and (max_by(.completedAt).conclusion=="SUCCESS"))' | grep -qx true && gh pr merge <pr_number> -R <owner>/<repo> --squash --match-head-commit <sha>
+gh pr view <pr_number> -R melodic-software/<repo> --json headRefOid,author,isCrossRepository,isDraft,files,statusCheckRollup --jq '.headRefOid=="<sha>" and (.author.login=="kyle-sexton" or .author.login=="app/melodic-automation-lanes") and (.isCrossRepository|not) and (.isDraft|not) and ([.files[].path|select(test("^\\.github/(workflows|actions)/|(^|/)\\.claude/|(^|/)dot_claude/|^\\.chezmoi(data|templates)/|(^|/)(CLAUDE|AGENTS)\\.md(\\.tmpl)?$|(^|/)\\.claude-plugin/|^plugins/[^/]+/(hooks|lib|bin|monitors|workflows|server)/|(^|/)\\.mcp\\.json$|(^|/)\\.lsp\\.json$|(^|/)settings[^/]*\\.json$|^scripts/.+\\.(sh|bash|py|mjs|cjs|js|ts|ps1|psm1)$|^scripts/([^/]+/)*[^/.]+$|^plugins/[^/]+/skills/.+/scripts/"))]|length==0) and ([.statusCheckRollup[]|select(.name=="ci-status")]|length>0 and (max_by(.completedAt).conclusion=="SUCCESS")) and ([.statusCheckRollup[]|select((.name//"")|test("review"))] as $r|($r|length>0) and ($r|all(.status=="COMPLETED" and (.conclusion=="SUCCESS" or .conclusion=="NEUTRAL" or .conclusion=="SKIPPED"))) and ($r|group_by(.workflowName)|all(any(.[]; .conclusion!="SKIPPED" and .conclusion!="NEUTRAL"))))' | grep -qx true && gh pr merge <pr_number> -R melodic-software/<repo> --squash --match-head-commit <sha>
 ```
 
 Where the user's own instructions authorize an admin merge for that repository (a required
@@ -194,7 +195,7 @@ only it. It carries exactly `--squash`, `--admin` and `--match-head-commit`, nev
 `--delete-branch`:
 
 ```bash
-gh pr view <pr_number> -R <owner>/<repo> --json headRefOid,mergeStateStatus,statusCheckRollup,files --jq '.headRefOid=="<sha>" and .mergeStateStatus!="DIRTY" and ([.statusCheckRollup[]|select(.name=="ci-status")]|length>0 and (max_by(.completedAt).conclusion=="SUCCESS")) and all(.statusCheckRollup[]; (.status//"COMPLETED")=="COMPLETED" and (.state//"")!="PENDING") and ([.files[].path|select(test("^\\.github/(workflows|actions)/|(^|/)\\.claude/|(^|/)dot_claude/|^\\.chezmoi(data|templates)/|(^|/)(CLAUDE|AGENTS)\\.md(\\.tmpl)?$"))]|length==0) and ([.statusCheckRollup[]|select((.name//"")|test("review"))] as $r|($r|length>0) and ($r|group_by(.workflowName)|all(any(.[]; .conclusion!="SKIPPED"))) and ($r|all(.conclusion|IN("SUCCESS","SKIPPED")))) and all(.statusCheckRollup[]; (.conclusion//.state//"")|IN("SUCCESS","SKIPPED","NEUTRAL"))' | grep -qx true && gh pr merge <pr_number> -R <owner>/<repo> --squash --admin --match-head-commit <sha>
+gh pr view <pr_number> -R melodic-software/<repo> --json headRefOid,author,mergeStateStatus,statusCheckRollup,files --jq '.headRefOid=="<sha>" and .mergeStateStatus!="DIRTY" and ([.statusCheckRollup[]|select(.name=="ci-status")]|length>0 and (max_by(.completedAt).conclusion=="SUCCESS")) and all(.statusCheckRollup[]; (.status//"COMPLETED")=="COMPLETED" and (.state//"")!="PENDING") and ([.files[].path|select(test("^\\.github/(workflows|actions)/|(^|/)\\.claude/|(^|/)dot_claude/|^\\.chezmoi(data|templates)/|(^|/)(CLAUDE|AGENTS)\\.md(\\.tmpl)?$"))]|length==0) and (.author.login=="kyle-sexton" or .author.login=="app/melodic-automation-lanes") and ([.statusCheckRollup[]|select((.name//"")|test("review"))] as $r|($r|length>0) and ($r|group_by(.workflowName)|all(any(.[]; .conclusion!="SKIPPED" and .conclusion!="NEUTRAL"))) and ($r|all(.conclusion|IN("SUCCESS","SKIPPED")))) and all(.statusCheckRollup[]; (.conclusion//.state//"")|IN("SUCCESS","SKIPPED","NEUTRAL"))' | grep -qx true && gh pr merge <pr_number> -R melodic-software/<repo> --squash --admin --match-head-commit <sha>
 ```
 
 A merge the permission layer refuses in this shape is a hand-off to the user, not a retry in
