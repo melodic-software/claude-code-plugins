@@ -1,9 +1,11 @@
 name: Check the WIP cap
 description: >
-  Count the lanes App's open pull requests in this repository with one search
-  call on the job's own token, and set `capped` to `true` when the count is at
-  or over `limits.wip-cap` in the default branch's pr-pipeline.yaml. A count
-  that cannot be read sets `false`: the run starts. Run it from the default
+  Read the lanes App's open, merged and opened pull requests in this
+  repository with serial searches on the job's own token; derive the issue
+  lane's WIP cap from the merge rate and the default branch's pr-pipeline.yaml
+  `wip` block; count held pull requests apart; and publish the status. Set
+  `capped` to `true` only when the lane pauses (over a cap on or after
+  `wip.pause-from`). A read that fails never caps. Run it from the default
   branch checkout, before any slot or lane token.
 
 inputs:
@@ -18,8 +20,11 @@ inputs:
 
 outputs:
   capped:
-    description: "`true` at or over the cap; `false` under it or when the count cannot be read."
+    description: "`true` only while the lane pauses (over the WIP or held cap on or after `wip.pause-from`); otherwise `false`, including when a read fails."
     value: ${{ steps.check.outputs.capped }}
+  wip:
+    description: "The status as one flat JSON object: countable_lane_prs, held_lane_prs, held_oldest_age_hours, held_over_alarm_count, wip_cap, wip_cap_source and the rest (pr-pipeline README, WIP cap)."
+    value: ${{ steps.check.outputs.wip }}
 
 runs:
   using: composite
@@ -40,5 +45,5 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         npm ci --ignore-scripts --omit=dev --prefix "$BASE_PATH/.github/actions/resolve-config" ||
-          echo "::warning::resolve-config's dependencies did not install; the default WIP cap applies"
+          echo "::warning::resolve-config's dependencies did not install; the default WIP config applies"
         node "$GITHUB_ACTION_PATH/check-wip-cap.mjs"
