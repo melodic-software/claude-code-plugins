@@ -260,7 +260,9 @@ activities:
   merge-pr:
     # Runs the merge gate on one PR and, when it passes, adds the PR to the
     # merge queue at the head it checked. No model. .github/workflows/pr-merge.yml
-    # runs it for each candidate PR.
+    # runs it for each candidate PR. On its schedule the same token also takes
+    # off a needs-human the lanes App set for a pr-unblock escalation whose
+    # reason no longer holds (.github/scripts/pr-merge/clear-escalations.mjs).
     script: plugins/source-control/scripts/source-control-babysit-merge
     args: --unattended --authority pr-merge --merge
     effect: merge

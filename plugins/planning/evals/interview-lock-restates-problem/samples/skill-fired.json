@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview", "args": "lock invoice-export-timeout"}}], "why": "qualified name with the lock action"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "interview"}}], "why": "unqualified name"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:plan"}}], "why": "a different planning skill"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview-x"}}], "why": "a name that only starts with interview"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

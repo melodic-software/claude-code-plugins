@@ -44,7 +44,9 @@ name: pr-merge
 #
 # On its schedule it also gives a PR a new head, an empty commit, when a lane
 # run on its current head was refused by the token broker as
-# workflow-modified, once per version of the workflow file the broker named.
+# workflow-modified, once per version of the workflow file the broker named,
+# and takes off a needs-human label the lanes App set for a pr-unblock
+# escalation once its recorded reason no longer holds.
 #
 # How to keep one PR from merging: put the line `Hold: a human merges this`
 # in its body, or add the `do-not-merge` or `needs-human` label (the
@@ -881,6 +883,44 @@ jobs:
             ' "$summary"
           } >>"$GITHUB_STEP_SUMMARY"
 
+      # The same verdicts as data for the lane trend chart, since the API
+      # cannot read a step summary: the pr-merge-summary artifact, and one log
+      # line of refusal counts by reason. The key is split here so this
+      # script, which the log echoes, never matches a grep for it. Rules:
+      # .github/scripts/pr-merge/sweep-summary.mjs.
+      - name: Count the sweep's refusals
+        if: always() && steps.gate.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          LIVE: ${{ steps.mode.outputs.live }}
+          GATE_OUTCOME: ${{ steps.gate.outcome }}
+          SUMMARY_PATH: ${{ runner.temp }}/pr-merge-summary.json
+          HELD_PATH: ${{ runner.temp }}/held.json
+          CANDIDATES_PATH: ${{ runner.temp }}/candidates.json
+          CURSOR_PATH: ${{ runner.temp }}/gate-cursor/cursor.json
+          SWEEP_SUMMARY_TO: ${{ runner.temp }}/pr-merge-sweep.json
+        run: |
+          set -euo pipefail
+          RUN_STARTED_AT=$(gh api "repos/$REPO/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at) || RUN_STARTED_AT=
+          export RUN_STARTED_AT
+          node .base/.github/scripts/pr-merge/sweep-summary.mjs
+          jq -r '"refusal" + "-counts=" + (.refusal_counts | tojson)' "$SWEEP_SUMMARY_TO"
+
+      - name: Upload the sweep's verdicts
+        if: always() && steps.gate.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-summary
+          path: ${{ runner.temp }}/pr-merge-sweep.json
+          retention-days: 30
+          if-no-files-found: ignore
+
       # A pr-refine or pr-unblock run the broker refused as
       # workflow-modified cannot pass on a rerun, which keeps its first
       # event's workflow files. On the schedule, this pushes an empty commit
@@ -904,6 +944,25 @@ jobs:
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/refire-refused.mjs
+
+      # A pr-unblock escalation adds the human-gated label with a reason. On
+      # the schedule, this takes off a label the lanes App set once that
+      # reason no longer holds at the PR's head (workflow-staged, a conflict
+      # reason, feedback-protected-path), after a comment naming the reason
+      # and the head: never a label a person set, and never after anyone but
+      # the App commented or reviewed since it went on. At most five a run, and not
+      # while the lane is report-only.
+      # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
+      - name: Clear escalations whose reason no longer holds
+        if: >-
+          always() && github.event_name == 'schedule'
+          && steps.lane-token.outputs.token != ''
+          && steps.mode.outputs.report-only == 'false'
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+        run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
 
       - name: Log the API budget at job end
         id: budget-end
