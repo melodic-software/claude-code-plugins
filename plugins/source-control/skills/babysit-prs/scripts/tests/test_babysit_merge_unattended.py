@@ -2109,7 +2109,7 @@ class ReasonsComment(Unattended):
         self.assertEqual(self.log, ["risk-comment:POST"])
 
     def test_a_review_pending_med_ten_minutes_on_gets_no_label(self) -> None:
-        # Issue #8450 review: a review still running scores MED on every
+        # A review still running scores MED on every
         # sweep; two sweeps minutes apart must not label it for good.
         body = self.body()
         self.setUp()
@@ -2169,7 +2169,7 @@ class ReasonsComment(Unattended):
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
 
     def test_a_second_sweep_at_the_same_head_adds_the_human_gated_label(self) -> None:
-        # Issue #8450: a MED or HIGH refusal on two sweeps at one head is
+        # A MED or HIGH refusal on two sweeps at one head is
         # labeled, the reasons comment unchanged.
         for name, files in (
             ("MED", ((LOW_FILE,), True)),
