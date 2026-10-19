@@ -534,6 +534,7 @@ class _Context:
     # Full runs whose red verdict came from the wrapper's re-run (attempt 2).
     red_on_rerun: set[int] = field(default_factory=set)
     branch: str = ""
+    branch_tip: str | None = None
     lane_cache: dict[str, bool] = field(default_factory=dict)
     checks_cache: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
     # Full-history clones `contains` asks first; None until first resolved.
@@ -706,8 +707,9 @@ class _Context:
         `pull_request` run carries the base repository as `repository` and its
         own branch name, which can be the branch's, as `head_branch`, so the
         head repository is checked and `head_sha`, the commit whose copy of
-        the file ran, must be on the branch: that also refuses a tag named
-        like the branch."""
+        the file ran, must be on the branch's tip as `refs/heads/` names it:
+        that also refuses a tag named like the branch, which a bare name
+        would resolve to first."""
         repo = f"{self.owner}/{self.name}"
         head_sha = record.get("head_sha")
         return (
@@ -718,8 +720,28 @@ class _Context:
             and json_object(record.get("head_repository")).get("full_name") == repo
             and isinstance(head_sha, str)
             and _FULL_SHA.fullmatch(head_sha) is not None
-            and self.contains(head_sha, self.branch)
+            and self.contains(head_sha, self._branch_tip())
         )
+
+    def _branch_tip(self) -> str:
+        """The branch's tip commit, read from `refs/heads/<branch>` once. A
+        failed or malformed read raises, so the verdict is unreadable."""
+        if self.branch_tip is None:
+            ref = json_object(
+                _read(
+                    [
+                        "api",
+                        f"repos/{self.owner}/{self.name}/git/ref/heads/"
+                        f"{quote(self.branch, safe='/')}",
+                    ],
+                    f"branch {self.branch}",
+                )
+            )
+            sha = json_object(ref.get("object")).get("sha")
+            if not isinstance(sha, str) or _FULL_SHA.fullmatch(sha) is None:
+                raise PostMergeReadError(f"branch {self.branch}: no tip commit")
+            self.branch_tip = sha
+        return self.branch_tip
 
     def contains(self, ancestor: str, sha: str) -> bool:
         """Whether `sha` is `ancestor` or has it in its history: from a local
@@ -810,7 +832,16 @@ class _Context:
         # clear a red attempt 1. Two github-actions[bot] re-runs can:
         # post-merge-demotion-alert.yml's single re-run, which re-runs no run
         # the bot started, and for a run the pr-merge lane dispatched, the one
-        # its post-merge-dispatch job recorded.
+        # its post-merge-dispatch job recorded. That job uploads the record
+        # just after its re-run starts, so a bot attempt 2 of a lane-dispatched
+        # run still in progress waits for its record instead of reading red.
+        if (
+            second.status != "completed"
+            and second.triggering_actor == LANE_DISPATCH_ACTOR
+            and first.triggering_actor == LANE_DISPATCH_ACTOR
+            and self.lane_dispatched(run)
+        ):
+            return PENDING, "re-run-in-progress"
         if second.triggering_actor != self.identity and not (
             second.triggering_actor == LANE_DISPATCH_ACTOR
             and (first.triggering_actor != LANE_DISPATCH_ACTOR or self.lane_rerun(run))

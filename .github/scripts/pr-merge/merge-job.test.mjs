@@ -51,10 +51,10 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Check the kill switch",
       "Read report-only",
       "Check earlier lane merges",
-      "Re-run a red lane-dispatched full run",
-      "Record the re-run",
       "Start the full CI run on main",
       "Record the dispatched run",
+      "Re-run a red lane-dispatched full run",
+      "Record the re-run",
     ],
   );
   assert.doesNotMatch(early, /steps\.candidates|steps\.gate|needs\.merge/);
@@ -619,11 +619,11 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
   // Only a check that could judge (exit 0, 1 or 5) names a run to re-run.
   assert.match(
     rerun,
-    /\n {8}if: >-\n {10}contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n {10}&& steps\.post-merge\.outputs\.lane-rerun != ''\n/,
+    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n {10}&& steps\.post-merge\.outputs\.lane-rerun != ''\n/,
   );
   assert.match(rerun, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   const upload = step("Record the re-run", list);
-  assert.match(upload, /\n {8}if: steps\.rerun\.outputs\.recorded == 'true'\n/);
+  assert.match(upload, /\n {8}if: "!cancelled\(\) && steps\.rerun\.outputs\.recorded == 'true'"\n/);
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.match(upload, /\n {10}name: pr-merge-rerun-\$\{\{ steps\.post-merge\.outputs\.lane-rerun \}\}-attempt-2\n/);
 });

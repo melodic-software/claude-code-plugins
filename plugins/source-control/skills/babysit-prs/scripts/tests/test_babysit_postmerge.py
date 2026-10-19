@@ -44,6 +44,7 @@ HEAD_SHA = "2" * 40
 LATER_SHA = "4" * 40
 OTHER_SHA = "5" * 40
 FORK_SHA = "f" * 40
+TIP_SHA = "a" * 40
 RUN_URL = f"https://github.com/{REPO}/actions/runs"
 # Phase 12's failure note (post-merge-demotion-alert.yml `again=`).
 AGAIN = "The post-merge check found this failure again: "
@@ -169,8 +170,12 @@ class FakeGh:
         self.attempts: dict[tuple[int, int], dict[str, Any]] = {}
         # SHAs main reached at or after MERGE_SHA; anything else does not contain it.
         self.descendants = {MERGE_SHA, LATER_SHA}
-        # Commits on main itself, which a compare against the branch name asks.
-        self.on_main = {MERGE_SHA, LATER_SHA}
+        # Commits on main itself: the history of its tip, `refs/heads/main`.
+        self.on_main = {MERGE_SHA, LATER_SHA, TIP_SHA}
+        self.main_tip = TIP_SHA
+        # What a compare against the bare name `main` reaches; None means the
+        # branch, a set stands in for a same-named tag on another history.
+        self.bare_main: set[str] | None = None
         self.queue: list[dict[str, Any]] = []
         self.issues: list[dict[str, Any]] = []
         self.comments: dict[int, list[dict[str, Any]]] = {}
@@ -263,13 +268,16 @@ class FakeGh:
             base, head = endpoint.split("/compare/")[1].split("...")
             if head == base:
                 return completed({"status": "identical"})
-            if head == "main":
-                return completed(
-                    {"status": "ahead" if base in self.on_main else "diverged"}
-                )
+            if head == "main" or head == self.main_tip:
+                reach = self.on_main
+                if head == "main" and self.bare_main is not None:
+                    reach = self.bare_main
+                return completed({"status": "ahead" if base in reach else "diverged"})
             return completed(
                 {"status": "ahead" if head in self.descendants else "diverged"}
             )
+        if endpoint == f"repos/{REPO}/git/ref/heads/main":
+            return completed({"ref": "refs/heads/main", "object": {"sha": self.main_tip}})
         if "/actions/runs/" in endpoint and endpoint.endswith("/rerun-failed-jobs"):
             return completed()
         if "/actions/artifacts?" in endpoint:
@@ -747,9 +755,23 @@ class LaneDispatch(CheckCase):
         self.lane_dispatch(event="pull_request")
         self.assertFalse(self.check(pinned=None).merges[0].verified)
 
+    def test_a_tag_named_like_the_branch_does_not_verify(self) -> None:
+        # Git resolves a bare `main` to refs/tags/main before refs/heads/main,
+        # so the sender's commit is checked against the branch tip's SHA.
+        self.gh.bare_main = {OTHER_SHA}
+        self.lane_dispatch(event="push", head_sha=OTHER_SHA)
+        self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+    def test_an_unreadable_branch_tip_fails_closed(self) -> None:
+        self.lane_dispatch()
+        self.gh.fail_reads.add("git/ref/heads/main")
+        verdict = self.check(pinned=None)
+        self.assertFalse(verdict.readable)
+        self.assertEqual(pm.verdict_exit(verdict), pm.EXIT_UNREADABLE)
+
     def test_an_unreadable_sender_compare_fails_closed(self) -> None:
         self.lane_dispatch()
-        self.gh.fail_reads.add(f"compare/{LATER_SHA}...main")
+        self.gh.fail_reads.add(f"compare/{LATER_SHA}...{TIP_SHA}")
         verdict = self.check(pinned=None)
         self.assertFalse(verdict.readable)
         self.assertEqual(pm.verdict_exit(verdict), pm.EXIT_UNREADABLE)
@@ -834,6 +856,41 @@ class LaneRerun(LaneDispatch):
 
     def test_a_bot_rerun_without_the_record_is_red(self) -> None:
         self.lane_rerun("success", record=None)
+        self.assertEqual(
+            [f.signal for f in self.check(pinned=None).failures], ["dispatch"]
+        )
+
+    def test_a_bot_rerun_still_running_before_its_record_is_pending(self) -> None:
+        # pr-merge.yml uploads the record seconds after its re-run starts, so
+        # a check in that window waits for the attempt to finish.
+        self.lane_rerun("success", record=None)
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(
+                11,
+                status="in_progress",
+                conclusion=None,
+                run_attempt=2,
+                actor=self.BOT,
+                triggering_actor=self.BOT,
+            )
+        ]
+        verdict = self.check(pinned=None)
+        self.assertEqual(verdict.failures, ())
+        self.assertFalse(verdict.merges[0].verified)
+        self.assertTrue(verdict.merges[0].pending)
+
+    def test_a_human_rerun_still_running_is_red(self) -> None:
+        self.lane_rerun("success", triggered_by=by("maintainer"))
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(
+                11,
+                status="in_progress",
+                conclusion=None,
+                run_attempt=2,
+                actor=self.BOT,
+                triggering_actor=by("maintainer"),
+            )
+        ]
         self.assertEqual(
             [f.signal for f in self.check(pinned=None).failures], ["dispatch"]
         )

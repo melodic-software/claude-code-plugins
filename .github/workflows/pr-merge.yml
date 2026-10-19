@@ -178,6 +178,33 @@ jobs:
           rerun=$(jq -r '[.reruns[]? | select(.laneDispatched == true) | .runId][0] // ""' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || true)
           echo "lane-rerun=$rerun" >>"$GITHUB_OUTPUT"
 
+      - name: Start the full CI run on main
+        id: dispatch
+        if: steps.post-merge.outputs.needs-dispatch == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          id=$(gh api -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
+            -f ref=main -F return_run_details=true --jq '.workflow_run_id')
+          if [[ ! $id =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::the dispatch returned no run id"
+            exit 1
+          fi
+          echo "started run $id"
+          echo "{\"dispatcher_run_id\":$GITHUB_RUN_ID,\"run_id\":$id}" >"$RUNNER_TEMP/dispatched.json"
+          echo "run-id=$id" >>"$GITHUB_OUTPUT"
+
+      - name: Record the dispatched run
+        if: steps.dispatch.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}
+          path: ${{ runner.temp }}/dispatched.json
+          retention-days: 90
+          if-no-files-found: error
+
       # A red attempt 1 of a full run this workflow dispatched waits for its
       # one re-run, and the lanes App holds no Actions permission to start it.
       # This job starts it with its own token, one run per job, and records it
@@ -185,11 +212,13 @@ jobs:
       # before it counts a github-actions[bot] attempt 2 of a lane-dispatched
       # run. The record is uploaded only after this job's own re-run made
       # attempt 2, so a re-run anyone else started never gets one. Only a
-      # check that could judge (exit 0, 1 or 5) names a run.
+      # check that could judge (exit 0, 1 or 5) names a run. It runs after the
+      # dispatch, and either failing leaves the other to run.
       - name: Re-run a red lane-dispatched full run
         id: rerun
         if: >-
-          contains(fromJSON('["0","1","5"]'), steps.post-merge.outputs.code)
+          !cancelled()
+          && contains(fromJSON('["0","1","5"]'), steps.post-merge.outputs.code)
           && steps.post-merge.outputs.lane-rerun != ''
         env:
           GH_TOKEN: ${{ github.token }}
@@ -224,38 +253,11 @@ jobs:
           echo "recorded=true" >>"$GITHUB_OUTPUT"
 
       - name: Record the re-run
-        if: steps.rerun.outputs.recorded == 'true'
+        if: "!cancelled() && steps.rerun.outputs.recorded == 'true'"
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-rerun-${{ steps.post-merge.outputs.lane-rerun }}-attempt-2
           path: ${{ runner.temp }}/rerun.json
-          retention-days: 90
-          if-no-files-found: error
-
-      - name: Start the full CI run on main
-        id: dispatch
-        if: steps.post-merge.outputs.needs-dispatch == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          id=$(gh api -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
-            -f ref=main -F return_run_details=true --jq '.workflow_run_id')
-          if [[ ! $id =~ ^[1-9][0-9]{0,14}$ ]]; then
-            echo "::error::the dispatch returned no run id"
-            exit 1
-          fi
-          echo "started run $id"
-          echo "{\"dispatcher_run_id\":$GITHUB_RUN_ID,\"run_id\":$id}" >"$RUNNER_TEMP/dispatched.json"
-          echo "run-id=$id" >>"$GITHUB_OUTPUT"
-
-      - name: Record the dispatched run
-        if: steps.dispatch.outcome == 'success'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}
-          path: ${{ runner.temp }}/dispatched.json
           retention-days: 90
           if-no-files-found: error
 
