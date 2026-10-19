@@ -1,3 +1,4 @@
+# test-scope: plugins/planning/shared/schema/*.schema.json plugins/planning/surface/schema/*.schema.json plugins/planning/shared/tests/fixtures/*.json
 """session.py holds the shared interview session's domain rules; each test names one invariant.
 
 Expected values come from the Design's Contracts (state shape, error codes, round transitions,
