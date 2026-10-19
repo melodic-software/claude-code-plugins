@@ -40,7 +40,8 @@
         "appetite": {
           "description": "How much the human is willing to spend on the work.",
           "type": "object",
-          "additionalProperties": { "type": "string" },
+          "minProperties": 1,
+          "additionalProperties": { "type": "string", "minLength": 1 },
           "default": {
             "Small": "A contained change the human will spend little on.",
             "Medium": "A real piece of work the human will fund with some care.",
@@ -50,7 +51,8 @@
         "size": {
           "description": "How big the work is. The last level means split.",
           "type": "object",
-          "additionalProperties": { "type": "string" },
+          "minProperties": 1,
+          "additionalProperties": { "type": "string", "minLength": 1 },
           "default": {
             "Small": "One focused change with few moving parts.",
             "Medium": "Several coordinated changes inside one deliverable.",
@@ -60,7 +62,8 @@
         "uncertainty": {
           "description": "How much of the work is not yet known.",
           "type": "object",
-          "additionalProperties": { "type": "string" },
+          "minProperties": 1,
+          "additionalProperties": { "type": "string", "minLength": 1 },
           "default": {
             "Known": "The approach and its unknowns are understood.",
             "Knowable": "The open points can be settled by looking.",
