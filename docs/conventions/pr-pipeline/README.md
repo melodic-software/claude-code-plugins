@@ -935,7 +935,7 @@ summary pass's.
 ## Funding
 
 `funding` maps each Claude lane id to the funding role whose secrets pay for its runs: `reviews`,
-`automations` or `issue-lane`. A lane passes its role to ci-workflows' `claude-lane` action with
+`automations` or `issue-lane`. A lane passes its role to ci-workflows' `run-claude-cli` action with
 the role's two secrets, `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` (role
 upper-snake, so `issue-lane` gives `ISSUE_LANE_`); the action tries the key first and the
 subscription token only after a credit stop. This repository's map: `intake`, `pr-unblock`,
