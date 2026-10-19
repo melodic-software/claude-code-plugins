@@ -309,6 +309,12 @@ Each leaf declares:
   `read` may search the web, fetch those domains, and run the research skills
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). An activity that turns it on must
   set `reads-untrusted: true` and an effect other than `read`.
+- `tidy` (optional, `skill` only, `mutate-branch` only): `passes`, each a `skill` (`<plugin>:<skill>`,
+  or a bare name for a skill bundled with Claude Code), optional `args` and `files` (`code` or
+  `markdown`), run in order on the activity's own diff after its checks pass;
+  `max-changed-lines` (default 150) and `turn-share` (default 0.2). The write runner allows exactly
+  these skills and gives the run a routing tool that skips the passes for a diff over the cutoff
+  or across more than one area ([`pr-run-activity.md`](pr-run-activity.md#in-run-tidy)).
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a

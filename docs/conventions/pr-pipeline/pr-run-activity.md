@@ -319,7 +319,8 @@ adapted to this and still read PR text themselves; until each is, its untrusted-
 known residual. The skill gets the App token as `github_token` in the write file, and the job's
 read-only `GITHUB_TOKEN` in the read file. `claude_args` passes `--setting-sources user`, so no
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
-`--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
+`--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"` (and the
+[tidy passes](#in-run-tidy) when the activity lists them), so the skill's own
 `allowed-tools` decide what else it may use; and `resolve-config`'s `claude-args` for the
 activity's models profile (`--max-turns`, `--model` unless the model is `default`, `--effort` when
 set), with its `settings-json` as the action's `settings`
@@ -494,6 +495,48 @@ skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` i
 text, and in the write file `denied`, each command the permission mode denied cut to 300
 characters (lane token cut out of both) to the step summary and to `act-turns.json` in the same artifact. The
 full execution file is not uploaded: it holds head text and tool output.
+
+### In-run tidy
+
+A `mutate-branch` skill with `tidy` tidies its own diff before its review, so the PR reaches review
+already tidied. `resolve-issue` sets it: `simplify` (bundled with Claude Code) and
+`code-tidying:dissolve-comments safe --added-since HEAD` on changed code, then
+`docs-hygiene:audit-noise` and `ai-slop:audit fix` on changed markdown. `collect-base-activity`:
+
+- allows `Skill(<pass>)` for each listed pass and no other skill, and installs each pass's plugin
+  from the base marketplace copy (a bare name is bundled, so nothing is installed);
+- copies the base `scripts/tidy-route.sh` and the pass list to `$RUNNER_TEMP/lane-tidy`, makes the
+  copy read-only, denies `Edit` and `Write` on it, and allows one wrapper there with no arguments,
+  which runs the copy in the checkout with the cutoff and the pass list fixed, `GH_TOKEN` and
+  `GITHUB_TOKEN` unset and a check wrapper's git config pins;
+- tells the run, in `--append-system-prompt`: once the change is committed and the checks pass, run
+  the wrapper; on `route: run`, invoke each `run:` line in order, fix what a report-only pass reports
+  on the lines the run changed, then run the checks again and commit; spend at most `turns` turns on
+  the passes; name each pass in the report; and never let a pass that fails hold back the commit.
+
+The wrapper measures the work tree (tracked changes against `HEAD` plus untracked files) and prints
+`route: skip <reason>` when the diff is empty, touches more than one area (`plugins/<name>` for a
+plugin's files, else the first path segment; `.changes/` counts toward the size but is no area), or
+has more than `max-changed-lines` added plus deleted lines (150 by default, provisional until the
+loop baseline sets it). Larger or wider diffs skip tidy for now. Otherwise it prints `route: run` and
+one `run: /<skill> <args> <files>` line per pass that has files, so a diff with no code file runs
+only the markdown passes. A pass never gets an instruction surface (the list `changed-paths` leaves
+out), a file under `.github/` or `.changes/`, or a name outside the `changed-paths` name set;
+`CODEOWNERS` paths are not left out. An untracked file's run line drops `--added-since <base>`,
+since every line of it is new.
+
+`resolve-config` sets `turns` to the run's turn cap (after the issue dimensions) times `turn-share`
+(0.2 by default), rounded down; a share that rounds to 0 grants nothing. The share is an instruction,
+not a cap: `--max-turns` still caps the whole run. The work skill commits its change before the
+passes start, so a run that reaches the cap during them keeps that commit on its branch for the
+turn-cap resume.
+
+No pass gets a `Bash` rule of its own. A pass's helper scripts get no rule, and whether its
+pre-compute lines run under its own `allowed-tools` in a `dontAsk` lane is not yet observed: a pass
+that needs one may fail to load or run reduced, and the run names it and moves on; the run record's
+`denied` list shows which commands were refused. A pre-compute line that does run executes a base
+copy of the pass's plugin in the checkout, the power the issue lane's `run-test-file.sh` already
+gives the run.
 
 ### Script activities
 

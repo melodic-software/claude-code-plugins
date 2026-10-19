@@ -6,8 +6,9 @@ description: >
   $RUNNER_TEMP/base-marketplace, plus the plugins to install, prompt (with its
   changed-paths) and claude_args (with read access to the marketplace copy,
   and for any effect but read the write tool set, a scratch directory, the
-  web tools when the activity sets web-access and, unless the runner commits
-  for it, the instruction to commit). Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
+  web tools when the activity sets web-access, the tidy passes and their
+  routing tool when it sets tidy and, unless the runner commits for it, the
+  instruction to commit). Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
   step 8 and Skill activities.
 
 inputs:
@@ -71,7 +72,8 @@ outputs:
   plugins:
     description: >
       The plugins to install for a skill, one `<plugin>@<marketplace>` per
-      line: the skill's own, plus the research plugins under web-access.
+      line: the skill's own, plus the research plugins under web-access
+      and the tidy passes' plugins.
     value: ${{ steps.skill.outputs.plugins }}
   claude-args:
     description: The skill's claude_args after the fixed ones.
@@ -126,6 +128,7 @@ runs:
         FEEDBACK_STATE: ${{ runner.temp }}/lane-feedback-state
         DEPENDENCY_DIR: ${{ runner.temp }}/lane-dependency
         CI_DIR: ${{ runner.temp }}/lane-ci
+        TIDY_DIR: ${{ runner.temp }}/lane-tidy
         WORKSPACE: ${{ github.workspace }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
       run: |
@@ -390,6 +393,46 @@ runs:
                 system_prompt="$system_prompt Run a test file only through $VERIFY_DIR/bin/run-test-file <test file>, with the path from the checkout root: it picks the runner, vitest included, and a compound command such as cd <dir>; <command> is refused."
               fi
             fi
+            # tidy: after its checks pass, the skill runs these passes on its
+            # own diff when the routing tool says the diff is small and in one
+            # area. Exactly the listed skills are allowed and their plugins
+            # installed. The tool runs from a read-only base copy with its
+            # cutoff and pass list fixed, so the rule takes no arguments.
+            # A share that rounds to no turn grants nothing.
+            if jq -e '(.selected.tidy.turns // 0) > 0' "$RESOLVED" >/dev/null; then
+              [[ $TIDY_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
+                fail "the tidy tool directory or workspace has a name a rule cannot carry"
+              max=$(jq -r '.selected.tidy["max-changed-lines"]' "$RESOLVED")
+              turns=$(jq -r '.selected.tidy.turns' "$RESOLVED")
+              [[ $max =~ ^[1-9][0-9]*$ && $turns =~ ^[1-9][0-9]*$ ]] || fail "tidy: the cutoff and the turns must be whole numbers"
+              mkdir -p "$TIDY_DIR/bin"
+              cp "$BASE_PATH/scripts/tidy-route.sh" "$TIDY_DIR/tidy-route.sh"
+              jq -r '.selected.tidy.passes[] | [.files, .skill, (.args // "")] | @tsv' "$RESOLVED" >"$TIDY_DIR/passes.tsv"
+              pass_shape='^[a-z0-9-]+(:[a-z0-9-]+)?$'
+              args_shape='^[A-Za-z0-9 _.=-]*$'
+              while IFS=$'\t' read -r files pass pass_args; do
+                [[ $files =~ ^(code|markdown)$ && $pass =~ $pass_shape && $pass_args =~ $args_shape ]] || fail "tidy: a pass is malformed"
+                allowed="$allowed,Skill($pass)"
+                # A bare name is a skill bundled with Claude Code: nothing to install.
+                if [[ $pass == *:* ]]; then
+                  plugins="$plugins"$'\n'"${pass%%:*}@$marketplace"
+                fi
+              done <"$TIDY_DIR/passes.tsv"
+              router="$TIDY_DIR/bin/tidy-route"
+              {
+                printf '#!/usr/bin/env bash\ncd %q || exit 2\n' "$WORKSPACE"
+                printf '%s\n' \
+                  'unset GH_TOKEN GITHUB_TOKEN' \
+                  'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
+                  'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null'
+                printf 'exec bash %q --max-changed-lines %q --passes %q\n' "$TIDY_DIR/tidy-route.sh" "$max" "$TIDY_DIR/passes.tsv"
+              } >"$router"
+              chmod +x "$router"
+              chmod -R a-w "$TIDY_DIR"
+              allowed="$allowed,Bash($router)"
+              disallowed="${disallowed:+$disallowed,}Edit(/$TIDY_DIR/**),Write(/$TIDY_DIR/**)"
+              system_prompt="$system_prompt Tidy your own diff before any review step: once the change is committed and the checks pass, run $router with no arguments, as its own command. It prints route: skip with the reason, or route: run and one run: line per tidy pass. On route: run, invoke each run: line's skill as written, with its arguments and files, in that order, and where a pass only reports, fix what it reports on the lines this run changed; then run the checks again, fix what they report and commit. The tidy passes may use at most $turns turns of this run: stop them when those are spent, so the review and the outcome keep theirs. Name each pass and what it changed in your report; a pass that will not load or run is named and skipped, and never holds back the commit or the outcome. Give a tidy skill only the files its run: line lists."
+            fi
             # review-threads: the skill reads the runner's thread file, and
             # records its replies to those threads, only through this tool:
             # a base copy behind a wrapper that fixes its environment, which
@@ -456,7 +499,8 @@ runs:
         delimiter="prompt_$(openssl rand -hex 16)"
         {
           echo "plugins<<$delimiter"
-          printf '%s\n' "$plugins"
+          # A tidy pass may name the skill's own plugin or a research one.
+          printf '%s\n' "$plugins" | awk '!seen[$0]++'
           echo "$delimiter"
           echo "claude-args=$claude_args"
           echo "prompt<<$delimiter"

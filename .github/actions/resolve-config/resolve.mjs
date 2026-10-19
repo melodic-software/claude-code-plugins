@@ -705,6 +705,7 @@ function resolveSlot(
     ...(activity["self-checks"] === undefined ? {} : { "self-checks": activity["self-checks"] }),
     ...(activity["verify-scripts"] === undefined ? {} : { "verify-scripts": activity["verify-scripts"] }),
     ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
+    ...(activity.tidy === undefined ? {} : { tidy: tidyOf(activity.tidy, runModels) }),
     effect: activity.effect,
     gating: activity.gating,
     "reads-untrusted": activity["reads-untrusted"],
@@ -719,6 +720,19 @@ function resolveSlot(
     applies: outcome.applies,
     "skip-reason": outcome.skipReason,
     ...(outcome.applies && targets ? { "changed-paths": targets } : {}),
+  };
+}
+
+// A leaf's tidy with its defaults applied, and `turns`, the passes' share of
+// the run's turn cap, rounded down so it never grows past the share. The
+// epsilon keeps a float product such as 0.29 * 100 = 28.999... at 29.
+function tidyOf(tidy, runModels) {
+  const share = tidy["turn-share"] ?? 0.2;
+  return {
+    "max-changed-lines": tidy["max-changed-lines"] ?? 150,
+    "turn-share": share,
+    turns: Math.floor(runModels["max-turns"] * share + 1e-9),
+    passes: tidy.passes,
   };
 }
 

@@ -323,6 +323,27 @@ test("live config: resolve-issue may read any domain; review-dependency reads re
   assert.deepEqual(others, []);
 });
 
+// Owner decision 2026-10-19 (in-run tidy, phase 1): the issue lane tidies its
+// own diff with these passes, in this order; no other activity tidies. FACTS
+// sizes the issue small and low complexity, a 75-turn cap, so a 0.2 share is
+// 15 turns.
+test("live config: resolve-issue tidies its diff with the four passes in order; no other activity tidies", () => {
+  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE).tidy, {
+    "max-changed-lines": 150,
+    "turn-share": 0.2,
+    turns: 15,
+    passes: [
+      { skill: "simplify", files: "code" },
+      { skill: "code-tidying:dissolve-comments", args: "safe --added-since HEAD", files: "code" },
+      { skill: "docs-hygiene:audit-noise", files: "markdown" },
+      { skill: "ai-slop:audit", args: "fix", files: "markdown" },
+    ],
+  });
+  const doc = parse(FILES.config);
+  const others = Object.keys(doc.activities).filter((name) => name !== "resolve-issue" && doc.activities[name].tidy);
+  assert.deepEqual(others, []);
+});
+
 test("live config: resolve-issue may only write its branch; report-outcome may only write PRs and issues", () => {
   const grant = (activity) =>
     resolveGrant(FILES, { lane: "work-resolve-issue", activity, configPath: CONFIG_PATH });

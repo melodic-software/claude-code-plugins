@@ -62,6 +62,9 @@ dispatch, PR or babysit step. It works in place:
    passes on the PR") is not required of this run unless the runner's prompt or those rules
    require it: when you cannot run it here, add it to `not_done` as left to the PR's CI, with
    `"required": false`, and do not stop for it.
+   When the system prompt names a tidy routing tool, run it once the checks pass and before the
+   review, as the prompt says: add each pass that ran to `verification` as `tidy <skill>: what it
+   changed`, and each pass skipped or failed to `not_done` with `"required": false`.
    Then run the prep `/source-control:pull-request prep` defines, since the lane opens the PR
    ready: only this plugin is loaded here, so use its stated fallback for each step. The review
    runs in one venue: when `review-venue.txt` in the same scratchpad directory (the runner writes

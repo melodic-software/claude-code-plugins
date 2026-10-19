@@ -121,8 +121,9 @@ say(skill.with?.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'melodic
 say(/--setting-sources user/.test(args) && /--permission-mode dontAsk/.test(args) && !/bypass/i.test(args),
   "the skill loads user settings only, under dontAsk");
 const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "utf8");
-// The five exceptions: an activity's `checks`, each a read-only base-copy
-// wrapper the skill may run with no arguments; its `verify-scripts`, each a
+// The six exceptions: an activity's `checks`, each a read-only base-copy
+// wrapper the skill may run with no arguments; under `tidy`, the routing
+// tool, the same kind of wrapper; its `verify-scripts`, each a
 // read-only wrapper over a base copy it may run with any arguments; under web-access `any`,
 // the read-only base copy of the two docs scripts; under prepare:
 // review-threads, the read-only review-thread tool wrapper; with the
@@ -133,8 +134,8 @@ const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "
 const docsRule = String.raw`allowed="$allowed,Bash(bash $DOCS_DIR/$script *),Bash(bash \\\"$DOCS_DIR/$script\\\" *)"`;
 const ciContextRule = 'allowed="$allowed,Bash,Edit,Write,Agent,Read(/$CI_DIR/**),Edit(/$SCRATCH/**)"';
 const allowedLines = stage.split("\n").filter((l) => /allowed="\$allowed|allowed="Skill/.test(l));
-say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', 'allowed="$allowed,Bash($verifier *)"', docsRule, 'allowed="$allowed,Bash($tool *)"', 'allowed="$allowed,Bash(chmod +x *)"', ciContextRule].includes(l.trim())),
-  "the runner grants the skill no Bash but its check wrappers, its verify-scripts, the docs scripts, the review-thread tool, chmod +x and a read ci-context skill's");
+say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', 'allowed="$allowed,Bash($router)"', 'allowed="$allowed,Bash($verifier *)"', docsRule, 'allowed="$allowed,Bash($tool *)"', 'allowed="$allowed,Bash(chmod +x *)"', ciContextRule].includes(l.trim())),
+  "the runner grants the skill no Bash but its check wrappers, the tidy routing tool, its verify-scripts, the docs scripts, the review-thread tool, chmod +x and a read ci-context skill's");
 const readBranch = stage.slice(stage.indexOf("          read)\n"), stage.indexOf("          mutate-branch | mutate-tracker"));
 say(readBranch.includes(ciContextRule) && /ci-context\) \[ "\$EFFECT" = read \] \|\| fail/.test(stage),
   "the ci-context Bash grant sits in the read effect's branch, and ci-context with any other effect fails red");

@@ -367,10 +367,12 @@
         "checks": ["skill"],
         "self-checks": ["skill"],
         "verify-scripts": ["skill"],
-        "web-access": ["skill"]
+        "web-access": ["skill"],
+        "tidy": ["skill"]
       },
       "dependentSchemas": {
         "verify-scripts": { "properties": { "effect": { "not": { "const": "read" } } } },
+        "tidy": { "properties": { "effect": { "const": "mutate-branch" } } },
         "self-checks": { "properties": { "effect": { "not": { "const": "read" } } } },
         "prepare": {
           "oneOf": [
@@ -455,6 +457,54 @@
           "if": { "properties": { "enabled": { "const": true } } },
           "then": { "required": ["domains"] },
           "description": "Whether a skill with an effect other than read may read the web, off when absent. On, the write runner allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true and an effect other than read."
+        },
+        "tidy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["passes"],
+          "properties": {
+            "max-changed-lines": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2000,
+              "default": 150,
+              "description": "The largest diff, in added plus deleted lines, that runs the passes in the run. A larger diff, or one touching more than one area, skips them."
+            },
+            "turn-share": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 0.5,
+              "default": 0.2,
+              "description": "The share of the run's turn cap the passes may use, rounded down."
+            },
+            "passes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["skill", "files"],
+                "properties": {
+                  "skill": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]+(:[a-z0-9-]+)?$",
+                    "description": "<plugin>:<skill> from this marketplace, or a bare name for a skill bundled with Claude Code."
+                  },
+                  "args": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9 _.=-]+$",
+                    "description": "Arguments before the file list, in the skill's own syntax."
+                  },
+                  "files": {
+                    "enum": ["code", "markdown"],
+                    "description": "Which changed files the pass runs on: code files, or markdown files."
+                  }
+                }
+              }
+            }
+          },
+          "description": "Skills a mutate-branch skill runs on its own diff, in this order, after its checks pass and before it finishes; the checks then run again. The write runner allows exactly these skills and installs their plugins, and a routing tool from the base prints which passes run on which files: none when the diff is over max-changed-lines or touches more than one area, and only the markdown passes when no code file changed. Instruction surfaces and .github/ are never passed to a pass."
         },
         "script": {
           "type": "string",

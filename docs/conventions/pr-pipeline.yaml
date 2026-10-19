@@ -224,6 +224,29 @@ activities:
     web-access:
       enabled: true
       domains: any
+    # Tidies the run's own diff before the review: after the checks pass,
+    # simplify and dissolve-comments run on the changed code (dissolve-comments
+    # on added lines only), audit-noise and ai-slop on the changed markdown,
+    # then the checks run again and the run commits. A diff over
+    # max-changed-lines added plus deleted lines, or touching more than one
+    # area (one plugin, or one top-level directory), skips it for now. Both
+    # values are provisional, to be set from the loop baseline. The passes
+    # never get an instruction surface or a .github/ file, and may use at
+    # most turn-share of the run's turn cap.
+    tidy:
+      max-changed-lines: 150
+      turn-share: 0.2
+      passes:
+        - skill: simplify
+          files: code
+        - skill: code-tidying:dissolve-comments
+          args: safe --added-since HEAD
+          files: code
+        - skill: docs-hygiene:audit-noise
+          files: markdown
+        - skill: ai-slop:audit
+          args: fix
+          files: markdown
     effect: mutate-branch
     gating: advisory
     # Reads the issue's title and body, which anyone can write, and its

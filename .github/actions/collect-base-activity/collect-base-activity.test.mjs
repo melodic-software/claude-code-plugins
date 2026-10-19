@@ -1080,3 +1080,90 @@ test("a read skill gets no web tools even with web-access", () => {
   assert.ok(!allowed.some((rule) => rule.startsWith("Web")), allowed.join(" | "));
   assert.deepEqual(plugins, ["work-items@melodic-software"]);
 });
+
+// pr-run-activity.md, "In-run tidy": the runner allows exactly the listed tidy
+// skills, installs their plugins (a bare name is bundled, so nothing), and
+// gives the skill the routing tool as a no-argument wrapper over a read-only
+// base copy, with the cutoff and pass list fixed and the GitHub token unset.
+const TIDY_PASSES = [
+  { skill: "simplify", files: "code" },
+  { skill: "code-tidying:dissolve-comments", args: "safe --added-since HEAD", files: "code" },
+  { skill: "ai-slop:audit", args: "fix", files: "markdown" },
+  { skill: "work-items:work", files: "markdown" },
+];
+function withTidy(tidy, overrides = {}) {
+  const dir = mkdtempSync(path.join(root, "tidy-"));
+  const workspace = path.join(dir, "workspace");
+  mkdirSync(workspace, { recursive: true });
+  mkdirSync(path.join(base, "scripts"), { recursive: true });
+  writeFileSync(
+    path.join(base, "scripts", "tidy-route.sh"),
+    'echo "pwd=$PWD gh=${GH_TOKEN-unset} args=$*"\ncat "$4"\n',
+  );
+  const file = path.join(dir, "resolved.json");
+  writeFileSync(file, JSON.stringify({ selected: { args: "--ci", tidy } }));
+  const tidyDir = path.join(dir, "lane-tidy");
+  const staged = stage({ SKILL: "work-items:work", RESOLVED: file, TIDY_DIR: tidyDir, WORKSPACE: workspace, ...overrides });
+  return { workspace, tidyDir, router: path.join(tidyDir, "bin", "tidy-route"), ...staged };
+}
+
+test("tidy allows exactly the listed skills, installs their plugins once, and grants only the routing wrapper", () => {
+  const { status, allowed, denied, plugins, args, router, tidyDir, workspace } = withTidy({
+    "max-changed-lines": 150,
+    turns: 15,
+    passes: TIDY_PASSES,
+  });
+  assert.equal(status, 0);
+  assert.deepEqual(
+    allowed.filter((rule) => rule.startsWith("Skill(")),
+    ["Skill(work-items:work)", "Skill(simplify)", "Skill(code-tidying:dissolve-comments)", "Skill(ai-slop:audit)", "Skill(work-items:work)"],
+  );
+  assert.deepEqual(plugins, ["work-items@melodic-software", "code-tidying@melodic-software", "ai-slop@melodic-software"]);
+  assert.deepEqual(wrapperRules(allowed), [`Bash(${router})`]);
+  assert.ok(denied.includes(`Edit(/${tidyDir}/**)`) && denied.includes(`Write(/${tidyDir}/**)`), denied.join(" | "));
+  const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
+  assert.ok(systemPrompt.includes(`run ${router} with no arguments`), systemPrompt);
+  assert.ok(systemPrompt.includes("at most 15 turns"), systemPrompt);
+  const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", path.join(tidyDir, "tidy-route.sh")]);
+  assert.notEqual(write.status, 0, "the tool's copy is read-only");
+  const run = spawnSync(router, [], { cwd: root, encoding: "utf8", env: { ...process.env, GH_TOKEN: "fake-gh" } });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(
+    run.stdout,
+    `pwd=${workspace} gh=unset args=--max-changed-lines 150 --passes ${path.join(tidyDir, "passes.tsv")}\n` +
+      "code\tsimplify\t\ncode\tcode-tidying:dissolve-comments\tsafe --added-since HEAD\nmarkdown\tai-slop:audit\tfix\nmarkdown\twork-items:work\t\n",
+  );
+});
+
+test("without tidy, or with a share that rounds to no turn, no tidy skill or tool is granted", () => {
+  for (const tidy of [undefined, { "max-changed-lines": 150, turns: 0, passes: TIDY_PASSES }]) {
+    const { status, allowed, plugins, args, tidyDir } = withTidy(tidy);
+    assert.equal(status, 0);
+    assert.deepEqual(allowed.filter((rule) => rule.startsWith("Skill(")), ["Skill(work-items:work)"]);
+    assert.deepEqual(plugins, ["work-items@melodic-software"]);
+    assert.deepEqual(wrapperRules(allowed), []);
+    assert.ok(!args.includes("tidy"), args);
+    assert.throws(() => statSync(tidyDir));
+  }
+});
+
+test("a read skill gets no tidy grant", () => {
+  const { status, allowed } = withTidy({ "max-changed-lines": 150, turns: 15, passes: TIDY_PASSES }, { EFFECT: "read" });
+  assert.equal(status, 0);
+  assert.deepEqual(allowed.filter((rule) => rule.startsWith("Skill(")), ["Skill(work-items:work)"]);
+});
+
+for (const pass of [
+  { skill: "Simplify", files: "code" },
+  { skill: "a:b:c", files: "code" },
+  { skill: "simplify", files: "tree" },
+  { skill: "simplify", args: "x;y", files: "code" },
+  { skill: "simplify),Bash(*", files: "code" },
+]) {
+  test(`a malformed tidy pass fails red: ${JSON.stringify(pass)}`, () => {
+    const { status, stdout, args } = withTidy({ "max-changed-lines": 150, turns: 15, passes: [pass] });
+    assert.notEqual(status, 0);
+    assert.match(stdout, /::error::tidy: a pass is malformed/);
+    assert.equal(args, "");
+  });
+}
