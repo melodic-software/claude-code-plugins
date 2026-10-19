@@ -495,10 +495,10 @@ them live when a command's output, or the files you find, do not match the entry
 - **Owner**: session-flow, through that call only.
 - **Record**: on exit 0 or 1, one candidate for each entry in the envelope's `data.findings`: tier
   E3, unit `count`, `expected_size`
-  `{count: <the number of sessions its evidence names: the distinct `session_id` values, or for
+  ``{count: <the number of sessions its evidence names: the distinct `session_id` values, or for
   `edits.churn_per_pr`, whose entries name a path, the distinct IDs across each entry's
   `sessions`>, source_kind: session-count, source: "sessions over this machine's threshold,
-  audit-sessions sweep"}`, key `how-you-work/<its metric>`, title naming
+  audit-sessions sweep"}``, key `how-you-work/<its metric>`, title naming
   the metric, its value and its unit, `command` "/session-flow:audit-sessions sweep-only", horizon
   `later`, route `next-run`, `fix_owner` its `suggested_skill` when that names a skill in your skill
   listing, else `/performance:goal`. When no candidate results (no entry in `data.findings`, or
