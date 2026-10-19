@@ -51,6 +51,10 @@ async function main() {
     const pia = await rec.open(A.localUrl, { context: PHONE });
     const piaPid = await joinAs(pia, "Pia");
     const first = await until(pia, () => !document.querySelector(".vf-orient")?.hidden && !!document.querySelector(".vf-opt.vf-opt-other"));
+    // Measured once the owner and Gus show as on question 1: their presence lands after the first render, and the
+    // screen a phone guest keeps is the one with it.
+    const onIt = await until(pia, () => [...document.querySelectorAll(":is(.vf-onit, .vf-qonit) .core-avatar")].filter(a => a.offsetParent).length === 2);
+    ok("phone: the owner and Gus show as on the question", onIt);
     // The fold is the bottom of the scrolling question pane (the tab bar sits under it).
     const fold = await pia.evaluate(() => {
       const end = document.querySelector(".vf-scroll").getBoundingClientRect().bottom;

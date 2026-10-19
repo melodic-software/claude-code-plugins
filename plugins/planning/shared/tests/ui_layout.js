@@ -335,7 +335,7 @@ async function main() {
       await sp.context().close();
     }
 
-    // ---------- triage 36: Ask Claude holds only requests Claude runs; the line under its tabs opens Propose ----------
+    // ---------- triage 36: Ask Claude holds only requests Claude runs; the line under its title opens Propose ----------
     for (const [label, context] of [["390x844", PHONE], ["1440x900", { viewport: { width: 1440, height: 900 } }]]) {
       const g = await rec.open(A.localUrl, { context });
       await joinAs(g, `Point ${label}`);
@@ -345,8 +345,8 @@ async function main() {
       const tabs = await g.evaluate(() => [...document.querySelectorAll(".vf-apmodes [role=tab]")].filter(t => t.getClientRects().length).map(t => t.textContent));
       const line = await g.evaluate(() => document.querySelector(".vf-drawer .vf-ap-pointer")?.textContent || "");
       const opened = await g.locator(".vf-ap-propose").click({ timeout: 3000 }).then(() => true, () => false) && await until(g, () => !document.querySelector(".vf-proposepop").hidden && document.querySelector(".vf-drawer").hidden && document.activeElement?.id === "vf-prop-ta", null, 3000);
-      ok(`${label}: Ask Claude's tabs are exactly Ask, Research and Explore, and "Propose a question" under them closes it and opens the Propose form, its field focused`,
-        tabs.join() === "Ask,Research,Explore" && line === "Want the group asked something? Propose a question" && opened, JSON.stringify({ tabs, line, opened }));
+      ok(`${label}: a guest's Ask Claude has no kind tabs (follow-up item 2), and "Propose a question" under its title closes it and opens the Propose form, its field focused`,
+        tabs.join() === "" && line === "Want the group asked something? Propose a question" && opened, JSON.stringify({ tabs, line, opened }));
       await g.context().close();
     }
 

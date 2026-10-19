@@ -146,6 +146,13 @@ labels / assignees" below, and the note every other "sandboxed session" remark i
 cites. A 403 there is not an auth problem, so take it as a signal to switch APIs rather than to
 re-authenticate.
 
+The adapter makes that switch itself: with `CLAUDE_CODE_REMOTE=true` (set in cloud sessions) it
+takes the REST read and create paths whatever the `gh` version, and a native read or create that
+fails with a 403 starting `GitHub GraphQL is not available from Claude Code sessions` is retried
+over REST. Sub-issue and dependency edges and the `blockedBy` listings have no REST form, so
+`add-sub-item`, `link-blocks`, `list-sub-items`, `list-items` and `create-item --parent` or
+`--blocked-by` exit 3 there with an "unavailable in this Claude Code cloud session" message.
+
 - **Pointer**: when a `gh` call returns 403 in a cloud session, fetch the GraphQL restrictions in
   [cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
   live. **As of**: 2026-10-11. **Recheck trigger**: that section's GraphQL bullet changes, or a

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "1. Where the cap lives. Recommend: one `MAX_UPLOAD_BYTES = 25 * 1024 * 1024` in a new uploads/limits.py; api.py enforces it, the upload view passes it to upload.html for the hint, and the CLI imports it. Basis: verified, uploads/api.py:7 and cli/upload_cmd.py:6 each keep their own MAX_FILES today, so a copied 25 would drift the same way.",
+      "why": "one home, all three surfaces read it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. API: add `MAX_BYTES = 25_000_000` to api.py and return 413.\n2. Form: change the hint to 'Up to 10 files of 25 MB each'.\n3. CLI: add `MAX_BYTES = 25_000_000` to upload_cmd.py and refuse larger files.",
+      "why": "the value written into all three surfaces"
+    },
+    {
+      "answer": "A shared limits module would be cleaner, but it is not worth it here: keep 25 MB beside MAX_FILES in api.py and in upload_cmd.py, and hardcode it in the hint.",
+      "why": "mentions a single home only to reject it"
+    }
+  ]
+}

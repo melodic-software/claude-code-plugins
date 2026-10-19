@@ -7,6 +7,12 @@
     { "id": 209825114, "login": "claude[bot]", "kind": "bot" },
     { "id": 206951365, "login": "cursor[bot]", "kind": "bot" },
     { "id": 49699333, "login": "dependabot[bot]", "kind": "bot" },
-    { "id": 300666570, "login": "melodic-standards-sync[bot]", "kind": "bot" }
+    { "id": 300666570, "login": "melodic-standards-sync[bot]", "kind": "bot" },
+    { "id": 288071998, "login": "melodic-ai[bot]", "kind": "bot" },
+    { "id": 296023097, "login": "melodic-software-github-iac[bot]", "kind": "bot" },
+    { "id": 300690090, "login": "melodic-ci-runner-host[bot]", "kind": "bot" },
+    { "id": 302525172, "login": "melodic-ci-runner-observer[bot]", "kind": "bot" },
+    { "id": 315045210, "login": "melodic-claude-lanes-repin[bot]", "kind": "bot" },
+    { "id": 337859524, "login": "melodic-plugin-release[bot]", "kind": "bot" }
   ]
 }

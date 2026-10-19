@@ -114,18 +114,18 @@ told:
    width, nesting depth) to the conditions in play, never a fixed recipe: the active model's
    capability (a stronger model reaches further single-agent; a weaker one needs more decomposition
    and tighter specs), whether a capable advisor/verifier is on hand, current context pressure
-   (delegate to protect a filling window; stay inline when it is roomy), and concurrent-session load
-   / rate-limit headroom (thin headroom caps how many workers you run at once). With no live
-   rate-limit reading, do not invent window percentages. Scale down on this
-   session's own rate-limit errors or on live sibling-automation 429s already visible to the
-   session (for example review-lane infra comments classifying `api_error_status: 429`); scale
-   back up only after those reactive signals stop, never on a guessed recovery. Sizing is
+   (delegate to protect a filling window; stay inline when it is roomy). Usage or rate-limit headroom
+   never lowers model tier, effort, review depth or worker count; pacing is the user's call. Back
+   off only on this session's own rate-limit errors or on live sibling-automation 429s already
+   visible to the session (for example review-lane infra comments classifying
+   `api_error_status: 429`); scale back up only after those reactive signals stop, never on a
+   guessed recovery. Sizing is
    small/medium/large, a small ask stays single-agent, a medium one fans out a few, only a large
    genuinely-independent surface earns a wide or nested tree. Single-agent is the floor, not the
-   fallback. Per-worker tier is part of sizing and scales with fan-out width: past a wide fan-out
-   the cheaper tier becomes the DEFAULT the whole fleet inherits, volume multiplies every notch
-   of over-provisioning, and the standing exception is an explicitly hard stage (verify,
-   judge/adjudicate, judgment-heavy synthesis), which keeps the parent tier. Tier is not only the
+   fallback. Per-worker tier is part of sizing and follows the work: mechanical work runs on the
+   cheaper tier, which a wide mechanical fleet inherits as its DEFAULT because volume multiplies
+   every notch of over-provisioning, and the standing exception is an explicitly hard stage
+   (verify, judge/adjudicate, judgment-heavy synthesis), which keeps the parent tier. Tier is not only the
    model: match the reasoning depth (effort) to the subtask too, not the parent session,
    high-volume mechanical work (search, extraction, per-item transforms, formatting) runs cheaper
    on both. Work that changes code, verifies a change, or is likely to hit edge cases is excluded
@@ -311,9 +311,12 @@ Discipline: [the Discipline line above, verbatim]
 - `handoff`, the opening line above already fits a fresh session; emit as-is.
 - `worker`, insert as the FIRST line between the rails: `You are a spawned worker and did NOT
   inherit the parent session's context or the repo's conditional rules, these instructions are
-  your only copy.`
+  your only copy.` Then insert this waiting line directly after it, before the `ORCHESTRATION BRIEF` line,
+  in full and `compact` exports alike: `Waiting: poll in the foreground with a bounded loop, or
+  return what you have; never end your turn to wait on your own background job.`
 - `compact`. Emit only the seven numbered HEADLINES (`1. DELEGATE / FAN OUT`, `2. SPEC EVERY
-  SPAWN`, …) plus the closing Discipline line; drop every sub-clause.
+  SPAWN`, …) plus the closing Discipline line; drop every sub-clause. `worker compact` also keeps the
+  `worker` did-not-inherit and waiting lines; compact drops neither.
 
 ## What this skill does NOT do
 

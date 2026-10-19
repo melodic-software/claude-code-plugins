@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | CRITICAL | high | Duplicated Code | src/cart/banner.js:2 and src/checkout/summary.js:4 hardcode 50, a copy of FREE_SHIPPING_THRESHOLD (src/pricing.js:1). Raising the threshold to 75 in pricing.js would leave the banner promising free shipping at $50 and the summary charging nothing below $75's rule. No shared source or test keeps them aligned. | src/cart/banner.js:2 | Import FREE_SHIPPING_THRESHOLD in both files |",
+      "why": "fact, copies, diverging change, fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No code-design issues found.",
+      "why": "approves"
+    },
+    {
+      "answer": "| 1 | SUGGESTION | medium | Magic number | 50 is a magic number | src/cart/banner.js:2 | Name it |",
+      "why": "magic number only, below CRITICAL"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | Duplicated Code | 50 is copied from pricing.js into banner.js and summary.js | src/cart/banner.js:2 | Keep the three values in step |",
+      "why": "no diverging change and a manual-sync fix"
+    }
+  ]
+}

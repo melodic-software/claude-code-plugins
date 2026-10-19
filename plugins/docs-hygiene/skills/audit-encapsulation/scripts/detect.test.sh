@@ -356,6 +356,173 @@ code=$?
 assert_exit "plugin README bare skills/ cite stays candidate" 1 "$code"
 assert_contains "README bare skills/ hit emitted under filters" "$out" "skills/alpha/reference/"
 
+# --- Cross-plugin cites, file types, marketplace id, allowlist ---
+
+# Skill-root cite (no trailing subdirectory) into another plugin.
+root_repo="$(fixture_repo "plugins/alpha/README.md" \
+  "see plugins/beta/skills/foo for the details.")"
+out="$(cd "$root_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "cross-plugin skill-root cite → exit 1" 1 "$?"
+assert_contains "skill-root cite emitted without the trailing dot" "$out" \
+  "$(printf 'plugins/alpha/README.md\t1\tplugins/beta/skills/foo')"
+
+# Bare SKILL.md path cite into another plugin.
+bare_cross_repo="$(fixture_repo "plugins/alpha/README.md" \
+  "read plugins/beta/skills/foo/SKILL.md first")"
+out="$(cd "$bare_cross_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "cross-plugin bare SKILL.md cite → exit 1" 1 "$?"
+assert_contains "bare SKILL.md cite emitted" "$out" "plugins/beta/skills/foo/SKILL.md"
+
+# A .py file is scanned (every text file type).
+py_repo="$(fixture_repo "plugins/alpha/tool.py" \
+  "# see plugins/beta/skills/foo/reference/table.md")"
+out="$(cd "$py_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit ".py file cite → exit 1" 1 "$?"
+assert_contains ".py cite emitted" "$out" "tool.py"
+
+# Cross-plugin scripts/ cite from inside plugins/ is flagged.
+xscripts_repo="$(fixture_repo "plugins/alpha/README.md" \
+  "run plugins/beta/skills/foo/scripts/run.sh")"
+out="$(cd "$xscripts_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "cross-plugin scripts/ cite → exit 1" 1 "$?"
+assert_contains "cross-plugin scripts/ cite emitted" "$out" "plugins/beta/skills/foo/scripts/"
+
+# ...but a CI workflow outside plugins/ keeps the carve-out...
+ci_scripts_repo="$(fixture_repo ".github/workflows/ci.yml" \
+  "run: bash plugins/beta/skills/foo/scripts/run.sh")"
+out="$(cd "$ci_scripts_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "workflow scripts/ cite → exit 0 (carve-out)" 0 "$?"
+assert_silent "workflow scripts/ cite emits nothing" "$out"
+
+# ...and so does the plugin's own scripts/ cite.
+same_scripts_repo="$(fixture_repo "plugins/beta/README.md" \
+  "run plugins/beta/skills/foo/scripts/run.sh")"
+out="$(cd "$same_scripts_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "same-plugin scripts/ cite → exit 0" 0 "$?"
+assert_silent "same-plugin scripts/ cite emits nothing" "$out"
+
+# Same-plugin skill-root and bare SKILL.md cites stay quiet.
+same_root_repo="$(fixture_repo "plugins/beta/README.md" \
+  "see plugins/beta/skills/foo and plugins/beta/skills/foo/SKILL.md")"
+out="$(cd "$same_root_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "same-plugin root and SKILL.md cites → exit 0" 0 "$?"
+assert_silent "same-plugin root and SKILL.md cites emit nothing" "$out"
+
+# github.com blob URL into another plugin's skill folder.
+url_repo="$(fixture_repo "plugins/alpha/README.md" \
+  "https://github.com/acme/market/blob/main/plugins/beta/skills/foo/SKILL.md")"
+out="$(cd "$url_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "github blob URL cite → exit 1" 1 "$?"
+assert_contains "github blob URL cite emitted" "$out" "plugins/beta/skills/foo/SKILL.md"
+
+# raw.githubusercontent.com URL to a scripts/ file.
+raw_url_repo="$(fixture_repo "plugins/alpha/README.md" \
+  "https://raw.githubusercontent.com/acme/market/main/plugins/beta/skills/foo/scripts/run.sh")"
+out="$(cd "$raw_url_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "raw URL scripts/ cite → exit 1" 1 "$?"
+assert_contains "raw URL scripts/ cite emitted" "$out" "plugins/beta/skills/foo/scripts/"
+
+# ../-prefixed cross-plugin bare SKILL.md and scripts/ cites resolve to the other plugin.
+dotdot_cross_repo="$(fixture_repo "plugins/alpha/skills/a/SKILL.md" \
+  "see ../../../beta/skills/foo/SKILL.md and ../../../beta/skills/foo/scripts/run.sh")"
+out="$(cd "$dotdot_cross_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "../ cross-plugin SKILL.md and scripts/ cites → exit 1" 1 "$?"
+assert_contains "../ cross-plugin SKILL.md cite emitted" "$out" "../../../beta/skills/foo/SKILL.md"
+assert_contains "../ cross-plugin scripts/ cite emitted" "$out" "skills/foo/scripts/"
+
+# ../ resolving back into the plugin's own sibling skill stays quiet.
+dotdot_same_repo="$(fixture_repo "plugins/alpha/skills/a/SKILL.md" \
+  "see ../../../alpha/skills/foo/SKILL.md and ../../../alpha/skills/foo/scripts/run.sh")"
+out="$(cd "$dotdot_same_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "../ same-plugin SKILL.md and scripts/ cites → exit 0" 0 "$?"
+assert_silent "../ same-plugin cites emit nothing" "$out"
+
+# Own marketplace id outside an install recipe.
+id_repo="$(fixture_repo "docs/guide.md" "enable foo@acme-market in settings")"
+mkdir -p "$id_repo/.claude-plugin"
+printf '{\n  "name": "acme-market",\n  "plugins": []\n}\n' >"$id_repo/.claude-plugin/marketplace.json"
+out="$(cd "$id_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "own marketplace id → exit 1" 1 "$?"
+assert_contains "own marketplace id emitted" "$out" "$(printf 'docs/guide.md\t1\tfoo@acme-market')"
+
+# An install recipe line may carry the id.
+recipe_repo="$(fixture_repo "docs/guide.md" "run /plugin install foo@acme-market")"
+mkdir -p "$recipe_repo/.claude-plugin"
+printf '{\n  "name": "acme-market",\n  "plugins": []\n}\n' >"$recipe_repo/.claude-plugin/marketplace.json"
+out="$(cd "$recipe_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "install recipe with own id → exit 0" 0 "$?"
+assert_silent "install recipe emits nothing" "$out"
+
+# A third-party id, a longer id sharing the prefix, and an unbound repo stay quiet.
+other_id_repo="$(fixture_repo "docs/guide.md" \
+  "enable foo@other-market and bar@acme-market-extra")"
+mkdir -p "$other_id_repo/.claude-plugin"
+printf '{\n  "name": "acme-market"\n}\n' >"$other_id_repo/.claude-plugin/marketplace.json"
+out="$(cd "$other_id_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "third-party and longer ids → exit 0" 0 "$?"
+assert_silent "third-party and longer ids emit nothing" "$out"
+nobind_repo="$(fixture_repo "docs/guide.md" "enable foo@acme-market in settings")"
+out="$(cd "$nobind_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "no marketplace manifest → exit 0" 0 "$?"
+assert_silent "no marketplace manifest emits nothing" "$out"
+
+# Allowlist: a listed path with a reason is skipped; its sibling is not.
+allow_repo="$(fixture_repo "plugins/alpha/evals/case.md" \
+  "see plugins/beta/skills/foo/SKILL.md")"
+printf 'see plugins/beta/skills/foo/SKILL.md\n' >"$allow_repo/plugins/alpha/README.md"
+mkdir -p "$allow_repo/docs/conventions"
+printf '# path<TAB>reason\nplugins/alpha/evals/\texists to exercise the detector\n' \
+  >"$allow_repo/docs/conventions/audit-encapsulation-allowlist.tsv"
+out="$(cd "$allow_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "allowlisted dir skipped, sibling still flagged → exit 1" 1 "$?"
+assert_contains "unlisted sibling emitted" "$out" "plugins/alpha/README.md"
+assert_not_contains "allowlisted path not emitted" "$out" "evals/case.md"
+
+# Allowlist given by flag; a listed single file leaves nothing.
+flag_allow_repo="$(fixture_repo "plugins/alpha/README.md" \
+  "see plugins/beta/skills/foo/SKILL.md")"
+printf 'plugins/alpha/README.md\ta fixture\n' >"$flag_allow_repo/list.tsv"
+out="$(cd "$flag_allow_repo" && bash "$SCRIPT" --allowlist list.tsv 2>/dev/null)"
+assert_exit "--allowlist file skips its path → exit 0" 0 "$?"
+assert_silent "--allowlist file leaves no output" "$out"
+
+# A row with no reason is an error.
+noreason_repo="$(fixture_repo "plugins/alpha/README.md" "nothing here")"
+printf 'plugins/alpha/README.md\n' >"$noreason_repo/list.tsv"
+out="$(cd "$noreason_repo" && bash "$SCRIPT" --allowlist list.tsv 2>&1)"
+assert_exit "allowlist row without reason → exit 2" 2 "$?"
+assert_contains "allowlist reason diagnostic" "$out" "needs a path and a reason"
+
+# Missing explicit allowlist file is an error.
+out="$(cd "$noreason_repo" && bash "$SCRIPT" --allowlist missing.tsv 2>&1)"
+assert_exit "missing --allowlist file → exit 2" 2 "$?"
+
+# A ../ path spelling the plugins/ segment resolves like any other cross-plugin cite.
+dotdot_plugins_repo="$(fixture_repo "plugins/alpha/skills/a/SKILL.md" \
+  "see ../../../../plugins/beta/skills/foo/SKILL.md")"
+out="$(cd "$dotdot_plugins_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "../plugins/ cross-plugin SKILL.md cite → exit 1" 1 "$?"
+assert_contains "../plugins/ cite emitted once" "$out" "../../../../plugins/beta/skills/foo/SKILL.md"
+
+# An id closing a sentence is still the own marketplace id.
+dot_id_repo="$(fixture_repo "docs/guide.md" "Enable foo@acme-market.")"
+mkdir -p "$dot_id_repo/.claude-plugin"
+printf '{\n  "name": "acme-market"\n}\n' >"$dot_id_repo/.claude-plugin/marketplace.json"
+out="$(cd "$dot_id_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "own id before a period → exit 1" 1 "$?"
+assert_contains "own id emitted without the period" "$out" "$(printf 'docs/guide.md\t1\tfoo@acme-market')"
+
+# A consumer repo (.claude/skills only, no plugins/) stays quiet on the new shapes.
+consumer_repo="$(fixture_repo ".claude/rules/notes.md" \
+  "see ${skill_root}/foo/SKILL.md and ${skill_root}/foo/scripts/run.sh and plugins/beta/skills/foo")"
+out="$(cd "$consumer_repo" && bash "$SCRIPT" 2>/dev/null)"
+assert_exit "consumer repo root/SKILL.md/scripts cites → exit 0" 0 "$?"
+assert_silent "consumer repo emits nothing for the new shapes" "$out"
+
+# --help names the new shapes.
+assert_contains "--help names the allowlist" "$help_out" "--allowlist"
+assert_contains "--help names the marketplace id check" "$help_out" "marketplace"
+
 if [[ "$FAILED" -ne 0 ]]; then
   exit 1
 fi

@@ -987,7 +987,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    then the post-merge check (`babysit_postmerge`) from the floor (the enabling
    config commit, or the newest human close of a demotion record when later). A refusal here or
    above leaves `unattended.enabled: false` and stops every later read.
-3. The rung (demotion record and `CLAUDE_LANES_MERGE_RUNG_CAP`), one merge in flight, the
+3. The rung (demotion record and `CLAUDE_LANES_MERGE_RUNG_CAP`), the merges in flight (the
+   identity's queue entries plus its unverified merges, refused at `merge.max-in-flight`), the
    promotion evidence (`unattended.promoted`, from the babysit-loop resolver, which reads its four
    options from the operator's managed and user settings, never from arguments or the
    environment), and eligibility. A settings file, or a binding, probe root, evidence source or
@@ -1015,25 +1016,34 @@ any refusal is the blocker `unattended merge refused: <reason>`:
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
 `--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung
 refusal dequeues every entry the identity enqueued; a queued identity entry that gained a hold
-(`do-not-merge` or `needs-human`, a body hold, a blocking comment from an owner, member or collaborator, the opt-in
-label removed, or put back after the enqueue by anyone but a human in person) leaves the queue, as
+(`do-not-merge` or the human-gated label, `needs-human` by default, a body hold, a blocking
+comment from an owner, member or collaborator, the opt-in label removed, or put back after the
+enqueue by anyone but a human in person) leaves the queue, as
 does the assessed pull request's own entry when this run finds it ineligible, above the rung,
 unpromoted for its class, on a base that is not the default branch, or scored MED or HIGH
 (`risk:<score>`); one failed dequeue does not stop the others. An eligible MED or HIGH pull
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
 head change. A pull request whose reads stopped at the in-flight refusal (step 3) gets neither
 that comment nor the verifier escalation in that run: it is not queued, so no entry of its own
-waits on them, and the first run that reads it in full with nothing in flight writes both. A
+waits on them, and the first run that reads it in full below the cap writes both. In the
+pr-merge lane the verifier verdict is read before the review evidence and the score: a verifier
+refusal stands whatever the diff scores, so that run reads neither, reports the `verify:` reason,
+and leaves the risk comment to the first run the verifier passes. A
 ready LOW pull request on a merge-queue base is enqueued at the pinned head, only
 when that full SHA is the head the policy scored, after a
 second kill-switch read and a second read of the opt-in label (presence and provenance), after an
-armed auto-merge is disarmed and refused instead, and after a
-`<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When an
-earlier identity entry sits in the queue, the new one dequeues itself. The enqueue returns before
+armed auto-merge is disarmed and refused instead, only while the merge queue has removed that head
+for failed checks fewer than `merge.max-queue-ejections` times (default 2) since it last changed
+(a refused head gets one `<!-- babysit-merge-queue-ejections -->` comment linking the failing
+`merge_group` runs), and after a
+`<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When the
+identity's earlier queue entries and its unverified merges already reach `merge.max-in-flight`
+(default 1), the new entry dequeues itself. The enqueue returns before
 the queue lands the pull request, so a later run with
 `--state-dir` that reads the entry back merged at its pin dispatches the full `pr-require-checks`
-run and still exits `10` with `merged: true`, since the merge it just read back is the in-flight
-unverified auto-merge; a failed dispatch is reported as `dispatchError`, and the next cycle's
+run with `merged: true`. It exits `10` while a refusal stands, such as the merge it just read
+back filling the in-flight cap (always so at the default of 1), and `0` when the cap still has
+room; a failed dispatch is reported as `dispatchError`, and the next cycle's
 `babysit-postmerge.sh --remediate` dispatches it.
 
 Named residuals:
@@ -1052,6 +1062,15 @@ Named residuals:
   only that a human with write permission applied them in person, within write-access trust.
   Label provenance also cannot tell the operator from an agent driving the operator's own `gh`
   token.
+- The post-enqueue room check reuses the unverified count the gate read. An identity entry that
+  lands between that read and the queue re-read counts as neither queued nor unverified, so
+  concurrent hosts can exceed `merge.max-in-flight` by the entries that landed in that window. The
+  `pr-merge` workflow's concurrency group serializes CI runs, so only several local hosts race.
+- `merge.max-in-flight` is read at the default branch head once per cache window
+  (`run_cache.MAX_AGE`), shared by the run's gate processes in that window, so a changed cap
+  applies to every candidate, whatever its base, once the window ends. The room check after an
+  enqueue reads it again, uncached. When a read fails, the candidate's base commit's value
+  applies; in the room check, the lower of that and the cap the gate applied.
 
 Operator runbook: the refusal `in-flight:merged-history-truncated` (or an unreadable post-merge
 verdict naming the read limit) means more merges landed since the floor than the history read
