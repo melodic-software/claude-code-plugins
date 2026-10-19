@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: interview-stated-problem-no-rethink
+description: A request that states its problem and a solution gets the problem restated and confirmed, and no rethink-or-accept question
+tags: [interview, problem-framing, stated-problem, scaffold]
+expected_outcome: The reply asks no rethink-or-accept question and does not question the retry wrapper as the fix; it may restate the stated problem (webhook deliveries dropped when customer endpoints return 503 during their deploys) and ask the user to confirm it now or in a later round; no Write or Edit touches PLAN.md.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the interview skill from the planning plugin, topic webhook-retry. Problem: we drop webhook deliveries when a customer's endpoint returns 503 during their deploys; logs/webhook-failures.log shows 214 dropped deliveries last week across 9 customers. Fix: add a retry wrapper around the webhook sender in src/webhooks/sender.py. I'm here and will answer."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+  - name: confirms-without-rethink
+    type: llm
+    arm: both
+    criteria: "FAIL only if the reply (a) asks the user a question whose choice is whether to keep the retry-wrapper approach or replace or rethink it (for example 'should the goal be X rather than a retry wrapper?', 'rethink the approach or accept the wrapper?', or 'settle the mechanism now: in-process wrapper vs durable queue?'), (b) recommends replacing the retry wrapper with a different approach, or (c) writes a Brief or plan. Otherwise PASS. Questions about the wrapper's parameters (retry window, attempts, backoff, which errors to retry) pass, and a trade-off noted inside one option of such a question (for example 'a window of several hours would need a queue, not a wrapper') is a detail of that option, not a rethink, so it passes too. Restating the stated problem (webhook deliveries dropped when customer endpoints return 503 during deploys) and asking the user to confirm it is expected, but the reply passes whether or not the problem is confirmed this turn, since outside lock the confirmation may come in a later round."
+  - name: no-plan-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*PLAN\.md"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-plan-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*PLAN\.md"'
+    min: 0
+    max: 0
+    arm: both
