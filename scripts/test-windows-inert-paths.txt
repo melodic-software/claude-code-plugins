@@ -1,0 +1,14 @@
+# Changed paths that start no pr-test-windows.yml step, read by scripts/plan-test-lanes.sh.
+# The Windows plan is selected from the changed files minus these, so a change made only of
+# them runs no Windows job; any path not listed here selects as usual. One glob per line,
+# matched against the repo-relative path, `*` crossing `/`. Keep the reason beside each entry.
+
+# The planning page's browser assets and browser suites. The Windows steps for
+# plugins/planning/shared run its Python session API (detached processes, locks, the tunnel);
+# none of these files reaches a Windows-only branch, and the Linux lanes run them as usual.
+plugins/planning/shared/web/*
+plugins/planning/shared/tests/*.js
+plugins/planning/shared/tests/ui-timings.txt
+plugins/planning/shared/tests/ui.test.sh
+plugins/planning/shared/tests/align.test.sh
+plugins/planning/shared/README.md

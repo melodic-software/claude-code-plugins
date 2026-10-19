@@ -415,7 +415,9 @@ plugins/planning/shared/tests/test_tunnel.py 15
 plugins/planning/shared/tests/tracer-live.test.sh 1
 plugins/planning/shared/tests/tracer.test.sh 10
 plugins/planning/shared/tests/ui.test.sh 260
-plugins/planning/surface/surface.test.sh 390
+plugins/planning/surface/surface-journey.test.sh 130
+plugins/planning/surface/surface-ui-c.test.sh 133
+plugins/planning/surface/surface.test.sh 128
 plugins/planning/surface/test_exporters.py 92
 plugins/planning/surface/test_round.py 49
 plugins/planning/surface/test_schema.py 1

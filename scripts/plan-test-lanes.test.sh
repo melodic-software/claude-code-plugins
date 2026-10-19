@@ -42,6 +42,10 @@ for s in a b c d e f g h; do
   mk "plugins/$s/$s.sh" "echo $s"
   mk "plugins/$s/$s.test.sh" "bash \"\$(dirname \"\$0\")/$s.sh\""
 done
+# a.test.sh also reads a stylesheet, which the inert list keeps off the Windows plan.
+mk plugins/a/a.css "p {}"
+printf 'cat a.css\n' >>"$repo/plugins/a/a.test.sh"
+printf 'plugins/a/*.css # a stylesheet no Windows step reads\n' >"$repo/scripts/test-windows-inert-paths.txt"
 mk plugins/animation/anim.sh
 mk plugins/animation/anim.test.sh
 mk plugins/speech/sp.sh
@@ -215,6 +219,15 @@ check "a Node pin runs every Node package" $?
 plan -- plugins/ps/x.ps1
 is "$(key windows_steps)" '["plugins/ps/run.ps1"]' && is "$(key windows_jobs)" '["win-b"]' && is "$(key bash)" false
 check "a Pester suite starts the test-windows step a pattern names, and no Linux lane" $?
+
+plan -- plugins/a/a.css
+is "$(suites bash)" "plugins/a/a.test.sh" && is "$(key windows_jobs)" "[]" && is "$(key windows_steps)" "[]"
+check "a change made only of inert paths runs their Linux suites and no Windows step" $?
+
+plan -- plugins/a/a.css plugins/b/b.sh
+is "$(suites bash | tr '\n' ' ')" "plugins/a/a.test.sh plugins/b/b.test.sh " &&
+  is "$(key windows_jobs)" '["win-b"]' && is "$(key windows_steps)" '["plugins/b/b.test.sh"]'
+check "beside an inert path, a path the list does not name still starts its Windows step" $?
 
 plan -- plugins/z/data.cfg
 is "$(key unmapped)" 1 && is "$(key bash)" false && is "$(key python)" false
