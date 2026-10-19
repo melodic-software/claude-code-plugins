@@ -22,12 +22,10 @@
       // round 8
       revealed: new Set(), clOpen: new Map(), cites: {}, hostFilter: "all", treeClosed: new Set(),
       askPanel: false, askMode: "ask", askQ: "", askSelf: false, apAud: null, askAud: null, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
-      more: {}, peopleFilter: "all", peopleFind: "", unreadOnly: false, ixTab: store.get("vf-ixtab", "all"),
+      more: {}, peopleFilter: "all", peopleFind: "", unreadOnly: false, ixTab: store.get("vf-ixtab", "needs"), ixOff: store.get("vf-ix-off", {}),
     };
+    if (!ui.ixOff || typeof ui.ixOff !== "object" || Array.isArray(ui.ixOff)) ui.ixOff = {}; // the Inbox's chips turned off, per tab
     // Unsent text saved by the last reload for a new version (Core.onReload, at the end): answer drafts and the chat field.
-    // The review view's status chips, remembered on this device; Shared starts off.
-    const REV_KEY = "vf-review-filter";
-    ui.revFilter = new Set([].concat(store.get(REV_KEY, ["waiting", "running", "failed", "unshared"])).filter(k => typeof k === "string"));
     const UNSENT = "vf-unsent";
     const unsent = (() => { try { const v = JSON.parse(sessionStorage.getItem(UNSENT) || "null"); sessionStorage.removeItem(UNSENT); return v; } catch { return null; } })();
     if (unsent) { Object.assign(ui.drafts, unsent.drafts || {}); ui.restoreCur = unsent.cur || ""; }
@@ -578,28 +576,34 @@
     // ---------- toast ----------
     // The toast is a live region from load; text goes in a frame after it is cleared, so screen readers announce it.
     const toast = E("div", "vf-toast"); toast.setAttribute("role", "status");
-    const toastTxt = E("span"), toastAct = btn("vf-toast-act");
-    toastAct.hidden = true;
-    toast.append(toastTxt, toastAct);
+    const toastTxt = E("span"), toastAct = btn("vf-toast-act"), toastX = ibtn("vf-toast-x", "x", "Close this pop-up");
+    toastAct.hidden = true; toastX.hidden = true;
+    toast.append(toastTxt, toastAct, toastX);
+    toastX.onclick = () => { ui.alertOpen = false; hideToast(); };
     // A second, visually hidden polite region for content that arrives (new answers), never the answer list itself.
     const srLive = E("div", "vf-sr"); srLive.setAttribute("aria-live", "polite");
     let toastT = 0, clearT = 0, toastPaint = 0;
     const toastQ = [];
-    function flash(msg, action) {
+    /** `msg` may be a function that returns [msg, action] when the toast's turn comes, or null to drop it; `tag` names
+     *  the toast while it shows (toast._tag). */
+    function flash(msg, action, tag) {
       // A second message in the same pass (a new round and a placed proposal) waits its turn instead of
       // overwriting the first before it paints.
-      if (toastPaint) { toastQ.push([msg, action]); return; }
+      if (toastPaint) { toastQ.push([msg, action, tag]); return; }
+      if (typeof msg === "function") { const r = msg(); if (!r) { if (tag === "alert") ui.alertOpen = false; if (toastQ.length) flash(...toastQ.shift()); return; } [msg, action] = r; }
       clearTimeout(toastT); clearTimeout(clearT);
-      toastTxt.textContent = ""; toastAct.hidden = true;
+      toastTxt.textContent = ""; toastAct.hidden = true; toastX.hidden = true;
       toastPaint = requestAnimationFrame(() => {
-        toastPaint = 0;
+        toastPaint = 0; toast._tag = tag || ""; toastX.hidden = tag !== "alert";
         toastTxt.textContent = msg;
         toastAct.hidden = !action;
-        if (action) { toastAct.textContent = action.label; toastAct.onclick = () => { hideToast(); action.run(); }; }
+        if (action) { toastAct.textContent = action.label; toastAct.onclick = () => { if (tag === "alert") ui.alertOpen = false; hideToast(); action.run(); }; }
         placeToast();
         toast.classList.add("vf-on");
       });
-      toastT = setTimeout(() => (toastQ.length ? flash(...toastQ.shift()) : hideToast()), action ? 9000 : 3200);
+      // Q39: an urgent pop-up stays until it is closed or opened; the rest go after a few seconds.
+      if (tag === "alert") ui.alertOpen = true;
+      else toastT = setTimeout(() => (toastQ.length ? flash(...toastQ.shift()) : hideToast()), action ? 9000 : 3200);
     }
     /** Centered on the center pane (the part the chat leaves uncovered; the whole page when the pane is hidden),
      *  12px above whatever is docked at the bottom under it: tab bar, chat button, panel or the phone edit sheet. */
@@ -627,7 +631,9 @@
       toast.style.insetBlockStart = high ? top.getBoundingClientRect().bottom - R.top + 8 + "px" : "";
     }
     function hideToast() {
-      toast.classList.remove("vf-on");
+      const was = toast._tag;
+      toast.classList.remove("vf-on"); toast._tag = "";
+      if (was !== "alert" && ui.alertOpen) { flash(alertToast, null, "alert"); return; } // an urgent pop-up another toast covered comes back
       clearT = setTimeout(() => { toastTxt.textContent = ""; toastAct.hidden = true; }, 250);
     }
     function announce(msg) { srLive.textContent = ""; requestAnimationFrame(() => { srLive.textContent = msg; }); }
@@ -1705,58 +1711,49 @@
       ["role", "Made leader or trusted", "host"], ["votes", "Agreement with my answers, once an hour", "thumb"],
       ["reaction", "Reactions to my chat messages", "chat"], ["discussion", "New comments in Discussions I am in", "chat"],
       ["queue", "New items in the host queue", "host"], ["ready", "A round marked ready", "check"], ["report", "The host read my problem reports", "help"]];
-    const bellPop = E("div", "vf-pop vf-bellpop vf-inboxpop"); bellPop.setAttribute("role", "dialog"); bellPop.setAttribute("aria-labelledby", "vf-inbox-h"); bellPop.hidden = true;
-    const bpHead = E("div", "vf-pp-head");
-    const bpAll = btn("vf-btn vf-btn-ghost vf-btn-sm", "Mark all read");
-    const bpClose = ibtn("vf-tbtn vf-icon-btn", "x", "Close the Inbox");
-    const ixTitle = E("h2", "vf-pop-title", "Inbox"); ixTitle.id = "vf-inbox-h";
+    // Spec PR 9: the Inbox is a page of its own over the session, for everyone: Needs you (what needs this person now),
+    // My requests, Notifications and History, each behind filter chips; every row opens where it happened.
+    const bellPop = E("section", "vf-inboxpage"); bellPop.setAttribute("role", "dialog"); bellPop.setAttribute("aria-labelledby", "vf-inbox-h"); bellPop.hidden = true;
+    const bpHead = E("div", "vf-ibhead");
+    const bpBack = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-ibback", "chevL", "Back to the session");
+    const bpAll = btn("vf-btn vf-btn-ghost vf-btn-sm vf-iball", "Mark all read");
+    const ixTitle = E("h2", "vf-ibtitle", "Inbox"); ixTitle.id = "vf-inbox-h";
     const ixCount = E("span", "vf-chip vf-chip-new vf-ixcount");
-    const IX_TABS = [["all", "All"], ["mine", "Mine"], ["waiting", "Waiting on you"], ["notes", "Notifications"]];
-    const ixTabs = E("div", "vf-seg vf-seg-sm vf-ixtabs"); ixTabs.setAttribute("role", "group"); ixTabs.setAttribute("aria-label", "Show in the Inbox");
+    bpHead.append(bpBack, ixTitle, ixCount, E("span", "vf-spacer"), bpAll);
+    const IX_TABS = [["needs", "Needs you"], ["mine", "My requests"], ["notes", "Notifications"], ["history", "History"]];
+    const ixTabs = E("div", "vf-seg vf-ixtabs"); ixTabs.setAttribute("role", "group"); ixTabs.setAttribute("aria-label", "Show in the Inbox");
     const ixTabBtn = {};
-    for (const [k, label] of IX_TABS) { const b = btn("vf-seg-btn", label); b.dataset.k = k; b.onclick = () => { ui.ixTab = k; store.put("vf-ixtab", k); render(); }; ixTabs.append(b); ixTabBtn[k] = b; }
-    const ixSec = (cls, title) => {
-      const sec = E("section", "vf-ixsec " + cls), h = E("h3", "vf-ixh");
-      sec.append(h); sec._h = h; sec._title = title;
-      return sec;
-    };
-    const ixMine = ixSec("vf-ixmine", "Your requests"), ixWait = ixSec("vf-ixwait", "Waiting on you"), ixNotes = ixSec("vf-ixnotes", "Notifications");
-    const ixMineList = E("ul", "vf-ixlist"); ixMineList.setAttribute("role", "list");
-    const ixMineEmpty = E("p", "vf-empty vf-empty-sm", "No requests yet. Ask Claude on a question and it shows here, with its status, until you open the answer.");
-    ixMine.append(ixMineList, ixMineEmpty);
-    // What waits on the owner, one group per kind, each item linking to where it is handled.
-    // The host's review view: every request to Claude and every answer, newest first, shown by the status chips this
-    // device remembers, each row with its own actions. Not shared is what waits for the host's Share; Private is out to
-    // its asker alone (Just me, or taken down).
-    const REV_STATS = [["waiting", "Waiting"], ["running", "Running"], ["failed", "Failed"], ["unshared", "Not shared"], ["private", "Private"], ["shared", "Shared"]];
-    const revBox = E("div", "vf-ixgroup vf-review"), revHead = E("div", "vf-rev-head");
-    const revChips = E("div", "vf-rev-chips"); revChips.setAttribute("role", "group"); revChips.setAttribute("aria-label", "Show requests that are");
-    const revChip = {};
-    for (const [k, label] of REV_STATS) {
-      const b = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle vf-rev-chip"); b.dataset.stat = k; b._l = label;
-      b.onclick = () => { ui.revFilter.has(k) ? ui.revFilter.delete(k) : ui.revFilter.add(k); store.put(REV_KEY, [...ui.revFilter]); render(); };
-      revChips.append(b); revChip[k] = b;
+    for (const [k, label] of IX_TABS) {
+      const b = btn("vf-seg-btn", label); b.dataset.k = k; b._l = label;
+      b.onclick = () => { ui.ixTab = k; store.put("vf-ixtab", k); render(); bpScroll.scrollTop = 0; };
+      ixTabs.append(b); ixTabBtn[k] = b;
     }
-    const revH = E("h4", "vf-ixgh", "Requests to Claude");
-    const runAllBtn = lbtn("vf-btn vf-btn-primary vf-btn-sm", "play", "Run all shown");
-    revHead.append(revH, E("span", "vf-spacer"), runAllBtn);
-    const revList = E("ul", "vf-plist vf-revlist"); revList.setAttribute("role", "list"); revList.setAttribute("aria-label", "Requests to Claude");
-    const revEmpty = E("p", "vf-empty vf-empty-sm");
-    revBox.append(revHead, revChips, E("p", "vf-pop-note vf-rev-note", "Nothing runs until you press Run. Run all shown runs exactly the waiting requests you can see now."), revList, revEmpty);
-    ixWait.append(revBox);
-    const IX_WAIT = [["report", "Problem reports"], ["merge", "Merge requests"], ["join", "Join requests"]];
-    const ixWaitLists = {};
-    for (const [k, label] of IX_WAIT) {
-      const g = E("div", "vf-ixgroup"), h = E("h4", "vf-ixgh"), ul = E("ul", "vf-ixlist"); ul.setAttribute("role", "list");
-      g.append(h, ul); ixWait.append(g); ixWaitLists[k] = { g, h, ul, label };
-    }
+    const ixChips = E("div", "vf-rev-chips vf-ibchips"); ixChips.setAttribute("role", "group"); ixChips.setAttribute("aria-label", "Show items that are");
     const bpUnread = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle", "Unread only");
     bpUnread.onclick = () => { ui.unreadOnly = !ui.unreadOnly; render(); };
-    bpHead.append(ixTitle, ixCount, bpAll, bpClose);
     const bpTools = E("div", "vf-bptools"); bpTools.append(bpUnread);
-    const nList = E("ul", "vf-nlist"); nList.setAttribute("role", "list");
+    const ibTop = E("div", "vf-ibtop"); ibTop.append(bpHead, ixTabs, ixChips);
+    /** One titled group of rows on a tab. */
+    const ixGroup = (cls, list) => { const g = E("section", "vf-ixgroup " + cls), h = E("h3", "vf-ixgh"); list.setAttribute("role", "list"); g.append(h, list); g._h = h; return g; };
+    // Needs you: the host's requests to Claude (Run, Share, Run again on the row), then what else waits, by kind.
+    const revList = E("ul", "vf-plist vf-revlist"); revList.setAttribute("aria-label", "Requests to Claude");
+    const revBox = ixGroup("vf-ibrev", revList), revHead = E("div", "vf-rev-head");
+    const runAllBtn = lbtn("vf-btn vf-btn-primary vf-btn-sm", "play", "Run all shown");
+    revHead.append(revBox._h, E("span", "vf-spacer"), runAllBtn); revBox.prepend(revHead);
+    const needQ = E("ul", "vf-plist vf-ibq");
+    const needQBox = ixGroup("vf-ibneedq", needQ);
+    const needIx = E("ul", "vf-ixlist");
+    const needIxBox = ixGroup("vf-ibneedix", needIx);
+    const needEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty");
+    const ixNeeds = E("div", "vf-ibtab vf-ibneeds"); ixNeeds.append(revBox, needQBox, needIxBox, needEmpty);
+    // My requests
+    const ixMineList = E("ul", "vf-ixlist"); ixMineList.setAttribute("role", "list"); ixMineList.setAttribute("aria-label", "My requests");
+    const ixMineEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty");
+    const ixMine = E("div", "vf-ibtab vf-ixmine"); ixMine.append(ixMineList, ixMineEmpty);
+    // Notifications: a page at a time, by kind
+    const nList = E("ul", "vf-nlist"); nList.setAttribute("role", "list"); nList.setAttribute("aria-label", "Notifications");
     const NO_NOTES = "Nothing new. You hear here when someone mentions you or replies to you, when your requests and proposals move, and when a round opens.";
-    const nEmpty = E("p", "vf-empty vf-empty-sm", NO_NOTES);
+    const nEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty", NO_NOTES);
     const muteBtn = btn("vf-lbtn vf-mutebtn"); muteBtn.setAttribute("aria-expanded", "false");
     const muteBox = E("div", "vf-mutebox"); muteBox.hidden = true;
     const muteRows = {};
@@ -1767,10 +1764,25 @@
       b.onclick = () => { const m = new Set(pref("mute", [])); m.has(k) ? m.delete(k) : m.add(k); setPrefs({ mute: [...m] }); render(); };
       muteBox.append(b); muteRows[k] = b;
     }
+    // The owner's pop-ups: which Inbox items pop up the moment they arrive; off leaves them in the Inbox only.
+    const popBox = E("section", "vf-ixgroup vf-ibpops"), popRows = {};
+    popBox.append(E("h3", "vf-ixgh", "Pop-ups"), E("p", "vf-pop-note", "On: it pops up the moment it happens. Off: it waits in Needs you."));
+    const popList = E("div", "vf-mutebox"); popBox.append(popList);
     const noteMore = showMore("notes", 20);
-    ixNotes.append(bpTools, nList, noteMore.foot, nEmpty, muteBtn, muteBox);
-    const bpScroll = E("div", "vf-pscroll vf-bpscroll"); bpScroll.append(ixTabs, ixMine, ixWait, ixNotes);
-    bellPop.append(bpHead, bpScroll);
+    const ixNotes = E("div", "vf-ibtab vf-ixnotes"); ixNotes.append(popBox, bpTools, nList, noteMore.foot, nEmpty, muteBtn, muteBox);
+    // History: what needed someone and was handled, a page at a time
+    const histRev = E("ul", "vf-plist vf-revlist vf-ibhistrev"); histRev.setAttribute("aria-label", "Requests to Claude, handled");
+    const histRevBox = ixGroup("vf-ibhistreq", histRev);
+    const histQ = E("ul", "vf-plist vf-ibq");
+    const histQBox = ixGroup("vf-ibhistq", histQ);
+    const histIx = E("ul", "vf-ixlist");
+    const histIxBox = ixGroup("vf-ibhistix", histIx);
+    const histMore = showMore("history", 30);
+    const histEmpty = E("p", "vf-empty vf-empty-sm vf-ibempty");
+    const ixHist = E("div", "vf-ibtab vf-ibhist"); ixHist.append(histRevBox, histQBox, histIxBox, histMore.foot, histEmpty);
+    const ixTab = { needs: ixNeeds, mine: ixMine, notes: ixNotes, history: ixHist };
+    const bpScroll = E("div", "vf-pscroll vf-bpscroll vf-ibscroll"); bpScroll.append(ixNeeds, ixMine, ixNotes, ixHist);
+    bellPop.append(ibTop, bpScroll);
 
     // ---------- Q86: the phone More sheet ----------
     const moreSheet = E("div", "vf-pop vf-panel vf-moresheet"); moreSheet.setAttribute("role", "dialog"); moreSheet.setAttribute("aria-label", "More"); moreSheet.hidden = true;
@@ -1810,7 +1822,7 @@
         at: () => composer },
       { h: "Everyone's answers", t: "Once you have answered, other people's answers show here, and you can vote for the ones you agree with.",
         at: () => ansPane },
-      { h: "Chat with people", t: "The chat is for talking with the others here. It is not sent to Claude and does not count as an answer.",
+      { h: "Chat with people", t: "The chat is for talking with the others here, and does not count as an answer. Start a message with @Claude to ask Claude.",
         at: () => fab },
       { h: "Help is here", t: "Open Help to take this tour again or see the keyboard shortcuts.",
         at: () => (phone.matches ? tabBtns.more : keysBtn) },
@@ -2128,15 +2140,17 @@
       if (!ui.pop) return;
       if (ui.pop === pcard) { ui.pcard = null; ui.renaming = false; }
       ui.pop.hidden = true; ui.pop._anchor?.setAttribute?.("aria-expanded", "false");
+      if (ui.pop === bellPop) root.classList.remove("vf-inboxon");
       ui.pop._kbRead = false; // the next open logs its keyboard readout again
       ui.pop = null;
       syncModal();
     }
     /** On a phone a chat or panel sheet covers the page: everything behind it goes inert, and Tab stays inside. */
-    const activeSheet = () => (phone.matches ? (ui.chatOpen ? chat : ui.pop?.matches(".vf-panel, .vf-drawer, .vf-proposepop, .vf-reportpop, .vf-bellpop[data-place='sheet']") ? ui.pop : null) : null);
+    const activeSheet = () => (phone.matches ? (ui.chatOpen ? chat : ui.pop?.matches(".vf-panel, .vf-drawer, .vf-proposepop, .vf-reportpop") ? ui.pop : null) : null);
     function syncModal() {
-      const sheet = activeSheet();
-      for (const el of [top, body, tabs, fab]) el.inert = !!sheet;
+      const sheet = activeSheet(), page = ui.pop === bellPop; // the Inbox page stands in for the session below the top bar
+      for (const el of [top, body, tabs, fab]) el.inert = !!sheet || (page && el !== top);
+      chat.inert = page;
       if (toast.classList.contains("vf-on")) placeToast(); // a chat or panel opened or closed under it
     }
     function setChat(open) {
@@ -2608,14 +2622,20 @@
     // ---------- Q82: the bell ----------
     const notes = () => Core.state.me?.notifications || [];
     const KIND_ICON = Object.fromEntries(NOTE_KINDS.map(([k, , i]) => [k, i]));
-    /** On a phone the bell opens as a bottom sheet; on wider screens it drops from its button. */
+    /** The Inbox opens as a page over the session, below the top bar, at every width; Back or Escape closes it. */
     function openBell(anchor) {
-      if (ui.pop === bellPop) return closePop();
+      if (ui.pop === bellPop) { closePop(); anchor?.focus?.({ preventScroll: true }); return; }
+      closePop(); hideCard();
+      if (ui.chatOpen) setChat(false); // the page stands in for the session, chat included: a hidden chat must not hold Tab
       ui.muteOpen = false;
       ui.reqSeen = new Set((Core.state.requests || []).filter(r => r.status === "pending").map(r => r.id)); // what Run all shown may run
-      openPop(bellPop, anchor);
-      if (phone.matches) { bellPop.style.cssText = ""; bellPop.dataset.place = "sheet"; } else delete bellPop.dataset.place;
+      ui.pop = bellPop; bellPop._return = null; bellPop._anchor = anchor; bellPop.hidden = false;
+      anchor.setAttribute("aria-expanded", "true");
+      root.classList.add("vf-inboxon");
+      render();
       syncModal();
+      bpScroll.scrollTop = 0;
+      (ixTabBtn[ui.ixTab] || ixTabBtn.needs).focus({ preventScroll: true });
     }
     function goNote(n) {
       closePop();
@@ -2629,8 +2649,23 @@
       if (n.qid && qById(n.qid)) return focusQuestion(n.qid);
       if ((n.kind === "queue" || n.kind === "ready") && Core.canModerate()) { setMode("host"); if (phone.matches) setTab("host"); }
     }
-    // ---------- Item 11: the Inbox ----------
+    // ---------- Item 11 and spec PR 9: the Inbox page ----------
     const inbox = () => Core.state.inbox || [];
+    /** What pops up for the host the moment it arrives (owner decision 2026-10-19, follow-up 24): a join, a request
+     *  waiting for Run, a problem report; the rest is in the Inbox only. The Notifications tab's Pop-ups switches change
+     *  it for the owner alone (the `popups` pref, session.py POPUP_KINDS). */
+    const HOST_URGENT = ["join", "run", "report"];
+    const POPUP_KINDS = [["join", "Someone asks to join"], ["run", "A request waits for Run"], ["report", "Someone reports a problem"],
+      ["share", "An answer waits for Share"], ["merge", "Someone asks to be joined with an earlier name"], ["fail", "Claude could not answer a request"]];
+    const urgent = () => { const v = pref("popups", null); return Array.isArray(v) ? v : HOST_URGENT; };
+    /** What may pop up: a waiting item of a kind switched on, never the host's own report, and a failure only until opened. */
+    const alertable = i => i.group === "waiting" && urgent().includes(i.kind) && !isMe(i.byCid) && (i.kind !== "fail" || i.unread);
+    for (const [k, label] of POPUP_KINDS) {
+      const b = btn("vf-sw-row"); b.setAttribute("role", "switch"); b.dataset.k = k;
+      b.append(E("span", "vf-sw-txt vf-sw-label", label), E("span", "vf-switch"));
+      b.onclick = () => { const u = new Set(urgent()); u.has(k) ? u.delete(k) : u.add(k); setPrefs({ popups: POPUP_KINDS.map(([kk]) => kk).filter(kk => u.has(kk)) }); render(); };
+      popList.append(b); popRows[k] = b;
+    }
     const IX_STAT = { waiting: "Waiting", running: "Running", answered: "Answered", unshared: "Answered", shared: "Shared", declined: "Declined", failed: "Failed" };
     /** A count that is news: unread Inbox items, plus unread notifications other than a request's own notices, which
      *  are its items. The queue line counts only what has no item: proposals, suggestions and offers. */
@@ -2673,23 +2708,37 @@
         ring(li);
       });
     }
+    /** The Host view with one queue row in sight. */
+    function showHostRow(id) {
+      closePop();
+      ui.hostFilter = "all"; ui.more["queue:all"] = Infinity;
+      setMode("host"); if (phone.matches) setTab("host");
+      requestAnimationFrame(() => {
+        const li = queueList._map?.get(id); if (!li) return;
+        li.scrollIntoView({ block: "nearest", behavior: smooth() });
+        ring(li);
+      });
+    }
+    /** Where an Inbox item happened. What waits on the host opens its row on the Inbox page, where it is handled. */
     function openInboxItem(i) {
+      if (i.group === "waiting") {
+        const S = Core.state;
+        if (i.kind === "run" || i.kind === "fail") return openReview("r:" + i.id);
+        if (i.kind === "share") { const row = revRows(S).find(r => r.x?.id === i.id); return openReview(row?.key || "x:" + i.id); }
+        return openReview({ report: "f:", merge: "m:", join: "j:" }[i.kind] + i.id);
+      }
       closePop();
       if (i.unread) Core.readInbox([i.key], { [i.key]: i.status }).catch(() => {});
-      const host = () => { setMode("host"); if (phone.matches) setTab("host"); };
+      if (i.kind === "ask") return focusQuestion(i.qid);
+      if (i.kind === "markready") { setMode("host"); if (phone.matches) setTab("host"); return; }
       if (!i.qid && i.scope) { // about the whole session: a shared answer is in chat, the rest in Ask Claude
-        const xid = i.kind === "share" ? i.id : i.result, x = xid && (Core.state.research?.[Core.GENERAL] || []).find(y => y.id === xid);
+        const xid = i.result, x = xid && (Core.state.research?.[Core.GENERAL] || []).find(y => y.id === xid);
         if (x?.msg && x.published !== false && st().chat) { setChat(true); return goMsg(x.msg, () => openGeneral("x:" + xid)); } // a message chat dropped: the answer is still in Ask Claude
-        if (i.kind === "run") return host();
         return openGeneral(xid ? "x:" + xid : "r:" + i.id);
       }
-      if (i.kind === "request" || i.kind === "run") {
-        if (!qById(i.qid)) return;
-        if (i.result) { setMode("focus"); if (phone.matches) setTab("answer"); return showResult(i.qid, i.result); }
-        return showRequest(i.qid, i.id);
-      }
-      if (i.kind === "share" && qById(i.qid)) { setMode("focus"); if (phone.matches) setTab("answer"); return showResult(i.qid, i.id); }
-      host();
+      if (!qById(i.qid)) return;
+      if (i.result) { setMode("focus"); if (phone.matches) setTab("answer"); return showResult(i.qid, i.result); }
+      showRequest(i.qid, i.id);
     }
     /** One Inbox row: the question, what was asked or what waits, a status chip, when, and an unread dot. */
     function makeIx() {
@@ -2702,9 +2751,8 @@
     }
     function ixText(i, S) {
       if (i.kind === "request") return (S.myRequests || []).find(r => r.id === i.id)?.text || "";
-      if (i.kind === "report") { const f = (S.reports || []).find(y => y.id === i.id); return f ? `${disp(i.by || f.name)}: ${f.text}` : "A problem report"; }
-      if (i.kind === "merge") { const m = (S.mergeRequests || []).find(y => y.id === i.id); return m ? `${disp(m.fromName)} says they were ${disp(m.toName)} before` : "A merge request"; }
-      if (i.kind === "join") return `${disp(i.by || "Someone")} asks to join`;
+      if (i.kind === "ask") return "You are asked to answer this question.";
+      if (i.kind === "markready") return `Every question of round ${i.round} is decided. Mark the round ready for the host in the Host view.`;
       return "";
     }
     function fillIx(li, i, S) {
@@ -2719,17 +2767,82 @@
       const sub = i.status === "unshared" ? "Waiting for the host to share" : i.status === "failed" ? i.reason || ""
         : i.status === "answered" && !Core.me.isOwner ? (x?.own ? "Only you see it until the host shares it" : x?.takenDown ? "The host took it down; only you and the host see it" : "Just me: only you and the host see it") : "";
       k.sub.textContent = sub; k.sub.hidden = !sub;
-      k.tm.textContent = ago(mine ? i.changedTs : i.ts);
+      k.tm.textContent = ago(mine ? i.changedTs : i.ts); k.tm.hidden = !i.ts;
       k.dot.hidden = !i.unread;
       k.b.classList.toggle("vf-nunread", !!i.unread);
-      li.dataset.key = i.key; li.dataset.stat = i.status;
+      li.dataset.key = i.key; li.dataset.stat = i.status || i.kind;
       const where = i.qid ? `${i.qid}. ` : i.scope ? `${GEN_LABEL}. ` : "";
-      k.b.setAttribute("aria-label", `${i.unread ? "Unread. " : ""}${where}${k.what.textContent}. ${mine ? (i.status === "unshared" ? "Answered, waiting for the host to share" : IX_STAT[i.status]) + (sub && i.status !== "unshared" ? `: ${sub}` : "") + ". " : ""}${k.tm.textContent === "now" ? "Just now" : k.tm.textContent + " ago"}.`);
+      const when = !i.ts ? "" : ` ${k.tm.textContent === "now" ? "Just now" : k.tm.textContent + " ago"}.`;
+      k.b.setAttribute("aria-label", `${i.unread ? "Unread. " : ""}${where}${k.what.textContent}${mine ? ` ${i.status === "unshared" ? "Answered, waiting for the host to share" : IX_STAT[i.status]}${sub && i.status !== "unshared" ? `: ${sub}` : ""}.` : ""}${when}`);
     }
+
+    // ---------- what each tab lists ----------
+    /** A guest's request Claude failed waits on the host until the host opens it (its fail: item is read). */
+    const failWaits = r => inbox().some(i => i.key === "fail:" + r.id && i.unread);
+    /** The host's requests to Claude that need the host now: to run, to share, or failed and not yet opened. */
+    const revNeeds = row => row.st === "waiting" || row.st === "unshared" || (row.st === "failed" && failWaits(row.r));
+    /** Everything else that needs this person now, by role: what only the owner handles, what a leader places, and for
+     *  everyone the answers to their requests not yet opened and the questions they are asked to answer. */
+    function needItems(S) {
+      const owner = Core.me.isOwner, mod = Core.canModerate(), R = curRound(), q = [], ix = [];
+      for (const it of queueItems(S)) {
+        // a report seen or with Claude, a file on its way and a round only the owner sends are not this person's to do now
+        if (it.t === "request" || (it.t === "report" && (it.f.status !== "open" || it.f.asked)) || (it.t === "upload" && !["offered", "done"].includes(it.u.status)) || (it.t === "ready" && !owner)
+          || ((it.t === "proposal" || it.t === "suggestion") && !mod)) continue; // placing is a moderator's
+        q.push({ ...it, ck: it.t === "upload" ? (it.u.status === "offered" ? "file" : "picture") : it.t });
+      }
+      for (const i of inbox()) if (i.group === "mine" && i.unread && (i.status === "answered" || i.status === "shared")) ix.push({ ...i, ck: "answer" });
+      for (const qq of S.questions) {
+        if (Core.askedOf(qq.id).includes(Core.me.cid) && isOpenForMe(qq.id) && !hasAnswered(qq.id)) ix.push({ key: "ask:" + qq.id, kind: "ask", qid: qq.id, group: "you", ts: 0, ck: "question" });
+      }
+      if (mod && !owner && R.status === "open" && !R.ready && !S.ended) {
+        const rq = S.questions.filter(x => roundOf(x) === R.current);
+        if (rq.length && rq.every(x => Core.lockOf(x.id))) ix.push({ key: "markready:" + R.current, kind: "markready", round: R.current, group: "you", ts: 0, ck: "ready" });
+      }
+      return { q: q.sort((a, b) => b.ts - a.ts), ix };
+    }
+    /** What was handled: the host's other requests to Claude, problem reports seen or with Claude, pictures done, and
+     *  my own requests that are finished and opened. */
+    function historyItems(S) {
+      const owner = Core.me.isOwner, q = [];
+      if (owner) {
+        for (const f of S.reports || []) if (f.status !== "open" || f.asked) q.push({ t: "report", id: "f:" + f.id, ts: f.ts, f, ck: "report" });
+        for (const u of S.uploads || []) if (!isMe(u.cid) && ((u.status === "done" && (!u.image || u.shown)) || u.status === "declined")) q.push({ t: "upload", id: "u:" + u.id, ts: u.ts, u, ck: "picture" });
+      }
+      const ix = inbox().filter(i => i.group === "mine" && !i.unread && !["waiting", "running"].includes(i.status)).map(i => ({ ...i, ck: i.status }));
+      return { q, ix };
+    }
+    const CHIP_WORD = { waiting: "Waiting", running: "Running", failed: "Failed", unshared: "Not shared", private: "Just me", shared: "Shared", answered: "Answered",
+      declined: "Declined", picture: "Pictures", file: "Files", report: "Problems", join: "Joins", merge: "Merges", proposal: "Proposals", suggestion: "Suggestions",
+      ready: "Rounds", answer: "Answers", question: "Questions for you", mention: "Mentions", reply: "Replies", request: "Requests", round: "New rounds",
+      role: "Roles", votes: "Agreement", reaction: "Reactions", discussion: "Discussions", queue: "Queue" };
+    /** This tab's filter chips, one per kind of item it holds, with counts; a chip turned off hides its kind, remembered on this device. */
+    function ixFilter(tab, list) {
+      const off = new Set([].concat(ui.ixOff[tab] || [])), keys = [...new Set(list.map(x => x.ck))];
+      sync(ixChips, keys, k => tab + ":" + k, () => {
+        const b = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle vf-rev-chip");
+        b.onclick = () => { const o = new Set([].concat(ui.ixOff[b._tab] || [])); o.has(b.dataset.stat) ? o.delete(b.dataset.stat) : o.add(b.dataset.stat); ui.ixOff[b._tab] = [...o]; store.put("vf-ix-off", ui.ixOff); render(); };
+        return b;
+      }, (b, k) => { b._tab = tab; b.dataset.stat = k; b.textContent = `${CHIP_WORD[k] || k} · ${list.filter(x => x.ck === k).length}`; b.setAttribute("aria-pressed", String(!off.has(k))); });
+      ixChips.hidden = keys.length < 2 && !keys.some(k => off.has(k)); // a chip turned off always stays in reach
+      return list.filter(x => !off.has(x.ck));
+    }
+    /** Queue rows on the Inbox page: their question link and Show in Host view leave the page for where they live. */
+    function makeIbQ(it) {
+      const li = makeQItem(it), k = li._k, go = k.qref.onclick;
+      k.qref.onclick = () => { closePop(); go(); };
+      const nav = E("div", "vf-acts vf-ibnav"), show = btn("vf-btn vf-btn-ghost vf-btn-sm vf-ibgo", "Show in Host view");
+      show.onclick = () => showHostRow(li._it.id);
+      nav.append(show); li.append(nav); k.nav = nav;
+      return li;
+    }
+    const fillIbQ = (li, it) => { fillQItem(li, it); li._k.nav.hidden = !Core.canModerate(); };
+    const NEED_EMPTY = "Nothing needs you now. What you handled is in History.", CHIPS_EMPTY = "Nothing with these chips on. Turn on another chip above.";
+
     bellBtn.onclick = () => openBell(bellBtn);
-    bpClose.onclick = () => { const a = bellPop._anchor; closePop(); a?.focus?.(); };
+    bpBack.onclick = () => { const a = bellPop._anchor; closePop(); a?.focus?.({ preventScroll: true }); };
     bpAll.onclick = () => {
-      const items = inbox().filter(i => i.unread);
+      const items = inbox().filter(i => i.unread && !i.key.startsWith("fail:")); // a failed request clears only from its row
       for (let n = 0; n < items.length; n += 100) { // the server takes 100 a read
         const part = items.slice(n, n + 100);
         Core.readInbox(part.map(i => i.key), Object.fromEntries(part.map(i => [i.key, i.status]))).catch(fail);
@@ -2750,90 +2863,100 @@
       if (ui.pop !== bellPop) return;
       bpAll.hidden = !unread;
       ixCount.textContent = unread ? String(unread) : ""; ixCount.hidden = !unread;
-      const owner = Core.me.isOwner, tab = ui.ixTab === "waiting" && !owner ? "all" : ui.ixTab || "all";
-      ixTabBtn.waiting.hidden = !owner;
-      for (const [k, b] of Object.entries(ixTabBtn)) b.setAttribute("aria-pressed", String(k === tab));
-      const mine = inbox().filter(i => i.group === "mine").sort((a, b) => b.ts - a.ts);
-      const waiting = owner ? inbox().filter(i => i.group === "waiting").sort((a, b) => b.ts - a.ts) : [];
-      ixMine.hidden = !(tab === "all" || tab === "mine");
-      ixWait.hidden = !owner || !(tab === "all" || tab === "waiting");
-      ixNotes.hidden = !(tab === "all" || tab === "notes");
-      ixMine._h.textContent = `${ixMine._title} · ${mine.length}`;
-      ixWait._h.textContent = `${ixWait._title} · ${waiting.length}`;
-      ixNotes._h.textContent = ixNotes._title;
-      sync(ixMineList, mine, i => i.key, makeIx, (li, i) => fillIx(li, i, S));
-      ixMineEmpty.hidden = mine.length > 0;
-      renderReview(S, owner);
-      for (const [k, w] of Object.entries(ixWaitLists)) {
-        const items = waiting.filter(i => i.kind === k);
-        w.h.textContent = `${w.label} · ${items.length}`;
-        w.g.hidden = !items.length;
-        sync(w.ul, items, i => i.key, makeIx, (li, i) => fillIx(li, i, S));
+      const owner = Core.me.isOwner, tab = ixTab[ui.ixTab] ? ui.ixTab : "needs";
+      const rows = owner ? revRows(S) : [];
+      const need = needItems(S), needRev = rows.filter(revNeeds).map(r => ({ ...r, ck: r.st }));
+      const mineNow = inbox().filter(i => i.group === "mine" && (i.unread || ["waiting", "running"].includes(i.status))).sort((a, b) => b.changedTs - a.changedTs).map(i => ({ ...i, ck: i.status }));
+      const unreadNotes = list.filter(n => !n.read).length;
+      const counts = { needs: needRev.length + need.q.length + need.ix.length, mine: mineNow.length, notes: unreadNotes };
+      for (const [k, b] of Object.entries(ixTabBtn)) { b.textContent = k in counts ? `${b._l} · ${counts[k]}` : b._l; b.setAttribute("aria-pressed", String(k === tab)); }
+      for (const [k, el] of Object.entries(ixTab)) el.hidden = k !== tab;
+      if (tab === "needs") {
+        const shown = ixFilter("needs", [...needRev, ...need.q, ...need.ix]);
+        const sRev = shown.filter(x => x.st), sQ = shown.filter(x => x.t), sIx = shown.filter(x => x.kind);
+        revBox.hidden = !sRev.length; revBox._h.textContent = `Requests to Claude · ${sRev.length}`;
+        sync(revList, sRev, r => r.key, makeRev, fillRev);
+        const pending = sRev.filter(r => r.r?.status === "pending"), runnable = pending.filter(r => ui.reqSeen.has(r.r.id)).length;
+        runAllBtn.lastChild.textContent = `Run all shown (${runnable})`;
+        runAllBtn.setAttribute("aria-disabled", String(!runnable)); runAllBtn.disabled = !runnable;
+        runAllBtn.hidden = !pending.length;
+        needQBox.hidden = !sQ.length; needQBox._h.textContent = `${owner ? "Waiting on you" : "To place"} · ${sQ.length}`;
+        sync(needQ, sQ, i => i.id, makeIbQ, fillIbQ);
+        needIxBox.hidden = !sIx.length; needIxBox._h.textContent = `For you · ${sIx.length}`;
+        sync(needIx, sIx, i => i.key, makeIx, (li, i) => fillIx(li, i, S));
+        needEmpty.hidden = shown.length > 0; needEmpty.textContent = counts.needs ? CHIPS_EMPTY : NEED_EMPTY;
+      } else if (tab === "mine") {
+        const shown = ixFilter("mine", mineNow);
+        sync(ixMineList, shown, i => i.key, makeIx, (li, i) => fillIx(li, i, S));
+        ixMineEmpty.hidden = shown.length > 0;
+        ixMineEmpty.textContent = mineNow.length ? CHIPS_EMPTY : "Nothing waiting or new on your requests. Ask Claude on a question and it shows here until you open the answer; opened ones are in History.";
+      } else if (tab === "notes") {
+        popBox.hidden = !owner; // who else may set pop-ups is open (round 11 Q36): guests see none
+        if (owner) { const u = urgent(); for (const [k, b] of Object.entries(popRows)) b.setAttribute("aria-checked", String(u.includes(k))); }
+        bpUnread.setAttribute("aria-pressed", String(ui.unreadOnly));
+        const kept = ixFilter("notes", (ui.unreadOnly ? list.filter(n => !n.read) : list).map(n => ({ ...n, ck: n.kind })));
+        sync(nList, noteMore.page(kept, nList, `notes:${ui.unreadOnly}:${[].concat(ui.ixOff.notes || []).join()}`), n => n.id, () => {
+          const li = E("li"), b = btn("vf-nitem");
+          const lead = E("span", "vf-nlead"), txt = E("span", "vf-ntxt"), title = E("span", "vf-ntitle"), bodyT = E("span", "vf-nbody"), tm = E("span", "vf-card-time"), dot = E("span", "vf-ndot");
+          txt.append(title, bodyT); b.append(lead, txt, tm, dot); li.append(b);
+          b.onclick = () => goNote(li._n);
+          li._k = { b, lead, title, bodyT, tm, dot };
+          return li;
+        }, (li, n) => {
+          const k = li._k; li._n = n;
+          const key = n.byCid ? "p:" + n.byCid + (n.by || "") : "k:" + n.kind;
+          if (k.lead._key !== key) { k.lead._key = key; k.lead.replaceChildren(n.byCid ? Core.avatar(n.byCid, n.by || "?", 24) : icon(KIND_ICON[n.kind] || "bell")); }
+          k.title.textContent = n.by ? `${disp(n.by)} ${n.title}` : n.title;
+          k.bodyT.textContent = n.body || ""; k.bodyT.hidden = !n.body;
+          k.tm.textContent = ago(n.ts);
+          k.dot.hidden = n.read;
+          k.b.classList.toggle("vf-nunread", !n.read);
+          k.b.setAttribute("aria-label", `${n.read ? "" : "Unread. "}${k.title.textContent}${n.body ? ": " + n.body : ""}. ${ago(n.ts) === "now" ? "Just now" : ago(n.ts) + " ago"}.`);
+        });
+        nEmpty.hidden = kept.length > 0;
+        nEmpty.textContent = list.length ? (ui.unreadOnly && !list.some(n => !n.read) ? "No unread notifications." : CHIPS_EMPTY) : NO_NOTES;
+        const muted = new Set(pref("mute", []));
+        muteBtn.textContent = muted.size ? `Notify me about: ${NOTE_KINDS.length - muted.size} of ${NOTE_KINDS.filter(([kk]) => mod || !["queue", "ready"].includes(kk)).length} kinds` : "Choose what notifies you";
+        muteBtn.setAttribute("aria-expanded", String(!!ui.muteOpen));
+        muteBox.hidden = !ui.muteOpen;
+        for (const [kk, b] of Object.entries(muteRows)) { b.hidden = !mod && (kk === "queue" || kk === "ready"); b.setAttribute("aria-checked", String(!muted.has(kk))); }
+      } else {
+        const h = historyItems(S), all = [...rows.filter(r => !revNeeds(r)).map(r => ({ ...r, ck: r.st })), ...h.q, ...h.ix];
+        const shown = histMore.page(ixFilter("history", all).sort((a, b) => (b.changedTs ?? b.ts) - (a.changedTs ?? a.ts)), histRev, "history:" + [].concat(ui.ixOff.history || []).join());
+        const sRev = shown.filter(x => x.st), sQ = shown.filter(x => x.t), sIx = shown.filter(x => x.group === "mine");
+        histRevBox.hidden = !sRev.length; histRevBox._h.textContent = "Requests to Claude";
+        sync(histRev, sRev, r => r.key, makeRev, fillRev);
+        histQBox.hidden = !sQ.length; histQBox._h.textContent = "Reports and pictures";
+        sync(histQ, sQ, i => i.id, makeIbQ, fillIbQ);
+        histIxBox.hidden = !sIx.length; histIxBox._h.textContent = "Your requests";
+        sync(histIx, sIx, i => i.key, makeIx, (li, i) => fillIx(li, i, S));
+        histEmpty.hidden = shown.length > 0; histEmpty.textContent = all.length ? CHIPS_EMPTY : "Nothing here yet. What needed you and was handled shows here.";
       }
-      bpUnread.setAttribute("aria-pressed", String(ui.unreadOnly));
-      const kept = ui.unreadOnly ? list.filter(n => !n.read) : list;
-      sync(nList, noteMore.page(kept, nList, `notes:${ui.unreadOnly}`), n => n.id, () => {
-        const li = E("li"), b = btn("vf-nitem");
-        const lead = E("span", "vf-nlead"), txt = E("span", "vf-ntxt"), title = E("span", "vf-ntitle"), bodyT = E("span", "vf-nbody"), tm = E("span", "vf-card-time"), dot = E("span", "vf-ndot");
-        txt.append(title, bodyT); b.append(lead, txt, tm, dot); li.append(b);
-        b.onclick = () => goNote(li._n);
-        li._k = { b, lead, title, bodyT, tm, dot };
-        return li;
-      }, (li, n) => {
-        const k = li._k; li._n = n;
-        const key = n.byCid ? "p:" + n.byCid + (n.by || "") : "k:" + n.kind;
-        if (k.lead._key !== key) { k.lead._key = key; k.lead.replaceChildren(n.byCid ? Core.avatar(n.byCid, n.by || "?", 24) : icon(KIND_ICON[n.kind] || "bell")); }
-        k.title.textContent = n.by ? `${disp(n.by)} ${n.title}` : n.title;
-        k.bodyT.textContent = n.body || ""; k.bodyT.hidden = !n.body;
-        k.tm.textContent = ago(n.ts);
-        k.dot.hidden = n.read;
-        k.b.classList.toggle("vf-nunread", !n.read);
-        k.b.setAttribute("aria-label", `${n.read ? "" : "Unread. "}${k.title.textContent}${n.body ? ": " + n.body : ""}. ${ago(n.ts) === "now" ? "Just now" : ago(n.ts) + " ago"}.`);
-      });
-      nEmpty.hidden = kept.length > 0;
-      nEmpty.textContent = ui.unreadOnly && list.length ? "No unread notifications." : NO_NOTES;
-      const muted = new Set(pref("mute", []));
-      muteBtn.textContent = muted.size ? `Notify me about: ${NOTE_KINDS.length - muted.size} of ${NOTE_KINDS.filter(([kk]) => mod || !["queue", "ready"].includes(kk)).length} kinds` : "Choose what notifies you";
-      muteBtn.setAttribute("aria-expanded", String(!!ui.muteOpen));
-      muteBox.hidden = !ui.muteOpen;
-      for (const [kk, b] of Object.entries(muteRows)) { b.hidden = !mod && (kk === "queue" || kk === "ready"); b.setAttribute("aria-checked", String(!muted.has(kk))); }
     }
 
-    // ---------- the host's review view ----------
+    // ---------- the host's requests to Claude ----------
     /** Every request to the host's Claude and every answer, newest first, each with the status the chips filter on. */
     function revRows(S) {
       const res = [];
       for (const [qid, lst] of Object.entries(S.research || {})) for (const x of lst) res.push({ qid: qid === Core.GENERAL ? "" : qid, x });
       const byReq = new Map(res.filter(e => e.x.requestId).map(e => [e.x.requestId, e]));
       const reqs = S.requests || [], asked = new Set(reqs.map(r => r.id));
-      const st2 = (r, x) => (r && r.status !== "done" ? { pending: "waiting", running: "running", failed: "failed" }[r.status] : x?.published ? "shared" : x?.private ? "private" : "unshared");
-      const rows = reqs.filter(r => r.status !== "declined").map(r => { const e = byReq.get(r.id); return { key: "r:" + r.id, r, x: e?.x, qid: r.qid, ts: r.ts, st: st2(r, e?.x) }; });
+      const st2 = (r, x) => (r && r.status !== "done" ? { pending: "waiting", running: "running", failed: "failed", declined: "declined" }[r.status] : x?.published ? "shared" : x?.private ? "private" : "unshared");
+      const rows = reqs.map(r => { const e = byReq.get(r.id); return { key: "r:" + r.id, r, x: e?.x, qid: r.qid, ts: r.ts, st: st2(r, e?.x) }; });
       for (const e of res) if (!e.x.requestId || !asked.has(e.x.requestId)) rows.push({ key: "x:" + e.x.id, x: e.x, qid: e.qid, ts: e.x.ts, st: st2(null, e.x) });
       return rows.sort((a, b) => b.ts - a.ts);
     }
-    function renderReview(S, owner) {
-      revBox.hidden = !owner;
-      if (!owner) return;
-      const rows = revRows(S), shown = rows.filter(r => ui.revFilter.has(r.st));
-      for (const [k, b] of Object.entries(revChip)) { b.textContent = `${b._l} · ${rows.filter(r => r.st === k).length}`; b.setAttribute("aria-pressed", String(ui.revFilter.has(k))); }
-      sync(revList, shown, r => r.key, makeRev, fillRev);
-      revEmpty.hidden = shown.length > 0;
-      revEmpty.textContent = rows.length ? "Nothing with these statuses. Turn on another chip above." : "No requests yet. People ask from Ask Claude, on a question or in the top bar.";
-      const pending = shown.filter(r => r.r?.status === "pending"), runnable = pending.filter(r => ui.reqSeen.has(r.r.id)).length;
-      runAllBtn.lastChild.textContent = `Run all shown (${runnable})`;
-      runAllBtn.setAttribute("aria-disabled", String(!runnable));
-      runAllBtn.disabled = !runnable;
-      runAllBtn.hidden = !pending.length;
-    }
-    /** The Inbox on the review view with one request's row in sight. */
-    function openReview(rid) {
-      ui.ixTab = "waiting";
-      const row = revRows(Core.state).find(r => r.r?.id === rid);
-      if (row && !ui.revFilter.has(row.st)) { ui.revFilter.add(row.st); store.put(REV_KEY, [...ui.revFilter]); }
+    /** The Inbox page with one row in sight: a request to Claude ("r:<id>", "x:<id>") or another queue row's id. */
+    function openReview(key) {
+      const S = Core.state, row = revRows(S).find(r => r.key === key), q = needItems(S).q.find(i => i.id === key);
+      const tab = (row ? revNeeds(row) : !!q) ? "needs" : "history", ck = row ? row.st : q?.ck;
+      ui.ixTab = tab;
+      if (ck && [].concat(ui.ixOff[tab] || []).includes(ck)) { ui.ixOff[tab] = [].concat(ui.ixOff[tab]).filter(x => x !== ck); store.put("vf-ix-off", ui.ixOff); }
+      if (tab === "history") ui.more["history:" + [].concat(ui.ixOff.history || []).join()] = Infinity;
       if (ui.pop !== bellPop) openBell(bellBtn.offsetParent ? bellBtn : tabBtns.more);
       render();
       requestAnimationFrame(() => {
-        const li = [...revList.children].find(l => l._row?.r?.id === rid); if (!li) return;
+        const li = (row ? [...revList.children, ...histRev.children].find(l => l._row?.key === key) : [...needQ.children, ...histQ.children].find(l => l._it?.id === key)); if (!li) return;
         li.scrollIntoView({ block: "nearest", behavior: smooth() });
         ring(li);
       });
@@ -2843,6 +2966,7 @@
     function makeRev() {
       const li = makeReq(), k = li._k;
       li.classList.add("vf-revrow");
+      k.tarea.rows = 3; // editing on the Inbox page: three lines of the request in view
       const stat = E("span", "vf-chip vf-ixchip vf-revstat"), dot = E("span", "vf-ndot");
       k.kind.after(stat); k.status.after(dot);
       const res = E("div", "vf-rev-res"), lbl = E("div", "vf-qa-lbl"), rwho = E("span", "vf-meta vf-rev-who");
@@ -2864,6 +2988,7 @@
       takeDown.onclick = guarded(() => ({ title: "Take this answer down?", ok: "Take down",
         body: `Only you${x().byCid && !isMe(x().byCid) ? ` and ${askerName()}` : ""} see it after this, and only you can share it again.` }),
         () => Core.requestAct(x().id, "takedown").then(() => flash("Taken down.")).catch(fail));
+      k.rerun.addEventListener("click", seen); // a failed request run again needs nothing more from its row
       k.qref.onclick = () => { // the request, or the answer, where it lives
         seen(); closePop();
         const r = li._row;
@@ -2875,13 +3000,13 @@
       Object.assign(k, { stat, dot, res, rwho, sum, share, discard, takeDown });
       return li;
     }
-    const REV_WORD = Object.fromEntries(REV_STATS);
+    const REV_WORD = { waiting: "Waiting", running: "Running", failed: "Failed", unshared: "Not shared", shared: "Shared", declined: "Declined" };
     function fillRev(li, row) {
       const k = li._k, x = row.x, q = qById(row.qid);
       li._row = row;
       if (row.r) {
         fillReq(li, row.r);
-        if (row.r.status === "done") { // answered: what is left to do is on the answer
+        if (row.r.status === "done" || row.r.status === "declined") { // answered or declined: what is left to do is on the answer
           for (const b of [k.edit, k.save, k.cancel, k.decline, k.run, k.failB, k.rerun]) b.hidden = true;
           k.fresh.hidden = true; li.classList.remove("vf-ritem-fresh");
         }
@@ -2897,7 +3022,7 @@
       k.stat.textContent = row.st === "private" ? (x.takenDown ? "Taken down" : "Just me") : REV_WORD[row.st]; k.stat.dataset.stat = row.st;
       if (row.st !== "private" && (row.r?.justMe || x?.justMe)) k.stat.textContent += ", just me";
       li.dataset.stat = row.st;
-      li._unread = inbox().filter(i => i.unread && (i.key === "run:" + row.r?.id || (x && i.key === "share:" + x.id))).map(i => i.key);
+      li._unread = inbox().filter(i => i.unread && (i.key === "run:" + row.r?.id || i.key === "fail:" + row.r?.id || (x && i.key === "share:" + x.id))).map(i => i.key);
       k.dot.hidden = !li._unread.length;
       k.res.hidden = !x;
       if (!x) return;
@@ -3745,8 +3870,9 @@
     // ---------- notices for changes that concern me ----------
     function notices(S) {
       if (!Core.live || !Core.me.cid) return; // prime on real state, not the empty one before the first poll
-      const seen = ui.notified, first = !seen._primed;
-      const note = (key, val, msg, action) => { if (seen[key] === val) return; const had = key in seen; seen[key] = val; if (!first && (had || action?.isNew) && msg) flash(msg, action?.run ? action : null); };
+      const seen = ui.notified, first = !seen._primed, owner = Core.me.isOwner;
+      // The host's pop-ups are HOST_URGENT's alone (hostAlerts); everything else for the host is in the Inbox only.
+      const note = (key, val, msg, action) => { if (seen[key] === val) return; const had = key in seen; seen[key] = val; if (!owner && !first && (had || action?.isNew) && msg) flash(msg, action?.run ? action : null); };
       for (const u of S.myUploads || []) {
         note("u:" + u.id, u.status, u.status === "declined" ? `Not accepted: ${u.file}. It was deleted from this device.` : u.status === "done" ? `Sent: ${u.file}.` : u.status === "accepted" ? `The host accepted ${u.file}. Sending it now.` : "");
       }
@@ -3758,10 +3884,12 @@
       if (Core.me.isOwner) {
         for (const m of S.mergeRequests || []) note("gm:" + m.id, "seen", `${disp(m.fromName)} says they were ${disp(m.toName)} before. Approve it in Host.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); }, isNew: true });
         for (const u of S.uploads || []) if (u.status === "offered" && !isMe(u.cid)) note("uo:" + u.id, "seen", `${disp(u.by)} offered a file: ${u.file}.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); }, isNew: true });
-        // What waits on me pops up once when it arrives; merges have their own line above.
-        const WAIT = { join: i => `${disp(i.by)} asks to join.`, run: i => `${disp(i.by)} asked Claude ${ixWhere(i)}. Run it from the Inbox.`,
-          share: i => `Claude answered ${ixWhere(i)}. Share it from the Inbox.`, report: i => `${disp(i.by)} reported a problem.` };
-        for (const i of S.inbox || []) if (i.group === "waiting" && WAIT[i.kind]) note("iw:" + i.key, "seen", WAIT[i.kind](i), { label: "Open", run: () => openInboxItem(i), isNew: true });
+        // What urgently waits on me pops up once when it arrives, those arriving together as one.
+        const fresh = [];
+        for (const i of S.inbox || []) if (alertable(i) && !(("iw:" + i.key) in seen)) { seen["iw:" + i.key] = "seen"; if (!first) fresh.push(i.key); }
+        const waits = new Set((S.inbox || []).filter(i => i.group === "waiting").map(i => "iw:" + i.key));
+        for (const k of Object.keys(seen)) if (k.startsWith("iw:") && !waits.has(k)) delete seen[k]; // one that comes back pops up again
+        hostAlerts(fresh);
       }
       // Item 11: a toast when Claude answers one of my requests, once I can open the answer.
       for (const i of S.inbox || []) {
@@ -3772,6 +3900,37 @@
       if (Core.adopted && !seen._adopted) { seen._adopted = true; flash(`Signed in as ${Core.adopted} on this device.`); }
       if (Core.mergeAsked && !seen._asked) { seen._asked = true; flash(`Asked the host to join you with ${Core.mergeAsked.name}. You continue as ${Core.me.name} until they do.`); }
       seen._primed = true;
+    }
+
+    // ---------- the host's pop-ups (owner decision, follow-ups 18 and 24) ----------
+    const ALERT_ONE = { join: i => `${disp(i.by)} asks to join.`, run: i => `${disp(i.by)} asked Claude ${ixWhere(i)}. Run it from the Inbox.`, report: i => `${disp(i.by)} reported a problem.`,
+      share: i => `Claude answered ${ixWhere(i)}. Share it from the Inbox.`, merge: i => `${disp(i.by)} asks to be joined with an earlier name.`,
+      fail: i => `Claude could not answer ${disp(i.by)}'s request ${ixWhere(i)}.` };
+    const ALERT_MANY = { join: n => `${n} people ask to join`, run: n => `${n} requests wait on you`, report: n => `${n} problem reports wait on you`,
+      share: n => `${n} answers wait for Share`, merge: n => `${n} merge requests wait on you`, fail: n => `${n} requests failed` };
+    /** The pop-up for what urgently waits on the host now: one item in its own words, several as one count with
+     *  Open Inbox. Items that no longer wait drop out; with none left, null. */
+    function alertToast() {
+      const live = new Map(inbox().filter(alertable).map(i => [i.key, i]));
+      ui.alertKeys = (ui.alertKeys || []).filter(k => live.has(k));
+      const items = ui.alertKeys.map(k => live.get(k));
+      if (!items.length) return null;
+      if (items.length === 1) return [ALERT_ONE[items[0].kind](items[0]), { label: "Open", run: () => openInboxItem(items[0]) }];
+      const kinds = new Set(items.map(i => i.kind)), n = items.length;
+      return [kinds.size === 1 ? ALERT_MANY[items[0].kind](n) : `${n} things wait on you`, { label: "Open Inbox", run: () => { ui.ixTab = "needs"; if (ui.pop === bellPop) render(); else openBell(bellBtn.offsetParent ? bellBtn : tabBtns.more); } }];
+    }
+    /** New urgent keys join the pop-up showing (or queued) now, else start one; each pass also drops what stopped waiting. */
+    function hostAlerts(fresh) {
+      const showing = toast._tag === "alert" && toast.classList.contains("vf-on"), queued = toastQ.some(e => e[2] === "alert");
+      if (fresh.length) ui.alertKeys = [...(showing || queued || ui.alertOpen ? ui.alertKeys || [] : []), ...fresh];
+      if (showing) {
+        const r = alertToast();
+        if (!r) { ui.alertOpen = false; hideToast(); return; }
+        toastAct.onclick = () => { ui.alertOpen = false; hideToast(); r[1].run(); }; // the same words can name a newer item
+        if (toastAct.textContent !== r[1].label) toastAct.textContent = r[1].label; // the live region changes only with its words
+        if (toastTxt.textContent !== r[0]) { toastTxt.textContent = r[0]; placeToast(); }
+      } else if (ui.alertOpen && !queued && !alertToast()) ui.alertOpen = false; // covered, and nothing waits any more
+      else if (fresh.length && !queued && !ui.alertOpen) flash(alertToast, null, "alert");
     }
 
     // ---------- empty session ----------
@@ -4128,7 +4287,8 @@
     };
     nativeShare.onclick = () => navigator.share?.({ title: "Join the interview", url: shareField.value }).catch(() => {});
     on(document, "pointerdown", e => {
-      if (ui.pop && !dlgOpen() && !ui.pop.contains(e.target) && !ui.pop._anchor?.contains(e.target) && !e.target.closest?.("[data-pid]")) closePop();
+      // a toast (its Close or Open) is not outside: it does its own thing to what is open
+      if (ui.pop && !dlgOpen() && !ui.pop.contains(e.target) && !ui.pop._anchor?.contains(e.target) && !toast.contains(e.target) && !e.target.closest?.("[data-pid]")) closePop();
     });
     const vis = () => { if (document.visibilityState === "hidden") markSeen(ui.cur); };
     on(document, "visibilitychange", vis);
@@ -4138,6 +4298,7 @@
       root.toggleAttribute("data-kb", now);
       if (was !== now) { syncModal(); if (ui.mention) paintMention(); }
       revealAskField(now && !was);
+      revealInboxField();
       if (now && !was && ui.pop && !ui.pop._kbRead && coarse.matches) { ui.pop._kbRead = true; kbReadout(ui.pop); }
     };
     // Once per sheet open, the keyboard coming up on a touch device logs where the viewport, the app and the sheet
@@ -4169,6 +4330,17 @@
       else scrollInto(apScroll, fr.top, fr.top + band.bottom - band.top, band);
     };
     on(askPanel, "focusin", e => { if (e.target === apTa) revealAskField(true); });
+    // On the Inbox page, a request's Edit field stays seen above the keyboard with its row's question line and Save
+    // when they fit, else the field's top.
+    const revealInboxField = () => {
+      const f = document.activeElement;
+      if (ui.pop !== bellPop || !f?.matches?.("textarea") || !bpScroll.contains(f)) return;
+      const li = f.closest("li"), head = li?.querySelector(".vf-rhead2") || f, save = li?.querySelector(".vf-acts button:not([hidden])") || f;
+      const band = seenBand(bpScroll, f), top = head.getBoundingClientRect().top, bottom = save.getBoundingClientRect().bottom, fr = f.getBoundingClientRect();
+      if (bottom - top <= band.bottom - band.top) scrollInto(bpScroll, top, bottom, band);
+      else scrollInto(bpScroll, fr.top, fr.top + band.bottom - band.top, band);
+    };
+    on(bellPop, "focusin", e => { if (e.target.matches?.("textarea")) requestAnimationFrame(revealInboxField); });
     on(window, "core-viewport", kbSync);
     const sysTheme = () => applyTheme();
     lightOS.addEventListener("change", sysTheme); offs.push(() => lightOS.removeEventListener("change", sysTheme));
@@ -4396,6 +4568,7 @@
         return;
       }
       if (e.key === "Escape") {
+        if (toast._tag === "alert" && toast.classList.contains("vf-on")) { ui.alertOpen = false; hideToast(); return; } // an urgent pop-up goes first
         if (!lb.hidden) { closeLb(); return; }
         if (!reader.hidden) { closeReader(); return; }
         if (ui.pop) { const r = ui.pop._return, a = r?.isConnected && r !== document.body ? r : ui.pop._anchor; closePop(); a?.focus?.(); return; }
@@ -5842,7 +6015,8 @@
     // ---------- Host view (Q73) ----------
     function queueItems(S) {
       const R = curRound(), out = [], owner = Core.me.isOwner;
-      if (owner) for (const r of S.requests || []) out.push({ t: "request", id: "r:" + r.id, ts: r.ts, r });
+      // a request waits to run, runs, or failed and is not yet opened; one handled is in the Inbox's History
+      if (owner) for (const r of S.requests || []) if (r.status === "pending" || r.status === "running" || (r.status === "failed" && failWaits(r))) out.push({ t: "request", id: "r:" + r.id, ts: r.ts, r });
       for (const i of S.ideas) if (i.status === "new") out.push({ t: "proposal", id: "p:" + i.id, ts: i.ts, i });
       for (const [qid, lst] of Object.entries(S.suggestions || {})) if (Core.lockOf(qid)) for (const x of lst) if (x.status === "open") out.push({ t: "suggestion", id: "s:" + x.id, ts: x.ts, x, qid });
       if (owner) for (const m of S.mergeRequests || []) out.push({ t: "merge", id: "m:" + m.id, ts: m.ts, m });
@@ -5941,13 +6115,13 @@
           qAct("Run", "vf-btn-primary", () => Core.requestAct(li._it.r.id, "run").then(() => flash("Running. The result shows on the question.")).catch(runFail)));
         else if (it.r.status === "running") a.push(qAct("Mark failed", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "fail").catch(fail)));
         else a.push(qAct("Run again", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "rerun").catch(fail)));
-        a.push(qAct("Review in Inbox", "vf-btn-ghost", () => openReview(li._it.r.id)));
+        a.push(qAct("Review in Inbox", "vf-btn-ghost", () => openReview(li._it.id)));
       }
-      if (it.t === "proposal") a.push(
+      if (it.t === "proposal" && Core.canModerate()) a.push(
         qAct("Park", "vf-btn-ghost", guarded(PARK_ASK, () => Core.proposal(li._it.i.id, "park").then(() => flash("Parked.")).catch(fail))),
         ...(v8() ? [qAct("Later", "vf-btn-ghost", guarded(LATER_ASK, () => Core.later(li._it.i.id, "Off this session's goal").then(() => flash("Moved to Later. It becomes a tracker item when the session ends.")).catch(fail)))] : []),
         qAct("Make it a question", "vf-btn-primary", () => Core.proposal(li._it.i.id, "question").then(r => flash(`Added to round ${r.round ?? curRound().current + 1}.`)).catch(fail)));
-      if (it.t === "suggestion") a.push(
+      if (it.t === "suggestion" && Core.canModerate()) a.push(
         qAct("Dismiss", "vf-btn-ghost", () => Core.dismissSuggestion(li._it.qid, li._it.x.id).catch(fail)),
         qAct("Use this", "vf-btn-brass", () => Core.useSuggestion(li._it.qid, li._it.x.id).then(() => flash("Locked answer replaced.")).catch(fail)));
       if (it.t === "merge" && owner) a.push(
@@ -6471,7 +6645,7 @@
         const nQ = inCur.length || S.questions.length, hostName = disp(nameOf(S.ownerPid, "The host"));
         orH.textContent = me.name ? `Welcome, ${me.name}` : "Welcome";
         orGoal.textContent = S.goal ? `Goal: ${S.goal}` : ""; orGoal.hidden = !S.goal;
-        const how = "On each one, pick an option, or type your answer in the box under the question. The chat is only for talking with people.";
+        const how = "On each one, pick an option, or type your answer in the box under the question. Chat is for people; start a message with @Claude to ask Claude.";
         // On a phone the how-to sentence folds in with the intro, so the card stays short.
         orAsk.textContent = `${hostName} asks you to answer ${nQ} question${nQ === 1 ? "" : "s"}.${phone.matches ? "" : " " + how}`;
         orStart.textContent = `Start here: question ${Math.max(1, inCur.indexOf(target) + 1)}`; orStart._q = target?.id;

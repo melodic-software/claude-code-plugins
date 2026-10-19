@@ -2,9 +2,10 @@
 // Sharing Claude's answers (owner decision 2026-10-19) and the host's review view (follow-up item 13), against
 // `share.sh ensure-running` with the fake cloudflared. The Ask boxes offer Everyone and Just me: Everyone on a question,
 // Just me about the whole session. An answer asked for everyone shows to everyone when it arrives; a Just me answer
-// shows only to its asker, who can share it. The host's Inbox "Waiting on you" lists every request newest first behind
-// status chips (Waiting, Running, Failed, Not shared, Shared) that the device remembers, with Run, Run again, Share and
-// Take down on the rows, and a failed row says why. Take down hides a shared answer from everyone else.
+// shows only to its asker, who can share it. The host's Inbox page lists the requests that need the host newest first under
+// Needs you (to run, to share, failed and not yet opened) and the rest under History, each tab behind status chips the
+// device remembers, with Run, Run again, Share and Take down on the rows, and a failed row says why. Take down hides a
+// shared answer from everyone else.
 //   node plugins/planning/shared/tests/ui_review.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved spec (the owner decision and item 13) and the texts this suite writes.
@@ -18,13 +19,16 @@ const CHAT_ASK = "@Claude where do we stand overall?", CHAT_ANS = "We stand half
 const DISC_ASK = "@Claude is the first payment common?", DISC_ANS = "Cards come first almost everywhere.";
 const openChat = async page => { if (await page.evaluate(() => document.querySelector(".vf-chat").hidden)) await page.click(".vf-fab"); return until(page, () => !document.querySelector(".vf-chat").hidden); };
 
-const openInbox = async page => { if (await page.evaluate(() => document.querySelector(".vf-inboxpop").hidden)) await page.click(".vf-bell"); return until(page, () => !document.querySelector(".vf-inboxpop").hidden); };
+const openInbox = async page => { if (await page.evaluate(() => document.querySelector(".vf-inboxpage").hidden)) await page.click(".vf-bell"); return until(page, () => !document.querySelector(".vf-inboxpage").hidden); };
+/** The Inbox page on one tab: needs (Needs you) or history (History). */
+const showTab = async (page, k) => { await openInbox(page); await page.click(`.vf-ixtabs [data-k=${k}]`); return until(page, x => document.querySelector(`.vf-ixtabs [data-k=${x}]`)?.getAttribute("aria-pressed") === "true", k); };
+const ROWS = ".vf-ibtab:not([hidden]) .vf-revlist > li";
 /** The Ask boxes' Everyone / Just me group: which one is pressed, or "" while it is hidden. */
 const audIn = (page, sel) => page.evaluate(s => { const g = document.querySelector(s); return g && !g.closest("[hidden]") && g.getClientRects().length ? g.querySelector("[aria-pressed=true]")?.textContent || "" : ""; }, sel);
 /** The review rows shown, top to bottom: their text and status chip. */
-const rows = page => page.evaluate(() => [...document.querySelectorAll(".vf-revlist > li")].map(li => ({ text: li.textContent, stat: li.querySelector(".vf-revstat")?.textContent || "" })));
-const chips = page => page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".vf-rev-chip")].map(b => [b.textContent.split(" · ")[0], b.getAttribute("aria-pressed") === "true"])));
-const row = (page, text) => page.locator(".vf-revlist > li", { hasText: text });
+const rows = page => page.evaluate(r => [...document.querySelectorAll(r)].map(li => ({ text: li.textContent, stat: li.querySelector(".vf-revstat")?.textContent || "" })), ROWS);
+const chips = page => page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".vf-ibchips .vf-rev-chip")].map(b => [b.textContent.split(" · ")[0], b.getAttribute("aria-pressed") === "true"])));
+const row = (page, text) => page.locator(ROWS, { hasText: text });
 const sees = (page, text) => page.evaluate(t => Object.values(window.Core.state.research || {}).flat().some(x => x.summary === t), text);
 
 async function main() {
@@ -64,25 +68,29 @@ async function main() {
     await until(owner, () => (window.Core.state.requests || []).length === 3);
 
     // ---------- the host's review view ----------
-    await openInbox(owner);
-    await owner.locator("button.vf-seg-btn", { hasText: "Waiting on you" }).click();
-    ok("Waiting on you lists the requests newest first, each Waiting", await until(owner, ts => {
-      const r = [...document.querySelectorAll(".vf-revlist > li")].map(li => li.textContent);
-      return r.length === 3 && ts.every((t, i) => r[i].includes(t)) && [...document.querySelectorAll(".vf-revlist .vf-revstat")].every(c => c.textContent.startsWith("Waiting"));
-    }, [ASK3, ASK1, ASK2]), JSON.stringify(await rows(owner)));
-    ok("  with the Waiting, Running, Failed and Not shared chips on and Private and Shared off", JSON.stringify(await chips(owner)) === JSON.stringify({ Waiting: true, Running: true, Failed: true, "Not shared": true, Private: false, Shared: false }), JSON.stringify(await chips(owner)));
+    await showTab(owner, "needs");
+    ok("Needs you lists the requests newest first, each Waiting", await until(owner, ([ts, sel]) => {
+      const r = [...document.querySelectorAll(sel)];
+      return r.length === 3 && ts.every((t, i) => r[i].textContent.includes(t)) && r.every(li => li.querySelector(".vf-revstat").textContent.startsWith("Waiting"));
+    }, [[ASK3, ASK1, ASK2], ROWS]), JSON.stringify(await rows(owner)));
+    ok("  under one chip, Waiting · 3, on", JSON.stringify(await chips(owner)) === JSON.stringify({ Waiting: true }) && await owner.evaluate(() => document.querySelector(".vf-ibchips [data-stat=waiting]").textContent === "Waiting · 3"), JSON.stringify(await chips(owner)));
     ok("the rail has no Requests panel any more", await owner.evaluate(() => ![...document.querySelectorAll(".vf-proprow")].some(b => b.textContent.includes("Requests"))));
     for (const t of [ASK1, ASK2, ASK3]) await row(owner, t).locator("button", { hasText: /^Run$/ }).click();
-    ok("Run on each row moves it to Running", await until(owner, () => [...document.querySelectorAll(".vf-revlist .vf-revstat")].every(c => c.textContent.startsWith("Running")), null, 8000), JSON.stringify(await rows(owner)));
+    ok("Run on each row moves it out of Needs you", await until(owner, sel => !document.querySelectorAll(sel).length, ROWS, 8000), JSON.stringify(await rows(owner)));
+    await showTab(owner, "history");
+    ok("  to History, where each reads Running", await until(owner, ([ts, sel]) => ts.every(t => [...document.querySelectorAll(sel)].some(li => li.textContent.includes(t) && li.querySelector(".vf-revstat").textContent.startsWith("Running"))),
+      [[ASK1, ASK2, ASK3], ROWS], 8000), JSON.stringify(await rows(owner)));
+    await showTab(owner, "needs");
     const rid = t => owner.evaluate(x => window.Core.state.requests.find(r => r.text === x).id, t);
     const [r1, r2, r3] = [await rid(ASK1), await rid(ASK2), await rid(ASK3)];
     s.apply(A.dir, [{ op: "fail-request", request: r3, reason: WHY }]);
-    ok("a failed request shows Failed with its reason and Run again", await until(owner, ([t, why]) => {
-      const li = [...document.querySelectorAll(".vf-revlist > li")].find(l => l.textContent.includes(t));
+    ok("a failed request comes back to Needs you as Failed, with its reason and Run again", await until(owner, ([t, why, sel]) => {
+      const li = [...document.querySelectorAll(sel)].find(l => l.textContent.includes(t));
       return li?.querySelector(".vf-revstat").textContent === "Failed" && li.textContent.includes(why) && [...li.querySelectorAll("button")].some(b => !b.hidden && b.textContent === "Run again");
-    }, [ASK3, WHY]), JSON.stringify(await rows(owner)));
+    }, [ASK3, WHY, ROWS]), JSON.stringify(await rows(owner)));
     await row(owner, ASK3).locator("button", { hasText: "Run again" }).click();
     ok("  and Run again runs it again", await until(owner, t => window.Core.state.requests.find(r => r.text === t).status === "running", ASK3));
+    ok("  and it leaves Needs you", await until(owner, ([t, sel]) => ![...document.querySelectorAll(sel)].some(l => l.textContent.includes(t)), [ASK3, ROWS]), JSON.stringify(await rows(owner)));
     const result = (request, qid, summary) => s.apply(A.dir, [{ op: "result", qid, request, kind: "ask", summary, sources: [], report: "", used: [], why: "" }]);
     result(r1, "Q1", ANS1);
     result(r2, "Q1", ANS2);
@@ -91,31 +99,35 @@ async function main() {
     ok("the answer asked for everyone shows to Bo when it arrives", await until(bo, a => (window.Core.state.research.Q1 || []).some(x => x.summary === a), ANS1, 10000));
     ok("the Just me answer shows to Ann", await until(ann, a => (window.Core.state.research.Q1 || []).some(x => x.summary === a), ANS2, 10000));
     ok("  and never to Bo", !(await sees(bo, ANS2)) && !(await bo.evaluate(a => JSON.stringify(window.Core.snapshot()).includes(a), ANS2)));
-    ok("the shared row and the delivered Just me row both leave the default view", await until(owner, ([a, b]) => {
-      const r = [...document.querySelectorAll(".vf-revlist > li")];
-      return r.length > 0 && !r.some(li => li.textContent.includes(a) || li.textContent.includes(b));
-    }, [ASK1, ASK2], 10000), JSON.stringify(await rows(owner)));
-    await owner.click(".vf-rev-chip[data-stat=private]");
-    ok("the Private chip shows the Just me row, with no Discard", await until(owner, t => {
-      const li = [...document.querySelectorAll(".vf-revlist > li")].find(l => l.textContent.includes(t));
+    ok("the shared row and the delivered Just me row are not in Needs you", await until(owner, ([a, b, sel]) => {
+      const r = [...document.querySelectorAll(sel)];
+      return !r.some(li => li.textContent.includes(a) || li.textContent.includes(b));
+    }, [ASK1, ASK2, ROWS], 10000), JSON.stringify(await rows(owner)));
+    await showTab(owner, "history");
+    ok("History shows the Just me row, with no Discard", await until(owner, ([t, sel]) => {
+      const li = [...document.querySelectorAll(sel)].find(l => l.textContent.includes(t));
       return li?.querySelector(".vf-revstat").textContent === "Just me" && ![...li.querySelectorAll("button")].some(b => !b.hidden && b.textContent === "Discard");
-    }, ASK2), JSON.stringify(await rows(owner)));
+    }, [ASK2, ROWS]), JSON.stringify(await rows(owner)));
     await row(owner, ASK2).locator(".vf-rev-open").click();
+    ok("  Open closes the Inbox page", await until(owner, () => document.querySelector(".vf-inboxpage").hidden));
     ok("  and its answer card offers the host no Discard", await until(owner, a => [...document.querySelectorAll(".vf-res")].some(li => li.textContent.includes(a)
       && !li.querySelector(".vf-res-share").hidden && ![...li.querySelectorAll("button")].some(b => !b.hidden && b.textContent === "Discard")), ANS2));
     await openInbox(owner);
-    await owner.click(".vf-rev-chip[data-stat=shared]");
-    ok("the Shared chip shows the shared row with Take down", await until(owner, t => {
-      const li = [...document.querySelectorAll(".vf-revlist > li")].find(l => l.textContent.includes(t));
-      return li?.querySelector(".vf-revstat").textContent === "Shared" && [...li.querySelectorAll("button")].some(b => !b.hidden && b.textContent === "Take down");
-    }, ASK1));
+    ok("the Inbox opens again on History, which shows the shared row with Take down", await until(owner, ([t, sel]) => {
+      const li = [...document.querySelectorAll(sel)].find(l => l.textContent.includes(t));
+      return document.querySelector(".vf-ixtabs [data-k=history]").getAttribute("aria-pressed") === "true"
+        && li?.querySelector(".vf-revstat").textContent === "Shared" && [...li.querySelectorAll("button")].some(b => !b.hidden && b.textContent === "Take down");
+    }, [ASK1, ROWS]));
 
     // ---------- Take down ----------
     await row(owner, ASK1).locator("button", { hasText: "Take down" }).click();
     await owner.locator("dialog[open] button", { hasText: "Take down" }).click();
     ok("Take down hides the answer from Bo", await until(bo, a => !(window.Core.state.research.Q1 || []).some(x => x.summary === a), ANS1, 10000));
     ok("  Ann still sees it", await sees(ann, ANS1));
-    ok("  and its row reads Taken down", await until(owner, t => [...document.querySelectorAll(".vf-revlist > li")].find(l => l.textContent.includes(t))?.querySelector(".vf-revstat").textContent === "Taken down", ASK1));
+    ok("  and its row reads Taken down", await until(owner, ([t, sel]) => [...document.querySelectorAll(sel)].find(l => l.textContent.includes(t))?.querySelector(".vf-revstat").textContent === "Taken down", [ASK1, ROWS]));
+    await owner.click(".vf-ibchips [data-stat=running]");
+    ok("  turning the Running chip off hides the running rows", await until(owner, ([t, sel]) => ![...document.querySelectorAll(sel)].some(l => l.textContent.includes(t)), [ASK3, ROWS]), JSON.stringify(await rows(owner)));
+    await owner.keyboard.press("Escape");
 
     // ---------- the asker shares their Just me answer ----------
     await ann.click(".vf-q[data-qid=Q1]");
@@ -160,8 +172,8 @@ async function main() {
     await owner.reload();
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     await openInbox(owner);
-    ok("after a reload the Inbox opens on Waiting on you", await until(owner, () => document.querySelector(".vf-ixtabs [data-k=waiting]")?.getAttribute("aria-pressed") === "true" && document.querySelector(".vf-ixmine").hidden));
-    ok("  with the Shared chip still on", (await chips(owner)).Shared === true, JSON.stringify(await chips(owner)));
+    ok("after a reload the Inbox opens on History", await until(owner, () => document.querySelector(".vf-ixtabs [data-k=history]")?.getAttribute("aria-pressed") === "true" && document.querySelector(".vf-ibneeds").hidden));
+    ok("  with the Running chip still off", (await chips(owner)).Running === false, JSON.stringify(await chips(owner)));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
