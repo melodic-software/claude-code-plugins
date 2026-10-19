@@ -152,6 +152,18 @@ test("an App label with no escalation right after it is kept", async () => {
   assert.deepEqual(w.writes(), []);
 });
 
+test("a pr-merge escalation by the App after the label keeps it", async () => {
+  for (const marker of [
+    "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-verify-escalation -->",
+    "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-dependabot-major -->",
+    "<!-- some-future-lane-marker -->",
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), commented(BOT, `${marker}\nUnattended merge: held.`, "2026-10-18T12:00:00Z")] });
+    await run(w);
+    assert.deepEqual(w.writes(), [], marker);
+  }
+});
+
 test("a reason a person decides is never cleared", async () => {
   const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("feedback-round-cap")] });
   await run(w);

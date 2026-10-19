@@ -364,7 +364,9 @@ head:
 | `feedback-protected-path` | the PR changes nothing under `.github/` |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
-when any account but the lanes App commented or reviewed since that event. Every other reason
+when any account but the lanes App commented or reviewed since that event, or when an App comment
+written or edited since then carries any marker other than pr-unblock's escalation (pr-merge's
+own `babysit-merge-*` escalations, another lane's). Every other reason
 (`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
 `ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
 `labels-absent` reads only whether a label is present, not who set or removed it: it is a hold, not

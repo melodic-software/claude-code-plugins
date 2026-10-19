@@ -872,6 +872,7 @@ jobs:
           always() && github.event_name == 'schedule'
           && steps.lane-token.outputs.token != ''
           && steps.mode.outputs.report-only == 'false'
+        timeout-minutes: 3
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}

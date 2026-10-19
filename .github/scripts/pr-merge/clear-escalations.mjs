@@ -13,6 +13,8 @@
 //   escalation marker, its second the resume-key line, and its `- Reason:`
 //   line names one of CHECKS. A later escalation adds no label event, so each
 //   one counts. Text anyone else writes, a marker included, is never read.
+// - No lanes App comment written or edited since then carries any other
+//   marker (pr-merge's own escalations, another lane's): unknown keeps it.
 // - No account but the lanes App commented or reviewed since the label went
 //   on: a person, or another bot asking for one, may want the lane to wait.
 // - Every recorded reason no longer holds at the current head:
@@ -51,6 +53,7 @@ const ESCALATION = "<!-- work-items:escalation lane=pr-unblock kind=escalated --
 const RESUME_KEY = /^<!-- pr-unblock resume-key=([0-9a-f]{40}|[0-9a-f]{64}) -->$/;
 const REASON = /^- Reason: `([a-z-]+)`$/m;
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
+const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ head=[0-9a-f]{40} -->$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 // The compare API lists at most 300 files, the PR files API at most 3000.
@@ -133,6 +136,19 @@ async function verdict({ github, repo, number, label, bot, mainSha }) {
   const decided = reasons.find((reason) => !Object.hasOwn(CHECKS, reason ?? ""));
   if (reasons.length === 0 || decided !== undefined || reasons.includes(undefined)) {
     return { reason: `an escalation reason since the label (${decided ?? "none"}) is one a person decides` };
+  }
+  // The App also escalates for other lanes (pr-merge's babysit-merge-*
+  // markers, a work-items:escalation from another lane) without adding the
+  // label again. Any marker on an App comment written or edited since the
+  // label that is not pr-unblock's escalation or this script's own keeps it,
+  // so a marker this script does not know fails closed.
+  const foreign = timeline
+    .filter((item) => item.event === "commented" && isApp(item.user, bot))
+    .filter((item) => !(Date.parse(item.created_at) < since) || !(Date.parse(item.updated_at ?? item.created_at) < since))
+    .flatMap((item) => lines(item.body).filter((line) => line.includes("<!--")))
+    .find((line) => line !== ESCALATION && !RESUME_KEY.test(line) && !CLEARED.test(line));
+  if (foreign !== undefined) {
+    return { reason: `a lanes App comment since ${label} went on carries another marker: ${foreign.slice(0, 120)}` };
   }
   // Only the lanes App's own comments are exempt: a person, or another bot
   // asking for a person, keeps the label.
