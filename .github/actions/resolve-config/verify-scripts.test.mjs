@@ -76,9 +76,10 @@ for (const path of [
   });
 }
 
-// A read skill may list them too (README.md, Activities, verify-scripts).
-test("verify-scripts with effect read pass through", () => {
-  assert.deepEqual(run({ effect: "read", "verify-scripts": ["scripts/check-x.sh"] }).selected["verify-scripts"], ["scripts/check-x.sh"]);
+// Only the runner that stages edit tools grants them, so a read skill that
+// hands on no patch would list them for nothing.
+test("verify-scripts with effect read and no applied-by.patch fails the schema", () => {
+  rejected({ effect: "read", "verify-scripts": ["scripts/check-x.sh"] });
 });
 
 test("an empty or repeating verify-scripts list fails the schema", () => {

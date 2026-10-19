@@ -352,6 +352,19 @@
         }
       }
     },
+    "edit-runner": {
+      "anyOf": [
+        { "properties": { "effect": { "not": { "const": "read" } } } },
+        {
+          "required": ["applied-by"],
+          "properties": {
+            "applied-by": { "required": ["patch"] },
+            "prepare": { "not": { "const": "ci-context" } }
+          }
+        }
+      ],
+      "description": "Only the runner that stages a skill's edit tools grants checks, self-checks, verify-scripts and web-access: the write runner, or the read runner for a skill with applied-by.patch and no prepare: ci-context. Anywhere else they would do nothing, so they are refused."
+    },
     "leaf": {
       "type": "object",
       "additionalProperties": false,
@@ -368,6 +381,9 @@
         "applied-by": {
           "properties": { "effect": { "const": "read" }, "gating": { "const": "advisory" } }
         },
+        "checks": { "$ref": "#/$defs/edit-runner" },
+        "self-checks": { "$ref": "#/$defs/edit-runner" },
+        "verify-scripts": { "$ref": "#/$defs/edit-runner" },
         "prepare": {
           "oneOf": [
             {
@@ -383,7 +399,8 @@
         "properties": { "web-access": { "properties": { "enabled": { "const": true } } } }
       },
       "then": {
-        "properties": { "reads-untrusted": { "const": true } }
+        "properties": { "reads-untrusted": { "const": true } },
+        "$ref": "#/$defs/edit-runner"
       },
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },

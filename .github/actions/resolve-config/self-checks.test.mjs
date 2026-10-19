@@ -60,9 +60,10 @@ for (const entry of ["scripts/x.sh; rm -rf /", "../scripts/x.sh", "scripts/x.sh 
   });
 }
 
-// A read skill may list them too (README.md, Activities, self-checks).
-test("self-checks with effect read pass through", () => {
-  assert.deepEqual(run({ effect: "read", "self-checks": ["scripts/check-x.sh"] }).selected["self-checks"], ["scripts/check-x.sh"]);
+// Only the runner that stages edit tools stages them, so a read skill that
+// hands on no patch would list them for nothing.
+test("self-checks with effect read and no applied-by.patch fail the schema", () => {
+  rejected(() => run({ effect: "read", "self-checks": ["scripts/check-x.sh"] }));
 });
 
 test("an empty or repeating self-checks list fails the schema", () => {

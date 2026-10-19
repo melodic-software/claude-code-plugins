@@ -1635,6 +1635,27 @@ for (const [why, edit] of [
   });
 }
 
+// Only the runner that stages a skill's edit tools grants these, and the read
+// runner does so only for applied-by.patch without ci-context.
+for (const [key, value] of [
+  ["checks", ["scripts/check-x.sh"]],
+  ["self-checks", ["scripts/check-x.sh"]],
+  ["verify-scripts", ["scripts/check-x.sh"]],
+  ["web-access", { enabled: true, domains: "any" }],
+]) {
+  test(`${key} on a read skill that hands on a patch resolves and is carried`, () => {
+    const config = appliedByEdit((doc) => {
+      delete doc.activities["fix-ci"].prepare;
+      doc.activities["fix-ci"][key] = value;
+    });
+    assert.deepEqual(unblock(config)[key], value);
+  });
+
+  test(`${key} on a read skill with prepare: ci-context fails the schema`, () => {
+    assertRejected(() => unblock(appliedByEdit((doc) => (doc.activities["fix-ci"][key] = value))), "invalid-config");
+  });
+}
+
 test("applied-by-supported: an applying leaf fails on a key its runner does not name", () => {
   const selected = unblock(APPLIED_BY);
   assert.doesNotThrow(() => checkAppliedBySupported(selected, "patch"));

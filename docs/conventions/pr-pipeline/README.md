@@ -302,7 +302,9 @@ Each leaf declares:
   runner, or the read runner for a skill that hands on a patch) runs each from the base copy
   against the checkout, so no head code runs, and tells the skill to fix what
   a check reports before it reports done
-  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The schema refuses `checks`,
+  `self-checks`, `verify-scripts` and `web-access` turned on for any other skill (effect `read`
+  without `applied-by.patch`, or with `prepare: ci-context`), where they would do nothing.
 - `self-checks` (optional, `skill` only): the same shape as `checks`, run and fixed by the skill
   through the same wrapper before it commits or hands its change on. Advisory: unlike `checks`, no
   runner job reruns them, so a failure the skill cannot fix still opens the PR and is named in its

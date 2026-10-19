@@ -25,8 +25,10 @@ bump: minor
 
 ### Changed
 
-- `web-access`, `self-checks` and `verify-scripts` no longer require an effect other than `read`;
-  `web-access` still requires `reads-untrusted: true`. `version` stays 2.
+- `checks`, `self-checks`, `verify-scripts` and `web-access` turned on need a skill whose runner
+  stages edit tools: an effect other than `read`, or `applied-by.patch` without
+  `prepare: ci-context`. Before, they needed an effect other than `read` and `checks` had no
+  rule. `web-access` still requires `reads-untrusted: true`. `version` stays 2.
 
 ### Removed
 
