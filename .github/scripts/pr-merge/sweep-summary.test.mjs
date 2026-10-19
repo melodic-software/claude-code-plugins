@@ -133,7 +133,7 @@ test("counts refusals by normalized reason and keeps each raw reason in results"
 test("a ready row a report-only run left alone is no refusal", () => {
   const out = summarize({
     ...meta,
-    results: [row(8601, { ready: true }), row(8602)],
+    results: [row(8601, { ready: true, reportOnly: true }), row(8602)],
     candidates: 2,
     held: [],
     gateOutcome: "success",
@@ -141,6 +141,19 @@ test("a ready row a report-only run left alone is no refusal", () => {
   });
   assert.equal(out.ready_unmerged, 1);
   assert.deepEqual(out.refusal_counts, { "not ready": 1 });
+});
+
+test("a ready row a live run failed to enqueue is a refusal", () => {
+  const out = summarize({
+    ...meta,
+    results: [row(8611, { exit: 10, ready: true })],
+    candidates: 1,
+    held: [],
+    gateOutcome: "success",
+    cursor: null,
+  });
+  assert.equal(out.ready_unmerged, 0);
+  assert.deepEqual(out.refusal_counts, { "enqueue failed": 1 });
 });
 
 test("a reason named like an object property is counted as itself", () => {

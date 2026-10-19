@@ -7,6 +7,7 @@
 //   enqueued, merged                  rows the gate enqueued or merged
 //   ready_unmerged                    ready rows a report-only run left alone
 //   refusal_counts                    every other row, by normalized reason
+//                                     (`enqueue failed` for a live ready row)
 //   held                              held.json's length
 //   budget_stop                       {reached, candidates, next_after} when
 //                                     the gate ended green before the last
@@ -69,11 +70,14 @@ export function summarize({
     if (result.enqueued) enqueued += 1;
     if (result.merged) merged += 1;
     if (result.enqueued || result.merged) continue;
-    if (result.ready) {
+    if (result.ready && result.reportOnly === true) {
       readyUnmerged += 1;
       continue;
     }
-    const key = normalizeReason(result.reason);
+    // A live gate leaves a row ready only when the enqueue call failed.
+    const key = result.ready
+      ? "enqueue failed"
+      : normalizeReason(result.reason);
     refusals.set(key, (refusals.get(key) ?? 0) + 1);
   }
   const reached = results.length - held.length;
