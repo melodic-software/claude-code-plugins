@@ -29,7 +29,7 @@ Phase 0b normally runs before bootstrap, but a companion source (a longer talk, 
 
 Bulk frames and contact sheets stay in OS `tempSession` dirs, not the repo. When those dirs have been reaped, `run-state/watch.json` `tempSession` paths are stale, so **re-run `run-watch.js`** before vision. `resume` checks those dirs, reports `tempSessionPresent` and `missingTempDirs`, and exits 1 with that instruction when the next phase is vision and a dir is gone.
 
-A successful `close` removes those recorded dirs on purpose, after it marks the slice complete. When one is locked (on Windows, a scanner or player holding a file open), `close` warns on stderr with the path and still succeeds; delete that dir by hand once the lock is gone.
+A successful `close` removes those recorded dirs on purpose, after it marks the slice complete. To keep the media in a project layout, run `watch/relayout-slice.js` before `close` (`output-contract.md` "Scope of the setting"); afterwards the media is gone and only `--no-media` works. When one is locked (on Windows, a scanner or player holding a file open), `close` warns on stderr with the path and still succeeds; delete that dir by hand once the lock is gone.
 
 ## Cloud agent without media toolchain
 
