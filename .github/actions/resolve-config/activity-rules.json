@@ -22,6 +22,14 @@
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
     "never": "Posts to the pull request, merges, closes, or pushes under .github/"
   },
+  "fix-ci": {
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],
+    "never": "Holds a write token: it runs head code, and its change leaves only as a patch"
+  },
+  "apply-ci-fix": {
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
+    "never": "Runs a model or head code, force-pushes, or pushes under .github/"
+  },
   "apply-dependency-verdict": {
     "forbidden-effects": ["mutate-branch", "merge"],
     "never": "Writes to the branch, merges, or closes a security update"

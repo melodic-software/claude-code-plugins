@@ -19,8 +19,11 @@
 // issue whose newest lanes-App outcome marker is `limited`, past its reset,
 // with no agent-ready label added since (so no lane run started after the
 // stop), and no hold label gets agent-ready removed and
-// added again by the App, which starts the lane. At most RESTARTS_PER_RUN
-// issues per run, longest-waiting first.
+// added again by the App, which starts the lane. An issue whose newest marker
+// is `turn-cap` (report-outcome kept agent-ready, so a restart is left) is
+// restarted the same way at once, while its turn-cap markers since a person
+// last added agent-ready are within limits.turn-cap-restarts. At most
+// limits.restarts-per-run issues per run, longest-waiting first.
 //
 // It re-fires the same way an open agent-ready issue whose newest
 // work-resolve-issue run (the one its newest agent-ready label started, by a
@@ -31,6 +34,26 @@
 // version of the two lane workflow files on main, recorded in a marker comment
 // posted before the label moves, so a run that keeps failing stops until a
 // workflow change lands.
+//
+// A run that minted no lane token did no work and ran no model: the WIP cap
+// skipped its resolve-issue job, or its `Request the lane token` step failed
+// (GitHub's rate limit past the retry budget among the reasons). Such a run is
+// re-fired with the same record: a failed mint up to limits.limit-stops-per-issue
+// times per version of the lane workflow files, a WIP cap skip without a
+// per-issue bound. It waits limits.reset-clamp-min hours after the run ended, past any reset
+// the broker passes on (its Retry-After is at most an hour), and only while
+// the issue lane's WIP cap check (check-wip-cap.mjs) does not pause it. It is no
+// limit stop, so it never counts toward handing the issue to a person.
+//
+// When that label's run opened a pull request instead, the newest one the
+// lanes App opened from the issue's lane branch in this repository decides.
+// Merged with `Refs:` (the issue stays open with nothing to run) or closed
+// unmerged, the App adds needs-triage and removes
+// agent-ready, so triage decides what is left; a person adding agent-ready
+// again re-runs it. Open, it waits: report-outcome put needs-human on the
+// issue of a Refs PR, and this lifts that hold only when that PR merges,
+// only while its refs-hold marker and the App's needs-human label are the
+// newest. Each hand-off also counts against limits.restarts-per-run.
 //
 // Environment:
 //   GH_TOKEN               the lane App token (issues: write)
@@ -51,16 +74,21 @@
 //                          and actor of a restart this trusts (default
 //                          melodic-automation-lanes[bot])
 //   GITHUB_API_URL
+//   RESOLVED_CONFIG        resolve-config's output (default
+//                          $RUNNER_TEMP/resolved-config.json), for the limits
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { clampReset, parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
+import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
+const TRIAGE_LABEL = "needs-triage";
 // The lane's caller and the write runner: the broker refuses a run whose copy
 // of either differs from main's.
 const LANE_WORKFLOWS = [".github/workflows/pr-run-activity-write.yml", ".github/workflows/work-resolve-issue.yml"];
@@ -68,14 +96,13 @@ const FAILED = new Set(["failure", "timed_out", "startup_failure"]);
 // A label event's run is created within seconds; this window finds it.
 const RUN_WINDOW_MS = 10 * 60_000;
 const BLOB = /^[0-9a-f]{40}$/;
+const RUN_ID = /^[1-9][0-9]{0,14}$/;
+const HOUR_MS = 3_600_000;
+// The write runner's step that mints the lane token, which every model run follows.
+const MINT_STEP = "Request the lane token";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
+const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
-// Hard-coded until pr-pipeline.yaml has a limits.restarts-per-run leaf:
-// https://github.com/melodic-software/claude-code-plugins/issues/7764
-export const RESTARTS_PER_RUN = 5;
-// Limit stops since a person last added agent-ready before the issue goes to
-// a person instead of another restart (judgment).
-export const MAX_LIMIT_STOPS = 3;
 // A person decides these; the lane never starts on them.
 const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "needs-human"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -115,15 +142,18 @@ const appMarkers = (comments, bot) =>
     .map((comment) => ({ ...parseMarker(comment.body), at: Date.parse(comment.created_at) }))
     .filter((marker) => marker.outcome !== undefined && Number.isFinite(marker.at));
 
+// The App's markers after which its removal of agent-ready is a restart.
+const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding"]);
+
 // A removal of agent-ready is a restart, not a stop, only when the App made
-// it, the App's newest marker before it is `limited` or a re-fire, and the next agent-ready
+// it, the App's newest marker before it is `limited`, `turn-cap` or a re-fire, and the next agent-ready
 // event after it is the App adding the label back. Any other removal stops the
 // lane, a pushback after a restart included.
 function isRestart(events, index, markers, bot) {
   const removal = events[index];
   const at = Date.parse(removal.created_at);
   const newest = markers.filter((marker) => marker.at <= at).at(-1)?.outcome;
-  if (removal.actor?.login !== bot || (newest !== "limited" && newest !== "refired")) {
+  if (removal.actor?.login !== bot || !RESTARTS.has(newest)) {
     return false;
   }
   const next = events.slice(index + 1).find((event) => isLabel(event, "labeled") || isLabel(event, "unlabeled"));
@@ -290,7 +320,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot }) {
   return failed;
 }
 
-// The hand-off to a person after MAX_LIMIT_STOPS limit stops. Its marker lets
+// The hand-off to a person after limits.limit-stops-per-issue limit stops. Its marker lets
 // a later sweep see the comment was posted.
 const ESCALATED = "<!-- work-unblock escalated -->";
 export const escalationComment = (stops) =>
@@ -301,8 +331,17 @@ export const escalationComment = (stops) =>
 export const refireComment = (key) =>
   `<!-- work-unblock refired ${key} -->\nThe work-resolve-issue run that \`${LABEL}\` started failed before it reported, or the token broker refused it because its workflow files differ from main's. work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. It does this once per version of those files, so if this run fails the same way, a person looks at it.`;
 
+// The hand-offs to triage once the lane PR ended, each posted once per pull
+// request before its labels move.
+export const refsMergedComment = (pr) =>
+  `${handedMarker(pr)}\nThe lanes App's pull request #${pr} merged with \`Refs:\`, so this issue stays open and nothing starts the lane on it again. work-unblock added \`${TRIAGE_LABEL}\` and removed \`${LABEL}\`, so triage decides what work is left.`;
+export const refsClosedComment = (pr) =>
+  `${handedMarker(pr)}\nThe lanes App's pull request #${pr} for this issue was closed without merging. work-unblock added \`${TRIAGE_LABEL}\` and removed \`${LABEL}\`, so triage decides what work is left; the lane does not run again on its own. To run it again, add \`${LABEL}\`.`;
+
 // The work-resolve-issue runs for issue `number` created within RUN_WINDOW_MS
-// of the label event at `addedAt`. The run title ends with ` #<number>`.
+// of the label event at `addedAt`, as `mine`. The run title ends with
+// ` #<number>`; `untitled` counts the runs in the window whose title names no
+// issue (titles from before that run name), which may include this issue's.
 async function laneRuns(actions, repo, number, addedAt) {
   const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
   const created = encodeURIComponent(`${iso(addedAt)}..${iso(addedAt + RUN_WINDOW_MS)}`);
@@ -315,27 +354,167 @@ async function laneRuns(actions, repo, number, addedAt) {
     }
     runs.push(...batch);
     if (batch.length < 100) {
-      return runs.filter((run) => String(run.display_title ?? "").endsWith(` #${number}`));
+      const title = (run) => String(run.display_title ?? "");
+      return {
+        mine: runs.filter((run) => title(run).endsWith(` #${number}`)),
+        untitled: runs.filter((run) => !/ #[1-9][0-9]*$/.test(title(run))).length,
+      };
     }
   }
   throw new Error("the workflow run listing has more than 10 pages");
 }
 
+// How every one of `runs` (completed) did no work in its latest attempt, or
+// null when one did some: no job minted a lane token, and the agent-ready run
+// either had its `Request the lane token` step fail (`mint-failed`, which
+// wins) or was skipped by the WIP cap (`capped`: pick-slot ran, resolve-issue
+// did not). A run another gate stopped before its mint (an open closing PR, a
+// reused branch) is neither, so it is never re-fired here.
+async function didNoWork(actions, repo, runs) {
+  let stalled = null;
+  for (const run of runs) {
+    if (!RUN_ID.test(String(run.id))) {
+      return null;
+    }
+    const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
+    if (!Array.isArray(jobs)) {
+      throw new Error(`run ${run.id}'s job listing has an unexpected shape`);
+    }
+    const mints = jobs.flatMap((job) => (job?.steps ?? []).filter((step) => step?.name === MINT_STEP));
+    if (mints.some((step) => step.conclusion === "success")) {
+      return null;
+    }
+    const named = (name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
+    const capped =
+      named("pick-slot").some((job) => job.conclusion === "success") &&
+      named("resolve-issue").length > 0 &&
+      named("resolve-issue").every((job) => job.conclusion === "skipped");
+    if (mints.some((step) => step.conclusion === "failure")) {
+      stalled = "mint-failed";
+    } else if (capped) {
+      stalled ??= "capped";
+    }
+  }
+  return stalled;
+}
+
+const sameRepo = (side, repo) => String(side?.repo?.full_name ?? "").toLowerCase() === repo.toLowerCase();
+
+// The newest pull request the lanes App opened for issue `number` at or after
+// `addedAt`: cross-referenced on the issue, from the issue's lane branch, with
+// head and base in this repository. Null when there is none.
+async function lastLanePull({ github, repo, number, addedAt, bot }) {
+  const here = `/repos/${repo}`.toLowerCase();
+  const numbers = new Set(
+    (await paginate(github, `/repos/${repo}/issues/${number}/timeline`))
+      .map((event) => event.source?.issue)
+      .filter(
+        (source) =>
+          source?.pull_request &&
+          source.user?.login === bot &&
+          NUMBER.test(String(source.number)) &&
+          String(source.repository_url ?? "").toLowerCase().endsWith(here),
+      )
+      .map((source) => Number(source.number)),
+  );
+  let last = null;
+  for (const pr of numbers) {
+    const pull = await github("GET", `/repos/${repo}/pulls/${pr}`);
+    const created = Date.parse(pull?.created_at);
+    if (
+      pull?.user?.login === bot &&
+      sameRepo(pull.head, repo) &&
+      sameRepo(pull.base, repo) &&
+      isLaneBranch(pull.head?.ref, number) &&
+      created >= addedAt &&
+      (last === null || created > Date.parse(last.created_at))
+    ) {
+      last = pull;
+    }
+  }
+  return last;
+}
+
+// What the lane PR the newest agent-ready label's run opened asks for: a
+// hand-off to triage once it merged with `Refs:` or closed unmerged, or
+// nothing, with why. `held`: the issue's one hold is needs-human, which only
+// a merge of the Refs PR report-outcome set it for lifts.
+function pullRefusal({ pull, number, comments, events, bot, held }) {
+  const byApp = (marker) => comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(marker));
+  const refs = String(pull.body ?? "").split(/\r?\n/, 1)[0].trim() === `Refs: #${number}`;
+  const merged = Boolean(pull.merged_at);
+  if (held) {
+    const human = events.filter((event) => ["labeled", "unlabeled"].includes(event.event) && String(event.label?.name).toLowerCase() === HUMAN_LABEL);
+    const newest = human.at(-1);
+    const ours = newest?.event === "labeled" && newest.actor?.login === bot && byApp(refsHoldMarker(pull.number));
+    if (!(ours && merged && refs)) {
+      return { reason: `held by ${HUMAN_LABEL}` };
+    }
+  }
+  if (pull.state === "open") {
+    return { reason: `its lane PR #${pull.number} is open` };
+  }
+  if (merged && !refs) {
+    return { reason: `its lane PR #${pull.number} merged` };
+  }
+  const ended = Date.parse(merged ? pull.merged_at : pull.closed_at);
+  if (!Number.isFinite(ended)) {
+    throw new Error(`lane PR #${pull.number} is closed with no readable close time`);
+  }
+  return { reason: null, handOff: merged ? "merged" : "closed", pr: pull.number, resets: ended, explained: byApp(handedMarker(pull.number)), release: held };
+}
+
 // Why an agent-ready issue whose newest label has no marker after it is not
-// re-fired now, or null with the workflow key to record.
-async function refireRefusal({ actions, repo, number, lastAdd, addedAt, markers, events, humans, bot, workflowKey }) {
+// re-fired or handed off now, or null with what to do.
+async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
   if (lastAdd.actor?.login !== bot && !humans.has(lastAdd.actor?.id)) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
+  }
+  const pull = await lastLanePull({ github, repo, number, addedAt, bot });
+  if (pull !== null) {
+    return pullRefusal({ pull, number, comments, events, bot, held });
+  }
+  if (held) {
+    return { reason: `held by ${HUMAN_LABEL}` };
   }
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };
   }
-  const runs = await laneRuns(actions, repo, number, addedAt);
+  const { mine: runs, untitled } = await laneRuns(actions, repo, number, addedAt);
   if (runs.length === 0) {
-    return { reason: `no lane run since ${LABEL} was added` };
+    return {
+      reason:
+        untitled > 0
+          ? `cannot tell whether a lane run started since ${LABEL} was added: ${untitled} work-resolve-issue run(s) then name no issue in their title`
+          : `no lane run since ${LABEL} was added`,
+    };
   }
   if (runs.some((run) => run.status !== "completed")) {
     return { reason: "its lane run is still going" };
+  }
+  const stalled = await didNoWork(actions, repo, runs);
+  if (stalled) {
+    const ended = Math.max(...runs.map((run) => Date.parse(run.updated_at)).filter(Number.isFinite), addedAt);
+    const due = ended + limits["reset-clamp-min"] * HOUR_MS;
+    if (now < due) {
+      return { reason: `its lane run did no work; it is re-fired after ${new Date(due).toISOString()}` };
+    }
+    if (await wipCapped()) {
+      return { reason: "its lane run did no work, and the issue lane is paused over its WIP cap" };
+    }
+    const key = await workflowKey();
+    // A record after the newest label is one whose label write failed: the
+    // sweep finishes it without posting another.
+    const recorded = markers.some((marker) => marker.outcome === "refired" && marker.at >= addedAt);
+    // A mint that keeps failing (a broker misconfigured, an issue it refuses)
+    // stops after limits.limit-stops-per-issue re-fires on these workflow
+    // files, as a crash stops after one. A WIP cap skip made no mint attempt,
+    // and the cap and restarts-per-run bound it.
+    const fired = markers.filter((marker) => marker.outcome === "refired" && marker.key === key).length;
+    if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
+      return { reason: `its lane token request failed after ${fired} re-fires on workflow files ${key}` };
+    }
+    return { reason: null, resets: due, refire: key, recorded };
   }
   if (!runs.some((run) => FAILED.has(run.conclusion))) {
     return { reason: "its lane run did not fail" };
@@ -355,52 +534,101 @@ async function refireRefusal({ actions, repo, number, lastAdd, addedAt, markers,
 // Why an agent-ready issue is not restarted now (after a limit stop) or
 // re-fired (after a failed run), or null with the time it has waited since.
 // Every fact is read fresh from the API.
-async function restartRefusal({ github, actions, repo, issue, bot, humans, now, workflowKey }) {
+async function restartRefusal({ github, actions, repo, issue, bot, humans, now, workflowKey, limits, wipCapped }) {
   const base = `/repos/${repo}/issues/${issue.number}`;
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
-  const held = labels.map((label) => String(label).toLowerCase()).find((label) => HOLDS.has(label));
-  if (held) {
-    return { reason: `held by ${held}` };
+  const holds = labels.map((label) => String(label).toLowerCase()).filter((label) => HOLDS.has(label));
+  // needs-human alone may be report-outcome's hold on a Refs PR, which the
+  // lane PR check below may lift; any other hold stops everything here.
+  const held = holds.length > 0;
+  if (held && (holds.length > 1 || holds[0] !== HUMAN_LABEL)) {
+    return { reason: `held by ${holds.find((label) => label !== HUMAN_LABEL)}` };
   }
   const comments = await paginate(github, `${base}/comments`);
   const markers = appMarkers(comments, bot);
   // A re-fire record ends no run, so only outcome markers count here.
   const marker = markers.filter((item) => item.outcome !== "refired").at(-1);
   const events = await paginate(github, `${base}/events`);
+  // The listing can be older than a removal: agent-ready taken off since, by
+  // anyone but the App restarting the lane, ends all unblock actions here.
+  const labelEvents = events.filter((event) => isLabel(event, "labeled") || isLabel(event, "unlabeled"));
+  const newestLabel = labelEvents.at(-1);
+  if (newestLabel !== undefined && isLabel(newestLabel, "unlabeled") && !isRestart(events, events.lastIndexOf(newestLabel), markers, bot)) {
+    return { reason: `${LABEL} was removed` };
+  }
   // A lane run starts on agent-ready being added, and its outcome marker ends
   // it, so a label added after the newest marker is a run since: still going,
   // one that left no marker (a PR opened, or the run failed), or none yet.
   const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
   const addedAt = Date.parse(lastAdd?.created_at);
   if (Number.isFinite(addedAt) && (marker === undefined || addedAt > marker.at)) {
-    return refireRefusal({ actions, repo, number: issue.number, lastAdd, addedAt, markers, events, humans, bot, workflowKey });
+    return refireRefusal({
+      github,
+      actions,
+      repo,
+      number: issue.number,
+      lastAdd,
+      addedAt,
+      markers,
+      comments,
+      events,
+      humans,
+      bot,
+      workflowKey,
+      held,
+      limits,
+      now,
+      wipCapped,
+    });
   }
-  if (marker?.outcome !== "limited") {
-    return { reason: "no limit stop is its newest lane outcome" };
+  if (held) {
+    return { reason: `held by ${HUMAN_LABEL}` };
   }
-  // A limit that keeps stopping the lane goes to a person: count the limit
-  // stops since a person last added agent-ready.
   const since = events
     .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-  const stops = markers.filter((item) => item.outcome === "limited" && item.at > since).length;
-  if (stops >= MAX_LIMIT_STOPS) {
+  // report-outcome keeps agent-ready after a turn cap only while a restart is
+  // left, and hands the issue back otherwise; the count here bounds a forged
+  // or stale marker the same way.
+  if (marker?.outcome === "turn-cap") {
+    // Only a listed human's agent-ready resets the turn-cap count, so another
+    // labeler cannot buy restarts.
+    const humanSince = events
+      .filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id))
+      .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
+    const caps = markers.filter((item) => item.outcome === "turn-cap" && item.at > humanSince).length;
+    return caps > limits["turn-cap-restarts"]
+      ? { reason: `${caps} turn-cap stops since a person last added ${LABEL}` }
+      : { reason: null, resets: marker.at };
+  }
+  const funding = marker?.outcome === "funding";
+  if (!funding && marker?.outcome !== "limited") {
+    return { reason: "no limit stop is its newest lane outcome" };
+  }
+  // A limit or funding stop (ci-workflows#781) that keeps stopping the lane
+  // goes to a person: count both since a person last added agent-ready.
+  const stops = markers.filter((item) => (item.outcome === "limited" || item.outcome === "funding") && item.at > since).length;
+  if (stops >= limits["limit-stops-per-issue"]) {
     const explained = comments.some(
       (comment) =>
         comment.user?.login === bot && String(comment.body ?? "").startsWith(ESCALATED) && Date.parse(comment.created_at) > since,
     );
     return { reason: `${stops} limit stops since a person last added ${LABEL}`, escalate: stops, explained };
   }
-  const resets = clampReset(marker.resets, marker.at);
+  // A funding stop with no regain date waits for a person.
+  if (funding && marker.resets === null) {
+    return { reason: "waiting for a person to restore the lane's funding" };
+  }
+  const resets = clampReset(marker.resets, marker.at, limits);
   if (now < resets) {
     return { reason: `waiting for the limit to reset at ${new Date(resets).toISOString()}` };
   }
   return { reason: null, resets };
 }
 
-// Restarts or re-fires up to `cap` issues, longest-waiting first. Returns how
-// many reads or writes failed.
-async function restartLimited({ github, actions, repo, bot, humans, now, cap = RESTARTS_PER_RUN }) {
+// Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
+// Returns how many reads or writes failed.
+async function restartLimited({ github, actions, repo, bot, humans, now, limits, wip, remaining, cap = limits["restarts-per-run"] }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -417,6 +645,9 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
       }
       return shas.join("-");
     })());
+  // The issue lane's pause, read once per run; a read that fails never pauses.
+  let capped;
+  const wipCapped = () => (capped ??= checkWip(github, { repo, bot, now, limits, wip, remaining }).then((status) => status.paused));
   let open;
   try {
     open = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}`)).filter(
@@ -428,7 +659,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
   }
   for (const issue of open) {
     try {
-      const { reason, resets, escalate, explained, refire, recorded } = await restartRefusal({
+      const verdict = await restartRefusal({
         github,
         actions,
         repo,
@@ -437,7 +668,10 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
         humans,
         now,
         workflowKey,
+        limits,
+        wipCapped,
       });
+      const { reason, escalate, explained } = verdict;
       if (escalate) {
         // The comment first and the label last: the label is a hold, so a
         // sweep after a failed comment would never come back to post it. A
@@ -455,7 +689,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
         console.log(`label-unblocked: #${issue.number} not restarted: ${reason}`);
         continue;
       }
-      ready.push({ number: Number(issue.number), resets, refire, recorded });
+      ready.push({ ...verdict, number: Number(issue.number) });
     } catch (error) {
       failed += 1;
       reportError(issue.number, error);
@@ -465,13 +699,34 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
   for (const { number } of ready.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, recorded } of ready.slice(0, cap)) {
+  for (const { number, refire, recorded, handOff, pr, explained, release } of ready.slice(0, cap)) {
+    const base = `/repos/${repo}/issues/${number}`;
+    if (handOff) {
+      // The comment first, then the labels; agent-ready comes off last, so a
+      // failed write leaves the issue for the next sweep, which finds the
+      // comment and moves only the labels.
+      try {
+        if (!explained) {
+          await github("POST", `${base}/comments`, { body: handOff === "merged" ? refsMergedComment(pr) : refsClosedComment(pr) });
+        }
+        await github("POST", `${base}/labels`, { labels: [TRIAGE_LABEL] });
+        if (release) {
+          await github("DELETE", `${base}/labels/${HUMAN_LABEL}`);
+        }
+        await github("DELETE", `${base}/labels/${LABEL}`);
+        console.log(`label-unblocked: #${number} handed to triage: lane PR #${pr} ${handOff === "merged" ? "merged with Refs:" : "closed unmerged"}`);
+      } catch (error) {
+        failed += 1;
+        reportError(number, error);
+      }
+      continue;
+    }
     try {
       // The record first: a failed comment re-fires nothing, so the bound holds.
       if (refire && !recorded) {
-        await github("POST", `/repos/${repo}/issues/${number}/comments`, { body: refireComment(refire) });
+        await github("POST", `${base}/comments`, { body: refireComment(refire) });
       }
-      await github("DELETE", `/repos/${repo}/issues/${number}/labels/${LABEL}`);
+      await github("DELETE", `${base}/labels/${LABEL}`);
     } catch (error) {
       failed += 1;
       reportError(number, error);
@@ -491,7 +746,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, cap = R
   return failed;
 }
 
-export async function main({ env = process.env, github, actions, now = Date.now() } = {}) {
+export async function main({ env = process.env, github, actions, now = Date.now(), rate = searchRateLimit() } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -519,7 +774,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     }
     const repo = env.GITHUB_REPOSITORY;
     const humans = loadTrustedList(env.TRUSTED_ACTORS_PATH).humans;
-    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
     const closed = sweep
       ? await closedSince(github, repo, new Date(now - LOOKBACK_HOURS * 3_600_000))
       : [Number(event.issue.number)];
@@ -530,7 +785,8 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     let failed = await labelUnblocked({ github, repo, closed, sweep, humans, bot });
     if (sweep) {
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
-      failed += await restartLimited({ github, actions, repo, bot, humans, now });
+      const resolved = env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`;
+      failed += await restartLimited({ github, actions, repo, bot, humans, now, limits: readLimits(resolved), wip: readWip(resolved), remaining: rate.remaining });
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {

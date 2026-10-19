@@ -162,6 +162,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/code-tidying:audit-comment-residue`](../plugins/code-tidying/skills/audit-comment-residue/SKILL.md) | `code-tidying` | Classify code comments for history narration and session-reference residue |
 | [`/code-tidying:batch-simplify`](../plugins/code-tidying/skills/batch-simplify/SKILL.md) | `code-tidying` | Batch-run simplification across changed files, or a whole repository, by ecosystem |
 | [`/code-tidying:dissolve-comments`](../plugins/code-tidying/skills/dissolve-comments/SKILL.md) | `code-tidying` | Dissolve comments into expressive code via triage. Delete, refactor-then-delete, or keep |
+| [`/harness-ops:audit-mod-posture`](../plugins/harness-ops/skills/audit-mod-posture/SKILL.md) | `harness-ops` | Inventory installed and built-in mods with their hooks and calls, and the guard state |
 | [`/mcp-tools:audit`](../plugins/mcp-tools/skills/audit/SKILL.md) | `mcp-tools` | Audit MCP tool definitions against design quality criteria |
 | [`/mcp-tools:audit-posture`](../plugins/mcp-tools/skills/audit-posture/SKILL.md) | `mcp-tools` | Inventory configured MCP servers and flag floating versions and other supply-chain risks |
 | [`/plugin-quality:audit`](../plugins/plugin-quality/skills/audit/SKILL.md) | `plugin-quality` | Behavioral audit of a plugin component ending in a maintainer work item |
@@ -314,6 +315,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/powershell-format:check`](../plugins/powershell-format/skills/check/SKILL.md) | `powershell-format` | Report whether pwsh, PSScriptAnalyzer and node are installed. Never installs. |
 | [`/rate-limit-guard:check`](../plugins/rate-limit-guard/skills/check/SKILL.md) | `rate-limit-guard` | Report whether node resolves and whether the rate-limit-guard mod can load. Never installs. |
 | [`/repo-hygiene:clean`](../plugins/repo-hygiene/skills/clean/SKILL.md) | `repo-hygiene` | Clean caches, build artifacts, stale branches, and stashes per repo |
+| [`/review:check`](../plugins/review/skills/check/SKILL.md) | `review` | Report whether node resolves and the connected-page Artifact guard is registered. Never installs. |
 | [`/ruff-format:check`](../plugins/ruff-format/skills/check/SKILL.md) | `ruff-format` | Report whether ruff and node are installed. Never installs. |
 | [`/session-flow:check`](../plugins/session-flow/skills/check/SKILL.md) | `session-flow` | Report whether node and jq resolve for the session-flow observer hook. Never installs. |
 | [`/session-flow:show-options`](../plugins/session-flow/skills/show-options/SKILL.md) | `session-flow` | Lay out the skills that fit this moment as a ranked, nothing-hidden menu |

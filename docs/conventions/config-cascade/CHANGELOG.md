@@ -15,6 +15,34 @@ No contract change.
   `docs/conventions/verification.yaml` over the plugin's `userConfig`, with a declared deviation:
   the stricter layer wins and the team file is read from the default branch.
 
+## [2.0] - 2026-10-18
+
+Breaking (major bump): the layer set and the precedence change. Documents only; the shared resolver
+and the setup writes follow in their own slices, and a surface keeps its current behavior until its
+migration (#5906) lands, as a declared deviation.
+[ADR 0075](../../adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)
+records the decision and supersedes ADR 0061's layers and paths, ADR 0064 Decisions 2, 3 and 8, and
+ADR 0015.
+
+- **Four layers, lowest first.** Plugin default, `userConfig`, team `<home>/<concern>.yaml` (and
+  `<concern>.md` for prose), personal `<home>/<concern>.local.<ext>`. The user-global file layer
+  (`~/.claude/<name>`, and ADR 0061's `~/docs/conventions/`) retires into `userConfig`.
+- **The convention home is bound, not fixed.** The pointer region in the existing `AGENTS.md` or
+  `CLAUDE.md` binds `<home>` (default `docs/conventions`), created when missing. Three absences are
+  separate and only a missing region asks; an optional `declined` line stops a repeat ask.
+- **Instruction text beats config, config beats plugin defaults.** Instruction text never loosens a
+  policy-floor key.
+- **Invalid value.** The reader names the file, key and value and drops that layer: a valid higher
+  layer wins, otherwise the default, and a lower layer's value is never used.
+- **`Floor direction` column.** The Implementers table gains it as the one source of each surface's
+  tightening direction, with the closed values `no-floor`, `team-only`, `lowest-value`,
+  `any-layer-wins` and `stricter-value`.
+- **One overlay rule and ignore line.** The overlay is `<home>/<concern>.local.<ext>`; setup writes
+  `<home>/**/*.local.*` to `.gitignore` in the same step that writes the pointer. A prose overlay
+  replaces whole team sections by heading.
+- **Resolution algorithm.** Anchors at the git toplevel, takes `--ref` and stdin, and returns "not
+  applicable" at a `$HOME`, ancestor-of-`$HOME` or non-repository root.
+
 ## [1.6] - 2026-10-04
 
 Additive (minor bump): a new default location for the team layer and the plugin `userConfig` named

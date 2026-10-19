@@ -40,7 +40,9 @@
     "font_size": 30,
     "margin": 48,
     "clear": 12,
-    "anchors": ["bottom-right", "bottom-left"]
+    "anchors": ["bottom-right", "bottom-left"],
+    "seconds_per_word": 0.3,
+    "min_seconds": 0.834
   },
   "narration": {
     "gap": 0.4,

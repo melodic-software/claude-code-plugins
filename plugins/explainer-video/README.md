@@ -24,9 +24,10 @@ calling the video done.
   is skipped);
 - an element is partly past the frame edge at the end of an animation.
 
-It extracts one frame per animation (at most 24, evenly sampled) into `frames/`, and the skill
-reads each one as an image, which is what catches a shape covering text or a label that says the
-wrong thing.
+It extracts one frame per animation (at most `MAX_FRAMES`, evenly sampled) into `frames/`, and the
+skill reads each one as an image, which is what catches a shape covering text or a label that says
+the wrong thing. It also reports each still span (no change in picture, measured with ffmpeg
+`freezedetect`) without failing it.
 
 Videos are views: they are written to the directory the user names or to
 `${CLAUDE_PLUGIN_DATA}/videos/<slug>/`, never inside a
@@ -43,7 +44,14 @@ track built from `words.json` (`mov_text`, also written as `captions.srt`), and 
 - every beat is cued once, in order, within one frame of its paragraph's first word, and the last
   within one frame of the narration's end;
 - the MP4 has one video, one audio and one subtitle stream, and the video and audio streams are
-  within a frame per animation, plus one, of each other.
+  within a frame per animation, plus one, of each other;
+- the narration is normalized with ffmpeg `loudnorm` before the mux, and the muxed file, measured
+  again, is within tolerance of the integrated loudness target with its true peak at or under the
+  ceiling;
+- no caption is shorter than the minimum cue length; a caption under the reading time per word is
+  flagged, not failed.
+
+The targets and limits are in `scripts/defaults.json`.
 
 Without the `speech` plugin the skill renders silent and says narration is unavailable; `beat`
 then holds only its `hold` seconds.

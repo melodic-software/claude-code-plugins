@@ -25,7 +25,11 @@
 #                         removed, or changed in mode or blob since the
 #                         snapshot, or differs from the gated head's tree (a
 #                         workflow change merged in from the base: the lane
-#                         token cannot push one).
+#                         token cannot push one);
+#    unexpected-path-staged  an index entry is neither a stage-0 snapshot
+#                         entry as it was nor at a path the snapshot held
+#                         unmerged, or a stage-0 snapshot entry is gone
+#                         (bulk staging such as git add -A).
 #
 # 4. With no reason, write the validated index as a tree; tree-entries.sh
 #    takes that tree, so nothing staged after this check reaches the commit.
@@ -138,10 +142,10 @@ reason() {
 # Entries the snapshot already held at stage 0 are the merge's own; every
 # other entry, a conflict's resolution or a path the model added, moved or
 # changed, is scanned.
-declare -A merged=()
+declare -A merged=() unmerged=()
 while IFS= read -r -d '' record; do
   read -r _ _ stage <<<"${record%%$'\t'*}"
-  if [[ $stage == 0 ]]; then merged[$record]=1; fi
+  if [[ $stage == 0 ]]; then merged[$record]=1; else unmerged[${record#*$'\t'}]=1; fi
 done <"$out/index-snapshot"
 
 # Marker lines in order, any length from seven (conflict-marker-size): a run of
@@ -171,6 +175,15 @@ filter_workflows "$out/index-snapshot" >"$tmp/workflows-before"
 filter_workflows "$tmp/index" >"$tmp/workflows-after"
 cmp -s "$tmp/workflows-before" "$tmp/workflows-after" || reason workflow-staged
 g diff-index --cached --quiet "$head" -- .github/workflows/ || reason workflow-staged
+
+declare -A final=()
+while IFS= read -r -d '' record; do
+  [[ -n ${merged[$record]:-} || -n ${unmerged[${record#*$'\t'}]:-} ]] || reason unexpected-path-staged
+  final[$record]=1
+done <"$tmp/index"
+for record in "${!merged[@]}"; do
+  [[ -n ${final[$record]:-} ]] || reason unexpected-path-staged
+done
 
 tree=$(g write-tree)
 printf 'escalation-reason=\ntree=%s\n' "$tree"
