@@ -2325,7 +2325,7 @@ class TestRequests(SessionCase):
 
 
 class TestReviewFirstOldSessions(SessionCase):
-    """A session from before "Review Claude's answers before they are shared" keeps today's review-first behaviour."""
+    """A session from before "Review Claude's answers before they are shared" keeps today's review-first behavior."""
 
     ask, result_op = TestRequests.ask, TestRequests.result_op
 

@@ -248,7 +248,7 @@ DEFAULT_SETTINGS = {
 # it was (and still loads in the build before them) until then.
 OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True}
 # reviewAnswers: every answer waits for the owner's Share. A new session writes it off; a state file from before it lacks
-# it and so keeps that review-first behaviour.
+# it and so keeps that review-first behavior.
 SETTING_VALUES = {
     "names": ("full", "initials", "someone"),
     "claudeTake": ("answerFirst", "always"),
