@@ -359,8 +359,12 @@ When a phase touches a review concern that should be caught at the phase boundar
 Review: architecture   # structural integrity, dependency direction
 Review: security       # auth, input handling, secrets
 Review: concurrency    # races, shared state
-Review: code-design    # configurability, testability, observability
+Review: code-design    # repeated facts, cascades, configurability, testability, observability
 ```
+
+Each tag maps to a `/review:quality-gate` mode: `architecture`, `security` and `code-design` to the mode of the same name, `concurrency` to `/review:quality-gate slice concurrency`. The review rates at the Brief's `Quality bar:` line, which implementation reads from the plan and passes with the phase diff; a phase never repeats it.
+
+Tag `Review: code-design` on any phase that adds or changes a contract, type, module, or a fact or rule several files read, skill and instruction Markdown included; omit it only for trivial edits. Stumble: phases that only changed Markdown or a shared value went untagged, so no phase-boundary review saw the copies they spread.
 
 A phase that changes what users see or do can also carry one optional evidence value, written as a plain description of the evidence:
 
@@ -369,8 +373,6 @@ Review: screenshots of each changed screen, plus a short recording of the change
 ```
 
 Leave out the recording when no interaction changes. No reviewer runs on this value at the phase boundary: the evidence is gathered when the pull request is marked ready (`/source-control:pull-request ready`, when it is among the available skills; otherwise attach it by hand) and linked from the pull request. A phase that must leave its screens unchanged uses [Visual parity](#visual-parity-optional-per-phase) instead.
-
-Omit `Review:` when the phase is docs-only or trivial with no new types/contracts.
 
 ## Planned breakage (optional per phase)
 
