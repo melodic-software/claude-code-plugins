@@ -7,6 +7,10 @@
     {
       "answer": "Quality bar is prototype, so I skipped the one-way/two-way door calls; they come back if the spike survives.",
       "why": "prose naming the skip"
+    },
+    {
+      "answer": "Lifecycle and reversibility: deferred (prototype) [RESEARCH: make the door calls if it heads for production]",
+      "why": "the TAGGED-DEFERRED thread line"
     }
   ],
   "fail": [
@@ -21,6 +25,10 @@
     {
       "answer": "Reversibility is not deferred here: the storage format is a one-way door.",
       "why": "negated deferral"
+    },
+    {
+      "answer": "I did not skip the reversibility pass.",
+      "why": "negated skip"
     }
   ]
 }

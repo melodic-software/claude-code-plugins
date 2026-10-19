@@ -7,6 +7,10 @@
     {
       "answer": "1. Where does the Loqate client live? Recommend containing it in src/checkout/address/.",
       "why": "no performance question"
+    },
+    {
+      "answer": "1. Should the lookup run async to stay within the 300 ms p95 budget? Recommend yes.",
+      "why": "a yes/no design question that cites the settled target"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "2. How fast must the address check respond at p95?",
       "why": "re-asks the target in another phrasing"
+    },
+    {
+      "answer": "Should the 300 ms p95 budget be relaxed?",
+      "why": "yes/no re-ask of the settled target"
     }
   ]
 }
