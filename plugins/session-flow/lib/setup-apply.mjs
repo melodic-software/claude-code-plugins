@@ -27,18 +27,28 @@
 //                 --ref is a usage error.
 //
 // Allowed values come from the schema: `true` and `false` for a boolean key,
-// the listed strings for an enum key (quoted or not in the file), and for an
+// the listed strings for an enum key (quoted or not in the file), for an
 // integer key an unquoted whole number from the schema's minimum (0 when
-// absent) up to any maximum, with no sign, decimal point or leading zero. A
-// command-line value is the bare word, so any quote makes it invalid.
+// absent) up to any maximum, with no sign, decimal point or leading zero, and
+// for a string key a quoted string, or a plain one YAML does not read as a
+// boolean, null or number, that meets any minLength, maxLength and pattern. An
+// object key takes a block map, one key per line, whose keys are checked
+// against its properties, else its additionalProperties (false refuses them),
+// by the same rules, nested to any depth. A key whose schema has another shape
+// is reported as unchecked, never guessed at. A command-line value is the bare
+// word, so any quote makes it invalid; a string is written quoted when its
+// plain form would not read back as given, and an object key or an unchecked
+// one is edited by hand.
 //
 // validate(text) reports every problem in a document: a parse error; a key
 // set more than once (keys compared after trimming); a schema key whose value
 // is out of the list or range, empty (`key:`), null or `~` (each fixable: apply
-// may write over it), or an empty quoted string or a map or list in any form
-// (not fixable). A top-level key outside the schema is a warning: it is
-// ignored, apply keeps its line byte for byte, and the valid keys still count.
-// It is refused when it is set twice or holds a map or a list.
+// may write over it), or an empty quoted string a string key's schema does not
+// allow, a map or list in any form on a key that is not an object, or any
+// problem inside an object (not fixable). A top-level key outside the schema
+// is a warning: it is ignored, apply keeps its line byte for byte, and the
+// valid keys still count. It is refused when it is set twice or holds a map or
+// a list.
 //
 // Apply validates the existing file first and refuses it, with one line and
 // the file untouched, unless every problem is a fixable value on a key being
@@ -135,24 +145,128 @@ function parseArgs(argv, withRef) {
   return opts;
 }
 
-// allowedText(spec) words a key's allowed values for a message; allows(spec,
-// raw) tests one value as written, quotes included. A quoted boolean or number
-// is a string, so it is not allowed; a quoted listed string is.
+// allowedText(spec) words a key's allowed values for a message, or is null for
+// a schema shape this checker does not validate; allows(spec, raw, value)
+// tests one scalar as written, quotes included, with value its parsed string.
+// A quoted boolean or number is a string, so it is not allowed; a quoted
+// listed string is; a plain true or 5 is not a string.
+const isObject = (spec) => spec.type === "object";
+const isNull = (raw) => /^(null|Null|NULL|~)$/.test(raw);
+const plainNonString = (raw) =>
+  isNull(raw) ||
+  /^(true|True|TRUE|false|False|FALSE|[-+]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)([eE][-+]?[0-9]+)?|0x[0-9a-fA-F]+|0o[0-7]+|[-+]?\.(inf|Inf|INF)|\.(nan|NaN|NAN))$/.test(raw);
 function allowedText(spec) {
+  if (Array.isArray(spec.enum)) return `one of ${spec.enum.join(", ")}`;
   if (spec.type === "boolean") return "one of true, false";
   if (spec.type === "integer") {
     const min = spec.minimum ?? 0;
     return spec.maximum === undefined ? `a whole number of at least ${min}` : `a whole number from ${min} to ${spec.maximum}`;
   }
-  return `one of ${spec.enum.join(", ")}`;
+  if (spec.type === "string") {
+    const rules = [];
+    if (spec.minLength) rules.push(`at least ${spec.minLength} character${spec.minLength === 1 ? "" : "s"}`);
+    if (spec.maxLength !== undefined) rules.push(`at most ${spec.maxLength} characters`);
+    if (spec.pattern !== undefined) rules.push(`matching ${spec.pattern}`);
+    return rules.length ? `a string of ${rules.join(", ")}` : "a string";
+  }
+  if (isObject(spec)) return "a block map";
+  return null;
 }
-function allows(spec, raw) {
+function allows(spec, raw, value) {
+  if (Array.isArray(spec.enum)) return spec.enum.includes(raw.replace(/^(["'])(.*)\1$/, "$2"));
   if (spec.type === "boolean") return raw === "true" || raw === "false";
   if (spec.type === "integer") {
     const n = Number(raw);
     return /^(0|[1-9][0-9]*)$/.test(raw) && n >= (spec.minimum ?? 0) && (spec.maximum === undefined || n <= spec.maximum);
   }
-  return spec.enum.includes(raw.replace(/^(["'])(.*)\1$/, "$2"));
+  if (spec.type === "string") {
+    if (!/^(["']).*\1$/.test(raw) && plainNonString(raw)) return false;
+    const length = [...value].length;
+    return (
+      length >= (spec.minLength ?? 0) &&
+      (spec.maxLength === undefined || length <= spec.maxLength) &&
+      (spec.pattern === undefined || new RegExp(spec.pattern, "u").test(value))
+    );
+  }
+  return false;
+}
+
+// written(spec, value) is a command-line value as it goes in the file: a
+// string whose plain form would not read back as given is double-quoted.
+function written(spec, value) {
+  if (spec.type !== "string" || Array.isArray(spec.enum)) return value;
+  return /^[A-Za-z0-9_./-]+$/.test(value) && !plainNonString(value) ? value : JSON.stringify(value);
+}
+
+// blockTree(text) is the document's key lines as a tree by indentation:
+// { raw, keys, dup, list } per key, raw its value as written (comment and
+// surrounding space removed), keys its child keys by trimmed name (the first
+// of each), dup the child names set more than once, and list true when a
+// sequence item sits under it. Lines under a sequence item are not read.
+function blockTree(text) {
+  const node = (raw) => ({ raw, keys: new Map(), dup: new Set(), list: false });
+  const root = node("");
+  const stack = [{ indent: -1, at: root }];
+  for (const l of text.replace(/^﻿/, "").split("\n")) {
+    const line = l.replace(/\r$/, "");
+    if (!line.trim() || /^\s*#/.test(line) || /^(---|\.\.\.|%)/.test(line)) continue;
+    const indent = line.match(/^\s*/)[0].length;
+    while (stack.at(-1).indent >= indent) stack.pop();
+    const parent = stack.at(-1).at;
+    if (parent === null) continue;
+    const t = line.trim();
+    const m = t === "-" || t.startsWith("- ") ? null : splitKeyLine(t);
+    if (!m) {
+      if (t === "-" || t.startsWith("- ")) parent.list = true;
+      stack.push({ indent, at: null });
+      continue;
+    }
+    const key = m.written.trim();
+    const child = node(stripComment(m.rest ?? "").trim());
+    if (parent.keys.has(key)) parent.dup.add(key);
+    else parent.keys.set(key, child);
+    stack.push({ indent, at: child });
+  }
+  return root;
+}
+
+// checkValue reports each problem with the value at path against spec through
+// report(msg, fixable), recursing into an object's keys. valueAt(path) is the
+// parsed string at a dotted path, "" when none.
+function checkValue(path, spec, node, valueAt, report) {
+  const values = allowedText(spec);
+  const { raw } = node;
+  if (values === null) {
+    report(`${path} uses a schema shape setup-apply does not check (type ${spec.type ?? "unset"}); edit it by hand`);
+    return;
+  }
+  if (isObject(spec)) {
+    if (node.list || raw.startsWith("[")) report(`${path} holds a list; it takes ${values}`);
+    else if (raw.startsWith("{")) report(`${path} is a flow map; it takes ${values}, one key per line`);
+    else if (isNull(raw)) report(`${path} is null; it takes ${values}`);
+    else if (raw !== "") report(`${path}=${raw} is not a map; it takes ${values}`);
+    else if (!node.keys.size) report(`${path} is empty; it takes ${values}`);
+    else {
+      for (const k of node.dup) report(`${path}.${k} is set more than once`);
+      for (const [k, child] of node.keys) {
+        const sub = Object.hasOwn(spec.properties ?? {}, k) ? spec.properties[k] : (spec.additionalProperties ?? true);
+        if (sub === false) report(`${path}.${k} is not in the schema`);
+        else if (sub !== true) checkValue(`${path}.${k}`, sub, child, valueAt, report);
+      }
+    }
+    return;
+  }
+  if (node.keys.size || node.list || /^[[{]/.test(raw)) {
+    report(`${path} holds a map or a list${raw ? ` (${path}=${raw})` : ""}; it takes ${values}`);
+  } else if ((raw === '""' || raw === "''") && !allows(spec, raw, "")) {
+    report(`${path} is an empty string (${path}=${raw}); it takes ${values}`);
+  } else if (raw === "") {
+    report(`${path} is empty; it takes ${values}`, true);
+  } else if (isNull(raw)) {
+    report(`${path} is null; ${path}=${raw} is not ${values}`, true);
+  } else if (!allows(spec, raw, valueAt(path))) {
+    report(`${path}=${raw} is not ${values}`, true);
+  }
 }
 
 // Top-level keys as written, from lines at the document's base indent, each
@@ -235,7 +349,9 @@ function stripComment(s) {
 // problem with the whole file), "unknown" (a key outside the schema, ignored)
 // or "value" (a problem on the schema key named by key). fixable marks a value
 // apply may overwrite.
-function validate(text, { keys, parser, exactKeyNames = false, schemaKey = false }) {
+// flatten(text, parser) is the parser's records, { path, top, nested, value }
+// per scalar, or { error } with the parse error's message.
+function flatten(text, parser) {
   const parsed = spawnSync("awk", ["-f", parser], {
     input: text,
     encoding: "utf8",
@@ -245,16 +361,27 @@ function validate(text, { keys, parser, exactKeyNames = false, schemaKey = false
   if (parsed.status !== 0) {
     const err = (parsed.stdout ?? "").split("\n").find((l) => l.startsWith("error\t")) ?? "error\t?\tunreadable";
     const [, line, msg] = err.split("\t");
-    return [{ kind: "parse", key: null, msg: `line ${line}: ${msg}`, fixable: false }];
+    return { error: `line ${line}: ${msg}` };
   }
-  const records = parsed.stdout
-    .split("\n")
-    .filter(Boolean)
-    .map((r) => {
-      const path = r.slice(0, r.indexOf("\t"));
-      const dot = path.indexOf(".");
-      return { top: (dot === -1 ? path : path.slice(0, dot)).trim(), nested: dot !== -1, value: r.slice(r.indexOf("\t") + 1) };
-    });
+  return {
+    records: parsed.stdout
+      .split("\n")
+      .filter(Boolean)
+      .map((r) => {
+        const path = r.slice(0, r.indexOf("\t"));
+        const dot = path.indexOf(".");
+        return { path, top: (dot === -1 ? path : path.slice(0, dot)).trim(), nested: dot !== -1, value: r.slice(r.indexOf("\t") + 1) };
+      }),
+  };
+}
+
+function validate(text, { keys, parser, exactKeyNames = false, schemaKey = false }) {
+  const parsed = flatten(text, parser);
+  if (parsed.error) return [{ kind: "parse", key: null, msg: parsed.error, fixable: false }];
+  const { records } = parsed;
+  const parsedValues = new Map(records.map((r) => [r.path, r.value]));
+  const valueAt = (path) => parsedValues.get(path) ?? "";
+  const tree = blockTree(text);
   const tops = topLevelLines(text);
   const problems = [];
   const add = (kind, msg, key = null, fixable = false) => problems.push({ kind, key, msg, fixable });
@@ -279,21 +406,10 @@ function validate(text, { keys, parser, exactKeyNames = false, schemaKey = false
     }
   }
   for (const [k, spec] of Object.entries(keys)) {
-    const line = tops.find((t) => t.key === k);
-    if (!line) continue;
-    const values = allowedText(spec);
-    const { raw } = line;
-    if (records.some((r) => r.top === k && r.nested) || /^[[{]/.test(raw)) {
-      add("value", `${k} holds a map or a list${raw ? ` (${k}=${raw})` : ""}; it takes ${values}`, k);
-    } else if (raw === '""' || raw === "''") {
-      add("value", `${k} is an empty string (${k}=${raw}); it takes ${values}`, k);
-    } else if (raw === "") {
-      add("value", `${k} is empty; it takes ${values}`, k, true);
-    } else if (/^(null|Null|NULL|~)$/.test(raw)) {
-      add("value", `${k} is null; ${k}=${raw} is not ${values}`, k, true);
-    } else if (!allows(spec, raw)) {
-      add("value", `${k}=${raw} is not ${values}`, k, true);
-    }
+    const node = tree.keys.get(k);
+    if (!node) continue;
+    // Apply writes only a top-level scalar, so only a problem there is fixable.
+    checkValue(k, spec, node, valueAt, (msg, fixable = false) => add("value", msg, k, fixable && !isObject(spec)));
   }
   // Apply never writes $schema, so a bad value there is a problem with the file.
   const schemaLine = schemaKey && tops.find((t) => t.key === "$schema");
@@ -506,8 +622,14 @@ function main(config, argv) {
     const v = pair.slice(eq + 1);
     if (wanted.has(k)) refuse(`${k} is given more than once; pass each key once; nothing written`);
     if (!Object.hasOwn(keys, k)) refuse(`${k} is not a key of ${rel} (keys: ${Object.keys(keys).join(", ")}); nothing written`);
-    if (/^["']/.test(v) || !allows(keys[k], v)) refuse(`${k}=${v} is not ${allowedText(keys[k])}; nothing written`);
-    wanted.set(k, v);
+    const spec = keys[k];
+    const values = allowedText(spec);
+    if (values === null || isObject(spec)) {
+      refuse(`${k} takes ${values ?? "a value setup-apply does not check"} and is not set from the command line; edit ${rel} by hand; nothing written`);
+    }
+    const w = written(spec, v);
+    if (/^["']/.test(v) || !allows(spec, w, v)) refuse(`${k}=${v} is not ${values}; nothing written`);
+    wanted.set(k, { written: w, value: v });
   }
 
   let existing = null;
@@ -528,7 +650,14 @@ function main(config, argv) {
       process.stdout.write(`INFO ${rel}: absent; every key resolves from userConfig or its default\n`);
       return 0;
     }
-    const value = (k) => spawnSync("bash", [config.reader, "-", k], { input: existing, encoding: "utf8" }).stdout.trim();
+    // An object key shows its leaves as path=value, from the parser's records.
+    const leaves = (k) =>
+      (flatten(existing, config.parser).records ?? [])
+        .filter((r) => r.top === k && r.nested)
+        .map((r) => `${r.path.slice(r.path.indexOf(".") + 1)}=${r.value}`)
+        .join(", ");
+    const value = (k) =>
+      isObject(keys[k]) ? leaves(k) : spawnSync("bash", [config.reader, "-", k], { input: existing, encoding: "utf8" }).stdout.trim();
     return (config.report ?? perKeyReport)({ rel, keys, problems: check(existing), value });
   }
 
@@ -543,7 +672,7 @@ function main(config, argv) {
 
   let proposed;
   if (existing === null) {
-    proposed = `# yaml-language-server: $schema=${schema.$id}\n${[...wanted].map(([k, v]) => `${k}: ${v}\n`).join("")}`;
+    proposed = `# yaml-language-server: $schema=${schema.$id}\n${[...wanted].map(([k, { written: w }]) => `${k}: ${w}\n`).join("")}`;
   } else {
     // Keep the file's line ending: CRLF when every line break is CRLF.
     const crlf = (existing.match(/\r\n/g) ?? []).length;
@@ -554,16 +683,20 @@ function main(config, argv) {
     const lines = existing.split(eol);
     if (lines.at(-1) === "") lines.pop();
     const tops = topLevelLines(existing);
-    for (const [k, v] of wanted) {
+    for (const [k, { written: w }] of wanted) {
       const line = tops.find((t) => t.key === k);
-      if (line) lines[line.at] = `${lines[line.at].match(/^\s*/)[0]}${k}: ${v}`;
-      else lines.push(`${k}: ${v}`);
+      if (line) lines[line.at] = `${lines[line.at].match(/^\s*/)[0]}${k}: ${w}`;
+      else lines.push(`${k}: ${w}`);
     }
     proposed = `${lines.join(eol)}${eol}`;
   }
 
   const problems = check(proposed).filter((p) => p.kind !== "unknown");
   if (problems.length) refuse(`the result would not validate: ${problems.map((p) => p.msg).join("; ")}; nothing written`);
+  const readBack = new Map((flatten(proposed, config.parser).records ?? []).filter((r) => !r.nested).map((r) => [r.top, r.value]));
+  for (const [k, { value }] of wanted) {
+    if ((readBack.get(k) ?? "") !== value) refuse(`${k}=${value} would not read back as given; nothing written`);
+  }
 
   if (existing !== null && proposed === existing) {
     process.stdout.write(`${rel}: already configured; nothing written\n`);

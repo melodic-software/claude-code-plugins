@@ -2,8 +2,13 @@
 # Tests for lib/setup-apply.mjs, the shared writer behind each plugin's
 # skills/setup/scripts/setup-apply.mjs. A fixture schema in a temp directory
 # stands in for a plugin's: mode (enum fast, slow), strict (boolean), workers
-# (integer, minimum 1, maximum 8) and count (integer, no bounds). Expected
-# values come from that schema and the library's stated rules and exit codes.
+# (integer, minimum 1, maximum 8), count (integer, no bounds), label (string,
+# minLength 1, pattern ^[a-z][a-z0-9-]*$), note (string), session (an object of
+# a boolean and an enum), sizes (an object of objects of non-empty strings) and
+# weird (an array, a shape the checker does not validate). Expected values come
+# from that schema, JSON Schema's meaning of each keyword, YAML's reading of a
+# plain true or 5 as a boolean or a number, and the library's stated rules and
+# exit codes.
 # Run directly: bash lib/setup-apply.test.sh
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 set -uo pipefail
@@ -44,7 +49,26 @@ cat >"$FIX/fixture.schema.json" <<'JSON'
     "mode": { "type": "string", "enum": ["fast", "slow"], "default": "fast" },
     "strict": { "type": "boolean", "default": false },
     "workers": { "type": "integer", "minimum": 1, "maximum": 8, "default": 1 },
-    "count": { "type": "integer", "default": 0 }
+    "count": { "type": "integer", "default": 0 },
+    "label": { "type": "string", "minLength": 1, "pattern": "^[a-z][a-z0-9-]*$" },
+    "note": { "type": "string" },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uploads": { "type": "boolean", "default": false },
+        "names": { "enum": ["full", "initials"], "default": "full" }
+      }
+    },
+    "sizes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "small": { "type": "object", "additionalProperties": { "type": "string", "minLength": 1 } },
+        "large": { "type": "object", "additionalProperties": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "weird": { "type": "array" }
   }
 }
 JSON
@@ -271,6 +295,82 @@ out="$(HOME="$FAKE_HOME" node --require "$P" "$APPLY" --root "$R" mode=slow 2>&1
 assert_eq "a failed close: exits 1" "1" "$?"
 one_line "a failed close" "$out"
 assert_eq "a failed close: its temp file is removed" "0" "$(temps "$R")"
+
+# --- Strings: minLength and pattern, quoted or plain ---------------------------
+# check_ok <label> <body> <expected PASS line>: --check exits 0 and prints it.
+check_ok() {
+  local r out code
+  r="$(new_root "ok-$CASE_NUM")"
+  printf '%s' "$2" >"$(yaml_of "$r")"
+  out="$(run --root "$r" --check)"
+  code=$?
+  assert_eq "$1: --check exits 0" "0" "$code"
+  assert_contains "$1: --check prints its PASS line" "$out" "$3"
+  assert_eq "$1: --check prints no WARN" "0" "$(printf '%s\n' "$out" | grep -c '^WARN')"
+}
+# check_warn <label> <body> <WARN text>: --check exits 1, warns, and keeps the
+# PASS line of the valid mode key beside it.
+check_warn() {
+  local r out code
+  r="$(new_root "warn-$CASE_NUM")"
+  printf 'mode: fast\n%s' "$2" >"$(yaml_of "$r")"
+  out="$(run --root "$r" --check)"
+  code=$?
+  assert_eq "$1: --check exits 1" "1" "$code"
+  assert_contains "$1: --check warns" "$out" "$3"
+  assert_contains "$1: the other key keeps its PASS line" "$out" "PASS mode: fast"
+  assert_eq "$1: no crash" "0" "$(printf '%s\n' "$out" | grep -c 'Cannot read')"
+}
+check_ok "a plain string" $'label: team-a\n' "PASS label: team-a"
+check_ok "a double-quoted string" $'label: "team-a"\n' "PASS label: team-a"
+check_ok "a string with a colon and a hash inside quotes" $'note: "a: b # c"\n' "PASS note: a: b # c"
+check_ok "an empty string with no minLength" $'note: ""\n' "PASS note: (unset)"
+check_warn "an empty string under minLength 1" $'label: ""\n' 'label is an empty string'
+check_warn "a string outside the pattern" $'label: Team-A\n' 'label=Team-A is not'
+check_warn "a plain true on a string key" $'label: true\n' 'label=true is not'
+check_warn "a plain number on a string key" $'note: 5\n' 'note=5 is not'
+check_warn "a map on a string key" $'label:\n  a: b\n' 'label holds a map or a list'
+R="$(new_root str-cli)"
+out="$(run --root "$R" label=team-b)"
+assert_eq "label=team-b on the command line: written" "0:label: team-b" "$?:$(grep -x 'label: team-b' "$(yaml_of "$R")")"
+out="$(run --root "$R" --yes 'note=a: b # c')"
+assert_eq "a string needing quotes on the command line: exits 0" "0" "$?"
+assert_contains "a string needing quotes: it reads back as given" "$(run --root "$R" --check)" "PASS note: a: b # c"
+out="$(run --root "$(new_root str-newline)" $'note=a\nb')"
+assert_eq "a string holding a line break on the command line: exits 1" "1" "$?"
+for bad in Team '' 'a b'; do
+  out="$(run --root "$(new_root "str-bad-$CASE_NUM")" "label=$bad")"
+  assert_eq "label=$bad on the command line: exits 1" "1" "$?"
+  one_line "label=$bad on the command line" "$out"
+done
+
+# --- Objects: nested leaves checked against properties, recursively -----------
+check_ok "a one-level object" $'session:\n  uploads: true\n  names: initials  # note\n' "PASS session:"
+check_warn "an object key with nothing under it" $'session:\n  # nothing yet\n' 'session is empty'
+check_ok "a two-level object" $'sizes:\n  small:\n    label: S\n    note: "tiny: one"\n  large:\n    label: L\n' "PASS sizes:"
+check_warn "a wrong leaf type in an object" $'session:\n  uploads: maybe\n' 'session.uploads=maybe is not one of true, false'
+check_warn "a quoted boolean in an object" $'session:\n  uploads: "true"\n' 'session.uploads="true" is not one of true, false'
+check_warn "an enum leaf outside its list" $'session:\n  names: someone\n' 'session.names=someone is not one of full, initials'
+check_warn "an unknown key in an object" $'session:\n  extra: 1\n' 'session.extra is not in the schema'
+check_warn "a nested key set twice" $'session:\n  uploads: true\n  uploads: false\n' 'session.uploads is set more than once'
+check_warn "a scalar on an object key" $'session: on\n' 'session=on is not a map'
+check_warn "a list on an object key" $'session:\n  - uploads\n' 'session holds a list'
+check_warn "an unknown key at the outer level of a two-level object" $'sizes:\n  huge:\n    label: x\n' 'sizes.huge is not in the schema'
+check_warn "an empty string two levels down" $'sizes:\n  small:\n    label: ""\n' 'sizes.small.label is an empty string'
+check_warn "a scalar where an inner object belongs" $'sizes:\n  small: x\n' 'sizes.small=x is not a map'
+check_warn "a map where a leaf belongs" $'session:\n  uploads:\n    a: true\n' 'session.uploads holds a map or a list'
+check_warn "a schema shape the checker does not know" $'weird: [1]\n' 'weird uses a schema shape setup-apply does not check'
+R="$(new_root obj-keep)"
+printf 'session:\n  uploads: true\nmode: slow\n' >"$(yaml_of "$R")"
+out="$(run --root "$R" --yes mode=fast)"
+assert_eq "apply beside a valid object: exits 0" "0" "$?"
+assert_eq "apply beside a valid object: the object is kept byte for byte" $'session:\n  uploads: true\nmode: fast' "$(cat "$(yaml_of "$R")")"
+refused "apply beside an invalid object" $'session:\n  uploads: maybe\n' mode=slow
+for pair in session=x weird=1; do
+  out="$(run --root "$(new_root "obj-cli-$CASE_NUM")" "$pair")"
+  assert_eq "$pair on the command line: exits 1" "1" "$?"
+  one_line "$pair on the command line" "$out"
+done
 
 # --- Long whitespace runs: the line scan is linear ----------------------------
 # Each line holds a 200,000-space run; all three together finish within 1 s.
