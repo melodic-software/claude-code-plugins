@@ -1302,13 +1302,13 @@ norm_path() {
 # cannot see: a local action (`uses: ./`, not a reusable workflow, which is
 # parsed itself) or a command that starts a script.
 wf_runs_elsewhere() {
-  local body
+  local body local_uses cmds
   body="$(LC_ALL=C sed -E -e 's/\r$//' -e '/^[[:space:]]*#/d' -e 's/[[:space:]]#.*$//' "$1" 2>/dev/null)"
-  [[ -n "$(LC_ALL=C grep -E '^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*["'\'']?\./' <<<"$body" |
-    LC_ALL=C grep -vE 'uses:[[:space:]]*["'\'']?\./\.github/workflows/')" ]] && return 0
-  [[ -n "$(LC_ALL=C sed -E -e 's/(&&|\|\||;|\|)/\n/g' <<<"$body" |
-    LC_ALL=C sed -E 's/^[[:space:]]*(-[[:space:]]+)?(run:[[:space:]]*)?["'\'']?//' |
-    LC_ALL=C grep -E '^(\./|\.\\|(bash|sh|pwsh|powershell)[[:space:]]+[^-[:space:]]|[^[:space:]]+\.(sh|ps1|cmd|bat)([[:space:]"'\'']|$))')" ]]
+  local_uses="$(LC_ALL=C grep -E '^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*["'\'']?\./' <<<"$body")"
+  LC_ALL=C grep -qvE 'uses:[[:space:]]*["'\'']?\./\.github/workflows/|^$' <<<"$local_uses" && return 0
+  cmds="$(LC_ALL=C sed -E -e 's/(&&|\|\||;|\|)/\n/g' <<<"$body" |
+    LC_ALL=C sed -E 's/^[[:space:]]*(-[[:space:]]+)?(run:[[:space:]]*)?["'\'']?//')"
+  LC_ALL=C grep -qE '^(\./|\.\\|(bash|sh|pwsh|powershell)[[:space:]]+[^-[:space:]]|[^[:space:]]+\.(sh|ps1|cmd|bat)([[:space:]"'\'']|$))' <<<"$cmds"
 }
 
 # load_workflows: collect the targets of every `dotnet test` and `dotnet build`
