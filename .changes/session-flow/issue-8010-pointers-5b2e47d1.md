@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- The retro data-retention pointer and the save-point `/goal` record are re-checked against the live docs: the retention pointer carries a fresh as-of date, and the goal record now carries section anchors, an as-of date and a recheck trigger.
+- The retro data-retention pointer and the save-point `/goal` record are re-checked against the live docs: the retention pointer carries a fresh as-of date and a recheck trigger that names what the retro relies on, and the goal record now carries section anchors, an as-of date and a recheck trigger.
