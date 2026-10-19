@@ -98,11 +98,12 @@ run names the blocker in its output.
 
 ## Pre-confirmed
 
-When the resolved `pre_confirmed_label` is present on the item and the item states its problem,
-the problem counts as confirmed: `### Problem` carries no unconfirmed status and no confirmation
-row is written. If the item also prescribes a solution, that counts as accept; record the
-inferred problem and the prescribed solution under `### Captured assumptions`. With the setting
-unset there is no pre-confirmation.
+In an unattended run, when the resolved `pre_confirmed_label` is present on the item and the item
+states its problem, the problem counts as confirmed: `### Problem` carries no unconfirmed status,
+and the confirmation is an `answered` register row whose answer cites the label, so the register
+still gates. If the item also prescribes a solution, that counts as accept; record the inferred
+problem and the prescribed solution under `### Captured assumptions`. An attended run always
+asks. With the setting unset there is no pre-confirmation.
 
 ## Time units
 
