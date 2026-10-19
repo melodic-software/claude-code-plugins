@@ -5,6 +5,7 @@
 //   run_id, event, live, started_at   the run
 //   candidates                        candidates.json's length (held excluded)
 //   enqueued, merged                  rows the gate enqueued or merged
+//   ready_unmerged                    ready rows a report-only run left alone
 //   refusal_counts                    every other row, by normalized reason
 //   held                              held.json's length
 //   budget_stop                       {reached, candidates, next_after} when
@@ -60,16 +61,20 @@ export function summarize({
 	gateOutcome,
 	cursor,
 }) {
-	const refusals = {};
+	const refusals = new Map();
 	let enqueued = 0;
 	let merged = 0;
+	let readyUnmerged = 0;
 	for (const result of results) {
 		if (result.enqueued) enqueued += 1;
 		if (result.merged) merged += 1;
-		if (!result.enqueued && !result.merged) {
-			const key = normalizeReason(result.reason);
-			refusals[key] = (refusals[key] ?? 0) + 1;
+		if (result.enqueued || result.merged) continue;
+		if (result.ready) {
+			readyUnmerged += 1;
+			continue;
 		}
+		const key = normalizeReason(result.reason);
+		refusals.set(key, (refusals.get(key) ?? 0) + 1);
 	}
 	const reached = results.length - held.length;
 	const stopped =
@@ -84,7 +89,8 @@ export function summarize({
 		candidates,
 		enqueued,
 		merged,
-		refusal_counts: refusals,
+		ready_unmerged: readyUnmerged,
+		refusal_counts: Object.fromEntries(refusals),
 		held: held.length,
 		budget_stop: stopped
 			? {

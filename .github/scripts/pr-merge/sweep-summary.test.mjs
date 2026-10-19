@@ -130,6 +130,31 @@ test("counts refusals by normalized reason and keeps each raw reason in results"
 	);
 });
 
+test("a ready row a report-only run left alone is no refusal", () => {
+	const out = summarize({
+		...meta,
+		results: [row(8601, { ready: true }), row(8602)],
+		candidates: 2,
+		held: [],
+		gateOutcome: "success",
+		cursor: null,
+	});
+	assert.equal(out.ready_unmerged, 1);
+	assert.deepEqual(out.refusal_counts, { "not ready": 1 });
+});
+
+test("a reason named like an object property is counted as itself", () => {
+	const out = summarize({
+		...meta,
+		results: [row(8701, { reason: "constructor" }), row(8702, { reason: "constructor" })],
+		candidates: 2,
+		held: [],
+		gateOutcome: "success",
+		cursor: null,
+	});
+	assert.deepEqual(out.refusal_counts, { constructor: 2 });
+});
+
 test("an empty sweep is all zeros, not an error", () => {
 	const out = summarize({
 		...meta,

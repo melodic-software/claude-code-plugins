@@ -841,6 +841,7 @@ jobs:
       - name: Count the sweep's refusals
         if: always() && steps.gate.outcome != 'skipped'
         continue-on-error: true
+        timeout-minutes: 1
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -862,6 +863,7 @@ jobs:
       - name: Upload the sweep's verdicts
         if: always() && steps.gate.outcome != 'skipped'
         continue-on-error: true
+        timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-summary
