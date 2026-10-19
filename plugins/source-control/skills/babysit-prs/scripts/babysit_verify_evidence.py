@@ -74,7 +74,12 @@ import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_run_cache as run_cache
 from babysit_classify import is_dependency_author
-from babysit_gh import flatten_paginated_items, gh_http_status, gh_timeout_seconds
+from babysit_gh import (
+    flatten_paginated_items,
+    gh_http_status,
+    gh_timeout_seconds,
+    pull_request_commits_once,
+)
 from babysit_util import is_json_array, is_json_object, json_array, json_object
 
 WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
@@ -647,11 +652,16 @@ class Reader:
                 )
         return live
 
-    def _commits(self, number: int) -> set[str]:
+    def _commits(self, number: int, head: str) -> set[str]:
         try:
-            commits = postmerge._paginated(
-                f"repos/{self.repo}/pulls/{number}/commits?per_page=100",
-                f"#{number} commits",
+            commits = pull_request_commits_once(
+                self.repo,
+                number,
+                head,
+                lambda: postmerge._paginated(
+                    f"repos/{self.repo}/pulls/{number}/commits?per_page=100",
+                    f"#{number} commits",
+                ),
             )
         except postmerge.PostMergeReadError as exc:
             raise _Unreadable(str(exc)) from exc
@@ -681,7 +691,7 @@ class Reader:
             return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
         head_ref = str(json_object(pr.get("head")).get("ref") or "")
         author = str(json_object(pr.get("user")).get("login") or "")
-        commits = self._commits(number) | {head}
+        commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str]] = []
         ignored = 0
