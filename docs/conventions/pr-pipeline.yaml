@@ -353,11 +353,6 @@ loop:
   # a person instead. 3 matches review-rounds: past it, CI failing again after
   # each pushed fix means the fixes are not converging and a person decides.
   fix-ci-rounds: 3
-  # Attempts to fix one pull request's failing checks, shared by fix-ci and
-  # the attended hand-fix session. At the limit the PR gets needs-human and
-  # its issue is dispatched again. 2 gives one retry after a first miss.
-  # Declared only: nothing reads it yet.
-  hand-fix-attempts: 2
 
 limits:
   # fix-ci runs one pr-unblock-dispatch run starts. 2 matches the

@@ -948,9 +948,6 @@ escalates. The address-feedback activity hands a PR to a person once `loop.revie
 rounds have run. The default is 2; this repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
 App may push to one PR; the next fix-ci run hands it to a person before any model turn.
-`loop.hand-fix-attempts` (default 2, at most 10) is the number of attempts fix-ci and the attended
-hand-fix session share on one PR's failing checks; at the limit the PR gets `needs-human` and its
-issue is dispatched again. It is declared only: no lane reads it yet.
 
 ## Limits
 

@@ -6,8 +6,7 @@
 head's `ci-status` failed, from one GraphQL query per page with its `rateLimit.cost` logged, at
 most `limits.fix-ci-per-run` per run and, on a head whose earlier runs all failed, at most
 `limits.fix-ci-restarts` more times ([README](README.md#lanes)). Its job's concurrency group
-now cancels a run in progress. New key `loop.hand-fix-attempts` (default 2) declares the attempt
-limit fix-ci and the attended hand-fix session share; no lane reads it yet. `version` stays 2.
+now cancels a run in progress. `version` stays 2.
 
 ## 2.14.0 - 2026-10-18
 
