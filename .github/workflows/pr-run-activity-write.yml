@@ -196,6 +196,12 @@ on:
         required: false
         type: string
         default: ""
+      role:
+        description: >-
+          The funding role whose secret the caller passes, as in
+          docs/conventions/pr-pipeline.yaml `funding:`.
+        required: true
+        type: string
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
@@ -1383,6 +1389,21 @@ jobs:
       # ci-workflows' classifier, never from model text. The report job copies
       # it onto the posted check run, and issue mode writes it into lane.json,
       # where the limit-stop restarts read it.
+      # The secret the caller passed, named from its funding role:
+      # `issue-lane` reports ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN.
+      - name: Name the run's credential
+        id: credential
+        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        env:
+          ROLE: ${{ inputs.role }}
+        run: |
+          if [[ ! "$ROLE" =~ ^[a-z][a-z0-9-]*$ ]]; then
+            echo "::error::role must be lowercase letters, digits and hyphens"
+            exit 1
+          fi
+          role=${ROLE^^}
+          echo "name=${role//-/_}_CLAUDE_CODE_OAUTH_TOKEN" >>"$GITHUB_OUTPUT"
+
       - name: Record the lane outcome
         id: lane-record
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
@@ -1393,7 +1414,7 @@ jobs:
             ${{ steps.act-skill.outputs.execution_file
             || format('{0}/claude-execution-output.json', runner.temp) }}
           lane: ${{ inputs.lane }}
-          credential: AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN
+          credential: ${{ steps.credential.outputs.name }}
           max-turns: ${{ steps.config.outputs.max-turns }}
 
       - name: Upload the skill's final reply

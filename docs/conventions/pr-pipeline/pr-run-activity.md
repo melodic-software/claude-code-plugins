@@ -650,7 +650,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    comment is the reviewer bot's; or the lanes App never commented and one comment is a fix
    request (a line starting `PR-fix lane: please fix this finding`, any case, outside a fenced
    block) by a `human` on that list whose permission on the repository reads `write` or `admin`
-   (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`); or the lanes App's last
+   (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), whose review may be on any
+   head, so a request on a thread from an earlier review is worked; or the lanes App's last
    comment is a reply the reply job left open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and
    every comment after it is by such a `human` (any permission), created after it. A human's
    comment counts only when never edited or last edited by such a human. Every other comment must

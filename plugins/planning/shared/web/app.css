@@ -1935,6 +1935,12 @@
   background: var(--sunk);
 }
 .app .vf-ref-thumb img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.app .vf-uppic-wait { cursor: default; }
+.app .vf-uppic-wait .vf-ref-thumb img { opacity: 0.55; }
+.app .vf-uppic-stat {
+  position: absolute; inset-inline: 0; inset-block-end: 0; padding: 4px 8px; font-size: 12px; font-weight: 600; color: var(--text);
+  background: color-mix(in oklch, var(--pane) 85%, transparent);
+}
 .app .vf-ref-cap { padding: 7px 10px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app .vf-ref-quote { display: grid; gap: 8px; padding: 10px 12px; align-content: space-between; }
 .app .vf-ref-qt {
