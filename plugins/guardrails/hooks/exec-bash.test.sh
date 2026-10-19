@@ -82,8 +82,8 @@ while IFS= read -r row; do
     dispatcher=$((dispatcher + 1))
   fi
 done <<<"$rows"
-# Write|Edit, the two MCP rows and Bash|PowerShell, each through the dispatcher.
-[[ "$dispatcher" -eq 4 ]] || fail "expected the four dispatcher rows, found $dispatcher"
+# Write|Edit, the three MCP rows and Bash|PowerShell, each through the dispatcher.
+[[ "$dispatcher" -eq 5 ]] || fail "expected the five dispatcher rows, found $dispatcher"
 [[ "$workflow" -eq 1 ]] || fail "expected one workflow row, found $workflow"
 
 # --- no launcher skip flag on a blocking row ----------------------------------
