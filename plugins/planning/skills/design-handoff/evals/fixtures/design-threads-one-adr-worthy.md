@@ -24,3 +24,15 @@ Decision: log one JSON object per line.
 Rationale: the existing log reader already parses JSON lines, and the format can be changed
 by editing one formatter. Plain text lines were rejected because they would need a new
 parser.
+
+## Thread 4: Principles. RESOLVED
+
+Principles applied: information hiding keeps the trust decision in the proxy, out of the handlers.
+Generalize now or wait: the Brief's `Intent: not applicable (confirmed)` line settles it: no
+variation question.
+Rationale: the Intent line is the user's answer.
+
+## Thread 5: Lifecycle and reversibility. RESOLVED
+
+Door: Thread 1 one-way (integrators build on the exposure); Threads 2 and 3 two-way.
+Rationale: Thread 1 is the only call that integrators build on.
