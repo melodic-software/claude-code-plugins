@@ -2359,6 +2359,17 @@ assert_matches "so a project the real command does not target is ci: no" "$out" 
 printf 'name: ci\njobs:\n  t:\n    steps:\n      - run: dotnet test Alpha.Tests.csproj\n        working-directory: tests/Alpha.Tests\n' >"$PJX/.github/workflows/ci.yml"
 pj_scan
 assert_matches "a working-directory leaves ci: unknown" "$out" 'Alpha\.Tests\.csproj; ci: unknown;'
+# tests CI may run through a script or a local action: unknown, not no
+printf 'name: ci\njobs:\n  t:\n    steps:\n      - run: ./build.sh test\n  pack:\n    steps:\n      - run: dotnet build tests/Zeta.Unit.Tests/Zeta.Unit.Tests.csproj\n' >"$PJX/.github/workflows/ci.yml"
+pj_scan
+assert_matches "a script run step leaves an untargeted project ci: unknown" "$out" 'Alpha\.Tests\.csproj; ci: unknown;'
+assert_matches "while a targeted project stays ci: yes" "$out" 'Zeta\.Unit\.Tests\.csproj; ci: yes;'
+printf 'name: ci\njobs:\n  t:\n    steps:\n      - uses: ./.github/actions/dotnet-test\n  pack:\n    steps:\n      - run: dotnet build tests/Zeta.Unit.Tests/Zeta.Unit.Tests.csproj\n' >"$PJX/.github/workflows/ci.yml"
+pj_scan
+assert_matches "a local composite action leaves an untargeted project ci: unknown" "$out" 'Alpha\.Tests\.csproj; ci: unknown;'
+printf 'name: ci\njobs:\n  t:\n    uses: ./.github/workflows/reuse.yml\n  pack:\n    steps:\n      - run: dotnet build ./tests/Zeta.Unit.Tests/Zeta.Unit.Tests.csproj\n' >"$PJX/.github/workflows/ci.yml"
+pj_scan
+assert_matches "a local reusable workflow, parsed itself, and a ./ dotnet target keep ci: no" "$out" 'Alpha\.Tests\.csproj; ci: no;'
 # a malformed workflow, and no workflow, fail soft to unknown
 printf '\tjobs\n  - [unclosed\n\x00\x01garbage' >"$PJX/.github/workflows/ci.yml"
 pj_scan

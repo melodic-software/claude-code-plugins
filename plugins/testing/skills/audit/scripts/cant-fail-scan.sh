@@ -1298,6 +1298,19 @@ norm_path() {
   NP="${out[*]-}"
 }
 
+# wf_runs_elsewhere <workflow>: true when a step may run tests the dotnet parse
+# cannot see: a local action (`uses: ./`, not a reusable workflow, which is
+# parsed itself) or a command that starts a script.
+wf_runs_elsewhere() {
+  local body
+  body="$(LC_ALL=C sed -E -e 's/\r$//' -e '/^[[:space:]]*#/d' -e 's/[[:space:]]#.*$//' "$1" 2>/dev/null)"
+  [[ -n "$(LC_ALL=C grep -E '^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*["'\'']?\./' <<<"$body" |
+    LC_ALL=C grep -vE 'uses:[[:space:]]*["'\'']?\./\.github/workflows/')" ]] && return 0
+  [[ -n "$(LC_ALL=C sed -E -e 's/(&&|\|\||;|\|)/\n/g' <<<"$body" |
+    LC_ALL=C sed -E 's/^[[:space:]]*(-[[:space:]]+)?(run:[[:space:]]*)?["'\'']?//' |
+    LC_ALL=C grep -E '^(\./|\.\\|(bash|sh|pwsh|powershell)[[:space:]]+[^-[:space:]]|[^[:space:]]+\.(sh|ps1|cmd|bat)([[:space:]"'\'']|$))')" ]]
+}
+
 # load_workflows: collect the targets of every `dotnet test` and `dotnet build`
 # in .github/workflows. A file that does not look like a workflow (no jobs: key,
 # a tab indent), a variable or a continued command leaves the answer unknown.
@@ -1314,6 +1327,7 @@ load_workflows() {
     fi
     whole=0
     if LC_ALL=C grep -q 'working-directory:' "$wf" 2>/dev/null; then whole=1; fi
+    if wf_runs_elsewhere "$wf"; then wf_unsure=1; fi
     while IFS= read -r seg; do
       wf_cmds=$((wf_cmds + 1))
       found=0
