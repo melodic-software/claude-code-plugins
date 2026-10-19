@@ -746,12 +746,15 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
 same-repository, non-draft pull request into main. It never runs the pull request's code: a model
 (the `verify-pr` route of [Models](#models)) reads the diff, the trusted pull request text and its linked issues as
-data, and judges whether the diff delivers the issue's intent correctly and safely. The run
+data, and judges whether the diff delivers the issue's intent correctly and safely. The model runs
+on ci-workflows' `run-claude-cli` as the `automations` role ([Funding](#funding)), with the Read
+tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The run
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON
 (`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
 account type, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one `pr-require-checks`
-ran on, never the pull request's live head. A model error or an output that fails the schema
-uploads nothing. A head that already has a counted verdict from a completed run (a `fail` under any
+ran on, never the pull request's live head. A model error, an output that fails the schema, a
+summary or note shaped like an Anthropic key or OAuth token, or a run with any permission denial
+uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again. Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
 
@@ -985,9 +988,11 @@ activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `r
 ([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `default` and 75 turns. `resolve-config` turns the run's profile into its
-`claude-args` and `settings-json` outputs, which the runners pass to claude-code-action as
-`claude_args` and `settings`; the values come only from this file on the base, never from text the
-run reads.
+`claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as
+`claude_args` and `settings`, and into `model`, `effort` and `max-turns`, which a run on
+`run-claude-cli` ([Funding](#funding)) passes as those inputs; `model` is empty for `default`,
+which that action cannot pass, so such a run fails. The values come only from this file on the
+base, never from text the run reads.
 
 This repository's block has five profiles: `standard` (model `default`, 75 turns, no effort),
 every skill activity's; `review` (`opus`, 60 turns, no effort), the verifier's; `pr-review`
