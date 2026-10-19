@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ".countdown { font-variant-numeric: tabular-nums; min-inline-size: 5ch; }\n.countdown[data-loading] { block-size: 1.2em; inline-size: 5ch; }",
+      "why": "tabular digits in a fixed-width slot, skeleton at the final size"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".countdown { font-variant-numeric: tabular-nums; }\n.countdown.loading { height: 0; width: 0; }",
+      "why": "tabular digits, but no reserved width and a skeleton that does not match the final size"
+    }
+  ]
+}
