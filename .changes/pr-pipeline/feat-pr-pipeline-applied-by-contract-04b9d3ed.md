@@ -18,7 +18,9 @@ bump: minor
   script admits from each producer's patch: one row per prepare mode, plus `default` and `issue`.
   Every row refuses `.github/**`, `.claude/**`, the root `.mcp.json`, `.gitmodules`,
   `**/settings*.json`, symbolic links, gitlinks, a new executable bit and a rename into any of
-  those; a row without that set, or a two-parent commit without `allow: merge-result`, is rejected
+  those; a row without that set, or a two-parent commit without `allow: merge-result`, is rejected.
+  `resolve-config` checks the registry before every lane resolve and fails closed without it; the
+  lanes token broker does not read it
   ([README](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#patch-rules)).
 
 ### Changed

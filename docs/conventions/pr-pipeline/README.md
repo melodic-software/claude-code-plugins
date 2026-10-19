@@ -294,7 +294,9 @@ Each leaf declares:
   `applied-by-supported` to `resolve-config` (`pr-run-activity-read.yml` passes `patch`); an
   applying leaf with any other key fails red before the head checkout. A skill that hands on a
   patch gets the same edit tools as a write skill and commits nothing: the runner collects its
-  uncommitted change.
+  uncommitted change. Those edit tools and the `changed-paths` filter key on "an effect other than
+  `read`, or `applied-by.patch`"; the effect half goes once the last skill leaves
+  `pr-run-activity-write.yml`.
 - `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
   flags fixed, that the skill may run. The runner that gives the skill its edit tools (the write
   runner, or the read runner for a skill that hands on a patch) runs each from the base copy
@@ -397,7 +399,10 @@ executable bit on a file not already executable, and a rename into any of those.
 `checkPatchRules` in
 [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs) rejects a row without that
 set, a `[head, base]` commit without `allow: merge-result`, a refusal, allow or requirement name
-the schema does not list, and a patch-producing activity whose prepare mode has no row. fix-ci's
+the schema does not list, and a patch-producing activity whose prepare mode has no row;
+`resolve-config` runs it before every lane resolve and fails closed when either file is missing.
+`loadConfig` and `resolveGrant` do not read the registry, so the lanes token broker needs neither
+file. fix-ci's
 patch is applied today by `apply-ci-fix`, which keeps its own fixed refusal
 ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
 

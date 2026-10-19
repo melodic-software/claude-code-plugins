@@ -1,18 +1,19 @@
-// The lanes token broker imports resolve.mjs from the files azure-iac's
-// scripts/deploy/fetch-resolve-config.sh fetches at its pinned commit: its
-// `runtime` list, and for the broker's tests its `test_files` list, the
-// trust-root JSON it serves as the default-branch tip. A module resolve.mjs
-// loads that `runtime` lacks fails every broker request; a rule file
-// `test_files` lacks leaves the broker's tests reading no copy of it.
-// fixtures/broker-vendored-lists.json is a copy of both lists, read from the
-// commit it names; `pending` holds what the paired azure-iac pull request
-// still has to add, and that pull request moves it into the lists.
+// The lanes token broker (azure-iac src/lanes-token-broker) imports
+// resolve.mjs from the files scripts/deploy/fetch-resolve-config.sh fetches at
+// its pinned commit (the `runtime` list), and calls only loadConfig and
+// resolveGrant (src/ports.mjs) on the trust-root files binding.mjs reads from
+// main's tip (TRUST_FILES); its tests read the `test_files` list instead. A
+// module resolve.mjs loads that `runtime` lacks, or a file loadConfig needs
+// that TRUST_FILES lacks, fails every broker request.
+// fixtures/broker-vendored-lists.json copies those lists from the commit it
+// names; the azure-iac pin pull request updates both together.
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { posix } from "node:path";
 import { test } from "node:test";
 
-const DIR = ".github/actions/resolve-config";
+import { loadConfig, resolveGrant } from "./resolve.mjs";
+
 const here = (relative) => new URL(relative, import.meta.url);
 const read = (relative) => readFileSync(here(relative), "utf8");
 const LISTS = JSON.parse(read("./fixtures/broker-vendored-lists.json"));
@@ -60,47 +61,76 @@ function closure() {
   return { files: [...files], packages: [...packages] };
 }
 
-const listed = (key) => new Set([...LISTS[key], ...LISTS.pending[key]]);
+const ROOT = "../../../";
+const fileAt = (path) => (path.endsWith(".json") ? JSON.parse(read(`${ROOT}${path}`)) : read(`${ROOT}${path}`));
 
-test("the copied lists name the azure-iac file and the commit they were read from", () => {
+// What the broker passes: the config and each TRUST_FILES entry, read from this tree.
+const brokerFiles = () => ({
+  config: read(`${ROOT}${LISTS.binding.config}`),
+  ...Object.fromEntries(Object.entries(LISTS.binding.trust_files).map(([key, path]) => [key, fileAt(path)])),
+});
+
+test("the copied lists name the azure-iac files and the commit they were read from", () => {
   assert.equal(LISTS.repository, "melodic-software/azure-iac");
-  assert.equal(LISTS.path, "scripts/deploy/fetch-resolve-config.sh");
   assert.match(LISTS.commit, /^[0-9a-f]{40}$/);
+  assert.equal(LISTS.fetch.path, "scripts/deploy/fetch-resolve-config.sh");
+  assert.deepEqual(LISTS.calls.exports, ["loadConfig", "resolveGrant"]);
 });
 
 test("every file resolve.mjs loads is on the broker's runtime list", () => {
-  const runtime = listed("runtime");
+  const runtime = new Set(LISTS.fetch.runtime);
   const missing = closure().files.filter((file) => !runtime.has(file));
   assert.deepEqual(missing, [], `fetch-resolve-config.sh's runtime list must add ${missing.join(", ")}`);
 });
 
 test("every package resolve.mjs loads installs from the vendored package files", () => {
-  const runtime = listed("runtime");
-  assert.ok(runtime.has("package.json") && runtime.has("package-lock.json"));
+  assert.ok(LISTS.fetch.runtime.includes("package.json") && LISTS.fetch.runtime.includes("package-lock.json"));
   const { dependencies = {} } = JSON.parse(read("./package.json"));
   const missing = closure().packages.filter((name) => !Object.hasOwn(dependencies, name));
   assert.deepEqual(missing, [], `package.json dependencies must name ${missing.join(", ")}`);
 });
 
-test("every trust-root rule file and the convention schema are on the broker's test_files list", () => {
-  const ownJson = readdirSync(here("./"), { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".json") && !entry.name.startsWith("package"))
-    .map((entry) => `${DIR}/${entry.name}`);
-  const shell = read("./resolve-config.mjs");
-  const readOwn = [...shell.matchAll(/readOwn\(\s*["']\.\/([^"']+)["']\s*\)/g)].map((match) => `${DIR}/${match[1]}`);
-  const schema = shell.match(/const SCHEMA_PATH = ["']([^"']+)["']/)[1];
-  const testFiles = listed("test_files");
-  const missing = [...new Set([...ownJson, ...readOwn, schema])].filter((file) => !testFiles.has(file));
-  assert.deepEqual(missing, [], `fetch-resolve-config.sh's test_files list must add ${missing.join(", ")}`);
+test("the broker's calls resolve this tree's config from the TRUST_FILES it reads, and nothing more", () => {
+  const files = brokerFiles();
+  const doc = loadConfig(files, { configPath: LISTS.binding.config });
+  assert.deepEqual(resolveGrant(files, { lane: "pr-unblock", activity: "apply-ci-fix", configPath: LISTS.binding.config }).effect, "mutate-branch");
+  assert.ok(Object.keys(doc.lanes).length > 0);
 });
 
-test("every listed and pending file exists, and nothing pending is already listed", () => {
-  for (const key of ["runtime", "test_files"]) {
-    for (const file of [...LISTS[key], ...LISTS.pending[key]]) {
-      const path = key === "runtime" ? `./${file}` : `../../../${file}`;
-      assert.ok(existsSync(here(path)), `${key} names ${file}, which does not exist`);
+// Each key loadConfig cannot do without, found by leaving it out.
+const neededKeys = () => {
+  const all = { ...brokerFiles(), patchRules: JSON.parse(read("./patch-rules.json")), patchRulesSchema: JSON.parse(read("./patch-rules.schema.json")) };
+  return Object.keys(all).filter((key) => {
+    const { [key]: _dropped, ...rest } = all;
+    try {
+      loadConfig(rest, { configPath: LISTS.binding.config });
+      return false;
+    } catch {
+      return true;
     }
-    const both = LISTS.pending[key].filter((file) => LISTS[key].includes(file));
-    assert.deepEqual(both, [], `${key}: move ${both.join(", ")} out of pending once the pin pull request lists it`);
+  });
+};
+
+test("every file loadConfig needs is one the broker reads from main's tip and serves its tests", () => {
+  const testFiles = new Set(LISTS.fetch.test_files);
+  for (const key of neededKeys().filter((name) => name !== "config")) {
+    const path = LISTS.binding.trust_files[key];
+    assert.ok(path, `binding.mjs TRUST_FILES must add ${key}, or every broker request fails`);
+    const served = LISTS.binding.test_data[key] ?? path;
+    assert.ok(testFiles.has(served), `fetch-resolve-config.sh's test_files list must add ${served}`);
+  }
+});
+
+test("the patch rules are read by lane runs only, never by the broker's loadConfig", () => {
+  const needed = neededKeys();
+  assert.equal(needed.includes("patchRules") || needed.includes("patchRulesSchema"), false);
+});
+
+test("every listed file exists", () => {
+  for (const file of LISTS.fetch.runtime) {
+    assert.ok(existsSync(here(`./${file}`)), `runtime names ${file}, which does not exist`);
+  }
+  for (const file of [...LISTS.fetch.test_files, ...Object.values(LISTS.binding.trust_files)]) {
+    assert.ok(existsSync(here(`${ROOT}${file}`)), `the lists name ${file}, which does not exist`);
   }
 });
