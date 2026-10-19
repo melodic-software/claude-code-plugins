@@ -27,7 +27,6 @@ Marks: **concurrency** (a workflow `concurrency:` group), **claim** (another ato
 | `pr-run-activity-write` (reusable; called by `pr-refine`, `pr-unblock` and `work-resolve-issue`) | the caller's writes | covered by the caller's group: `pr-pipeline-write-<pr>` (`queue: max`) on the `pr-refine` and `pr-unblock` jobs; the `work-resolve-issue-<issue>-<is agent-ready label>` run group for `work-resolve-issue`, whose `resolve-issue` job also queues on `work-resolve-issue-slot-<slot>` |
 | `pr-run-activity-read` (reusable; one caller, the `pr-unblock` `fix-ci` job) | a check run; a patch artifact that `apply-ci-fix` pushes through `pr-run-activity-write` | concurrency: the caller's run group `pr-unblock-fix-ci-<pr>`, `cancel-in-progress: false`. The `fix-ci` job takes no group of its own, since one with that name would wait on its own run |
 | `pr-merge` | merge | concurrency: `pr-merge`, `queue: max` |
-| `pr-bump-plugin-version` | version commit on the PR | concurrency: `pr-bump-plugin-version-<pr>` |
 | `dependabot-fragments` | fragment commit | concurrency: `dependabot-fragments` |
 | `maintenance-audit-lane-runs`, `maintenance-audit-test-selection` | audit report | concurrency: own named group (the second on one job only; its other job is read-only) |
 | `maintenance-file-upstream-drift-issues` | files issues | concurrency: `maintenance-file-upstream-drift-issues` |
