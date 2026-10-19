@@ -72,6 +72,27 @@ class TestCleanPass(GateHarness):
         self.assertIn(b"PASS", proc.stdout)
 
 
+FIGURE_SECTION = CLEAN.replace(
+    "## Prompt snippets (exact)",
+    "## Figure claims (verbatim)\n\n**F1.** figure title\n\n```\nIntro line.\n```\n\n"
+    "## Prompt snippets (exact)",
+)
+
+
+class TestFigureClaimsSection(GateHarness):
+    def test_fn_row_under_its_own_h2_passes(self):
+        proc = self.run_gate(FIGURE_SECTION, 0)
+        self.assertIn("2 **CN.**", proc.stdout.decode())
+
+    def test_fn_row_under_key_claims_is_unlabeled(self):
+        misplaced = CLEAN.replace(
+            "## Prompt snippets (exact)",
+            "**F1.** figure title\n\n```\nIntro line.\n```\n\n## Prompt snippets (exact)",
+        )
+        proc = self.run_gate(misplaced, 1)
+        self.assertIn(b"unlabeled fence", proc.stderr)
+
+
 class TestFailLoudZeroParse(GateHarness):
     def test_no_digest_arg_is_unusable(self):
         proc = self.invoke_argv("--source", self.source)

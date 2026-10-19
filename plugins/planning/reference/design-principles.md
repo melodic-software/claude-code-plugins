@@ -58,8 +58,8 @@ or a labeled secondary where the primary could not be fetched.
   must know about each other, so one change stays in one place; in Markdown, a skill cites another
   by its `/plugin:skill` name, never by a path into its files. Source (secondary): IEEE Computer
   Society, [Larry L. Constantine](https://history.computer.org/pioneers/constantine.html) pioneer
-  profile, dating both concepts to Constantine in the mid-1960s and their 1974 publication in
-  Stevens, Myers and Constantine, "Structured Design", *IBM Systems Journal* 13(2).
+  profile, first published in 1968 and repeated in the widely cited 1974 paper by Stevens, Myers
+  and Constantine, "Structured Design", *IBM Systems Journal* 13(2).
   As of 2026-10-18; recheck when the cited secondary moves or changes, or a recheck reaches the
   primary.
 - **Information hiding**: Decompose around the decisions most likely to change and hide each
@@ -100,6 +100,5 @@ Review-time criteria and severities for these principles belong to
 
 ## Markdown and skill authoring
 
-No separate rule applies here. For repeated prose, use `/docs-hygiene:extract-ssot`. For volatile
-upstream specifics in skill and agent bodies, follow the pointer-record rule in the marketplace
-repository's `.claude/rules/skill-bodies-state-current-rules.md`.
+No separate rule applies here. For repeated prose, use `/docs-hygiene:extract-ssot`. For skill
+text, use `/playbooks:skill-authoring`; for agent-loaded Markdown, use `/docs-hygiene:write-for-agents`.

@@ -699,7 +699,7 @@ class TestSnapshot(ServerCase):
         _, guest = self.join("Ann")
         code, h, out = self.get("/api/state", guest)
         self.assertEqual(code, 200)
-        self.assertEqual(out["schemaVersion"], 3)
+        self.assertEqual(out["schemaVersion"], 4)
         self.assertIsInstance(out["rev"], int)
         self.assertEqual(out["build"], server.build_hash())
         self.assertEqual(h["X-Shared-Build"], out["build"])
@@ -830,6 +830,51 @@ class TestSnapshot(ServerCase):
         self.assertEqual(code, 200, out)
         self.assertEqual([r["id"] for r in self.get("/api/state", guest)[2]["results"]["Q1"]], [rid])
 
+    def test_the_inbox_read_route_marks_only_ones_own_items_and_needs_a_person(self):
+        self.open_round("Q1")
+        _, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        code, _, req = self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "Ann asks"}, ann)
+        self.assertEqual(code, 200, req)
+        self.post("/api/request/act", {"action": "run", "ids": [req["id"]]}, self.owner)
+
+        def mine(who):
+            return {i["key"]: i["unread"] for i in self.get("/api/state", who)[2]["inbox"]}
+
+        self.assertEqual((mine(ann), mine(bo)), ({req["id"]: True}, {}))
+        self.assertEqual(self.post("/api/inbox/read", {"keys": [req["id"]]}, bo)[2]["read"], 0)
+        self.assertEqual(mine(ann), {req["id"]: True})
+        self.assertEqual(self.post("/api/inbox/read", {"keys": [req["id"]]}, ann)[2]["read"], 1)
+        self.assertEqual(mine(ann), {req["id"]: False})
+        self.assertEqual(self.post("/api/inbox/read", {"keys": [req["id"]]})[0], 401)
+
+    def test_inbox_reads_are_one_a_second_and_a_read_that_marks_nothing_writes_nothing(self):
+        self.open_round("Q1")
+        _, ann = self.join("Ann")
+        ids = []
+        for text in ("one", "two"):
+            ids.append(self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": text}, ann)[2]["id"])
+            time.sleep(1.05)
+        for rid in ids:
+            self.post("/api/request/act", {"action": "decline", "id": rid}, self.owner)
+        self.assertEqual(self.post("/api/inbox/read", {"keys": [ids[0]]}, ann)[0], 200)
+        code, _, out = self.post("/api/inbox/read", {"keys": [ids[1]]}, ann)
+        self.assertEqual((code, out["error"]), (429, "slow-down"))
+        time.sleep(1.05)
+        rev = self.app.session.state["rev"]
+        self.assertEqual(self.post("/api/inbox/read", {"keys": [ids[0]]}, ann)[2]["read"], 0)
+        self.assertEqual(self.app.session.state["rev"], rev)
+
+    def test_the_owners_own_request_runs_and_shows_without_run_or_share(self):
+        self.open_round("Q1")
+        _, guest = self.join("Ann")
+        code, _, req = self.post("/api/request", {"qid": "Q1", "kind": "ask", "text": "Host asks"}, self.owner)
+        self.assertEqual(code, 200, req)
+        self.assertEqual(self.get("/api/state", self.owner)[2]["requests"][0]["status"]["kind"], "running")
+        code, _, out = self.ops({"op": "result", "qid": "Q1", "request": req["id"], "kind": "ask", "used": [], "why": "", "summary": "Shown at once.", "sources": [], "report": ""})
+        self.assertEqual((code, out["results"][0]["published"]), (200, True))
+        self.assertEqual([r["summary"] for r in self.get("/api/state", guest)[2]["results"]["Q1"]], ["Shown at once."])
+
     def test_own_runner_self_requests_list_through_the_mine_route(self):
         self.open_round("Q1")
         _, guest = self.join("Ann")
@@ -846,7 +891,7 @@ class TestSnapshotContract(unittest.TestCase):
     or renames fails here before it blanks part of the page."""
 
     TOP_ALL = {"schemaVersion", "rev", "build", "title", "goal", "ended", "serverTime", "settings", "rounds", "round", "questions", "cards", "locks"}
-    TOP_ALL |= {"suggestions", "results", "chat", "people", "presence", "lastSeen", "requestCounts", "proposals", "myRequests", "myMergeRequests", "me"}
+    TOP_ALL |= {"suggestions", "results", "chat", "people", "presence", "lastSeen", "requestCounts", "proposals", "myRequests", "myMergeRequests", "inbox", "me"}
     TOP_MODERATOR = {"share", "guestKey"}
     TOP_OWNER = {"requests", "mergeRequests", "removed", "cardDetails"}
     KEY = "Zk3yZk3yZk3y"  # the fixture's session.guestKey
@@ -971,7 +1016,7 @@ class TestControl(ServerCase):
     def test_the_ping_reports_the_guest_port_and_schema(self):
         code, _, out = call(self.app.control_port, "GET", "/api/ping")
         self.assertEqual(code, 200)
-        self.assertEqual((out["guestPort"], out["schemaVersion"], out["build"]), (self.port, 3, server.build_hash()))
+        self.assertEqual((out["guestPort"], out["schemaVersion"], out["build"]), (self.port, 4, server.build_hash()))
 
     def test_a_sent_round_reaches_the_watcher_and_is_stamped_delivered(self):
         self.open_round("Q1")
@@ -1019,7 +1064,7 @@ class TestStart(unittest.TestCase):
         doc = json.loads((d / "state.json").read_text(encoding="utf-8"))
         doc["schemaVersion"] = 99
         (d / "state.json").write_text(json.dumps(doc), encoding="utf-8")
-        with self.assertRaisesRegex(server.StartRefused, "99.*newer than 3"):
+        with self.assertRaisesRegex(server.StartRefused, "99.*newer than 4"):
             server.App(d, watch_tunnel=False)
 
     def test_an_initial_state_file_seeds_a_new_session_through_migrate(self):
@@ -1350,7 +1395,7 @@ class TestOldPages(unittest.TestCase):
         for who in ({"X-Session-Secret": self.SECRET}, {"X-Owner-Token": self.OWNER}):
             code, _, out = self.poll("/api/state", who)
             self.assertEqual(code, 200)
-            self.assertEqual(out, {"schemaVersion": 3, "rev": self.app.session.state["rev"], "outdated": True, "title": "This page was updated: reload"})
+            self.assertEqual(out, {"schemaVersion": 4, "rev": self.app.session.state["rev"], "outdated": True, "title": "This page was updated: reload"})
 
     def test_the_payload_overrides_no_default_of_the_old_script_with_another_type(self):
         """fixtures/old-page-defaults.json is DEFAULTS from the prototype page's script

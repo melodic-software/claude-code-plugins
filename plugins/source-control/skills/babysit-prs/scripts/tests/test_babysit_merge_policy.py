@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import dataclasses
+import io
 import json
 import os
 import pathlib
@@ -261,6 +262,29 @@ class ReadConfigAt(unittest.TestCase):
                 self.assertEqual(config.max_in_flight, expected)
                 self.assertEqual(config.rung, "C2")
                 self.assertEqual(any("max-in-flight" in n for n in config.notes), noted)
+
+    def test_max_queue_ejections_defaults_to_two_and_reads_a_count(self) -> None:
+        def with_cap(value: str) -> str:
+            return PIPELINE.replace(
+                "merge:\n", f"merge:\n  max-queue-ejections: {value}\n"
+            )
+
+        for text, expected, noted in (
+            (PIPELINE, 2, False),
+            (with_cap("3"), 3, False),
+            (with_cap(str(policy.MAX_QUEUE_EJECTIONS_LIMIT)), 20, False),
+            (with_cap("0"), 2, True),
+            (with_cap(str(policy.MAX_QUEUE_EJECTIONS_LIMIT + 1)), 2, True),
+            (with_cap("two"), 2, True),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.max_queue_ejections, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(
+                    any("max-queue-ejections" in n for n in config.notes), noted
+                )
 
     def test_a_parse_error_is_off(self) -> None:
         config_fake(self, "merge:\n  rung: [C2\n")
@@ -4807,6 +4831,98 @@ def setUpModule() -> None:
 
 def tearDownModule() -> None:
     _role_label.stop()
+
+
+class CapabilityContents(unittest.TestCase):
+    """The floor's capability check reads each changed capability file once
+    per side, at the pull request's base and head SHAs."""
+
+    PR = {"base": {"sha": "b" * 40}, "head": {"sha": "h" * 40}}
+
+    def setUp(self) -> None:
+        policy._TEXT_AT.clear()
+        self.addCleanup(policy._TEXT_AT.clear)
+
+    def changed(self, path: str, **kw: Any) -> policy.ChangedFile:
+        fields = {
+            "previous_path": None, "status": "modified", "additions": 1,
+            "deletions": 0, "has_patch": True, "mode": "100644", **kw,
+        }  # fmt: skip
+        return policy.ChangedFile(path=path, **fields)
+
+    def read(self, files, texts):
+        calls = []
+
+        def file_at(owner, name, path, sha):
+            calls.append((path, sha))
+            found = texts[(path, sha)]
+            if isinstance(found, Exception):
+                raise found
+            return found
+
+        with mock.patch.object(policy, "_file_at", side_effect=file_at):
+            out = policy.with_capability_contents("o/r", self.PR, tuple(files))
+        return out, calls
+
+    def test_each_side_is_read_once_and_cached(self) -> None:
+        skill = self.changed("p/skills/s/SKILL.md")
+        texts = {
+            ("p/skills/s/SKILL.md", "b" * 40): "old",
+            ("p/skills/s/SKILL.md", "h" * 40): "new",
+        }
+        out, calls = self.read([skill, skill, self.changed("docs/x.md")], texts)
+        self.assertEqual([f.contents for f in out[:2]], [("old", "new")] * 2)
+        self.assertIsNone(out[2].contents)
+        self.assertEqual(len(calls), 2)
+
+    def test_a_rename_reads_the_base_at_its_previous_path(self) -> None:
+        moved = self.changed(
+            "p/agents/a.md", status="renamed", previous_path="p/notes/a.md"
+        )
+        texts = {("p/notes/a.md", "b" * 40): "old", ("p/agents/a.md", "h" * 40): "new"}
+        out, _ = self.read([moved], texts)
+        self.assertEqual(out[0].contents, ("old", "new"))
+
+    def test_an_added_file_reads_only_its_head(self) -> None:
+        added = self.changed("p/commands/go.md", status="added")
+        out, calls = self.read([added], {("p/commands/go.md", "h" * 40): "new"})
+        self.assertEqual((out[0].contents, len(calls)), ((None, "new"), 1))
+
+    def test_a_path_is_quoted_so_it_cannot_pick_another_ref(self) -> None:
+        odd = self.changed("p/x?ref=main#/SKILL.md")
+        quoted = "p/x%3Fref%3Dmain%23/SKILL.md"
+        out, calls = self.read(
+            [odd], {(quoted, "b" * 40): "a", (quoted, "h" * 40): "a"}
+        )
+        self.assertEqual({path for path, _ in calls}, {quoted})
+
+    def test_any_exception_is_carried_with_its_type(self) -> None:
+        skill = self.changed("p/skills/s/SKILL.md")
+        texts = {("p/skills/s/SKILL.md", "b" * 40): TypeError("bad payload")}
+        out, _ = self.read([skill], texts)
+        self.assertIsNone(out[0].contents)
+        self.assertIn("TypeError", out[0].contents_error)
+
+    def test_the_logged_path_cannot_start_a_workflow_command(self) -> None:
+        # Review thread L2597: a newline in a changed path must stay escaped.
+        path = "p/agents/a\n::set-output name=dispatch::true\nb.md"
+        texts = {(path, "b" * 40): TypeError("bad\n::error::x")}
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.read([self.changed(path)], texts)
+        self.assertTrue(err.getvalue())
+        self.assertFalse(
+            [line for line in err.getvalue().splitlines() if line.startswith("::")]
+        )
+
+    def test_a_read_error_is_carried_for_the_scorer(self) -> None:
+        skill = self.changed("p/skills/s/SKILL.md")
+        texts = {
+            ("p/skills/s/SKILL.md", "b" * 40): policy.PolicyReadError("status 502")
+        }
+        out, _ = self.read([skill], texts)
+        self.assertIsNone(out[0].contents)
+        self.assertIn("502", out[0].contents_error)
 
 
 if __name__ == "__main__":

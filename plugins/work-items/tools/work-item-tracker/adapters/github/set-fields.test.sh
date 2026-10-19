@@ -24,6 +24,7 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not on PATH"
 
 STUB="$TMP_ROOT/bin"
 LOG="$TMP_ROOT/gh.log"
+BODY="$TMP_ROOT/body.json"
 mkdir -p "$STUB"
 cat >"$STUB/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -39,6 +40,7 @@ JSON
     exit 0
     ;;
   repos/*/issue-field-values)
+    [[ " $* " == *" --input - "* ]] && cat >"$GH_STUB_BODY"
     [[ -z "${GH_STUB_WRITE_ERR:-}" ]] || { printf '%s\n' "$GH_STUB_WRITE_ERR" >&2; exit 1; }
     printf '[]\n'
     exit 0
@@ -52,7 +54,8 @@ chmod +x "$STUB/gh"
 
 run() {
   : >"$LOG"
-  OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" WIT_WRITE_SPACING_S=0 bash "$S" "$@" 2>"$TMP_ROOT/err")"
+  : >"$BODY"
+  OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_BODY="$BODY" WIT_WRITE_SPACING_S=0 bash "$S" "$@" 2>"$TMP_ROOT/err")"
   RC=$?
   ERR="$(<"$TMP_ROOT/err")"
 }
@@ -66,9 +69,9 @@ assert_eq "output carries the item id" "github:o/r#9" "$(jq -r '.id' <<<"$OUT")"
 WRITE="$(grep 'issue-field-values' "$LOG")"
 assert_contains "writes the issue's field values" "$WRITE" "repos/o/r/issues/9/issue-field-values"
 assert_contains "POSTs, which leaves other fields alone" "$WRITE" "-X POST"
-assert_contains "sends Size's field id" "$WRITE" "issue_field_values[][field_id]=15462270"
-assert_contains "sends Size's option by name" "$WRITE" "issue_field_values[][value]=Small"
-assert_contains "sends Complexity's option by name" "$WRITE" "issue_field_values[][value]=High"
+assert_eq "body pairs each field id with its option name in one object" \
+  '{"issue_field_values":[{"field_id":15462270,"value":"Small"},{"field_id":48625720,"value":"High"}]}' \
+  "$(jq -c . "$BODY" 2>/dev/null)"
 assert_contains "reads the item's own org" "$(head -n 1 "$LOG")" "orgs/o/issue-fields"
 
 # An option id the field does not hold is a stale map: refuse loudly, write nothing.

@@ -7,6 +7,14 @@
     {
       "answer": "### Captured assumptions\n- `Overrides bundled default YAGNI cheap-now test per docs/standards/integrations.md`\n",
       "why": "code-span formatting and another principle name"
+    },
+    {
+      "answer": "### Captured assumptions\n- Overrides bundled default \"contain now, abstract later\" (variation-points, for a speculative second variant) per docs/standards/integrations.md: every external service gets a port from its first implementation\n",
+      "why": "a long principle, from a real run"
+    },
+    {
+      "answer": "### Captured assumptions\n- Overrides bundled default \"contain now, abstract later\" (planning plugin `reference/variation-points.md`) per `docs/standards/integrations.md`: a port from the first implementation\n",
+      "why": "a long principle and a code-span path, from a real run"
     }
   ],
   "fail": [

@@ -179,5 +179,6 @@ export async function orchestrateWatching(
     overCap: false,
     candidateCount: selection.candidateCount,
     durationSec,
+    probedDurationSec: probe?.durationSec ?? null,
   };
 }
