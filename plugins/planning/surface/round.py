@@ -32,7 +32,7 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   resolve         clear a superseded row of --ledger F: reconfirm (answered, the proposal accepted) or
                   restore (the row as it was before supersede); both back the ledger up and print the
                   check-open-questions verdict
-  doctor         report what the running version needs and --ledger F or the page lacks (writes nothing;
+  doctor          report what the running version needs and --ledger F or the page lacks (writes nothing;
                   exit 1 on a missing element)
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
   stop            stop the data dir's server (only the recorded PID), post a finish when none was
