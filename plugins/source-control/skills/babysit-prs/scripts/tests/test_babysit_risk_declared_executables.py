@@ -65,6 +65,14 @@ PLUGIN = json.dumps(
 POINTED = json.dumps(
     {"hooks": {"Stop": [{"hooks": [{"command": "${CLAUDE_PLUGIN_ROOT}/run/stop.sh"}]}]}}
 )
+# The documented monitors file: a top-level array of strict entries.
+MONITORS = [
+    {
+        "name": "tail-log",
+        "command": "${CLAUDE_PLUGIN_ROOT}/watch/tail.sh",
+        "description": "Log lines as they arrive",
+    }
+]
 DECLARATIONS = (
     ("plugins/example-plugin/.mcp.json", MCP),
     ("plugins/example-hooks/hooks/hooks.json", HOOKS),
@@ -208,15 +216,50 @@ class DeclaredExecutableTests(unittest.TestCase):
         result = _risk("plugins/example-plugin/srv/a.js", declarations=declarations)
         self.assertIs(result.score, Risk.HIGH)
 
-    def test_declared_executable_monitors_file_scores_high(self):
+    def test_declared_executable_monitors_array_scores_high(self):
+        declarations = _one("plugins/example-plugin/monitors/monitors.json", MONITORS)
+        result = _risk(
+            "plugins/example-plugin/watch/tail.sh", declarations=declarations
+        )
+        self.assertIs(result.score, Risk.HIGH)
+
+    def test_declared_executable_monitors_object_form_scores_high(self):
         declarations = _one(
-            "plugins/example-plugin/monitors/monitors.json",
-            {"monitors": [{"command": "${CLAUDE_PLUGIN_ROOT}/watch/tail.sh"}]},
+            "plugins/example-plugin/monitors/monitors.json", {"monitors": MONITORS}
         )
         result = _risk(
             "plugins/example-plugin/watch/tail.sh", declarations=declarations
         )
         self.assertIs(result.score, Risk.HIGH)
+
+    def test_declared_executable_monitors_array_leaves_other_files_low(self):
+        declarations = _one("plugins/example-plugin/monitors/monitors.json", MONITORS)
+        result = _risk("plugins/example-plugin/README.md", declarations=declarations)
+        self.assertIs(result.score, Risk.LOW, result.reasons)
+
+    def test_declared_executable_pointed_monitors_array_scores_high(self):
+        declarations = (
+            (
+                "plugins/example-plugin/.claude-plugin/plugin.json",
+                json.dumps({"experimental": {"monitors": "./config/monitors.json"}}),
+            ),
+            ("plugins/example-plugin/config/monitors.json", json.dumps(MONITORS)),
+        )
+        result = _risk(
+            "plugins/example-plugin/watch/tail.sh", declarations=declarations
+        )
+        self.assertIs(result.score, Risk.HIGH)
+
+    def test_declared_executable_array_mcp_file_fails_closed(self):
+        # Only a monitors file holds an array.
+        self.assertHeldUnsafe(
+            (("plugins/example-plugin/.mcp.json", json.dumps(MONITORS)),)
+        )
+
+    def test_declared_executable_plugin_bin_scores_high_undeclared(self):
+        result = _risk("plugins/example-plugin/bin/example-tool", declarations=())
+        self.assertIs(result.score, Risk.HIGH)
+        self.assertIn("high-path:plugins/*/bin/**", _codes(result))
 
     def test_declared_executable_lsp_file_scores_high(self):
         declarations = _one(
@@ -392,16 +435,21 @@ class DeclarationsFromACloneTests(unittest.TestCase):
     git, with no API call."""
 
     def setUp(self):
+        escaping = _server("node", "${CLAUDE_PLUGIN_ROOT}/../example-plugin/x.js")
+        self._commit(
+            {
+                "plugins/example-plugin/.mcp.json": MCP,
+                "plugins/example-plugin/x.js": "run();\n",
+                "plugins/other-plugin/.mcp.json": json.dumps(escaping),
+            }
+        )
+
+    def _commit(self, files):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = pathlib.Path(tmp.name)
         _git(self.root, "init", "-q")
-        escaping = _server("node", "${CLAUDE_PLUGIN_ROOT}/../example-plugin/x.js")
-        self.files = {
-            "plugins/example-plugin/.mcp.json": MCP,
-            "plugins/example-plugin/x.js": "run();\n",
-            "plugins/other-plugin/.mcp.json": json.dumps(escaping),
-        }
+        self.files = files
         for path, text in self.files.items():
             target = self.root / path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -431,6 +479,26 @@ class DeclarationsFromACloneTests(unittest.TestCase):
                 ),
             ),
         )
+
+    def test_declared_executable_clone_docs_change_with_monitors_array_low(self):
+        self._commit(
+            {
+                "docs/guide.md": "# Guide\n",
+                "plugins/example-plugin/monitors/monitors.json": json.dumps(MONITORS),
+            }
+        )
+        declarations = self._read(["docs/guide.md", None])
+        self.assertEqual(
+            declarations,
+            (
+                (
+                    "plugins/example-plugin/monitors/monitors.json",
+                    json.dumps(MONITORS),
+                ),
+            ),
+        )
+        result = _risk("docs/guide.md", declarations=declarations)
+        self.assertIs(result.score, Risk.LOW, result.reasons)
 
     def test_declared_executable_clone_catches_an_untouched_plugin_escaping(self):
         declarations = self._read(["plugins/example-plugin/x.js"])

@@ -171,6 +171,7 @@ HIGH_FLOOR: tuple[str, ...] = (
     "plugins/*/hooks/**",
     "prompts/**",
     "plugins/*/lib/**",  # synced copies of lib/ that hooks run
+    "plugins/*/bin/**",  # on the Bash tool's PATH while the plugin is enabled
     # Hook-run scripts outside hooks/.
     "plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py",
     "plugins/disk-hygiene/skills/clean/scripts/engine_context.py",
@@ -483,6 +484,8 @@ def _under_root(root: str, rest: str) -> str | None:
 
 _DECLARATION_NAMES = {g.removeprefix("plugins/*/") for g in DECLARATION_FILES}
 _PLUGIN_JSON = ".claude-plugin/plugin.json"
+# A monitors file holds the monitors array; the other declarations an object.
+_MONITORS = "monitors/monitors.json"
 
 
 def _located(path: Any) -> tuple[str, str, str] | None:
@@ -495,20 +498,40 @@ def _located(path: Any) -> tuple[str, str, str] | None:
     return normalized, "/".join(parts[:2]), "/".join(parts[2:]).casefold()
 
 
-def _load(text: Any) -> dict[str, Any] | None:
+def _load(text: Any, *, array: bool = False) -> dict[str, Any] | list[Any] | None:
     if not isinstance(text, str):
         return None
     try:
         data = json.loads(text)
     except (ValueError, RecursionError):
         return None
-    return data if isinstance(data, dict) else None
+    return (
+        data if isinstance(data, dict) or (array and isinstance(data, list)) else None
+    )
 
 
-def _executable_values(data: dict[str, Any]) -> list[Any]:
+def _executable_values(data: dict[str, Any]) -> list[tuple[Any, bool]]:
+    """Each executable key's value, and whether it is a monitors value."""
     experimental = data.get("experimental")
     monitors = experimental.get("monitors") if isinstance(experimental, dict) else None
-    return [*(data.get(key) for key in _EXECUTABLE_KEYS), monitors]
+    keyed = [(data.get(key), key == "monitors") for key in _EXECUTABLE_KEYS]
+    return [*keyed, (monitors, True)]
+
+
+def _pointers(path: Any, text: Any) -> list[tuple[str, bool]]:
+    """`declaration_pointers`, each with whether a monitors key names it."""
+    located, data = _located(path), _load(text)
+    if located is None or located[2] != _PLUGIN_JSON or not isinstance(data, dict):
+        return []
+    root = located[1]
+    found = []
+    for value, monitors in _executable_values(data):
+        pointers = [value] if isinstance(value, str) else _sequence(value) or ()
+        for pointer in pointers:
+            parts = _resolve(root, pointer) if isinstance(pointer, str) else None
+            if parts:
+                found.append(("/".join([root, *parts]), monitors))
+    return found
 
 
 def declaration_pointers(path: Any, text: Any) -> tuple[str, ...]:
@@ -516,18 +539,7 @@ def declaration_pointers(path: Any, text: Any) -> tuple[str, ...]:
     a list of strings), as repository paths for the caller to read at the base
     SHA; () for any other file, unreadable text, or a pointer leaving the
     plugin, which the scorer rates."""
-    located, data = _located(path), _load(text)
-    if located is None or located[2] != _PLUGIN_JSON or data is None:
-        return ()
-    root = located[1]
-    found = []
-    for value in _executable_values(data):
-        pointers = [value] if isinstance(value, str) else _sequence(value) or ()
-        for pointer in pointers:
-            parts = _resolve(root, pointer) if isinstance(pointer, str) else None
-            if parts:
-                found.append("/".join([root, *parts]))
-    return tuple(dict.fromkeys(found))
+    return tuple(dict.fromkeys(pointer for pointer, _ in _pointers(path, text)))
 
 
 def _declared_paths(value: Any, unsafe: list[str]) -> tuple[str, ...]:
@@ -544,9 +556,13 @@ def _declared_paths(value: Any, unsafe: list[str]) -> tuple[str, ...]:
     for entry in entries:
         pair = _sequence(entry)
         pairs.append(pair if pair is not None and len(pair) == 2 else (entry, None))
-    pointers = {
-        p.casefold() for path, text in pairs for p in declaration_pointers(path, text)
-    }
+    named = [
+        (p.casefold(), monitors)
+        for path, text in pairs
+        for p, monitors in _pointers(path, text)
+    ]
+    pointers = {p for p, _ in named}
+    monitor_files = {p for p, monitors in named if monitors}
     read = {located[0].casefold() for path, _ in pairs if (located := _located(path))}
     unsafe.extend(f"pointer not read: {_show(p)}" for p in sorted(pointers - read))
     found = []
@@ -558,11 +574,16 @@ def _declared_paths(value: Any, unsafe: list[str]) -> tuple[str, ...]:
             unsafe.append(f"declaration file not recognized: {_show(path)}")
             continue
         _, root, name = located
-        data = _load(text)
-        if data is None:
+        array = name == _MONITORS or located[0].casefold() in monitor_files
+        data = _load(text, array=array)
+        if data is None or (name == _PLUGIN_JSON and not isinstance(data, dict)):
             unsafe.append(f"declaration unreadable: {_show(path)}")
             continue
-        scope = _executable_values(data) if name == _PLUGIN_JSON else data
+        scope = (
+            [value for value, _ in _executable_values(data)]
+            if isinstance(data, dict) and name == _PLUGIN_JSON
+            else data
+        )
         for string in _strings(scope):
             refs = [m.group(1) for m in _PLUGIN_ROOT_REF.finditer(string)]
             if len(_PLUGIN_ROOT_NAME.findall(string)) > len(refs):
