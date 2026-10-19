@@ -153,7 +153,7 @@ Quality checks before verification: self-review the diff against the consuming r
 and review criteria, or delegate to a fresh-context reviewer.
 
 - For a non-trivial diff, prefer a reviewer started in a fresh context over auditing your own work,
-  because the author's reasoning cannot colour what that reviewer concludes
+  because the author's reasoning cannot color what that reviewer concludes
   - **Pointer**: for the adversarial review step, see
     [Add an adversarial review step](https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step)
   - **As of**: 2026-10-18
