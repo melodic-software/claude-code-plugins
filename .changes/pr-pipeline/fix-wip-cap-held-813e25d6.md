@@ -12,4 +12,4 @@ bump: minor
   `held-alarm-hours` (24). Lane PRs opened in the window may be at most `admission-factor` (0.8) of
   those merged. Over a cap the check alerts, and pauses the lane only on or after `pause-from`
   (empty: never). The check publishes its status as the `wip` step output, the step summary and its
-  log line ([README, WIP cap](README.md#wip-cap)). `version` stays 2.
+  log line (README, WIP cap). `version` stays 2.

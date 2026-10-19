@@ -33,7 +33,7 @@ const pr = ({ labels = [], body = "", ageHours = 1 } = {}) => ({
 // A search API that answers by query: the open listing pages through `open`,
 // the merged and opened counts answer `merged` and `admitted`; an Error
 // answer throws. Each path is recorded.
-function searchApi({ open = [], merged = 0, admitted = 0 } = {}) {
+function searchApi({ open = [], merged = 0, admitted = 0, incomplete = false } = {}) {
   const paths = [];
   const github = async (method, path) => {
     paths.push(`${method} ${path}`);
@@ -46,9 +46,9 @@ function searchApi({ open = [], merged = 0, admitted = 0 } = {}) {
     if (Array.isArray(answer)) {
       const page = Number(url.searchParams.get("page"));
       const size = Number(url.searchParams.get("per_page"));
-      return { total_count: answer.length, items: answer.slice((page - 1) * size, page * size) };
+      return { total_count: answer.length, incomplete_results: incomplete, items: answer.slice((page - 1) * size, page * size) };
     }
-    return answer === null ? {} : { total_count: answer, items: [] };
+    return answer === null ? {} : { total_count: answer, incomplete_results: incomplete, items: [] };
   };
   return { github, paths };
 }
@@ -93,6 +93,11 @@ test("the open listing pages until a short page", async () => {
   const reads = await readLaneWip(github, { repo: REPO, now: NOW, windowHours: 24 });
   assert.equal(reads.open.length, 150);
   assert.equal(paths.filter((path) => path.includes("is%3Aopen")).length, 2);
+});
+
+test("a search that answers incomplete results is an unknown read", async () => {
+  const reads = await read({ open: [pr()], merged: 0, admitted: 3, incomplete: true });
+  assert.deepEqual(reads, { open: null, merged: null, admitted: null });
 });
 
 test("no read is made once the rate limit has nothing left; those reads are unknown", async () => {

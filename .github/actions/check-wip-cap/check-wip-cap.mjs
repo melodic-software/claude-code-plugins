@@ -60,7 +60,11 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
     if (left !== null && left <= 0) {
       throw new Error("the rate limit has no requests left");
     }
-    return github("GET", `/search/issues?q=${encodeURIComponent(q)}&per_page=${perPage}&page=${page}`);
+    const answer = await github("GET", `/search/issues?q=${encodeURIComponent(q)}&per_page=${perPage}&page=${page}`);
+    if (answer?.incomplete_results !== false) {
+      throw new Error("the search answered incomplete results");
+    }
+    return answer;
   };
   const count = async (q) => {
     try {
