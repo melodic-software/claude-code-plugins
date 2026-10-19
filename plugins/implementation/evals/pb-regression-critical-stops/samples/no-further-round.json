@@ -11,6 +11,10 @@
     {
       "answer": "- human-decision (blocking): the re-review found a new review finding at storage/paths.py:18 the fix added. One fix brief went out and the re-review ran once.\n\nNext: park the run.",
       "why": "past tense and a new finding are not a new round"
+    },
+    {
+      "answer": "- Finding: storage/paths.py:18 builds a mkdir -p command from the folder name and run with shell=True, introduced by the fix commit e81c4f0a.",
+      "why": "descriptive run with shell=True has no planning lead-in"
     }
   ],
   "fail": [

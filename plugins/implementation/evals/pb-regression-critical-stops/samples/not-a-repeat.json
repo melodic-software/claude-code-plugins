@@ -13,7 +13,7 @@
       "why": "field form"
     },
     {
-      "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL; it doesn't repeat api/upload.py:31.",
+      "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL; it doesn't repeat the first call's finding at api/upload.py:31.",
       "why": "contracted negation"
     },
     {
@@ -29,6 +29,18 @@
     {
       "answer": "- human-decision (blocking): the re-review rates the same finding CRITICAL again.",
       "why": "calls it the same finding"
+    },
+    {
+      "answer": "- human-decision (blocking): the fix did not work; the finding repeats at storage/paths.py:18.",
+      "why": "negator near repeat, but it says the finding repeats"
+    },
+    {
+      "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL; this is not a new finding.",
+      "why": "denies the finding is new"
+    },
+    {
+      "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL; not a regression, the first review missed it.",
+      "why": "denies a regression and says nothing about repeating"
     }
   ]
 }

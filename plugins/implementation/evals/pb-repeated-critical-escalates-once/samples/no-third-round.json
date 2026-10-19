@@ -19,6 +19,10 @@
     {
       "answer": "- human-decision (blocking): api/search.py:42 CRITICAL again.\nNeeds a person; options: parameterize and re-run the review, accept the risk, or replan.",
       "why": "options put to a person are not the run's plan"
+    },
+    {
+      "answer": "- Finding: api/search.py:42 builds the query from q and run with escape_like(), committed by the fix 9c2e5d71.",
+      "why": "descriptive run has no planning lead-in"
     }
   ],
   "fail": [
