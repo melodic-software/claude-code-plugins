@@ -17,7 +17,8 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 | Gitignored-file propagation | Check whether a `.worktreeinclude` file exists at the repo root | Optional. Suggest when the project keeps local secrets/config in gitignored files (e.g. `.claude/settings.local.json`). Under this plugin's `WorktreeCreate` hook the copy is the hook's job, and `worktree-create.sh` does it. Pointer: [worktrees: copy gitignored files into worktrees](https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees); as of 2026-10-11; recheck when that section changes who copies the files under a hook |
 | Project worktree hooks | If the project registers `WorktreeCreate` / SessionStart setup hooks in its settings, confirm they are present as its docs expect | Per project convention. Skip when the project has none |
 | Stale metadata | `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` shows `prunable=no` on every row | Clean. Otherwise suggest `git worktree prune` via `/source-control:worktree cleanup` |
-| Claim liveness | `bash "<scripts-dir>/worktree-claim.sh" report --repo-dir <repo>` | Exit 0. Every linked worktree carries a lock reason (a claim other agents can read). Exit 1 lists each `UNCLAIMED` path: a plain `git worktree add` that bypassed `worktree-create.sh`. Claim with `worktree-claim.sh claim <path>` or leave it reported; do not rewrite an existing helper reason |
+| Worktree nested in another repository | The `worktree-root-doctor.sh` run above: for each registered worktree it walks up from the path and emits an `error:` line when an ancestor is the work tree of a repository with a different git common dir | No such `error:` line. A worktree inside its own repository's tree, or under the resolved worktree root, is not flagged; a missing or unreadable ancestor ends the walk without failing the audit. The line names the owning repository, the containing repository and the `git worktree remove` command; report it and emit the command, never run it |
+| Claim liveness | `bash "<scripts-dir>/worktree-claim.sh" report --repo-dir <repo> --root <resolved worktree root>` | Exit 0. Every linked worktree carries a lock reason (a claim other agents can read). Exit 1 lists each `UNCLAIMED` path: a plain `git worktree add` that bypassed `worktree-create.sh`. Claim with `worktree-claim.sh claim <path>` or leave it reported; do not rewrite an existing helper reason. The final stderr line, `N unclaimed outside the worktree root <root>`, is the placement count to report beside the unclaimed total |
 | Unregistered directories under the worktree root | `bash "<scripts-dir>/worktree-root-scan.sh" --repo-dir <each canonical repo>`, reported per Step 2c | Zero rows with `proposed` = `yes` |
 | Orphaned plugin install records | `claude plugin list --json`, project-scope records grouped by `projectPath`, classified per Step 2b (which requires a **liveness** test, not just registration in this repository, since the worktree root is shared across repositories) | Zero paths in the `candidate orphan` bucket |
 
@@ -80,13 +81,13 @@ deleted worktree does, and every row must carry all three as its caveat, never "
 - a path on an **unmounted network share** or a **detached external volume**;
 - **another lane's live worktree whose main clone has been moved, deleted, or unmounted**: it still
   holds all its work and still carries its `.git` file, but `rev-parse` fails, which is the case
-  [cleanup.md](cleanup.md) Step 4b guards against;
+  [cleanup.md](cleanup.md) Step 4a guards against;
 - any directory whose contents nobody has accounted for.
 
 So before confirming a row, check it the way `cleanup` does. **Strip every trailing separator from
 the path first**, then: not a symlink, no `.git` entry, empty. The normalization is required, not
 cosmetic: `test -L "<path>/"` resolves through the link and answers about its target, so one trailing
-character turns the symlink check into a silent pass ([cleanup.md](cleanup.md) Step 4b carries the
+character turns the symlink check into a silent pass ([cleanup.md](cleanup.md) Step 4a carries the
 measurement). Strip it the way `cleanup` does, every trailing separator the platform recognizes,
 never a single `${path%/}` pass; off Windows a trailing `\` is a legal filename byte and must
 survive, or the checks and remedy point at a different sibling path:
@@ -168,6 +169,8 @@ Read-only: neither the scan nor this step removes anything.
 | Worktree root convention | OK (worktreeroot.path supplied by includeIf "gitdir/i:~/work/") |
 | .worktreeinclude | SUGGEST: gitignored local settings exist but no .worktreeinclude |
 | Stale metadata | OK (none prunable) |
+| Nested in another repository | OK (none) |
+| Claim liveness | 2 unclaimed, 1 outside the worktree root |
 | Unregistered root directories | 2 proposed for cleanup (1 empty, 1 husk); 1 foreign reported only |
 | Orphaned plugin install records | 108 records, 8 marketplaces, 1 candidate-orphan path (0 live elsewhere, 0 other project paths) |
 
@@ -191,4 +194,4 @@ Read-only: neither the scan nor this step removes anything.
   commands are in Step 2b, and they are yours to run, not the audit's.
 ```
 
-Stranded and unproven counts lead the health list and are reported even when zero: a class that only appears when non-zero cannot be distinguished from one that was never measured, and "the Work axis could not be computed" is exactly the answer an audit must not swallow. `in-progress` and `dirty` follow them for the same reason: both are classes `/worktree cleanup` refuses to act on, and `in-progress` is invisible to `git status --porcelain`, so nothing else in the audit surfaces it unless named here.
+Every stranded row contributes its unpushed commits to "commits at risk", including `superseded` and `unknown` rows, so the count and the figure are computed over the same rows; a row whose `unpushed` is `?` is named as unknown, never added as zero. Stranded and unproven counts lead the health list and are reported even when zero: a class that only appears when non-zero cannot be distinguished from one that was never measured, and "the Work axis could not be computed" is exactly the answer an audit must not swallow. `in-progress` and `dirty` follow them for the same reason: both are classes `/worktree cleanup` refuses to act on, and `in-progress` is invisible to `git status --porcelain`, so nothing else in the audit surfaces it unless named here.

@@ -1,6 +1,8 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -103,5 +105,45 @@ describe("listPromotionCandidates", () => {
       "## Session segments\n\n| ID | Window |\n| --- | --- |\n| S1 | 0:00-1:00 |\n",
     );
     expect(() => listPromotionCandidates(sliceDir)).toThrow(/no session parsed.*\*\*Boundary:\*\*/s);
+  });
+});
+
+describe("list-promotion-candidates CLI", () => {
+  const script = fileURLToPath(new URL("./list-promotion-candidates.js", import.meta.url));
+
+  /** @param {string} sliceDir */
+  function runCli(sliceDir) {
+    return spawnSync(process.execPath, [script, sliceDir], { encoding: "utf8" });
+  }
+
+  it("prints the message and format hint without a stack trace and exits 1 on a zero-session inventory", () => {
+    const sliceDir = makeSlice();
+    writeLaneFile(
+      sliceDir,
+      LANES.research,
+      "claim-inventory.md",
+      "## Session segments\n\n| ID | Window |\n| --- | --- |\n| S1 | 0:00-1:00 |\n",
+    );
+
+    const result = runCli(sliceDir);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/no session parsed.*\*\*Boundary:\*\*/s);
+    expect(result.stderr).not.toMatch(/\n\s+at /);
+    expect(result.stderr).not.toContain("node:internal");
+    expect(result.stderr.trim().split("\n")).toHaveLength(1);
+    expect(result.stdout).toBe("");
+  });
+
+  it("exits 1 without a stack trace when the claim inventory is missing", () => {
+    const sliceDir = makeSlice();
+    fs.rmSync(lanePath(sliceDir, LANES.research, "claim-inventory.md"));
+
+    const result = runCli(sliceDir);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("claim-inventory.md");
+    expect(result.stderr).not.toMatch(/\n\s+at /);
+    expect(result.stderr).not.toContain("node:internal");
   });
 });

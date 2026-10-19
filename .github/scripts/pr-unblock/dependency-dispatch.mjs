@@ -5,7 +5,14 @@
 // dispatch. A head that already carries a pr-unblock / review-dependency check
 // run was reviewed; the model job's own selection decides the round cap.
 // Logs carry PR numbers, SHAs and run ids only.
+//
+// Reads are spent only where they can change the decision: none once
+// maxDispatch is reached, none for a head the record holds as reviewed, and
+// no commits or files for a red ci-status, which is review tier on its own
+// (dependency-classify.mjs classify).
 
+import { RED } from "./dependency-classify.mjs";
+import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { ciStatusOf, classifyPull, commitFilesReader } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -49,8 +56,10 @@ export async function dispatchDependencyReviews({
   policy,
   repository,
   provenance,
+  listed,
+  record = emptyRecord(),
 }) {
-  const candidates = (await listAll(api, base))
+  const candidates = (listed ?? (await listAll(api, base)))
     .filter((node) => node.isDraft === false && node.isCrossRepository === false && node.baseRefName === base)
     .filter((node) => node.author?.login === "dependabot[bot]")
     .sort((a, b) => a.number - b.number);
@@ -58,12 +67,21 @@ export async function dispatchDependencyReviews({
   let failed = 0;
   let sent = 0;
   for (const node of candidates) {
+    if (sent >= maxDispatch) {
+      log(`defer #${node.number}: ${maxDispatch} review dispatches this run; left for a later run unread`);
+      continue;
+    }
+    if (isHandled(record, checkName, node.headRefOid)) {
+      log(`skip #${node.number}: head ${node.headRefOid} already has a ${checkName} check run (recorded)`);
+      continue;
+    }
     let tier;
     let existing;
     try {
       const ci = await api.listCheckRuns({ sha: node.headRefOid, checkName: "ci-status", appId });
+      const ciStatus = ciStatusOf(ci);
       // The same reads the model job's select step classifies from.
-      tier = (
+      tier = RED.has(ciStatus) ? "review" : (
         await classifyPull({
           pull: {
             user: { login: node.author.login },
@@ -74,7 +92,7 @@ export async function dispatchDependencyReviews({
             changed_files: node.changedFiles,
             commits: node.commits?.totalCount,
           },
-          ciStatus: ciStatusOf(ci),
+          ciStatus,
           commits: await api.listPullCommits(node.number),
           files: await api.listPullFiles(node.number),
           config,
@@ -88,6 +106,9 @@ export async function dispatchDependencyReviews({
         continue;
       }
       existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
+      if (existing.some((run) => run.status === "completed" && handles(run))) {
+        markHandled(record, checkName, node.headRefOid);
+      }
     } catch (error) {
       failed += 1;
       log(`::error::#${node.number}: could not read check runs for ${node.headRefOid}: ${error.message}`);
@@ -95,10 +116,6 @@ export async function dispatchDependencyReviews({
     }
     if (existing.some(handles)) {
       log(`skip #${node.number}: head ${node.headRefOid} already has a ${checkName} check run`);
-      continue;
-    }
-    if (sent >= maxDispatch) {
-      log(`defer #${node.number}: ${maxDispatch} review dispatches this run; left for a later run`);
       continue;
     }
     sent += 1;

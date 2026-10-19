@@ -843,6 +843,91 @@ def _powershell_without_string_data(command: str) -> str | None:
     return None if command_word in blocked else stripped
 
 
+# Outside string data: expansion, escape, comment, statement-separator, grouping
+# and redirection syntax. Any of them keeps the gate, so a pipeline or a second
+# command never reads as one simple reader.
+_BASH_CODE_CHARS = frozenset("$`\\#;&|<>(){}\r\n")
+# Reader command words whose arguments cannot run a string. ``git`` and ``gh``
+# are further limited to the subcommands in ``_BASH_READER_SUBCOMMANDS``.
+_BASH_READERS = frozenset({"cat", "head", "tail", "wc", "grep", "rg", "git", "gh"})
+_BASH_READER_SUBCOMMANDS = {
+    "git": frozenset({"show", "log", "diff", "grep"}),
+    "gh": frozenset({"issue", "pr"}),
+}
+_BASH_QUOTE_STRIP = str.maketrans("", "", "'\"")
+
+
+def _bash_without_string_data(command: str) -> str | None:
+    """``command`` with each string literal replaced by ``_``, or None to keep it.
+
+    The Bash counterpart of ``_powershell_without_string_data``, narrower
+    because Bash quoting is easier to misread. Returns a rewrite only for ONE
+    simple command (no unquoted operator, expansion, escape, comment or
+    newline, so a pipeline stays fail-closed) whose command word is a bare name
+    on the closed reader allowlist: ``cat``, ``head``, ``tail``, ``wc``,
+    ``grep``, ``rg`` without ``--pre``, ``git show``/``log``/``diff``/``grep``
+    without ``-c`` or ``-O``/``--open-files-in-pager``, and ``gh issue``/``pr``.
+    Single-quoted literals are blanked as data, double-quoted ones only when
+    they hold no ``$`` or backtick. None, meaning the caller must classify the
+    command as written, for anything else: a quoted or path-qualified command
+    word, a reader outside the allowlist (``awk`` and ``sed`` can run a quoted
+    program), a git option before the subcommand, an unterminated literal.
+    """
+    if "\\" in command:
+        # An escaped quote in a double-quoted literal flips the quote parity of
+        # a scanner that does not model it, hiding a real separator.
+        return None
+    out: list[str] = []
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if char in {"'", '"'}:
+            end = command.find(char, index + 1)
+            if end < 0:
+                return None
+            if char == '"' and ("$" in command[index:end] or "`" in command[index:end]):
+                return None
+            out.append("_")
+            index = end + 1
+            continue
+        if char in _BASH_CODE_CHARS:
+            return None
+        out.append(char)
+        index += 1
+    words = "".join(out).split()
+    if not words or command.lstrip(" \t")[:1] in {"'", '"'}:
+        return None
+    if words[0] not in _BASH_READERS:
+        return None
+    subcommands = _BASH_READER_SUBCOMMANDS.get(words[0])
+    if subcommands is not None and (len(words) < 2 or words[1] not in subcommands):
+        return None
+    # Read the options with the quotes removed: ``rg '--pre' sh`` is ``--pre``.
+    if any(
+        _bash_reader_option_runs_program(words[0], word)
+        for word in command.translate(_BASH_QUOTE_STRIP).split()[1:]
+    ):
+        return None
+    return "".join(out)
+
+
+def _bash_reader_option_runs_program(reader: str, word: str) -> bool:
+    """Whether ``word`` may be an option that makes ``reader`` run a program.
+
+    Conservative: git's short options cluster (``-nO<cmd>``) and its long
+    options abbreviate to any unique prefix (``--open``), so a short cluster
+    holding ``c`` or ``O`` and any prefix of ``--open-files-in-pager`` count.
+    """
+    if reader == "rg":
+        return word.startswith(("--pre", "--hostname-bin"))
+    if reader != "git" or not word.startswith("-"):
+        return False
+    if word.startswith("--"):
+        name = word.split("=", 1)[0]
+        return len(name) > 2 and "--open-files-in-pager".startswith(name)
+    return "c" in word or "O" in word
+
+
 def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     """Decide whether the plugin-level engine gate should act on ``command``.
 
@@ -893,6 +978,23 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     engine by a resolving path still gates. Accepted residual: a command the
     executor list does not name that runs a string naming the engine
     (``ssh host './hygiene.py scan'``) reads as data.
+
+    On Bash the same holds for ONE simple reader command only
+    (``_bash_without_string_data``): ``cat``, ``head``, ``tail``, ``wc``,
+    ``grep``, ``rg`` without ``--pre``, ``git show``/``log``/``diff``/``grep``
+    without ``-c`` or ``-O``/``--open-files-in-pager``, and ``gh issue``/``pr``,
+    with no unquoted operator, and only single-quoted and ``$``/backtick-free
+    double-quoted literals blanked. So ``gh issue create --title '... hygiene.py
+    ...'`` defers. A pipeline of readers, ``awk`` and ``sed`` (a quoted program
+    can run code) stay classified as written, and identity is again checked
+    before blanking. Accepted residual: the gate reads ``gh`` by its first two
+    words, so a ``gh`` alias that runs a shell command (``gh alias set --shell``
+    or a ``!`` expansion) is not modeled; the allowlist names only ``issue``
+    and ``pr``.
+
+    On both shells, the identity check before blanking reads every word, not
+    only those carrying the marker, so a quoted link to the engine under any
+    name (``gh issue create --title x 'alias'``) still gates.
 
     A word that is the SAME FILE as the bundled engine — a symlink or hard link
     under any name — gates regardless of its filename. Without the marker, each
@@ -945,9 +1047,25 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         """
         return _samefile(word) or (not os.path.isabs(word) and _in_engine_dir(word))
 
+    engine_drive = os.path.splitdrive(bundled.parent)[0].casefold()
+
+    def _names_engine(candidate: str) -> bool:
+        # As written, or joined to the engine's directory when relative,
+        # non-empty and carrying no drive or the engine's own.
+        return _samefile(candidate) or (
+            bool(candidate)
+            and not os.path.isabs(candidate)
+            and os.path.splitdrive(candidate)[0].casefold() in {"", engine_drive}
+            and _in_engine_dir(candidate)
+        )
+
     allow_backslash = tool_name == "PowerShell"
-    data_free = _powershell_without_string_data(command) if allow_backslash else None
-    if data_free is not None:
+    data_free = (
+        _powershell_without_string_data(command)
+        if allow_backslash
+        else _bash_without_string_data(command)
+    )
+    if data_free is not None and (allow_backslash or data_free != command):
         # Identity is read on the command AS WRITTEN, before any literal is
         # blanked: a word naming one of this plugin's engines gates even when
         # it sits in string data.
@@ -956,6 +1074,19 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             or (_carries_marker(token) and _within_plugin_cache_family(candidate))
             for token, word in _marker_tokens_with_words(command)
             for candidate in (token, word)
+        ):
+            return True
+        # Marker-free names too: a link to the engine under a name without the
+        # marker, written in quotes, would otherwise be blanked to `_` and
+        # never identity-checked. Same all-tokens scan as the marker-free
+        # branch below, over the command as written.
+        written_words = _literal_shell_words(command, allow_backslash=allow_backslash)
+        if any(
+            _samefile(candidate)
+            for candidate in dict.fromkeys(
+                [token.strip("'\"") for token in command.split()]
+                + ([] if written_words is None else list(written_words))
+            )
         ):
             return True
         command = data_free
@@ -991,17 +1122,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             if words is None
             else list(words)
         )
-        engine_drive = os.path.splitdrive(bundled.parent)[0].casefold()
-        return any(
-            _samefile(candidate)
-            or (
-                bool(candidate)
-                and not os.path.isabs(candidate)
-                and os.path.splitdrive(candidate)[0].casefold() in {"", engine_drive}
-                and _in_engine_dir(candidate)
-            )
-            for candidate in dict.fromkeys(candidates)
-        )
+        return any(_names_engine(candidate) for candidate in dict.fromkeys(candidates))
     words = _literal_shell_words(command, allow_backslash=allow_backslash)
     if words is None:
         # Marker present but not literally parseable (operators, compounds).

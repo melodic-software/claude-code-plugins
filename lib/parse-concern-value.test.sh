@@ -196,6 +196,15 @@ for f in unclosed tab; do
   bash "$SCRIPT" --strict "$TEST_TMPDIR/$f.yaml" memory_dir .fb >/dev/null 2>&1 || rc=$?
   assert_exit "$f: --strict exits 3" 3 "$rc"
 done
+printf 'merge:\n  rung: C1\n  rung: C2\n' >"$TEST_TMPDIR/dup.yaml"
+rc=0
+out=$(bash "$SCRIPT" "$TEST_TMPDIR/dup.yaml" merge.rung .fb 2>/dev/null) || rc=$?
+assert_exit 'duplicate key: default mode exits 0' 0 "$rc"
+assert_eq 'duplicate key: default mode keeps the first value' "C1" "$out"
+rc=0
+out=$(bash "$SCRIPT" --strict "$TEST_TMPDIR/dup.yaml" merge.rung .fb 2>"$TEST_TMPDIR/err") || rc=$?
+assert_exit 'duplicate key: --strict exits 3' 3 "$rc"
+assert_eq 'duplicate key: --strict names the second line' "parse-concern-value: $TEST_TMPDIR/dup.yaml: line 3: duplicate key \`merge.rung\` (first at line 2)" "$(cat "$TEST_TMPDIR/err")"
 rc=0
 out=$(bash "$SCRIPT" --strict "$EX" merge.rung) || rc=$?
 assert_exit '--strict on a clean file exits 0' 0 "$rc"

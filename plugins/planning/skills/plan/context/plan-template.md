@@ -10,6 +10,7 @@
 - [Sub-Topic Promotion Trigger](#sub-topic-promotion-trigger)
 - [Execution-Shape Analysis](#execution-shape-analysis)
 - [Large-scale changes (migrations, library swaps, broad refactoring)](#large-scale-changes-migrations-library-swaps-broad-refactoring)
+- [Decision ids (tagged decisions)](#decision-ids-tagged-decisions)
 - [Phase Review tags (optional per phase)](#phase-review-tags-optional-per-phase)
 - [Planned breakage (optional per phase)](#planned-breakage-optional-per-phase)
 - [Visual parity (optional per phase)](#visual-parity-optional-per-phase)
@@ -332,6 +333,22 @@ The plan should capture migration-specific inputs the downstream quality passes 
 ### Tidy First discipline
 
 Per Kent Beck: separate structural commits (renames, extracts, reorganizations) from behavioral commits (new features, API changes). This applies especially to large migrations: the structural scaffolding commit should be reviewable and revertable independently from the behavioral changes.
+
+## Decision ids (tagged decisions)
+
+A decision the plan tags `[EXEC-SHAPE]` or `[FALLBACK]` carries an id that its row in the "Decisions made (gate-passed)" table repeats, so the outcome gate maps every tag to its row:
+
+```markdown
+- Add `.chezmoiignore`. [EXEC-SHAPE D1]
+- Retry once on a lock timeout. [FALLBACK D2]
+
+| Decision | What it changes in the plan | Basis (evidence) | Source |
+|---|---|---|---|
+| D1 Ignore file first | Phase 1 adds `.chezmoiignore` | chezmoi docs read this session | plan |
+| D2 One retry on lock timeout | Phase 2 retries the apply once | existing retry helper read this session | plan |
+```
+
+The id sits at the start of the row's first column; the table keeps its `Decision | What it changes` header. Several tags may cite one id. A bare tag with no id still passes the gate, with a warning. Rules: [tag-decisions.md](tag-decisions.md) "Presentation contract".
 
 ## Phase Review tags (optional per phase)
 
