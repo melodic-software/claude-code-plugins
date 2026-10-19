@@ -1,0 +1,134 @@
+{
+  "skill": "songwriting:diagnose",
+  "plugin": "songwriting",
+  "skill_dir": "plugins/songwriting/skills/diagnose",
+  "ranking_note": "Authored from the before descriptions at commit 11a25e8bb3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling songwriting skills the near-miss negatives aim at; one or two negatives are adjacent non-songwriting requests.",
+  "competitors": [
+    "songwriting:rhyme",
+    "songwriting:meter-prosody",
+    "songwriting:song-form",
+    "songwriting:workflow",
+    "songwriting:practice",
+    "songwriting:co-write",
+    "songwriting:suno"
+  ],
+  "competitor_dirs": {
+    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
+    "songwriting:meter-prosody": "plugins/songwriting/skills/meter-prosody",
+    "songwriting:song-form": "plugins/songwriting/skills/song-form",
+    "songwriting:workflow": "plugins/songwriting/skills/workflow",
+    "songwriting:practice": "plugins/songwriting/skills/practice",
+    "songwriting:co-write": "plugins/songwriting/skills/co-write",
+    "songwriting:suno": "plugins/songwriting/skills/suno"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here's my whole lyric. Be honest, where does it fall apart?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I just recorded a rough demo of this verse and chorus. Can you give me notes on the words?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I commit to this chorus line, run it through a checklist and tell me what's weak."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a few different takes on the opening line, each one changing something different."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Critique this second verse and then rewrite it based on what you find."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is this song finished or does it still need work? Lyrics below."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Tear apart my draft the way a Berklee lyric teacher would."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write four alternate versions of the bridge's last line and label what each one changes."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My friend says my lyric is flat. What's actually wrong with it?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find me rhymes for 'river'."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Scan this line and mark the stressed syllables."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where should the title land in my chorus?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I want to write a song but have no idea yet, guide me from the start."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review this Python function for bugs."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me a daily writing exercise for this week."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Help me pick a title for my song about my grandfather."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Suno garbles my chorus every time. How do I fix the tags?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Proofread my cover letter."
+    }
+  ]
+}
