@@ -1,11 +1,5 @@
 # Changelog for the PR pipeline convention
 
-## 2.16.0 - 2026-10-18
-
-New config: `funding`, a map from Claude lane id to its funding role (`reviews`, `automations` or
-`issue-lane`), whose `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` secrets the lane
-passes to ci-workflows' run-claude-cli action ([README.md, Funding](README.md#funding)). `version` stays 2.
-
 ## 2.15.1 - 2026-10-18
 
 `work-resolve-issue` no longer takes the model's word that its checks passed. A new `run-checks`
