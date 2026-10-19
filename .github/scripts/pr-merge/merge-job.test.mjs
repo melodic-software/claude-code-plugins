@@ -53,6 +53,8 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Check earlier lane merges",
       "Start the full CI run on main",
       "Record the dispatched run",
+      "Re-run a red lane-dispatched full run",
+      "Record the re-run",
     ],
   );
   assert.doesNotMatch(early, /steps\.candidates|steps\.gate|needs\.merge/);
@@ -483,4 +485,177 @@ test("the budget comes from the pipeline config, rotation runs before the gate, 
   assert.match(upload, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.match(upload, /\n {10}name: pr-merge-gate-cursor\n/);
+});
+
+// #8399 (option B): a red attempt 1 of a full run the lane dispatched gets its
+// one re-run from the early job, under its own token, and a record the
+// post-merge check requires before it credits that github-actions[bot] attempt.
+const earlySteps = () => stepsOf(jobBlock("post-merge-dispatch"));
+
+// Runs the early job's check against a fake python3 that prints `report`.
+const runEarlyReport = (report) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-early-report-"));
+  try {
+    const bin = join(dir, "bin");
+    execFileSync("mkdir", [bin]);
+    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\ncat <<'EOF'\n${JSON.stringify(report)}\nEOF\nexit 5\n`);
+    chmodSync(join(bin, "python3"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    const output = join(dir, "output");
+    spawnSync("bash", ["-c", runScript("Check earlier lane merges", earlySteps())], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
+    });
+    return readFileSync(output, "utf8");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("the early check names only a lane-dispatched run awaiting its re-run", () => {
+  const reruns = [
+    { runId: 31, signal: "schedule", laneDispatched: false },
+    { runId: 11, signal: "dispatch", laneDispatched: true },
+  ];
+  assert.match(runEarlyReport({ reruns }), /^lane-rerun=11$/m);
+  assert.match(runEarlyReport({ reruns: [reruns[0]] }), /^lane-rerun=$/m);
+  assert.match(runEarlyReport({ reason: "unreadable" }), /^lane-rerun=$/m);
+  // The fake check exits 5; the re-run step's gate reads it.
+  assert.match(runEarlyReport({ reruns }), /^code=5$/m);
+});
+
+// Runs the re-run step against a fake gh that answers `attempts` in turn for
+// the run read, failing a read whose entry is "x", and fails the re-run POST
+// when `refuse`.
+const runRerun = (attempts, { refuse = false, runId = "11" } = {}) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-rerun-"));
+  try {
+    const bin = join(dir, "bin");
+    execFileSync("mkdir", [bin]);
+    writeFileSync(
+      join(bin, "gh"),
+      `#!/usr/bin/env bash\necho "$*" >>"${dir}/calls"\n` +
+        `if [ "$3" = POST ]; then ${refuse ? 'echo "HTTP 403" >&2; exit 1' : "exit 0"}; fi\n` +
+        `n=$(($(cat "${dir}/reads" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/reads"\n` +
+        `a=(${attempts.join(" ")})\nv="\${a[$((n - 1))]:-\${a[-1]}}"\n` +
+        `if [ "$v" = x ]; then echo "HTTP 502" >&2; exit 1; fi\necho "$v"\n`,
+    );
+    writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
+    chmodSync(join(bin, "gh"), 0o755);
+    chmodSync(join(bin, "sleep"), 0o755);
+    const output = join(dir, "output");
+    const result = spawnSync("bash", ["-c", runScript("Re-run a red lane-dispatched full run", earlySteps())], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        RUNNER_TEMP: dir,
+        GITHUB_OUTPUT: output,
+        GITHUB_RUN_ID: "700",
+        REPO: "o/r",
+        RUN_ID: runId,
+      },
+    });
+    const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
+    return {
+      status: result.status,
+      stdout: result.stdout,
+      calls: read("calls").split("\n").filter(Boolean),
+      output: read("output"),
+      record: read("rerun.json"),
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+const POST = "api -X POST repos/o/r/actions/runs/11/rerun-failed-jobs";
+
+test("the re-run step re-runs attempt 1 once and records attempt 2", () => {
+  const run = runRerun([1, 1, 2]);
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(
+    run.calls.filter((c) => c.includes("POST")),
+    [POST],
+  );
+  assert.deepEqual(JSON.parse(run.record), { rerunner_run_id: 700, run_id: 11, attempt: 2 });
+  assert.match(run.output, /^recorded=true$/m);
+});
+
+test("the re-run step neither re-runs nor records a run past attempt 1", () => {
+  const run = runRerun([2]);
+  assert.equal(run.status, 0);
+  assert.deepEqual(
+    run.calls.filter((c) => c.includes("POST")),
+    [],
+  );
+  assert.equal(run.record, "");
+  assert.doesNotMatch(run.output, /recorded=true/);
+});
+
+test("the re-run step records nothing when the re-run is refused or lands past attempt 2", () => {
+  for (const [attempts, options] of [
+    [[1], { refuse: true }],
+    [[1, 3], {}],
+  ]) {
+    const run = runRerun(attempts, options);
+    assert.equal(run.status, 0);
+    assert.equal(run.record, "");
+    assert.doesNotMatch(run.output, /recorded=true/);
+    assert.match(run.stdout, /^::warning::/m);
+  }
+});
+
+test("the re-run step rides out failed reads after the re-run and records attempt 2", () => {
+  const run = runRerun([1, "x", "x", "x", 2]);
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(
+    run.calls.filter((c) => c.includes("POST")),
+    [POST],
+  );
+  assert.deepEqual(JSON.parse(run.record), { rerunner_run_id: 700, run_id: 11, attempt: 2 });
+  assert.match(run.output, /^recorded=true$/m);
+});
+
+test("the re-run step fails visibly when it cannot confirm attempt 2 after the re-run", () => {
+  for (const [attempts, reason] of [
+    [[1, "x"], /could not read/],
+    [[1, 1], /still reads attempt 1/],
+  ]) {
+    const run = runRerun(attempts);
+    assert.equal(run.status, 1, run.stdout);
+    assert.equal(run.record, "");
+    assert.doesNotMatch(run.output, /recorded=true/);
+    assert.match(run.stdout, /^::error::.*/m);
+    assert.match(run.stdout, reason);
+    // The POST is not repeated, and the reads stop after a bounded number of tries.
+    assert.deepEqual(
+      run.calls.filter((c) => c.includes("POST")),
+      [POST],
+    );
+    assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 1 + 7);
+  }
+});
+
+test("the re-run step refuses a run id that is not a number", () => {
+  const run = runRerun([1], { runId: "11; rm -rf /" });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.calls, []);
+});
+
+test("the re-run record is named by run and attempt, uploaded only after a recorded re-run", () => {
+  const list = earlySteps();
+  const rerun = step("Re-run a red lane-dispatched full run", list);
+  // Only a check that could judge (exit 0, 1 or 5) names a run to re-run.
+  assert.match(
+    rerun,
+    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n {10}&& steps\.post-merge\.outputs\.lane-rerun != ''\n/,
+  );
+  assert.match(rerun, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+  const upload = step("Record the re-run", list);
+  assert.match(upload, /\n {8}if: "!cancelled\(\) && steps\.rerun\.outputs\.recorded == 'true'"\n/);
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.match(upload, /\n {10}name: pr-merge-rerun-\$\{\{ steps\.post-merge\.outputs\.lane-rerun \}\}-attempt-2\n/);
 });

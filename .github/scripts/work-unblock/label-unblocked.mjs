@@ -500,7 +500,7 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
       return { reason: `its lane run did no work; it is re-fired after ${new Date(due).toISOString()}` };
     }
     if (await wipCapped()) {
-      return { reason: "its lane run did no work, and the issue lane is paused over its WIP or held cap" };
+      return { reason: "its lane run did no work, and the issue lane is paused over its WIP cap" };
     }
     const key = await workflowKey();
     // A record after the newest label is one whose label write failed: the

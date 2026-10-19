@@ -11,8 +11,8 @@
 // raises the alarm. PRs opened in the window may be at most
 // wip.opened-to-merged-ratio times those merged in it. Over a cap, or on the alarm,
 // the check alerts; it pauses the lane (work-resolve-issue starts no run,
-// work-unblock re-fires none) only over a cap on or after wip.pause-from. A
-// read that fails never caps.
+// work-unblock re-fires none) only over the WIP cap, on or after
+// wip.pause-from. The held cap only alerts. A read that fails never caps.
 //
 // As the action's step it writes `capped` (the pause) and `wip` (the status
 // as one flat JSON object), and the same object to the step summary and log.
@@ -136,7 +136,7 @@ export function wipStatus({ open, merged, admitted }, { limits, wip, now }) {
     held_alarm: heldAlarm,
     alert: wipOver || heldOver || admissionOver || heldAlarm,
     pause_from: pauseFrom,
-    paused: (wipOver || heldOver) && pauseFrom !== "" && now >= Date.parse(pauseFrom),
+    paused: wipOver && pauseFrom !== "" && now >= Date.parse(pauseFrom),
   };
 }
 
@@ -203,7 +203,7 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   }
   if (status.alert) {
     log(
-      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under the caps" : "the lane keeps running (pause-from not reached)"}`,
+      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under the WIP cap" : `the lane keeps running (${status.wip_over ? "pause-from not reached" : "only the WIP cap pauses it"})`}`,
     );
   }
   log(`check-wip-cap: ${json}`);
