@@ -5,7 +5,8 @@
 // leaves the review on the reusable's defaults; intake never runs without
 // resolved arguments; and each sparse checkout holds what this action loads.
 // Also: pr-unblock.yml leaves a publish-feedback check on the head whether or
-// not its reply job runs, and a fix-ci check when fix-ci-context skips, and work-resolve-issue.yml caps its concurrent runs.
+// not its reply job runs, and a fix-ci check when fix-ci-context skips, and
+// work-resolve-issue.yml caps its concurrent runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -251,8 +252,8 @@ test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback
   assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
 });
 
-// Issue #8445: a fix-ci-context skip posted no fix-ci check, so the dispatcher
-// sent the same head again on every run.
+// A fix-ci-context skip with no fix-ci check on the head would let the
+// dispatcher send the same head again on every run.
 test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and the dispatcher counts it", async () => {
   const head = "d".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
