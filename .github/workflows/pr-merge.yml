@@ -833,6 +833,42 @@ jobs:
             ' "$summary"
           } >>"$GITHUB_STEP_SUMMARY"
 
+      # The same verdicts as data for the lane trend chart, since the API
+      # cannot read a step summary: the pr-merge-summary artifact, and one log
+      # line of refusal counts by reason. The key is split here so this
+      # script, which the log echoes, never matches a grep for it. Rules:
+      # .github/scripts/pr-merge/sweep-summary.mjs.
+      - name: Count the sweep's refusals
+        if: always() && steps.gate.outcome != 'skipped'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          LIVE: ${{ steps.mode.outputs.live }}
+          GATE_OUTCOME: ${{ steps.gate.outcome }}
+          SUMMARY_PATH: ${{ runner.temp }}/pr-merge-summary.json
+          HELD_PATH: ${{ runner.temp }}/held.json
+          CANDIDATES_PATH: ${{ runner.temp }}/candidates.json
+          CURSOR_PATH: ${{ runner.temp }}/gate-cursor/cursor.json
+          SWEEP_SUMMARY_TO: ${{ runner.temp }}/pr-merge-sweep.json
+        run: |
+          set -euo pipefail
+          RUN_STARTED_AT=$(gh api "repos/$REPO/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at) || RUN_STARTED_AT=
+          export RUN_STARTED_AT
+          node .base/.github/scripts/pr-merge/sweep-summary.mjs
+          jq -r '"refusal" + "-counts=" + (.refusal_counts | tojson)' "$SWEEP_SUMMARY_TO"
+
+      - name: Upload the sweep's verdicts
+        if: always() && steps.gate.outcome != 'skipped'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-summary
+          path: ${{ runner.temp }}/pr-merge-sweep.json
+          retention-days: 30
+          if-no-files-found: ignore
+
       # A pr-refine or pr-unblock run the broker refused as
       # workflow-modified cannot pass on a rerun, which keeps its first
       # event's workflow files. On the schedule, this pushes an empty commit
