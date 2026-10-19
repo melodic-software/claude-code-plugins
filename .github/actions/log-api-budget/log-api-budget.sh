@@ -5,7 +5,8 @@
 # against the primary limit
 # (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
 # A `start` reading is kept in STATE_DIR; any later phase adds
-# used-since-start=N (or window-rolled when the reset moved) and writes one
+# used-since-start=N (or window-rolled when used fell or the reset moved more
+# than RESET_DRIFT later) and writes one
 # step-summary line `<name>-cost=N ...` for all tokens, also the `costs`
 # output. Never fails.
 #
@@ -17,6 +18,7 @@ summary=${GITHUB_STEP_SUMMARY:-/dev/null}
 PHASE=${PHASE:?}
 STATE_DIR=${STATE_DIR:?}
 mkdir -p "$STATE_DIR" || exit 0
+RESET_DRIFT=600 # seconds; twice the observed drift, a sixth of a window
 costs=()
 while read -r name token; do
   [[ -n ${name:-} ]] || continue
@@ -41,7 +43,11 @@ while read -r name token; do
   if [[ $PHASE == start ]]; then
     printf '%s %s\n' "$used" "$reset" >"$STATE_DIR/$name"
   elif read -r start_used start_reset 2>/dev/null <"$STATE_DIR/$name"; then
-    if [[ -n $used && $start_used =~ ^[0-9]+$ && $start_reset == "$reset" ]]; then
+    # One window unless used fell or the reset moved later than drift allows:
+    # a new hourly window resets about an hour after the old one, while within
+    # one window the reported reset can drift (seen moving 5 minutes earlier).
+    if [[ $used =~ ^[0-9]+$ && $reset =~ ^[0-9]+$ && $start_used =~ ^[0-9]+$ && $start_reset =~ ^[0-9]+$ ]] &&
+      ((used >= start_used && reset <= start_reset + RESET_DRIFT)); then
       cost=$((used - start_used))
       line+=" used-since-start=$cost"
     else

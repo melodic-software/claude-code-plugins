@@ -148,6 +148,8 @@ When the action is `auto` (default), insert between Step 1 (Survey) and Step 2 (
 
 When `lock` is invoked explicitly, skip auto-detect and synthesize. If a true gap is detected during synthesis, STOP and surface: *"Found gap: <X>. Want me to ask, or capture as assumption with revisit trigger?"* Never fudge.
 
+**Problem first, in every action.** The restatement's first line is the problem, per [`problem-framing.md`](../../../context/problem-framing.md) "Restate and confirm". Under `lock`, restate it in one line and ask one confirmation question, registered at ask-time like any row, so the Step 3 and Step 4 gates run on the Brief. A goal phrased as a solution gets "Prescribed solution" there: work the problem back out, rate its evidence, and ask rethink-or-accept (under `lock`, in that same question); an unattended pre-confirmed item counts as accept, per "Pre-confirmed" there. Unattended: "Unattended path".
+
 **Auto-guard:** synthesize-directly applies ONLY to codebase-resolvable answers or unambiguous conventional defaults. A decision genuinely the user's (real tradeoffs, no codebase answer) is never synthesized silently. Ask it inline or offer `me` mode. See SKILL.md Step 1.5 "Auto-guard".
 
 ## Step 2. Drive the decision tree
@@ -322,7 +324,7 @@ The register tracks the *asking*; the Brief draft tracks the answers, on the sch
 
 Because the register must exist before the first reply, a session that asks ANY round emits the ledger. The `≥2 open questions OR me mode` threshold in SKILL.md "Emit checklist" governs the full checklist, not this section.
 
-**A run that asks nothing writes no register, but a run that fails to resolve cleanly does, whichever action it was.** `auto` routing to synthesize-directly with no open decision asks nothing, exactly as `lock` does; both are ordinary outcomes, not edge cases, and neither is exempt for being that action. `lock`'s STOP-on-gap rule and the unattended ladder both produce questions the run could not resolve, and a question outside the register is a question outside the gate. So: a gap surfaced mid-synthesis is registered `open` when it goes to the user, and a genuine user decision reached with nobody to answer is registered `blocked`. The register exists whenever there is something unresolved to record, in every mode.
+**A run that asks nothing writes no register, but a run that fails to resolve cleanly does, whichever action it was.** `auto` routing to synthesize-directly with no open decision asks nothing; that is an ordinary outcome, not an edge case, and it is not exempt for being that action. `lock` always writes its problem row, so it always writes a register. `lock`'s STOP-on-gap rule and the unattended ladder both produce questions the run could not resolve, and a question outside the register is a question outside the gate. So: a gap surfaced mid-synthesis is registered `open` when it goes to the user, and a genuine user decision reached with nobody to answer is registered `blocked`. The register exists whenever there is something unresolved to record, in every mode.
 
 ```text
 - Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin
@@ -399,9 +401,11 @@ The ladder, in order:
 
 **The acceptance-criteria coverage prompt is exempt from this ladder.** It is a coverage check, not a decision: unattended it is skipped, reported unexamined in the returned summary, and recorded under `### Captured assumptions`. Never a `blocked` register row, never a `### Deferred questions` entry, and never a blocker that stops the run. It exempts itself and nothing else: a decision genuinely the user's still takes rung 3 exactly as written. Step 4's "Acceptance criteria" guidance owns the prompt itself.
 
+**The problem confirmation takes rung 3.** Unattended, `### Problem` opens `- Status: unconfirmed`, and the confirmation, with any rethink-or-accept question, is a `blocked` row, **arbiter: USER-RESERVED**; the Brief still locks and the run names the blocker. A pre-confirmed item instead writes no status and an `answered` row citing the label, per [`problem-framing.md`](../../../context/problem-framing.md) "Pre-confirmed".
+
 ### Gate before locking
 
-The register is bookkeeping, so it gets a mechanical check rather than a promise. It runs **twice**, because the two things it proves become checkable at different moments. Both runs carry `--procedure`, which checks what the ledger file can show about the procedure (contiguous rounds, a resolution on every retired row) and, with `--brief`, that the Brief has its seven template headings:
+The register is bookkeeping, so it gets a mechanical check rather than a promise. It runs **twice**, because the two things it proves become checkable at different moments. Both runs carry `--procedure`, which checks what the ledger file can show about the procedure (contiguous rounds, a resolution on every retired row) and, with `--brief`, that the Brief has its nine template headings, Problem and Work size among them:
 
 ```bash
 # Step 3, before the contract is persisted. The Brief does not exist yet.
@@ -429,7 +433,7 @@ Stop when ALL hold:
 - No question is left to ask: every unknown the task depends on is **resolved** or **explicitly captured as a named assumption** with a revisit trigger
 - The user can describe the goal in one paragraph without contradicting the constraints or acceptance criteria
 - Acceptance criteria are testable: each points at a check, observation, or measurement
-- **Confirmation gate** (`me` and `auto`): the shared understanding is restated and the user explicitly confirms it. Do not persist the contract or hand off only because no question is left to ask. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies)
+- **Confirmation gate** (`me` and `auto`): the shared understanding is restated, opening with the one-line problem, and the user explicitly confirms it. Do not persist the contract or hand off only because no question is left to ask. `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest (its STOP-on-gap rule still applies)
 
 Do NOT stop early because the user gets impatient. If a real unknown the task depends on remains, name it ("one open item: X. Willing to ship as an assumption?") and let them choose. Do NOT keep asking past the stop condition; that is its own anti-pattern.
 
@@ -439,10 +443,14 @@ Do NOT stop early because the user gets impatient. If a real unknown the task de
 
 Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 
+**Problem:** one line per field, each evidence item rated, `unknown` where nothing shows it, per [`problem-framing.md`](../../../context/problem-framing.md) "Problem fields". No solution in it.
+
 **Goal:** one paragraph. What success looks like in plain language. Describe the OUTCOME, not the implementation:
 
 - ✅ "Users can reset their password via email" (outcome)
 - ❌ "Add PasswordResetHandler with IDispatcher" (implementation)
+
+**Work size:** appetite (asked, never derived), size, uncertainty and split signals, `not assessed` where unassessed, per [`problem-framing.md`](../../../context/problem-framing.md) "Work size" and "Large size".
 
 **Constraints:** bullet list. What the solution must respect OR avoid. Sub-categories worth probing:
 
@@ -488,6 +496,8 @@ Spell them exactly this way: `ubiquitous`, `event-driven`, `state-driven`, `unwa
 
 **Deferred questions:** questions deferred-fully, plus the `blocked` ones an unattended run could not put to anybody. Out of scope for this task but recorded so they don't silently become hidden assumptions. **Each entry leads with its `Q<N>` id.** That id is what ties the contract entry back to its register row, and the Step 4 gate greps this section for it; an entry written without one reads as a question the ledger retired and the contract never recorded, and halts the gate.
 
+**General sessions** write no Brief; their shared-understanding summary opens with the problem and scales work size to the decision's stakes, per [`problem-framing.md`](../../../context/problem-framing.md) "General sessions".
+
 ### Brief template (the literal shape)
 
 Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic's memory slice). `/planning:interview` writes only `## Brief` and leaves `## Plan` empty for `/planning:plan`.
@@ -498,8 +508,14 @@ Write this into `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the topic
 ### TLDR
 <≤5 bullets: what's shipping. This is the scope-review surface a reviewer of a dense brief (>100 lines) reads first. A reviewer reading ONLY TLDR + Goal must know scope. If the summary grows beyond 5 bullets, the brief is too sprawling; surface back to the user and ask which items to defer>
 
+### Problem
+<gap, who / how many, frequency, trend, cost, evidence (rated), one line each, per ../../../context/problem-framing.md "Problem fields">
+
 ### Goal
 <one paragraph: outcome, not implementation>
+
+### Work size
+<appetite, size, uncertainty, split signals, one line each, per ../../../context/problem-framing.md "Work size">
 
 ### Constraints
 - <untouchable code, deadline, contract, stack, performance budget>
