@@ -319,10 +319,26 @@ test("a fix request works a thread whose review is on an earlier head, in the se
   assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
 });
 
+// #8233: the reviewer bot's finding, the lanes App's UNCERTAIN reply, then the
+// owner's fix request, all on a review of an earlier head.
+for (const [label, overrides] of [
+  ["a trusted reply to the lane's escalation", escalated()],
+  ["a trusted fix request after the lane's escalation", escalated({ replies: [[102, HUMAN, REQUEST]] })],
+]) {
+  test(`on an earlier head, ${label} is kept, in the select step and the re-read`, async () => {
+    const api = fakeApi({ ...overrides, ...OLD_REVIEW });
+    const result = await run(api);
+    assert.equal(result.decision, "proceed");
+    assert.equal(result.file.threads[0].review_commit, OLD_HEAD);
+    assert.equal(result.file.threads[0].comments.at(-1).direction, true);
+    const { kept } = await currentThreads({ api, pr: 42, reviewerId: REVIEWER, appId: APP, trustedHumans: new Set([HUMAN]) });
+    assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
+  });
+}
+
 for (const [label, overrides] of [
   ["a reviewer-bot-only thread", {}],
-  ["an escalation answered by a trusted person", escalated()],
-  ["an escalation answered with a fix request", escalated({ replies: [[102, HUMAN, REQUEST]] })],
+  ["an escalation answered by an untrusted person", escalated({ replies: [[102, STRANGER, REQUEST]] })],
   ["an untrusted person's fix request", { ...asked([[101, STRANGER, REQUEST]]), permissions: { stranger: "admin" } }],
   ["a fix request by a review another account submitted", { ...asked([[101, HUMAN, REQUEST]]), reviews: [{ id: 10, user: { id: HUMAN }, commit_id: OLD_HEAD }] }],
 ]) {

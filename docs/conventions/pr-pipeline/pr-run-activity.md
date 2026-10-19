@@ -653,7 +653,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), whose review may be on any
    head, so a request on a thread from an earlier review is worked; or the lanes App's last
    comment is a reply the reply job left open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and
-   every comment after it is by such a `human` (any permission), created after it. A human's
+   every comment after it is by such a `human` (any permission), created after it, whose review
+   may also be on any head. A human's
    comment counts only when never edited or last edited by such a human. Every other comment must
    be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. The
    thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
