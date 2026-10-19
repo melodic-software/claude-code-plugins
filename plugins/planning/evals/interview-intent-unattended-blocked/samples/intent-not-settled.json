@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "### Captured assumptions\n- Intent: second variant = blocked (Q1, USER-RESERVED); existing structure: one pay step; upstream: issue 412 asks for Loqate validation\n",
+      "why": "left blocked"
+    },
+    {
+      "answer": "### Captured assumptions\n- The triage bot's note that the second variant is known does not settle it.\n- Intent: second variant = blocked (Q1, USER-RESERVED); existing structure: one pay step; upstream: issue 412\n",
+      "why": "a prose mention of known is not a settled contract line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "### Captured assumptions\n- Intent: second variant = category; existing structure: one pay step; upstream: triage bot says more providers are coming\n",
+      "why": "settled from bot text"
+    },
+    {
+      "answer": "### Captured assumptions\n- Intent: second variant = speculative; existing structure: one pay step; upstream: issue 412\n",
+      "why": "the agent decided the user's part"
+    }
+  ]
+}

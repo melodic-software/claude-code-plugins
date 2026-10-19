@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "### Captured assumptions\n- Quality bar: production\n- Intent: second variant = speculative; existing structure: checkout has one pay step; upstream: none\n",
+      "why": "both contract lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no Brief written"
+    },
+    {
+      "answer": "### Captured assumptions\n- Quality bar: production\n",
+      "why": "no Intent line"
+    },
+    {
+      "answer": "### Captured assumptions\n- Quality bar: production\n- Intent: second variant = known; existing structure: one pay step; upstream: none\n",
+      "why": "records the wrong answer: the user said nothing says another provider is coming"
+    }
+  ]
+}

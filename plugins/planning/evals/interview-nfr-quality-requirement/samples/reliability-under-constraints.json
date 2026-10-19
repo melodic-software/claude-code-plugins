@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "### Constraints\n- Quality requirement: performance: target: at most 300 ms at p95\n- Quality requirement: reliability/availability: when Loqate is down or slower than 2 seconds, checkout proceeds and logs a warning\n",
+      "why": "the degraded-provider behavior is a Quality requirement line under Constraints"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no Brief written"
+    },
+    {
+      "answer": "### Constraints\n- Quality requirement: performance: target: at most 300 ms at p95\n\n### Acceptance criteria\n- If Loqate is down, checkout proceeds\n",
+      "why": "the reliability requirement is only an acceptance criterion"
+    },
+    {
+      "answer": "### Constraints\n- Quality requirement: performance: target: at most 300 ms at p95\n- Quality requirement: reliability: none needed; Loqate never fails\n",
+      "why": "a reliability line that drops the stated degraded-provider behavior"
+    }
+  ]
+}
