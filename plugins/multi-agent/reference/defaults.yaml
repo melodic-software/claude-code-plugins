@@ -1,7 +1,7 @@
 # Bundled role map: the bottom layer of the multi-agent cascade.
 # Keys and layering: reference/config.md. A consumer layer overrides per key.
 #
-# model: an alias (opus, sonnet, haiku, fable, best) or `inherit`. `inherit`
+# model: an alias (opus, sonnet, haiku, fable) or `inherit`. `inherit`
 #   means a workflow omits opts.model on a generic agent() call
 #   (reference/config.md).
 # effort: low | medium | high | xhigh | max. Always passed explicitly.
@@ -20,7 +20,7 @@
 schema: 1
 
 # Session model aliases treated as frontier by the fan-out guard.
-frontier: fable,best
+frontier: fable
 
 # The fan-out guard: a stage that runs more than one agent never runs them on a
 # frontier model. Under a frontier session, or when the caller does not name

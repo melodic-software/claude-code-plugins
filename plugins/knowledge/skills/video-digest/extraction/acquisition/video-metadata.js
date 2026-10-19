@@ -22,6 +22,7 @@
  * @property {VideoChapter[]} chapters
  * @property {object|null} heatmap
  * @property {VideoComment[]} comments
+ * @property {number|null} durationSec - the metadata's `duration`; null when absent
  */
 
 /**
@@ -115,6 +116,7 @@ export function parseVideoMetadata(infoJson) {
     chapters: parseChapters(record.chapters),
     heatmap,
     comments: parseComments(record.comments),
+    durationSec: toSeconds(record.duration) || null,
   };
 }
 

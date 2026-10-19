@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "1. Dispatch `implementation:phase-verifier` with Phase 3's criteria and the diff from 4b1d9e07.\n2. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
+      "why": "verifier dispatched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "1. Mark Phase 3 `[DONE]`; no phase-verifier is needed without a review tag.\n2. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
+      "why": "verifier skipped"
+    },
+    {
+      "answer": "1. Mark Phase 3 `[DONE]`.\n2. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
+      "why": "no verifier"
+    }
+  ]
+}

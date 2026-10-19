@@ -83,6 +83,9 @@ MAX_DIGEST_CHARS = 30000  # judgment: summary characters one digest lists, seven
 MAX_OPEN_UPLOADS = 10
 MAX_RUN_IDS = 100
 NOTIFY_CAP = 500
+MAX_INBOX_READ = 100  # judgment: Inbox items one read marks; a person opens one at a time, "all" sends the unread ones
+INBOX_MARKS = ("waiting", "running", "answered", "unshared", "shared", "declined", "failed", "open")  # state.schema.json inboxSeen
+INBOX_STATUS = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}  # a request's Inbox status; done is answered, shared or unshared
 NOTIFY_SHOWN = 100
 # Presence (amendment "Presence", 2026-10-16; values are judgment). Offline after OFFLINE_AFTER with
 # no heartbeat, which outlasts hidden tabs whose timers browsers throttle to about once a minute.
@@ -977,6 +980,7 @@ class Session:
             "annotations": [],
             "prefs": {},
             "notifications": {},
+            "inboxSeen": {},
             "mergeRequests": [],
             "aboutYou": {},
             "disagreements": {},
@@ -1233,7 +1237,6 @@ class Session:
             }
             st["credentials"]["secrets"][sha256(secret)] = new
             if waiting:
-                self._queue_note([HOST], new)
                 was = None
         with self._lock:
             self._joins.pop(window, None)
@@ -1526,7 +1529,6 @@ class Session:
                 raise DomainError(409, "wrong-status", "You already asked; the owner has not answered yet.", status="pending")
             mid = self._next("G")
             st["mergeRequests"].append({"id": mid, "from": pid, "to": to, "at": now, "status": {"kind": "pending"}})
-            self._queue_note([HOST], pid)
         self._wrote(pid, "merge-request", now)
         return {"id": mid}
 
@@ -1687,6 +1689,9 @@ class Session:
                 n["rollup"]["key"] = f"{qid}:{moved.get((qid, ref), ref)}"
         if notes:
             st["notifications"][dst] = sorted(notes + st["notifications"].get(dst, []), key=lambda n: n["at"])[-NOTIFY_CAP:]
+        seen = st["inboxSeen"].pop(src, {})
+        if seen:
+            st["inboxSeen"][dst] = {**seen, **st["inboxSeen"].get(dst, {})}
         src_prefs = st["prefs"].pop(src, {})
         if src_prefs:
             st["prefs"][dst] = {**src_prefs, **st["prefs"].get(dst, {})}
@@ -3163,9 +3168,12 @@ class Session:
             st["requests"].append(
                 {"id": rid, "pid": pid, "qid": q["id"], "at": now, "kind": kind, "text": text, "edited": False, "runner": runner, "status": {"kind": "pending"}}
             )
-            if runner == "host":  # a self request's text is its requester's alone: no queue note, no mention
-                self._queue_note([HOST], pid)
+            r = st["requests"][-1]
+            if runner == "host" and pid == HOST:  # the host's own request needs no Run: it reaches Claude now
+                self._run([r])
+            if runner == "host":  # a self request's text is its requester's alone: no mention
                 self._notify_mentions(text, pid, f"in a request on question {q['id']}", qid=q["id"])
+            self._seen_now(pid, rid)  # asking is not news to the asker: the Inbox item starts read
         self._wrote(pid, "request", now)
         return {"id": rid}
 
@@ -3314,7 +3322,6 @@ class Session:
             if sum(len(lst) for lst in st["results"].values()) >= MAX_RESULTS:
                 raise DomainError(409, "results-full", f"This session holds at most {MAX_RESULTS} results.", max=MAX_RESULTS)
             res = self._new_result(r["qid"], r, body, {"kind": "guest-claude", "pid": pid}, False)
-            self._queue_note([HOST], pid)
             return {"id": res["id"]}
 
     def fail_my_request(self, pid, body):
@@ -3670,7 +3677,6 @@ class Session:
                     saved = self.path.parent / rec["image"]
                     _write_chunk(saved, 0, image[0])
                 reports[fid] = rec
-                self._queue_note([HOST], pid)
         except BaseException:
             if saved:
                 self._discard(saved)
@@ -3762,6 +3768,37 @@ class Session:
                     n += 1
             return {"read": n}
 
+    def read_inbox(self, pid, body):
+        """POST /api/inbox/read: `{keys}`, Inbox items this person opened, each read at its status now; allowed while
+        ended; one write a second, like notifications/read. Only keys of this person's own Inbox count, marks of items
+        no longer in it are dropped, and a read that marks nothing writes nothing."""
+        keys, saw = _body(body).get("keys"), body.get("saw", {})
+        if not (isinstance(keys, list) and 0 < len(keys) <= MAX_INBOX_READ and all(isinstance(k, str) for k in keys)):
+            raise _bad("keys", f"Send keys: 1 to {MAX_INBOX_READ} Inbox item keys.")
+        # `saw`: the status the page showed for a key, so a read sent after the status moved again leaves that move unread
+        if not (isinstance(saw, dict) and len(saw) <= MAX_INBOX_READ and all(v in INBOX_MARKS for v in saw.values())):
+            raise _bad("saw", "saw maps an Inbox key to the status the page showed.")
+        with self._lock:
+            self._person(pid)
+            self._throttle(pid, "inbox-read", self.now())
+            items = {i["key"]: i["status"] for i in self._inbox(pid)}
+            seen = self.state["inboxSeen"].get(pid, {})
+            if not any(k in items and seen.get(k) != saw.get(k, items[k]) for k in keys):
+                return {"read": 0}
+        with self._write_as(pid, "inbox-read", check=self._person) as st:
+            items = {i["key"]: i["status"] for i in self._inbox(pid)}
+            seen = {k: v for k, v in st["inboxSeen"].get(pid, {}).items() if k in items}
+            n = 0
+            for k in keys:
+                if k in items and seen.get(k) != saw.get(k, items[k]):
+                    seen[k] = saw.get(k, items[k])
+                    n += 1
+            if seen:
+                st["inboxSeen"][pid] = seen
+            else:
+                st["inboxSeen"].pop(pid, None)
+            return {"read": n}
+
     def update_settings(self, pid, body):
         """POST /api/session/settings: a partial Settings object."""
         _body(body)
@@ -3839,6 +3876,54 @@ class Session:
 
     # -- notifications -----------------------------------------------------------------------
 
+    def _seen_now(self, pid, key):
+        item = next((i for i in self._inbox(pid) if i["key"] == key), None)
+        if item:
+            self.state["inboxSeen"].setdefault(pid, {})[key] = item["status"]
+
+    def _inbox(self, pid):
+        """This person's Inbox: their own requests, each with the status they would see, and for the owner what
+        waits on them. `unread`: the status moved since they last opened the item. Never another person's request
+        or a result its requester cannot see."""
+        st = self.state
+        results = {r["id"]: r for lst in st["results"].values() for r in lst}
+        seen = st["inboxSeen"].get(pid, {})
+        out = []
+        for r in st["requests"]:
+            if r["pid"] != pid:
+                continue
+            kind = r["status"]["kind"]
+            item = {"key": r["id"], "group": "mine", "kind": "request", "id": r["id"], "qid": r["qid"], "at": r["at"]}
+            item["changed"] = r["status"].get("at", r["status"].get("since", r["at"]))
+            if kind == "done":
+                res = results.get(r["status"]["result"])
+                visible = res is not None and (res["published"] or pid == HOST or res["by"].get("pid") == pid) and self._from_active(res)
+                status = "unshared" if not visible else "answered" if pid == HOST or not res["published"] else "shared"
+                if visible:
+                    item["result"] = res["id"]
+            else:
+                status = INBOX_STATUS[kind]
+                if kind == "failed":
+                    item["reason"] = r["status"]["reason"]
+            out.append({**item, "status": status})
+        if pid == HOST:
+            waiting = [
+                *({"key": "run:" + r["id"], "kind": "run", "id": r["id"], "qid": r["qid"], "by": r["pid"], "at": r["at"]}
+                  for r in st["requests"] if r["runner"] == "host" and r["status"]["kind"] == "pending" and r["pid"] != HOST and self._active(r["pid"])),
+                *({"key": "share:" + x["id"], "kind": "share", "id": x["id"], "qid": x["qid"], **({"by": x["by"]["pid"]} if "pid" in x["by"] else {}), "at": x["at"]}
+                  for lst in st["results"].values() for x in lst if not x["published"] and self._from_active(x)),
+                *({"key": "report:" + f, "kind": "report", "id": f, "by": rep["by"], "at": rep["ts"]}
+                  for f, rep in st.get("reports", {}).items() if rep["status"] == "open"),
+                *({"key": "merge:" + m["id"], "kind": "merge", "id": m["id"], "by": m["from"], "at": m["at"]}
+                  for m in st["mergeRequests"] if m["status"]["kind"] == "pending"),
+                *({"key": "join:" + v["pid"], "kind": "join", "id": v["pid"], "by": v["pid"], "at": v["status"]["at"]}
+                  for v in st["people"].values() if v["status"]["kind"] == "waiting"),
+            ]
+            out += [{**w, "group": "waiting", "changed": w["at"], "status": "open"} for w in waiting]
+        for i in out:
+            i["unread"] = seen.get(i["key"]) != i["status"]
+        return out
+
     def _moderator_pids(self):
         return [p for p, v in self.state["people"].items() if v["role"] in ("owner", "leader") and v["status"]["kind"] == "active"]
 
@@ -3869,7 +3954,8 @@ class Session:
         return note
 
     def _queue_note(self, pids, actor):
-        """One unread line per moderator counting new queue items, never one line per item."""
+        """One unread line per moderator counting new queue items with no Inbox item (proposals, suggestions, offers),
+        never one line per item. Requests, shares, reports, merges and joins are the owner's waiting Inbox items instead."""
         for p in pids:
             old = next((n for n in reversed(self.state["notifications"].get(p, [])) if n.get("rollup", {}).get("key") == "queue" and not n["read"]), None)
             k = old["rollup"]["n"] + 1 if old else 1
@@ -4399,9 +4485,11 @@ class Session:
                 raise DomainError(409, "wrong-status", f"Request {req['id']} is {req['status']['kind']}.", status=req["status"]["kind"])
             if req["qid"] != q["id"]:
                 raise _bad("qid", f"Request {req['id']} is on question {req['qid']}.")
-        res = self._new_result(q["id"], req, op, {"kind": "host-claude"}, False)
-        self._queue_note([HOST], None)
-        return {"id": res["id"], "published": False}
+        own = req is not None and req["pid"] == HOST  # the host's own request: its result needs no Share
+        res = self._new_result(q["id"], req, op, {"kind": "host-claude"}, own)
+        if own:
+            res["publishedAt"] = res["at"]
+        return {"id": res["id"], "published": own}
 
     def _op_fail_request(self, op):
         req = self._request(op["request"], runner="host")
@@ -4775,6 +4863,7 @@ class Session:
             visible = [p for p in st["proposals"] if self._active(p["pid"]) and (moderator or p["pid"] == pid)]
             snap["proposals"] = copy.deepcopy(visible)
             snap["myRequests"] = copy.deepcopy([r for r in st["requests"] if r["pid"] == pid])
+            snap["inbox"] = self._inbox(pid)
             snap["me"]["watcher"] = pid in st["credentials"].get("watchers", {}).values()
             for qid, lst in st["results"].items():  # my own Claude's answers waiting for the owner's Share
                 held = {r["id"] for r in lst if not r["published"] and r["by"].get("pid") == pid}

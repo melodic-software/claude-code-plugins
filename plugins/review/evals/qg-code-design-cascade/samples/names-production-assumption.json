@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Quality bar: production (assumed: none given)",
+      "why": "the mode's own line"
+    },
+    {
+      "answer": "No quality bar was passed, so I rated against production.",
+      "why": "names the assumption in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Quality bar: production",
+      "why": "states the bar without saying it was assumed"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | Duplicated Code | threshold copied | src/cart/banner.js:2 | Import it |",
+      "why": "no quality-bar line at all"
+    }
+  ]
+}

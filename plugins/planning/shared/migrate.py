@@ -15,7 +15,7 @@ import re
 import secrets
 import time
 
-CURRENT = 3
+CURRENT = 4
 MIGRATIONS = {}
 
 PROTOTYPE_KEYS = frozenset({"questions", "answers", "ideas", "people", "secrets", "round"})
@@ -833,3 +833,36 @@ def _v2_to_v3(doc, ctx):
 
 
 MIGRATIONS[2] = _v2_to_v3
+
+
+# -- 3 -> 4: the Inbox remembers what each person opened --------------------------------------
+
+
+def _v3_to_v4(doc, ctx):
+    """inboxSeen, with each person's own requests read at the status they have now, so the upgrade itself makes
+    nothing unread; what waits on the owner starts unread."""
+    results = {x.get("id"): x for lst in _dict(doc.get("results")).values() for x in _list(lst) if isinstance(x, dict)}
+    people = _dict(doc.get("people"))
+    seen = collections.defaultdict(dict)
+    for r in _list(doc.get("requests")):
+        status = _dict(_dict(r).get("status"))
+        kind, pid = status.get("kind"), r.get("pid")
+        if not isinstance(pid, str) or not isinstance(r.get("id"), str):
+            continue
+        if kind == "done":
+            res = _dict(results.get(status.get("result")))
+            by = _dict(res.get("by"))
+            # session.py's rule: a removed guest's own-Claude result leaves every view
+            gone = by.get("kind") == "guest-claude" and _dict(_dict(people.get(by.get("pid"))).get("status")).get("kind") != "active"
+            visible = bool(res) and not gone and (res.get("published") or pid == HOST or by.get("pid") == pid)
+            mark = "unshared" if not visible else "answered" if pid == HOST or not res.get("published") else "shared"
+        else:
+            mark = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}.get(kind)
+        if mark:
+            seen[pid][r["id"]] = mark
+    if seen:
+        ctx.note(f"inbox: {sum(map(len, seen.values()))} requests of {len(seen)} people start read")
+    return {**doc, "inboxSeen": dict(seen)}
+
+
+MIGRATIONS[3] = _v3_to_v4

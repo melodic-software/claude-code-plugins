@@ -157,6 +157,7 @@ ROUTES = {
     "/api/heartbeat": ("person", "heartbeat"),
     "/api/prefs": ("person", "set_prefs"),
     "/api/notifications/read": ("person", "read_notifications"),
+    "/api/inbox/read": ("person", "read_inbox"),
     "/api/rename": ("person", "rename"),
     "/api/color": ("person", "set_color"),
     "/api/about-you": ("person", "set_about_you"),

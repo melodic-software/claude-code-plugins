@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "CRITICAL | src/upload/validate.js:2 | hardcodes 25, a copy of MAX_UPLOAD_MB | Confidence: high\nSUGGESTION | src/payments/labels.js:4 | Shotgun Surgery: adding paypal needed edits in options.js, labels.js and icons.js | Confidence: medium",
+      "why": "Shotgun Surgery at SUGGESTION beside a CRITICAL copy"
+    },
+    {
+      "answer": "SUGGESTION | src/payments/options.js:1 | Shotgun Surgery: PayPal touches three files; not CRITICAL or IMPORTANT because the spread predates this branch | Confidence: medium",
+      "why": "negated mention of the blocking tiers"
+    },
+    {
+      "answer": "### CRITICAL\n\n- src/upload/validate.js:2: 25 copies MAX_UPLOAD_MB.\n\n### Suggestions\n\n- src/payments/icons.js:4: Shotgun Surgery, paypal added in three places.",
+      "why": "Shotgun Surgery under a SUGGESTION section after a CRITICAL one"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No issues found.",
+      "why": "Shotgun Surgery change not reported"
+    },
+    {
+      "answer": "CRITICAL | src/payments/labels.js:4 | Duplicated Code: paypal repeated in options.js, labels.js and icons.js | Confidence: high",
+      "why": "rated CRITICAL"
+    },
+    {
+      "answer": "IMPORTANT | src/payments/icons.js:4 | Shotgun Surgery: paypal added in three files | Confidence: medium\nSUGGESTION | src/payments/options.js:1 | consider one table per method | Confidence: low",
+      "why": "rated IMPORTANT, a SUGGESTION mention alongside does not save it"
+    },
+    {
+      "answer": "### IMPORTANT\n\n- src/payments/options.js:1: Shotgun Surgery, paypal spread across three files.\n\n### SUGGESTION\n\n- src/payments/labels.js:4: label wording.",
+      "why": "Shotgun Surgery under an IMPORTANT section heading"
+    }
+  ]
+}
