@@ -169,7 +169,9 @@ Every action reads the fleet through the bundled read-only `fleet-state.sh`, che
 through `cache-content-check.sh`, and reorders a user-scope `enabledPlugins` map only through
 `normalize-enabled-plugins.sh`. Never hand-parse `installed_plugins.json`,
 `known_marketplaces.json`, or a settings file, never write them, and never hand-write a `jq`
-extraction where a script's `--ids` form exists. `sync-run.sh` calls all three during `sync` and
+extraction where a script's `--ids` form exists. The one sanctioned exception is `converge`'s
+committed-enable check ([context/converge.md](context/converge.md) Step 2): a read-only look at one
+`enabledPlugins` key in a tracked project settings file. `sync-run.sh` calls all three during `sync` and
 `audit`. Alongside them `scripts/jq-capture.sh` ships as a sourced library, never invoked: it
 carries the CR-stripping `jq` capture and the JSON string encoder that `fleet-state.sh`,
 `cache-content-check.sh`, and `sync-run.sh` each source from their own directory.
