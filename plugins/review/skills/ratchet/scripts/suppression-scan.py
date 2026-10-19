@@ -687,7 +687,7 @@ def glob_regex(glob: str) -> re.Pattern[str]:
         raise UsageError(f"--exclude: {glob!r} is not a usable glob: {exc}") from exc
 
 
-def excluder(globs: list[str]):
+def exclusion_matcher(globs: list[str]):
     regexes = [glob_regex(g) for g in globs]
     return lambda shown: any(r.match(shown) for r in regexes)
 
@@ -878,7 +878,7 @@ def main(argv: list[str]) -> int:
         globs = list(options["exclude"])
         if options["exclude_from"]:
             globs.extend(read_list(options["exclude_from"], comments=False))
-        excluded = excluder(globs)
+        excluded = exclusion_matcher(globs)
         listed = None
         if options["rules"] is not None:
             listed = {r.casefold() for r in read_list(options["rules"], comments=True)}
