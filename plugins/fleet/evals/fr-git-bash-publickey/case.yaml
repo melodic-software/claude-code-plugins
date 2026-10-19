@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: fr-git-bash-publickey
+graders:
+  - name: 'uses-openssh-client'
+    type: 'regex'
+    pattern: '\bssh\.exe\b|\bWindows(?:''s)? OpenSSH\b|\bOpenSSH (?:for Windows|client)\b|System32[\\/]+OpenSSH'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'not-a-key-problem'
+    type: 'regex'
+    pattern: '\bnot (?:a|an actual|really a|actually a) keys? (?:problem|issue|fault)\b|\bisn[''’]?t (?:a|an actual|really a|actually a) keys? (?:problem|issue|fault)\b|\bkeys?\b[^.\n]{0,40}?\b(?:are|is) (?:fine|not broken|not the (?:problem|issue|cause))\b|\b(?:no need|don[''’]?t need|do not need|not need)\b[^.\n]{0,30}?\b(?:new|regenerate|regenerating|another)\b[^.\n]{0,20}?\bkeys?\b|\bnothing (?:is )?wrong with (?:your|the) keys?\b'
+    flags: 'i'
+    target: 'last_message'

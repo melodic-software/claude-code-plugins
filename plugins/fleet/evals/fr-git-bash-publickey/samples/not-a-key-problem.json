@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "This is not a key problem. Git Bash ships its own MSYS ssh, which can't see the Windows ssh-agent; use `ssh.exe`."
+    },
+    {
+      "answer": "I can't reach anything from here: ~/.config/fleet/FLEET.md is not on this machine, so I have no aliases to compose a hop with. No need to generate new keys, though: the MSYS client in Git Bash just isn't agent-backed. Switch to ssh.exe."
+    },
+    {
+      "answer": "Nothing is wrong with your keys; the wrong ssh binary answered.",
+      "why": "unusual wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your keys look broken. Generate a new pair with ssh-keygen and copy it over with ssh-copy-id."
+    },
+    {
+      "answer": "Try the Windows OpenSSH client, ssh.exe, and see if that helps.",
+      "why": "written to fail: names the client but never says the keys are fine"
+    }
+  ]
+}
