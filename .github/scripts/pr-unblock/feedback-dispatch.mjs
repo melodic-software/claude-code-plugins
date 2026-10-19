@@ -15,12 +15,14 @@
 //   by exact path, in this repository and on a head of this repository;
 // - exactly one open, non-draft PR into main has that run's head SHA as its
 //   current head, and the lanes App opened it;
-// - it carries no do-not-merge or needs-human label;
+// - it carries no do-not-merge label;
 // - both review lanes' newest reviewed-head markers, written by
 //   github-actions[bot], name that head;
 // - an unresolved review thread exists that address-feedback would work:
 //   every comment is the reviewer bot's, or a trusted person answered the
-//   lane's escalation (address-feedback.mjs threadAuthors);
+//   lane's escalation (address-feedback.mjs threadAuthors); on a PR carrying
+//   the human-gated label, only a thread where a trusted person with write
+//   access asked the lane to fix it (isFixRequest);
 // - that head has no pr-unblock / address-feedback check run yet (one the
 //   usage limit stopped stops counting once its limit resets), and no
 //   pr-unblock.yml address-feedback run for the PR is still queued or going;
@@ -29,12 +31,22 @@
 //   to that PR at that head, resolved by resolve-config for that one slot.
 // The gate and the broker re-check the upstream run and the head; this script
 // only decides whether to spend a run.
+//
+// Both review lanes, and any re-run, finish on one head, so a run leaves a
+// record for the next run at that head (dispatch-record.mjs, carried in the
+// Actions cache): a head whose check runs handle it for good is skipped before
+// any read, and a head whose dispatched run for this PR is still queued or
+// going is skipped after the PR read, with one read of that run in place of
+// the comment, thread and run listings. Each shortcut stands for a skip the
+// full path would also reach.
 
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
-import { anyHandles } from "./limit-stop.mjs";
+import { fixRequesters, humanGatedLabelFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
+import { anyHandles, permanentlyHandles } from "./limit-stop.mjs";
+import { budgetedFetch } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -50,7 +62,7 @@ export const DEFAULTS = Object.freeze({
   // The lanes each review workflow names in its reviewed-head marker
   // (melodic-software/ci-workflows pr-review.yml and pr-review-security.yml).
   markerLanes: Object.freeze(["claude-review", "claude-security-review"]),
-  holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
+  holdLabels: Object.freeze(["do-not-merge"]),
   // claude[bot], the reviewer (.github/standards/trusted-actors/trusted-actors.json).
   reviewerId: 209825114,
   // github-actions[bot], which writes the reviewed-head markers.
@@ -73,7 +85,7 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
 }
 
 // An unresolved thread, read in full, that threadAuthors accepts.
-export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans }) {
+export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, requesters = null }) {
   return threads.some(
     (thread) =>
       thread.isResolved === false &&
@@ -86,7 +98,7 @@ export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans })
           lastEditedAt: node.lastEditedAt,
           editorId: node.editor?.databaseId,
         })),
-        { reviewerId, appId, trustedHumans },
+        { reviewerId, appId, trustedHumans, requesters },
       ) !== null,
   );
 }
@@ -104,7 +116,9 @@ export async function dispatchFeedback({
   log,
   settings = DEFAULTS,
   trustedHumans = new Set(),
+  humanGatedLabel = "needs-human",
   now = Date.now(),
+  record = emptyRecord(),
 }) {
   const skip = (why) => {
     log(`skip: ${why}`);
@@ -128,6 +142,15 @@ export async function dispatchFeedback({
     return skip(`run ${upstreamRunId} is not a completed same-repository review run`);
   }
   const head = upstream.head_sha;
+  if (isHandled(record, settings.checkName, head)) {
+    return skip(`head ${head} already has a ${settings.checkName} check run (recorded)`);
+  }
+  const title = (number) => runTitle(settings.activity, number);
+  const reviewStarted = Date.parse(upstream.run_started_at ?? "");
+  // A run of this activity for the PR, created after this review started and
+  // not done, holds the dispatch (see below).
+  const holds = (run, number) =>
+    run.status !== "completed" && run.display_title === title(number) && !(Date.parse(run.created_at ?? "") < reviewStarted);
   const pulls = (await api.pullsForCommit(head)).filter(
     (pull) =>
       pull.state === "open" &&
@@ -146,6 +169,18 @@ export async function dispatchFeedback({
   if (pull.user?.id !== appSenderId) {
     return skip(`#${number} was not opened by the lanes App`);
   }
+  const sent = record.dispatched.get(head);
+  if (sent?.number === number) {
+    let run = null;
+    try {
+      run = await api.getWorkflowRun(sent.runId);
+    } catch (error) {
+      log(`::warning::#${number}: could not read recorded run ${sent.runId}: ${error.message}`);
+    }
+    if (run && holds(run, number)) {
+      return skip(`#${number}: ${settings.workflow} run ${run.id} for ${settings.activity} is not done yet (recorded)`);
+    }
+  }
   const held = (pull.labels ?? []).map((label) => label.name).filter((name) => settings.holdLabels.includes(name));
   if (held.length > 0) {
     return skip(`#${number} is labeled ${held.join(", ")}`);
@@ -156,22 +191,31 @@ export async function dispatchFeedback({
     return skip(`#${number}: ${unreviewed.join(", ")} has not marked head ${head} reviewed`);
   }
   const threads = await api.listReviewThreads(number);
-  if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans })) {
-    return skip(`#${number} has no unresolved thread left by the reviewer bot alone or answered by a trusted person`);
+  // A human-gated PR dispatches only for a thread a trusted person with
+  // write access asked the lane to fix.
+  const gated = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
+  const requesters = gated
+    ? await fixRequesters({
+        comments: threads.flatMap((thread) =>
+          thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, login: node.author?.login, body: node.body })),
+        ),
+        trustedHumans,
+        permission: api.getPermission,
+      })
+    : null;
+  if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans, requesters })) {
+    return skip(
+      gated
+        ? `#${number} is labeled ${humanGatedLabel} and has no thread a trusted person with write access asked the lane to fix`
+        : `#${number} has no unresolved thread left by the reviewer bot alone or answered by a trusted person`,
+    );
   }
   // Both review lanes finish on one head, and their dispatchers queue in one
   // concurrency group. The first one's run posts no check until it ends, so
   // the second skips while a run of this activity for this PR, created after
   // this review started, is not done. An older run (the round whose push made
   // this head) does not hold the dispatch, or the next round would never start.
-  const title = runTitle(settings.activity, number);
-  const reviewStarted = Date.parse(upstream.run_started_at ?? "");
-  const active = (await api.listWorkflowRuns(settings.workflow)).filter(
-    (run) =>
-      run.status !== "completed" &&
-      run.display_title === title &&
-      !(Date.parse(run.created_at ?? "") < reviewStarted),
-  );
+  const active = (await api.listWorkflowRuns(settings.workflow)).filter((run) => holds(run, number));
   if (active.length > 0) {
     return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);
   }
@@ -184,6 +228,9 @@ export async function dispatchFeedback({
     return skip(`#${number}: ${settings.activity} does not apply (${resolved.selected?.["skip-reason"] ?? "unknown"})`);
   }
   const existing = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
+  if (permanentlyHandles(existing)) {
+    markHandled(record, settings.checkName, head);
+  }
   if (anyHandles(existing, { now, limits: resolved.limits })) {
     return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
   }
@@ -200,6 +247,7 @@ export async function dispatchFeedback({
   if (!RUN_ID.test(id)) {
     throw new Error(`#${number}: dispatch returned no valid workflow_run_id`);
   }
+  record.dispatched.set(head, { number, runId: id });
   log(`dispatched #${number} head ${head} upstream run ${upstreamRunId} workflow_run_id=${id}`);
   return { number, workflowRunId: id };
 }
@@ -212,7 +260,7 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
           isResolved
           comments(first: 100) {
             nodes {
-              author { ... on Bot { databaseId } ... on User { databaseId } }
+              author { login ... on Bot { databaseId } ... on User { databaseId } }
               createdAt body lastEditedAt
               editor { ... on Bot { databaseId } ... on User { databaseId } }
             }
@@ -256,6 +304,18 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
 
   return {
     pullsForCommit: (sha) => request(`${repo}/commits/${sha}/pulls`),
+    // Metadata read, which every token holds. A 404 (not a collaborator) is none.
+    async getPermission(login) {
+      const url = `${repo}/collaborators/${encodeURIComponent(login)}/permission`;
+      const response = await fetch(url, { headers });
+      if (response.status === 404) {
+        return "none";
+      }
+      if (!response.ok) {
+        throw new Error(`GET ${url} returned ${response.status}`);
+      }
+      return (await response.json()).permission;
+    },
     async listIssueComments(number) {
       const comments = [];
       for (let page = 1; page <= 50; page += 1) {
@@ -294,6 +354,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     async listWorkflowRuns(workflow) {
       return (await request(`${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`)).workflow_runs ?? [];
     },
+    getWorkflowRun: (id) => request(`${repo}/actions/runs/${encodeURIComponent(id)}`),
     async dispatchWorkflow({ workflow, ref, inputs }) {
       const result = await request(`${repo}/actions/workflows/${workflow}/dispatches`, "POST", {
         ref,
@@ -344,6 +405,8 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
       throw new Error(`${key} is not set`);
     }
   }
+  const budget = api ? null : budgetedFetch({ log });
+  const { record, text } = readRecord(env.DISPATCH_RECORD);
   const dispatched = await dispatchFeedback({
     api:
       api ??
@@ -352,18 +415,28 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
         repository: env.GITHUB_REPOSITORY,
         apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
         graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+        fetch: budget.fetch,
       }),
+    record,
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
     upstream: JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run,
     appSenderId: Number(env.APP_SENDER_ID),
     // The base checkout's list, the one resolve-config reads beside it.
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
+    humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     log,
+  }).finally(() => {
+    if (budget) {
+      log(budget.summary());
+    }
   });
   if (dispatched !== null) {
     appendFileSync(env.GITHUB_OUTPUT, `run-id=${dispatched.workflowRunId}\n`);
+  }
+  if (writeRecord(env.DISPATCH_RECORD, record, text)) {
+    appendFileSync(env.GITHUB_OUTPUT, "record-changed=true\n");
   }
   return 0;
 }

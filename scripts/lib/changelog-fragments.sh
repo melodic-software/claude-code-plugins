@@ -10,9 +10,17 @@
 #
 # Only plugins named in scripts/fragment-plugins.txt are in fragment mode. A
 # missing list is an empty one: every plugin then keeps the per-PR bump, which is
-# the stricter of the two paths.
+# the stricter of the two paths. A listed name with no plugin and a
+# docs/conventions/<name>/CHANGELOG.md is a convention, versioned by that
+# CHANGELOG's newest heading alone; everything here that says plugin covers it.
 #
 #   changelog_fragments::in_mode <plugin>         0 when <plugin> is listed
+#   changelog_fragments::root_of <plugin>         print plugins/<plugin>, or
+#                                                 docs/conventions/<plugin> for a
+#                                                 convention; 1 when neither
+#   changelog_fragments::newest_version <file>    print the newest version
+#                                                 heading of a CHANGELOG (`-`
+#                                                 reads stdin); empty when none
 #   changelog_fragments::is_release_pr            0 when CHANGELOG_HEAD_REF is
 #                                                 $CF_RELEASE_BRANCH. CI sets it to
 #                                                 the head branch of a pull request
@@ -75,11 +83,25 @@ changelog_fragments::in_mode() {
   [[ -n "${_CF_MODE[$1]:-}" ]]
 }
 
-# 0 when plugins/<plugin>/CHANGELOG.md matches an entry of $CF_EM_DASH_LIST, read
+changelog_fragments::root_of() {
+  if [[ -f "plugins/$1/.claude-plugin/plugin.json" ]]; then
+    printf 'plugins/%s\n' "$1"
+  elif [[ -f "docs/conventions/$1/CHANGELOG.md" ]]; then
+    printf 'docs/conventions/%s\n' "$1"
+  else
+    return 1
+  fi
+}
+
+changelog_fragments::newest_version() {
+  awk '{ sub(/\r$/, "") } match($0, /^##[ \t]+\[?[0-9]+(\.[0-9]+)+/) { v = substr($0, 1, RLENGTH); sub(/^##[ \t]+\[?/, "", v); print v; exit }' "$1"
+}
+
+# 0 when <root>/CHANGELOG.md matches an entry of $CF_EM_DASH_LIST, read
 # as scripts/check-purged-em-dashes.sh reads it (`*` stays inside one path
 # component); 1 when not; 2 when the list cannot be read.
 changelog_fragments::em_dash_purged() {
-  local changelog="plugins/$1/CHANGELOG.md" glob
+  local changelog="$1/CHANGELOG.md" glob
   if [[ -z "$_CF_PURGED_LOADED" ]]; then
     _CF_PURGED_LOADED=1
     if [[ -f "$CF_EM_DASH_LIST" ]]; then
@@ -134,7 +156,7 @@ changelog_fragments::body() {
 }
 
 changelog_fragments::validate() {
-  local path="$1" plugin rest bump problems line
+  local path="$1" plugin rest bump problems line root
   rest="${path#.changes/}"
   plugin="${rest%%/*}"
   if [[ "$path" != .changes/* || "$rest" != "$plugin/"* || "${rest#*/}" == */* ]]; then
@@ -145,8 +167,8 @@ changelog_fragments::validate() {
     echo "FRAGMENT NAME: $path is not named <branch-slug>-<8 hex>.md; create fragments with scripts/new-changelog-fragment.sh." >&2
     return 1
   fi
-  if [[ ! -f "plugins/$plugin/.claude-plugin/plugin.json" ]]; then
-    echo "UNKNOWN PLUGIN: $path names '$plugin', which has no plugins/$plugin/.claude-plugin/plugin.json." >&2
+  if ! root="$(changelog_fragments::root_of "$plugin")"; then
+    echo "UNKNOWN PLUGIN: $path names '$plugin', which has no plugins/$plugin/.claude-plugin/plugin.json and no docs/conventions/$plugin/CHANGELOG.md." >&2
     return 1
   fi
   changelog_fragments::in_mode "$plugin"
@@ -191,7 +213,7 @@ changelog_fragments::validate() {
     done <<<"$problems"
     return 1
   fi
-  changelog_fragments::em_dash_purged "$plugin"
+  changelog_fragments::em_dash_purged "$root"
   case $? in
   0) ;;
   1) return 0 ;;
@@ -202,7 +224,7 @@ changelog_fragments::validate() {
     while IFS= read -r line; do
       echo "FRAGMENT EM DASH: $path: $line" >&2
     done <<<"$problems"
-    echo "  plugins/$plugin/CHANGELOG.md is listed in $CF_EM_DASH_LIST and the release copies this text into it; replace each em dash, in code too, with a comma, colon, parentheses or a new sentence." >&2
+    echo "  $root/CHANGELOG.md is listed in $CF_EM_DASH_LIST and the release copies this text into it; replace each em dash, in code too, with a comma, colon, parentheses or a new sentence." >&2
     return 1
   fi
   return 0
@@ -233,30 +255,13 @@ changelog_fragments::bump_delivered() {
 # from the pull request) is dependabot[bot], and every commit in it is authored
 # by Dependabot, committed by GitHub, and carries a signature GitHub verified. A
 # commit anyone else pushes to the branch fails the last two: git lets a pusher
-# write any author and committer, but not GitHub's signature. The one other
-# commit allowed is pr-bump-plugin-version.yml's own: authored by
-# github-actions[bot], committed and verified the same way, and touching only
-# the plugin.json and CHANGELOG.md of plugins not in fragment mode (a Dependabot
-# update that spans a legacy plugin and a fragment-mode one). The signature is
+# write any author and committer, but not GitHub's signature. The signature is
 # read from the API, so without GITHUB_REPOSITORY or a working gh the answer is 1.
 #
 # The commits are the pull request's own: fork point to branch tip, with a
 # pull_request merge commit resolved to its branch tip. In the merge queue the
 # checked-out commit is the queue's squash, so CI sets CHANGELOG_PR_HEAD to the
 # queued pull request's head commit and the commits are read from there.
-changelog_fragments::_legacy_bump_only() {
-  local paths path rest
-  paths="$(git diff-tree --no-commit-id --name-only -r "$1")" || return 1
-  [[ -n "$paths" ]] || return 1
-  while IFS= read -r path; do
-    [[ "$path" == plugins/* ]] || return 1
-    rest="${path#plugins/}"
-    [[ "${rest%%/*}/.claude-plugin/plugin.json" == "$rest" || "${rest%%/*}/CHANGELOG.md" == "$rest" ]] || return 1
-    changelog_fragments::in_mode "${rest%%/*}"
-    (($? == 1)) || return 1
-  done <<<"$paths"
-}
-
 changelog_fragments::dependabot_only() {
   local base="$1" tip=HEAD from commits sha an ae ce verified
   [[ "${CHANGELOG_PR_AUTHOR:-}" == 'dependabot[bot]' && -n "${GITHUB_REPOSITORY:-}" ]] || return 1
@@ -269,13 +274,7 @@ changelog_fragments::dependabot_only() {
   commits="$(git log --format='%H%x09%an%x09%ae%x09%ce' "$from..$tip")" || return 1
   [[ -n "$commits" ]] || return 1
   while IFS=$'\t' read -r sha an ae ce; do
-    [[ "$ce" == 'noreply@github.com' ]] || return 1
-    if [[ "$an" == 'github-actions[bot]' && "$ae" == '41898282+github-actions[bot]@users.noreply.github.com' ]]; then
-      # shellcheck disable=SC2310  # the non-zero return IS the answer
-      changelog_fragments::_legacy_bump_only "$sha" || return 1
-    elif [[ "$an" != 'dependabot[bot]' || "$ae" != '49699333+dependabot[bot]@users.noreply.github.com' ]]; then
-      return 1
-    fi
+    [[ "$ce" == 'noreply@github.com' && "$an" == 'dependabot[bot]' && "$ae" == '49699333+dependabot[bot]@users.noreply.github.com' ]] || return 1
     verified="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.commit.verification.verified' 2>/dev/null)" || return 1
     [[ "$verified" == true ]] || return 1
   done <<<"$commits"

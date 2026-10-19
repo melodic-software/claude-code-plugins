@@ -449,7 +449,7 @@ assert_not_contains "never emits the clean-reap line" "$OUT" "ok: every project-
 assert_contains "the uninstall that did run is still reported" "$OUT" "reaped 1"
 
 # --- the documented trailing-separator normalization ----------------------------
-# `cleanup.md` Step 4b disqualifies a symlinked orphaned-directory candidate with
+# `cleanup.md` Step 4a disqualifies a symlinked orphaned-directory candidate with
 # `test -L`. A trailing separator makes POSIX resolve THROUGH the link, so the
 # test answers about the target and the disqualifier silently passes — while
 # `find` does not descend a symlinked start point, so the link also reads empty.
