@@ -1331,7 +1331,9 @@ def op_confirm_commitments(d, doc, a):
 
 
 RESTATE_SECTIONS = (
+    "problem",
     "goal",
+    "workSize",
     "constraints",
     "decisions",
     "acceptance",

@@ -2737,6 +2737,8 @@ def queued_entry_hold(
 
 RISK_MARKER = "<!-- babysit-merge-risk -->"
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
+# The most of a verdict's summary a verify:fail escalation quotes (judgment).
+VERIFY_SUMMARY_MAX = 1500
 QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
 # The attended queue's escalation marker (work-items reference
@@ -2996,6 +2998,15 @@ def score_unattended(
         if inputs.get("authority") == merge_policy.PR_MERGE
         else {}
     )
+    # Read at the base SHA, so a pull request cannot drop its own declaration:
+    # every plugin's from a clone holding the base, else only the plugins its
+    # changed files sit in.
+    changed = [path for f in files for path in (f.path, f.previous_path)]
+    declarations = (
+        merge_policy.declarations_at(repo, pr, changed)
+        if lane_switches.get("high_floor", True)
+        else ()
+    )
     risk = babysit_risk.score(
         babysit_risk.RiskInput(
             work_class=eligible.work_class,
@@ -3008,6 +3019,7 @@ def score_unattended(
             floor_script_scopes=config.floor_script_scopes,
             # The floor additions follow the switch in every lane.
             floor_extensions=config.high_path_floor,
+            declarations=declarations,
             lanes=lanes,
             blast_radius=None,
             **lane_switches,
@@ -3148,11 +3160,12 @@ def upsert_marker_comment(
     body: str,
     comments: list[dict[str, Any]] | None,
     marker: str = RISK_MARKER,
+    keep_prefix: str | None = None,
 ) -> str:
     """Post or rewrite the identity's one comment whose first or second line
     is `marker` (the reasons comment, Design T14, by default): `unchanged` when
-    the newest one already says this, else `updated` or `created`. Raises
-    `RuntimeError` on a failed read or write."""
+    the newest one already says this or starts with `keep_prefix`, else
+    `updated` or `created`. Raises `RuntimeError` on a failed read or write."""
     if comments is None:
         comments = fetch_paginated_api(
             f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
@@ -3171,7 +3184,8 @@ def upsert_marker_comment(
     ]
     if mine:
         newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
-        if str(newest.get("body") or "") == body:
+        current = str(newest.get("body") or "")
+        if current == body or (keep_prefix and current.startswith(keep_prefix)):
             return "unchanged"
         args = [
             "api",
@@ -3189,17 +3203,32 @@ def upsert_marker_comment(
     return outcome
 
 
-def verify_escalation_body(refusal: str, head: str) -> str:
+def verify_escalation_body(refusal: str, head: str, summary: str | None = None) -> str:
     """The needs-human comment for a verifier refusal: a function of the
-    refusal and the head only, so a rerun renders the same body."""
-    return "\n".join(
-        [
-            VERIFY_ESCALATION_MARKER,
-            f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
-            f"`{head}`. That refusal needs a human, who merges in person; the "
-            "pr-merge lane will not merge this pull request.",
+    refusal, the head and the verdict's summary only, so a rerun renders the
+    same body. The summary is model text, quoted as data in a text fence and
+    cut to `VERIFY_SUMMARY_MAX` characters."""
+    lines = [
+        VERIFY_ESCALATION_MARKER,
+        f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
+        f"`{head}`. That refusal needs a human, who merges in person; the "
+        "pr-merge lane will not merge this pull request.",
+    ]
+    if summary:
+        text = _CONTROL.sub("?", summary.replace("\r\n", "\n"))
+        if len(text) > VERIFY_SUMMARY_MAX:
+            text = text[:VERIFY_SUMMARY_MAX] + " [cut]"
+        # A lone surrogate from a JSON escape cannot be encoded for `gh`.
+        text = text.encode("utf-8", "replace").decode("utf-8")
+        lines += [
+            "",
+            "The verdict's summary, as the verifier wrote it:",
+            "",
+            "```text",
+            text.replace("```", "'''"),
+            "```",
         ]
-    )
+    return "\n".join(lines)
 
 
 def major_escalation_body(majors: str, head: str) -> str:
@@ -3222,18 +3251,50 @@ def major_escalation_body(majors: str, head: str) -> str:
 
 
 def escalate_verify(
-    repo: str, number: int, identity: str, refusal: str, inputs: Mapping[str, Any]
+    repo: str,
+    number: int,
+    identity: str,
+    refusal: str,
+    inputs: Mapping[str, Any],
+    summary: str | None = None,
+    keep_quote: bool = False,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal."""
+    """`escalate` for a needs-human verifier refusal. `keep_quote`, set when
+    the summary could not be read, leaves a comment that already quotes one
+    for this refusal and head as it is rather than dropping its quote."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
+    body = verify_escalation_body(refusal, head, summary)
     return escalate(
         repo,
         number,
         identity,
-        verify_escalation_body(refusal, head),
+        body,
         VERIFY_ESCALATION_MARKER,
         inputs,
+        keep_prefix=body + "\n" if keep_quote else None,
     )
+
+
+def _fail_summary(
+    verify: Mapping[str, Any], inputs: Mapping[str, Any], number: int
+) -> tuple[str | None, bool]:
+    """The summary of the head FAIL a `verify:fail` refusal names, read
+    through the gate's verdict reader (None for any other refusal), and
+    whether the record was read: False when its read failed."""
+    fail = json_object(verify.get("headFail"))
+    reader = inputs.get("verify_reader")
+    run_id, name = fail.get("run"), fail.get("artifact")
+    if (
+        verify.get("refusal") != verify_evidence.FAIL
+        or not isinstance(reader, verify_evidence.Reader)
+        or not isinstance(run_id, int)
+        or not isinstance(name, str)
+    ):
+        return None, True
+    try:
+        return reader.fail_summary(run_id, name, number, str(verify.get("head"))), True
+    except verify_evidence.SummaryUnreadable:
+        return None, False
 
 
 def escalate(
@@ -3243,6 +3304,7 @@ def escalate(
     body: str,
     marker: str,
     inputs: Mapping[str, Any],
+    keep_prefix: str | None = None,
 ) -> dict[str, Any]:
     """The escalation contract (loop-lane README §2): one comment carrying
     `marker`, then the tracker's human-gated role label on the pull request,
@@ -3252,7 +3314,13 @@ def escalate(
     a failed write."""
     pr = json_object(inputs.get("pr"))
     comment = upsert_marker_comment(
-        repo, number, identity, body, inputs.get("comments"), marker=marker
+        repo,
+        number,
+        identity,
+        body,
+        inputs.get("comments"),
+        marker=marker,
+        keep_prefix=keep_prefix,
     )
     try:
         label = human_gated_label(repo)
@@ -3462,8 +3530,15 @@ def unattended_writes(
     verify = json_object((policy.details or {}).get("verify"))
     if not stopped and verify.get("needsHuman") is True:
         try:
+            summary, read = _fail_summary(verify, inputs, number)
             report["escalation"] = escalate_verify(
-                repo, number, identity, str(verify.get("refusal")), inputs
+                repo,
+                number,
+                identity,
+                str(verify.get("refusal")),
+                inputs,
+                summary,
+                keep_quote=not read,
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")

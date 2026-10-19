@@ -1386,6 +1386,37 @@ class TestBuiltinTools(unittest.TestCase):
         self.assertIs(tools["Bash"]["gated"], True)
         self.assertIs(tools["Read"]["gated"], False)
 
+    def test_complete_aliases_carry_a_literal_or_absent_source(self) -> None:
+        tools = self._extract()[0]
+        self.assertEqual(tools["Read"]["aliases"], ["ReadFile"])
+        self.assertEqual(tools["Bash"]["aliases"], [])
+        self.assertEqual(tools["Read"]["aliases_source"], "literal")
+        self.assertEqual(tools["Bash"]["aliases_source"], "absent")
+
+    def test_an_unresolved_alias_spread_is_partial_not_empty(self) -> None:
+        for aliases, names in (
+            ("[...zz]", []),
+            ('["ReadFile",...zz]', ["ReadFile"]),
+            ('["ReadFile",yy]', ["ReadFile"]),
+        ):
+            with self.subTest(aliases=aliases):
+                src = (
+                    'var Qz="Probe";'
+                    f"$t({{name:Qz,maxResultSizeChars:1,aliases:{aliases}}});"
+                )
+                rec = _tool(src, "Probe")
+                self.assertEqual(rec["aliases"], names)
+                self.assertEqual(rec["aliases_source"], "partial")
+
+    def test_aliases_that_are_not_an_array_literal_are_unresolved(self) -> None:
+        for aliases in ("zz", "get aliases(){return zz}"):
+            with self.subTest(aliases=aliases):
+                field = aliases if aliases.startswith("get ") else f"aliases:{aliases}"
+                src = f'var Qz="Probe";$t({{name:Qz,maxResultSizeChars:1,{field}}});'
+                rec = _tool(src, "Probe")
+                self.assertEqual(rec["aliases"], [])
+                self.assertEqual(rec["aliases_source"], "unresolved")
+
     def test_tools_are_model_only(self) -> None:
         rec = self._extract()[0]["Bash"]
         self.assertEqual((rec["user_invocable"], rec["model_invocable"]), (False, True))

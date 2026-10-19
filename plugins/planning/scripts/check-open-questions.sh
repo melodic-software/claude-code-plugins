@@ -67,8 +67,9 @@
 #   - every `answered`, `deferred`, `withdrawn` and `blocked` row carries a
 #     non-empty resolution (the fifth field)
 #   - with --brief, the Brief holds every section of the literal Brief template:
-#     TLDR, Goal, Constraints, Acceptance criteria, Captured assumptions,
-#     Out-of-scope, Deferred questions (headings only; content is not graded)
+#     TLDR, Problem, Goal, Work size, Constraints, Acceptance criteria,
+#     Captured assumptions, Out-of-scope, Deferred questions (headings only;
+#     content is not graded)
 # Each defect is named on stderr. Without --procedure the verdict says
 # `procedure=unchecked`, the same convention as `brief=unchecked`. A gradeable
 # register with a procedure defect exits 1 with `status=incomplete` (`open` when
@@ -568,8 +569,8 @@ if [[ "$procedure_on" -eq 1 ]]; then
     else
       brief_lo=0
     fi
-    for section_pattern in 'tl;?dr' 'goal' 'constraints' 'acceptance criteria' \
-      'captured assumptions' 'out[- ]of[- ]scope' 'deferred questions'; do
+    for section_pattern in 'tl;?dr' 'problem' 'goal' 'work[- ]size' 'constraints' \
+      'acceptance criteria' 'captured assumptions' 'out[- ]of[- ]scope' 'deferred questions'; do
       section_matches="$(heading_matches "^#+[[:space:]]+${section_pattern}[[:space:]]*\$" "$brief")"
       section_status=$?
       if [[ "$section_status" -eq 4 ]]; then
