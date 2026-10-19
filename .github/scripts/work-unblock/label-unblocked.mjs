@@ -32,6 +32,16 @@
 // posted before the label moves, so a run that keeps failing stops until a
 // workflow change lands.
 //
+// A run that minted no lane token did no work and ran no model: the WIP cap
+// skipped its resolve-issue job, or its `Request the lane token` step failed
+// (GitHub's rate limit past the retry budget among the reasons). Such a run is
+// re-fired with the same record: a failed mint up to limits.limit-stops-per-issue
+// times per version of the lane workflow files, a WIP cap skip without a
+// per-issue bound. It waits limits.reset-clamp-min hours after the run ended, past any reset
+// the broker passes on (its Retry-After is at most an hour), and only while
+// the lanes App has fewer than limits.wip-cap pull requests open. It is no
+// limit stop, so it never counts toward handing the issue to a person.
+//
 // When that label's run opened a pull request instead, the newest one the
 // lanes App opened from the issue's lane branch in this repository decides.
 // Merged with `Refs:` (the issue stays open with nothing to run) or closed
@@ -69,6 +79,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
+import { atCap, openLanePrs } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits } from "../work-resolve-issue/limits.mjs";
 
@@ -82,6 +93,10 @@ const FAILED = new Set(["failure", "timed_out", "startup_failure"]);
 // A label event's run is created within seconds; this window finds it.
 const RUN_WINDOW_MS = 10 * 60_000;
 const BLOB = /^[0-9a-f]{40}$/;
+const RUN_ID = /^[1-9][0-9]{0,14}$/;
+const HOUR_MS = 3_600_000;
+// The write runner's step that mints the lane token, which every model run follows.
+const MINT_STEP = "Request the lane token";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
@@ -343,6 +358,40 @@ async function laneRuns(actions, repo, number, addedAt) {
   throw new Error("the workflow run listing has more than 10 pages");
 }
 
+// How every one of `runs` (completed) did no work in its latest attempt, or
+// null when one did some: no job minted a lane token, and the agent-ready run
+// either had its `Request the lane token` step fail (`mint-failed`, which
+// wins) or was skipped by the WIP cap (`capped`: pick-slot ran, resolve-issue
+// did not). A run another gate stopped before its mint (an open closing PR, a
+// reused branch) is neither, so it is never re-fired here.
+async function didNoWork(actions, repo, runs) {
+  let stalled = null;
+  for (const run of runs) {
+    if (!RUN_ID.test(String(run.id))) {
+      return null;
+    }
+    const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
+    if (!Array.isArray(jobs)) {
+      throw new Error(`run ${run.id}'s job listing has an unexpected shape`);
+    }
+    const mints = jobs.flatMap((job) => (job?.steps ?? []).filter((step) => step?.name === MINT_STEP));
+    if (mints.some((step) => step.conclusion === "success")) {
+      return null;
+    }
+    const named = (name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
+    const capped =
+      named("pick-slot").some((job) => job.conclusion === "success") &&
+      named("resolve-issue").length > 0 &&
+      named("resolve-issue").every((job) => job.conclusion === "skipped");
+    if (mints.some((step) => step.conclusion === "failure")) {
+      stalled = "mint-failed";
+    } else if (capped) {
+      stalled ??= "capped";
+    }
+  }
+  return stalled;
+}
+
 const sameRepo = (side, repo) => String(side?.repo?.full_name ?? "").toLowerCase() === repo.toLowerCase();
 
 // The newest pull request the lanes App opened for issue `number` at or after
@@ -411,7 +460,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
 
 // Why an agent-ready issue whose newest label has no marker after it is not
 // re-fired or handed off now, or null with what to do.
-async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held }) {
+async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
   if (lastAdd.actor?.login !== bot && !humans.has(lastAdd.actor?.id)) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
@@ -437,6 +486,30 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   if (runs.some((run) => run.status !== "completed")) {
     return { reason: "its lane run is still going" };
   }
+  const stalled = await didNoWork(actions, repo, runs);
+  if (stalled) {
+    const ended = Math.max(...runs.map((run) => Date.parse(run.updated_at)).filter(Number.isFinite), addedAt);
+    const due = ended + limits["reset-clamp-min"] * HOUR_MS;
+    if (now < due) {
+      return { reason: `its lane run did no work; it is re-fired after ${new Date(due).toISOString()}` };
+    }
+    if (await wipCapped()) {
+      return { reason: `its lane run did no work, and the lanes App has ${limits["wip-cap"]} or more pull requests open` };
+    }
+    const key = await workflowKey();
+    // A record after the newest label is one whose label write failed: the
+    // sweep finishes it without posting another.
+    const recorded = markers.some((marker) => marker.outcome === "refired" && marker.at >= addedAt);
+    // A mint that keeps failing (a broker misconfigured, an issue it refuses)
+    // stops after limits.limit-stops-per-issue re-fires on these workflow
+    // files, as a crash stops after one. A WIP cap skip made no mint attempt,
+    // and the cap and restarts-per-run bound it.
+    const fired = markers.filter((marker) => marker.outcome === "refired" && marker.key === key).length;
+    if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
+      return { reason: `its lane token request failed after ${fired} re-fires on workflow files ${key}` };
+    }
+    return { reason: null, resets: due, refire: key, recorded };
+  }
   if (!runs.some((run) => FAILED.has(run.conclusion))) {
     return { reason: "its lane run did not fail" };
   }
@@ -455,7 +528,7 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
 // Why an agent-ready issue is not restarted now (after a limit stop) or
 // re-fired (after a failed run), or null with the time it has waited since.
 // Every fact is read fresh from the API.
-async function restartRefusal({ github, actions, repo, issue, bot, humans, now, workflowKey, limits }) {
+async function restartRefusal({ github, actions, repo, issue, bot, humans, now, workflowKey, limits, wipCapped }) {
   const base = `/repos/${repo}/issues/${issue.number}`;
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
   const holds = labels.map((label) => String(label).toLowerCase()).filter((label) => HOLDS.has(label));
@@ -497,6 +570,9 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
       bot,
       workflowKey,
       held,
+      limits,
+      now,
+      wipCapped,
     });
   }
   if (held) {
@@ -544,6 +620,9 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
       }
       return shas.join("-");
     })());
+  // The WIP cap, from one search per run; a count that cannot be read is under it.
+  let capped;
+  const wipCapped = () => (capped ??= openLanePrs(github, { repo, bot }).then((count) => atCap(count, limits)));
   let open;
   try {
     open = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}`)).filter(
@@ -565,6 +644,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
         now,
         workflowKey,
         limits,
+        wipCapped,
       });
       const { reason, escalate, explained } = verdict;
       if (escalate) {
