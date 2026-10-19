@@ -37,7 +37,7 @@ export function readLimits(path) {
 
 // The `wip` leaf of pr-pipeline.yaml: the issue lane's WIP cap derived from
 // the lane merge rate, the admission factor, the held-PR buffer and its age
-// alarm, and the date from which the lane pauses over a cap. resolve-config
+// alarm, and the date from which the lane pauses over the WIP cap. resolve-config
 // passes the leaf through as set; this is the one copy of its defaults.
 export const WIP_DEFAULTS = Object.freeze({
   "target-lead-time-hours": 2,

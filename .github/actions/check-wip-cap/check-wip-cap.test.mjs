@@ -313,3 +313,16 @@ test("main writes capped=true only when paused", async () => {
   assert.ok(paused.logs.some((line) => line.includes("13 countable lane PRs are at or over the WIP cap of 12")));
   assert.equal((await runMain({ open: [pr()], merged: 24 }, {}, config)).capped, "false");
 });
+
+test("main's warning over the held cap alone, past pause-from, says only the WIP cap pauses", async () => {
+  const repoConfig = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8");
+  const config = repoConfig.replace(/^( +pause-from: ).*$/m, '$1"2026-10-01"');
+  const held = await runMain({ open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, {}, config);
+  assert.equal(held.wip.held_over, true);
+  assert.equal(held.wip.wip_over, false);
+  assert.equal(held.capped, "false");
+  const warning = held.logs.find((line) => line.startsWith("::warning title=check-wip-cap::") && line.includes("held cap of 60"));
+  assert.ok(warning);
+  assert.ok(!warning.includes("pause-from not reached"), warning);
+  assert.ok(warning.includes("the lane keeps running (only the WIP cap pauses it)"), warning);
+});

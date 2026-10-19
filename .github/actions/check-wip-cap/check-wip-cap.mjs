@@ -203,7 +203,7 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   }
   if (status.alert) {
     log(
-      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under the WIP cap" : "the lane keeps running (pause-from not reached)"}`,
+      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under the WIP cap" : `the lane keeps running (${status.wip_over ? "pause-from not reached" : "only the WIP cap pauses it"})`}`,
     );
   }
   log(`check-wip-cap: ${json}`);

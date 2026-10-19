@@ -1066,8 +1066,9 @@ A held lane PR carries `needs-human` or `do-not-merge`, or has a body line exact
 lane PRs that are not held. Over the WIP cap (countable at or above it), over the held cap, over
 the admission share, or with a held PR past the alarm age, the check writes a warning annotation.
 Over the WIP cap on or after `pause-from` it pauses the lane: work-resolve-issue starts no run and
-work-unblock re-fires none. The held cap only alerts; it never pauses the lane. A read that fails never caps; without a merged count the cap is
-`limits.wip-cap`. A held PR's age runs from when it opened.
+work-unblock re-fires none. The held cap only alerts; it never pauses the lane. A read that fails
+never caps; without a merged count the cap is `limits.wip-cap`. A held PR's age runs from when it
+opened.
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
 and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane pauses.

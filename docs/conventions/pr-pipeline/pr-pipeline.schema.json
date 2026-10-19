@@ -196,7 +196,7 @@
           "type": "string",
           "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?Z)?$",
           "default": "",
-          "description": "UTC date (or date-time) from which the issue lane pauses while over a cap. Empty: it never pauses, it only alerts."
+          "description": "UTC date (or date-time) from which the issue lane pauses while over the WIP cap (the held cap only alerts). Empty: it never pauses, it only alerts."
         }
       }
     },
