@@ -30,6 +30,7 @@ Marks: **concurrency** (a workflow `concurrency:` group), **claim** (another ato
 | `dependabot-fragments` | fragment commit | concurrency: `dependabot-fragments` |
 | `maintenance-audit-lane-runs`, `maintenance-audit-test-selection` | audit report | concurrency: own named group (the second on one job only; its other job is read-only) |
 | `maintenance-file-upstream-drift-issues` | files issues | concurrency: `maintenance-file-upstream-drift-issues` |
+| `maintenance-monitor-signals` | files issues, comments on and edits its own | concurrency: `maintenance-monitor-signals`, `cancel-in-progress: false` |
 | `post-merge-demotion-alert` | alert issue or comment | concurrency: per workflow, event and head sha |
 | `release-publish-plugins` | releases, tags | concurrency: `release-plugins` (`cancel-in-progress: true`, so a newer run can cancel one mid-publish) |
 | `intake-label-needs-triage` | adds the `needs-triage` label | uncovered. It runs once per `opened` or `reopened` event, and adding a label the issue already carries adds nothing, so two runs on one issue leave the same label set. It posts no comment and creates no record |

@@ -15,6 +15,7 @@
 .github/actions/select-trusted-text
 .github/scripts/apply-patch
 .github/scripts/maintenance-audit-lane-runs
+.github/scripts/maintenance-monitor-signals
 .github/scripts/pr-merge
 .github/scripts/pr-unblock
 .github/scripts/pr-verify
