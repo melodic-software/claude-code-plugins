@@ -730,6 +730,7 @@ const limitsOf = (limits = {}) => ({
   "wip-cap": limits["wip-cap"] ?? 60,
   "fix-ci-per-run": limits["fix-ci-per-run"] ?? 2,
   "fix-ci-restarts": limits["fix-ci-restarts"] ?? 1,
+  "admission-window-hours": limits["admission-window-hours"] ?? 24,
 });
 
 const loopOf = (loop = {}) => ({

@@ -128,6 +128,13 @@
           "maximum": 5,
           "default": 1,
           "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
+        },
+        "admission-window-hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 24,
+          "description": "Hours of issue-lane admissions the admitted backlog (open issues labeled agent-ready) may hold before new agent-ready labels pause. Admissions are open while that backlog is under the admission factor times lane merges per hour times this window."
         }
       }
     },

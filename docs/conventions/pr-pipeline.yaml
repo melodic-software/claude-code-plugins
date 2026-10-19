@@ -371,6 +371,9 @@ limits:
   # target. Revisit after merge.max-in-flight (#8251) lands and merges per hour
   # are re-measured.
   wip-cap: 12
+  # Hours of issue-lane admissions the admitted backlog (open issues with
+  # agent-ready) may hold before new agent-ready labels pause.
+  admission-window-hours: 24
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
