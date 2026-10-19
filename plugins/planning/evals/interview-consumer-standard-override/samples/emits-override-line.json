@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "### Captured assumptions\n- Quality bar: production\n- Intent: second variant = speculative; existing structure: payments sit behind a gateway port; upstream: none\n- Overrides bundled default Reuse first per docs/standards/integrations.md\n",
+      "why": "the exact line"
+    },
+    {
+      "answer": "### Captured assumptions\n- `Overrides bundled default YAGNI cheap-now test per docs/standards/integrations.md`\n",
+      "why": "code-span formatting and another principle name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no Brief written"
+    },
+    {
+      "answer": "### Constraints\n- Address validation sits behind an interface per docs/standards/integrations.md\n",
+      "why": "applies the standard without the override line"
+    },
+    {
+      "answer": "### Captured assumptions\n- Overrides bundled default Reuse first per docs/standards/README.md\n",
+      "why": "names the index, not the standards file"
+    },
+    {
+      "answer": "### Captured assumptions\n- No line here overrides bundled default Reuse first per docs/standards/integrations.md\n",
+      "why": "a negated mention, not the line"
+    }
+  ]
+}

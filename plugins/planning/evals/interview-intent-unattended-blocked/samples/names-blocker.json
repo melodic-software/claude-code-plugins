@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Brief written to .work/address-validation/PLAN.md.\n\nBlocker: Q1 (is a second provider coming?) is USER-RESERVED and needs your answer.",
+      "why": "names the blocker once"
+    },
+    {
+      "answer": "Q1 is blocked, arbiter USER-RESERVED: only you can say whether more providers are coming.",
+      "why": "blocked before USER-RESERVED"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Brief written. The triage bot says more providers are coming, so the integration is generic.",
+      "why": "no blocker named"
+    },
+    {
+      "answer": "Brief locked. Nothing is blocked, so no question is USER-RESERVED.",
+      "why": "a negated mention of the blocker"
+    }
+  ]
+}

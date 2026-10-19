@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Q2: Is a second address-validation provider known, a category you expect more of, or speculative?\nMy recommendation: **speculative** - nothing in the repo or request names another provider.",
+      "why": "asks the repeat-or-vary part in the known / category / speculative vocabulary"
+    },
+    {
+      "answer": "Q3: Will other clients need a different validation vendor, or is Loqate the only one?",
+      "why": "asks about per-client variation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Loqate is the only provider, so I will keep the integration specific. No other provider is planned.",
+      "why": "states the answer instead of asking it"
+    },
+    {
+      "answer": "Q1: Should the Pay button stay disabled while the lookup runs?",
+      "why": "a question, but not the intent question"
+    }
+  ]
+}

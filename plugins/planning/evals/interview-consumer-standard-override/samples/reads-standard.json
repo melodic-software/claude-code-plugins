@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/standards/README.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/standards/integrations.md"
+          }
+        }
+      ],
+      "why": "resolves the index, then reads the matched file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "reads nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/standards/README.md"
+          }
+        }
+      ],
+      "why": "reads the index but not the matched standards file"
+    }
+  ]
+}

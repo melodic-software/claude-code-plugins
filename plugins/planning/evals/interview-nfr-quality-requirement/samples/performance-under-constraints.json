@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Brief\n\n### Constraints\n- Loqate is the only provider\n- Quality requirement: performance: the address lookup adds little to checkout; target: at most 300 ms at p95\n- Quality requirement: reliability: if Loqate is down or slower than 2 s, checkout proceeds and logs a warning\n\n### Acceptance criteria\n- An undeliverable address keeps Pay disabled\n",
+      "why": "the performance requirement is a Quality requirement line under Constraints"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no Brief written"
+    },
+    {
+      "answer": "### Constraints\n- Lookup must stay under 300 ms at p95\n",
+      "why": "recorded as a plain constraint, not a Quality requirement line"
+    },
+    {
+      "answer": "### Constraints\n- No new runtime dependency\n\n### Captured assumptions\n- Quality requirement: performance: 300 ms at p95\n",
+      "why": "the line sits outside Constraints"
+    },
+    {
+      "answer": "### Constraints\n- No Quality requirement: line was needed; 300 ms is a nice-to-have\n",
+      "why": "a negated mention, not the line format"
+    }
+  ]
+}
