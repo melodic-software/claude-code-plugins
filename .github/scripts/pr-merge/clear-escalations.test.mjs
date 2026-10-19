@@ -124,12 +124,14 @@ test("an escalation marker a person wrote is never read for a reason", async () 
 
 const reviewed = (user, at) => ({ event: "reviewed", user, state: "commented", body: "Review.", submitted_at: at });
 const lineCommented = (user, at) => ({ event: "line-commented", comments: [{ user, body: "Nit.", created_at: at }] });
+const commitCommented = (user, at) => ({ event: "commit-commented", comments: [{ user, body: "On this commit.", created_at: at }] });
 
 test("a person's comment, review, or review comment after the label keeps it", async () => {
   for (const spoke of [
     commented(OWNER, "Leave this for a person.", "2026-10-18T12:00:00Z"),
     reviewed(OWNER, "2026-10-18T12:00:00Z"),
     lineCommented(OWNER, "2026-10-18T12:00:00Z"),
+    commitCommented(OWNER, "2026-10-18T12:00:00Z"),
     commented(null, "Ghost author.", "2026-10-18T12:00:00Z"),
   ]) {
     const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), spoke] });
@@ -142,6 +144,7 @@ test("an AI review or another bot's comment after the label does not keep it", a
   for (const spoke of [
     reviewed(CLAUDE_BOT, "2026-10-18T12:00:00Z"),
     lineCommented(CLAUDE_BOT, "2026-10-18T12:00:00Z"),
+    commitCommented(CLAUDE_BOT, "2026-10-18T12:00:00Z"),
     commented(CODEX_BOT, "Codex review: no issues.", "2026-10-18T12:00:00Z"),
     commented(ACTIONS_BOT, "CI summary.", "2026-10-18T12:00:00Z"),
     commented(BOT, "A lane note.", "2026-10-18T12:00:00Z"),

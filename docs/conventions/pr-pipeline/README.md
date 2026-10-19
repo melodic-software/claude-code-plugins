@@ -375,6 +375,11 @@ own `babysit-merge-*` escalations, another lane's). Every other reason
 (`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
 `ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
 
+Accepted risk: a person's request relayed through an App posts as a Bot account (`claude[bot]`
+replying to an `@claude` mention that asks to wait), and so does a third-party App writing "needs
+a human"; neither keeps the label. A person who wants the hold comments themselves or adds the
+label back.
+
 ## Slots and order
 
 A lane's `slots:` list names the activities it runs. Stage order is fixed by the table above; the
