@@ -1825,6 +1825,8 @@ class TestReports(ServerCase):
         self.assertEqual((code, out["error"]), (403, "owner-only"))
         code, _, out = self.get("/api/report/image?id=F1&add=1", self.owner)
         self.assertEqual((code, out["image"]), (200, self.data_url("png", PNG)))
+        code, _, out = self.get("/api/report/image?id=F1&add=%C2%B2", self.owner)  # "²", a Unicode digit
+        self.assertEqual((code, out["error"]), (400, "bad-field"))
 
 class TestUploads(ServerCase):
     """Phase 9 routes: /api/upload/offer, /api/upload/act, /api/upload/chunk. Expected values come from the Design's

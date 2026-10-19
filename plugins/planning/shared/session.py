@@ -3988,7 +3988,8 @@ class Session:
     def add_to_report(self, pid, body):
         """POST /api/report/add: the reporter adds a line, a screenshot or both to their own report while it is open or
         seen; another person's report reads as missing. A seen report goes back to open, so the owner sees it waiting
-        again. At most MAX_REPORT_ADDS per report; one write a second."""
+        again, unless that would pass MAX_OPEN_REPORTS. An add clears `asked`, so the owner may ask Claude again. At most
+        MAX_REPORT_ADDS per report; one write a second."""
         body = _body(body)
         text = _text(body, "text", empty_ok=True)
         image = _report_image(body.get("image"))
@@ -4003,6 +4004,8 @@ class Session:
                     raise DomainError(404, "not-found", f"No report {fid[:20]}.")
                 if r["status"] == "resolved":
                     raise DomainError(409, "wrong-status", f"Report {fid} is fixed.", status=r["status"])
+                if r["status"] == "seen" and sum(1 for x in st["reports"].values() if x["by"] == pid and x["status"] == "open") >= MAX_OPEN_REPORTS:
+                    raise DomainError(429, "too-many-pending", f"You have {MAX_OPEN_REPORTS} reports waiting already.")
                 adds = r.setdefault("adds", [])
                 if len(adds) >= MAX_REPORT_ADDS:
                     raise DomainError(409, "too-many", f"A report takes at most {MAX_REPORT_ADDS} additions.", max=MAX_REPORT_ADDS)
@@ -4013,6 +4016,7 @@ class Session:
                     _write_chunk(saved, 0, image[0])
                 adds.append(add)
                 r["status"] = "open"
+                r.pop("asked", None)  # new words from the reporter: the owner may ask Claude again
         except BaseException:
             if saved:
                 self._discard(saved)
@@ -4038,7 +4042,9 @@ class Session:
                     state = "asked" if "asked" in r else r["status"]
                     raise DomainError(409, "wrong-status", f"Report {fid} is {state}.", status=state)
                 r["asked"] = self.now()
-                self._event("report-filed", report=fid, qid=r["ctx"].get("qid"), text=r["text"])
+                adds = r.get("adds", [])
+                self._event("report-filed", report=fid, qid=r["ctx"].get("qid"), text=r["text"],
+                            adds=[a["text"] for a in adds if "text" in a], addImages=sum(1 for a in adds if "image" in a))
                 return {"id": fid, "status": r["status"], "asked": True}
             if r["status"] == "resolved" or r["status"] == action:
                 raise DomainError(409, "wrong-status", f"Report {fid} is {r['status']}.", status=r["status"])
@@ -4054,11 +4060,13 @@ class Session:
             fid = _ident(_body(body), "id")
             r = self._report(fid)
             n = body.get("add")
+            if n is not None and not (isinstance(n, str) and re.fullmatch(r"[1-9][0-9]{0,2}", n)):
+                raise _bad("add", "add must name an addition by its number.")
             if n is None:
                 stored = r.get("image", "")
             else:
                 adds = r.get("adds", [])
-                stored = adds[int(n) - 1].get("image", "") if str(n).isdigit() and 1 <= int(n) <= len(adds) else ""
+                stored = adds[int(n) - 1].get("image", "") if int(n) <= len(adds) else ""
         f = self.path.parent / stored
         if not stored or not f.is_file():
             raise DomainError(404, "not-found", f"Report {fid} has no picture.")
@@ -4258,7 +4266,7 @@ class Session:
                   for r in st["requests"] if r["runner"] == "host" and r["status"]["kind"] == "pending" and r["pid"] != HOST and self._active(r["pid"])),
                 *({"key": "share:" + x["id"], "kind": "share", "id": x["id"], **_where(x), **({"by": x["by"]["pid"]} if "pid" in x["by"] else {}), "at": x["at"]}
                   for lst in st["results"].values() for x in lst if not x["published"] and self._from_active(x)),
-                *({"key": "report:" + f, "kind": "report", "id": f, "by": rep["by"], "at": rep["ts"]}
+                *({"key": "report:" + f, "kind": "report", "id": f, "by": rep["by"], "at": max([rep["ts"], *(a["ts"] for a in rep.get("adds", []))])}
                   for f, rep in st.get("reports", {}).items() if rep["status"] == "open"),
                 *({"key": "merge:" + m["id"], "kind": "merge", "id": m["id"], "by": m["from"], "at": m["at"]}
                   for m in st["mergeRequests"] if m["status"]["kind"] == "pending"),

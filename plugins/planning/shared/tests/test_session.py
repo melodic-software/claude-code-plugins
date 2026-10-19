@@ -5471,13 +5471,67 @@ class TestReports(SessionCase):
         self.refused("not-found", "add_to_report", HOST, {"id": "F1", "text": "noted"}, http=404)
         self.refused("empty", "add_to_report", self.ann, {"id": "F1", "text": " "})
         self.refused("file-type", "add_to_report", self.ann, {"id": "F1", "image": data_url("png", b"GIF89a" + b"\x00" * 30)}, http=415)
-        for _ in range(session.MAX_REPORT_ADDS):
+        for _ in range(10):
             self.act("add_to_report", self.ann, {"id": "F1", "text": "more"})
         self.refused("too-many", "add_to_report", self.ann, {"id": "F1", "text": "one more"}, http=409)
         self.file(self.ann)
         self.act("act_on_report", HOST, {"id": "F2", "action": "resolved"})
         self.refused("wrong-status", "add_to_report", self.ann, {"id": "F2", "text": "still broken"}, http=409)
         self.assertEqual(self.s.state["reports"]["F2"].get("adds"), None)
+
+    def test_reopening_a_seen_report_never_passes_five_open_reports(self):
+        for _ in range(5):
+            self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.file(self.ann)  # F2..F6 open: five again
+        self.refused("too-many-pending", "add_to_report", self.ann, {"id": "F1", "text": "still broken"}, http=429)
+        self.assertEqual((self.s.state["reports"]["F1"]["status"], self.s.state["reports"]["F1"].get("adds")), ("seen", None))
+        self.act("add_to_report", self.ann, {"id": "F2", "text": "an open one takes it"})
+        self.act("act_on_report", HOST, {"id": "F3", "action": "resolved"})
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "now it fits"})
+        self.assertEqual(self.s.state["reports"]["F1"]["status"], "open")
+
+    def test_the_owners_inbox_dates_a_report_by_its_latest_addition(self):
+        self.file(self.ann)
+        filed = self.clock.t
+        self.clock.tick(60)
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "and again"})
+        item = next(i for i in self.s.snapshot(HOST)["inbox"] if i["key"] == "report:F1")
+        self.assertEqual((item["at"], item["changed"]), (filed + 62, filed + 62))  # act() ticks 2 s
+
+    def test_asking_claude_carries_what_the_reporter_added_and_an_add_lets_the_owner_ask_again(self):
+        self.file(self.ann)
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "It happens on Q2 too"})
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        self.act("act_on_report", HOST, {"id": "F1", "action": "ask"})
+        ev = self.events("report-filed")[-1]
+        self.assertEqual({k: ev[k] for k in ("report", "qid", "text", "adds", "addImages")},
+                         {"report": "F1", "qid": "Q1", "text": "Send does nothing", "adds": ["It happens on Q2 too"], "addImages": 1})
+        self.assertNotIn("reports/", json.dumps(ev))
+        self.assertIsNone(support_event_error(ev))
+        self.refused("wrong-status", "act_on_report", HOST, {"id": "F1", "action": "ask"}, http=409)
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "Now on Q3 as well"})
+        self.assertEqual(self.act("act_on_report", HOST, {"id": "F1", "action": "ask"}), {"id": "F1", "status": "open", "asked": True})
+        self.assertEqual(self.events("report-filed")[-1]["adds"], ["It happens on Q2 too", "Now on Q3 as well"])
+
+    def test_an_added_picture_is_named_by_its_number_and_anything_else_is_refused(self):
+        self.file(self.ann)
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        for n in ("²", "0", "01", "1000", "-1", "1.0"):
+            with self.subTest(add=n):
+                self.refused("bad-field", "report_image", HOST, {"id": "F1", "add": n}, http=400)
+        self.refused("not-found", "report_image", HOST, {"id": "F1", "add": "2"}, http=404)
+        self.assertEqual(self.s.report_image(HOST, {"id": "F1", "add": "1"})["image"], data_url("png", PNG_BYTES))
+
+    def test_an_added_picture_name_out_of_place_or_more_than_ten_additions_is_refused_at_load(self):
+        self.file(self.ann)
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        doc = self.disk()
+        doc["reports"]["F1"]["adds"][0]["image"] = "reports/F1-3.png"
+        self.assertIsNotNone(session.document_error(doc))
+        doc = self.disk()
+        doc["reports"]["F1"]["adds"] = [{"text": "more", "ts": 1_760_600_000.0}] * 11
+        self.assertIsNotNone(session.document_error(doc))
 
     def test_a_report_id_or_picture_name_the_server_never_makes_is_refused_at_load(self):
         self.file(self.ann, image=data_url("png", PNG_BYTES))
