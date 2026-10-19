@@ -558,11 +558,14 @@ content-class rules bind them now (see Content classes): `adhd:clarify`,
 `visualization:visualize`.
 
 Emitters on the escape-helper gate (the third bullet of the security baseline), each building
-its page with a checked-in builder: `education:illustrate`, `education:teach` (codebase mode),
+its page with a checked-in builder: `education:teach` (codebase mode),
 `knowledge:video-digest`, `harness-ops:observability`, `event-storming:simulation`. They left the
 grandfathered list when they moved onto it.
 
-Emitters on the shared builder (`lib/view-builder.mjs`, interactive profile): `planning:plan` and
+Emitters on the shared builder (`lib/view-builder.mjs`, interactive profile): `education:illustrate`
+(`plugins/education/skills/illustrate/scripts/build-explainer.mjs`), which has left the grandfathered
+set and defaults to a local `file`, then `terminal`, publishing an artifact only when an argument or
+a layer asks for one; `planning:plan` and
 `planning:brainstorm`, each offering its view from a checked-in template plus the session's JSON as data
 (`plugins/planning/scripts/build-view.mjs`); `debugging:debug` (post-mortem) and `discovery:blindspot`, built
 the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scripts/build-view.mjs`); and the
@@ -616,6 +619,26 @@ manifest plus pinned htmlhint), wired into CI. Markup linting still validates sy
 rather than escaping, so an asset whose job is to carry copied helpers also carries a
 behavioral suite: `scripts/check-loop-closure-helpers.test.sh` executes the shipped
 helpers of the loop-closure reference and fails on a dropped case that lints clean.
+
+### Documented escape exceptions
+
+Two emitters stay off `lib/html-escape.mjs`. Each is held to the baseline above by other means.
+
+- **Python emitters.** `plugins/planning/surface/exporters.py`, `plugins/planning/surface/server.py`
+  and `plugins/pixel-art/scripts/gallery.py` escape with the stdlib `html.escape`,
+  which replaces `&`, `<`, `>`, `"` and `'`, the same five characters the helper does. The helper is
+  a JavaScript module and these emitters run in Python, so a shared Python helper would be a second
+  copy of the same five-character table. `quote=True` is the default in Python 3, so the
+  one-argument call escapes the same five. The URL-position rule still applies: `server.py` checks
+  an image `src` against a `data:image/` or `http(s)` prefix before it escapes it. A new Python
+  emitter uses `html.escape` and never passes `quote=False`.
+- **`/playbooks:repo-sweep` page.** `render.sh` splices one JSON document into the template's
+  `<script type="application/json">` block and rewrites every `<` in it to the six characters backslash, `u003c`. In a data
+  block the only way out is a `</script>` sequence, and with no `<` left in the text none can form;
+  That escape parses back to `<` in `JSON.parse`. The template renders the parsed values with
+  `textContent` only, so nothing from the JSON is read as markup. The splice must stay at exactly
+  one token inside a non-executing data block; JSON placed in an executable script block, or
+  rendered through `innerHTML`, goes through the helper instead.
 
 ## Accessibility floor
 

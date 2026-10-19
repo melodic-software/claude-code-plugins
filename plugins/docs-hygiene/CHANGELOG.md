@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [1.1.2] - 2026-10-18
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [1.1.1] - 2026-10-16
 
 ### Changed

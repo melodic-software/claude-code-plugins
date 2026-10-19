@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "### Ex 4.6: Family rhymes for `heart`\n\nFind related perfect rhymes for `heart`, then family rhymes by substituting for the final `t`.\n\nWork it on paper before reading further. The principles it tests route to the rhyme-types material (\"L and R\"); when you're done, `/songwriting:rhyme types` covers why some substitutions feel closer than others."
+    },
+    {
+      "answer": "**Exercise 4.6** (Essential Guide to Rhyming)\n\n1. List the perfect rhymes for *heart* (part, start...).\n2. Then find family rhymes: keep the vowel and substitute other consonants for the final consonant, the t.\n\nThat's the whole assignment. Afterward, take your list to `/songwriting:rhyme` for the family-rhyme discussion."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Exercise 4.6: write a verse in common meter about a place you left."
+    },
+    {
+      "answer": "Exercise 4.6: family rhymes for yourself.",
+      "why": "the neighboring exercise"
+    }
+  ]
+}

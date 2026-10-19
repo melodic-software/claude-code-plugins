@@ -228,6 +228,12 @@ counterpart: a `/loop` cannot fire after the session ends, but the observer can.
 - **Does not run builds, tests, or a code review**, and does not write into the consumer's repo
   beyond the memory-tier ledger and any routing the user approves.
 
+## Next
+
+/session-flow:retro
+
+It scores the session and codifies the learnings this checkpoint only captured.
+
 ## Gotchas
 
 - **The subjective-state note is mandatory**. Skipping it discards the one input the subagent

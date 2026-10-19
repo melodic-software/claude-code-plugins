@@ -2,7 +2,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const stdout = vi.hoisted(() => /** @type {string[]} */ ([]));
+
+vi.mock("@melodic/video-digestion/shared/terminal", () => ({
+  writeStdout: (/** @type {unknown[]} */ ...args) => stdout.push(args.join(" ")),
+  writeStderr: () => {},
+}));
 
 import { buildSheetCheckboxes, formatSheetId, initWatchChecklist } from "./init-watch-checklist.js";
 
@@ -199,6 +206,111 @@ describe("initWatchChecklist", () => {
     expect(lines[row + 1]).toBe("  - evidence: setup-deps exit 0");
     expect(lines.filter((line) => line === "  - evidence: setup-deps exit 0")).toHaveLength(1);
     expect(lines).not.toContain("  - draft note on an unticked row");
+  });
+
+  it("--force drops a tick whose criteria changed, with its evidence, and lists the row", () => {
+    const sliceDir = makeSliceDir();
+    const outPath = initWatchChecklist(sliceDir, { force: true });
+    const ticked = fs
+      .readFileSync(outPath, "utf8")
+      .split("\n")
+      .flatMap((line) => {
+        if (line.startsWith("- [ ] **0.1**")) {
+          // The tick was saved against other criteria wording (a different stored hash),
+          // as when a template change rewords the row before the next --force.
+          return [
+            line
+              .replace("video-extraction deps installed", "a different criterion")
+              .replace(/<!-- criteria:[0-9a-f]+ -->/, "<!-- criteria:000000000000 -->")
+              .replace("- [ ]", "- [x]"),
+            "  - evidence: setup-deps exit 0",
+          ];
+        }
+        return [line];
+      })
+      .join("\n");
+    fs.writeFileSync(outPath, ticked);
+    stdout.length = 0;
+
+    const body = fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8");
+
+    expect(body).toContain("- [ ] **0.1** video-extraction deps installed");
+    expect(body).not.toContain("- [x] **0.1**");
+    expect(body).not.toContain("  - evidence: setup-deps exit 0");
+    expect(stdout.join("\n")).toContain("0.1");
+  });
+
+  it("--force drops a tick on a row whose filled-in value changed, such as the sheet count", () => {
+    const sliceDir = makeSliceDir();
+    const outPath = initWatchChecklist(sliceDir, { force: true });
+    fs.writeFileSync(
+      outPath,
+      fs.readFileSync(outPath, "utf8").replace("- [ ] **4.0**", "- [x] **4.0**"),
+    );
+    fs.writeFileSync(
+      path.join(sliceDir, "key-frames", "selection.json"),
+      JSON.stringify({
+        durationSec: 8 * 3600,
+        contactSheets: [{ id: "1" }, { id: "2" }, { id: "3" }, { id: "4" }],
+        densificationWindows: [],
+        frameSelection: { highVolume: true },
+      }),
+    );
+    stdout.length = 0;
+
+    const body = fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8");
+
+    expect(body).toContain("- [ ] **4.0**");
+    expect(stdout.join("\n")).toContain("4.0");
+  });
+
+  it("--force keeps a tick whose criteria are unchanged, evidence included", () => {
+    const sliceDir = makeSliceDir();
+    const outPath = initWatchChecklist(sliceDir, { force: true });
+    const ticked = fs
+      .readFileSync(outPath, "utf8")
+      .split("\n")
+      .flatMap((line) =>
+        line.startsWith("- [ ] **0.1**")
+          ? [line.replace("- [ ]", "- [x]"), "  - evidence: setup-deps exit 0"]
+          : [line],
+      )
+      .join("\n");
+    fs.writeFileSync(outPath, ticked);
+    stdout.length = 0;
+
+    const lines = fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8").split("\n");
+    const row = lines.findIndex((line) => line.startsWith("- [x] **0.1**"));
+
+    expect(row).toBeGreaterThan(-1);
+    expect(lines[row + 1]).toBe("  - evidence: setup-deps exit 0");
+    expect(stdout.join("\n")).not.toContain("Dropped");
+  });
+
+  it("--force keeps a legacy tick that has no stored hash and stamps one", () => {
+    const sliceDir = makeSliceDir();
+    const outPath = initWatchChecklist(sliceDir, { force: true });
+    const legacy = fs
+      .readFileSync(outPath, "utf8")
+      .split("\n")
+      .flatMap((line) => {
+        const bare = line.replace(/ <!-- criteria:[0-9a-f]+ -->$/, "");
+        return bare.startsWith("- [ ] **0.1**")
+          ? [bare.replace("- [ ]", "- [x]"), "  - evidence: setup-deps exit 0"]
+          : [bare];
+      })
+      .join("\n");
+    expect(legacy).not.toContain("<!-- criteria:");
+    fs.writeFileSync(outPath, legacy);
+    stdout.length = 0;
+
+    const lines = fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8").split("\n");
+    const row = lines.findIndex((line) => line.startsWith("- [x] **0.1**"));
+
+    expect(row).toBeGreaterThan(-1);
+    expect(lines[row]).toMatch(/ <!-- criteria:[0-9a-f]+ -->$/);
+    expect(lines[row + 1]).toBe("  - evidence: setup-deps exit 0");
+    expect(stdout.join("\n")).not.toContain("Dropped");
   });
 
   it("skips when checklist exists without force", () => {

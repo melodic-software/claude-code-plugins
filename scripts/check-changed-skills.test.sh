@@ -26,13 +26,13 @@ SCRIPT="$SELF_DIR/check-changed-skills.sh"
 r=""
 
 # A stub checker shared by every scenario: records each invocation (skill name +
-# forwarded env) to $CHECK_LOG, and FAILs iff the skill is named "bad".
+# forwarded env) to $CHECK_LOG, and FAILs iff the skill is named "broken".
 STUB="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 cat >"$STUB" <<'EOF'
 #!/usr/bin/env bash
 printf 'args=%s root=%s base=%s descbaseline=[%s]\n' "$*" "$CHECK_SKILL_SKILLS_ROOT" "$CHECK_SKILL_BASE_REF" "${CHECK_SKILL_DESC_FIELD_BASELINE-}" >>"$CHECK_LOG"
 for arg in "$@"; do
-  [[ "$arg" == "bad" ]] && exit 1
+  [[ "$arg" == "broken" ]] && exit 1
 done
 exit 0
 EOF
@@ -108,10 +108,10 @@ rm -rf "$r"
 
 # --- a failing checker fails the gate --------------------------------------
 mk_repo r
-add_skill "$r" p1 bad
+add_skill "$r" p1 broken
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
-add_skill "$r" p1 bad SKILL.md
+add_skill "$r" p1 broken SKILL.md
 if run "$r" "$b" >/dev/null 2>&1; then
   fail "a failing skill checker should fail the gate"
 else
@@ -168,27 +168,27 @@ fi
 rm -rf "$r"
 
 # --- a branch behind its base is judged on its own changes (#7014) ----------
-# main moves on after the branch point and touches skill "bad" (the stub's
+# main moves on after the branch point and touches skill "broken" (the stub's
 # failing skill); the branch touches only "alpha". Against main's TIP a two-dot
-# diff would select "bad" too and fail the gate; against the merge base only
+# diff would select "broken" too and fail the gate; against the merge base only
 # "alpha" is checked, and the checker is handed the merge base as its base ref.
 mk_repo r
 add_skill "$r" p1 alpha
-add_skill "$r" p1 bad
+add_skill "$r" p1 broken
 commit_all "$r" base >/dev/null
 fork="$(base_sha "$r")"
 git -C "$r" checkout -q -b feature
 add_skill "$r" p1 alpha SKILL.md
 commit_all "$r" "branch touches alpha" >/dev/null
 git -C "$r" checkout -q -b main-moved "$fork"
-add_skill "$r" p1 bad SKILL.md
-commit_all "$r" "main touches bad" >/dev/null
+add_skill "$r" p1 broken SKILL.md
+commit_all "$r" "main touches broken" >/dev/null
 tip="$(base_sha "$r")"
 git -C "$r" checkout -q feature
 if out="$(run "$r" "$tip" 2>&1)"; then
   if grep -q "1 skill(s) checked, 0 failed" <<<"$out" &&
     grep -q "args=--require-evals alpha root=.* base=$fork" "$r/checklog" 2>/dev/null &&
-    ! grep -q 'bad' "$r/checklog" 2>/dev/null; then
+    ! grep -q 'broken' "$r/checklog" 2>/dev/null; then
     ok "a stale branch is judged against the merge base, not the base tip"
   else
     fail "stale branch should check only alpha against the merge base, got: $out log: $(cat "$r/checklog" 2>/dev/null)"

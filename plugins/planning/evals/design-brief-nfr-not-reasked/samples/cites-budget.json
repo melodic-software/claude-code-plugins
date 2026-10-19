@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Settled from the Brief: the lookup adds at most 300 ms at p95.",
+      "why": "cites the budget"
+    },
+    {
+      "answer": "1. Timeout. Recommend 250ms so the call fits the 300ms p95 budget.",
+      "why": "designs to the budget"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "1. Where does the Loqate client live? Recommend src/checkout/address/.",
+      "why": "never uses the Brief's budget"
+    },
+    {
+      "answer": "The 300 ms budget is not settled yet, so I need it from you.",
+      "why": "names the budget only to re-open it"
+    }
+  ]
+}

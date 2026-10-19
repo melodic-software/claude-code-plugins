@@ -211,14 +211,20 @@ each only on the surfaces its row names.
   2026-07-24). Not a pointer (correlate only): the docs pointer is Prompting best practices above,
   for I6 and I15, whose rows keep the `ANTHROPIC-DOCS` Authority of their documentation sources, so
   the closed four-value Authority set above is unchanged;
-  correlate with <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>
+  correlate with <https://claude.dev/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models/>
 - Memory (CLAUDE.md, a natively read AGENTS.md, rules, auto memory):
   <https://code.claude.com/docs/en/memory>
 - The `.claude` directory: <https://code.claude.com/docs/en/claude-directory>
 - Skills (what loads when, how supporting files are referenced, the listing budget,
   invocation-control fields): <https://code.claude.com/docs/en/skills>
-- How features layer (per-surface precedence, routing between surfaces):
-  <https://code.claude.com/docs/en/features-overview>
+- How features layer (per-surface precedence):
+  <https://code.claude.com/docs/en/features-overview#understand-how-features-layer>.
+  As of: 2026-10-11 (anchor as recorded by the pointer audit of that date, not re-fetched since).
+  Recheck trigger: the layering section starts covering routing between surfaces, or is renamed.
+- Routing between surfaces:
+  <https://code.claude.com/docs/en/features-overview#compare-similar-features>.
+  As of: 2026-10-11 (anchor as recorded by the pointer audit of that date, not re-fetched since).
+  Recheck trigger: the compare section is renamed, or stops comparing where content belongs.
 - Context window (what survives compaction): <https://code.claude.com/docs/en/context-window>
 - Hooks (handler types, and which events inject handler output into context):
   <https://code.claude.com/docs/en/hooks>
@@ -1033,8 +1039,10 @@ skill bodies.
   `omitClaudeMd: true`. In such an agent's own body, an instruction to read the root `CLAUDE.md`
   is likewise not redundant. Pointer: [What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
   and the `omitClaudeMd` row of [Supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
-  The page's system-prompt section disagrees with both on whether `CLAUDE.md` still loads under
-  that field. As of: 2026-10-01. Recheck trigger: the page reconciles the two, or the field is renamed.
+  Source conflict: those two and the `--agent` passage under
+  [Invoke subagents explicitly](https://code.claude.com/docs/en/sub-agents#invoke-subagents-explicitly)
+  disagree on whether `CLAUDE.md` still loads under that field. As of: 2026-10-18. Recheck trigger:
+  the page reconciles them, or the field is renamed.
 - **Source:** subagents, "What loads at startup": we treat a non-fork subagent's initial context as
   holding every level of the CLAUDE.md hierarchy *the main conversation loads*, except an agent
   whose definition sets `omitClaudeMd: true` (see the Must NOT flag above), and that qualifier
@@ -1122,7 +1130,9 @@ by `--opinion`.
   Reported only, never fix-applied, per the `OPINION` policy above.
 - **Source:** none. No official page states definition-site locality, which is why this check is
   `OPINION`-tier. The *routing* half, which surface a class of content belongs in, is documented
-  at features-overview, "Compare similar features", and is I3's concern, not this check's.
+  at [features-overview, "Compare similar features"](https://code.claude.com/docs/en/features-overview#compare-similar-features),
+  and is I3's concern, not this check's. As of: 2026-10-18. Recheck trigger: that section is
+  renamed, or starts stating where a rule's definition site belongs.
 
 ### I17: Thinking disabled where the model forbids it
 

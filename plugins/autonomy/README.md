@@ -191,10 +191,14 @@ against runaway by the `stop_hook_active` one-nudge guard plus Claude Code's own
 consecutive Stop-hook continuations. It catches a graceful self-stop only: a closed laptop, a
 killed process, or `/loop` expiry emit no `Stop` event.
 
-- **Pointer**: when checking the Stop input field the guard reads and the continuation cap, fetch
+- **Pointer**: when checking the Stop input field the guard reads, fetch
   <https://code.claude.com/docs/en/hooks#stop-input> live. **As of**: 2026-10-11. **Recheck
-  trigger**: a Claude Code changelog entry changes the Stop hook's input fields or its continuation
-  cap.
+  trigger**: a Claude Code changelog entry changes the Stop hook's input fields.
+- **Pointer**: when checking Claude Code's own cap on consecutive Stop-hook continuations and the
+  setting that raises it, fetch
+  [Stop hook hits the block cap](https://code.claude.com/docs/en/hooks-guide#stop-hook-hits-the-block-cap)
+  live. **As of**: 2026-10-18. **Recheck trigger**: that section changes the number of consecutive
+  blocks it allows, or renames `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`.
 
 When the consuming repo sets `HOOK_TELEMETRY_SINK`, the gate emits one fire-and-forget envelope per
 evaluated outcome (`hook: "lane-stop-gate"`; payload contract in the marketplace's hook-telemetry

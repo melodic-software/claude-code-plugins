@@ -374,6 +374,55 @@ class JscpdAdapterTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             self.assertIn("2 of 2 files skipped", result.stderr)
 
+    def test_a_non_utf8_name_is_skipped_and_named_in_the_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "argv.log"
+            note = Path(tmp) / "partial"
+            listing = Path(tmp) / "paths.txt"
+            listing.write_bytes(
+                ALPHA.encode() + b"\n" + b"src/bad-\xff.sh\n" + BETA.encode() + b"\n"
+            )
+            make_stub(Path(tmp), argv_log=log)
+            result = run(
+                "collect",
+                "bash",
+                "duplication",
+                "--paths-from",
+                str(listing),
+                path_prefix=Path(tmp),
+                env_extra={"CODE_METRICS_PARTIAL_REASON_FILE": str(note)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(len(result.stdout.splitlines()), 1)
+            _, config = log.read_text(encoding="utf-8").split("\n", 1)
+            self.assertEqual(
+                json.loads(config)["path"],
+                [str(REPO_ROOT / ALPHA), str(REPO_ROOT / BETA)],
+            )
+            self.assertNotIn("bad-", config)
+            self.assertEqual(
+                note.read_text(encoding="utf-8").strip(),
+                "1 of 3 files skipped, name is not valid UTF-8: src/bad-\\xff.sh",
+            )
+
+    def test_only_non_utf8_names_return_zero_without_invoking_jscpd(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "argv.log"
+            listing = Path(tmp) / "paths.txt"
+            listing.write_bytes(b"bad-\xfe.sh\n")
+            make_stub(Path(tmp), argv_log=log)
+            result = run(
+                "collect",
+                "bash",
+                "duplication",
+                "--paths-from",
+                str(listing),
+                path_prefix=Path(tmp),
+            )
+            self.assertEqual((result.returncode, result.stdout), (0, ""))
+            self.assertIn("bad-\\xfe.sh", result.stderr)
+            self.assertFalse(log.exists(), "jscpd was invoked with no files")
+
     def test_other_verbs(self) -> None:
         self.assertEqual(run("measures").stdout.strip(), "*/duplication")
         self.assertIn("kucherenko/jscpd", run("install_hint").stdout)

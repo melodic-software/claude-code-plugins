@@ -217,9 +217,9 @@ Classify each component by what its body has the model DO (multiple or none):
 ### P11: End-of-run report leads with what the human owes
 
 - **Predicate:** long-running.
-- **Present when:** the component's final report opens with what is blocked on the human (open
-  decisions, changes to approve), then what changed and what was found, for example under the
-  headings "Blocked on me", "Changed", "Found". An existing report shape that puts the human's
+- **Present when:** the component's final report opens with what the human must decide or approve,
+  then work the agent will clear itself, what was done and what was found, for example under the
+  headings "Needs you", "Waiting on me", "Done", "Found". An existing report shape that puts the human's
   items first satisfies it; adapt that shape rather than adding a second one.
 - **Pointer:** Opus 5.5 subpage, "Capabilities relevant to prompting" (communication); correlate:
   Opus 5.5 usage guide, "Read what it needs from you first".

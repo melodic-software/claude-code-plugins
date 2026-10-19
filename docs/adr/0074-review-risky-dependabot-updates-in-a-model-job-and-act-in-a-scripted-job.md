@@ -1,6 +1,8 @@
 # Review risky Dependabot updates in a model job and act in a scripted job
 
-- Status: accepted
+- Status: accepted; amended 2026-10-18 (a major or unreadable Dependabot update waits for a
+  human under `merge.dependabot.majors: hold`, see the
+  [ADR 0073 addendum](0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md#addendum-2026-10-18-a-major-update-waits-for-a-human))
 - Date: 2026-10-16
 - Amends: [ADR 0049](0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
   last consequence: relayed release notes reach a lane that holds no post, close or merge

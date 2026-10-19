@@ -25,3 +25,18 @@ limits before finalizing the policy thresholds].
 
 [RESEARCH: evaluate whether the existing telemetry sink can carry per-attempt charge
 outcomes, or whether a new structured event is needed].
+
+## Thread 5: Principles. RESOLVED
+
+Principles applied: DIP puts the domain in charge of the `IPaymentGateway` port; information
+hiding keeps provider refund semantics inside each adapter.
+Generalize now or wait: the Brief's `Intent: second variant = known` line (a third provider is
+contracted) settles it: generalize now, isolating what varies behind the port.
+Rationale: the Intent line is the user's answer, so the port is built now rather than on the
+third occurrence.
+
+## Thread 6: Lifecycle and reversibility. RESOLVED
+
+Door: Thread 1 one-way (every adapter builds on the port's shape); Thread 2 one-way (stored
+idempotency keys must keep matching across a deploy). The ADR prompt was offered for both.
+Rationale: changing either needs a coordinated release, so both were designed deliberately.
