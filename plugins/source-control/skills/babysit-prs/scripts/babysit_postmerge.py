@@ -1258,8 +1258,9 @@ def _first_line(text: Any) -> str:
     return str(text or "").lstrip().split("\n", 1)[0].strip()
 
 
-def _issue_body(failure: Failure) -> str:
+def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
     merge = failure.merge
+    others = ", ".join(f"#{m.number} (`{m.merge_commit}`)" for m in also)
     return "\n".join(
         [
             failure.marker,
@@ -1273,12 +1274,23 @@ def _issue_body(failure: Failure) -> str:
             f"- Merge commit: `{merge.merge_commit}`",
             f"- Failing run: {failure.run_url or 'none'}",
             f"- Detail: {failure.detail}",
-            "",
-            "To revert the merge, a human runs:",
-            "",
-            "```sh",
-            f"git revert {merge.merge_commit}",
-            "```",
+            *(
+                [
+                    f"- Also charged by this run: {others}",
+                    "",
+                    "A human reads the failing suites in the run above, picks the merge responsible,",
+                    "and reverts that one.",
+                ]
+                if others
+                else [
+                    "",
+                    "To revert the merge, a human runs:",
+                    "",
+                    "```sh",
+                    f"git revert {merge.merge_commit}",
+                    "```",
+                ]
+            ),
         ]
     )
 
@@ -1333,7 +1345,7 @@ def remediate(
 ) -> dict[str, Any]:
     """Act on the verdict's failures: dequeue every merge-queue entry the agent
     identity enqueued, then file one demotion issue per (signal, merge SHA) or
-    comment on the existing one, also found by its failing run (reopening it first when closed and the sighting
+    failing run, or comment on the existing one, also found by its failing run (reopening it first when closed and the sighting
     is new; only the filers' own comments count as a prior sighting), then
     record the number of new issues as
     `demotion_events`. Each step runs even when an earlier one failed; errors are
@@ -1389,6 +1401,16 @@ def remediate(
                 None,
             )
             if match is None:
+                # The record names every merge this run charges; those merges
+                # then find it by run below.
+                also = [
+                    f.merge
+                    for f in verdict.failures
+                    if f.run_url
+                    and f.run_url == failure.run_url
+                    and f.merge.number != failure.merge.number
+                ]
+                body = _issue_body(failure, {m.number: m for m in also}.values())
                 issue = _write(
                     [
                         "api",
@@ -1398,7 +1420,7 @@ def remediate(
                         "-f",
                         f"title=Post-merge {failure.signal} failure after #{failure.merge.number}: unattended merging demoted",
                         "-f",
-                        f"body={_issue_body(failure)}",
+                        f"body={body}",
                         "-f",
                         f"labels[]={role_label}",
                     ],
@@ -1412,8 +1434,11 @@ def remediate(
                 records[failure.marker] = {
                     "number": filed,
                     "state": "open",
-                    "body": _issue_body(failure),
+                    "body": body,
                 }
+                # A later merge charged by the same run finds it by run, as a
+                # later pass would.
+                existing.append(records[failure.marker])
                 notes_by_issue[filed] = []
                 continue
             records[failure.marker] = match
