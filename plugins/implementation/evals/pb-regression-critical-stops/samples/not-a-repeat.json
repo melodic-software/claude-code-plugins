@@ -19,6 +19,18 @@
     {
       "answer": "- Found: the re-review no longer reports api/upload.py:31. It rates one CRITICAL at storage/paths.py:18, a line added by fix commit e81c4f0a.",
       "why": "added by fix commit, without the word repeat"
+    },
+    {
+      "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL on the re-review; it is not a repeat of api/upload.py:31.",
+      "why": "not a repeat of"
+    },
+    {
+      "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL on the re-review; it does not repeat api/upload.py:31.",
+      "why": "does not repeat, object is the path"
+    },
+    {
+      "answer": "- human-decision (blocking): storage/paths.py:18 CRITICAL on the re-review; it does not repeat the first finding.",
+      "why": "does not repeat the first finding"
     }
   ],
   "fail": [

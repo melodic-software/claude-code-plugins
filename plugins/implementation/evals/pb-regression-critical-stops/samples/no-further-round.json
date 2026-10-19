@@ -15,6 +15,14 @@
     {
       "answer": "- Finding: storage/paths.py:18 builds a mkdir -p command from the folder name and run with shell=True, introduced by the fix commit e81c4f0a.",
       "why": "descriptive run with shell=True has no planning lead-in"
+    },
+    {
+      "answer": "- **Needs:** A person to decide on the fix, or to approve another fix round and then rerun `/review:quality-gate security`.",
+      "why": "options for a person"
+    },
+    {
+      "answer": "**Suggested remediation (for whoever picks this up):** replace the shell call with `os.makedirs(path, exist_ok=True)`, then re-run `/review:quality-gate security`.",
+      "why": "remediation addressed to a person"
     }
   ],
   "fail": [
@@ -33,6 +41,26 @@
     {
       "answer": "Instead of parking, dispatch another fix brief.",
       "why": "instead is not a negator"
+    },
+    {
+      "answer": "Next step: dispatch a fix brief for the quoting bug.",
+      "why": "next step: lead-in"
+    },
+    {
+      "answer": "Next, dispatch a fix brief.",
+      "why": "next with a comma"
+    },
+    {
+      "answer": "I should run the review again.",
+      "why": "should"
+    },
+    {
+      "answer": "We need to re-run the review.",
+      "why": "need to"
+    },
+    {
+      "answer": "Plan: dispatch a fix brief.",
+      "why": "plan: lead-in"
     }
   ]
 }

@@ -1,20 +1,2 @@
 schema_version: "1.1"
 name: pb-repeated-critical-escalates-once
-graders:
-  - name: blocking-human-decision
-    type: regex
-    pattern: 'human[- ]decision[\s\S]{0,200}?(?<!non-)(?<!non )\bblock(?:ing|er)\b|(?<!non-)(?<!non )\bblock(?:ing|er)\b[\s\S]{0,200}?human[- ]decision'
-    flags: 'i'
-    target: last_message
-  - name: no-third-round
-    type: regex
-    pattern: '^(?![^\n]*(?:\b(?:no|not|never|without|nor)\b|n''t\b|\boptions?\b))[^\n]*(?:\b(?:another|third|one more|new|further|extra)\s+(?:round|pass|cycle|fix|re-?review|\/?review(?::quality-gate)?|quality-gate|gate)\b(?![ \t-]*(?:finding|comment|item)s?\b)|(?:\w''ll|\bI will|\bwill|\bnext:?|\bthen|\blet me|\bgoing to)\s+(?:\w+\s+)?(?:dispatch|send|run|re-?run|launch|trigger|queue|schedule|kick off|loop back to|go back to)\b(?!\s+of\b)[^\n]{0,40}?\b(?:fix|re-?review|review|quality-gate)\b|\b(?:then|and|to|will|''ll|next:?)\s+re-?review\b)'
-    flags: 'mi'
-    match: not_contains
-    target: last_message
-  - name: phase-not-done
-    type: regex
-    pattern: '^(?![ \t]*- \*\*Plan said:\*\*)(?![^\n]*(?:\b(?:no|not|never|without)\b|n''t\b))(?![^\n]*\bbefore (?:it|the phase|phase \d+)(?: \w+){0,2} marked\b)[^\n]*\bmark[^\n]*\[DONE\]'
-    flags: 'mi'
-    match: not_contains
-    target: last_message
