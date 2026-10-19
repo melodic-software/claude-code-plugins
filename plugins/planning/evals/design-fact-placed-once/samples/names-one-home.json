@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "1. Give the 25 MB cap a single home: `MAX_UPLOAD_BYTES` in uploads/limits.py, read by api.py, passed to upload.html, and imported by the CLI.",
+      "why": "names one home for the cap"
+    },
+    {
+      "answer": "**T1 Where the cap lives.** Recommend one shared settings module for every upload limit, so the size cap is defined once.",
+      "why": "one shared module for the limits"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "1. API: add MAX_BYTES = 25_000_000 to api.py.\n2. Form: hardcode 25 MB in the hint.\n3. CLI: add MAX_BYTES = 25_000_000 to upload_cmd.py.",
+      "why": "three copies, no single home"
+    },
+    {
+      "answer": "A single shared config module is overkill here; keep the 25 MB cap beside MAX_FILES in each file.",
+      "why": "a single home mentioned only to reject it"
+    },
+    {
+      "answer": "No single source for the cap: each surface keeps its own 25 MB constant, matching the existing pattern.",
+      "why": "negated mention"
+    }
+  ]
+}

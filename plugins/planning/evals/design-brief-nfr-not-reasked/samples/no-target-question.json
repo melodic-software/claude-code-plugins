@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Settled from the Brief: 300 ms at p95 lookup budget.\n1. Which timeout keeps the lookup inside the 300 ms p95 budget? Recommend 250 ms.",
+      "why": "a design question that quotes the settled target"
+    },
+    {
+      "answer": "1. Where does the Loqate client live? Recommend containing it in src/checkout/address/.",
+      "why": "no performance question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. What latency budget can the address lookup add to checkout?",
+      "why": "re-asks the performance target"
+    },
+    {
+      "answer": "2. How fast must the address check respond at p95?",
+      "why": "re-asks the target in another phrasing"
+    }
+  ]
+}

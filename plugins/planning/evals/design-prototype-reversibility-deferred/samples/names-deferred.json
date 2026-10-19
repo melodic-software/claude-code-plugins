@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Lifecycle and reversibility: deferred (prototype): revisit if it heads for production.",
+      "why": "the thread line"
+    },
+    {
+      "answer": "Quality bar is prototype, so I skipped the one-way/two-way door calls; they come back if the spike survives.",
+      "why": "prose naming the skip"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "1. Storage: JSON files under data/. Recommend: one file per recipe.\n2. Parser: recipe-scrapers.",
+      "why": "silent about reversibility"
+    },
+    {
+      "answer": "Reversibility is not deferred here: the storage format is a one-way door.",
+      "why": "negated deferral"
+    }
+  ]
+}

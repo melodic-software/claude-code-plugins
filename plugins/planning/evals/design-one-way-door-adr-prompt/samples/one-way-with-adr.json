@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "**T1 Payload contract.** Door: one-way, since three partners build against it at launch.\nRecommend: a versioned envelope with `event`, `version`, `data`. Basis: verified, the Brief's Constraints.\nADR: once T1 resolves I will offer `/architecture:record-decision`.",
+      "why": "one-way call, ADR prompt a few lines later"
+    },
+    {
+      "answer": "1. Payload shape is a one-way door: record it with /architecture:record-decision when we settle it.",
+      "why": "same line"
+    },
+    {
+      "answer": "ADR prompt for T1 (the payload schema, a one-way door): want me to run /architecture:record-decision after this round?",
+      "why": "ADR named before the one-way call on the same line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "1. Payload shape: a one-way door, so design it carefully with two candidates.\n2. Retry policy: exponential backoff for 24 hours.",
+      "why": "one-way call with no ADR prompt"
+    },
+    {
+      "answer": "Nothing here is a one-way door, so no ADR is needed.",
+      "why": "negated one-way call"
+    },
+    {
+      "answer": "T2 retry schedule is a two-way door: no ADR.\nT1 payload: one-way door, decided with two candidates.",
+      "why": "the only ADR mention is negated"
+    }
+  ]
+}
