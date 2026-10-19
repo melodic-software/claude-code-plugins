@@ -2737,6 +2737,14 @@ class TestSessionControls(SessionCase):
         for bad in ({"tour": True}, {"tour": "seen"}, {"toolbar": "compact"}):
             self.refused("bad-field", "set_prefs", self.ann, {"set": bad})
 
+    def test_auto_advance_is_a_per_person_switch_off_until_set(self):
+        self.assertNotIn("autoAdvance", self.s.snapshot(self.ann)["me"]["prefs"])
+        self.assertEqual(self.act("set_prefs", self.ann, {"set": {"autoAdvance": True}})["prefs"], {"autoAdvance": True})
+        self.assertEqual((self.s.snapshot(self.ann)["me"]["prefs"], self.s.snapshot(self.bo)["me"]["prefs"]), ({"autoAdvance": True}, {}))
+        self.refused("bad-field", "set_prefs", self.ann, {"set": {"autoAdvance": "on"}})
+        self.act("set_prefs", self.ann, {"set": {"autoAdvance": None}})
+        self.assertNotIn(self.ann, self.s.state["prefs"])
+
     def test_title_is_1_to_80_and_goal_up_to_200(self):
         self.act("set_title", HOST, {"title": "  Payment step  "})
         self.assertEqual(self.s.state["session"]["title"], "Payment step")

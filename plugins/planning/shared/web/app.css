@@ -1193,6 +1193,9 @@
 .app .vf-fmt { gap: 8px; margin-block: 2px 22px; }
 .app .vf-opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 12px; }
 .app .vf-fmt-hint { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.app .vf-advance { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 13.5px; color: var(--muted); }
+.app .vf-advance[hidden] { display: none; }
+.app .vf-advance-sep { color: var(--faint); }
 /* a card: picture (opens the viewer), label, who chose it, then its own Choose button */
 .app .vf-opt {
   display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px 8px 10px;

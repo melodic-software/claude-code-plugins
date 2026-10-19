@@ -268,6 +268,7 @@ PREFS = {
     "mute": lambda v: isinstance(v, list) and len(v) <= len(NOTIFY_KINDS) and all(k in NOTIFY_KINDS for k in v),
     "tour": lambda v: v in ("done", "skipped"),
     "toolbar": lambda v: v in ("simple", "full"),
+    "autoAdvance": lambda v: isinstance(v, bool),
 }
 
 # Round state machine (Contracts, "Round state machine"): (from status, action) -> (who, to status).

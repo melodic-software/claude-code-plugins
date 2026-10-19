@@ -1197,8 +1197,14 @@
         .catch(x => { passErr.textContent = `Not passed: ${Core.errorText(x)}`; }).finally(() => { passSave.disabled = false; render(); });
     };
     passUndo.onclick = () => Core.pass(ui.cur, "", false).then(() => flash("Pass taken back.")).catch(fail);
+    // Follow-up item 1: "Go to the next question after I answer" (the autoAdvance pref, off by default). One pick, a
+    // confirm or a scale value with the comment box empty moves on in 2 s unless Stay; never pick-many, rank or text.
+    const ADV = { timer: 0, qid: "" };
+    const advBar = E("p", "vf-advance"); advBar.setAttribute("role", "status"); advBar.hidden = true;
+    const advStay = btn("vf-btn vf-btn-ghost vf-btn-sm vf-advance-stay", "Stay");
+    advBar.append(E("span", null, "Next question in 2 s"), E("span", "vf-advance-sep", "·"), advStay);
     // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
-    scroll.append(orient, qMeta, forBox, qText, refBox, reviewRow, onIt, fmtBox, composer, passBox, ansPane, clSec, discSec);
+    scroll.append(orient, qMeta, forBox, qText, refBox, reviewRow, onIt, fmtBox, advBar, composer, passBox, ansPane, clSec, discSec);
     focusV.append(scroll);
 
     // Compare view
@@ -1912,6 +1918,7 @@
     function select(qid, { manual = false } = {}) {
       if (manual && following() && Core.owner() && Core.owner().q !== qid) { setFollow(false); flash(`Stopped following ${disp(Core.owner().name)}.`); }
       if (qid === ui.cur) return;
+      stopAdvance();
       closeSheet();
       if (ui.cur) { ui.drafts[ui.cur] = ta.value; ui.discDrafts.set(ui.cur, discTa.value); markSeen(ui.cur); }
       ui.cur = qid;
@@ -1940,6 +1947,18 @@
       }
       select(ids[(i + d + ids.length) % ids.length], { manual: true });
     }
+    function stopAdvance() { clearTimeout(ADV.timer); ADV.timer = 0; ADV.qid = ""; advBar.hidden = true; }
+    /** After my own single pick on the question in view: with the switch on, the comment box empty and another
+     *  question still open for me, Next in 2 s. */
+    function armAdvance(qid) {
+      const q = qById(qid);
+      if (!pref("autoAdvance", false) || ui.cur !== qid || !["choice", "confirm", "prototype", "scale"].includes(q?.format) || ta.value.trim()) return;
+      if (!Core.state.questions.some(x => x.id !== qid && isOpenForMe(x.id))) return;
+      stopAdvance();
+      ADV.qid = qid; advBar.hidden = false;
+      ADV.timer = setTimeout(() => { const go = ADV.qid === ui.cur; stopAdvance(); if (go) step(1); }, 2000);
+    }
+    advStay.onclick = () => { stopAdvance(); (ta.disabled ? qText : ta).focus({ preventScroll: true }); };
     function focusQuestion(qid) { select(qid, { manual: true }); setMode("focus"); if (phone.matches) setTab("answer"); }
     function setFollow(v) { setPrefs({ follow: v }); follow.setAttribute("aria-pressed", String(v)); render(); }
     const sameCites = qid => JSON.stringify(ui.cites[qid] || []) === JSON.stringify(myRec(qid)?.cites || []);
@@ -3476,7 +3495,7 @@
       if (!q || readOnly(q) || Core.lockOf(qid) || rec?.pick === optId) return;
       if (optionsOf(q).find(x => x.id === optId)?.other) return openOther(qid);
       const label = optionsOf(q).find(x => x.id === optId)?.label || "it";
-      Core.pick(qid, optId, keptComment(q, rec)).then(() => announce(rec?.pick ? `Your choice moved to ${label}.` : `You picked ${label}.`)).catch(fail);
+      Core.pick(qid, optId, keptComment(q, rec)).then(() => { announce(rec?.pick ? `Your choice moved to ${label}.` : `You picked ${label}.`); armAdvance(qid); }).catch(fail);
     };
     const clearPick = (qid = ui.cur) => {
       const rec = myRec(qid), q = qById(qid);
@@ -3506,7 +3525,7 @@
     composer.onsubmit = e => { e.preventDefault(); submit(); };
     clearBtn.onclick = () => { ta.value = ""; ui.dirty = true; ui.drafts[ui.cur] = ""; Core.setTyping(); grow(ta); render(); ta.focus(); };
     on(ta, "input", () => {
-      ui.dirty = true; ui.drafts[ui.cur] = ta.value; Core.setTyping(); renderComposer();
+      ui.dirty = true; ui.drafts[ui.cur] = ta.value; Core.setTyping(); renderComposer(); stopAdvance(); // writing a comment stays
       // in the phone sheet, writing at the end keeps the last line (the caret) in view
       if (composer.classList.contains("vf-composer-sheet") && ta.selectionEnd === ta.value.length) ta.scrollTop = ta.scrollHeight;
     });
@@ -3817,7 +3836,7 @@
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
       const q = here?.q && qById(here.q);
-      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -3857,6 +3876,11 @@
           cseg.append(b);
         }
         parts.push(E("h3", "vf-pop-sub", "Claude's take"), cseg);
+        const advOn = !!prefs().autoAdvance, adv = k(btn("vf-sw-row vf-advsw"), "adv");
+        adv.setAttribute("role", "switch"); adv.setAttribute("aria-checked", String(advOn));
+        adv.append(E("span", "vf-sw-txt vf-sw-label", "Go to the next question after I answer"), E("span", "vf-switch"));
+        adv.onclick = () => { setPrefs({ autoAdvance: !advOn }); if (advOn) stopAdvance(); fillPcard(); };
+        parts.push(adv);
         if (c.pinned) {
           // Away by hand (the snooze): others see me as Away until my next key, click or touch.
           const awayB = k(lbtn("vf-menu-item vf-menu-plain vf-away-btn", "moon", Core.isAway() ? "You show as Away. Any key or tap ends it" : "Show me as Away"), "away");
@@ -5137,7 +5161,7 @@
         const rec = myRec(qid);
         delete ui.fdraft[qid];
         if (rec?.value === n) return render();
-        Core.pickWith(qid, { value: n }, { comment: commentOf(rec) }).then(() => announce(`You chose ${n}.`)).catch(fail).finally(render);
+        Core.pickWith(qid, { value: n }, { comment: commentOf(rec) }).then(() => { announce(`You chose ${n}.`); armAdvance(qid); }).catch(fail).finally(render);
       };
       if (now) save(); else FMT.timer = setTimeout(save, 450);
     }

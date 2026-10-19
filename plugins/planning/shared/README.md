@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -710,6 +710,7 @@ node plugins/planning/shared/tests/ui_connect.js
 node plugins/planning/shared/tests/ui_uploads.js
 node plugins/planning/shared/tests/ui_report.js
 node plugins/planning/shared/tests/ui_general.js
+node plugins/planning/shared/tests/ui_advance.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -720,6 +721,10 @@ watcher key and its revoke, the owner taking a shared answer down, that the owne
 guest never see the request and another key cannot answer it, and that on the phone every Connect
 control lies inside the viewport. Before the browsers it checks the one-request prompt's data
 block against look-alike end markers.
+
+`ui_advance.js` checks "Go to the next question after I answer" (the `autoAdvance` pref, off by default, in the
+person's own settings): a single pick or a scale value with the comment box empty shows "Next question in 2 s · Stay"
+and moves on; Stay cancels; a pick with a comment, pick-many, rank and a written answer never move on.
 
 `ui_uploads.js` checks uploads with a 390x844 phone guest and a desktop owner: no upload control
 while Uploads is off, an offer held in the guest's browser, the owner's Accept, a chunked send

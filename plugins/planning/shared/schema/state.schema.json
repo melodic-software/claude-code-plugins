@@ -1086,7 +1086,8 @@
         "follow": {"$ref": "#/$defs/pref"},
         "mute": {"$ref": "#/$defs/pref"},
         "tour": {"$ref": "#/$defs/pref"},
-        "toolbar": {"$ref": "#/$defs/pref"}
+        "toolbar": {"$ref": "#/$defs/pref"},
+        "autoAdvance": {"$ref": "#/$defs/pref"}
       }
     },
     "notification": {
