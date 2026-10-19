@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/webhook-retry/interview-checklist.md", "old_string": "x", "new_string": "y"}}], "why": "edits the ledger only"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/webhook-retry/interview-checklist.md", "old_string": "- [ ] Step 4: Persist the contract (PLAN.md Brief)", "new_string": "- [x] Step 4: Persist the contract (PLAN.md Brief)"}}], "why": "ticks a checklist line that names PLAN.md; the target path is the checklist"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/webhook-retry/PLAN.md", "old_string": "## Plan", "new_string": "## Brief\n\n## Plan"}}], "why": "edited the Brief before the problem was confirmed"}
+  ]
+}
