@@ -40,10 +40,8 @@ session reports in one of them, look there.
   runs as its own call. Put the `--json` text in single quotes and write any apostrophe inside it as
   `\u0027`, a JSON escape, so the shell needs no escaping. Keep one command under 8,000
   characters: split a larger array across several `add` calls, with a heartbeat after each. This
-  shape is what lets a sweep run from a worktree-isolated session; read the isolation checks live:
-  - **Pointer**: [Worktrees, "How Claude Code enforces isolation"](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes which command shapes the isolation checks refuse.
+  shape is what lets a sweep run from a worktree-isolated session; `/source-control:worktree` owns
+  the accepted shapes, under "Accepted command shapes for body-time and subagent Bash".
 - **A refused write stops the sweep.** If the harness refuses a findings.py `add` or `finish` call
   (a worktree-isolation check or any other guard), stop and return `refused-by-guard` with the
   refused command and the refusal text. A refused area probe is not a refused write: record that

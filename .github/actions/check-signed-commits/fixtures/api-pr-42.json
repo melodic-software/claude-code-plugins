@@ -2,7 +2,11 @@
   "pull": {
     "number": 42,
     "commits": 4,
-    "head": { "ref": "feat/lane-probe", "sha": "dddddddddddddddddddddddddddddddddddddddd" },
+    "head": {
+      "ref": "feat/lane-probe",
+      "sha": "dddddddddddddddddddddddddddddddddddddddd",
+      "repo": { "full_name": "melodic-software/claude-code-plugins" }
+    },
     "base": { "ref": "main", "sha": "2222222222222222222222222222222222222222" }
   },
   "commits": [
@@ -54,6 +58,10 @@
         "commit": { "verification": { "verified": false, "reason": "unsigned" } }
       }
     ]
+  },
+  "headRef": {
+    "ref": "refs/heads/feat/lane-probe",
+    "object": { "type": "commit", "sha": "dddddddddddddddddddddddddddddddddddddddd" }
   },
   "labels": [{ "id": 1, "name": "needs-human" }, { "id": 2, "name": "do-not-merge" }]
 }
