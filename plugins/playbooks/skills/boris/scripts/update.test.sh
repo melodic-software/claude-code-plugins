@@ -183,6 +183,43 @@ else
   pass "sync map has no open-ended section range"
 fi
 
+# --- 10. run_check exit-code contract (0 no drift, 1 drift, 2 unverifiable) ---------
+# Both fetches are stubbed; the frontmatter is the section 4 fixture (7.5.0).
+
+FRONTMATTER_FILE="$FIXTURE_SKILL"
+VENDOR_FILE="$TEST_TMPDIR/vendor-skill.md"
+UPSTREAM_COPY="$TEST_TMPDIR/upstream-skill.md"
+printf 'vendored tips\n' >"$VENDOR_FILE"
+cp "$VENDOR_FILE" "$UPSTREAM_COPY"
+stub_version="7.5.0"
+stub_install=ok
+fetch_upstream_version() { [[ -n "$stub_version" ]] && printf '%s' "$stub_version"; }
+fetch_upstream_install() { [[ "$stub_install" == ok ]] && printf '%s' "$UPSTREAM_COPY"; }
+
+out=$(run_check 2>&1)
+assert_exit "version and bytes match: exit 0" 0 "$?"
+assert_contains "version and bytes match: reports no drift" "$out" "No drift"
+
+stub_version="7.6.0"
+out=$(run_check 2>&1)
+assert_exit "upstream version moved: exit 1" 1 "$?"
+stub_version="7.5.0"
+
+printf 'a new tip\n' >>"$UPSTREAM_COPY"
+out=$(run_check 2>&1)
+assert_exit "upstream bytes changed: exit 1" 1 "$?"
+assert_contains "upstream bytes changed: names the drift" "$out" "vendor content drift"
+cp "$VENDOR_FILE" "$UPSTREAM_COPY"
+
+stub_version=""
+out=$(run_check 2>&1)
+assert_exit "version endpoint unreachable: exit 2" 2 "$?"
+stub_version="7.5.0"
+
+stub_install=fail
+out=$(run_check 2>&1)
+assert_exit "install endpoint unreachable: exit 2" 2 "$?"
+
 # --- Final report ---------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

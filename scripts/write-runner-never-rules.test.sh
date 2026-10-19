@@ -54,8 +54,12 @@ say(!steps.some((s) => /(update|create)Ref\(/.test(body(s)) && /Ref\([^)]*force:
 const post = byId("post");
 const commit = byId("commit");
 say(/bash "\$BIN\/post\.sh"/.test(post.run ?? ""), "the post step runs the base copy of post.sh");
-say(/workflow-staged\)?[^\n]*\n?[^\n]*skip-reason=awaiting-human|unresolved-conflict \| workflow-staged\)/.test(post.run ?? ""),
-  "the post step turns workflow-staged into an escalation (awaiting-human)");
+// The case arm naming the reason sets skip=awaiting-human on its next line.
+const escalates = (reason) =>
+  new RegExp(`^\\s*[a-z| -]*\\b${reason}\\b[a-z| -]*\\)\\s*\\n\\s*tree="" skip=awaiting-human$`, "m").test(post.run ?? ""); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+for (const reason of ["unresolved-conflict", "workflow-staged", "unexpected-path-staged"]) {
+  say(escalates(reason), `the post step turns ${reason} into an escalation (awaiting-human)`);
+}
 say(/tree=""/.test(post.run ?? ""), "an escalating post step clears its tree output");
 const commitIf = String(commit.if ?? "");
 say(/steps\.post\.outcome == 'success'/.test(commitIf) && /steps\.post\.outputs\.escalation-reason == ''/.test(commitIf)
@@ -110,12 +114,19 @@ const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "
 // wrapper the skill may run with no arguments; its `verify-scripts`, each a
 // read-only wrapper over a base copy it may run with any arguments; under web-access `any`,
 // the read-only base copy of the two docs scripts; under prepare:
-// review-threads, the read-only review-thread tool wrapper; and with the
-// commit tool, chmod +x, since commit_files takes each file's mode from disk.
+// review-threads, the read-only review-thread tool wrapper; with the
+// commit tool, chmod +x, since commit_files takes each file's mode from disk;
+// and under prepare: ci-context, bare Bash for a read skill, which runs in
+// pr-run-activity-read.yml with no write token (this file fails a read effect
+// before it stages anything).
 const docsRule = String.raw`allowed="$allowed,Bash(bash $DOCS_DIR/$script *),Bash(bash \\\"$DOCS_DIR/$script\\\" *)"`;
+const ciContextRule = 'allowed="$allowed,Bash,Edit,Write,Agent,Read(/$CI_DIR/**),Edit(/$SCRATCH/**)"';
 const allowedLines = stage.split("\n").filter((l) => /allowed="\$allowed|allowed="Skill/.test(l));
-say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', 'allowed="$allowed,Bash($verifier *)"', docsRule, 'allowed="$allowed,Bash($tool *)"', 'allowed="$allowed,Bash(chmod +x *)"'].includes(l.trim())),
-  "the runner grants the skill no Bash but its check wrappers, its verify-scripts, the docs scripts, the review-thread tool and chmod +x");
+say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', 'allowed="$allowed,Bash($verifier *)"', docsRule, 'allowed="$allowed,Bash($tool *)"', 'allowed="$allowed,Bash(chmod +x *)"', ciContextRule].includes(l.trim())),
+  "the runner grants the skill no Bash but its check wrappers, its verify-scripts, the docs scripts, the review-thread tool, chmod +x and a read ci-context skill's");
+const readBranch = stage.slice(stage.indexOf("          read)\n"), stage.indexOf("          mutate-branch | mutate-tracker"));
+say(readBranch.includes(ciContextRule) && /ci-context\) \[ "\$EFFECT" = read \] \|\| fail/.test(stage),
+  "the ci-context Bash grant sits in the read effect's branch, and ci-context with any other effect fails red");
 say(/chmod -R a-w "\$VERIFY_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$VERIFY_DIR\/\*\*\),Write\(\/\$VERIFY_DIR\/\*\*\)"/.test(stage),
   "the verify-scripts copy is read-only to the skill");
 say(/chmod -R a-w "\$FEEDBACK_DIR"/.test(stage) && /Edit\(\/\$FEEDBACK_DIR\/\*\*\),Write\(\/\$FEEDBACK_DIR\/\*\*\),Edit\(\/\$FEEDBACK_STATE\/\*\*\),Write\(\/\$FEEDBACK_STATE\/\*\*\)/.test(stage),
