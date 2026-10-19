@@ -35,8 +35,6 @@ ROUND = HERE / "round.py"
 FIXTURES = HERE / "tests" / "fixtures"
 TIMEOUT = 10
 
-import server as _server  # noqa: E402
-
 FAST_QUIET, FAST_BURST = 3.0, 12.0
 # a wake lands after one fast quiet window, plus slack
 WAKE_SECONDS = FAST_QUIET + 1.0
