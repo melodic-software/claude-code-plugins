@@ -360,10 +360,9 @@ Review: architecture   # structural integrity, dependency direction
 Review: security       # auth, input handling, secrets
 Review: concurrency    # races, shared state
 Review: code-design    # repeated facts, cascades, configurability, testability, observability
-Quality bar: production
 ```
 
-Each tag maps to a `/review:quality-gate` mode: `architecture`, `security` and `code-design` to the mode of the same name, `concurrency` to `/review:quality-gate slice concurrency`. A tagged phase carries the Brief's `Quality bar:` line verbatim, which the review receives with the phase diff; with no such line in the Brief, write none.
+Each tag maps to a `/review:quality-gate` mode: `architecture`, `security` and `code-design` to the mode of the same name, `concurrency` to `/review:quality-gate slice concurrency`. The review rates at the Brief's `Quality bar:` line, which implementation reads from the plan and passes with the phase diff; a phase never repeats it.
 
 Tag `Review: code-design` on any phase that adds or changes a contract, type, module, or a fact or rule several files read, skill and instruction Markdown included; omit it only for trivial edits. Stumble: phases that only changed Markdown or a shared value went untagged, so no phase-boundary review saw the copies they spread.
 
