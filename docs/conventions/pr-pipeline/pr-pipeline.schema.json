@@ -747,6 +747,25 @@
           "minimum": 1,
           "description": "Minutes the pr-merge workflow's gate loop runs before it starts no further candidate. The candidate in progress finishes, so no gate stops between its check and its enqueue; the next run starts after the last candidate reached. Keep it below the merge job's timeout-minutes less the longest single candidate. Absent: no budget."
         },
+        "skip-unchanged": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The pr-merge workflow reports a candidate the last run refused on unchanged inputs with that refusal, marked carried, instead of gating it again; a skip only repeats a refusal (README.md, Merge authority). 0 in either key: no skips.",
+          "properties": {
+            "max-minutes": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 60,
+              "description": "Minutes after a refusal was judged at which the candidate is gated again, unchanged or not."
+            },
+            "max-skips": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 3,
+              "description": "Runs in a row that may skip a candidate before one gates it again, unchanged or not."
+            }
+          }
+        },
         "max-queue-ejections": {
           "type": "integer",
           "minimum": 1,
