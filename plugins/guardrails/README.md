@@ -336,8 +336,8 @@ out of scope until such a signal exists.
   `trailer_policy` of `none`, so demanding it would block the skill's own
   conformant output in repos whose convention forbids co-author trailers.
 
-- **`block-windows-drive-tmp` guards two doors with one matcher, and only one of
-  them existed before 0.30.0.** A write reaches the drive root either as a
+- **`block-windows-drive-tmp` checks two write routes with one matcher, and only the
+  command route was checked before 0.30.0.** A write reaches the drive root either as a
   command string (`echo x > /tmp/f`) or as a tool's own target path (`Write`
   with `file_path: C:\tmp\f`). The hook read `.tool_input.command` only, so the
   second shape hit an empty-`COMMAND` early exit and passed unexamined, and a real
