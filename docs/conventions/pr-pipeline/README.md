@@ -178,7 +178,16 @@ without force, refusing the whole patch on any change to `.github/**`, an agent 
 `.gitmodules`, `CODEOWNERS`), a symbolic link or a gitlink
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
-unappliable patch, or a check the model escalated, goes to `report-escalation`.
+unappliable patch, or a check the model escalated, goes to `report-escalation`. The same
+`pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
+GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
+same-repository ones into `main` that the lanes App opened (by bot id), with no `do-not-merge`
+or `needs-human` label, whose head's `ci-status` check run from the GitHub Actions app ended
+`failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
+untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
+and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
+lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
+concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
@@ -1006,6 +1015,15 @@ a changed workflow that runs from the base branch, merges only once a tracked is
 check and its owner; a line in the pull request body does not count. Evidence: melodic-software/ci-workflows#755 listed its
 intake author gate as "unverified, fails closed", merged, and skipped every intake run here
 (melodic-software/ci-workflows#772).
+
+The lanes token broker parses this config with resolve-config code pinned in azure-iac
+(`src/lanes-token-broker/resolve-config.pin`, fetched by `scripts/deploy/fetch-resolve-config.sh`).
+A pull request that changes a file that script fetches carries the body line
+`Broker pin: melodic-software/azure-iac#<n>`, naming the azure-iac pull request that bumps the pin
+to its merge commit; `ci-status` fails it otherwise. The path list is the `BROKER_PATHS` value of
+`ci-status`'s "Require a broker pin PR for a broker-fetched change" step in
+`.github/workflows/pr-require-checks.yml`. Evidence: #8313 changed `resolve.mjs` with no pin bump,
+and the broker denied every pr-unblock token request as `config-invalid` until azure-iac#44.
 
 ## Outside this repository
 

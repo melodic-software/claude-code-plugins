@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.15.0 - 2026-10-18
+## 2.16.0 - 2026-10-18
 
 `merge.diff-check.floor-paths` (a list of globs) adds paths to the risk scorer's HIGH path floor
 while `high-path-floor` applies; a pull request touching one waits for a human, where a denied path
@@ -18,6 +18,14 @@ now applies there too. The switch governs both lanes: in the local babysit lane,
 `floor-paths`, `floor-script-scopes`, the capability check and the new fixed floor entries
 (`plugins/*/monitors/**`, `plugins/*/workflows/**`), so a local-lane pull request scores as it did
 before this release. `version` stays 2.
+
+## 2.15.0 - 2026-10-18
+
+`pr-unblock-dispatch.yml` starts pr-unblock's `fix-ci` for open lanes App pull requests whose
+head's `ci-status` failed, from one GraphQL query per page with its `rateLimit.cost` logged, at
+most `limits.fix-ci-per-run` per run and, on a head whose earlier runs all failed, at most
+`limits.fix-ci-restarts` more times ([README](README.md#lanes)). Its job's concurrency group
+now cancels a run in progress. `version` stays 2.
 
 ## 2.14.0 - 2026-10-18
 
