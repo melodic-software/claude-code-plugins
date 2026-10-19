@@ -388,6 +388,26 @@ fresh_state
 run "$GOOD" --app-slug 'Not_A_Slug'
 check_rc 15 "$RC" "a malformed --app-slug exits 15"
 
+# A surviving userConfig placeholder is an unset key: it resolves exactly as if
+# no slug were given (here, an unresolved identity under a refused gh api user).
+fresh_state
+FAKE_GH_FAIL=user
+export FAKE_GH_FAIL
+# shellcheck disable=SC2016 # the literal placeholder is the input under test
+run "$GOOD" --app-slug '${user_config.lane_app_slug}'
+check_rc 15 "$RC" "a placeholder --app-slug resolves as absent (unresolved identity, exit 15)"
+if grep -q 'must be a GitHub App slug' "$STDERR"; then
+  fail "a placeholder --app-slug was validated as a slug"
+else
+  pass "a placeholder --app-slug is not validated as a slug"
+fi
+fresh_state
+FAKE_GH_FAIL="" FAKE_GH_LOGIN=lane-bot FAKE_GH_TYPE=User
+export FAKE_GH_FAIL FAKE_GH_LOGIN FAKE_GH_TYPE
+# shellcheck disable=SC2016 # the literal placeholder is the input under test
+run "$GOOD" --app-slug '${user_config.lane_app_slug}'
+check_rc 0 "$RC" "a placeholder --app-slug with a User login exits 0 as if no slug were given"
+
 # A wrong --app-slug: the create lands under the token's real login.
 fresh_state
 FAKE_GH_FAIL=user FAKE_GH_POST_AS='real-app[bot]'
