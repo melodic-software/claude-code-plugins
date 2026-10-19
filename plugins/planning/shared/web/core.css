@@ -1,0 +1,58 @@
+/* Shared base. The page owns everything inside #app. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; overscroll-behavior: none; }
+body { font: 15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+
+/* The app follows the visual viewport (core.js sets --vv-top and --vv-h), so an on-screen keyboard shrinks it
+   instead of covering the field being typed in; dvh is the fallback before the first measurement. */
+#app {
+  position: fixed; inset-inline: 0; inset-block-start: var(--vv-top, 0px); overflow: hidden;
+  block-size: 100vh; block-size: var(--vv-h, 100dvh);
+}
+
+/* C40: ten person colors per theme. Each meets WCAG 2.2 AA: initials 4.5:1 on the color, the color 3:1 on the page. */
+#app {
+  --pc-c1: #f472b6; --pc-c2: #60a5fa; --pc-c3: #34d399; --pc-c4: #fbbf24; --pc-c5: #a78bfa;
+  --pc-c6: #f87171; --pc-c7: #22d3ee; --pc-c8: #fb923c; --pc-c9: #a3e635; --pc-c10: #e879f9; --pc-ink: #0b0b0f;
+}
+#app[data-theme="light"] {
+  --pc-c1: #be185d; --pc-c2: #1d4ed8; --pc-c3: #047857; --pc-c4: #b45309; --pc-c5: #6d28d9;
+  --pc-c6: #b91c1c; --pc-c7: #0e7490; --pc-c8: #c2410c; --pc-c9: #4d7c0f; --pc-c10: #a21caf; --pc-ink: #ffffff;
+}
+.core-avatar {
+  display: inline-grid; place-items: center; flex: none; border-radius: 50%;
+  background: var(--av); color: var(--pc-ink, #0b0b0f); font-weight: 700; letter-spacing: 0.02em; user-select: none;
+}
+
+dialog:is(.core-name, .core-switch) { border: 0; border-radius: 16px; padding: 28px; width: min(92vw, 380px); background: #16181f; color: #f4f4f5; box-shadow: 0 30px 80px rgb(0 0 0 / 0.6); }
+dialog:is(.core-name, .core-switch)::backdrop { background: rgb(0 0 0 / 0.6); backdrop-filter: blur(6px); }
+dialog:is(.core-name, .core-switch) h2 { margin: 0 0 4px; font-size: 20px; }
+dialog.core-name .core-sub { margin: 0 0 14px; color: #d4d4d8; overflow-wrap: anywhere; }
+dialog.core-name .core-sub:empty { display: none; }
+dialog.core-name label { display: block; margin: 0 0 10px; color: #c4c4cc; }
+dialog.core-name .core-note { margin: 12px 0 0; color: #a1a1aa; font-size: 13px; line-height: 1.45; }
+dialog.core-name .core-err { margin: 10px 0 0; color: #fca5a5; font-size: 13.5px; }
+dialog.core-name .core-err:empty { display: none; }
+dialog.core-name button:disabled { opacity: 0.6; cursor: default; }
+dialog.core-name input { width: 100%; font: inherit; padding: 12px 14px; border-radius: 10px; border: 1px solid #2e313b; background: #0e1015; color: inherit; outline: none; }
+dialog.core-name input:focus { border-color: #818cf8; }
+dialog:is(.core-name, .core-switch) button { margin-top: 14px; width: 100%; font: 600 15px/1 inherit; padding: 12px; border: 0; border-radius: 10px; background: #f4f4f5; color: #0b0b0f; cursor: pointer; }
+dialog:is(.core-name, .core-switch) button:focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; }
+dialog:is(.core-name, .core-switch) .core-row { display: flex; gap: 10px; }
+dialog:is(.core-name, .core-switch) .core-row button { flex: 1; min-height: 44px; }
+dialog:is(.core-name, .core-switch) .core-btn-quiet { background: transparent; color: #f4f4f5; box-shadow: inset 0 0 0 1px #3a3d48; }
+
+/* The telemetry notice (core.js Core.telemetry): a line and the "What this page records" link. */
+.core-rec-line { margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: #a1a1aa; }
+.core-rec-link { color: #a5b4fc; }
+dialog.core-records { border: 0; border-radius: 16px; padding: 24px; width: min(92vw, 440px); max-height: 85vh; overflow: auto; background: #16181f; color: #f4f4f5; box-shadow: 0 30px 80px rgb(0 0 0 / 0.6); font-size: 14px; line-height: 1.45; }
+dialog.core-records::backdrop { background: rgb(0 0 0 / 0.6); }
+dialog.core-records h2 { margin: 0 0 8px; font-size: 19px; }
+dialog.core-records h3 { margin: 14px 0 4px; font-size: 14px; }
+dialog.core-records ul { margin: 0; padding-inline-start: 20px; }
+dialog.core-records .core-note { margin: 12px 0 0; color: #a1a1aa; font-size: 13px; }
+dialog.core-records > button { margin-top: 14px; width: 100%; min-height: 44px; font: 600 15px/1 inherit; border: 0; border-radius: 10px; background: #f4f4f5; color: #0b0b0f; cursor: pointer; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

@@ -117,6 +117,27 @@ mkdir -p "$DIR"
   echo '- **Recheck trigger**: the CLI ships a new major version.'         # 6
 } >"$DIR/pointer-record.md"
 
+{
+  echo '# Inline recheck when'
+  echo ''
+  echo 'Verified 2025-06-01 (as of 2025-06-01; recheck when the hooks page renames this section).'
+} >"$DIR/inline-recheck-when.md"
+
+{
+  echo '# Recheck label'
+  echo ''
+  echo 'Verified 2025-06-01 against the upstream page.'
+  echo '**Recheck:** when the CLI ships a new major version.'
+} >"$DIR/recheck-label.md"
+
+{
+  echo '# Bare recheck'
+  echo ''
+  echo 'Verified 2025-06-01 against the upstream page.'
+  echo 'We should recheck.'
+  echo 'Recheck:'
+} >"$DIR/bare-recheck.md"
+
 run() { bash "$CHECK" --as-of "$AS_OF" "$@"; }
 
 # --- Usage -----------------------------------------------------------------------
@@ -398,6 +419,18 @@ assert_eq "a pointer record's As of bullet is read as a stamp" \
   "$(echo "$OUT" | jq -r '.findings[] | select(.rule == "attribution/audit/rule-stamp-expired") | .line')" "5"
 assert_eq "a pointer record's Recheck trigger bullet clears the surface" \
   "$(echo "$OUT" | jq -r '[.findings[] | select(.rule | test("trigger-less"))] | length')" "0"
+
+OUT="$(run --trigger-less "$DIR/inline-recheck-when.md" 2>/dev/null)"
+assert_eq "an inline 'recheck when <condition>' clause clears the surface" \
+  "$(echo "$OUT" | jq -r '[.findings[] | select(.rule | test("trigger-less"))] | length')" "0"
+
+OUT="$(run --trigger-less "$DIR/recheck-label.md" 2>/dev/null)"
+assert_eq "a bold 'Recheck:' label with a condition clears the surface" \
+  "$(echo "$OUT" | jq -r '[.findings[] | select(.rule | test("trigger-less"))] | length')" "0"
+
+OUT="$(run --trigger-less "$DIR/bare-recheck.md" 2>/dev/null)"
+assert_eq "a bare 'recheck' with no condition still leaves the stamp flagged" \
+  "$(echo "$OUT" | jq -r '[.findings[] | select(.rule == "attribution/audit/rule-trigger-less-stamp")] | length')" "1"
 
 # --- Config cascade --------------------------------------------------------------
 

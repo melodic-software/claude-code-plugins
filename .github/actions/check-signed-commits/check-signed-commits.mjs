@@ -1,4 +1,4 @@
-// Post-model check for CI lanes: every commit added to the PR after the
+// Post-model check for CI lanes: every commit the lane added after the
 // recorded head must be GitHub-verified. On any unverified commit it adds the
 // escalation label (only if the repository already has it) and posts one
 // fixed comment listing the SHAs. It never rewrites or force-pushes.
@@ -12,55 +12,120 @@ const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const LISTED_COMMITS_CAP = 250;
+// GET /pulls can lag a push (the promote step's), so the PR is re-read until
+// its head matches the branch ref, at most HEAD_READS times.
+const HEAD_READS = 5;
+const HEAD_READ_DELAY_MS = 2000;
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// The PR commits that are new since `sinceSha`. When `sinceSha` is not a
-// known ancestor of the head, every PR commit counts as new.
-async function newCommits(github, base, prCommits, sinceSha, headSha) {
+// The SHA the PR's head branch points at, or null when it cannot be read.
+async function headRefSha(github, pull) {
+  const repository = pull.head?.repo?.full_name ?? "";
+  const ref = pull.head?.ref;
+  if (!REPOSITORY.test(repository) || typeof ref !== "string" || ref === "") {
+    return null;
+  }
+  const encoded = ref.split("/").map(encodeURIComponent).join("/");
+  try {
+    const sha = (await github("GET", `/repos/${repository}/git/ref/heads/${encoded}`))?.object?.sha;
+    return SHA.test(sha ?? "") ? sha : null;
+  } catch (error) {
+    if (error?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+// The PR, re-read until its head SHA is the branch ref's. `headConfirmed` is
+// false when they never agree: a stale head would hide the lane's commits.
+async function readPull(github, base, prNumber, sleep) {
+  for (let read = 1; ; read += 1) {
+    const pull = await github("GET", `${base}/pulls/${prNumber}`);
+    const refSha = await headRefSha(github, pull);
+    if (refSha !== null && refSha === pull.head?.sha) {
+      return { pull, headConfirmed: true };
+    }
+    if (read === HEAD_READS) {
+      return { pull, headConfirmed: false };
+    }
+    await sleep(HEAD_READ_DELAY_MS);
+  }
+}
+
+// The comparison `sinceSha...headSha` when `sinceSha` is a well-formed SHA
+// GitHub knows as an ancestor of the head; otherwise null. `complete` is false
+// when the comparison lists fewer commits than it counts (it lists at most 250
+// unpaged).
+async function compareSince(github, base, sinceSha, headSha) {
   if (!SHA.test(sinceSha ?? "")) {
-    return { commits: prCommits, sinceIsAncestor: false };
+    return null;
   }
   let comparison;
   try {
     comparison = await github("GET", `${base}/compare/${sinceSha}...${headSha}`);
   } catch (error) {
     if (error?.status === 404) {
-      return { commits: prCommits, sinceIsAncestor: false };
+      return null;
     }
     throw error;
   }
-  const ancestor = comparison.status === "ahead" || comparison.status === "identical";
-  if (!ancestor) {
-    return { commits: prCommits, sinceIsAncestor: false };
+  if (comparison.status !== "ahead" && comparison.status !== "identical") {
+    return null;
   }
-  if (comparison.total_commits > comparison.commits.length) {
-    return { commits: prCommits, sinceIsAncestor: true };
-  }
-  // The comparison's own commit objects carry the verification read; the PR
-  // list only decides which of them belong to the PR (not merged-in base).
-  const inPr = new Set(prCommits.map((commit) => commit.sha));
-  return {
-    commits: comparison.commits.filter((commit) => inPr.has(commit.sha)),
-    sinceIsAncestor: true,
-  };
+  const commits = Array.isArray(comparison.commits) ? comparison.commits : [];
+  const complete =
+    Array.isArray(comparison.commits) &&
+    Number.isInteger(comparison.total_commits) &&
+    comparison.total_commits <= commits.length;
+  return { commits, complete };
 }
 
-function escalationComment(unverified, sinceIsAncestor, complete) {
+// The lane's commits and whether they could all be read. A complete comparison
+// from an ancestor `sinceSha` lists them; its commit objects carry the
+// verification read. The PR list (at most 250) then only drops base commits a
+// merge brought in, and only when it holds the whole PR: a capped list would
+// drop lane commits it never listed. Anything else checks every PR commit,
+// which is whole only when the PR list is.
+function laneCommits(comparison, prCommits, prListComplete) {
+  if (comparison?.complete) {
+    if (!prListComplete) {
+      return { commits: comparison.commits, checkable: true };
+    }
+    const inPr = new Set(prCommits.map((commit) => commit.sha));
+    return {
+      commits: comparison.commits.filter((commit) => inPr.has(commit.sha)),
+      checkable: true,
+    };
+  }
+  return { commits: prCommits, checkable: prListComplete };
+}
+
+function escalationComment({ unverified, sinceIsAncestor, checkable, countKnown, headConfirmed }) {
   const lines = [
-    "Lane commit check: these commits on this pull request are not GitHub-verified, so no lane " +
-      "continues on it until a human reviews them.",
+    "Lane commit check: these commits are not GitHub-verified, so no lane continues on this " +
+      "pull request until a human reviews them.",
   ];
-  if (!complete) {
+  if (!headConfirmed) {
     lines.push(
       "",
-      `This pull request has more commits than GitHub lists (${LISTED_COMMITS_CAP}), so its ` +
-        "commits cannot all be checked.",
+      "The pull request's head did not match its branch, so the lane's commits cannot be checked.",
+    );
+  } else if (!checkable) {
+    lines.push(
+      "",
+      countKnown
+        ? `This pull request has more commits than GitHub lists (${LISTED_COMMITS_CAP}), so its ` +
+            "commits cannot all be checked."
+        : "GitHub did not report how many commits this pull request has, so its commits cannot " +
+            "all be checked.",
     );
   }
-  if (!sinceIsAncestor) {
+  if (headConfirmed && !sinceIsAncestor) {
     lines.push(
       "",
       "The head recorded before the lane ran is not an ancestor of the current head, so every " +
-        "commit on the pull request was checked.",
+        `${checkable ? "" : "listed "}commit on the pull request was checked.`,
     );
   }
   if (unverified.length > 0) {
@@ -69,17 +134,26 @@ function escalationComment(unverified, sinceIsAncestor, complete) {
   return lines.join("\n");
 }
 
-export async function checkSignedCommits({ github, repository, prNumber, sinceSha, label }) {
+export async function checkSignedCommits({
+  github,
+  repository,
+  prNumber,
+  sinceSha,
+  sleep = delay,
+}) {
   const base = `/repos/${repository}`;
-  const pull = await github("GET", `${base}/pulls/${prNumber}`);
+  const { pull, headConfirmed } = await readPull(github, base, prNumber, sleep);
   const prCommits = await paginate(github, `${base}/pulls/${prNumber}/commits`);
-  const { commits, sinceIsAncestor } = await newCommits(
-    github,
-    base,
-    prCommits,
-    sinceSha,
-    pull.head.sha,
-  );
+  // The PR commit list stops at LISTED_COMMITS_CAP; it holds the whole PR only
+  // when the PR's commit count says so.
+  const countKnown = Number.isInteger(pull.commits);
+  const prListComplete = countKnown && pull.commits <= prCommits.length;
+  const comparison = headConfirmed
+    ? await compareSince(github, base, sinceSha, pull.head.sha)
+    : null;
+  const lane = laneCommits(comparison, prCommits, prListComplete);
+  const { commits } = lane;
+  const checkable = headConfirmed && lane.checkable;
   // A commit whose SHA is malformed cannot be named safely, so it counts as
   // unverified and is reported as `<invalid-sha>`, never echoed.
   const unverified = commits
@@ -87,36 +161,43 @@ export async function checkSignedCommits({ github, repository, prNumber, sinceSh
       (commit) => !SHA.test(commit.sha ?? "") || commit.commit?.verification?.verified !== true,
     )
     .map((commit) => (SHA.test(commit.sha ?? "") ? commit.sha : "<invalid-sha>"));
-  // The PR commit list stops at LISTED_COMMITS_CAP; a PR with more (or with
-  // no count) cannot be checked whole, which fails closed.
-  const complete = Number.isInteger(pull.commits) && pull.commits <= prCommits.length;
-  const allVerified = complete && unverified.length === 0;
-  if (!allVerified) {
-    const labels = await paginate(github, `${base}/labels`);
-    if (labels.some((existing) => existing.name === label)) {
-      await github("POST", `${base}/issues/${prNumber}/labels`, { labels: [label] });
-    }
-    await github("POST", `${base}/issues/${prNumber}/comments`, {
-      body: escalationComment(unverified, sinceIsAncestor, complete),
-    });
-  }
-  return { allVerified, unverified, sinceIsAncestor };
+  return {
+    allVerified: checkable && unverified.length === 0,
+    unverified,
+    sinceIsAncestor: comparison !== null,
+    checkable,
+    countKnown,
+    headConfirmed,
+  };
 }
 
-// Returns the process exit code: 0 once the check ran (whatever it found),
-// 1 when it could not run, with no outputs written.
-export async function main({ env = process.env, github, log = console.log } = {}) {
+// Adds the escalation label (only if the repository already has it) and posts
+// one fixed comment.
+export async function escalate({ github, repository, prNumber, label, result }) {
+  const base = `/repos/${repository}`;
+  const labels = await paginate(github, `${base}/labels`);
+  if (labels.some((existing) => existing.name === label)) {
+    await github("POST", `${base}/issues/${prNumber}/labels`, { labels: [label] });
+  }
+  await github("POST", `${base}/issues/${prNumber}/comments`, {
+    body: escalationComment(result),
+  });
+}
+
+const errorDetail = (error) =>
+  error?.name === "GitHubError" ? error.message : (error?.name ?? "error");
+
+// Returns the process exit code: 0 once the check ran (whatever it found) and
+// any escalation was posted, 1 otherwise. The outputs are written before the
+// escalation, so a failed escalation write still leaves all-verified=false.
+export async function main({ env = process.env, github, log = console.log, sleep } = {}) {
   try {
     if (!PR_NUMBER.test(env.PR_NUMBER ?? "") || !REPOSITORY.test(env.REPOSITORY ?? "")) {
       throw new Error("pr-number or repository is malformed");
     }
-    const result = await checkSignedCommits({
-      github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
-      repository: env.REPOSITORY,
-      prNumber: env.PR_NUMBER,
-      sinceSha: env.SINCE_SHA,
-      label: env.ESCALATION_LABEL || "needs-human",
-    });
+    const client = github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL });
+    const target = { github: client, repository: env.REPOSITORY, prNumber: env.PR_NUMBER };
+    const result = await checkSignedCommits({ ...target, sinceSha: env.SINCE_SHA, sleep });
     writeOutputs(
       {
         "all-verified": String(result.allVerified),
@@ -126,17 +207,24 @@ export async function main({ env = process.env, github, log = console.log } = {}
       env.GITHUB_OUTPUT,
     );
     if (!result.sinceIsAncestor) {
-      log("check-signed-commits: the recorded head is not an ancestor; checked every PR commit");
+      log("check-signed-commits: no comparison from the recorded head; checked the PR's commits");
     }
     log(
       result.allVerified
         ? "check-signed-commits: every new commit is verified"
         : `::warning::check-signed-commits: unverified commits ${result.unverified.join(" ")}`,
     );
+    if (!result.allVerified) {
+      try {
+        await escalate({ ...target, label: env.ESCALATION_LABEL || "needs-human", result });
+      } catch (error) {
+        log(`::error::check-signed-commits: escalation failed (${errorDetail(error)})`);
+        return 1;
+      }
+    }
     return 0;
   } catch (error) {
-    const detail = error?.name === "GitHubError" ? error.message : (error?.name ?? "error");
-    log(`::error::check-signed-commits: could not run (${detail})`);
+    log(`::error::check-signed-commits: could not run (${errorDetail(error)})`);
     return 1;
   }
 }

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "lint-shell: fixed"
+    },
+    {
+      "answer": "Used retries as the loop bound.\n\n- lint-shell: fixed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "lint-shell: escalated weaken-required"
+    },
+    {
+      "answer": "Shell lint passes now."
+    }
+  ]
+}
