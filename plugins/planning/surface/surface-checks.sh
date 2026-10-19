@@ -107,7 +107,7 @@ grade() { # suite output-file
   echo "$1: $n checks"
 }
 
-if command -v playwright-cli >/dev/null 2>&1; then
+if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run by the surface-*.test.sh suites
   # No fixture write or trap before the scratch dir is proven to exist.
   if ! tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-surface.XXXXXX") || [[ ! -d "$tmp" ]]; then
     echo "FAIL: mktemp gave no scratch dir"
@@ -120,7 +120,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   g="$tmp/g3"
   session="iv-$$"
   # playwright-cli writes its logs under the working directory, so it runs from the scratch dir.
-  pw() { (cd "$tmp" && playwright-cli -s="$session" "$@"); }
+  pw() { (cd "$tmp" && playwright-cli -s="$session" "$@"); } # prereq-ok: test-only, run by the surface-*.test.sh suites
   finish() {
     pw close >/dev/null 2>&1
     bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1
