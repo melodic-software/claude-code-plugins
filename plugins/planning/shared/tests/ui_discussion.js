@@ -122,8 +122,7 @@ async function main() {
     await owner.locator(".vf-threq .vf-fromdisc").first().click();
     ok("  which opens the Discussion at the comment", await until(owner, t => !document.querySelector(".vf-disc-body").hidden && [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)), BO_ASK));
     await owner.evaluate(id => window.Core.requestAct(id, "run"), rid.id);
-    const res = s.apply(A.dir, [{ op: "result", qid: "Q1", request: rid.id, kind: "ask", summary: ANSWER, sources: [], report: "", used: [], why: "" }]).results[0];
-    await owner.evaluate(id => window.Core.requestAct(id, "publish"), res.id);
+    s.apply(A.dir, [{ op: "result", qid: "Q1", request: rid.id, kind: "ask", summary: ANSWER, sources: [], report: "", used: [], why: "" }]); // asked for everyone: shared when it arrives
     await until(bo, a => (window.Core.state.research.Q1 || []).some(x => x.summary === a), ANSWER, 10000);
     await openClaude(bo);
     ok("Claude's shared answer shows Bo from Discussion on its card", await until(bo, a => [...document.querySelectorAll(".vf-res")].some(li => li.textContent.includes(a) && !li.querySelector(".vf-fromdisc").hidden), ANSWER));

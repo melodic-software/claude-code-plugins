@@ -2041,7 +2041,7 @@
 .app .vf-ixitem .vf-ndot { position: absolute; inset-inline-start: 8px; inset-block-start: 13px; margin: 0; }
 .app .vf-ixitem:not(:has(.vf-ixq:not([hidden]))) { grid-template-areas: "what time" "sub sub"; }
 .app .vf-ixchip { color: var(--muted); background: var(--raise); border: 1px solid var(--line-strong); }
-.app .vf-ixchip:is([data-stat="answered"], [data-stat="unshared"]) { color: var(--ok); background: color-mix(in oklch, var(--ok) 13%, transparent); border-color: color-mix(in oklch, var(--ok) 35%, transparent); }
+.app .vf-ixchip:is([data-stat="answered"], [data-stat="unshared"], [data-stat="private"]) { color: var(--ok); background: color-mix(in oklch, var(--ok) 13%, transparent); border-color: color-mix(in oklch, var(--ok) 35%, transparent); }
 .app .vf-ixchip[data-stat="running"] { color: var(--accent-text); background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 35%, transparent); }
 .app .vf-ixchip[data-stat="shared"] { color: var(--claude); background: color-mix(in oklch, var(--claude) 13%, transparent); border-color: color-mix(in oklch, var(--claude) 35%, transparent); }
 .app .vf-ixchip[data-stat="declined"] { text-decoration: line-through; color: var(--faint); }
@@ -2465,3 +2465,13 @@
   .vp-app .vp-tab, .vp-app .vp-bar .vf-btn { min-block-size: 40px; }
   .vp-app .vp-choose { flex-basis: 100%; }
 }
+/* The host's review view in the Inbox, and the Ask boxes' Everyone / Just me. */
+.app .vf-review[hidden], .app .vf-rev-res[hidden], .app .vf-aud[hidden] { display: none; }
+.app .vf-rev-head { display: flex; align-items: center; gap: 8px; }
+.app .vf-rev-head .vf-ixgh { margin: 0; }
+.app .vf-rev-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-inline: 4px; }
+.app .vf-rev-note { margin: 0; padding-inline: 8px; }
+.app .vf-rev-res { display: grid; gap: 4px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--pane); }
+.app .vf-rev-who { margin-inline-start: auto; }
+.app .vf-revrow .vf-ndot { margin: 0; }
+.app .vf-aud { justify-self: start; }

@@ -59,7 +59,7 @@ async function main() {
     await until(ann, () => !document.querySelector(".vf-askform").hidden);
     const form = await ann.evaluate(() => {
       const shown = sel => [...document.querySelectorAll(sel)].filter(e => e.getClientRects().length && !e.closest("[hidden]"));
-      return { seg: shown(".vf-askform .vf-seg-btn").map(b => b.textContent), chip: shown(".vf-askform .vf-webchip").map(b => b.textContent) };
+      return { seg: shown(".vf-askform .vf-seg-btn").filter(b => !b.closest(".vf-aud")).map(b => b.textContent), chip: shown(".vf-askform .vf-webchip").map(b => b.textContent) };
     });
     ok("a question's Ask Claude form shows no Ask or Research picker, only Use the web", form.seg.length === 0 && form.chip.join() === "Use the web", JSON.stringify(form));
     await ann.click(".vf-askform .vf-webchip");

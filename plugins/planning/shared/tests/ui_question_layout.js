@@ -98,8 +98,7 @@ async function main() {
     }, ASK);
     await owner.evaluate(id => window.Core.requestAct(id, "run"), reqId);
     await until(owner, id => window.Core.snapshot().requests.find(r => r.id === id)?.status.kind === "running", reqId);
-    const res = s.apply(A.dir, [{ op: "result", qid: "Q2", request: reqId, kind: "ask", summary: ANSWER, sources: [], report: "", used: [{ name: "discovery:research", type: "skill" }], why: "Outside comparison." }]).results[0];
-    await owner.evaluate(id => window.Core.requestAct(id, "publish"), res.id);
+    s.apply(A.dir, [{ op: "result", qid: "Q2", request: reqId, kind: "ask", summary: ANSWER, sources: [], report: "", used: [{ name: "discovery:research", type: "skill" }], why: "Outside comparison." }]); // asked for everyone: shared when it arrives
     ok("once the host shares Claude's answer to Ann's request, her section opens by itself", await until(ann, () => document.querySelector(".vf-cltoggle").getAttribute("aria-expanded") === "true"
       && !document.querySelector(".vf-clbody").hidden && /1 new/.test(document.querySelector(".vf-clnew").textContent), null, 10000), JSON.stringify(await state(ann)));
     ok("  the answers and the composer still show above it", await ann.evaluate(() => !!document.querySelector(".vf-anspane").offsetParent && !!document.querySelector(".vf-composer").offsetParent

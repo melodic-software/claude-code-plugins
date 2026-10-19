@@ -40,6 +40,8 @@ async function main() {
     const desk = { context: { viewport: { width: 1440, height: 900 } } };
     const owner = await rec.open(A.ownerUrl, desk);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
+    // This suite follows a guest's answer through the host's Share: the session reviews answers first.
+    await owner.evaluate(() => window.Core.saveSettings({ reviewAnswers: true }));
     const ann = await rec.open(A.localUrl, desk);
     await joinAs(ann, "Ann");
     const bo = await rec.open(A.localUrl, { context: PHONE });
@@ -56,10 +58,9 @@ async function main() {
     ok("the host's badge counts the request to run", await until(owner, () => document.querySelector(".vf-bell-n").textContent === "1"), await badge(owner));
     await openInbox(owner);
     const wait = await owner.evaluate(() => ({ head: document.querySelector(".vf-ixwait > .vf-ixh").textContent,
-      groups: [...document.querySelectorAll(".vf-ixwait .vf-ixgroup:not([hidden]) .vf-ixgh")].map(h => h.textContent),
-      unread: [...document.querySelectorAll(".vf-ixwait .vf-ixlist > li")].map(li => !li.querySelector(".vf-ndot").hidden) }));
-    ok("the host's Inbox shows Waiting on you · 1 with Requests to run · 1, unread", wait.head === "Waiting on you · 1" && wait.groups.join() === "Requests to run · 1" && wait.unread.join() === "true", JSON.stringify(wait));
-    await owner.locator(".vf-ixwait .vf-ixitem").first().click();
+      rows: [...document.querySelectorAll(".vf-revlist > li")].map(li => [li.querySelector(".vf-revstat").textContent, !li.querySelector(".vf-ndot").hidden]) }));
+    ok("the host's Inbox shows Waiting on you · 1 with the request Waiting, unread", wait.head === "Waiting on you · 1" && JSON.stringify(wait.rows) === JSON.stringify([["Waiting", true]]), JSON.stringify(wait));
+    await owner.locator(".vf-revlist > li .vf-qref").first().click();
     ok("opening it shows the request in Q1's Claude section, with its Run button", await until(owner, () => !document.querySelector(".vf-clbody").hidden
       && [...document.querySelectorAll(".vf-threq")].some(li => li.textContent.includes("How do the big shops") && [...li.querySelectorAll("button")].some(b => b.offsetParent && b.textContent === "Run"))));
     ok("  and marks it read: the host's badge empties", await until(owner, () => document.querySelector(".vf-bell-n").textContent === ""), await badge(owner));
@@ -114,7 +115,7 @@ async function main() {
     await ann.evaluate(t => window.Core.request("Q2", "ask", t), ASK2);
     await bo.evaluate(t => window.Core.request("Q2", "ask", t), BO_ASK);
     ok("the host's badge counts one unread answer and two requests to run", await until(owner, () => document.querySelector(".vf-bell-n").textContent === "3", null, 10000), await badge(owner));
-    ok("  under Requests to run · 2", await until(owner, () => [...document.querySelectorAll(".vf-ixwait .vf-ixgh")].some(h => h.textContent === "Requests to run · 2")));
+    ok("  under Waiting · 2", await until(owner, () => document.querySelector(".vf-rev-chip[data-stat=waiting]")?.textContent === "Waiting · 2"));
     await owner.locator("button.vf-seg-btn", { hasText: "Waiting on you" }).click();
     ok("the Waiting on you tab hides Your requests and Notifications", await until(owner, () => document.querySelector(".vf-ixmine").hidden && document.querySelector(".vf-ixnotes").hidden && !document.querySelector(".vf-ixwait").hidden));
     await owner.locator("button.vf-seg-btn", { hasText: "All" }).click();
