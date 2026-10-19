@@ -177,6 +177,7 @@ EOF
 )
 gh pr comment 12 --body \"\$BODY\""
 deny "body file written by printf in the same command" "printf '%s\\n' '$P' > new.md && gh pr comment 12 -F new.md"
+deny "existing body file overwritten in the same command" "printf '%s\\n' '$P' > plain.md && gh pr comment 12 -F plain.md"
 deny "body file written by a heredoc in the same command" "cat > new2.md <<'EOF'
 $P
 EOF
@@ -206,6 +207,8 @@ quiet "curl GET of a GitHub search" "curl -s -G https://api.github.com/search/is
 quiet "rg of the phrase, then an unrelated post (review on #8448)" "rg -n \"$P\" .github/scripts/pr-unblock/address-feedback.mjs; gh pr comment 12 --body \"Thanks, fixed.\""
 quiet "git log --grep of the phrase, then a post from a plain file" "git log --oneline --grep \"$P\" && gh pr comment 12 --body-file plain.md"
 quiet "grep of the phrase, then a post with stderr to /dev/null" "grep -c \"$P\" notes.md; gh pr comment 12 --body \"Thanks.\" 2>/dev/null"
+quiet "git log --grep of the phrase into a file, then an unrelated post" "git log --oneline --grep \"$P\" > hits.txt; gh pr comment 12 --body \"Thanks, fixed.\""
+quiet "grep of the phrase, then a post with stderr to a log" "grep -c \"$P\" notes.md; gh pr comment 12 --body \"Thanks.\" 2>err.log"
 quiet_plain "git show" "git show HEAD -- .github/scripts/pr-unblock/address-feedback.mjs"
 quiet_plain "gh pr view" "gh pr view 12 --comments"
 
