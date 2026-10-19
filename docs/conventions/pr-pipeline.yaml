@@ -350,8 +350,9 @@ models:
     summarize-reuse: summary
 
 # The funding role whose secrets pay for each Claude lane's runs (README.md,
-# Funding). A lane passes its role to ci-workflows' run-claude-cli action with
-# <ROLE>_CLAUDE_API_KEY and <ROLE>_CLAUDE_CODE_OAUTH_TOKEN, role upper-snake.
+# Funding). A lane on ci-workflows' run-claude-cli action (today only intake)
+# passes its role with <ROLE>_CLAUDE_API_KEY and <ROLE>_CLAUDE_CODE_OAUTH_TOKEN,
+# role upper-snake; the others are the role each lane takes when it moves there.
 funding:
   intake: automations
   pr-unblock: automations

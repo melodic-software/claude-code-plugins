@@ -957,13 +957,18 @@ summary pass's.
 
 ## Funding
 
-`funding` maps each Claude lane id to the funding role whose secrets pay for its runs: `reviews`,
-`automations` or `issue-lane`. A lane passes its role to ci-workflows' `run-claude-cli` action with
-the role's two secrets, `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` (role
-upper-snake, so `issue-lane` gives `ISSUE_LANE_`); the action tries the key first and the
-subscription token only after a credit stop. This repository's map: `intake`, `pr-unblock`,
-`fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
+`funding` maps each Claude lane or activity id to the funding role whose secrets pay for its runs:
+`reviews`, `automations` or `issue-lane`. A lane on ci-workflows' `run-claude-cli` action passes
+its role with the role's two secrets, `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`
+(role upper-snake, so `issue-lane` gives `ISSUE_LANE_`); the action tries the key first and the
+subscription token only after a credit stop. No workflow reads the map; each lane's workflow names
+its role and secrets, and the runner policy admits them. This repository's map: `intake`,
+`pr-unblock`, `fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
 `claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
+
+Only `intake` runs on `run-claude-cli` today. Every other entry is the role its lane takes when it
+moves there: until then it runs claude-code-action with an OAuth token alone, and it never gets an
+API key, since claude-code-action runs are not paid from API credits.
 
 ## Loop caps
 
