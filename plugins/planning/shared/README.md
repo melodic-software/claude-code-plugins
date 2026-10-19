@@ -125,7 +125,7 @@ the refused op's index).
 | `open-round` | `questions` (1..8), `placements?` | Closes the `working` round (or starts round 1) and opens the next |
 | `close-round` | `placements?`, `reason?` | `working` -> `closed`, no new round |
 | `ack-round` | `round` | `sent` -> `working` |
-| `result` | `qid`, `request?`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Stores a result unpublished; the owner publishes or discards it |
+| `result` | `qid?`, `request?`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Stores a result unpublished; the owner publishes or discards it. No `qid` answers a request about the whole session, which `request` must name (see [General asks](#general-asks)) |
 | `fail-request` | `request`, `reason` | `running` -> `failed` |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | |
 | `add-asset` | `path`, `as?`, `scale?` | Copies a PNG, JPEG, WebP, SVG or HTML file (by its bytes, at most 10 MB) from the data folder, where captures go in `staging/`, into `assets/<16 hex>.<ext>`, named by its content; returns `{id, kind, bytes, at, scale}`. Usable from the next apply; a refused apply removes the files it copied and puts back any sidecar it rewrote |
@@ -312,6 +312,25 @@ writing nothing when nothing would change:
 The round's digest lists each question's comments under `discussion` (`text`, `by` with
 `digestNames`, `edited`, `askedClaude`), hidden ones left out: the newest 50 at most, each cut to 500
 characters, within 30000 comment characters per digest; `discussionMore` counts the rest.
+
+## General asks
+
+A request about the whole session names no question: "@Claude" as a word in a chat message (the message then
+carries `request`; the composer says so), or `POST /api/request` with `scope: "session"` in place of `qid`, Ask
+Claude's pinned "About the whole session". It runs only on the host's Claude, waits for the owner's Run like any
+guest request (the owner's own runs at once), shares the request route's one a second and the waiting cap, and a
+message whose request is refused still posts with `requestRefused`; a filed one keeps the message's id as the
+request's `msg`. Chat has no edit, delete or hide, so nothing
+else applies. `request-run` lists it with `scope: "session"` and no `qid` or `question`, plus `from: "chat"` when a
+message asked; the `result` op answers it with no `qid`, and its result is kept under `results.session` with no
+`qid`, so a file from before loads as it is. Once shared (the owner's own at once), the result is also Claude's
+chat message: the host's, marked `claude: {result}`, replying to the asking message while chat keeps it; the
+result's `msg` names it. With chat off it is not posted, and stays in Ask Claude. A reply to it carries
+`replyTo.claude`, so its quote reads Claude's wherever the page reads it. Reactions and replies to it tell no one,
+and it cannot become a proposal. The Inbox, its
+toasts and the Run cards say General, or "about the session", where they name a question; the owner shares it from
+Ask Claude on "About the whole session", which lists those answers. A digest result carries `scope: "session"` in
+place of `qid`.
 
 ## Connect your Claude
 
@@ -690,6 +709,7 @@ node plugins/planning/shared/tests/ui_proto.js
 node plugins/planning/shared/tests/ui_connect.js
 node plugins/planning/shared/tests/ui_uploads.js
 node plugins/planning/shared/tests/ui_report.js
+node plugins/planning/shared/tests/ui_general.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 

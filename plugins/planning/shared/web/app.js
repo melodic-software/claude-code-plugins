@@ -1380,8 +1380,9 @@
       } catch (e) { ui.mRetry = Date.now() + 10000; fail(e); } finally { ui.mLoading = false; }
     }
     /** Open the chat at one message, reading it from the server when it is outside what the page holds. */
-    async function goMsg(id) {
-      if (!mList._map?.has(id) && !(await Core.chatAround(id).catch(() => false))) return flash("That message is no longer in the chat.");
+    /** `gone`, when given, runs in place of the "no longer in the chat" notice. */
+    async function goMsg(id, gone) {
+      if (!mList._map?.has(id) && !(await Core.chatAround(id).catch(() => false))) return gone ? gone() : flash("That message is no longer in the chat.");
       // At once, not smoothly: a poll's render during a smooth scroll would still see the reader at the newest message.
       // Off the newest now, so nothing pins the chat back to it before this scroll's own event says so.
       requestAnimationFrame(() => { const li = mList._map?.get(id); if (li) { li.scrollIntoView({ block: "center" }); mStick = false; ring(li); } });
@@ -1395,11 +1396,14 @@
     const mSend = E("button", "vf-btn vf-btn-primary", "Send"); mSend.type = "submit";
     const mCount = E("span", "vf-count-txt vf-mcount"); mCount.setAttribute("aria-live", "polite");
     mForm.append(mInput, mSend);
+    // As in a Discussion: "@Claude" in a message also asks Claude, here about the whole session.
+    const mHint = E("p", "vf-mhint", "Type @Claude to send it to Claude."); mHint.id = "vf-mhint";
+    mInput.setAttribute("aria-describedby", mHint.id);
     // Replying to: the quoted message rides above the field until it is sent or cancelled.
     const mReply = E("div", "vf-mreply"); mReply.hidden = true;
     const mReplyTxt = E("span", "vf-mreply-txt"), mReplyX = ibtn("vf-tbtn vf-icon-btn vf-mreply-x", "x", "Cancel the reply");
     mReply.append(icon("reply"), mReplyTxt, mReplyX);
-    chat.append(chatHead, mScroll, mNew, mTyping, mCount, mReply, mForm);
+    chat.append(chatHead, mScroll, mNew, mTyping, mCount, mReply, mHint, mForm);
     // @mention suggestions: one list, under (or over) whichever field is being typed in.
     const mentionBox = E("ul", "vf-pop vf-mentions"); mentionBox.setAttribute("role", "listbox"); mentionBox.id = "vf-mentions"; mentionBox.hidden = true;
     mentionBox.setAttribute("aria-label", "People to mention");
@@ -1826,7 +1830,7 @@
     const apForm = E("form", "vf-apform");
     const apQWrap = selWrap("About", []);
     apQWrap.w.classList.add("vf-apq");
-    apQWrap.s.onchange = () => { ui.askQ = apQWrap.s.value; };
+    apQWrap.s.onchange = () => { ui.askQ = apQWrap.s.value; render(); };
     const apLabel = E("label", "vf-asklabel"); const apTa = E("textarea", "vf-ta"); apTa.rows = 3; apTa.maxLength = 2000; apTa.id = "vf-ap-ta"; apLabel.htmlFor = apTa.id;
     const apNote = E("p", "vf-pop-note");
     // Connect your Claude (R2-12): a guest's request can run on their own Claude, never the host's.
@@ -1858,7 +1862,10 @@
     const apReqEmpty = E("p", "vf-empty vf-empty-sm", "No requests yet. What you ask shows here with where it stands.");
     const apFileHead = E("h3", "vf-pop-sub", "Your files");
     const apFiles = E("ul", "vf-upstrip vf-apfiles"); apFiles.setAttribute("aria-label", "Your files");
-    apScroll.append(apForm, apConnect, apReqHead, apReqs, apReqEmpty, apFileHead, apFiles);
+    // About the whole session: Claude's answers to general asks, the owner's to share; once shared each is also in chat.
+    const apGenHead = E("h3", "vf-pop-sub", "Claude's answers about the session");
+    const apGen = E("ul", "vf-thlist vf-apgen"); apGen.setAttribute("role", "list");
+    apScroll.append(apForm, apConnect, apGenHead, apGen, apReqHead, apReqs, apReqEmpty, apFileHead, apFiles);
     askPanel.append(apHead, apModes, apPointer, apScroll);
 
     // Use on another device: a personal link and its QR code.
@@ -2257,8 +2264,10 @@
       mInput.value = ""; mCount.textContent = ""; grow(mInput); mScroll.scrollTop = mScroll.scrollHeight;
       ui.replyTo = null; paintReply();
       try {
-        await sent;
+        const j = await sent;
         chatSlot.clear();
+        if (j?.request) flash(Core.me.isOwner ? "Sent, and sent to Claude. Its answer replies here." : "Sent, and sent to Claude. It runs once the host presses Run.");
+        else if (j?.requestRefused) flash(j.message);
       } catch (e) {
         if (!mInput.value) {
           mInput.value = text; grow(mInput);
@@ -2313,12 +2322,12 @@
     apForm.onsubmit = e => {
       e.preventDefault();
       const text = apTa.value.trim(); if (!text) return apTa.focus();
-      const mode = ui.askMode, qid = apQWrap.s.value || ui.cur, own = selfAsk();
+      const mode = ui.askMode, qid = apQWrap.s.value || ui.cur || Core.GENERAL, own = selfAsk();
       apSend.disabled = true;
       Core.request(qid, mode, text, attExtra(apSlot), own ? "self" : "host").then(() => {
         apTa.value = ""; grow(apTa); apSlot.clear();
         flash(own ? "Added to your requests. Run it on your own Claude from there."
-          : Core.me.isOwner ? "Sent to Claude. The answer shows on the question and in your Inbox." : "Sent to the host. It runs once they press Run.");
+          : Core.me.isOwner ? `Sent to Claude. The answer shows ${qid === Core.GENERAL ? genWhere() : "on the question"} and in your Inbox.` : "Sent to the host. It runs once they press Run.");
         render();
       }).catch(fail).finally(() => { apSend.disabled = false; });
     };
@@ -2327,7 +2336,8 @@
     // ---------- Connect your Claude (R2-12, AC 70) ----------
     // A guest's `runner: self` request runs on their own Claude: a watcher in Claude Code or Desktop's Code tab, or one
     // prompt copied (or opened in Desktop chat) with the answer pasted back. Prompts and links come from connect.js.
-    const selfAsk = () => !Core.me.isOwner && !!ui.askSelf;
+    const askGeneral = () => (apQWrap.s.value || ui.askQ) === Core.GENERAL;
+    const selfAsk = () => !Core.me.isOwner && !!ui.askSelf && !askGeneral(); // a general ask runs on the host's Claude only
     const sessionBase = () => location.origin; // the address this guest reaches the session at; their Claude runs beside them
     async function copyOut(text, done, title, from) {
       try { await navigator.clipboard.writeText(text); flash(done); }
@@ -2436,7 +2446,7 @@
     function openMsgMenu(m, anchor) {
       if (!m) return;
       ui.msgMenu = m;
-      mmPropose.hidden = !!m.forwarded || (!!Core.state.ended && !Core.me.isOwner) || !!Core.state.youRemoved;
+      mmPropose.hidden = !!m.forwarded || !!m.claude || (!!Core.state.ended && !Core.me.isOwner) || !!Core.state.youRemoved;
       mmReact.hidden = cantReact();
       openPop(msgMenu, anchor);
     }
@@ -2523,6 +2533,27 @@
       return inbox().filter(i => i.unread).length + notes().filter(n => !n.read && n.kind !== "request").length;
     }
     const qLabel = qid => { const q = qById(qid); return q ? `${q.id} · ${q.text}` : qid || ""; };
+    /** A request about the whole session has no question: it shows under this label, and opens in Ask Claude or chat. */
+    const GEN_LABEL = "General", GEN_Q = { id: GEN_LABEL, text: "about the whole session" };
+    const ixWhere = i => (i.qid ? `on ${i.qid}` : "about the session");
+    /** Where everyone reads a shared general answer: chat, or with chat off only Ask Claude's General list. */
+    const genWhere = () => (Core.state.settings?.chat ? "in chat" : "in Ask Claude, About the whole session");
+    /** The request a chat message's @Claude filed, as this viewer knows it, as discReq does for a comment. */
+    function genReq(S, rid) {
+      const x = (S.research?.[Core.GENERAL] || []).find(r => r.requestId === rid);
+      const r = (Core.me.isOwner ? S.requests || [] : []).concat(S.myRequests || []).find(r2 => r2.id === rid);
+      return { x, r, label: x ? (x.published === false ? "Answered, waiting for the host to share" : "Answered") : r ? rstat(r) : "" };
+    }
+    /** Ask Claude on "About the whole session", with one answer ("x:<id>") or request ("r:<id>") of it in view. */
+    function openGeneral(key) {
+      if (key?.startsWith("x:")) ui.resClosed.delete(key.slice(2));
+      openAskPanel(null, Core.GENERAL);
+      requestAnimationFrame(() => {
+        const li = (key?.startsWith("x:") ? apGen : apReqs)._map?.get(key.startsWith("x:") ? key : key.slice(2)); if (!li) return;
+        li.scrollIntoView({ block: "nearest", behavior: smooth() });
+        ring(li);
+      });
+    }
     /** My request, open: its answer when I can see it, else its card, in that question's Claude section. */
     function showRequest(qid, rid) {
       ui.clOpen.set(qid, true);
@@ -2539,6 +2570,12 @@
       closePop();
       if (i.unread) Core.readInbox([i.key], { [i.key]: i.status }).catch(() => {});
       const host = () => { setMode("host"); if (phone.matches) setTab("host"); };
+      if (!i.qid && i.scope) { // about the whole session: a shared answer is in chat, the rest in Ask Claude
+        const xid = i.kind === "share" ? i.id : i.result, x = xid && (Core.state.research?.[Core.GENERAL] || []).find(y => y.id === xid);
+        if (x?.msg && x.published !== false && st().chat) { setChat(true); return goMsg(x.msg, () => openGeneral("x:" + xid)); } // a message chat dropped: the answer is still in Ask Claude
+        if (i.kind === "run") return host();
+        return openGeneral(xid ? "x:" + xid : "r:" + i.id);
+      }
       if (i.kind === "request" || i.kind === "run") {
         if (!qById(i.qid)) return;
         if (i.result) { setMode("focus"); if (phone.matches) setTab("answer"); return showResult(i.qid, i.result); }
@@ -2559,7 +2596,7 @@
     function ixText(i, S) {
       if (i.kind === "request") return (S.myRequests || []).find(r => r.id === i.id)?.text || "";
       if (i.kind === "run") { const r = (S.requests || []).find(x => x.id === i.id); return r ? `${disp(i.by || r.name)}: ${r.text}` : ""; }
-      if (i.kind === "share") { const x = (S.research?.[i.qid] || []).find(y => y.id === i.id); return x ? x.summary : "A result"; }
+      if (i.kind === "share") { const x = (S.research?.[i.qid || Core.GENERAL] || []).find(y => y.id === i.id); return x ? x.summary : "A result"; }
       if (i.kind === "report") { const f = (S.reports || []).find(y => y.id === i.id); return f ? `${disp(i.by || f.name)}: ${f.text}` : "A problem report"; }
       if (i.kind === "merge") { const m = (S.mergeRequests || []).find(y => y.id === i.id); return m ? `${disp(m.fromName)} says they were ${disp(m.toName)} before` : "A merge request"; }
       if (i.kind === "join") return `${disp(i.by || "Someone")} asks to join`;
@@ -2568,7 +2605,8 @@
     function fillIx(li, i, S) {
       const k = li._k; li._i = i;
       const mine = i.group === "mine";
-      k.q.textContent = i.qid ? qLabel(i.qid) : ""; k.q.hidden = !i.qid;
+      k.q.textContent = i.qid ? qLabel(i.qid) : i.scope ? GEN_LABEL : ""; k.q.hidden = !i.qid && !i.scope;
+      k.q.classList.toggle("vf-ixgen", !i.qid && !!i.scope);
       k.chip.hidden = !mine;
       if (mine) { k.chip.textContent = IX_STAT[i.status] || i.status; k.chip.dataset.stat = i.status; }
       k.what.textContent = ixText(i, S);
@@ -2578,7 +2616,7 @@
       k.dot.hidden = !i.unread;
       k.b.classList.toggle("vf-nunread", !!i.unread);
       li.dataset.key = i.key; li.dataset.stat = i.status;
-      const where = i.qid ? `${i.qid}. ` : "";
+      const where = i.qid ? `${i.qid}. ` : i.scope ? `${GEN_LABEL}. ` : "";
       k.b.setAttribute("aria-label", `${i.unread ? "Unread. " : ""}${where}${k.what.textContent}. ${mine ? (i.status === "unshared" ? "Answered, waiting for the host to share" : IX_STAT[i.status]) + (sub && i.status !== "unshared" ? `: ${sub}` : "") + ". " : ""}${k.tm.textContent === "now" ? "Just now" : k.tm.textContent + " ago"}.`);
     }
     bellBtn.onclick = () => openBell(bellBtn);
@@ -3335,7 +3373,7 @@
     ui.attDraft = {};
     const cSlot = attSlot(() => ui.cur, attachBtn, { get: () => ui.attDraft[ui.cur] ?? (myRec(ui.cur)?.att || []), set: l => { ui.attDraft[ui.cur] = l; } }, true);
     composer.insertBefore(cSlot.chips, ta);
-    const apSlot = attSlot(() => apQWrap.s.value || ui.cur, apAttach);
+    const apSlot = attSlot(() => (askGeneral() ? "" : apQWrap.s.value || ui.cur), apAttach);
     apForm.insertBefore(apSlot.chips, apNote);
     const askSlot = attSlot(() => ui.cur);
     askRow.prepend(askSlot.btn); askForm.insertBefore(askSlot.chips, askForm.querySelector(".vf-asknote"));
@@ -3362,15 +3400,15 @@
         for (const m of S.mergeRequests || []) note("gm:" + m.id, "seen", `${disp(m.fromName)} says they were ${disp(m.toName)} before. Approve it in Host.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); }, isNew: true });
         for (const u of S.uploads || []) if (u.status === "offered" && !isMe(u.cid)) note("uo:" + u.id, "seen", `${disp(u.by)} offered a file: ${u.file}.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); }, isNew: true });
         // What waits on me pops up once when it arrives; merges have their own line above.
-        const WAIT = { join: i => `${disp(i.by)} asks to join.`, run: i => `${disp(i.by)} asked Claude on ${i.qid}. Run it from the Inbox.`,
-          share: i => `Claude answered on ${i.qid}. Share it from the Inbox.`, report: i => `${disp(i.by)} reported a problem.` };
+        const WAIT = { join: i => `${disp(i.by)} asks to join.`, run: i => `${disp(i.by)} asked Claude ${ixWhere(i)}. Run it from the Inbox.`,
+          share: i => `Claude answered ${ixWhere(i)}. Share it from the Inbox.`, report: i => `${disp(i.by)} reported a problem.` };
         for (const i of S.inbox || []) if (i.group === "waiting" && WAIT[i.kind]) note("iw:" + i.key, "seen", WAIT[i.kind](i), { label: "Open", run: () => openInboxItem(i), isNew: true });
       }
       // Item 11: a toast when Claude answers one of my requests, once I can open the answer.
       for (const i of S.inbox || []) {
         if (i.group !== "mine") continue;
         const open = i.status === "answered" || i.status === "shared";
-        note("ix:" + i.key, i.status, open ? `Claude answered your request on ${i.qid}` : "", open ? { label: "Open", run: () => openInboxItem(i) } : null);
+        note("ix:" + i.key, i.status, open ? `Claude answered your request ${ixWhere(i)}` : "", open ? { label: "Open", run: () => openInboxItem(i) } : null);
       }
       if (Core.adopted && !seen._adopted) { seen._adopted = true; flash(`Signed in as ${Core.adopted} on this device.`); }
       if (Core.mergeAsked && !seen._asked) { seen._asked = true; flash(`Asked the host to join you with ${Core.mergeAsked.name}. You continue as ${Core.me.name} until they do.`); }
@@ -4012,7 +4050,7 @@
       Object.assign(li, { _ta: tarea, _k: { kind, qref, who, status, text, tarea, fresh, edit, save, cancel, decline, run, failB, rerun, acts } });
       failB.onclick = () => Core.requestAct(li._r.id, "fail").then(() => flash("Marked failed. The requester sees it.")).catch(fail);
       rerun.onclick = () => Core.requestAct(li._r.id, "rerun").then(() => flash("Running again.")).catch(fail);
-      qref.onclick = () => { focusQuestion(li._r.qid); closePop(); };
+      qref.onclick = () => { if (!li._r.qid) return openGeneral("r:" + li._r.id); focusQuestion(li._r.qid); closePop(); };
       include.onclick = () => { ui.reqSeen.add(li._r.id); render(); };
       edit.onclick = () => { ui.reqEditing.add(li._r.id); tarea.value = li._r.text; render(); grow(tarea); tarea.focus(); };
       cancel.onclick = () => { ui.reqEditing.delete(li._r.id); render(); };
@@ -4030,7 +4068,7 @@
       li._r = r;
       k.kind.textContent = r.kind === "ask" ? "Ask Claude" : "Research";
       k.kind.className = "vf-chip " + (r.kind === "ask" ? "vf-chip-quiet" : "vf-chip-accent");
-      k.qref.textContent = q ? `${q.id}: ${q.text}` : r.qid;
+      k.qref.textContent = q ? `${q.id}: ${q.text}` : r.qid || `${GEN_LABEL}: ${GEN_Q.text}`;
       k.who.replaceChildren(av(r.cid, r.name, 16), E("span", null, `${disp(r.name)}${isMe(r.cid) ? " (you)" : ""}`), E("span", "vf-card-time", ago(r.ts)));
       k.status.textContent = failed ? "Failed" : running ? `Running, ${ago(r.ts) === "now" ? "just started" : "asked " + ago(r.ts) + " ago"}` : "";
       k.status.hidden = !running;
@@ -4455,7 +4493,7 @@
       // A guest's own Claude's answer the owner shared can still come down; the host's own Claude's cannot.
       const takeDown = btn("vf-btn vf-btn-ghost vf-btn-sm vf-res-takedown", "Take down");
       share.append(shareNote, E("span", "vf-spacer"), discard, publish, takeDown);
-      publish.onclick = () => Core.requestAct(li._x.id, "publish").then(() => flash("Shared. Everyone sees it on the question.")).catch(fail);
+      publish.onclick = () => Core.requestAct(li._x.id, "publish").then(() => flash(`Shared. Everyone sees it ${li._q === GEN_Q ? genWhere() : "on the question"}.`)).catch(fail);
       discard.onclick = guarded({ title: "Discard this result?", ok: "Discard", body: "Nobody else sees it, and the person who asked hears it was not shared." },
         () => Core.requestAct(li._x.id, "discard").then(() => flash("Discarded.")).catch(fail));
       takeDown.onclick = guarded({ title: "Take this answer down?", ok: "Take down", body: "Nobody sees it any more, and the person whose Claude wrote it hears it was not shared." },
@@ -5276,20 +5314,22 @@
       for (const [k, b] of Object.entries(apModeBtns)) { b.setAttribute("aria-selected", String(k === mode)); b.setAttribute("aria-pressed", String(k === mode)); }
       apModeBtns.explore.hidden = !v8();
       const qs = S.questions;
-      const want = qs.some(q => q.id === ui.askQ) ? ui.askQ : ui.cur;
+      const want = ui.askQ === Core.GENERAL || qs.some(q => q.id === ui.askQ) ? ui.askQ : ui.cur || Core.GENERAL;
       const qk = qs.map(q => q.id + q.text).join("|");
       if (apQWrap.s._k !== qk) {
         apQWrap.s._k = qk;
-        apQWrap.s.replaceChildren(...qs.map(q => { const o = E("option", null, `${q.id}: ${q.text.length > 70 ? q.text.slice(0, 70).trimEnd() + "…" : q.text}`); o.value = q.id; return o; }));
+        const gen = E("option", null, "About the whole session"); gen.value = Core.GENERAL; // pinned first: no question needed
+        apQWrap.s.replaceChildren(gen, ...qs.map(q => { const o = E("option", null, `${q.id}: ${q.text.length > 70 ? q.text.slice(0, 70).trimEnd() + "…" : q.text}`); o.value = q.id; return o; }));
       }
-      if (apQWrap.s.value !== want && document.activeElement !== apQWrap.s) apQWrap.s.value = want || "";
-      apQWrap.w.hidden = !qs.length;
+      if (apQWrap.s.value !== want && document.activeElement !== apQWrap.s) apQWrap.s.value = want;
+      const general = askGeneral();
       apLabel.textContent = { ask: "What should Claude answer?", research: "What should Claude find out?", explore: "What should Claude look for in this session?" }[mode];
-      apTa.placeholder = { ask: "A question Claude answers on the question", research: "What to look up, compare or verify", explore: "Something in the answers, the chat or the linked project" }[mode];
+      apTa.placeholder = general && mode !== "explore" ? "A question about the whole session" : { ask: "A question Claude answers on the question", research: "What to look up, compare or verify", explore: "Something in the answers, the chat or the linked project" }[mode];
       const own = selfAsk();
-      apSelf.hidden = Core.me.isOwner;
+      apSelf.hidden = Core.me.isOwner || general;
       apSelf.setAttribute("aria-checked", String(!!ui.askSelf));
       apNote.textContent = own ? "Only you see this request. Your own Claude runs it; the host reviews its answer before anyone else sees it."
+        : general ? (Core.me.isOwner ? `Claude runs it now and the answer shows ${genWhere()} for everyone.` : `The host runs it; once they share the answer, it shows ${genWhere()} for everyone.`)
         : Core.me.isOwner ? "Claude runs it now and the answer shows on the question's Claude thread for everyone."
         : "The host runs it; the result lands on the question's Claude thread. Your request text shows there for everyone.";
       const selfOpen = (S.myRequests || []).some(r => r.runner === "self" && (r.status === "pending" || r.status === "running"));
@@ -5313,7 +5353,7 @@
         li._self = makeSelfActs();
         li.append(head, qref, text, li._self);
         li._att = attRowEl(); text.after(li._att);
-        qref.onclick = () => { const r = li._r; closePop(); ui.clOpen.set(r.qid, true); focusQuestion(r.qid); };
+        qref.onclick = () => { const r = li._r; if (!r.qid) return openGeneral("r:" + r.id); closePop(); ui.clOpen.set(r.qid, true); focusQuestion(r.qid); };
         li._k = { kind, status, qref, text };
         return li;
       }, (li, r) => {
@@ -5324,12 +5364,15 @@
         k.status.textContent = `${rstat(r)}${r.edited ? ", edited by host" : ""}${r.reason ? `: ${r.reason}` : ""}`;
         li.dataset.stat = r.status;
         if (r.runner === "self") fillSelfActs(li._self, r, q); else li._self.hidden = true;
-        k.qref.textContent = q ? `${q.id}: ${q.text}` : r.qid;
-        k.qref.setAttribute("aria-label", `Open ${q ? q.id : r.qid} and its Claude thread`);
+        k.qref.textContent = q ? `${q.id}: ${q.text}` : r.qid || GEN_LABEL;
+        k.qref.setAttribute("aria-label", r.qid ? `Open ${q ? q.id : r.qid} and its Claude thread` : "General: about the whole session");
         fillClamp(k.text, "ar:" + r.id, r.text, `Your ${KIND_REQ[r.kind] || "request"}`, q ? `${q.id}: ${q.text}` : "");
         fillAtts(li._att, r.att, "Your request");
       });
       apReqEmpty.hidden = mine.length > 0;
+      const gen = general ? (S.research?.[Core.GENERAL] || []).slice().sort((a, b) => b.ts - a.ts) : [];
+      sync(apGen, gen, x => "x:" + x.id, makeRes, (li, x) => fillRes(li, x, GEN_Q));
+      apGenHead.hidden = apGen.hidden = !gen.length;
       const files = (S.myUploads || []).slice().sort((a, b) => b.ts - a.ts);
       sync(apFiles, files, u => u.id, () => makeUpRow(false), fillUpRow);
       apFileHead.hidden = apFiles.hidden = !files.length;
@@ -5367,7 +5410,7 @@
       const acts = E("div", "vf-acts");
       const att = attRowEl();
       li.append(head, who, text, att, extra, acts);
-      qref.onclick = () => { if (li._it.qid || li._it.r?.qid) focusQuestion(li._it.qid || li._it.r.qid); };
+      qref.onclick = () => { if (li._it.qid || li._it.r?.qid) focusQuestion(li._it.qid || li._it.r.qid); else if (li._it.r) openGeneral("r:" + li._it.r.id); };
       li._k = { chip, who, qref, text, att, extra, acts, sig: "" };
       if (it.t === "upload") { const row = makeUpRow(true); row.classList.add("vf-uprow-q"); extra.append(row); li._k.up = row; }
       if (it.t === "report") {
@@ -5394,8 +5437,9 @@
         k.who.replaceChildren(...(person[0] ? [av(person[0], person[1], 16, true)] : []), E("span", null, isMe(person[0]) ? "You" : disp(person[1] || "Someone")), E("span", "vf-card-time", ago(it.ts)));
       }
       const qid = it.qid || it.r?.qid || it.u?.qid || it.f?.ctx.qid || "", q = qid && qById(qid);
-      k.qref.hidden = !q; if (q) k.qref.textContent = q.id;
-      if (q) k.qref.setAttribute("aria-label", `Open ${q.id}: ${q.text}`);
+      const general = !!it.r && !it.r.qid; // a request about the whole session
+      k.qref.hidden = !q && !general; if (q || general) k.qref.textContent = q ? q.id : GEN_LABEL;
+      if (q || general) k.qref.setAttribute("aria-label", q ? `Open ${q.id}: ${q.text}` : "General: about the whole session");
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
         : it.m ? `${it.m.fromName} says they were ${it.m.toName} before. Approve to join them: ${it.m.fromName}'s answers and votes move to ${it.m.toName}.`
         : it.ready ? `${it.ready.by} marked round ${curRound().current} ready to send.`
@@ -6266,6 +6310,7 @@
       fab.setAttribute("aria-label", ui.chatOpen ? "Close chat" : unread ? `Open chat, ${unread} unread` : "Open chat");
       chatMeta.textContent = `${here.length} here`;
       mForm.hidden = (!!S.ended && !me.isOwner) || !!S.youRemoved;
+      mHint.hidden = mForm.hidden;
       paintSlot(chatSlot, mForm.hidden);
       if (ui.chatOpen) {
         const atBottom = mStick || mGap() < 40;
@@ -6302,6 +6347,11 @@
           bubble.addEventListener("contextmenu", e => { if (pressT === -1) { e.preventDefault(); pressT = 0; } });
           const done = E("span", "vf-fwd-done"); done.append(icon("check"), E("span", null, "Proposed"));
           tools2.append(done);
+          // A message whose "@Claude" filed a request says so, with where it stands for the owner and its asker; Claude's
+          // own message opens its full answer.
+          const sent = btn("vf-lbtn vf-msent"), sentT = E("span");
+          sent.append(claudeAv(14), sentT);
+          sent.onclick = () => { const x = li._gq?.x; if (li._m?.claude || !x?.msg || x.published === false) openGeneral(x ? "x:" + x.id : "r:" + li._m?.request); else goMsg(x.msg, () => openGeneral("x:" + x.id)); };
           // Emoji reactions: chips under the bubble only when there are some. Add sits beside ⋯ (hover or focus on a
           // fine pointer); on touch it is React in the long-press menu.
           const reactAdd = btn("vf-mreact-add"); reactAdd.append(E("span", "vf-mreact-plus", "+"), E("span", "vf-mreact-face", "🙂"));
@@ -6309,9 +6359,9 @@
           reactAdd.onclick = () => (ui.pop === reactPop && ui.reactMsg?.id === li._m?.id ? closePop() : openReactPop(li._m, reactAdd));
           const bubRow = E("div", "vf-bubrow"); bubRow.append(bubble, reactAdd, more);
           const reactRow = E("div", "vf-mreacts"); reactRow.setAttribute("role", "group"); reactRow.setAttribute("aria-label", "Reactions");
-          col.append(meta, quote, bubRow, reactRow, tools2);
+          col.append(meta, quote, bubRow, sent, reactRow, tools2);
           li.append(E("span", "vf-msg-av"), col);
-          li._k = { meta, btext, batt, tools2, done, more, quote, qName, qTxt, reactRow, reactAdd };
+          li._k = { meta, btext, batt, tools2, done, more, quote, qName, qTxt, reactRow, reactAdd, sent, sentT };
           return li;
         }, (li, m) => {
           if (m.gap) { li._below = m.gap; return; }
@@ -6320,8 +6370,12 @@
           li.classList.toggle("vf-msg-mine", isMe(m.cid));
           li.classList.toggle("vf-msg-cont", !!cont);
           const avBox = li.firstChild, key = m.cid + "|" + disp(m.name);
-          if (li._av !== key) { avBox.replaceChildren(av(m.cid, m.name, 26, true)); li._av = key; }
-          k.meta.firstChild.textContent = isMe(m.cid) ? "You" : disp(m.name);
+          if (li._av !== key) { avBox.replaceChildren(m.claude ? claudeAv(26) : av(m.cid, m.name, 26, true)); li._av = key; }
+          li.classList.toggle("vf-msg-claude", !!m.claude);
+          k.meta.firstChild.textContent = m.claude ? "Claude" : isMe(m.cid) ? "You" : disp(m.name);
+          li._gq = m.request ? genReq(S, m.request) : m.claude ? { x: (S.research?.[Core.GENERAL] || []).find(x => x.id === m.result) } : null;
+          k.sent.hidden = !li._gq || (m.claude && !li._gq.x);
+          if (li._gq) k.sentT.textContent = m.claude ? "Full answer" : li._gq.label ? `Sent to Claude · ${li._gq.label}` : "Sent to Claude";
           k.meta.lastChild.textContent = ago(m.ts);
           fillClamp(k.btext, "m:" + m.id, m.text, `Message from ${disp(m.name)}`, "");
           k.btext.hidden = !m.text;
