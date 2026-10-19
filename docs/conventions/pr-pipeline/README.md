@@ -989,6 +989,15 @@ check and its owner; a line in the pull request body does not count. Evidence: m
 intake author gate as "unverified, fails closed", merged, and skipped every intake run here
 (melodic-software/ci-workflows#772).
 
+The lanes token broker parses this config with resolve-config code pinned in azure-iac
+(`src/lanes-token-broker/resolve-config.pin`, fetched by `scripts/deploy/fetch-resolve-config.sh`).
+A pull request that changes a file that script fetches carries the body line
+`Broker pin: melodic-software/azure-iac#<n>`, naming the azure-iac pull request that bumps the pin
+to its merge commit; `ci-status` fails it otherwise. The path list is the `BROKER_PATHS` value of
+`ci-status`'s "Require a broker pin PR for a broker-fetched change" step in
+`.github/workflows/pr-require-checks.yml`. Evidence: #8313 changed `resolve.mjs` with no pin bump,
+and the broker denied every pr-unblock token request as `config-invalid` until azure-iac#44.
+
 ## Outside this repository
 
 The lanes depend on pieces other repositories own. Each row names where that piece is documented;
