@@ -68,8 +68,9 @@ itself the thing this skill removes.
    PR, its worktree and commits, not by an id that no longer resolves.
 
    **Measure the gap first.** Run
-   `python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/measure-stop-gap.py" "<session transcript path>"`.
-   It prints JSON with the last assistant entry, the limit or error
+   `python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/measure-stop-gap.py" "<session transcript path>"`
+   on this live, resumed session's transcript; a stopped transcript no
+   prompt has resumed yet is out of its scope. It prints JSON with the last assistant entry, the limit or error
    entry (null when there is none), now, and the gap from the stop to
    now (`gap`, `gap_seconds`); a transcript with no limit or error entry
    measures from the last assistant entry. Exit `2` (missing, unreadable

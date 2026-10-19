@@ -98,6 +98,22 @@ class MeasureStopGapTests(unittest.TestCase):
         self.assertEqual(data["stop_at"], "2026-10-18T09:05:00+00:00")
         self.assertEqual(data["gap_seconds"], 6 * 3600)
 
+    def test_resumed_turn_after_stop_without_error_entry_is_ignored(self) -> None:
+        result = self.run_on(
+            [
+                _entry("assistant", "2026-10-18T09:00:00Z"),
+                _entry("user", "2026-10-18T20:00:00Z"),
+                _entry("assistant", "2026-10-18T20:00:05Z"),
+            ],
+            "2026-10-18T20:00:10Z",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertIsNone(data["limit_or_error"])
+        self.assertEqual(data["last_assistant"], "2026-10-18T09:00:00+00:00")
+        self.assertEqual(data["stop_at"], "2026-10-18T09:00:00+00:00")
+        self.assertEqual(data["gap_seconds"], 11 * 3600 + 10)
+
     def test_empty_file_exits_nonzero(self) -> None:
         result = self.run_on([], "2026-10-18T10:00:00Z")
         self.assertEqual(result.returncode, 2)
