@@ -264,12 +264,14 @@ session right now, and say why in `why`:
 
 A request with `scope: "session"` and no `qid` asks about the whole session (`from: "chat"` when a chat
 message's "@Claude" asked it): answer from the session as a whole. Its result, in a digest too, carries
-`scope: "session"` in place of `qid`; once shared, it also shows in chat.
+`scope: "session"` in place of `qid`; once shared, it also shows in chat. Since everyone reads it, draw only
+on what every guest already sees (shared results, comments not hidden, names as the page shows them), never
+hidden comments, unshared results, the owner's terminal conversation, or files outside the data dir.
 
 Record what ran in `used` (`{name, type}`, `type` one of `skill`, `workflow`, `mcp`, `cli`). The
 page names actions, never skills or tools; the result card says what was used. A result waits in the owner's
 queue until the owner publishes it, so tell the owner in one line that it is ready to review. Work
-stays read-only and inside the question's scope; anything that would write, push, spend or reach
+stays read-only and inside the request's scope; anything that would write, push, spend or reach
 outside the repository and the data dir is reported to the owner in the terminal and runs only on
 their yes.
 
