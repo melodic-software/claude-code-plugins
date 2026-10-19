@@ -1733,7 +1733,7 @@ write "$case_dir/installed_plugins.json" '{
     "wsl-d@market1": [{"scope": "project", "projectPath": "/MNT/D/users/someone/", "installPath": "x", "version": "0.1.0"}],
     "linux@market1": [{"scope": "local", "projectPath": "/home/someone", "installPath": "x", "version": "0.1.0"}],
     "mac@market1":   [{"scope": "project", "projectPath": "/Users/someone", "installPath": "x", "version": "0.1.0"}],
-    "win@market1":   [{"scope": "project", "projectPath": "C:\\Users\\someone", "installPath": "x", "version": "0.1.0"}],
+    "win@market1":   [{"scope": "project", "projectPath": "C:\\Users\\tester", "installPath": "x", "version": "0.1.0"}],
     "envhome@market1": [{"scope": "project", "projectPath": "/srv/odd-home", "installPath": "x", "version": "0.1.0"}],
     "repo@market1":  [{"scope": "project", "projectPath": "/home/someone/repos/app", "installPath": "x", "version": "0.1.0"}],
     "wslrepo@market1": [{"scope": "project", "projectPath": "/mnt/c/Users/someone/repos/app", "installPath": "x", "version": "0.1.0"}],
@@ -1750,6 +1750,7 @@ assert_eq "projectPathIsHome: WSL view of a Windows home (/mnt/c/Users/<name>) i
 assert_eq "projectPathIsHome: drive and Users match case-insensitively, trailing slash ignored" "true" "$(home_flag wsl-d@market1)"
 assert_eq "projectPathIsHome: /home/<name> is a home (local scope too)" "true" "$(home_flag linux@market1)"
 assert_eq "projectPathIsHome: /Users/<name> is a home" "true" "$(home_flag mac@market1)"
+# portability-ok: a Windows path in the test title, not a regex
 assert_eq "projectPathIsHome: C:\\Users\\<name> is a home" "true" "$(home_flag win@market1)"
 assert_eq "projectPathIsHome: the current \$HOME is a home wherever it sits" "true" "$(home_flag envhome@market1)"
 assert_eq "projectPathIsHome: a repository under /home/<name>/repos is NOT a home" "false" "$(home_flag repo@market1)"

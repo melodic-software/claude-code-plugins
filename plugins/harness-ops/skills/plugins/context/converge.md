@@ -96,7 +96,7 @@ blind spot in its own right, recorded in [gotchas.md](gotchas.md).
 
 Check every `project`/`local` row's `projectPathIsHome` (see [scope-semantics.md](scope-semantics.md))
 before any other precondition. When it is `true`, the row's `projectPath` is `$HOME`, a `/home/<name>`,
-`/Users/<name>` or `C:\Users\<name>` directory, or the WSL view of a Windows home,
+`/Users/<name>` or `C:\Users\<name>` directory, or the WSL view of a Windows home, <!-- portability-ok: a Windows path in prose, not a regex -->
 `/mnt/<drive>/Users/<name>`. Its `.claude/settings.json` is that user's **user** settings, so a
 `-s project` command run from there would remove user-scope enables. Emit the row as **BLOCKED**
 with the reason and **no command at all**, neither the `uninstall` nor the `update` form, whatever
