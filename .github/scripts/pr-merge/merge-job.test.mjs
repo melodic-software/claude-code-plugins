@@ -265,14 +265,14 @@ test("a failed lane merge reruns the check with --remediate under the lane token
   assert.match(runScript("Check earlier lane merges"), /^echo "code=\$code" >>"\$GITHUB_OUTPUT"$/m);
 });
 
-// Runs the record step against a fake python3 that saves its arguments and
-// exits `code`.
-const runRecord = (code) => {
+// Runs the record step against a fake python3 that saves its arguments,
+// prints `report` and exits `code`.
+const runRecord = (code, report = { remediation: { errors: [] } }) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-record-"));
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
-    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >"${dir}/args"\necho '{}'\nexit ${code}\n`);
+    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >"${dir}/args"\ncat <<'EOF'\n${JSON.stringify(report)}\nEOF\nexit ${code}\n`);
     chmodSync(join(bin, "python3"), 0o755);
     symlinkSync(root, join(dir, ".base"));
     const result = spawnSync("bash", ["-c", runScript("Record a failed lane merge")], {
@@ -286,16 +286,30 @@ const runRecord = (code) => {
   }
 };
 
-test("the record step passes --remediate and warns only when it cannot act", () => {
+test("the record step passes --remediate and is quiet when the record was filed", () => {
   const run = runRecord(1);
   assert.equal(run.status, 0);
   assert.ok(run.args.includes("--remediate"), run.args.join(" "));
   assert.ok(run.args.includes("--lane-merges-only"));
   assert.equal(run.args[run.args.indexOf("--agent-identity") + 1], "melodic-automation-lanes[bot]");
-  assert.doesNotMatch(run.stdout, /::warning::/);
-  for (const code of [2, 3, 4]) {
-    const failed = runRecord(code);
+  assert.doesNotMatch(run.stdout, /::(warning|error)::/);
+});
+
+// Exit 4 covers both the expected re-run and dispatch refusals and a failed
+// filing, so only the report's errors tell them apart.
+test("the record step warns on refused re-runs and errors when the record was not filed", () => {
+  const refused = runRecord(4, { remediation: { errors: ["re-run: HTTP 403", "dispatch: HTTP 403"] } });
+  assert.equal(refused.status, 0);
+  assert.match(refused.stdout, /^::warning::the post-merge remediation exited 4 /m);
+  assert.doesNotMatch(refused.stdout, /::error::/);
+  for (const error of ["demotion issue: HTTP 403", "dequeue: HTTP 502"]) {
+    const failed = runRecord(4, { remediation: { errors: ["re-run: HTTP 403", error] } });
     assert.equal(failed.status, 0);
-    assert.match(failed.stdout, new RegExp(`^::warning::the post-merge remediation exited ${code} `, "m"));
+    assert.match(failed.stdout, /^::error::the post-merge remediation could not file the demotion record/m);
+  }
+  for (const code of [1, 2, 3]) {
+    const crashed = runRecord(code, { reason: "unreadable" });
+    assert.equal(crashed.status, 0);
+    assert.match(crashed.stdout, new RegExp(`^::error::the post-merge remediation exited ${code} with no remediation report`, "m"));
   }
 });

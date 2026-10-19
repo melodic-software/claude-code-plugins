@@ -528,12 +528,19 @@ jobs:
           python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
             --repo "$REPO" --agent-identity "$identity" --lane-merges-only --remediate \
             </dev/null >"$RUNNER_TEMP/post-merge-remediate.json" || code=$?
+          report=$RUNNER_TEMP/post-merge-remediate.json
           echo "::group::post-merge remediation: exit $code"
-          cat "$RUNNER_TEMP/post-merge-remediate.json"
+          cat "$report"
           echo "::endgroup::"
-          case $code in
-            2 | 3 | 4) echo "::warning::the post-merge remediation exited $code (2 refused, 3 unreadable, 4 write failed)" ;;
-          esac
+          # Exit 4 also covers the expected re-run and dispatch refusals, so
+          # the report, not the exit code, says whether the record was filed.
+          if ! jq -e '.remediation.errors | type == "array"' "$report" >/dev/null 2>&1; then
+            echo "::error::the post-merge remediation exited $code with no remediation report; no demotion record was filed"
+          elif jq -e '[.remediation.errors[] | select(startswith("demotion issue:") or startswith("dequeue:"))] | length > 0' "$report" >/dev/null; then
+            echo "::error::the post-merge remediation could not file the demotion record or dequeue the lane's entries; see its report above"
+          elif [ "$code" -eq 4 ]; then
+            echo "::warning::the post-merge remediation exited $code (re-run or dispatch refused: the lane token has no Actions permission)"
+          fi
 
       # The gate itself, once per candidate, using the lane App's token. It is
       # the same script the local babysit loop uses, run as the pr-merge lane:
