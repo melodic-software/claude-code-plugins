@@ -234,6 +234,14 @@ add_entry() {
     }' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
 }
 
+# True when fragment $1 holds $entry, as whole lines, under its "### <section>"
+# heading $2: the same text under another heading or inside a body line is not it.
+has_entry() {
+  local sec
+  sec="$(awk -v head="### $2" '{ sub(/\r$/, "") } $0 == head { on = 1; next } on && /^#+[ \t]/ { on = 0 } on' "$1")"
+  [[ $'\n'"$sec"$'\n' == *$'\n'"$entry"$'\n'* ]]
+}
+
 # During a merge the index holds fragments the merge brought in from other
 # branches; they are not this branch's to edit, and no fragment is written.
 [[ ! -e "$(git rev-parse --git-path MERGE_HEAD)" ]] || exit 0
@@ -249,7 +257,7 @@ for plugin in "${plugins[@]}"; do
   fi
   [[ -z "$base" && "$level" != none ]] || continue
   # A rerun after a failed or amended commit finds its entry already there.
-  [[ "$(<"$own")"$'\n' != *"$entry"$'\n'* ]] || {
+  ! has_entry "$own" "$section" || {
     echo "$own"
     continue
   }

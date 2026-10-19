@@ -186,6 +186,21 @@ out=$(write "$r" "fix: once")
 write "$r" "fix: once" >/dev/null
 assert_eq "rerun: the entry appears once" 1 "$(grep -c -- '- once' "$r/$out")"
 
+# 9b. The same description under another type is a new entry, not a rerun, and
+#     a body line that only contains the entry text does not count either.
+r=$(mkrepo)
+out=$(write "$r" "fix: update docs")
+git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: update docs" >/dev/null
+echo three >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
+write "$r" "feat: update docs" >/dev/null
+assert_eq "same text, new type: Fixed then Added" $'---\nbump: minor\n---\n\n### Fixed\n\n- update docs\n\n### Added\n\n- update docs' "$(frag "$r" "$out")"
+r=$(mkrepo)
+out=$(write "$r" $'fix: first\n\nsee - second')
+git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: first" >/dev/null
+echo three >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
+write "$r" "fix: second" >/dev/null
+assert_eq "entry text inside a body line: still written" 1 "$(grep -c '^- second$' "$r/$out")"
+
 # 10. A fragment main already holds, from an earlier branch with the same name,
 #     is not this branch's: a new fragment is written and the old one untouched.
 r=$(mkrepo)
