@@ -22,7 +22,7 @@
       // round 8
       revealed: new Set(), clOpen: new Map(), cites: {}, hostFilter: "all", treeClosed: new Set(),
       askPanel: false, askMode: "ask", askQ: "", askSelf: false, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
-      more: {}, peopleFilter: "all", peopleFind: "", unreadOnly: false,
+      more: {}, peopleFilter: "all", peopleFind: "", unreadOnly: false, ixTab: "all",
     };
     // Unsent text saved by the last reload for a new version (Core.onReload, at the end): answer drafts and the chat field.
     const UNSENT = "vf-unsent";
@@ -667,10 +667,10 @@
     askTop.setAttribute("aria-label", "Ask Claude");
     // Q87: one tap cycles System, Light, Dark; saved with my preferences.
     const themeBtn = btn("vf-tbtn vf-icon-btn vf-themebtn");
-    // Q82: the bell, with its unread count.
-    const bellBtn = btn("vf-tbtn vf-icon-btn vf-bell"); bellBtn.setAttribute("aria-haspopup", "dialog"); bellBtn.setAttribute("aria-expanded", "false");
+    // Item 11: the Inbox in the bell's place: my requests, what waits on the host, and every notification, with one unread count.
+    const bellBtn = btn("vf-tbtn vf-bell vf-inboxbtn"); bellBtn.setAttribute("aria-haspopup", "dialog"); bellBtn.setAttribute("aria-expanded", "false");
     const bellBadge = E("span", "vf-bell-n");
-    bellBtn.append(icon("bell"), bellBadge);
+    bellBtn.append(icon("host"), E("span", "vf-inbox-l", "Inbox"), bellBadge);
     top.append(brand, live, E("div", "vf-spacer"), people, hereCount, askTop, shareBtn, follow, keysBtn, themeBtn, bellBtn, gear);
 
     // ---------- rail ----------
@@ -1620,13 +1620,35 @@
       ["role", "Made leader or trusted", "host"], ["votes", "Agreement with my answers, once an hour", "thumb"],
       ["reaction", "Reactions to my chat messages", "chat"],
       ["queue", "New items in the host queue", "host"], ["ready", "A round marked ready", "check"], ["report", "The host read my problem reports", "help"]];
-    const bellPop = E("div", "vf-pop vf-bellpop"); bellPop.setAttribute("role", "dialog"); bellPop.setAttribute("aria-label", "Notifications"); bellPop.hidden = true;
+    const bellPop = E("div", "vf-pop vf-bellpop vf-inboxpop"); bellPop.setAttribute("role", "dialog"); bellPop.setAttribute("aria-labelledby", "vf-inbox-h"); bellPop.hidden = true;
     const bpHead = E("div", "vf-pp-head");
     const bpAll = btn("vf-btn vf-btn-ghost vf-btn-sm", "Mark all read");
-    const bpClose = ibtn("vf-tbtn vf-icon-btn", "x", "Close notifications");
+    const bpClose = ibtn("vf-tbtn vf-icon-btn", "x", "Close the Inbox");
+    const ixTitle = E("h2", "vf-pop-title", "Inbox"); ixTitle.id = "vf-inbox-h";
+    const ixCount = E("span", "vf-chip vf-chip-new vf-ixcount");
+    const IX_TABS = [["all", "All"], ["mine", "Mine"], ["waiting", "Waiting on you"], ["notes", "Notifications"]];
+    const ixTabs = E("div", "vf-seg vf-seg-sm vf-ixtabs"); ixTabs.setAttribute("role", "group"); ixTabs.setAttribute("aria-label", "Show in the Inbox");
+    const ixTabBtn = {};
+    for (const [k, label] of IX_TABS) { const b = btn("vf-seg-btn", label); b.dataset.k = k; b.onclick = () => { ui.ixTab = k; render(); }; ixTabs.append(b); ixTabBtn[k] = b; }
+    const ixSec = (cls, title) => {
+      const sec = E("section", "vf-ixsec " + cls), h = E("h3", "vf-ixh");
+      sec.append(h); sec._h = h; sec._title = title;
+      return sec;
+    };
+    const ixMine = ixSec("vf-ixmine", "Your requests"), ixWait = ixSec("vf-ixwait", "Waiting on you"), ixNotes = ixSec("vf-ixnotes", "Notifications");
+    const ixMineList = E("ul", "vf-ixlist"); ixMineList.setAttribute("role", "list");
+    const ixMineEmpty = E("p", "vf-empty vf-empty-sm", "No requests yet. Ask Claude on a question and it shows here, with its status, until you open the answer.");
+    ixMine.append(ixMineList, ixMineEmpty);
+    // What waits on the owner, one group per kind, each item linking to where it is handled.
+    const IX_WAIT = [["run", "Requests to run"], ["share", "Results to share"], ["report", "Problem reports"], ["merge", "Merge requests"], ["join", "Join requests"]];
+    const ixWaitLists = {};
+    for (const [k, label] of IX_WAIT) {
+      const g = E("div", "vf-ixgroup"), h = E("h4", "vf-ixgh"), ul = E("ul", "vf-ixlist"); ul.setAttribute("role", "list");
+      g.append(h, ul); ixWait.append(g); ixWaitLists[k] = { g, h, ul, label };
+    }
     const bpUnread = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle", "Unread only");
     bpUnread.onclick = () => { ui.unreadOnly = !ui.unreadOnly; render(); };
-    bpHead.append(E("h2", "vf-pop-title", "Notifications"), bpAll, bpClose);
+    bpHead.append(ixTitle, ixCount, bpAll, bpClose);
     const bpTools = E("div", "vf-bptools"); bpTools.append(bpUnread);
     const nList = E("ul", "vf-nlist"); nList.setAttribute("role", "list");
     const NO_NOTES = "Nothing new. You hear here when someone mentions you or replies to you, when your requests and proposals move, and when a round opens.";
@@ -1642,7 +1664,8 @@
       muteBox.append(b); muteRows[k] = b;
     }
     const noteMore = showMore("notes", 20);
-    const bpScroll = E("div", "vf-pscroll vf-bpscroll"); bpScroll.append(bpTools, nList, noteMore.foot, nEmpty, muteBtn, muteBox);
+    ixNotes.append(bpTools, nList, noteMore.foot, nEmpty, muteBtn, muteBox);
+    const bpScroll = E("div", "vf-pscroll vf-bpscroll"); bpScroll.append(ixTabs, ixMine, ixWait, ixNotes);
     bellPop.append(bpHead, bpScroll);
 
     // ---------- Q86: the phone More sheet ----------
@@ -1652,7 +1675,7 @@
     msHead.append(E("h2", "vf-pop-title", "More"), msClose);
     const msList = E("div", "vf-mslist");
     const msItem = (ico, label) => { const b = btn("vf-msitem"); const t = E("span", "vf-ms-l", label), d = E("span", "vf-ms-d"); b.append(icon(ico), t, d); b._d = d; b._l = t; msList.append(b); return b; };
-    const msAsk = msItem("sparkle", "Ask Claude"), msBell = msItem("bell", "Notifications"), msTheme = msItem("system", "Theme");
+    const msAsk = msItem("sparkle", "Ask Claude"), msBell = msItem("host", "Inbox"), msTheme = msItem("system", "Theme");
     const msFollow = msItem("forward", "Follow host"), msShare = msItem("link", "Share"), msSettings = msItem("gear", "Settings"), msHost = msItem("host", "Host view");
     const msTour = msItem("help", "Show me around"); msTour._d.textContent = "A one-minute tour";
     const msIntro = msItem("doc", "Why you're here");
@@ -2253,7 +2276,7 @@
       Core.request(qid, mode, text, attExtra(apSlot), own ? "self" : "host").then(() => {
         apTa.value = ""; grow(apTa); apSlot.clear();
         flash(own ? "Added to your requests. Run it on your own Claude from there."
-          : Core.me.isOwner ? "Added to Requests. Run it from there." : "Sent to the host. It runs once they press Run.");
+          : Core.me.isOwner ? "Sent to Claude. The answer shows on the question and in your Inbox." : "Sent to the host. It runs once they press Run.");
         render();
       }).catch(fail).finally(() => { apSend.disabled = false; });
     };
@@ -2447,22 +2470,113 @@
       if (n.qid && qById(n.qid)) return focusQuestion(n.qid);
       if ((n.kind === "queue" || n.kind === "ready") && Core.canModerate()) { setMode("host"); if (phone.matches) setTab("host"); }
     }
+    // ---------- Item 11: the Inbox ----------
+    const inbox = () => Core.state.inbox || [];
+    const IX_STAT = { waiting: "Waiting", running: "Running", answered: "Answered", unshared: "Answered", shared: "Shared", declined: "Declined", failed: "Failed" };
+    /** A count that is news: unread Inbox items, plus unread notifications the Inbox does not already show (a request's
+     *  own notices and the host's queue line are its items). */
+    function inboxUnread() {
+      return inbox().filter(i => i.unread).length + notes().filter(n => !n.read && n.kind !== "request" && n.kind !== "queue").length;
+    }
+    const qLabel = qid => { const q = qById(qid); return q ? `${q.id} · ${q.text}` : qid || ""; };
+    /** My request, open: its answer when I can see it, else its card, in that question's Claude section. */
+    function showRequest(qid, rid) {
+      ui.clOpen.set(qid, true);
+      if (ui.cur !== qid) select(qid, { manual: true });
+      setMode("focus"); if (phone.matches) setTab("answer");
+      render();
+      requestAnimationFrame(() => {
+        const li = thList._map?.get("r:" + rid); if (!li) return;
+        li.scrollIntoView({ block: "nearest", behavior: smooth() });
+        ring(li);
+      });
+    }
+    function openInboxItem(i) {
+      closePop();
+      if (i.unread) Core.readInbox([i.key]).catch(() => {});
+      const host = () => { setMode("host"); if (phone.matches) setTab("host"); };
+      if (i.kind === "request" || i.kind === "run") {
+        if (!qById(i.qid)) return;
+        if (i.result) { setMode("focus"); if (phone.matches) setTab("answer"); return showResult(i.qid, i.result); }
+        return showRequest(i.qid, i.id);
+      }
+      if (i.kind === "share" && qById(i.qid)) { setMode("focus"); if (phone.matches) setTab("answer"); return showResult(i.qid, i.id); }
+      host();
+    }
+    /** One Inbox row: the question, what was asked or what waits, a status chip, when, and an unread dot. */
+    function makeIx() {
+      const li = E("li"), b = btn("vf-ixitem");
+      const q = E("span", "vf-ixq"), chip = E("span", "vf-chip vf-ixchip"), what = E("span", "vf-ixwhat"), sub = E("span", "vf-ixsub"), tm = E("span", "vf-card-time vf-ixtime"), dot = E("span", "vf-ndot");
+      b.append(q, chip, what, tm, sub, dot); li.append(b);
+      b.onclick = () => openInboxItem(li._i);
+      li._k = { b, q, chip, what, sub, tm, dot };
+      return li;
+    }
+    function ixText(i, S) {
+      if (i.kind === "request") return (S.myRequests || []).find(r => r.id === i.id)?.text || "";
+      if (i.kind === "run") { const r = (S.requests || []).find(x => x.id === i.id); return r ? `${disp(i.by || r.name)}: ${r.text}` : ""; }
+      if (i.kind === "share") { const x = (S.research?.[i.qid] || []).find(y => y.id === i.id); return x ? x.summary : "A result"; }
+      if (i.kind === "report") { const f = (S.reports || []).find(y => y.id === i.id); return f ? `${disp(i.by || f.name)}: ${f.text}` : "A problem report"; }
+      if (i.kind === "merge") { const m = (S.mergeRequests || []).find(y => y.id === i.id); return m ? `${disp(m.fromName)} says they were ${disp(m.toName)} before` : "A merge request"; }
+      if (i.kind === "join") return `${disp(i.by || "Someone")} asks to join`;
+      return "";
+    }
+    function fillIx(li, i, S) {
+      const k = li._k; li._i = i;
+      const mine = i.group === "mine";
+      k.q.textContent = i.qid ? qLabel(i.qid) : ""; k.q.hidden = !i.qid;
+      k.chip.hidden = !mine;
+      if (mine) { k.chip.textContent = IX_STAT[i.status] || i.status; k.chip.dataset.stat = i.status; }
+      k.what.textContent = ixText(i, S);
+      const sub = i.status === "unshared" ? "Waiting for the host to share" : i.status === "failed" ? i.reason || "" : i.status === "answered" && !Core.me.isOwner ? "Only you see it until the host shares it" : "";
+      k.sub.textContent = sub; k.sub.hidden = !sub;
+      k.tm.textContent = ago(mine ? i.changedTs : i.ts);
+      k.dot.hidden = !i.unread;
+      k.b.classList.toggle("vf-nunread", !!i.unread);
+      li.dataset.key = i.key; li.dataset.stat = i.status;
+      const where = i.qid ? `${i.qid}. ` : "";
+      k.b.setAttribute("aria-label", `${i.unread ? "Unread. " : ""}${where}${k.what.textContent}. ${mine ? (i.status === "unshared" ? "Answered, waiting for the host to share" : IX_STAT[i.status]) + (sub && i.status !== "unshared" ? `: ${sub}` : "") + ". " : ""}${k.tm.textContent === "now" ? "Just now" : k.tm.textContent + " ago"}.`);
+    }
     bellBtn.onclick = () => openBell(bellBtn);
     bpClose.onclick = () => { const a = bellPop._anchor; closePop(); a?.focus?.(); };
-    bpAll.onclick = () => Core.readNotifications("all").catch(fail);
+    bpAll.onclick = () => {
+      const keys = inbox().filter(i => i.unread).map(i => i.key);
+      if (keys.length) Core.readInbox(keys.slice(0, 100)).catch(fail);
+      if (notes().some(n => !n.read)) Core.readNotifications("all").catch(fail);
+    };
     muteBtn.onclick = () => { ui.muteOpen = !ui.muteOpen; render(); if (ui.muteOpen) muteBox.scrollIntoView({ block: "nearest", behavior: smooth() }); };
     function renderBell(S, mod) {
-      const list = notes().slice().reverse(), unread = S.me?.unread || 0;
+      const list = notes().slice().reverse(), unread = inboxUnread();
       bellBadge.textContent = unread ? String(unread > 99 ? "99+" : unread) : "";
       if (unread > (ui.lastBell ?? unread)) { bellBadge.classList.remove("vf-badge-pop"); void bellBadge.offsetWidth; bellBadge.classList.add("vf-badge-pop"); }
       ui.lastBell = unread;
-      bellBtn.setAttribute("aria-label", unread ? `Notifications, ${unread} unread` : "Notifications");
+      bellBtn.setAttribute("aria-label", unread ? `Inbox, ${unread} unread` : "Inbox");
       bellBtn.title = bellBtn.getAttribute("aria-label");
       bellBtn.hidden = !S.me;
-      tabBtns.more._badge.textContent = ""; // ux-review-2 #8: a notification is badged once, on the bell
+      tabBtns.more._badge.textContent = ""; // ux-review-2 #8: a notification is badged once, on the Inbox
       msBell._d.textContent = unread ? `${unread} unread` : "All read";
       if (ui.pop !== bellPop) return;
       bpAll.hidden = !unread;
+      ixCount.textContent = unread ? String(unread) : ""; ixCount.hidden = !unread;
+      const owner = Core.me.isOwner, tab = ui.ixTab === "waiting" && !owner ? "all" : ui.ixTab || "all";
+      ixTabBtn.waiting.hidden = !owner;
+      for (const [k, b] of Object.entries(ixTabBtn)) b.setAttribute("aria-pressed", String(k === tab));
+      const mine = inbox().filter(i => i.group === "mine").sort((a, b) => b.ts - a.ts);
+      const waiting = owner ? inbox().filter(i => i.group === "waiting").sort((a, b) => b.ts - a.ts) : [];
+      ixMine.hidden = !(tab === "all" || tab === "mine");
+      ixWait.hidden = !owner || !(tab === "all" || tab === "waiting");
+      ixNotes.hidden = !(tab === "all" || tab === "notes");
+      ixMine._h.textContent = `${ixMine._title} · ${mine.length}`;
+      ixWait._h.textContent = `${ixWait._title} · ${waiting.length}`;
+      ixNotes._h.textContent = ixNotes._title;
+      sync(ixMineList, mine, i => i.key, makeIx, (li, i) => fillIx(li, i, S));
+      ixMineEmpty.hidden = mine.length > 0;
+      for (const [k, w] of Object.entries(ixWaitLists)) {
+        const items = waiting.filter(i => i.kind === k);
+        w.h.textContent = `${w.label} · ${items.length}`;
+        w.g.hidden = !items.length;
+        sync(w.ul, items, i => i.key, makeIx, (li, i) => fillIx(li, i, S));
+      }
       bpUnread.setAttribute("aria-pressed", String(ui.unreadOnly));
       const kept = ui.unreadOnly ? list.filter(n => !n.read) : list;
       sync(nList, noteMore.page(kept, nList, `notes:${ui.unreadOnly}`), n => n.id, () => {
@@ -3201,6 +3315,12 @@
         for (const m of S.mergeRequests || []) note("gm:" + m.id, "seen", `${disp(m.fromName)} says they were ${disp(m.toName)} before. Approve it in Host.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); }, isNew: true });
         for (const u of S.uploads || []) if (u.status === "offered" && !isMe(u.cid)) note("uo:" + u.id, "seen", `${disp(u.by)} offered a file: ${u.file}.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); }, isNew: true });
       }
+      // Item 11: a toast when Claude answers one of my requests, once I can open the answer.
+      for (const i of S.inbox || []) {
+        if (i.group !== "mine") continue;
+        const open = i.status === "answered" || i.status === "shared";
+        note("ix:" + i.key, i.status, open ? `Claude answered your request on ${i.qid}` : "", open ? { label: "Open", run: () => openInboxItem(i) } : null);
+      }
       if (Core.adopted && !seen._adopted) { seen._adopted = true; flash(`Signed in as ${Core.adopted} on this device.`); }
       if (Core.mergeAsked && !seen._asked) { seen._asked = true; flash(`Asked the host to join you with ${Core.mergeAsked.name}. You continue as ${Core.me.name} until they do.`); }
       seen._primed = true;
@@ -3380,7 +3500,7 @@
       askSend.disabled = true;
       Core.request(ui.cur, ui.askKind, text, attExtra(askSlot)).then(() => {
         askTa.value = ""; askSlot.clear(); ui.askOpen = false; renderAsk();
-        flash(Core.me.isOwner ? "Added to Requests. Run it from there." : "Sent to the host. It runs once they press Run.");
+        flash(Core.me.isOwner ? "Sent to Claude. The answer shows on the question and in your Inbox." : "Sent to the host. It runs once they press Run.");
       }).catch(fail).finally(() => { askSend.disabled = false; });
     };
     on(board, "scroll", edges, { passive: true });
@@ -4131,6 +4251,9 @@
       for (const [k, b] of Object.entries(askKinds)) b.setAttribute("aria-pressed", String(k === ui.askKind));
       askTa.placeholder = ui.askKind === "ask" ? "A question for Claude about this, answered on the question" : "What to look up, compare or verify";
       askLabel.textContent = ui.askKind === "ask" ? "What should Claude answer?" : "What should Claude find out?";
+      const askNote = askForm.querySelector(".vf-asknote");
+      if (askNote) askNote.textContent = Core.me.isOwner ? "Claude runs it now; the result lands on this question for everyone, with your request text."
+        : "The host runs it; the result lands on this question. Your request text shows on the result for everyone.";
       if (ui.askOpen) grow(askTa);
     }
     function reviewText(q) { return q.needsReview ? `Needs review: ${q.needsReview.because} changed` : ""; }
@@ -4236,7 +4359,8 @@
     }
     /** New to me: the answer to my own request while its "is done" notice is unread, or anyone else's result since my last visit. */
     const doneUnread = qid => notes().some(n => !n.read && n.kind === "request" && n.qid === qid && / is done\.$/.test(n.title || ""));
-    const resNew = (x, q) => (isMe(x.byCid) ? doneUnread(q.id) : ui.seenAt != null && x.ts > ui.seenAt);
+    const ixUnread = rid => inbox().some(i => i.group === "mine" && i.unread && i.id === rid && (i.status === "answered" || i.status === "shared"));
+    const resNew = (x, q) => (isMe(x.byCid) ? (x.requestId ? ixUnread(x.requestId) : doneUnread(q.id)) : ui.seenAt != null && x.ts > ui.seenAt);
     /** Q98: a note someone pinned on a variant of this prototype, with a link to it on the prototype's page. */
     function makeThNote() {
       const li = E("li", "vf-thnote");
@@ -5003,6 +5127,7 @@
       apSelf.hidden = Core.me.isOwner;
       apSelf.setAttribute("aria-checked", String(!!ui.askSelf));
       apNote.textContent = own ? "Only you see this request. Your own Claude runs it; the host reviews its answer before anyone else sees it."
+        : Core.me.isOwner ? "Claude runs it now and the answer shows on the question's Claude thread for everyone."
         : "The host runs it; the result lands on the question's Claude thread. Your request text shows there for everyone.";
       const selfOpen = (S.myRequests || []).some(r => r.runner === "self" && (r.status === "pending" || r.status === "running"));
       apConnect.hidden = Core.me.isOwner || !(own || selfOpen);

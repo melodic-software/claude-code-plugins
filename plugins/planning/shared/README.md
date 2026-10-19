@@ -275,6 +275,22 @@ for a free-form selector an earlier build took.
   or Back in that tab; when the owner follows a session link, `core.js` opens the page with
   `#owner=` in its fragment (a new tab with `noopener`), and that page takes it out in turn.
 
+## Inbox
+
+The top bar's Inbox (in the bell's place) lists a person's own requests, newest first, with the
+status they see: `waiting`, `running`, `answered`, `unshared` (a guest's answer before the owner's
+Share, shown as "Answered, waiting for the host to share"), `shared`, `declined` or `failed`. The
+owner's also lists what waits on them under "Waiting on you": requests to run, results to share,
+open problem reports, merge requests and join requests. The snapshot's `inbox` carries these
+items, built by `session.py` for the viewer alone (never another person's request or a result its
+requester cannot see). `inboxSeen` in `state.json` keeps, per person, the status each item had
+when they opened it; an item whose status moved since is unread, and only
+`POST /api/inbox/read {keys}` (keys of the caller's own Inbox; others mark nothing) marks one
+read. Notifications stay under the Inbox; its badge leaves out the `request` and `queue` kinds,
+which its items already show. The owner's own requests skip the queue: one starts running when
+sent, and Claude's result for it is shared at once. A guest's request, the owner's guest identity
+included, still waits for Run and Share.
+
 ## Connect your Claude
 
 A guest can run a request on their own Claude instead of the host's (R2-12; Brief C18-C20): in

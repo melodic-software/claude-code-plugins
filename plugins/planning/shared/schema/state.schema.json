@@ -7,12 +7,12 @@
   "required": [
     "schemaVersion", "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
     "questions", "cards", "votes", "reactions", "locks", "suggestions", "suggestionVotes", "proposals",
-    "chat", "requests", "results", "uploads", "annotations", "prefs", "notifications", "mergeRequests",
-    "aboutYou", "log"
+    "chat", "requests", "results", "uploads", "annotations", "prefs", "notifications", "inboxSeen",
+    "mergeRequests", "aboutYou", "log"
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": {"enum": [3]},
+    "schemaVersion": {"enum": [4]},
     "pluginVersion": {"type": "string"},
     "writtenBy": {"type": "string"},
     "rev": {"type": "integer", "minimum": 0},
@@ -46,6 +46,14 @@
     "notifications": {
       "type": "object",
       "additionalProperties": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/notification"}}
+    },
+    "inboxSeen": {
+      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join: and an id for the owner) and the status each had then; an item whose status moved since is unread.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {"enum": ["waiting", "running", "answered", "unshared", "shared", "declined", "failed", "open"]}
+      }
     },
     "mergeRequests": {"type": "array", "items": {"$ref": "#/$defs/mergeRequest"}},
     "aboutYou": {"type": "object", "additionalProperties": {"$ref": "#/$defs/aboutYou"}},

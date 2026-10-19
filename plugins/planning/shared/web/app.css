@@ -1947,6 +1947,51 @@
 }
 
 /* ---------- composer send button: a label on wide screens, a round icon on phones ---------- */
+/* ---------- Item 11: the Inbox (in the bell's place): my requests, what waits on the host, notifications ---------- */
+.app .vf-inboxbtn .vf-bell-n { position: static; box-shadow: none; background: var(--accent); color: var(--on-accent); }
+.app .vf-inboxpop { inline-size: 420px; max-block-size: min(640px, calc(100% - 64px)); }
+.app .vf-inboxpop .vf-pp-head { gap: 8px; }
+.app .vf-inboxpop .vf-pp-head .vf-pop-title { flex: 0 1 auto; }
+.app .vf-ixcount { border-radius: 8px; }
+.app .vf-inboxpop .vf-pp-head .vf-ixcount + .vf-btn { margin-inline-start: auto; }
+.app .vf-ixtabs { justify-self: start; margin: 4px 4px 6px; flex-wrap: wrap; }
+.app .vf-ixsec { display: grid; gap: 6px; padding: 4px 2px 10px; }
+.app .vf-ixh { margin: 0; padding-inline: 8px; font-size: 12px; font-weight: 650; color: var(--muted); }
+.app .vf-ixgh { margin: 2px 0 0; padding-inline: 8px; font-size: 11.5px; font-weight: 600; color: var(--faint); }
+.app .vf-ixgroup { display: grid; gap: 6px; }
+.app .vf-ixwait { padding: 8px 6px 10px; border: 1px solid color-mix(in oklch, var(--brass) 35%, transparent); border-radius: var(--r-md); background: var(--brass-soft); }
+.app .vf-ixwait > .vf-ixh { color: var(--brass-text); }
+.app .vf-ixlist { display: grid; gap: 6px; grid-template-columns: minmax(0, 1fr); }
+/* question line and status chip; what was asked and when; a reason or a wait under it; the unread dot in the gutter */
+.app .vf-ixitem {
+  all: unset; box-sizing: border-box; cursor: pointer; inline-size: 100%; position: relative;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "q chip" "what time" "sub sub"; column-gap: 10px; row-gap: 2px;
+  padding: 8px 10px 8px 22px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--pane);
+  transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out);
+}
+.app .vf-ixitem:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.app .vf-ixitem.vf-nunread { border-color: color-mix(in oklch, var(--accent) 45%, transparent); background: color-mix(in oklch, var(--accent) 7%, var(--pane)); }
+.app .vf-ixq { grid-area: q; font-size: 12px; line-height: 18px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app .vf-ixchip { grid-area: chip; justify-self: end; align-self: start; }
+.app .vf-ixwhat {
+  grid-area: what; font-size: 13px; line-height: 19px; font-weight: 600; color: var(--text); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.app .vf-ixtime { grid-area: time; justify-self: end; align-self: start; margin: 0; line-height: 19px; }
+.app .vf-ixsub { grid-area: sub; font-size: 12px; line-height: 17px; color: var(--faint); overflow-wrap: anywhere; }
+.app .vf-ixitem .vf-ndot { position: absolute; inset-inline-start: 8px; inset-block-start: 13px; margin: 0; }
+.app .vf-ixitem:not(:has(.vf-ixq:not([hidden]))) { grid-template-areas: "what time" "sub sub"; }
+.app .vf-ixchip { color: var(--muted); background: var(--raise); border: 1px solid var(--line-strong); }
+.app .vf-ixchip:is([data-stat="answered"], [data-stat="unshared"]) { color: var(--ok); background: color-mix(in oklch, var(--ok) 13%, transparent); border-color: color-mix(in oklch, var(--ok) 35%, transparent); }
+.app .vf-ixchip[data-stat="running"] { color: var(--accent-text); background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 35%, transparent); }
+.app .vf-ixchip[data-stat="shared"] { color: var(--claude); background: color-mix(in oklch, var(--claude) 13%, transparent); border-color: color-mix(in oklch, var(--claude) 35%, transparent); }
+.app .vf-ixchip[data-stat="declined"] { text-decoration: line-through; color: var(--faint); }
+.app .vf-ixchip[data-stat="failed"] { color: var(--warn); background: color-mix(in oklch, var(--warn) 12%, transparent); border-color: color-mix(in oklch, var(--warn) 40%, transparent); }
+.app .vf-ixnotes { padding-block-start: 10px; border-block-start: 1px solid var(--line); }
+@media (hover: hover) and (pointer: fine) {
+  .app .vf-ixitem:hover { background: var(--raise); }
+}
+
 .app .vf-send-i { display: none; }
 .app .vf-qnav { display: none; }
 
@@ -1961,6 +2006,11 @@
     border-radius: var(--r-lg) var(--r-lg) 0 0; border-block-end: 0; padding-block-end: env(safe-area-inset-bottom); transform-origin: bottom center;
   }
   .app .vf-bellpop .vf-tbtn { inline-size: 44px; block-size: 44px; }
+  /* the Inbox on a phone: the whole screen, its tabs and items full width */
+  .app .vf-inboxpop[data-place="sheet"] { inset: 0; max-block-size: none; block-size: 100%; border-radius: 0; border: 0; padding-block-end: env(safe-area-inset-bottom); }
+  .app .vf-inbox-l { display: none; }
+  .app .vf-inboxbtn { min-inline-size: 44px; block-size: 44px; }
+  .app .vf-ixitem { padding-block: 10px; }
   .app .vf-nitem { padding-block: 12px; }
   .app .vf-mopt { min-block-size: 44px; }
   .app .vf-moresheet .vf-pp-head { padding-block-end: 4px; }
