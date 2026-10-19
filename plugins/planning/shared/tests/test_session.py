@@ -1,3 +1,4 @@
+# test-scope: plugins/planning/shared/schema/*.schema.json plugins/planning/surface/schema/*.schema.json plugins/planning/shared/tests/fixtures/*.json
 """session.py holds the shared interview session's domain rules; each test names one invariant.
 
 Expected values come from the Design's Contracts (state shape, error codes, round transitions,
@@ -681,7 +682,7 @@ class TestMerge(SessionCase):
         self.refused("wrong-status", "request_merge", self.old, {"to": self.bo}, http=409)
         self.refused("bad-field", "request_merge", self.bo, {"to": self.bo})
         self.refused("bad-field", "request_merge", self.bo, {"to": HOST})
-        self.assertEqual([n["kind"] for n in self.notes(HOST, "queue")], ["queue"])
+        self.assertEqual(self.notes(HOST, "queue"), [])  # a waiting Inbox item stands for it
 
     def test_approving_a_merge_request_merges_and_notifies(self):
         mid = self.act("request_merge", self.old, {"to": self.ann})["id"]
@@ -2203,7 +2204,7 @@ class TestRequests(SessionCase):
         rid = self.ask(self.ann)
         r = self.s.state["requests"][0]
         self.assertEqual((rid, r["status"], r["runner"], r["edited"]), ("R1", {"kind": "pending"}, "host", False))
-        self.assertEqual(len(self.notes(HOST, "queue")), 1)
+        self.assertEqual(self.notes(HOST, "queue"), [])  # the owner's Inbox lists it as waiting instead
 
     def test_at_most_ten_pending_requests_per_person(self):
         for i in range(10):
@@ -2320,6 +2321,147 @@ class TestRequests(SessionCase):
         self.assertEqual((st["kind"], st["reason"], st["cancelled"]), ("failed", "No sources found.", False))
 
 
+class TestInbox(TestRequests):
+    """Item 9: the host's own requests skip Run and Share. Item 11: each person's Inbox, its statuses and read marks."""
+
+    def inbox(self, pid, group=None):
+        return {i["key"]: i for i in self.s.snapshot(pid)["inbox"] if group is None or i["group"] == group}
+
+    def read(self, pid, *keys):
+        self.clock.tick()
+        return self.s.read_inbox(pid, {"keys": list(keys)})
+
+    def test_a_host_request_runs_at_once_and_its_result_is_shown_at_once(self):
+        rid = self.ask(HOST)
+        r = self.s.state["requests"][0]
+        self.assertEqual(r["status"]["kind"], "running")
+        (ev,) = self.events("request-run")
+        self.assertEqual([x["id"] for x in ev["requests"]], [rid])
+        self.assertEqual(self.notes(HOST, "queue"), [])
+        out = self.apply(self.result_op(rid))["results"][0]
+        res = self.s.state["results"]["Q1"][0]
+        self.assertEqual((out["published"], res["published"], res["publishedAt"]), (True, True, res["at"]))
+        self.assertEqual(self.s.snapshot(self.bo)["results"]["Q1"][0]["summary"], "Most shops pin it right.")
+        self.assertEqual(self.notes(HOST, "queue"), [])
+        self.assertEqual(self.s.summary()["queue"]["requests"], 0)
+        self.assertEqual(self.s.summary()["queue"]["results"], 0)
+
+    def test_a_guest_request_still_waits_for_run_and_share(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.s.state["requests"][0]["status"]["kind"], "pending")
+        self.assertEqual(self.events("request-run"), [])
+        self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+        self.assertFalse(self.apply(self.result_op(rid))["results"][0]["published"])
+
+    def test_the_owners_guest_identity_is_a_guest(self):
+        me, _ = self.join("Kim on the phone")
+        self.ask(me)
+        self.assertEqual(self.s.state["requests"][0]["status"]["kind"], "pending")
+
+    def test_a_guest_sees_waiting_running_unshared_then_shared_and_each_change_is_unread_until_opened(self):
+        rid = self.ask(self.ann)
+        self.assertEqual({k: (i["status"], i["unread"]) for k, i in self.inbox(self.ann).items()}, {rid: ("waiting", False)})
+        self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+        self.assertEqual((self.inbox(self.ann)[rid]["status"], self.inbox(self.ann)[rid]["unread"]), ("running", True))
+        self.assertEqual(self.read(self.ann, rid), {"read": 1})
+        self.assertFalse(self.inbox(self.ann)[rid]["unread"])
+        xid = self.apply(self.result_op(rid))["results"][0]["id"]
+        item = self.inbox(self.ann)[rid]
+        self.assertEqual((item["status"], item["unread"], "result" in item), ("unshared", True, False))
+        self.assertNotIn("Most shops pin it right.", json.dumps(self.s.snapshot(self.ann)))
+        self.read(self.ann, rid)
+        self.act("act_on_request", HOST, {"action": "publish", "id": xid})
+        item = self.inbox(self.ann)[rid]
+        self.assertEqual((item["status"], item["unread"], item["result"]), ("shared", True, xid))
+        self.assertTrue(self.inbox(self.ann)[rid]["unread"])  # nothing marks it read but opening it
+        self.read(self.ann, rid)
+        self.assertFalse(self.inbox(self.ann)[rid]["unread"])
+
+    def test_declined_and_failed_carry_their_status_and_reason(self):
+        r1, r2 = self.ask(self.ann, "one"), self.ask(self.ann, "two")
+        self.act("act_on_request", HOST, {"action": "decline", "id": r1})
+        self.act("act_on_request", HOST, {"action": "run", "ids": [r2]})
+        self.apply({"op": "fail-request", "request": r2, "reason": "No sources found."})
+        box = self.inbox(self.ann)
+        self.assertEqual((box[r1]["status"], box[r2]["status"], box[r2]["reason"]), ("declined", "failed", "No sources found."))
+        self.assertTrue(box[r1]["unread"] and box[r2]["unread"])
+
+    def test_the_host_reads_its_own_answer_as_answered(self):
+        rid = self.ask(HOST)
+        self.assertEqual((self.inbox(HOST, "mine")[rid]["status"], self.inbox(HOST, "mine")[rid]["unread"]), ("running", False))
+        xid = self.apply(self.result_op(rid))["results"][0]["id"]
+        item = self.inbox(HOST, "mine")[rid]
+        self.assertEqual((item["status"], item["unread"], item["result"]), ("answered", True, xid))
+
+    def test_an_inbox_holds_only_ones_own_requests_and_never_another_persons_text(self):
+        self.ask(self.ann, "Ann's private wording")
+        self.ask(self.bo, "Bo's own")
+        snap = self.s.snapshot(self.bo)
+        self.assertEqual([i["key"] for i in snap["inbox"]], ["R2"])
+        self.assertNotIn("Ann's private wording", json.dumps(snap))
+        self.assertFalse(any(i["group"] == "waiting" for i in snap["inbox"]))
+        self.assertEqual(self.read(self.bo, "R1", "run:R1"), {"read": 0})  # another person's keys mark nothing
+        self.assertEqual(self.s.state["inboxSeen"][self.bo], {"R2": "waiting"})
+
+    def test_the_hosts_waiting_on_you_lists_requests_results_reports_merges_and_joins(self):
+        r1 = self.ask(self.ann, "one")
+        r2 = self.ask(self.bo, "two")
+        self.act("act_on_request", HOST, {"action": "run", "ids": [r2]})
+        xid = self.apply(self.result_op(r2))["results"][0]["id"]
+        self.act("request_merge", self.bo, {"to": self.ann})
+        self.act("report", self.ann, {"text": "The button is gone.", "ctx": {"view": "focus", "device": "phone", "browser": "safari", "viewport": {"w": 390, "h": 844}, "errors": []}})
+        self.act("update_settings", HOST, {"approveJoins": True})
+        self.clock.tick()
+        jib = self.s.join(None, {"name": "Jib"})["pid"]
+        waiting = self.inbox(HOST, "waiting")
+        self.assertEqual(sorted(waiting), sorted([f"run:{r1}", f"share:{xid}", "merge:G1", "report:F1", f"join:{jib}"]))
+        self.assertEqual(self.inbox(HOST, "mine"), {})
+        self.assertTrue(all(i["unread"] and i["status"] == "open" for i in waiting.values()))
+        self.read(HOST, f"run:{r1}")
+        self.assertFalse(self.inbox(HOST, "waiting")[f"run:{r1}"]["unread"])
+        self.act("act_on_request", HOST, {"action": "run", "ids": [r1]})
+        self.assertNotIn(f"run:{r1}", self.inbox(HOST, "waiting"))
+        self.read(HOST, f"share:{xid}")
+        self.assertNotIn(f"run:{r1}", self.s.state["inboxSeen"][HOST])  # a mark of an item gone is dropped on the next read
+
+    def test_a_read_takes_one_to_a_hundred_string_keys_and_works_while_ended(self):
+        rid = self.ask(self.ann)
+        for bad in ({}, {"keys": []}, {"keys": "R1"}, {"keys": [1]}, {"keys": ["R1"] * 101}):
+            self.refused("bad-field", "read_inbox", self.ann, bad, http=400)
+        self.act("act_on_request", HOST, {"action": "decline", "id": rid})
+        self.act("end_session", HOST, {"on": True})
+        self.assertEqual(self.read(self.ann, rid), {"read": 1})
+
+    def test_a_second_read_within_a_second_is_throttled_and_a_read_that_marks_nothing_writes_nothing(self):
+        r1, r2 = self.ask(self.ann, "one"), self.ask(self.ann, "two")
+        self.act("act_on_request", HOST, {"action": "decline", "id": r1})
+        self.act("act_on_request", HOST, {"action": "decline", "id": r2})
+        self.assertEqual(self.read(self.ann, r1), {"read": 1})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.read_inbox(self.ann, {"keys": [r2]})  # same clock: under a second after the last
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+        rev, disk = self.s.state["rev"], self.path.read_text(encoding="utf-8")
+        self.assertEqual(self.read(self.ann, r1, "R99"), {"read": 0})
+        self.assertEqual((self.s.state["rev"], self.path.read_text(encoding="utf-8")), (rev, disk))
+
+    def test_a_read_at_the_status_the_page_showed_leaves_a_later_move_unread(self):
+        rid = self.ask(self.ann)
+        self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+        self.apply(self.result_op(rid))  # the page still showed Running when the person opened it
+        self.clock.tick()
+        self.assertEqual(self.s.read_inbox(self.ann, {"keys": [rid], "saw": {rid: "running"}}), {"read": 1})
+        self.assertEqual((self.inbox(self.ann)[rid]["status"], self.inbox(self.ann)[rid]["unread"]), ("unshared", True))
+        self.refused("bad-field", "read_inbox", self.ann, {"keys": [rid], "saw": {rid: "done"}}, http=400)
+
+    def test_a_merge_keeps_the_absorbed_identitys_read_marks(self):
+        rid = self.ask(self.bo)
+        self.act("act_on_request", HOST, {"action": "decline", "id": rid})
+        self.read(self.bo, rid)
+        self.act("merge_people", HOST, {"from": self.bo, "to": self.ann})
+        item = self.inbox(self.ann)[rid]
+        self.assertEqual((item["status"], item["unread"]), ("declined", False))
+
+
 class TestSelfRunner(SessionCase):
     def setUp(self):
         super().setUp()
@@ -2349,7 +2491,7 @@ class TestSelfRunner(SessionCase):
         self.assertNotIn("Q1", self.s.snapshot(self.bo)["results"])
         self.assertEqual([r["summary"] for r in self.s.snapshot(self.ann)["results"]["Q1"]], ["The address step."])
         self.assertEqual([r["published"] for r in self.s.snapshot(HOST)["results"]["Q1"]], [False])
-        self.assertEqual(len(self.notes(HOST, "queue")), 1)
+        self.assertEqual(self.notes(HOST, "queue"), [])  # the owner's Inbox lists it as waiting instead
         self.act("act_on_request", HOST, {"action": "publish", "id": xid})
         self.assertEqual(self.s.snapshot(self.bo)["results"]["Q1"][0]["summary"], "The address step.")
         self.assertEqual([n["title"] for n in self.notes(self.ann, "request")], ["Your request on question Q1 is done."])
@@ -2595,6 +2737,14 @@ class TestSessionControls(SessionCase):
         self.assertEqual(self.s.snapshot(self.ann)["me"]["prefs"], {"tour": "done", "toolbar": "simple"})
         for bad in ({"tour": True}, {"tour": "seen"}, {"toolbar": "compact"}):
             self.refused("bad-field", "set_prefs", self.ann, {"set": bad})
+
+    def test_auto_advance_is_a_per_person_switch_off_until_set(self):
+        self.assertNotIn("autoAdvance", self.s.snapshot(self.ann)["me"]["prefs"])
+        self.assertEqual(self.act("set_prefs", self.ann, {"set": {"autoAdvance": True}})["prefs"], {"autoAdvance": True})
+        self.assertEqual((self.s.snapshot(self.ann)["me"]["prefs"], self.s.snapshot(self.bo)["me"]["prefs"]), ({"autoAdvance": True}, {}))
+        self.refused("bad-field", "set_prefs", self.ann, {"set": {"autoAdvance": "on"}})
+        self.act("set_prefs", self.ann, {"set": {"autoAdvance": None}})
+        self.assertNotIn(self.ann, self.s.state["prefs"])
 
     def test_title_is_1_to_80_and_goal_up_to_200(self):
         self.act("set_title", HOST, {"title": "  Payment step  "})
@@ -2966,7 +3116,7 @@ class TestSnapshots(SessionCase):
         return next(c for c in snap["cards"]["Q1"] if c["ref"] == ref)
 
     def test_the_anonymous_view_has_exactly_four_keys(self):
-        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 3})
+        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 5})
         self.act("rotate_guest_link", HOST, {})
         self.assertTrue(self.s.anonymous_view()["joinNeedsKey"])
 
@@ -3039,7 +3189,7 @@ class TestSnapshots(SessionCase):
 
     def test_a_snapshot_carries_schema_version_and_rev(self):
         snap = self.s.snapshot(self.cy)
-        self.assertEqual((snap["schemaVersion"], snap["rev"]), (3, self.s.state["rev"]))
+        self.assertEqual((snap["schemaVersion"], snap["rev"]), (5, self.s.state["rev"]))
 
     def test_the_shared_part_is_built_once_per_rev(self):
         first = self.s._base()
@@ -3779,7 +3929,7 @@ class TestApproveJoins(SessionCase):
         host = self.s.snapshot(HOST)
         self.assertEqual([(j["pid"], j["name"]) for j in host["joinRequests"]], [(out["pid"], "Jib")])
         self.assertNotIn(out["pid"], [p["pid"] for p in host["people"]])
-        self.assertEqual(self.notes(HOST, "queue")[-1]["title"], "1 new item in the queue.")
+        self.assertEqual(self.notes(HOST, "queue"), [])  # the owner's Inbox lists the join as waiting instead
         self.act("act_on_join", HOST, {"pid": out["pid"], "action": "admit"})
         self.assertIn(out["pid"], [p["pid"] for p in self.s.snapshot(out["pid"])["people"]])
         self.assertEqual(self.s.snapshot(HOST)["joinRequests"], [])
@@ -4374,6 +4524,35 @@ class TestStateFrom6579f21(StateFixtureCase):
         self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
         reloaded = session.Session.load(s.path, validate_writes=True)
         self.assertEqual(next(q for q in reloaded.state["questions"] if q["id"] == "Q1")["format"]["rect"], self.PIXEL)
+
+
+class TestStateFrom394a8bc(unittest.TestCase):
+    """state-written-394a8bc.json, written by the 394a8bc build's own session.py at schemaVersion 3 (Ann's waiting,
+    running, unshared and own-Claude requests; Bo's shared, declined and failed ones; the host's own, run and shared
+    by hand), loads at 4 with only inboxSeen added: every request starts read, and the Inbox then moves as usual."""
+
+    ANN, BO = "tok0002x9", "tok0004x9"
+
+    def test_it_loads_unchanged_but_for_inbox_seen_and_every_request_starts_read(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        shutil.copy(FIXTURES / "state-written-394a8bc.json", tmp / "state.json")
+        raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(raw["schemaVersion"], 3)
+        s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
+        self.assertEqual({k: v for k, v in s.state.items() if k not in ("inboxSeen", "discussions", "discussionSeen")}, {**raw, "schemaVersion": session.migrate.CURRENT})
+        self.assertEqual(s.state["inboxSeen"], {
+            self.ANN: {"R1": "waiting", "R2": "running", "R3": "unshared", "R8": "waiting"},
+            self.BO: {"R4": "shared", "R5": "declined", "R6": "failed"},
+            HOST: {"R7": "answered"},
+        })
+        self.assertEqual((tmp / "state.v3.json").read_text(encoding="utf-8").rstrip("\n"), json.dumps(raw, ensure_ascii=False))
+        for pid in (self.ANN, self.BO, HOST):
+            self.assertEqual([i["key"] for i in s.snapshot(pid)["inbox"] if i["group"] == "mine" and i["unread"]], [], pid)
+        self.assertEqual([i["key"] for i in s.snapshot(HOST)["inbox"] if i["group"] == "waiting"], ["run:R1", "share:X1"])
+        s.act_on_request(HOST, {"action": "publish", "id": "X1"})
+        item = next(i for i in s.snapshot(self.ANN)["inbox"] if i["key"] == "R3")
+        self.assertEqual((item["status"], item["unread"], item["result"]), ("shared", True, "X1"))
 
 
 class TestStateFrom3f9006c(StateFixtureCase):
@@ -5258,6 +5437,103 @@ class TestReports(SessionCase):
         self.assertEqual(self.s.state["reports"]["F1"]["by"], self.ann)
         self.assertTrue(self.s._holds_content(self.ann))
 
+    def test_your_reports_lists_only_your_own_with_their_status_and_never_the_context(self):
+        self.file(self.ann, image=data_url("png", PNG_BYTES))
+        self.file(self.bo, text="Mine is broken too")
+        self.file(self.ann, text="Chat is slow")
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.act("act_on_report", HOST, {"id": "F3", "action": "resolved"})
+        mine = self.s.snapshot(self.ann)["myReports"]
+        self.assertEqual([(r["id"], r["text"], r["status"], r["image"]) for r in mine], [("F1", "Send does nothing", "seen", True), ("F3", "Chat is slow", "resolved", False)])
+        self.assertEqual([r["id"] for r in self.s.snapshot(self.bo)["myReports"]], ["F2"])
+        self.assertEqual(self.s.snapshot(HOST)["myReports"], [])
+        self.assertNotIn("ctx", json.dumps(mine))
+        self.assertNotIn("reports/F1", json.dumps(mine))
+
+    def test_a_reporter_adds_a_line_or_a_screenshot_to_their_open_report_and_a_seen_one_waits_again(self):
+        self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.assertEqual(self.act("add_to_report", self.ann, {"id": "F1", "text": "It happens on Q2 too"}), {"id": "F1", "adds": 1, "status": "open"})
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        self.assertEqual((self.tmp / "reports" / "F1-2.png").read_bytes(), PNG_BYTES)
+        mine = self.s.snapshot(self.ann)["myReports"][0]
+        self.assertEqual((mine["status"], [(a.get("text"), a["image"]) for a in mine["adds"]]), ("open", [("It happens on Q2 too", False), (None, True)]))
+        owner = self.s.snapshot(HOST)["reports"][0]
+        self.assertEqual([(a.get("text"), a["image"]) for a in owner["adds"]], [("It happens on Q2 too", False), (None, True)])
+        self.assertEqual(self.s.report_image(HOST, {"id": "F1", "add": "2"})["image"], data_url("png", PNG_BYTES))
+        self.refused("not-found", "report_image", HOST, {"id": "F1", "add": "1"}, http=404)
+        self.refused("owner-only", "report_image", self.ann, {"id": "F1", "add": "2"}, http=403)
+        self.assertIsNone(session.document_error(self.disk()))
+        session.Session.load(self.s.path, validate_writes=True)
+
+    def test_only_the_reporter_adds_to_a_report_and_only_while_it_is_not_fixed(self):
+        self.file(self.ann)
+        self.refused("not-found", "add_to_report", self.bo, {"id": "F1", "text": "me too"}, http=404)
+        self.refused("not-found", "add_to_report", HOST, {"id": "F1", "text": "noted"}, http=404)
+        self.refused("empty", "add_to_report", self.ann, {"id": "F1", "text": " "})
+        self.refused("file-type", "add_to_report", self.ann, {"id": "F1", "image": data_url("png", b"GIF89a" + b"\x00" * 30)}, http=415)
+        for _ in range(10):
+            self.act("add_to_report", self.ann, {"id": "F1", "text": "more"})
+        self.refused("too-many", "add_to_report", self.ann, {"id": "F1", "text": "one more"}, http=409)
+        self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F2", "action": "resolved"})
+        self.refused("wrong-status", "add_to_report", self.ann, {"id": "F2", "text": "still broken"}, http=409)
+        self.assertEqual(self.s.state["reports"]["F2"].get("adds"), None)
+
+    def test_reopening_a_seen_report_never_passes_five_open_reports(self):
+        for _ in range(5):
+            self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.file(self.ann)  # F2..F6 open: five again
+        self.refused("too-many-pending", "add_to_report", self.ann, {"id": "F1", "text": "still broken"}, http=429)
+        self.assertEqual((self.s.state["reports"]["F1"]["status"], self.s.state["reports"]["F1"].get("adds")), ("seen", None))
+        self.act("add_to_report", self.ann, {"id": "F2", "text": "an open one takes it"})
+        self.act("act_on_report", HOST, {"id": "F3", "action": "resolved"})
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "now it fits"})
+        self.assertEqual(self.s.state["reports"]["F1"]["status"], "open")
+
+    def test_the_owners_inbox_dates_a_report_by_its_latest_addition(self):
+        self.file(self.ann)
+        filed = self.clock.t
+        self.clock.tick(60)
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "and again"})
+        item = next(i for i in self.s.snapshot(HOST)["inbox"] if i["key"] == "report:F1")
+        self.assertEqual((item["at"], item["changed"]), (filed + 62, filed + 62))  # act() ticks 2 s
+
+    def test_asking_claude_carries_what_the_reporter_added_and_an_add_lets_the_owner_ask_again(self):
+        self.file(self.ann)
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "It happens on Q2 too"})
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        self.act("act_on_report", HOST, {"id": "F1", "action": "ask"})
+        ev = self.events("report-filed")[-1]
+        self.assertEqual({k: ev[k] for k in ("report", "qid", "text", "adds", "addImages")},
+                         {"report": "F1", "qid": "Q1", "text": "Send does nothing", "adds": ["It happens on Q2 too"], "addImages": 1})
+        self.assertNotIn("reports/", json.dumps(ev))
+        self.assertIsNone(support_event_error(ev))
+        self.refused("wrong-status", "act_on_report", HOST, {"id": "F1", "action": "ask"}, http=409)
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "Now on Q3 as well"})
+        self.assertEqual(self.act("act_on_report", HOST, {"id": "F1", "action": "ask"}), {"id": "F1", "status": "open", "asked": True})
+        self.assertEqual(self.events("report-filed")[-1]["adds"], ["It happens on Q2 too", "Now on Q3 as well"])
+
+    def test_an_added_picture_is_named_by_its_number_and_anything_else_is_refused(self):
+        self.file(self.ann)
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        for n in ("²", "0", "01", "1000", "-1", "1.0"):
+            with self.subTest(add=n):
+                self.refused("bad-field", "report_image", HOST, {"id": "F1", "add": n}, http=400)
+        self.refused("not-found", "report_image", HOST, {"id": "F1", "add": "2"}, http=404)
+        self.assertEqual(self.s.report_image(HOST, {"id": "F1", "add": "1"})["image"], data_url("png", PNG_BYTES))
+
+    def test_an_added_picture_name_out_of_place_or_more_than_ten_additions_is_refused_at_load(self):
+        self.file(self.ann)
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        doc = self.disk()
+        doc["reports"]["F1"]["adds"][0]["image"] = "reports/F1-3.png"
+        self.assertIsNotNone(session.document_error(doc))
+        doc = self.disk()
+        doc["reports"]["F1"]["adds"] = [{"text": "more", "ts": 1_760_600_000.0}] * 11
+        self.assertIsNotNone(session.document_error(doc))
+
     def test_a_report_id_or_picture_name_the_server_never_makes_is_refused_at_load(self):
         self.file(self.ann, image=data_url("png", PNG_BYTES))
         for edit in (lambda d: d["reports"]["F1"].update(image="../state.json"), lambda d: d["reports"]["F1"].update(image="reports/F2.png"),
@@ -5268,7 +5544,7 @@ class TestReports(SessionCase):
 
 
 class TestReportsOnAnOlderFile(StateFixtureCase):
-    """A schemaVersion 2 file from before reports (state-v2.json) loads at version 3, otherwise unchanged, and takes one."""
+    """A schemaVersion 2 file from before reports (state-v2.json) loads at the current version, otherwise unchanged, and takes one."""
 
     def test_a_v2_state_without_reports_loads_and_takes_a_report(self):
         tmp = Path(tempfile.mkdtemp())
@@ -5277,7 +5553,7 @@ class TestReportsOnAnOlderFile(StateFixtureCase):
         raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
         self.assertNotIn("reports", raw)
         s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        self.assertEqual(s.state, {**raw, "schemaVersion": 3})  # the file names no one with @, so only its version moves
+        self.assertEqual({k: v for k, v in s.state.items() if k not in ("inboxSeen", "discussions", "discussionSeen")}, {**raw, "schemaVersion": session.migrate.CURRENT})  # no one named with @: only its version moves, and the Inbox marks join
         guest = next(p for p in s.state["people"] if p != HOST and s.state["people"][p]["status"]["kind"] == "active")
         self.assertEqual(s.report(guest, {"text": "Broken", "ctx": {**CTX, "qid": None}})["id"], "F1")
         self.assertEqual(session.Session.load(tmp / "state.json", validate_writes=True).state["session"]["seq"]["F"], 1)
@@ -5429,7 +5705,7 @@ class TestTakingPartOnAnOlderFile(StateFixtureCase):
         raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
         self.assertFalse({"passes", "lateActs"} & set(raw) or any("for" in q for q in raw["questions"]))
         s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        self.assertEqual(s.state, {**raw, "schemaVersion": 3})  # the file names no one with @, so only its version moves
+        self.assertEqual({k: v for k, v in s.state.items() if k not in ("inboxSeen", "discussions", "discussionSeen")}, {**raw, "schemaVersion": session.migrate.CURRENT})  # no one named with @: only its version moves, and the Inbox marks join
         s.set_for(HOST, {"qid": "Q5", "for": ["Ann"]})
         self.assertEqual(s.pass_("aB3dE5fG7hJ9", {"qid": "Q5", "reason": "Not mine"}), {"pass": True})
         self.assertEqual(session.Session.load(tmp / "state.json", validate_writes=True).state["passes"]["Q5"]["aB3dE5fG7hJ9"]["reason"], "Not mine")

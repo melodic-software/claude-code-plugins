@@ -107,6 +107,11 @@ async function main() {
     await until(bo, a => [...document.querySelectorAll(".vf-res")].some(li => li.textContent.includes(a)), ANSWER);
     const s2 = await state(bo);
     ok("Bo, with nothing new for him, keeps it folded", s2.open === "false" && !s2.body, JSON.stringify(s2));
+    ok("Bo opens the Claude section", await openClaude(bo));
+    const kinds = await bo.evaluate(() => ({ pressed: Object.fromEntries([...document.querySelectorAll(".vf-askform .vf-seg-btn")].map(b => [b.textContent, b.getAttribute("aria-pressed")])),
+      label: document.querySelector(".vf-askform .vf-asklabel").textContent }));
+    ok("a fresh Ask Claude form starts on Ask: Ask pressed, Research not, the label \"What should Claude answer?\"",
+      kinds.pressed.Ask === "true" && kinds.pressed.Research === "false" && kinds.label === "What should Claude answer?", JSON.stringify(kinds));
 
     // ---------- (d) the soft-rule card ----------
     const card = await ann.evaluate(() => {
