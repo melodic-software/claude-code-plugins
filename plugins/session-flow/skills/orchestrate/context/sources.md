@@ -284,9 +284,7 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   session's effort.
 - **Delegating bulk work and tuning effort are judgment calls, with measurements beside them.**
   Our reading: past a wide fan-out the cheaper tier is the default, and effort is matched to the
-  subtask. The upstream page reports delegation saving money only for routine work with a long
-  cost tail or work larger than one context window, and that lower effort's cost in accuracy
-  varies by task. It states costs we do not copy. Pointer:
+  subtask. It states costs we do not copy. Pointer:
   <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work>
   and <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort>.
   As of: 2026-10-18. Recheck trigger: either section changes its measured cases or advice.
