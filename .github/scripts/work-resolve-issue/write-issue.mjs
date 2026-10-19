@@ -175,7 +175,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
 
     const frozenAt = await readAdmittedAt(client, repository, env.ISSUE_NUMBER, env.LABEL_NAME, Number(env.LABEL_SENDER_ID), lanesAppId, humans, eventAt);
     // Timestamps are whole seconds, so a change in the label's own second counts as after it.
-    // NaN compares false, so an unparseable time is a change.
+    // NaN compares false, so an unparsable time is a change.
     const edits = await readIssueEdits(client, repository, env.ISSUE_NUMBER);
     if (!edits.every((time) => time == null || timeOf(time) < frozenAt)) {
       throw new Error(`the issue title or body changed after ${env.LABEL_NAME} was added`);
@@ -189,7 +189,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
       }
       const createdAt = timeOf(comment.created_at);
       const editedAt = lastEditedAt === null ? createdAt : timeOf(lastEditedAt);
-      // NaN compares false, so an unparseable time is left out.
+      // NaN compares false, so an unparsable time is left out.
       if (!(createdAt < frozenAt && editedAt < frozenAt)) {
         dropped["after-admission"] += 1;
         continue;
