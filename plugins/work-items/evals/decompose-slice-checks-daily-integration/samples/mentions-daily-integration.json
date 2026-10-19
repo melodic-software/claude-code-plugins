@@ -11,6 +11,14 @@
     {
       "answer": "Window bar passes: it will merge at least daily as a thin slice.",
       "why": "short form"
+    },
+    {
+      "answer": "Window bar: pass. A cold session can finish it in one fresh context window and merge it the same day.",
+      "why": "same-day merge meets the at-least-daily floor"
+    },
+    {
+      "answer": "Window bar: pass, thin enough to integrate within a day.",
+      "why": "within-a-day form"
     }
   ],
   "fail": [
@@ -28,7 +36,11 @@
     },
     {
       "answer": "Window bar: passes, about 3 hours of work; merge daily.",
-      "why": "other wording, no 'at least daily'"
+      "why": "bare 'daily' states no floor"
+    },
+    {
+      "answer": "Window bar: a cold session cannot merge it the same day, so split it.",
+      "why": "negated same-day mention"
     }
   ]
 }
