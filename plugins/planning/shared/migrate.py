@@ -15,7 +15,7 @@ import re
 import secrets
 import time
 
-CURRENT = 4
+CURRENT = 5
 MIGRATIONS = {}
 
 PROTOTYPE_KEYS = frozenset({"questions", "answers", "ideas", "people", "secrets", "round"})
@@ -793,6 +793,7 @@ def mention_texts(doc):
         out += [(s, "text"), (s, "note")]
     out += [(q, "text") for q in _list(doc.get("questions")) if _dict(_dict(q).get("origin")).get("kind") == "host"]
     out += [(r, "text") for key in ("proposals", "chat", "annotations", "requests") for r in _list(doc.get(key))]
+    out += [(c, "text") for lst in _dict(doc.get("discussions")).values() for c in _list(lst)]
     out += [(m["replyTo"], "excerpt") for m in _list(doc.get("chat")) if isinstance(_dict(m).get("replyTo"), dict)]
     out += [(n, "body") for lst in _dict(doc.get("notifications")).values() for n in _list(lst) if _dict(n).get("kind") in ("mention", "reply")]
     return [(h, k) for h, k in out if isinstance(h, dict) and isinstance(h.get(k), str)]
@@ -866,3 +867,14 @@ def _v3_to_v4(doc, ctx):
 
 
 MIGRATIONS[3] = _v3_to_v4
+
+
+# -- 4 -> 5: a Discussion under each question ----------------------------------------------------
+
+
+def _v4_to_v5(doc, ctx):
+    """discussions (qid -> comments) and discussionSeen (pid -> qid -> when they last opened it), both empty."""
+    return {**doc, "discussions": {}, "discussionSeen": {}}
+
+
+MIGRATIONS[4] = _v4_to_v5
