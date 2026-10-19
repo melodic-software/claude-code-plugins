@@ -1092,6 +1092,11 @@
     Object.assign(held.files, j.files || {});
     return j;
   }
+  /** held.files keeps only what the held messages still carry (a removed upload leaves them when they are read again). */
+  function pruneFiles() {
+    const carried = new Set([...held.chat.values()].flatMap(m => m.attachments || []));
+    for (const id of Object.keys(held.files)) if (!carried.has(id)) delete held.files[id];
+  }
   function keepWindow(s) {
     const key = `${s.settings?.names}|${s.me.role}`;
     if (key !== held.key) { held.chat.clear(); held.linked.clear(); held.files = {}; held.key = key; }
@@ -1110,6 +1115,7 @@
       for (const m of j.chat) if (held.chat.has(m.id)) held.chat.set(m.id, m);
       id = j.chat.length && seqOf(j.chat[0].id) > oldest ? j.before : "";
     }
+    pruneFiles();
     repaint();
   }
   /** More than a window arrived between two polls: read back to the messages this page already holds. */

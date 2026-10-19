@@ -3074,6 +3074,10 @@
       return p;
     };
     const localPics = new Map(); // upload id -> a thumbnail this browser made of a picture it offered
+    /** Drop a cached picture the page may no longer show (removed, or no longer carried by anything it reads). */
+    function prunePics() {
+      for (const id of [...upPics.keys()]) if (!fileOf({ upload: id })?.image) upPics.delete(id);
+    }
     /** A placeholder where a picture will show: to its uploader and the host until it arrives, and to everyone else
      *  until the host approves it once it has. */
     const picWaits = a => {
@@ -3312,7 +3316,7 @@
 
     /** A form's attachments before it is sent: chips with a remove button, the button that opens the picker, and a
      *  picture pasted into its field. store.get/set keep the list somewhere else (the answer composer keeps one per question). */
-    function attSlot(getQid, btnEl, store, field) {
+    function attSlot(getQid, btnEl, store, field, enabled = () => true) {
       store ||= null;
       const b = btnEl || ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach");
       b.setAttribute("aria-label", "Attach a file"); b.title = "Attach"; b.setAttribute("aria-haspopup", "dialog");
@@ -3327,13 +3331,18 @@
         if (store?.setFor) store.setFor(q, rest); else slot.set(rest);
         paintSlot(slot);
       };
+      /** The draft list of the question in view now, kept for a paste that finishes after the reader moved on. */
+      slot.here = () => {
+        const q = ui.cur;
+        return store?.getFor ? { get: () => store.getFor(q), put: l => { store.setFor(q, l); paintSlot(slot); } } : { get: slot.get, put: slot.put };
+      };
       b.onclick = () => {
         if (slot.get().length >= 4) return flash("Four files at most go with one post.");
         openAttach({ qid: getQid(), taken: slot.get().map(a => a.upload), from: b, onAdd: att => slot.put([...slot.get(), att]) });
       };
       if (field) on(field, "paste", e => {
         const pics = [...(e.clipboardData?.files || [])].filter(f => /^image\/(png|jpeg|webp|gif)$/.test(f.type));
-        if (!pics.length || !st().uploads || field.disabled || field.readOnly) return; // the paste goes on as usual
+        if (!pics.length || !st().uploads || field.disabled || field.readOnly || !enabled()) return; // the paste goes on as usual
         e.preventDefault();
         (async () => { for (const f of pics) await pastePic(slot, f); })();
       });
@@ -3342,10 +3351,11 @@
     /** A pasted picture: offered to the host (offerFile redraws it) and attached as a thumbnail chip. */
     async function pastePic(slot, file) {
       if (slot.get().length >= 4) return flash("Four files at most go with one post.");
+      const here = slot.here(), qid = slot.qid(); // the question pasted on, whichever the reader is on when the offer lands
       try {
         const named = new File([file], `pasted-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "")}.png`, { type: file.type });
-        const r = await offerFile(named, slot.qid());
-        slot.put([...slot.get(), { kind: "file", upload: r.id, pasted: true }]);
+        const r = await offerFile(named, qid);
+        here.put([...here.get(), { kind: "file", upload: r.id, pasted: true }]);
       } catch (x) { flash(x?.error || `Not attached: ${Core.errorText(x)}`); }
     }
     /** Sending waits while a file in the form is waiting for the host; one the host declined, or that was withdrawn,
@@ -3715,9 +3725,10 @@
     }
     // One attach picker on every form; the answer keeps a draft list per question, prefilled from my answer.
     ui.attDraft = {};
-    const cSlot = attSlot(() => ui.cur, attachBtn, { get: () => ui.attDraft[ui.cur] ?? (myRec(ui.cur)?.att || []), set: l => { ui.attDraft[ui.cur] = l; } }, ta);
+    const cSlot = attSlot(() => ui.cur, attachBtn, { get: () => ui.attDraft[ui.cur] ?? (myRec(ui.cur)?.att || []), set: l => { ui.attDraft[ui.cur] = l; },
+      getFor: q => ui.attDraft[q] ?? (myRec(q)?.att || []), setFor: (q, l) => { ui.attDraft[q] = l; } }, ta);
     composer.insertBefore(cSlot.chips, ta);
-    const apSlot = attSlot(() => (askGeneral() ? "" : apQWrap.s.value || ui.cur), apAttach, null, apTa);
+    const apSlot = attSlot(() => (askGeneral() ? "" : apQWrap.s.value || ui.cur), apAttach, null, apTa, () => !selfAsk());
     apForm.insertBefore(apSlot.chips, apNote);
     const askSlot = attSlot(() => ui.cur, null, perQuestion(), askTa);
     askRow.prepend(askSlot.btn); askForm.insertBefore(askSlot.chips, askForm.querySelector(".vf-asknote"));
@@ -6140,7 +6151,7 @@
         }
       }
       notices(S);
-      pumpUploads();
+      pumpUploads(); prunePics();
       // New answers from others on the question I am on: one polite summary, never the list itself.
       const heardQ = ui.cur, others0 = Core.answersFor(heardQ).filter(a => !isMe(a.cid)).length;
       if (ui.heard.q === heardQ && others0 > ui.heard.n) announce(`${others0 - ui.heard.n} new answer${others0 - ui.heard.n > 1 ? "s" : ""} on ${heardQ}`);

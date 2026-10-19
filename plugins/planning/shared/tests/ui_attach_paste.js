@@ -89,6 +89,17 @@ async function main() {
     ok("taking the pasted chip off withdraws its upload", await until(bo, id => window.Core.snapshot().myUploads.find(u => u.id === id)?.status.kind === "withdrawn", boPasted));
     await closeAll(bo);
 
+    // ---------- Ask Claude with "Run it on my own Claude" on takes no picture ----------
+    ok("Bo's Ask Claude opens", await opens.ask(bo));
+    await bo.click(".vf-apself");
+    await until(bo, () => document.querySelector(".vf-apself").getAttribute("aria-checked") === "true");
+    await paste(bo, FORMS.ask.field);
+    await bo.waitForTimeout(1500);
+    ok("with my own Claude on, a paste into Ask Claude offers nothing and makes no chip", (await snap(bo)).myUploads.length === 1
+      && (await chips(bo, ".vf-apform")).length === 0, JSON.stringify((await snap(bo)).myUploads.map(u => u.file)));
+    await bo.click(".vf-apself");
+    await closeAll(bo);
+
     // ---------- on: Attach on every form, and a pasted picture becomes a thumbnail chip waiting for the host ----------
     const ids = {};
     for (const [name, f] of Object.entries(FORMS)) {
@@ -175,12 +186,17 @@ async function main() {
     // ---------- drafts stay on their question ----------
     const railQ = (page, qid) => page.locator(".vf-q", { hasText: qid === "Q1" ? "Where should" : "Which default" }).first();
     await openDisc(ann);
+    // The offer is held back 1.5 s, so the reader moves to Q2 before it lands.
+    await ann.route("**/api/upload/offer", async route => { await new Promise(r => setTimeout(r, 1500)); await route.continue(); });
+    const before = (await snap(ann)).myUploads.length;
     await paste(ann, FORMS.discussion.field);
-    ok("a picture pasted into Q1's Discussion makes a chip there", await until(ann, () => document.querySelectorAll(".vf-disc-form .vf-attdraft .vf-ref").length === 1, null, 10000));
-    const q1Draft = (await snap(ann)).myUploads.at(-1).id;
     await railQ(ann, "Q2").click();
+    await until(ann, n => window.Core.snapshot().myUploads.length > n, before, 10000);
+    await ann.unroute("**/api/upload/offer");
+    const q1Draft = (await snap(ann)).myUploads.at(-1).id;
     await openDisc(ann);
-    ok("on Q2 the Discussion shows no chip", await until(ann, () => document.querySelector(".vf-disc-form .vf-attdraft").hidden));
+    await ann.waitForTimeout(500);
+    ok("a paste on Q1 that lands after the reader moved to Q2 puts no chip on Q2", await until(ann, () => document.querySelector(".vf-disc-form .vf-attdraft").hidden));
     await ann.fill(".vf-disc-ta", "A comment on the cart.");
     await ann.waitForTimeout(1100);
     await ann.evaluate(() => document.querySelector(".vf-disc-form").requestSubmit());
@@ -251,8 +267,51 @@ async function main() {
     ok("removed, the picture leaves Bo's chat", await until(bo, t => { const m = [...document.querySelectorAll(".vf-chat .vf-msg")].find(li => li.textContent.includes(t)); return !!m && !m.querySelector(".vf-uppic"); }, FORMS.chat.text));
     ok("and Ann's own file reads Removed", await until(ann, id => window.Core.snapshot().myUploads.find(u => u.id === id)?.status.kind === "removed", ids.chat));
 
+    // ---------- a message older than the chat window follows its picture's Approve and Remove ----------
+    await closeAll(owner);
+    await openChat(ann);
+    const hadUps = (await snap(ann)).myUploads.length;
+    await paste(ann, ".vf-minput");
+    await until(ann, n => window.Core.snapshot().myUploads.length > n, hadUps, 10000);
+    const oldPic = (await snap(ann)).myUploads.at(-1).id;
+    await owner.evaluate(id => window.Core.uploadAct(id, "accept"), oldPic);
+    await until(ann, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), oldPic, 20000);
+    await ann.fill(".vf-minput", "A picture that scrolls away.");
+    await ann.waitForTimeout(1100);
+    await ann.click(".vf-mform button[type=submit]");
+    const oldMsg = await until(ann, id => window.Core.snapshot().chat.some(m => (m.attachments || []).includes(id)), oldPic) && (await snap(ann)).chat.find(m => (m.attachments || []).includes(oldPic)).id;
+    // 55 newer messages from the host, written while the server is stopped, push it out of the 50-message window.
+    const port = new URL(A.localUrl).port, stFile = path.join(A.dir, "state.json");
+    s.share(A.dir, "stop");
+    const stj = JSON.parse(fs.readFileSync(stFile, "utf8")), n0 = stj.session.seq.M, t0 = stj.chat.at(-1).at;
+    for (let i = 1; i <= 55; i++) stj.chat.push({ id: `M${n0 + i}`, pid: "host", text: `Later message ${i}`, at: t0 + i });
+    stj.session.seq.M = n0 + 55;
+    fs.writeFileSync(stFile, JSON.stringify(stj));
+    s.share(A.dir, "ensure-running", "--guest-port", port);
+    ok("the message left Bo's chat window", await until(bo, id => window.Core.snapshot()?.chat?.some(m => m.text === "Later message 55") && !window.Core.snapshot().chat.some(m => m.id === id && !m.gapAbove) , oldMsg, 30000));
+    await openChat(bo);
+    await bo.evaluate(id => window.Core.chatAround(id), oldMsg);
+    const oldTile = (page, id) => page.evaluate(i => {
+      const li = [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x._m?.id === i);
+      return !li ? "gone" : li.querySelector(".vf-uppic img[src^='data:']") ? "tile" : /Waiting for the host/.test(li.querySelector(".vf-uppic-wait")?.textContent || "") ? "waiting" : "none";
+    }, id);
+    ok("scrolled back, Bo sees its placeholder", await until(bo, id => {
+      const li = [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x._m?.id === id);
+      return /Waiting for the host/.test(li?.querySelector(".vf-uppic-wait")?.textContent || "");
+    }, oldMsg, 10000), await oldTile(bo, oldMsg));
+    await owner.evaluate(id => window.Core.uploadAct(id, "approve"), oldPic);
+    ok("after the host's Approve it becomes the picture without a reload", await until(bo, id => {
+      const li = [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x._m?.id === id);
+      return !!li?.querySelector(".vf-uppic img[src^='data:']");
+    }, oldMsg, 15000), await oldTile(bo, oldMsg));
+    await owner.evaluate(id => window.Core.uploadAct(id, "remove"), oldPic);
+    ok("after the host's Remove it loses the picture without a reload", await until(bo, id => {
+      const li = [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x._m?.id === id);
+      return !!li && !li.querySelector(".vf-uppic");
+    }, oldMsg, 15000), await oldTile(bo, oldMsg));
+
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
-    const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
+    const errs = rec.errors.filter(m => !/Failed to load resource|Failed to fetch|ERR_CONNECTION/.test(m)); // the server restarts once
     ok("no page error", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {
     ok("the suite ran to the end", false, String(e.stack || e).split("\n").slice(0, 3).join(" "));
