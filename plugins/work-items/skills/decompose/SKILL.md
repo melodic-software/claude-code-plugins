@@ -68,7 +68,7 @@ slice that fails one before moving to the next:
 | One concern | The vertical slice serves a single concern. From a PLAN.md source, a phase becomes one vertical slice unless it mixes independent concerns | Split along the concerns |
 | End to end | Every layer the behavior needs, its tests included, is real in this vertical slice and none is stubbed for later. A vertical slice adding a retention setting, say, ships the config key, the cleanup job that honors it, and a test that runs the job | Add the missing layers, or narrow the behavior until it fits |
 | Proof on its own | After merge, someone can run or inspect it without any later vertical slice | Narrow it until they can |
-| Window bar | A session that starts cold, reads the brief, and finishes the vertical slice in **one fresh context window**. Judge this beside S/M/L, qualitatively; never set a token budget or a numeric window size | Split it |
+| Window bar | A session that starts cold, reads the brief, and finishes the vertical slice in **one fresh context window**, and it can merge to the mainline at least daily. Judge this beside S/M/L, qualitatively; never set a token budget, a numeric window size, a time estimate or a day cap. "At least daily" is practice guidance on integration cadence, the merge floor, not an estimate ([DORA, trunk-based development](https://dora.dev/capabilities/trunk-based-development/), "How to implement trunk-based development"; [Fowler, Continuous Integration](https://martinfowler.com/articles/continuousIntegration.html), "Everyone Pushes Commits To the Mainline Every Day"; as of 2026-10-18, recheck when either page changes its daily-merge guidance) | Split it |
 
 When two cuts both pass, take the one with more, thinner vertical slices.
 
