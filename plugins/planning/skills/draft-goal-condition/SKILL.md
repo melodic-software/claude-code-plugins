@@ -27,9 +27,8 @@ confirms a completion condition holds. Confirm that fits the intent; if it does 
 of drafting.
 
 - **Pointer**: the "when the next turn starts" and "stops when" columns of
-  <https://code.claude.com/docs/en/goal#compare-ways-to-keep-a-session-running>. They also count an
-  idle check-in or automatic retry as starting a turn, and an unfixable error or `/goal clear` as
-  stopping the goal, which the summary above leaves out.
+  <https://code.claude.com/docs/en/goal#compare-ways-to-keep-a-session-running>, for when `/goal`,
+  `/loop` and a Stop hook start the next turn and when each stops.
 - **As of**: 2026-10-18
 - **Recheck trigger**: that section's table changes the `/goal` row or adds an approach beside
   `/loop` and the Stop hook.
@@ -203,8 +202,7 @@ and that a goal the page says is removed must be re-set.
 - **`/goal` (built-in command)**: `/goal <condition>` sets a completion condition that a fresh
   evaluator checks before the session stops; `/goal clear` removes it, and bare `/goal` shows the
   current one. It is reserved for the person to run; the model does not invoke it.
-  - **Pointer**: <https://code.claude.com/docs/en/goal#set-a-goal> (one goal per session, a new one
-    replaces it, setting starts a turn at once, and a goal leaves the permission mode alone),
+  - **Pointer**: <https://code.claude.com/docs/en/goal#set-a-goal> for what setting a goal does,
     <https://code.claude.com/docs/en/goal#check-status> and
     <https://code.claude.com/docs/en/goal#clear-a-goal> for the other two forms.
   - **As of**: 2026-10-18
