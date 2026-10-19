@@ -5,6 +5,7 @@ ui_clientlog.js 3
 ui_connect.js 16
 ui_discussion.js 13
 ui_formats.js 34
+ui_general.js 12
 ui_inbox.js 21
 ui_inputs.js 33
 ui_journey.js 20

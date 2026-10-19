@@ -1,3 +1,4 @@
+# test-scope: plugins/planning/shared/schema/*.schema.json plugins/planning/surface/schema/*.schema.json plugins/planning/shared/tests/fixtures/*.json
 """session.py holds the shared interview session's domain rules; each test names one invariant.
 
 Expected values come from the Design's Contracts (state shape, error codes, round transitions,
@@ -2737,6 +2738,14 @@ class TestSessionControls(SessionCase):
         for bad in ({"tour": True}, {"tour": "seen"}, {"toolbar": "compact"}):
             self.refused("bad-field", "set_prefs", self.ann, {"set": bad})
 
+    def test_auto_advance_is_a_per_person_switch_off_until_set(self):
+        self.assertNotIn("autoAdvance", self.s.snapshot(self.ann)["me"]["prefs"])
+        self.assertEqual(self.act("set_prefs", self.ann, {"set": {"autoAdvance": True}})["prefs"], {"autoAdvance": True})
+        self.assertEqual((self.s.snapshot(self.ann)["me"]["prefs"], self.s.snapshot(self.bo)["me"]["prefs"]), ({"autoAdvance": True}, {}))
+        self.refused("bad-field", "set_prefs", self.ann, {"set": {"autoAdvance": "on"}})
+        self.act("set_prefs", self.ann, {"set": {"autoAdvance": None}})
+        self.assertNotIn(self.ann, self.s.state["prefs"])
+
     def test_title_is_1_to_80_and_goal_up_to_200(self):
         self.act("set_title", HOST, {"title": "  Payment step  "})
         self.assertEqual(self.s.state["session"]["title"], "Payment step")
@@ -5427,6 +5436,103 @@ class TestReports(SessionCase):
         self.s.merge_people(HOST, {"from": self.bo, "to": self.ann})
         self.assertEqual(self.s.state["reports"]["F1"]["by"], self.ann)
         self.assertTrue(self.s._holds_content(self.ann))
+
+    def test_your_reports_lists_only_your_own_with_their_status_and_never_the_context(self):
+        self.file(self.ann, image=data_url("png", PNG_BYTES))
+        self.file(self.bo, text="Mine is broken too")
+        self.file(self.ann, text="Chat is slow")
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.act("act_on_report", HOST, {"id": "F3", "action": "resolved"})
+        mine = self.s.snapshot(self.ann)["myReports"]
+        self.assertEqual([(r["id"], r["text"], r["status"], r["image"]) for r in mine], [("F1", "Send does nothing", "seen", True), ("F3", "Chat is slow", "resolved", False)])
+        self.assertEqual([r["id"] for r in self.s.snapshot(self.bo)["myReports"]], ["F2"])
+        self.assertEqual(self.s.snapshot(HOST)["myReports"], [])
+        self.assertNotIn("ctx", json.dumps(mine))
+        self.assertNotIn("reports/F1", json.dumps(mine))
+
+    def test_a_reporter_adds_a_line_or_a_screenshot_to_their_open_report_and_a_seen_one_waits_again(self):
+        self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.assertEqual(self.act("add_to_report", self.ann, {"id": "F1", "text": "It happens on Q2 too"}), {"id": "F1", "adds": 1, "status": "open"})
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        self.assertEqual((self.tmp / "reports" / "F1-2.png").read_bytes(), PNG_BYTES)
+        mine = self.s.snapshot(self.ann)["myReports"][0]
+        self.assertEqual((mine["status"], [(a.get("text"), a["image"]) for a in mine["adds"]]), ("open", [("It happens on Q2 too", False), (None, True)]))
+        owner = self.s.snapshot(HOST)["reports"][0]
+        self.assertEqual([(a.get("text"), a["image"]) for a in owner["adds"]], [("It happens on Q2 too", False), (None, True)])
+        self.assertEqual(self.s.report_image(HOST, {"id": "F1", "add": "2"})["image"], data_url("png", PNG_BYTES))
+        self.refused("not-found", "report_image", HOST, {"id": "F1", "add": "1"}, http=404)
+        self.refused("owner-only", "report_image", self.ann, {"id": "F1", "add": "2"}, http=403)
+        self.assertIsNone(session.document_error(self.disk()))
+        session.Session.load(self.s.path, validate_writes=True)
+
+    def test_only_the_reporter_adds_to_a_report_and_only_while_it_is_not_fixed(self):
+        self.file(self.ann)
+        self.refused("not-found", "add_to_report", self.bo, {"id": "F1", "text": "me too"}, http=404)
+        self.refused("not-found", "add_to_report", HOST, {"id": "F1", "text": "noted"}, http=404)
+        self.refused("empty", "add_to_report", self.ann, {"id": "F1", "text": " "})
+        self.refused("file-type", "add_to_report", self.ann, {"id": "F1", "image": data_url("png", b"GIF89a" + b"\x00" * 30)}, http=415)
+        for _ in range(10):
+            self.act("add_to_report", self.ann, {"id": "F1", "text": "more"})
+        self.refused("too-many", "add_to_report", self.ann, {"id": "F1", "text": "one more"}, http=409)
+        self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F2", "action": "resolved"})
+        self.refused("wrong-status", "add_to_report", self.ann, {"id": "F2", "text": "still broken"}, http=409)
+        self.assertEqual(self.s.state["reports"]["F2"].get("adds"), None)
+
+    def test_reopening_a_seen_report_never_passes_five_open_reports(self):
+        for _ in range(5):
+            self.file(self.ann)
+        self.act("act_on_report", HOST, {"id": "F1", "action": "seen"})
+        self.file(self.ann)  # F2..F6 open: five again
+        self.refused("too-many-pending", "add_to_report", self.ann, {"id": "F1", "text": "still broken"}, http=429)
+        self.assertEqual((self.s.state["reports"]["F1"]["status"], self.s.state["reports"]["F1"].get("adds")), ("seen", None))
+        self.act("add_to_report", self.ann, {"id": "F2", "text": "an open one takes it"})
+        self.act("act_on_report", HOST, {"id": "F3", "action": "resolved"})
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "now it fits"})
+        self.assertEqual(self.s.state["reports"]["F1"]["status"], "open")
+
+    def test_the_owners_inbox_dates_a_report_by_its_latest_addition(self):
+        self.file(self.ann)
+        filed = self.clock.t
+        self.clock.tick(60)
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "and again"})
+        item = next(i for i in self.s.snapshot(HOST)["inbox"] if i["key"] == "report:F1")
+        self.assertEqual((item["at"], item["changed"]), (filed + 62, filed + 62))  # act() ticks 2 s
+
+    def test_asking_claude_carries_what_the_reporter_added_and_an_add_lets_the_owner_ask_again(self):
+        self.file(self.ann)
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "It happens on Q2 too"})
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        self.act("act_on_report", HOST, {"id": "F1", "action": "ask"})
+        ev = self.events("report-filed")[-1]
+        self.assertEqual({k: ev[k] for k in ("report", "qid", "text", "adds", "addImages")},
+                         {"report": "F1", "qid": "Q1", "text": "Send does nothing", "adds": ["It happens on Q2 too"], "addImages": 1})
+        self.assertNotIn("reports/", json.dumps(ev))
+        self.assertIsNone(support_event_error(ev))
+        self.refused("wrong-status", "act_on_report", HOST, {"id": "F1", "action": "ask"}, http=409)
+        self.act("add_to_report", self.ann, {"id": "F1", "text": "Now on Q3 as well"})
+        self.assertEqual(self.act("act_on_report", HOST, {"id": "F1", "action": "ask"}), {"id": "F1", "status": "open", "asked": True})
+        self.assertEqual(self.events("report-filed")[-1]["adds"], ["It happens on Q2 too", "Now on Q3 as well"])
+
+    def test_an_added_picture_is_named_by_its_number_and_anything_else_is_refused(self):
+        self.file(self.ann)
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        for n in ("²", "0", "01", "1000", "-1", "1.0"):
+            with self.subTest(add=n):
+                self.refused("bad-field", "report_image", HOST, {"id": "F1", "add": n}, http=400)
+        self.refused("not-found", "report_image", HOST, {"id": "F1", "add": "2"}, http=404)
+        self.assertEqual(self.s.report_image(HOST, {"id": "F1", "add": "1"})["image"], data_url("png", PNG_BYTES))
+
+    def test_an_added_picture_name_out_of_place_or_more_than_ten_additions_is_refused_at_load(self):
+        self.file(self.ann)
+        self.act("add_to_report", self.ann, {"id": "F1", "image": data_url("png", PNG_BYTES)})
+        doc = self.disk()
+        doc["reports"]["F1"]["adds"][0]["image"] = "reports/F1-3.png"
+        self.assertIsNotNone(session.document_error(doc))
+        doc = self.disk()
+        doc["reports"]["F1"]["adds"] = [{"text": "more", "ts": 1_760_600_000.0}] * 11
+        self.assertIsNotNone(session.document_error(doc))
 
     def test_a_report_id_or_picture_name_the_server_never_makes_is_refused_at_load(self):
         self.file(self.ann, image=data_url("png", PNG_BYTES))

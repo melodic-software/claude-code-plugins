@@ -7,6 +7,7 @@
 # listing holds the fixture's ids.
 #
 #   bash plugins/work-items/tests/set-dimensions.test.sh
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/capabilities.json plugins/work-items/tools/work-item-tracker/adapters/github/common.sh plugins/work-items/tools/work-item-tracker/adapters/github/set-fields.sh plugins/work-items/tools/work-item-tracker/lib/id.sh plugins/work-items/tools/work-item-tracker/lib/lease.sh
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2

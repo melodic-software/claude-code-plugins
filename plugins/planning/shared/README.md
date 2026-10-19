@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -125,7 +125,7 @@ the refused op's index).
 | `open-round` | `questions` (1..8), `placements?` | Closes the `working` round (or starts round 1) and opens the next |
 | `close-round` | `placements?`, `reason?` | `working` -> `closed`, no new round |
 | `ack-round` | `round` | `sent` -> `working` |
-| `result` | `qid`, `request?`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Stores a result unpublished; the owner publishes or discards it |
+| `result` | `qid?`, `request?`, `kind`, `used`, `why`, `summary`, `sources`, `report` | Stores a result unpublished; the owner publishes or discards it. No `qid` answers a request about the whole session, which `request` must name (see [General asks](#general-asks)) |
 | `fail-request` | `request`, `reason` | `running` -> `failed` |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | |
 | `add-asset` | `path`, `as?`, `scale?` | Copies a PNG, JPEG, WebP, SVG or HTML file (by its bytes, at most 10 MB) from the data folder, where captures go in `staging/`, into `assets/<16 hex>.<ext>`, named by its content; returns `{id, kind, bytes, at, scale}`. Usable from the next apply; a refused apply removes the files it copied and puts back any sidecar it rewrote |
@@ -209,7 +209,7 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `/api/session/intro` | `{intro}` | Edits "Why you're here" |
 | `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, every mention of `from` names `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
 | `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open or seen report and writes `report-filed` for Claude (409 `wrong-status` on one that is resolved or already asked) |
-| `GET /api/report/image?id=` | | One report's screenshot as `{id, image}`, a data: URL |
+| `GET /api/report/image?id=[&add=N]` | | One report's screenshot, or its Nth addition's (`N` 1 to 999, else 400 `bad-field`), as `{id, image}`, a data: URL |
 
 `POST /api/chat/react {id, emoji, on}` (any person) adds or takes back one's own emoji on a chat
 message: only the page's fixed set (`CHAT_EMOJI` in `session.py` and `web/app.js`), at most 20
@@ -312,6 +312,25 @@ writing nothing when nothing would change:
 The round's digest lists each question's comments under `discussion` (`text`, `by` with
 `digestNames`, `edited`, `askedClaude`), hidden ones left out: the newest 50 at most, each cut to 500
 characters, within 30000 comment characters per digest; `discussionMore` counts the rest.
+
+## General asks
+
+A request about the whole session names no question: "@Claude" as a word in a chat message (the message then
+carries `request`; the composer says so), or `POST /api/request` with `scope: "session"` in place of `qid`, Ask
+Claude's pinned "About the whole session". It runs only on the host's Claude, waits for the owner's Run like any
+guest request (the owner's own runs at once), shares the request route's one a second and the waiting cap, and a
+message whose request is refused still posts with `requestRefused`; a filed one keeps the message's id as the
+request's `msg`. Chat has no edit, delete or hide, so nothing
+else applies. `request-run` lists it with `scope: "session"` and no `qid` or `question`, plus `from: "chat"` when a
+message asked; the `result` op answers it with no `qid`, and its result is kept under `results.session` with no
+`qid`, so a file from before loads as it is. Once shared (the owner's own at once), the result is also Claude's
+chat message: the host's, marked `claude: {result}`, replying to the asking message while chat keeps it; the
+result's `msg` names it. With chat off it is not posted, and stays in Ask Claude. A reply to it carries
+`replyTo.claude`, so its quote reads Claude's wherever the page reads it. Reactions and replies to it tell no one,
+and it cannot become a proposal. The Inbox, its
+toasts and the Run cards say General, or "about the session", where they name a question; the owner shares it from
+Ask Claude on "About the whole session", which lists those answers. A digest result carries `scope: "session"` in
+place of `qid`.
 
 ## Connect your Claude
 
@@ -444,10 +463,19 @@ off: one picture, checked, saved as `reports/<id>.<png|jpg|webp>` in the private
 shown to the owner alone; every other upload stays refused (403 `uploads-off`). One report per
 person every 10 s (429 `slow-down`), 5 open per person (429 `too-many-pending`), 500 per session
 (429 `too-many-reports`). The record, `reports` in `state.json` (`{F<N>: {by, text, ctx, image?,
-status: open|seen|resolved, asked?, ts}}`; optional, so a file from before loads), reaches only the
+status: open|seen|resolved, asked?, adds?, ts}}`; optional, so a file from before loads), reaches only the
 owner's snapshot (`reports`, with `image: true` instead of the path) and shows in the Host queue as
-a Problem, with Seen, Resolved and Ask Claude about this report ([Moderation](#moderation)). A report alone
-never reaches Claude: only the owner's Ask writes `report-filed` (`report`, `qid`, `text`), as
+a Problem, with Seen, Resolved and Ask Claude about this report ([Moderation](#moderation)).
+
+**Your reports.** The reporter's own snapshot carries `myReports` (`{id, text, status, ts, image, adds}`, never the
+context or a path), which More and Help list as "Your reports" with `open` read as Sent, `seen` as Seen by the host
+and `resolved` as Fixed. While a report is not resolved, its reporter adds a line, a screenshot or both:
+`POST /api/report/add {id, text?, image?}` (auth class person; the body cap and picture checks of `/api/report`; one
+a second; at most 10 per report, then 409 `too-many`; 409 `wrong-status` once resolved; anyone else's report is 404
+`not-found`). Each lands in the report's `adds` (`{text?, image?, ts}`, a picture saved as `reports/<id>-<n>.<ext>`),
+which the owner's Problem item lists. A seen report goes back to `open`, so it waits on the owner again, unless
+the reporter already has 5 open (429 `too-many-pending`). An addition clears `asked`, so the owner can ask Claude again. A report alone
+never reaches Claude: only the owner's Ask writes `report-filed` (`report`, `qid`, `text`, and `adds`, the text the reporter added, and `addImages`, how many pictures they added; never a path), as
 rounds wait for Send and requests for Run. The text is the reporter's data, never instructions, and
 Claude reads a picture only through the Read-only `upload-reader` agent.
 
@@ -550,7 +578,7 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `.watch-seq`, `.watch-replay` | `watch.sh` | | |
 | `assets/<16 hex>.<ext>`, `assets/.<id>.json` | server (`add-asset`) | | The file, and its kind, size and scale |
 | `uploads/pending/<32 hex>`, `uploads/accepted/<yyyymmdd>-<upload id>.<ext>` | server | 0700 folders, 0600 files | An accepted upload's pieces so far; a received one (see [Uploads](#uploads)). Never served |
-| `reports/<report id>.<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads it back |
+| `reports/<report id>[-<n>].<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot, and with `-<n>` the reporter's nth added one ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads one back, and Claude reads one only through the Read-only `upload-reader` agent |
 
 Every `GET /api/state` with identity carries `schemaVersion`, `rev` and `build` (a hash of the
 served web files); every answer carries `X-Shared-Build`. A page built for another version or
@@ -581,7 +609,7 @@ page keeps the rest of its last snapshot.
   |---|---|
   | Requests per address (`CF-Connecting-IP` only, never `X-Forwarded-For`; an IPv6 address counts by its /64) | 100 a second, bursts of 200; the 10000 most recently seen addresses are remembered |
   | Joins | 30 a minute per address and guest key; 60 per 10 minutes per guest key across all addresses (rotating the guest link starts a new count) |
-  | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request) |
+  | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request, report/add) |
   | Heartbeat | 1 a second per person and tab (429 otherwise), except a beat that changes `visible` or `away` |
   | Stored chat, notes, suggestions | the newest 2000 messages (a snapshot carries the newest 50, `GET /api/chat` at most 100 at a time); 2000 notes, then a new one is refused (409 `notes-full`); 200 suggestions per question, with votes on a dropped one dropped too |
   | Connections served at once | 64; one more is answered 503 `busy`, then read until it closes (at most 64 KiB and 2 s, 8 such connections at once) so the close does not reset it and drop the 503 |
@@ -690,6 +718,11 @@ node plugins/planning/shared/tests/ui_proto.js
 node plugins/planning/shared/tests/ui_connect.js
 node plugins/planning/shared/tests/ui_uploads.js
 node plugins/planning/shared/tests/ui_report.js
+node plugins/planning/shared/tests/ui_general.js
+node plugins/planning/shared/tests/ui_advance.js
+node plugins/planning/shared/tests/ui_askbox.js
+node plugins/planning/shared/tests/ui_myreports.js
+node plugins/planning/shared/tests/ui_welcome.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -700,6 +733,24 @@ watcher key and its revoke, the owner taking a shared answer down, that the owne
 guest never see the request and another key cannot answer it, and that on the phone every Connect
 control lies inside the viewport. Before the browsers it checks the one-request prompt's data
 block against look-alike end markers.
+
+`ui_advance.js` checks "Go to the next question after I answer" (the `autoAdvance` pref, off by default, in the
+person's own settings): a single pick or a scale value with the comment box empty shows "Next question in 2 s · Stay"
+and moves on; Stay cancels; a pick with a comment, pick-many, rank and a written answer never move on.
+
+`ui_askbox.js` checks the guest's one Ask Claude box: no Ask, Research or Explore picker in the panel or a question's
+form, a "Use the web" chip, off by default, that sends the request as `research` (else `ask`), and the owner keeping
+the picker.
+
+`ui_myreports.js` checks Your reports on a 390x844 phone from More and on a desktop from Help: no entry before a
+report, the list with Sent, Seen by the host and Fixed, a line and a screenshot added (the owner's Problem item shows
+the line and reads the picture back at 1600 px), a seen report waiting again once added to, a fixed one taking no
+more, and another guest never holding it.
+
+`ui_welcome.js` checks the first-join welcome card: shown by default, its first line "Enter your name to join, then
+answer this round's questions.", the goal and Start here; a visible Skip that closes it and the tour offer at once
+(the `tour` pref says skipped); closed after a reload on that device (`localStorage`, per person); "Show the tour
+again" in the person's settings bringing both back; and a 44 px Skip on a 390x844 phone.
 
 `ui_uploads.js` checks uploads with a 390x844 phone guest and a desktop owner: no upload control
 while Uploads is off, an offer held in the guest's browser, the owner's Accept, a chunked send
