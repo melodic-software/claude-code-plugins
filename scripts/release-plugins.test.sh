@@ -328,6 +328,17 @@ expect_file "writes the convention entry above its newest heading" \
 ## 2.14.0 - 2026-10-18
 
 Prose.'
+
+# A run cut short after the CHANGELOG write, before the fragments go: the retry
+# must refuse, not release them again under 2.16.0.
+git_test_config "$f" checkout -q HEAD -- .changes
+out="$(run_release "$f" 2>&1)"
+rc=$?
+if ((rc == 2)) && [[ "$out" == *"already has a '## [2.15.0]' entry"* ]] && [[ "$(grep -c '^## \[' "$f/docs/conventions/demo/CHANGELOG.md")" == 1 ]]; then
+  ok "refuses to re-release a convention whose CHANGELOG an earlier run already wrote"
+else
+  fail "expected exit 2 naming 2.15.0 and one released entry, got rc=$rc: $out"
+fi
 rm -rf "$f"
 
 # --- usage ------------------------------------------------------------------------

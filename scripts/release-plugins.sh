@@ -14,8 +14,8 @@
 #   3. `version` changes in plugin.json only;
 #   4. every fragment of the plugin, `none` included, is deleted.
 # A listed convention (scripts/lib/changelog-fragments.sh) has no plugin.json:
-# its version is the newest heading of docs/conventions/<name>/CHANGELOG.md, and
-# step 3 does not apply.
+# its version is the newest heading of docs/conventions/<name>/CHANGELOG.md at
+# HEAD, and step 3 does not apply.
 # Prints one line per plugin. Every new changelog and manifest is produced in a
 # temporary directory first, and the tree changes only once all of them exist.
 # A changelog that already carries the version about to be written (a run cut
@@ -131,7 +131,9 @@ for name in "${plugins[@]}"; do
     manifest="$root/.claude-plugin/plugin.json"
     version="$(jq -r '.version // empty' "$manifest" 2>/dev/null)"
   else
-    version="$(changelog_fragments::newest_version "$changelog")"
+    # Read at HEAD, as a plugin's version stays unraised until the run ends:
+    # a run cut short then trips the existing-entry check below.
+    version="$(git show "HEAD:$changelog" 2>/dev/null | changelog_fragments::newest_version -)"
   fi
   if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
     echo "$self: ${manifest:-$changelog} version '$version' is not MAJOR.MINOR.PATCH; cannot raise it." >&2
