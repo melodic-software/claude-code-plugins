@@ -22,13 +22,24 @@ cd "$REPO_ROOT"
 
 INCLUDE_SKILLS=0
 APPLY_FILTERS=0
-for arg in "$@"; do
+ALLOWLIST_FILE="docs/conventions/audit-encapsulation-allowlist.tsv"
+while [[ $# -gt 0 ]]; do
+  arg="$1"
+  shift
   case "$arg" in
   --include-skills) INCLUDE_SKILLS=1 ;;
   --apply-filters) APPLY_FILTERS=1 ;;
+  --allowlist)
+    if [[ $# -eq 0 ]]; then
+      echo "audit-encapsulation/detect: --allowlist needs a file" >&2
+      exit 2
+    fi
+    ALLOWLIST_FILE="$1"
+    shift
+    ;;
   --help | -h)
     cat <<'USAGE'
-Usage: audit-encapsulation detect [--include-skills] [--apply-filters]
+Usage: audit-encapsulation detect [--include-skills] [--apply-filters] [--allowlist <file>]
 
 Enumerate candidate citations into private skill internals.
 Output TSV: file, line, match-text.
@@ -40,10 +51,20 @@ hard-gate CI on this exit code alone.
 
 Matched path prefixes: .claude/skills/<X>/..., plugins/<plugin>/skills/<X>/...,
 and relative forms (skills/<X>/... plugin-README short cites, plus ../-prefixed
-cites whose lexical resolution lands on a private skill surface).
+cites whose lexical resolution lands on a private skill surface). Every text
+file type under the scanned surfaces is read.
 
-  --include-skills  Include .claude/skills/ in scope (intra-skill self-citation review)
-  --apply-filters   Drop self-citation and worktree path hits (mechanical filters only)
+In a marketplace monorepo (plugins/ present), a file under plugins/<q>/ that
+cites another plugin's skill folder is flagged for the skill root, a bare
+SKILL.md, and the scripts/ entry surface, whether spelled as a path, a ../ path
+or a github.com tree/blob or raw.githubusercontent.com URL. A cite inside the
+same plugin stays legal. When .claude-plugin/marketplace.json names the
+marketplace, <plugin>@<marketplace-id> outside an install recipe line is flagged.
+
+  --include-skills    Include .claude/skills/ in scope (intra-skill self-citation review)
+  --apply-filters     Drop self-citation and worktree path hits (mechanical filters only)
+  --allowlist <file>  Rows of `path<TAB>reason` (path or dir/ prefix) the scan skips;
+                      default docs/conventions/audit-encapsulation-allowlist.tsv
 USAGE
     exit 0
     ;;
@@ -53,6 +74,42 @@ USAGE
     ;;
   esac
 done
+
+# Allowlist: one `path<TAB>reason` row per exempt path (a file, or a directory
+# prefix ending in `/`); blank lines and `#` comments are skipped. A row with no
+# reason is an error: the file records why each path is exempt.
+ALLOW_PATHS=()
+if [[ -f "$ALLOWLIST_FILE" ]]; then
+  allow_n=0
+  while IFS= read -r allow_line || [[ -n "$allow_line" ]]; do
+    allow_n=$((allow_n + 1))
+    allow_line="${allow_line%$'\r'}"
+    [[ -z "${allow_line//[[:space:]]/}" || "$allow_line" == '#'* ]] && continue
+    allow_path="${allow_line%%$'\t'*}"
+    allow_reason=""
+    [[ "$allow_line" == *$'\t'* ]] && allow_reason="${allow_line#*$'\t'}"
+    if [[ -z "$allow_path" || -z "${allow_reason//[[:space:]]/}" ]]; then
+      echo "audit-encapsulation/detect: $ALLOWLIST_FILE:$allow_n needs a path and a reason, tab-separated" >&2
+      exit 2
+    fi
+    ALLOW_PATHS+=("$allow_path")
+  done <"$ALLOWLIST_FILE"
+elif [[ "$ALLOWLIST_FILE" != "docs/conventions/audit-encapsulation-allowlist.tsv" ]]; then
+  echo "audit-encapsulation/detect: allowlist '$ALLOWLIST_FILE' not found" >&2
+  exit 2
+fi
+
+is_allowlisted() {
+  local file="$1" p
+  for p in ${ALLOW_PATHS[@]+"${ALLOW_PATHS[@]}"}; do
+    if [[ "$p" == */ ]]; then
+      [[ "$file" == "$p"* ]] && return 0
+    else
+      [[ "$file" == "$p" ]] && return 0
+    fi
+  done
+  return 1
+}
 
 # In-scope authoring surfaces, generalized for any consumer repo and filtered
 # to what exists (absent surfaces are skipped silently):
@@ -115,8 +172,10 @@ PATTERN='\.claude/skills/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/|\.claude/skills/[A-Za-
 
 # scripts/ entry-surface carve-out: a skill's `scripts/` is its declared ENTRY
 # surface — harness / CI / hooks / workflow registries MAY path-cite it. Like
-# the data-file and bare-SKILL.md public surfaces, scripts/ cites are never
-# private, so they are dropped here rather than emitted as raw hits. PATTERN
+# the data-file public surface, scripts/ cites from callers outside plugins/
+# are never private, so they are dropped here rather than emitted as raw hits;
+# a file under plugins/<q>/ citing another plugin's scripts/ is not carved out
+# (is_cross_plugin_scripts). PATTERN
 # still matches scripts/ (the subdir alternation; ERE has no lookahead to
 # exclude one name), so the carve-out is a post-grep exclusion. The scan grep
 # below uses `-o` to emit ONE record per cite, so this carve-out drops only
@@ -207,41 +266,149 @@ resolves_into_self() {
   [[ -n "$resolved" && "$resolved" == "$self_root"* ]]
 }
 
+# The plugin a repo path belongs to (`plugins/<q>/...` → q); status 1 when the
+# path is outside plugins/.
+plugin_of() {
+  [[ "$1" =~ ^plugins/([^/]+)/ ]] || return 1
+  printf '%s' "${BASH_REMATCH[1]}"
+}
+
+# Path of the skill folder a cite names, resolved against the citing file:
+# an absolute `plugins/<p>/skills/...` cite is itself; a `../`-prefixed cite, or
+# a bare `skills/...` one with a recoverable `../` prefix, resolves lexically.
+# Status 1 when the cite cannot be placed under a plugin.
+cite_target() {
+  local file="$1" line_no="$2" text="$3" full
+  if [[ "$text" == plugins/* ]]; then
+    printf '%s' "$text"
+    return 0
+  fi
+  if [[ "$text" == ../* ]]; then
+    full="$text"
+  else
+    # shellcheck disable=SC2310  # recover miss → no target
+    full="$(recover_dotdot_prefix "$file" "$line_no" "$text")" || return 1
+  fi
+  # shellcheck disable=SC2310  # lex_resolve miss → no target
+  lex_resolve "$(dirname "$file")/$full" || return 1
+}
+
+# True when a scripts/ cite comes from a file under plugins/<q>/ and lands in
+# another plugin p≠q. The entry-surface carve-out holds for callers outside
+# plugins/ (CI workflows, repo hooks) and for a plugin's own files.
+is_cross_plugin_scripts() {
+  local file="$1" line_no="$2" text="$3" q p target
+  # shellcheck disable=SC2310  # status 1 = file outside plugins/
+  q="$(plugin_of "$file")" || return 1
+  # shellcheck disable=SC2310  # status 1 = unplaceable cite
+  target="$(cite_target "$file" "$line_no" "$text")" || return 1
+  [[ "$target" =~ ^plugins/([^/]+)/skills/ ]] || return 1
+  p="${BASH_REMATCH[1]}"
+  [[ "$p" != "$q" ]]
+}
+
+# Skill-root and bare-SKILL.md cites (no trailing subdirectory, so PATTERN
+# misses them) from a file under plugins/<q>/ into plugins/<p>/skills/<s> with
+# p≠q. $1 = file, $2 = line, $3 = matched text. Prints nothing and returns 1
+# for any other shape; subdirectory, scripts/ and anchor cites are other passes'.
+is_cross_plugin_surface() {
+  local file="$1" line_no="$2" text="$3" q p rest target
+  [[ "$text" == *'#' ]] && return 1
+  # shellcheck disable=SC2310  # status 1 = file outside plugins/
+  q="$(plugin_of "$file")" || return 1
+  # shellcheck disable=SC2310  # status 1 = unplaceable cite
+  target="$(cite_target "$file" "$line_no" "$text")" || return 1
+  [[ "$target" =~ ^plugins/([^/]+)/skills/[^/]+(/.*)?$ ]] || return 1
+  p="${BASH_REMATCH[1]}"
+  rest="${BASH_REMATCH[2]}"
+  [[ "$p" != "$q" ]] || return 1
+  [[ -z "$rest" || "$rest" == "/SKILL.md" ]]
+}
+
 HITS_FILE="$(mktemp)"
 DOTDOT_RAW="$(mktemp)"
 RAW_HITS="$(mktemp)"
-trap 'rm -f "$HITS_FILE" "$DOTDOT_RAW" "$RAW_HITS"' EXIT
+CROSS_RAW="$(mktemp)"
+trap 'rm -f "$HITS_FILE" "$DOTDOT_RAW" "$RAW_HITS" "$CROSS_RAW"' EXIT
 
 # Emit "file:line:match" hits for a pattern across every in-scope surface.
-# Always returns 0: a pattern with no hits is an ordinary outcome, not a
-# failure.
+# Every text file type is read (-I skips binaries). Always returns 0: a
+# pattern with no hits is an ordinary outcome, not a failure.
 scan_scope() {
   local pattern="$1"
   if [[ ${#SCOPE_DIRS[@]} -gt 0 ]]; then
-    grep -Erno "$pattern" \
-      --include='*.md' --include='*.sh' --include='*.json' \
-      --include='*.yml' --include='*.yaml' \
-      "${SCOPE_DIRS[@]}" 2>/dev/null || true
+    grep -ErnoI --exclude-dir=node_modules --exclude-dir=.git \
+      "$pattern" "${SCOPE_DIRS[@]}" 2>/dev/null || true
   fi
   if [[ ${#SCOPE_FILES[@]} -gt 0 ]]; then
     # -H forces the file prefix even when only one file exists.
-    grep -EHno "$pattern" "${SCOPE_FILES[@]}" 2>/dev/null || true
+    grep -EHnoI "$pattern" "${SCOPE_FILES[@]}" 2>/dev/null || true
   fi
 }
 
-# Aggregate hits, then drop scripts/ entry-surface cites (carve-out above).
+# Aggregate hits, then drop scripts/ entry-surface cites (carve-out above)
+# unless a plugin file reaches into another plugin's scripts/.
 scan_scope "$PATTERN" >"$RAW_HITS"
 
 : >"$HITS_FILE"
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
-  text="${line#*:*:}"
-  # shellcheck disable=SC2310  # is_scripts_carveout is a pure predicate; both branches handled
-  if is_scripts_carveout "$text"; then
+  file="${line%%:*}"
+  rest="${line#*:}"
+  line_no="${rest%%:*}"
+  text="${rest#*:}"
+  # shellcheck disable=SC2310  # pure predicates; both branches handled
+  if is_scripts_carveout "$text" && ! is_cross_plugin_scripts "$file" "$line_no" "$text"; then
     continue
   fi
   printf '%s\n' "$line" >>"$HITS_FILE"
 done <"$RAW_HITS"
+
+# Cross-plugin pass: skill-root and bare-SKILL.md cites, which PATTERN misses
+# for want of a trailing subdirectory. Absolute paths (a github.com tree/blob or
+# raw.githubusercontent.com URL contains one) and ../-prefixed paths with a
+# `skills/` segment; a trailing `#` keeps an anchor cite out (PATTERN has it).
+CROSS_PATTERN='plugins/[A-Za-z0-9_.-]+/skills/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*#?|(\.\./)+([A-Za-z0-9_.-]+/)*skills/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*#?'
+scan_scope "$CROSS_PATTERN" >"$CROSS_RAW"
+
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  file="${line%%:*}"
+  rest="${line#*:}"
+  line_no="${rest%%:*}"
+  text="${rest#*:}"
+  # A trailing dot is sentence punctuation, not part of the name.
+  text="${text%"${text##*[!.]}"}"
+  # shellcheck disable=SC2310  # pure predicate; both branches handled
+  is_cross_plugin_surface "$file" "$line_no" "$text" || continue
+  printf '%s:%s:%s\n' "$file" "$line_no" "$text" >>"$HITS_FILE"
+done <"$CROSS_RAW"
+
+# Own-marketplace-id pass: `<plugin>@<id>` for the id this repo's marketplace
+# manifest declares, outside install-recipe lines. Third-party ids never match.
+MARKETPLACE_ID=""
+if [[ -f .claude-plugin/marketplace.json ]]; then
+  MARKETPLACE_ID="$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    .claude-plugin/marketplace.json | head -n 1 || true)"
+  [[ "$MARKETPLACE_ID" =~ ^[A-Za-z0-9_.-]+$ ]] || MARKETPLACE_ID=""
+fi
+if [[ -n "$MARKETPLACE_ID" ]]; then
+  ID_ESCAPED="${MARKETPLACE_ID//./\\.}"
+  RECIPE_RE='plugin[[:space:]]+(install|uninstall|update|enable|disable)'
+  scan_scope "[A-Za-z0-9_.-]+@${ID_ESCAPED}\\.?([^A-Za-z0-9_.-]|\$)" >"$CROSS_RAW"
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    file="${line%%:*}"
+    rest="${line#*:}"
+    line_no="${rest%%:*}"
+    text="${rest#*:}"
+    [[ "$text" =~ [^A-Za-z0-9_.-]$ ]] && text="${text%?}"
+    text="${text%"${text##*[!.]}"}"
+    src="$(sed -n "${line_no}p" "$file" 2>/dev/null || true)"
+    [[ "$src" =~ $RECIPE_RE ]] && continue
+    printf '%s:%s:%s\n' "$file" "$line_no" "$text" >>"$HITS_FILE"
+  done <"$CROSS_RAW"
+fi
 
 # Second pass (#2716): `../`-prefixed cites whose lexical resolution lands on
 # a private skill surface. Covers sibling-skill links like
@@ -285,6 +452,11 @@ while IFS= read -r line; do
   rest="${line#*:}"
   line_no="${rest%%:*}"
   text="${rest#*:}"
+  # shellcheck disable=SC2310  # pure predicate; both branches handled
+  if is_allowlisted "$file"; then
+    raw=$((raw - 1))
+    continue
+  fi
   if [[ "$APPLY_FILTERS" -eq 1 ]]; then
     mech_filtered=0
     if [[ "$file" =~ ^\.claude/skills/([^/]+)/ ]]; then

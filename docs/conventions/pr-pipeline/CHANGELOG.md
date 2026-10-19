@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.14.1 - 2026-10-18
+## 2.15.1 - 2026-10-18
 
 `work-resolve-issue` `resolve-issue` runs `scripts/check-affected.sh --uncommitted` in place of
 `scripts/check-changelog-fragments.sh --check`, so the run sees the lint failures a push would hit
@@ -11,6 +11,14 @@ The checks copy now carries the base's `.shellcheckrc` and `.markdownlint-cli2.j
 pin. A skill with `checks` is now told to fix what a check reports in the working tree and name
 anything it could not fix in its report; one that commits is told to run the checks, fix and re-run
 them before it commits. `version` stays 2.
+
+## 2.15.0 - 2026-10-18
+
+`pr-unblock-dispatch.yml` starts pr-unblock's `fix-ci` for open lanes App pull requests whose
+head's `ci-status` failed, from one GraphQL query per page with its `rateLimit.cost` logged, at
+most `limits.fix-ci-per-run` per run and, on a head whose earlier runs all failed, at most
+`limits.fix-ci-restarts` more times ([README](README.md#lanes)). Its job's concurrency group
+now cancels a run in progress. `version` stays 2.
 
 ## 2.14.0 - 2026-10-18
 
