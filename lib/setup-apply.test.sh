@@ -368,6 +368,12 @@ out="$(run --root "$R" --yes mode=fast)"
 assert_eq "apply beside a valid object: exits 0" "0" "$?"
 assert_eq "apply beside a valid object: the object is kept byte for byte" $'session:\n  uploads: true\nmode: fast' "$(cat "$(yaml_of "$R")")"
 refused "apply beside an invalid object" $'session:\n  uploads: maybe\n' mode=slow
+# A `#` right after a key's colon and its space starts a comment, as the
+# parser reads it.
+check_ok "a comment on a one-level object key's line" $'session: # guest defaults\n  uploads: true\n' "PASS session: uploads=true"
+check_ok "a comment on an inner object key's line" $'sizes:\n  small: # tiny\n    label: S\n' "PASS sizes: small.label=S"
+check_ok "a tab before the comment on an object key's line" $'session:\t# guest defaults\n  uploads: true\n' "PASS session: uploads=true"
+check_warn "a scalar key holding only a comment" $'strict: # pick later\n' 'strict is empty'
 # A key name is read the way the parser reads it: '' in single quotes is one
 # quote, \" in double quotes is a quote.
 check_warn "a single-quoted nested key holding a doubled quote" $'session:\n  uploads: true\n  \'guest\'\'s\': yes\n' "session.guest's is not in the schema"
