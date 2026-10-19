@@ -21,10 +21,13 @@
       bumped: false, heard: {}, renaming: false, tie: null,
       // round 8
       revealed: new Set(), clOpen: new Map(), cites: {}, hostFilter: "all", treeClosed: new Set(),
-      askPanel: false, askMode: "ask", askQ: "", askSelf: false, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
-      more: {}, peopleFilter: "all", peopleFind: "", unreadOnly: false, ixTab: "all",
+      askPanel: false, askMode: "ask", askQ: "", askSelf: false, apAud: null, askAud: null, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
+      more: {}, peopleFilter: "all", peopleFind: "", unreadOnly: false, ixTab: store.get("vf-ixtab", "all"),
     };
     // Unsent text saved by the last reload for a new version (Core.onReload, at the end): answer drafts and the chat field.
+    // The review view's status chips, remembered on this device; Shared starts off.
+    const REV_KEY = "vf-review-filter";
+    ui.revFilter = new Set([].concat(store.get(REV_KEY, ["waiting", "running", "failed", "unshared"])).filter(k => typeof k === "string"));
     const UNSENT = "vf-unsent";
     const unsent = (() => { try { const v = JSON.parse(sessionStorage.getItem(UNSENT) || "null"); sessionStorage.removeItem(UNSENT); return v; } catch { return null; } })();
     if (unsent) { Object.assign(ui.drafts, unsent.drafts || {}); ui.restoreCur = unsent.cur || ""; }
@@ -717,11 +720,10 @@
       return b;
     }
     const propRow = railRow("Proposed");
-    const reqRow = railRow("Requests");
     const myProp = E("ul", "vf-myprops"); myProp.setAttribute("aria-label", "Your proposals");
     const proposeBtn = lbtn("vf-btn vf-btn-ghost vf-propose", "plus", "Propose a question");
     proposeBtn.setAttribute("aria-haspopup", "dialog"); proposeBtn.setAttribute("aria-expanded", "false");
-    railFoot.append(reqRow, propRow, myProp, proposeBtn);
+    railFoot.append(propRow, myProp, proposeBtn);
     rail.append(railHead, rounds, railFoot);
 
     // Propose a question: anyone; it goes to Proposed, and Claude places it with the next round or says why not. The one
@@ -792,10 +794,6 @@
     propNotBtn.onclick = () => { ui.propFilter = "notplaced"; render(); };
     propParkBtn.onclick = () => { ui.propFilter = "parked"; render(); };
 
-    const RQ = panel("Requests for Claude", "Requests for Claude");
-    const runAllBtn = lbtn("vf-btn vf-btn-primary vf-btn-sm", "play", "Run all shown");
-    RQ.tools.append(runAllBtn);
-    RQ.note.textContent = "Nothing runs until you press Run. Run all shown runs exactly the requests you can see now.";
 
     // Confirm before sending a round that still has open questions.
     const confirmPop = E("div", "vf-pop vf-confirm"); confirmPop.setAttribute("role", "dialog"); confirmPop.setAttribute("aria-label", "Send round"); confirmPop.hidden = true;
@@ -966,6 +964,15 @@
     const webChip = () => { const b = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle vf-webchip", "Use the web"); b.setAttribute("aria-pressed", "false"); return b; };
     const askWeb = webChip();
     askWeb.onclick = () => { ui.askWeb = !ui.askWeb; renderAsk(); };
+    // Who sees Claude's answer: Everyone, or Just me (the asker and the host, until one of them shares it).
+    function audPick(onPick) {
+      const g = E("div", "vf-seg vf-seg-sm vf-aud"); g.setAttribute("role", "group"); g.setAttribute("aria-label", "Who sees Claude's answer");
+      const b = {};
+      for (const [k, label] of [["everyone", "Everyone"], ["me", "Just me"]]) { b[k] = btn("vf-seg-btn", label); b[k].dataset.aud = k; b[k].onclick = () => onPick(k); g.append(b[k]); }
+      g._paint = v => { for (const [k, x] of Object.entries(b)) x.setAttribute("aria-pressed", String(k === v)); };
+      return g;
+    }
+    const askAud = audPick(k => { ui.askAud = k; renderAsk(); });
     const askLabel = E("label", "vf-asklabel", "What should Claude find out?");
     askHead.append(askLabel, askSeg, askWeb);
     const askTa = E("textarea", "vf-ta"); askTa.rows = 2; askTa.id = "vf-ask-ta"; askLabel.htmlFor = askTa.id; askTa.maxLength = 2000;
@@ -973,7 +980,7 @@
     const askCancel = btn("vf-btn vf-btn-ghost", "Cancel");
     const askSend = E("button", "vf-btn vf-btn-primary", "Send request"); askSend.type = "submit";
     askRow.append(askCancel, askSend);
-    askForm.append(askHead, askTa,
+    askForm.append(askHead, askTa, askAud,
       E("p", "vf-pop-note vf-asknote", "The host runs it; the result lands on this question. Your request text shows on the result for everyone."), askRow);
     // Q77: the question's Claude thread, requests and results in time order.
     const thList = E("ul", "vf-thlist"); thList.setAttribute("role", "list"); thList.setAttribute("aria-label", "Claude thread");
@@ -1454,6 +1461,7 @@
       ["uploads", "Uploads", "Let people offer files; you accept each one"],
       ["hideClaude", "Answer first", "Claude's cards show once a person answered or voted; each person can change it"],
       ["approveJoins", "Approve new joins", "New people wait in the queue until you let them in; people already here are not affected"],
+      ["reviewAnswers", "Review Claude's answers before they are shared", "Each answer to a guest's request waits for your Share; off, an answer asked for everyone is shared when it arrives"],
     ]) {
       const b = btn("vf-sw-row"); b.setAttribute("role", "switch");
       const txt = E("span", "vf-sw-txt"); txt.append(E("span", "vf-sw-label", label), E("span", "vf-sw-desc", desc));
@@ -1705,7 +1713,7 @@
     const IX_TABS = [["all", "All"], ["mine", "Mine"], ["waiting", "Waiting on you"], ["notes", "Notifications"]];
     const ixTabs = E("div", "vf-seg vf-seg-sm vf-ixtabs"); ixTabs.setAttribute("role", "group"); ixTabs.setAttribute("aria-label", "Show in the Inbox");
     const ixTabBtn = {};
-    for (const [k, label] of IX_TABS) { const b = btn("vf-seg-btn", label); b.dataset.k = k; b.onclick = () => { ui.ixTab = k; render(); }; ixTabs.append(b); ixTabBtn[k] = b; }
+    for (const [k, label] of IX_TABS) { const b = btn("vf-seg-btn", label); b.dataset.k = k; b.onclick = () => { ui.ixTab = k; store.put("vf-ixtab", k); render(); }; ixTabs.append(b); ixTabBtn[k] = b; }
     const ixSec = (cls, title) => {
       const sec = E("section", "vf-ixsec " + cls), h = E("h3", "vf-ixh");
       sec.append(h); sec._h = h; sec._title = title;
@@ -1716,7 +1724,26 @@
     const ixMineEmpty = E("p", "vf-empty vf-empty-sm", "No requests yet. Ask Claude on a question and it shows here, with its status, until you open the answer.");
     ixMine.append(ixMineList, ixMineEmpty);
     // What waits on the owner, one group per kind, each item linking to where it is handled.
-    const IX_WAIT = [["run", "Requests to run"], ["share", "Results to share"], ["report", "Problem reports"], ["merge", "Merge requests"], ["join", "Join requests"]];
+    // The host's review view: every request to Claude and every answer, newest first, shown by the status chips this
+    // device remembers, each row with its own actions. Not shared is what waits for the host's Share; Private is out to
+    // its asker alone (Just me, or taken down).
+    const REV_STATS = [["waiting", "Waiting"], ["running", "Running"], ["failed", "Failed"], ["unshared", "Not shared"], ["private", "Private"], ["shared", "Shared"]];
+    const revBox = E("div", "vf-ixgroup vf-review"), revHead = E("div", "vf-rev-head");
+    const revChips = E("div", "vf-rev-chips"); revChips.setAttribute("role", "group"); revChips.setAttribute("aria-label", "Show requests that are");
+    const revChip = {};
+    for (const [k, label] of REV_STATS) {
+      const b = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle vf-rev-chip"); b.dataset.stat = k; b._l = label;
+      b.onclick = () => { ui.revFilter.has(k) ? ui.revFilter.delete(k) : ui.revFilter.add(k); store.put(REV_KEY, [...ui.revFilter]); render(); };
+      revChips.append(b); revChip[k] = b;
+    }
+    const revH = E("h4", "vf-ixgh", "Requests to Claude");
+    const runAllBtn = lbtn("vf-btn vf-btn-primary vf-btn-sm", "play", "Run all shown");
+    revHead.append(revH, E("span", "vf-spacer"), runAllBtn);
+    const revList = E("ul", "vf-plist vf-revlist"); revList.setAttribute("role", "list"); revList.setAttribute("aria-label", "Requests to Claude");
+    const revEmpty = E("p", "vf-empty vf-empty-sm");
+    revBox.append(revHead, revChips, E("p", "vf-pop-note vf-rev-note", "Nothing runs until you press Run. Run all shown runs exactly the waiting requests you can see now."), revList, revEmpty);
+    ixWait.append(revBox);
+    const IX_WAIT = [["report", "Problem reports"], ["merge", "Merge requests"], ["join", "Join requests"]];
     const ixWaitLists = {};
     for (const [k, label] of IX_WAIT) {
       const g = E("div", "vf-ixgroup"), h = E("h4", "vf-ixgh"), ul = E("ul", "vf-ixlist"); ul.setAttribute("role", "list");
@@ -1862,7 +1889,7 @@
     const apForm = E("form", "vf-apform");
     const apQWrap = selWrap("About", []);
     apQWrap.w.classList.add("vf-apq");
-    apQWrap.s.onchange = () => { ui.askQ = apQWrap.s.value; render(); };
+    apQWrap.s.onchange = () => { ui.askQ = apQWrap.s.value; ui.apAud = null; render(); };
     const apLabel = E("label", "vf-asklabel"); const apTa = E("textarea", "vf-ta"); apTa.rows = 3; apTa.maxLength = 2000; apTa.id = "vf-ap-ta"; apLabel.htmlFor = apTa.id;
     const apNote = E("p", "vf-pop-note");
     // Connect your Claude (R2-12): a guest's request can run on their own Claude, never the host's.
@@ -1875,7 +1902,8 @@
     apRow.append(apAttach, E("span", "vf-spacer"), apSend);
     const apWeb = webChip();
     apWeb.onclick = () => { ui.apWeb = !ui.apWeb; render(); };
-    apForm.append(apQWrap.w, apLabel, apTa, apWeb, apSelf, apNote, apRow);
+    const apAud = audPick(k => { ui.apAud = k; render(); });
+    apForm.append(apQWrap.w, apLabel, apTa, apWeb, apSelf, apAud, apNote, apRow);
     const apConnect = E("section", "vf-apconnect"); apConnect.setAttribute("aria-labelledby", "vf-apc-h");
     const apcHead = E("h3", "vf-pop-sub", "Connect your Claude"); apcHead.id = "vf-apc-h";
     const apcLinks = E("div", "vf-acts vf-apc-links");
@@ -1914,7 +1942,7 @@
     devicePop.append(E("h2", "vf-pop-title", "Use on another device"), E("p", "vf-pop-note", "Scan this on your phone, or open the link in another browser. You stay the same person there, with your answers and votes."), qrBox, devField, devRow, devWarn);
 
     keysBtn.before(introBtn);
-    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, RQ.pop, confirmPop, tiePop, proposePop, reportPop, myRepPop, askMenu, citePop, msgMenu, askPanel, devicePop,
+    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, confirmPop, tiePop, proposePop, reportPop, myRepPop, askMenu, citePop, msgMenu, askPanel, devicePop,
       bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
 
     // ---------- actions ----------
@@ -2090,7 +2118,6 @@
       closePop(); hideCard();
       ui.pop = pop; pop._anchor = anchor; pop.hidden = false;
       anchor.setAttribute("aria-expanded", "true");
-      if (pop === RQ.pop) ui.reqSeen = new Set((Core.state.requests || []).filter(r => r.status === "pending").map(r => r.id));
       placePanel(pop);
       render();
       syncModal();
@@ -2368,6 +2395,7 @@
     function openAskPanel(mode, qid, text) {
       if (mode) ui.askMode = mode;
       ui.askQ = qid || ui.cur;
+      ui.apAud = null;
       if (text != null) apTa.value = text;
       closePop(); hideCard();
       if (ui.chatOpen) setChat(false);
@@ -2383,12 +2411,13 @@
     apForm.onsubmit = e => {
       e.preventDefault();
       const text = apTa.value.trim(); if (!text) return apTa.focus();
-      const mode = guestKind(ui.askMode, ui.apWeb), qid = apQWrap.s.value || ui.cur || Core.GENERAL, own = selfAsk();
+      const mode = guestKind(ui.askMode, ui.apWeb), qid = apQWrap.s.value || ui.cur || Core.GENERAL, own = selfAsk(), aud = apAudV();
       apSend.disabled = true;
-      Core.request(qid, mode, text, attExtra(apSlot), own ? "self" : "host").then(() => {
+      Core.request(qid, mode, text, attExtra(apSlot), own ? "self" : "host", own ? undefined : aud).then(() => {
         apTa.value = ""; grow(apTa); apSlot.clear(); ui.apWeb = false;
         flash(own ? "Added to your requests. Run it on your own Claude from there."
-          : Core.me.isOwner ? `Sent to Claude. The answer shows ${qid === Core.GENERAL ? genWhere() : "on the question"} and in your Inbox.` : "Sent to the host. It runs once they press Run.");
+          : Core.me.isOwner ? (aud === "me" ? "Sent to Claude. Only you see the answer, in Ask Claude and your Inbox." : `Sent to Claude. The answer shows ${qid === Core.GENERAL ? genWhere() : "on the question"} and in your Inbox.`)
+          : "Sent to the host. It runs once they press Run.");
         render();
       }).catch(fail).finally(() => { apSend.disabled = false; });
     };
@@ -2400,7 +2429,16 @@
     const askGeneral = () => (apQWrap.s.value || ui.askQ) === Core.GENERAL;
     /** The kind a request goes as: the owner's pick, else ask, or research with "Use the web" on. */
     const guestKind = (picked, web) => (Core.me.isOwner ? picked : web ? "research" : "ask");
+    /** An Ask box's note: who runs the request, and who sees Claude's answer where. */
+    function askNoteText(aud, where, web) {
+      const how = `Claude works out how to answer${web ? ", looking on the web," : ""} and says what it did`;
+      if (Core.me.isOwner) return aud === "me" ? "Claude runs it now. Only you see the answer until you share it." : `Claude runs it now and the answer shows ${where} for everyone.`;
+      if (aud === "me") return `The host runs it; ${how}. Only you and the host see the answer, and you can share it with everyone later.`;
+      return `The host runs it; ${how}. ${st().reviewAnswers ? "Once the host shares the answer, it" : "The answer"} shows ${where} for everyone, with your request text.`;
+    }
     const selfAsk = () => !Core.me.isOwner && !!ui.askSelf && !askGeneral(); // a general ask runs on the host's Claude only
+    /** Who sees the answer: what the asker picked, else Everyone on a question and Just me about the whole session. */
+    const apAudV = () => ui.apAud || (askGeneral() ? "me" : "everyone");
     const sessionBase = () => location.origin; // the address this guest reaches the session at; their Claude runs beside them
     async function copyOut(text, done, title, from) {
       try { await navigator.clipboard.writeText(text); flash(done); }
@@ -2571,6 +2609,7 @@
     function openBell(anchor) {
       if (ui.pop === bellPop) return closePop();
       ui.muteOpen = false;
+      ui.reqSeen = new Set((Core.state.requests || []).filter(r => r.status === "pending").map(r => r.id)); // what Run all shown may run
       openPop(bellPop, anchor);
       if (phone.matches) { bellPop.style.cssText = ""; bellPop.dataset.place = "sheet"; } else delete bellPop.dataset.place;
       syncModal();
@@ -2605,8 +2644,10 @@
     function genReq(S, rid) {
       const x = (S.research?.[Core.GENERAL] || []).find(r => r.requestId === rid);
       const r = (Core.me.isOwner ? S.requests || [] : []).concat(S.myRequests || []).find(r2 => r2.id === rid);
-      return { x, r, label: x ? (x.published === false ? "Answered, waiting for the host to share" : "Answered") : r ? rstat(r) : "" };
+      return { x, r, label: x ? ansLabel(x) : r ? rstat(r) : "" };
     }
+    /** What became of an answer, as its request's line says it. */
+    const ansLabel = x => (x.takenDown ? "Taken down by the host" : x.private ? (isMe(x.byCid) ? "Answered, just for you" : "Answered, just for the asker") : x.published === false ? "Answered, waiting for the host to share" : "Answered");
     /** Ask Claude on "About the whole session", with one answer ("x:<id>") or request ("r:<id>") of it in view. */
     function openGeneral(key) {
       if (key?.startsWith("x:")) ui.resClosed.delete(key.slice(2));
@@ -2658,8 +2699,6 @@
     }
     function ixText(i, S) {
       if (i.kind === "request") return (S.myRequests || []).find(r => r.id === i.id)?.text || "";
-      if (i.kind === "run") { const r = (S.requests || []).find(x => x.id === i.id); return r ? `${disp(i.by || r.name)}: ${r.text}` : ""; }
-      if (i.kind === "share") { const x = (S.research?.[i.qid || Core.GENERAL] || []).find(y => y.id === i.id); return x ? x.summary : "A result"; }
       if (i.kind === "report") { const f = (S.reports || []).find(y => y.id === i.id); return f ? `${disp(i.by || f.name)}: ${f.text}` : "A problem report"; }
       if (i.kind === "merge") { const m = (S.mergeRequests || []).find(y => y.id === i.id); return m ? `${disp(m.fromName)} says they were ${disp(m.toName)} before` : "A merge request"; }
       if (i.kind === "join") return `${disp(i.by || "Someone")} asks to join`;
@@ -2673,7 +2712,9 @@
       k.chip.hidden = !mine;
       if (mine) { k.chip.textContent = IX_STAT[i.status] || i.status; k.chip.dataset.stat = i.status; }
       k.what.textContent = ixText(i, S);
-      const sub = i.status === "unshared" ? "Waiting for the host to share" : i.status === "failed" ? i.reason || "" : i.status === "answered" && !Core.me.isOwner ? "Only you see it until the host shares it" : "";
+      const x = i.result ? (S.research?.[i.qid || Core.GENERAL] || []).find(y => y.id === i.result) : null;
+      const sub = i.status === "unshared" ? "Waiting for the host to share" : i.status === "failed" ? i.reason || ""
+        : i.status === "answered" && !Core.me.isOwner ? (x?.own ? "Only you see it until the host shares it" : x?.takenDown ? "The host took it down; only you and the host see it" : "Just me: only you and the host see it") : "";
       k.sub.textContent = sub; k.sub.hidden = !sub;
       k.tm.textContent = ago(mine ? i.changedTs : i.ts);
       k.dot.hidden = !i.unread;
@@ -2719,6 +2760,7 @@
       ixNotes._h.textContent = ixNotes._title;
       sync(ixMineList, mine, i => i.key, makeIx, (li, i) => fillIx(li, i, S));
       ixMineEmpty.hidden = mine.length > 0;
+      renderReview(S, owner);
       for (const [k, w] of Object.entries(ixWaitLists)) {
         const items = waiting.filter(i => i.kind === k);
         w.h.textContent = `${w.label} · ${items.length}`;
@@ -2752,6 +2794,116 @@
       muteBtn.setAttribute("aria-expanded", String(!!ui.muteOpen));
       muteBox.hidden = !ui.muteOpen;
       for (const [kk, b] of Object.entries(muteRows)) { b.hidden = !mod && (kk === "queue" || kk === "ready"); b.setAttribute("aria-checked", String(!muted.has(kk))); }
+    }
+
+    // ---------- the host's review view ----------
+    /** Every request to the host's Claude and every answer, newest first, each with the status the chips filter on. */
+    function revRows(S) {
+      const res = [];
+      for (const [qid, lst] of Object.entries(S.research || {})) for (const x of lst) res.push({ qid: qid === Core.GENERAL ? "" : qid, x });
+      const byReq = new Map(res.filter(e => e.x.requestId).map(e => [e.x.requestId, e]));
+      const reqs = S.requests || [], asked = new Set(reqs.map(r => r.id));
+      const st2 = (r, x) => (r && r.status !== "done" ? { pending: "waiting", running: "running", failed: "failed" }[r.status] : x?.published ? "shared" : x?.private ? "private" : "unshared");
+      const rows = reqs.filter(r => r.status !== "declined").map(r => { const e = byReq.get(r.id); return { key: "r:" + r.id, r, x: e?.x, qid: r.qid, ts: r.ts, st: st2(r, e?.x) }; });
+      for (const e of res) if (!e.x.requestId || !asked.has(e.x.requestId)) rows.push({ key: "x:" + e.x.id, x: e.x, qid: e.qid, ts: e.x.ts, st: st2(null, e.x) });
+      return rows.sort((a, b) => b.ts - a.ts);
+    }
+    function renderReview(S, owner) {
+      revBox.hidden = !owner;
+      if (!owner) return;
+      const rows = revRows(S), shown = rows.filter(r => ui.revFilter.has(r.st));
+      for (const [k, b] of Object.entries(revChip)) { b.textContent = `${b._l} · ${rows.filter(r => r.st === k).length}`; b.setAttribute("aria-pressed", String(ui.revFilter.has(k))); }
+      sync(revList, shown, r => r.key, makeRev, fillRev);
+      revEmpty.hidden = shown.length > 0;
+      revEmpty.textContent = rows.length ? "Nothing with these statuses. Turn on another chip above." : "No requests yet. People ask from Ask Claude, on a question or in the top bar.";
+      const pending = shown.filter(r => r.r?.status === "pending"), runnable = pending.filter(r => ui.reqSeen.has(r.r.id)).length;
+      runAllBtn.lastChild.textContent = `Run all shown (${runnable})`;
+      runAllBtn.setAttribute("aria-disabled", String(!runnable));
+      runAllBtn.disabled = !runnable;
+      runAllBtn.hidden = !pending.length;
+    }
+    /** The Inbox on the review view with one request's row in sight. */
+    function openReview(rid) {
+      ui.ixTab = "waiting";
+      const row = revRows(Core.state).find(r => r.r?.id === rid);
+      if (row && !ui.revFilter.has(row.st)) { ui.revFilter.add(row.st); store.put(REV_KEY, [...ui.revFilter]); }
+      if (ui.pop !== bellPop) openBell(bellBtn.offsetParent ? bellBtn : tabBtns.more);
+      render();
+      requestAnimationFrame(() => {
+        const li = [...revList.children].find(l => l._row?.r?.id === rid); if (!li) return;
+        li.scrollIntoView({ block: "nearest", behavior: smooth() });
+        ring(li);
+      });
+    }
+    /** A review row: the request with its own actions and, once Claude answered, the answer with Share,
+     *  Discard and Take down. A row with no request is an answer no host request asked for (a guest's own Claude's). */
+    function makeRev() {
+      const li = makeReq(), k = li._k;
+      li.classList.add("vf-revrow");
+      const stat = E("span", "vf-chip vf-ixchip vf-revstat"), dot = E("span", "vf-ndot");
+      k.kind.after(stat); k.status.after(dot);
+      const res = E("div", "vf-rev-res"), lbl = E("div", "vf-qa-lbl"), rwho = E("span", "vf-meta vf-rev-who");
+      lbl.append(claudeAv(16), E("span", null, "Claude"), rwho);
+      const sum = clampBox("vf-qa-txt");
+      const ra = E("div", "vf-acts");
+      const open = btn("vf-btn vf-btn-ghost vf-btn-sm vf-rev-open", "Open"), discard = btn("vf-btn vf-btn-ghost vf-btn-sm", "Discard");
+      const share = btn("vf-btn vf-btn-primary vf-btn-sm", "Share with everyone"), takeDown = btn("vf-btn vf-btn-ghost vf-btn-sm vf-res-takedown", "Take down");
+      ra.append(open, discard, share, takeDown);
+      res.append(lbl, sum, ra);
+      li.append(res);
+      const x = () => li._row.x, askerName = () => disp(x().by || "the person who asked");
+      const seen = () => { const keys = li._unread || []; if (keys.length) Core.readInbox(keys, Object.fromEntries(keys.map(kk => [kk, "open"]))).catch(() => {}); };
+      open.onclick = () => k.qref.onclick();
+      share.onclick = () => { seen(); const toAsker = x().justMe && !x().private;
+        Core.requestAct(x().id, "publish").then(() => flash(toAsker ? `Sent to ${askerName()} alone.` : "Shared. Everyone sees it.")).catch(fail); };
+      discard.onclick = guarded({ title: "Discard this result?", ok: "Discard", body: "Nobody else sees it, and the person who asked hears it was not shared." },
+        () => { seen(); Core.requestAct(x().id, "discard").then(() => flash("Discarded.")).catch(fail); });
+      takeDown.onclick = guarded(() => ({ title: "Take this answer down?", ok: "Take down",
+        body: `Only you${x().byCid && !isMe(x().byCid) ? ` and ${askerName()}` : ""} see it after this, and only you can share it again.` }),
+        () => Core.requestAct(x().id, "takedown").then(() => flash("Taken down.")).catch(fail));
+      k.qref.onclick = () => { // the request, or the answer, where it lives
+        seen(); closePop();
+        const r = li._row;
+        if (!r.qid) return openGeneral(r.x ? "x:" + r.x.id : "r:" + r.r.id);
+        if (!r.x) return showRequest(r.qid, r.r.id);
+        setMode("focus"); if (phone.matches) setTab("answer");
+        showResult(r.qid, r.x.id);
+      };
+      Object.assign(k, { stat, dot, res, rwho, sum, share, discard, takeDown });
+      return li;
+    }
+    const REV_WORD = Object.fromEntries(REV_STATS);
+    function fillRev(li, row) {
+      const k = li._k, x = row.x, q = qById(row.qid);
+      li._row = row;
+      if (row.r) {
+        fillReq(li, row.r);
+        if (row.r.status === "done") { // answered: what is left to do is on the answer
+          for (const b of [k.edit, k.save, k.cancel, k.decline, k.run, k.failB, k.rerun]) b.hidden = true;
+          k.fresh.hidden = true; li.classList.remove("vf-ritem-fresh");
+        }
+      } else {
+        li._r = null;
+        k.kind.textContent = x.own ? "Their own Claude" : "Claude"; k.kind.className = "vf-chip vf-chip-quiet";
+        k.qref.textContent = q ? `${q.id}: ${q.text}` : `${GEN_LABEL}: ${GEN_Q.text}`;
+        k.who.replaceChildren(...(x.byCid ? [av(x.byCid, x.by || "Someone", 16), E("span", null, disp(x.by || "Someone"))] : []), E("span", "vf-card-time", ago(x.ts)));
+        k.status.hidden = true; k.fresh.hidden = true; k.tarea.hidden = true;
+        k.text.hidden = !x.ask; if (x.ask) fillClamp(k.text, "rx:" + x.id, x.ask, `What ${disp(x.by || "someone")} asked`, q ? `${q.id}: ${q.text}` : "");
+        for (const b of [k.edit, k.save, k.cancel, k.decline, k.run, k.failB, k.rerun]) b.hidden = true;
+      }
+      k.stat.textContent = row.st === "private" ? (x.takenDown ? "Taken down" : "Just me") : REV_WORD[row.st]; k.stat.dataset.stat = row.st;
+      if (row.st !== "private" && (row.r?.justMe || x?.justMe)) k.stat.textContent += ", just me";
+      li.dataset.stat = row.st;
+      li._unread = inbox().filter(i => i.unread && (i.key === "run:" + row.r?.id || (x && i.key === "share:" + x.id))).map(i => i.key);
+      k.dot.hidden = !li._unread.length;
+      k.res.hidden = !x;
+      if (!x) return;
+      const draft = !x.published, held = draft && !x.private;
+      k.rwho.textContent = x.published ? "Everyone sees it" : x.takenDown ? "Taken down: only you and the asker see it" : x.private ? "Just me: only you and the asker see it" : "Only you see it until you share it";
+      fillClamp(k.sum, "rv:" + x.id, x.summary, "Claude's answer", q ? `${q.id}: ${q.text}` : GEN_LABEL);
+      k.share.hidden = !draft; k.discard.hidden = !held; // a delivered answer is its asker's: take it down instead
+      k.share.textContent = held && x.justMe ? `Send to ${disp(x.by || "the person who asked")}` : "Share with everyone";
+      k.takeDown.hidden = !!draft;
     }
 
     // ---------- Q86: the phone More sheet ----------
@@ -3649,18 +3801,19 @@
     };
     reviewClear.onclick = () => Core.clearReview(ui.cur).then(() => flash("Marked reviewed.")).catch(fail);
     askBtn.onclick = () => { ui.askOpen = !ui.askOpen; renderAsk(); if (ui.askOpen) askTa.focus(); };
-    askCancel.onclick = () => { ui.askOpen = false; renderAsk(); askBtn.focus(); };
+    askCancel.onclick = () => { ui.askOpen = false; ui.askAud = null; renderAsk(); askBtn.focus(); };
     askForm.onsubmit = e => {
       e.preventDefault();
       const text = askTa.value.trim(); if (!text) return askTa.focus();
       askSend.disabled = true;
-      Core.request(ui.cur, guestKind(ui.askKind, ui.askWeb), text, attExtra(askSlot)).then(() => {
-        askTa.value = ""; askSlot.clear(); ui.askOpen = false; ui.askWeb = false; renderAsk();
-        flash(Core.me.isOwner ? "Sent to Claude. The answer shows on the question and in your Inbox." : "Sent to the host. It runs once they press Run.");
+      const aud = ui.askAud || "everyone";
+      Core.request(ui.cur, guestKind(ui.askKind, ui.askWeb), text, attExtra(askSlot), "host", aud).then(() => {
+        askTa.value = ""; askSlot.clear(); ui.askOpen = false; ui.askWeb = false; ui.askAud = null; renderAsk();
+        flash(Core.me.isOwner ? `Sent to Claude. The answer shows on the question${aud === "me" ? ", for you alone," : ""} and in your Inbox.` : "Sent to the host. It runs once they press Run.");
       }).catch(fail).finally(() => { askSend.disabled = false; });
     };
     on(board, "scroll", edges, { passive: true });
-    on(window, "resize", () => { edges(); if (toast.classList.contains("vf-on")) placeToast(); if (ui.pop === PP.pop || ui.pop === RQ.pop) placePanel(ui.pop); measureAll(); });
+    on(window, "resize", () => { edges(); if (toast.classList.contains("vf-on")) placeToast(); if (ui.pop === PP.pop) placePanel(ui.pop); measureAll(); });
     arrL.onclick = () => board.scrollBy({ left: -colStep(), behavior: smooth() });
     arrR.onclick = () => board.scrollBy({ left: colStep(), behavior: smooth() });
     fab.onclick = () => setChat(!ui.chatOpen);
@@ -3814,7 +3967,6 @@
     shareBtn.onclick = () => (ui.pop === sharePop ? closePop() : openPop(sharePop, shareBtn));
     keysBtn.onclick = () => (ui.pop === keysPop ? closePop() : openPop(keysPop, keysBtn));
     propRow.onclick = () => (ui.pop === PP.pop ? closePop() : openPanel(PP.pop, propRow));
-    reqRow.onclick = () => (ui.pop === RQ.pop ? closePop() : openPanel(RQ.pop, reqRow));
     runAllBtn.onclick = runAllShown;
     confirmYes.onclick = doSend;
     confirmNo.onclick = () => { const a = confirmPop._anchor; closePop(); a?.focus(); };
@@ -4153,7 +4305,7 @@
     // A refused run says why in the session's own words ("None of these requests is still waiting.").
     const runFail = e => (e?.error === "wrong-status" && e.message ? flash(`Not run: ${e.message}`) : fail(e));
     async function runAllShown() {
-      const items = [...RQ.list.children].filter(li => li._r?.status === "pending" && ui.reqSeen.has(li._r.id));
+      const items = [...revList.children].filter(li => li._r?.status === "pending" && ui.reqSeen.has(li._r.id));
       if (!items.length) return;
       runAllBtn.disabled = true;
       try {
@@ -4211,7 +4363,7 @@
       k.kind.className = "vf-chip " + (r.kind === "ask" ? "vf-chip-quiet" : "vf-chip-accent");
       k.qref.textContent = q ? `${q.id}: ${q.text}` : r.qid || `${GEN_LABEL}: ${GEN_Q.text}`;
       k.who.replaceChildren(av(r.cid, r.name, 16), E("span", null, `${disp(r.name)}${isMe(r.cid) ? " (you)" : ""}`), E("span", "vf-card-time", ago(r.ts)));
-      k.status.textContent = failed ? "Failed" : running ? `Running, ${ago(r.ts) === "now" ? "just started" : "asked " + ago(r.ts) + " ago"}` : "";
+      k.status.textContent = failed ? `Failed${r.reason ? `: ${r.reason}` : ""}` : running ? `Running, ${ago(r.ts) === "now" ? "just started" : "asked " + ago(r.ts) + " ago"}` : "";
       k.status.hidden = !running;
       k.status.classList.toggle("vf-rstat-fail", failed);
       fillClamp(k.text, "r:" + r.id, r.text, `${r.kind === "ask" ? "Ask Claude" : "Research"} request from ${disp(r.name)}`, q ? `${q.id}: ${q.text}` : "");
@@ -4484,9 +4636,9 @@
       askWeb.setAttribute("aria-pressed", String(!!ui.askWeb));
       askTa.placeholder = kind === "ask" ? "A question for Claude about this, answered on the question" : "What to look up, compare or verify";
       askLabel.textContent = kind === "ask" ? "What should Claude answer?" : "What should Claude find out?";
+      askAud._paint(ui.askAud || "everyone");
       const askNote = askForm.querySelector(".vf-asknote");
-      if (askNote) askNote.textContent = Core.me.isOwner ? "Claude runs it now; the result lands on this question for everyone, with your request text."
-        : `The host runs it; Claude works out how to answer${ui.askWeb ? ", looking on the web," : ""} and says what it did. The result lands on this question, with your request text, for everyone.`;
+      if (askNote) askNote.textContent = askNoteText(ui.askAud || "everyone", "on this question", ui.askWeb);
       if (ui.askOpen) grow(askTa);
     }
     function reviewText(q) { return q.needsReview ? `Needs review: ${q.needsReview.because} changed` : ""; }
@@ -4630,18 +4782,23 @@
       const srcs = E("ul", "vf-sources"); srcs.setAttribute("aria-label", "Sources");
       const full = lbtn("vf-btn vf-btn-ghost vf-btn-sm", "doc", "Full report");
       const citedBy = E("div", "vf-citedby");
-      // Results wait for the owner: Share shows it to everyone, Discard drops it and tells the requester.
+      // Who sees it, and what this viewer can do: the owner shares, discards or takes down any answer; its asker shares
+      // their own Just me answer.
       const share = E("div", "vf-acts vf-res-share");
       const shareNote = E("span", "vf-meta", "Only you see this until you share it.");
       const discard = btn("vf-btn vf-btn-ghost vf-btn-sm", "Discard"), publish = btn("vf-btn vf-btn-primary vf-btn-sm", "Share with everyone");
-      // A guest's own Claude's answer the owner shared can still come down; the host's own Claude's cannot.
       const takeDown = btn("vf-btn vf-btn-ghost vf-btn-sm vf-res-takedown", "Take down");
       share.append(shareNote, E("span", "vf-spacer"), discard, publish, takeDown);
-      publish.onclick = () => Core.requestAct(li._x.id, "publish").then(() => flash(`Shared. Everyone sees it ${li._q === GEN_Q ? genWhere() : "on the question"}.`)).catch(fail);
+      publish.onclick = () => {
+        const x = li._x, toAsker = Core.me.isOwner && x.justMe && !x.private && !x.published;
+        (Core.me.isOwner ? Core.requestAct(x.id, "publish") : Core.shareResult(x.id))
+          .then(() => flash(toAsker ? `Sent to ${disp(x.by || "the person who asked")} alone.` : `Shared. Everyone sees it ${li._q === GEN_Q ? genWhere() : "on the question"}.`)).catch(fail);
+      };
       discard.onclick = guarded({ title: "Discard this result?", ok: "Discard", body: "Nobody else sees it, and the person who asked hears it was not shared." },
         () => Core.requestAct(li._x.id, "discard").then(() => flash("Discarded.")).catch(fail));
-      takeDown.onclick = guarded({ title: "Take this answer down?", ok: "Take down", body: "Nobody sees it any more, and the person whose Claude wrote it hears it was not shared." },
-        () => Core.requestAct(li._x.id, "discard").then(() => flash("Taken down.")).catch(fail));
+      takeDown.onclick = guarded(() => ({ title: "Take this answer down?", ok: "Take down",
+        body: `Only you${li._x.byCid && !isMe(li._x.byCid) ? ` and ${disp(li._x.by || "the person who asked")}` : ""} see it after this, and only you can share it again.` }),
+        () => Core.requestAct(li._x.id, "takedown").then(() => flash("Taken down.")).catch(fail));
       ans.append(ansLbl, sum, srcs, full, citedBy);
       bodyR.append(share, ask, ans);
       ask.after(fromDisc);
@@ -4661,15 +4818,23 @@
       li.classList.toggle("vf-res-own", !!x.own);
       k.via.textContent = `via ${x.skill}`;
       k.via.title = x.why || ""; // C37: why Claude routed it there
-      // Every result waits for the owner's Share (PLAN.md Decisions, h2), a guest's own Claude's too: until then only
-      // the owner and, for their own Claude's answer, the requester see it.
-      const draft = x.published === false, owner = Core.me.isOwner, mine = x.own && isMe(x.byCid);
-      k.share.hidden = !(owner ? draft || x.own : draft && mine);
-      k.shareNote.textContent = !owner ? "Only you and the host see this until the host shares it."
-        : !draft ? `From ${disp(x.by || "someone")}'s own Claude. Everyone sees it.`
-        : x.own ? `Only you and ${disp(x.by || "the person who asked")} see this until you share it.` : "Only you see this until you share it.";
-      k.discard.hidden = k.publish.hidden = !(owner && draft);
-      k.takeDown.hidden = !(owner && !draft && x.own);
+      // Shared, held for the owner's Share, or out to its asker alone (private: Just me, or taken down by the owner).
+      const draft = x.published === false, owner = Core.me.isOwner, asker = isMe(x.byCid), who = disp(x.by || "the person who asked");
+      const held = draft && !x.private, canShare = !owner && asker && x.private && !x.takenDown && !x.own;
+      k.share.hidden = !(owner || (draft && asker));
+      k.shareNote.textContent = owner
+        ? (!draft ? (x.own ? `From ${who}'s own Claude. Everyone sees it.` : "Everyone sees this.")
+          : x.takenDown ? (asker || !x.byCid ? "You took this down. Only you see it." : `You took this down. Only you and ${who} see it.`)
+          : x.private ? (asker || !x.byCid ? "Just you: only you see this until you share it." : `Just me: only you and ${who} see this.`)
+          : x.own ? `Only you and ${who} see this until you share it.`
+          : x.justMe ? `Asked Just me: once you review it, it goes to ${who} alone.` : "Only you see this until you share it.")
+        : x.own ? "Only you and the host see this until the host shares it."
+        : x.takenDown ? "The host took this down. Only you and the host see it."
+        : "Just me: only you and the host see this. Share it if it helps everyone.";
+      k.publish.textContent = owner && held && x.justMe ? `Send to ${who}` : "Share with everyone";
+      k.discard.hidden = !(owner && held);
+      k.publish.hidden = !((owner && draft) || canShare);
+      k.takeDown.hidden = !(owner && !draft);
       li.classList.toggle("vf-res-draft", draft);
       k.tm.textContent = ago(x.ts);
       k.isNew.hidden = !resNew(x, q);
@@ -4807,7 +4972,7 @@
     function discReq(S, q, c) {
       const x = (S.research?.[q.id] || []).find(r => r.requestId === c.request);
       const r = (Core.me.isOwner ? S.requests || [] : []).concat(S.myRequests || []).find(r2 => r2.id === c.request);
-      return { x, r, label: x ? (x.published === false ? "Answered, waiting for the host to share" : "Answered") : r ? rstat(r) : "" };
+      return { x, r, label: x ? ansLabel(x) : r ? rstat(r) : "" };
     }
     /** Show a comment: the question, its Discussion open, the comment in view. */
     function openComment(qid, id) {
@@ -5474,10 +5639,9 @@
       const own = selfAsk();
       apSelf.hidden = Core.me.isOwner || general;
       apSelf.setAttribute("aria-checked", String(!!ui.askSelf));
+      apAud.hidden = own; apAud._paint(apAudV());
       apNote.textContent = own ? "Only you see this request. Your own Claude runs it; the host reviews its answer before anyone else sees it."
-        : general ? (Core.me.isOwner ? `Claude runs it now and the answer shows ${genWhere()} for everyone.` : `The host runs it; Claude works out how to answer and says what it did. Once the host shares the answer, it shows ${genWhere()} for everyone.`)
-        : Core.me.isOwner ? "Claude runs it now and the answer shows on the question's Claude thread for everyone."
-        : "The host runs it; Claude works out how to answer and says what it did. The result lands on the question's Claude thread, with your request text, for everyone.";
+        : askNoteText(apAudV(), general ? genWhere() : "on the question's Claude thread", ui.apWeb);
       const selfOpen = (S.myRequests || []).some(r => r.runner === "self" && (r.status === "pending" || r.status === "running"));
       apConnect.hidden = Core.me.isOwner || !(own || selfOpen);
       if (!apConnect.hidden) {
@@ -5626,7 +5790,7 @@
           qAct("Run", "vf-btn-primary", () => Core.requestAct(li._it.r.id, "run").then(() => flash("Running. The result shows on the question.")).catch(runFail)));
         else if (it.r.status === "running") a.push(qAct("Mark failed", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "fail").catch(fail)));
         else a.push(qAct("Run again", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "rerun").catch(fail)));
-        a.push(qAct("Edit in Requests", "vf-btn-ghost", () => openPanel(RQ.pop, reqRow.offsetParent ? reqRow : li)));
+        a.push(qAct("Review in Inbox", "vf-btn-ghost", () => openReview(li._it.r.id)));
       }
       if (it.t === "proposal") a.push(
         qAct("Park", "vf-btn-ghost", guarded(PARK_ASK, () => Core.proposal(li._it.i.id, "park").then(() => flash("Parked.")).catch(fail))),
@@ -6068,25 +6232,9 @@
         li.dataset.stat = i.status;
       });
 
-      // requests (owner only; everyone else sees counts)
-      const reqs = (S.requests || []).slice().sort((a, b) => a.ts - b.ts);
-      const pending = reqs.filter(r => r.status === "pending");
-      reqRow.hidden = !me.isOwner;
-      reqRow._count.textContent = String(pending.length);
-      reqRow.classList.toggle("vf-has", pending.length > 0);
-      reqRow.setAttribute("aria-label", `Requests for Claude, ${pending.length} waiting`);
-      if (!me.isOwner && ui.pop === RQ.pop) closePop();
-      sync(RQ.list, me.isOwner ? reqs : [], r => r.id, makeReq, fillReq);
-      RQ.empty.hidden = reqs.length > 0;
-      RQ.empty.textContent = "No requests. People ask from Ask Claude, on a question or in the top bar.";
-      const runnable = pending.filter(r => ui.reqSeen.has(r.id)).length;
-      runAllBtn.lastChild.textContent = `Run all shown (${runnable})`;
-      runAllBtn.setAttribute("aria-disabled", String(!runnable));
-      runAllBtn.disabled = !runnable;
-      runAllBtn.hidden = !pending.length;
       proposeBtn.hidden = (!!S.ended && !me.isOwner) || !!S.youRemoved;
       if (proposeBtn.hidden && ui.pop === proposePop) closePop();
-      railFoot.hidden = propRow.hidden && myProp.hidden && reqRow.hidden && proposeBtn.hidden;
+      railFoot.hidden = propRow.hidden && myProp.hidden && proposeBtn.hidden;
 
       function makeQ(q) {
         const li = E("li");

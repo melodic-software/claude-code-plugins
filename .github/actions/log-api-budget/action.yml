@@ -15,10 +15,16 @@ inputs:
       `github-token` followed by the job token.
     required: true
 
+outputs:
+  costs:
+    description: "At a phase after `start`, the summary's `<name>-cost=N` line; empty at `start`."
+    value: ${{ steps.log.outputs.costs }}
+
 runs:
   using: composite
   steps:
     - name: Log the API budget
+      id: log
       shell: bash
       env:
         PHASE: ${{ inputs.phase }}

@@ -2189,8 +2189,11 @@ class TestInMemoryRecordsUnderTheLock(SessionCase):
 
 
 class TestRequests(SessionCase):
+    """These tests describe the owner reviewing every answer: a session with "Review Claude's answers" on."""
+
     def setUp(self):
         super().setUp()
+        self.s.update_settings(HOST, {"reviewAnswers": True})
         self.ann, self.bo = self.people("Ann", "Bo")
         self.open_round(text_q("Q1"), text_q("Q2"))
 
@@ -2319,6 +2322,33 @@ class TestRequests(SessionCase):
         self.apply({"op": "fail-request", "request": rid, "reason": "No sources found."})
         st = self.s.state["requests"][0]["status"]
         self.assertEqual((st["kind"], st["reason"], st["cancelled"]), ("failed", "No sources found.", False))
+
+
+class TestReviewFirstOldSessions(SessionCase):
+    """A session from before "Review Claude's answers before they are shared" keeps today's review-first behavior."""
+
+    ask, result_op = TestRequests.ask, TestRequests.result_op
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo = self.people("Ann", "Bo")
+        self.open_round(text_q("Q1"))
+
+    def test_a_state_written_before_the_setting_keeps_every_answer_for_the_owners_share(self):
+        doc = self.disk()
+        doc["session"]["settings"].pop("reviewAnswers", None)  # every state file before the setting lacks it
+        self.path.write_text(json.dumps(doc), encoding="utf-8")
+        self.s = session.Session.load(self.path, clock=self.clock, ids=self.ids)
+        self.assertNotIn("reviewAnswers", self.s.state["session"]["settings"])
+        rid = self.ask(self.ann)
+        self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+        self.assertEqual(self.apply(self.result_op(rid))["results"][0]["published"], False)
+        for viewer in (self.ann, self.bo):
+            self.assertNotIn("Most shops pin it right.", json.dumps(self.s.snapshot(viewer)))
+        self.assertEqual(self.s.summary()["queue"]["results"], 1)
+
+    def test_a_new_session_writes_review_off(self):
+        self.assertIs(self.disk()["session"]["settings"]["reviewAnswers"], False)
 
 
 class TestInbox(TestRequests):
@@ -2465,6 +2495,7 @@ class TestInbox(TestRequests):
 class TestSelfRunner(SessionCase):
     def setUp(self):
         super().setUp()
+        self.s.update_settings(HOST, {"reviewAnswers": True})  # results wait for the owner's Share
         self.ann, self.bo = self.people("Ann", "Bo")
         self.open_round(text_q("Q1"))
         self.rid = self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": "Which step drops most?", "runner": "self"})["id"]
@@ -2614,6 +2645,7 @@ class TestSelfRunnerLimits(SessionCase):
 
     def setUp(self):
         super().setUp()
+        self.s.update_settings(HOST, {"reviewAnswers": True})  # results wait for the owner's Share
         self.ann, self.bo = self.people("Ann", "Bo")
         self.open_round(text_q("Q1"), text_q("Q2"), text_q("Q3"))
 
@@ -2798,6 +2830,7 @@ class TestSessionControls(SessionCase):
 class TestDigest(SessionCase):
     def setUp(self):
         super().setUp()
+        self.s.update_settings(HOST, {"reviewAnswers": True})  # results wait for the owner's Share
         self.ann, self.bo, self.cy = self.people("Ann", "Bo", "Cy")
 
     def digest(self):

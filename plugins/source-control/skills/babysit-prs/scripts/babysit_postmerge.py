@@ -1258,26 +1258,39 @@ def _first_line(text: Any) -> str:
     return str(text or "").lstrip().split("\n", 1)[0].strip()
 
 
-def _issue_body(failure: Failure) -> str:
+def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
     merge = failure.merge
+    others = ", ".join(f"#{m.number} (`{m.merge_commit}`)" for m in also)
     return "\n".join(
         [
             failure.marker,
             "",
             f"The post-merge check found a `{failure.signal}` failure after an unattended merge. The",
-            "unattended merge path stays at rung off until a human closes this issue directly (not",
-            "through a pull request's closing keyword).",
+            "unattended merge path stays at rung off while any demotion record is open. Fix main",
+            "first, then close every open demotion record directly (not through a pull request's",
+            "closing keyword); a new sighting of the same failure reopens its record.",
             "",
             f"- Pull request: {merge.url or f'#{merge.number}'}",
             f"- Merge commit: `{merge.merge_commit}`",
             f"- Failing run: {failure.run_url or 'none'}",
             f"- Detail: {failure.detail}",
-            "",
-            "To revert the merge, a human runs:",
-            "",
-            "```sh",
-            f"git revert {merge.merge_commit}",
-            "```",
+            *(
+                [
+                    f"- Also charged by this run: {others}",
+                    "",
+                    "A human reads the failing suites in the run above, picks the merge responsible,",
+                    "and reverts that one.",
+                ]
+                if others
+                else [
+                    "",
+                    "To revert the merge, a human runs:",
+                    "",
+                    "```sh",
+                    f"git revert {merge.merge_commit}",
+                    "```",
+                ]
+            ),
         ]
     )
 
@@ -1307,6 +1320,20 @@ def _recorded(failure: Failure, record: dict[str, Any], notes: Iterable[Any]) ->
     return any(note in _lines(body) for body in notes)
 
 
+def _same_run(failure: Failure, body: Any) -> bool:
+    """Whether a demotion record names the same failing run, any attempt. The
+    alert workflow keys its marker on the run's head SHA and this check on the
+    merge commit, so one red run would otherwise get a record from each filer.
+    The alert's post-merge-failure record never holds the gate, so it is not
+    this failure's record."""
+    if not failure.run_url or "/attempts/" not in failure.run_url:
+        return False
+    if not _first_line(body).startswith(policy.DEMOTION_MARKER):
+        return False
+    prefix = f"- Failing run: {failure.run_url.rsplit('/attempts/', 1)[0]}/attempts/"
+    return any(line.startswith(prefix) for line in _lines(body))
+
+
 def remediate(
     repo: str,
     verdict: PostMergeVerdict,
@@ -1318,7 +1345,7 @@ def remediate(
 ) -> dict[str, Any]:
     """Act on the verdict's failures: dequeue every merge-queue entry the agent
     identity enqueued, then file one demotion issue per (signal, merge SHA) or
-    comment on the existing one (reopening it first when closed and the sighting
+    failing run, or comment on the existing one, also found by its failing run (reopening it first when closed and the sighting
     is new; only the filers' own comments count as a prior sighting), then
     record the number of new issues as
     `demotion_events`. Each step runs even when an earlier one failed; errors are
@@ -1365,10 +1392,25 @@ def remediate(
                 continue
             seen.add((failure.marker, _sighting(failure)))
             match = records.get(failure.marker) or next(
-                (i for i in existing if _first_line(i.get("body")) == failure.marker),
+                (
+                    i
+                    for i in existing
+                    if _first_line(i.get("body")) == failure.marker
+                    or _same_run(failure, i.get("body"))
+                ),
                 None,
             )
             if match is None:
+                # The record names every merge this run charges; those merges
+                # then find it by run below.
+                also = [
+                    f.merge
+                    for f in verdict.failures
+                    if f.run_url
+                    and f.run_url == failure.run_url
+                    and f.merge.number != failure.merge.number
+                ]
+                body = _issue_body(failure, {m.number: m for m in also}.values())
                 issue = _write(
                     [
                         "api",
@@ -1378,7 +1420,7 @@ def remediate(
                         "-f",
                         f"title=Post-merge {failure.signal} failure after #{failure.merge.number}: unattended merging demoted",
                         "-f",
-                        f"body={_issue_body(failure)}",
+                        f"body={body}",
                         "-f",
                         f"labels[]={role_label}",
                     ],
@@ -1392,8 +1434,11 @@ def remediate(
                 records[failure.marker] = {
                     "number": filed,
                     "state": "open",
-                    "body": _issue_body(failure),
+                    "body": body,
                 }
+                # A later merge charged by the same run finds it by run, as a
+                # later pass would.
+                existing.append(records[failure.marker])
                 notes_by_issue[filed] = []
                 continue
             records[failure.marker] = match

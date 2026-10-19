@@ -33,6 +33,8 @@ async function main() {
     const desk = { context: { viewport: { width: 1440, height: 900 } } };
     const owner = await rec.open(A.ownerUrl, desk);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
+    // This suite follows the host's Share of a guest's general ask: the session reviews answers first.
+    await owner.evaluate(() => window.Core.saveSettings({ reviewAnswers: true }));
     const ann = await rec.open(A.localUrl, desk);
     await joinAs(ann, "Ann");
     const bo = await rec.open(A.localUrl, { context: PHONE });
@@ -70,7 +72,7 @@ async function main() {
     ok("the host is told Claude answered about the session", await toast(owner, /^Claude answered about the session\. Share it from the Inbox\.$/));
     ok("before the Share no guest's page holds the answer", !(await ann.evaluate(a => JSON.stringify(window.Core.snapshot()).includes(a), ANSWER)));
     await openInbox(owner);
-    await owner.locator(".vf-ixwait .vf-ixlist > li", { hasText: ANSWER }).locator(".vf-ixitem").click();
+    await owner.locator(".vf-revlist > li", { hasText: ANSWER }).locator(".vf-rev-open").click();
     ok("opening it shows the answer in Ask Claude, About the whole session", await until(owner, a => !document.querySelector(".vf-drawer").hidden
       && document.querySelector(".vf-apq select").value === "session" && [...document.querySelectorAll(".vf-apgen .vf-res")].some(li => li.textContent.includes(a)), ANSWER));
     await owner.locator(".vf-apgen .vf-res", { hasText: ANSWER }).locator("button", { hasText: "Share with everyone" }).click();
@@ -132,6 +134,8 @@ async function main() {
     await owner.keyboard.press("Escape");
     await owner.click(".vf-asktop");
     await owner.selectOption(".vf-apq select", "session");
+    ok("about the whole session Ask Claude starts on Just me", await until(owner, () => document.querySelector(".vf-apform .vf-aud [aria-pressed=true]")?.textContent === "Just me"));
+    await owner.click(".vf-apform .vf-aud [data-aud=everyone]");
     ok("chat off: Ask Claude says the answer shows in Ask Claude, About the whole session", await until(owner, () =>
       [...document.querySelectorAll(".vf-apform .vf-pop-note")].some(p => p.textContent === "Claude runs it now and the answer shows in Ask Claude, About the whole session for everyone.")));
     await owner.fill("#vf-ap-ta", "Where are we, with chat off?");
