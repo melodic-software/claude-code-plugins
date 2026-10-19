@@ -7,6 +7,7 @@ import { posix } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseDocument } from "yaml";
 
+import { checkDimensions, dimensionBudget, issueDimensions, parsePin } from "./dimensions.mjs";
 import { MissingFact, appliesAll, factsFor } from "./predicate.mjs";
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
@@ -262,7 +263,16 @@ function checkModels(models, activities) {
       );
     }
   }
+  if (models["issue-dimensions"] !== undefined) {
+    checkDimensions(models["issue-dimensions"]);
+  }
 }
+
+// Whether a skill activity takes its budget from its issue's dimensions.
+const dimensionedBy = (activity, models) =>
+  models?.["issue-dimensions"] !== undefined &&
+  typeof activity.skill === "string" &&
+  (activity.inputs ?? []).includes("issue");
 
 // Rejections 1, 2, 4-9 and 3 over the whole file, whichever lane the run asked for.
 export function loadConfig(files, { configPath }) {
@@ -452,7 +462,7 @@ const decides = (index, selected) => selected < 0 || index === selected;
 
 // The facts the decided enabled slots read. Rejects the same files and request
 // resolve() would, before any fact is fetched.
-export function neededFacts(files, { lane, activity, configPath }) {
+export function neededFacts(files, { lane, activity, configPath, pinnedDimensions }) {
   const doc = loadConfig(files, { configPath });
   const entries = laneSlots(doc, lane);
   const selected = selectedIndex(entries, lane, activity);
@@ -464,6 +474,11 @@ export function neededFacts(files, { lane, activity, configPath }) {
       }
       if ((definition.inputs ?? []).includes("changed-paths")) {
         needed.add("changedPaths");
+      }
+      // The fields are read now, unless an earlier resolve pinned them.
+      if (dimensionedBy(definition, doc.models) && !pinnedDimensions) {
+        needed.add("fieldValues");
+        needed.add("fieldSetters");
       }
     }
   });
@@ -614,10 +629,11 @@ export function resolveRoute(files, { route, configPath }) {
 
 function resolveSlot(
   { name, activity, predicate, predicates, enabled, needs },
-  { effectGrants, codeowners },
+  { effectGrants, codeowners, trustedActors },
   facts,
   decided,
   models,
+  pinnedDimensions,
 ) {
   const grant = grantFor(effectGrants, activity.effect);
   let outcome = { applies: null, skipReason: null };
@@ -651,6 +667,34 @@ function resolveSlot(
     }
   }
   const kind = activity.skill === undefined ? "script" : "skill";
+  let runModels = kind === "skill" ? routeModels(models, name) : null;
+  let sizing = {};
+  if (dimensionedBy(activity, models)) {
+    const config = models["issue-dimensions"];
+    let dims;
+    if (pinnedDimensions) {
+      // What an earlier resolve read for this run, whose job timeout is
+      // already fixed: the fields are not read again.
+      dims = parsePin(pinnedDimensions, config);
+    } else if (decided) {
+      for (const fact of ["fieldValues", "fieldSetters"]) {
+        if (facts[fact] === undefined) {
+          throw new MissingFact(fact);
+        }
+      }
+      dims = issueDimensions(facts, config, trustedActors);
+    } else {
+      dims = parsePin("not-assessed", config);
+    }
+    const budget = dimensionBudget(dims, config);
+    if (budget.skip !== null && outcome.applies) {
+      outcome = { applies: false, skipReason: budget.skip };
+    }
+    if (budget.skip === null) {
+      runModels = { ...runModels, "max-turns": budget["max-turns"] };
+    }
+    sizing = { "issue-dimensions": budget.pin, "timeout-minutes": budget["timeout-minutes"] };
+  }
   return {
     name,
     kind,
@@ -669,7 +713,8 @@ function resolveSlot(
     needs,
     ...(predicate === undefined ? {} : { "applies-when": predicate }),
     enabled,
-    models: kind === "skill" ? routeModels(models, name) : null,
+    models: runModels,
+    ...sizing,
     grant,
     applies: outcome.applies,
     "skip-reason": outcome.skipReason,
@@ -729,6 +774,7 @@ const limitsOf = (limits = {}) => ({
   "limit-stops-per-head": limits["limit-stops-per-head"] ?? 3,
   "limit-stops-per-issue": limits["limit-stops-per-issue"] ?? 3,
   "wip-cap": limits["wip-cap"] ?? 60,
+  "turn-cap-restarts": limits["turn-cap-restarts"] ?? 0,
   "fix-ci-per-run": limits["fix-ci-per-run"] ?? 2,
   "fix-ci-restarts": limits["fix-ci-restarts"] ?? 1,
   "admission-window-hours": limits["admission-window-hours"] ?? 24,
@@ -764,14 +810,14 @@ export function resolveWipLeaf(files, { configPath }) {
 
 export function resolve(
   files,
-  { lane, activity, configPath, basePath, facts },
+  { lane, activity, configPath, basePath, facts, pinnedDimensions },
 ) {
   const doc = loadConfig(files, { configPath });
   const section = laneSection(doc, lane);
   const entries = laneSlots(doc, lane);
   const index = selectedIndex(entries, lane, activity);
   const slots = entries.map((entry, i) =>
-    resolveSlot(entry, files, facts, decides(i, index), doc.models),
+    resolveSlot(entry, files, facts, decides(i, index), doc.models, pinnedDimensions),
   );
   return {
     version: 1,

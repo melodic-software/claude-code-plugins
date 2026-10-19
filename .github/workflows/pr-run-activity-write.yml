@@ -72,6 +72,14 @@ on:
         required: false
         type: number
         default: 30
+      issue-dimensions:
+        description: >-
+          Issue mode: the dimensions the caller resolved when it set
+          timeout-minutes (models.issue-dimensions); the run takes them
+          instead of reading the issue's fields again. Empty reads them.
+        required: false
+        type: string
+        default: ""
       dispatcher-run-id:
         description: >-
           On a workflow_dispatch sent by github-actions[bot], the
@@ -500,6 +508,7 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           pr-number: ${{ steps.gate.outputs.pr-number }}
           head-sha: ${{ steps.gate.outputs.head-sha }}
+          issue-dimensions: ${{ inputs.issue-dimensions }}
           # This file performs prepare: merge-base (the prepare, post and
           # commit steps below).
           prepare-supported: "true"
@@ -541,7 +550,10 @@ jobs:
       # did the work: a lanes-App PR from a lane branch is open, or the lanes
       # App or a listed human opened a PR that closes the issue (stop), or a
       # lane branch holds commits no report handed on (reuse-branch, which
-      # report-outcome opens a PR from). Both skip not-applicable.
+      # report-outcome opens a PR from). Both skip not-applicable. When the
+      # newest outcome marker is turn-cap, stopped or limited for a run whose
+      # lane branch passes the same tip check, the model runs on that
+      # branch's tip instead (resume-branch, resume-tip, resume-cause).
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
@@ -797,6 +809,11 @@ jobs:
           LABEL_SENDER_ID: ${{ format('{0}', github.event.sender.id) }}
           LABEL_NAME: ${{ github.event.label.name }}
           LABEL_EVENT_AT: ${{ github.event.issue.updated_at }}
+          # A resumed run's summary of the branch it continues (issue-prior).
+          RESUME_BRANCH: ${{ steps.issue-prior.outputs.resume-branch }}
+          RESUME_TIP: ${{ steps.issue-prior.outputs.resume-tip }}
+          RESUME_CAUSE: ${{ steps.issue-prior.outputs.resume-cause }}
+          BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
         run: node .base/.github/scripts/work-resolve-issue/write-issue.mjs
 
       # A script reads the base's work-item tracker config (report-escalation's
@@ -933,7 +950,9 @@ jobs:
         with:
           install-subprocess-isolation: ${{ steps.config.outputs.kind == 'skill' }}
 
-      # Issue mode checks out the trusted base, the default branch tip.
+      # Issue mode checks out the trusted base, the default branch tip, or on a
+      # resume the tip of the earlier run's lane branch that issue-prior
+      # checked (the lanes App's verified commit), so the skill continues it.
       # The head checkout replaces .base, so the base's scripts/setup-env.sh
       # and the files it installs from are copied out first; a base that
       # predates the script skips the install.
@@ -959,7 +978,10 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.issue-number != '' && steps.trusted-base.outputs.commit || steps.gate.outputs.head-sha }}
+          ref: >-
+            ${{ inputs.issue-number != ''
+            && (steps.issue-prior.outputs.resume-tip || steps.trusted-base.outputs.commit)
+            || steps.gate.outputs.head-sha }}
           token: ${{ steps.lane-token.outputs.token }}
           persist-credentials: false
           # The merge needs the history back to the merge base and the trusted
@@ -970,7 +992,10 @@ jobs:
       - name: Assert the head is the gated SHA
         if: steps.lane-token.outputs.token != ''
         env:
-          HEAD_SHA: ${{ inputs.issue-number != '' && steps.trusted-base.outputs.commit || steps.gate.outputs.head-sha }}
+          HEAD_SHA: >-
+            ${{ inputs.issue-number != ''
+            && (steps.issue-prior.outputs.resume-tip || steps.trusted-base.outputs.commit)
+            || steps.gate.outputs.head-sha }}
         run: |
           if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
             echo "::error::the checked-out head is not the gated head SHA"
@@ -1065,7 +1090,11 @@ jobs:
           && steps.prepare.outputs.merge-state != 'escalate'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          HEAD_SHA: ${{ inputs.issue-number != '' && steps.trusted-base.outputs.commit || steps.gate.outputs.head-sha }}
+          # Issue mode: the default branch tip, or the resumed branch's tip.
+          HEAD_SHA: >-
+            ${{ inputs.issue-number != ''
+            && (steps.issue-prior.outputs.resume-tip || steps.trusted-base.outputs.commit)
+            || steps.gate.outputs.head-sha }}
           # Issue mode: this branch becomes the PR's head.
           LANE_BRANCH: >-
             ${{ inputs.issue-number != ''
@@ -1312,6 +1341,41 @@ jobs:
                   'the step summary and the skill-reply artifact hold the result fields and any local-command stderr',
               );
             }
+
+      # Issue mode: the API error a failed skill run ended on, from the
+      # execution file's result fields, never model text, for report-outcome's
+      # funding check (ci-workflows#781): the status and the CLI's error text,
+      # on one line and capped.
+      - name: Read the run's API error
+        id: act-error
+        if: always() && inputs.issue-number != '' && steps.act-skill.outcome == 'failure'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXECUTION_FILE: >-
+            ${{ steps.act-skill.outputs.execution_file
+            || format('{0}/claude-execution-output.json', runner.temp) }}
+          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { EXECUTION_FILE, LANE_TOKEN } = process.env;
+            let messages = [];
+            try {
+              messages = JSON.parse(fs.readFileSync(EXECUTION_FILE, 'utf8'));
+            } catch {
+              return;
+            }
+            const result = (Array.isArray(messages) ? messages : []).filter((m) => m?.type === 'result').at(-1) ?? {};
+            const status = result.api_error_status;
+            if (Number.isInteger(status) && status >= 100 && status <= 599) {
+              core.setOutput('status', String(status));
+            }
+            const text = [result.result, ...(Array.isArray(result.errors) ? result.errors : [])]
+              .filter((part) => typeof part === 'string')
+              .join(' ');
+            const redacted = LANE_TOKEN ? text.split(LANE_TOKEN).join('[REDACTED]') : text;
+            core.setOutput('text', redacted.replace(/\s+/g, ' ').slice(0, 500));
 
       # The lane record: the run's failure class and, on a usage limit, when it
       # resets, read from the execution file's structured fields by
@@ -1861,7 +1925,10 @@ jobs:
         if: always() && inputs.issue-number != '' && steps.lane-branch.outputs.branch != ''
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
+          # The commit the branch was made at: a resumed branch that gained
+          # no commit of this run's holds nothing this run did; a done
+          # outcome then goes to a person naming the resumed branch (lane.json resume).
+          BASE_SHA: ${{ steps.issue-prior.outputs.resume-tip || steps.trusted-base.outputs.commit }}
           LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
@@ -1897,6 +1964,16 @@ jobs:
           LANE_BRANCH: ${{ steps.issue-branch.outcome == 'success' && steps.issue-branch.outputs.branch || '' }}
           LANE_CLASS: ${{ steps.lane-record.outputs.failure-class }}
           LANE_RESETS: ${{ steps.lane-record.outputs.resets-at }}
+          # The run's turn cap, so a turn-cap stop names it.
+          LANE_MAX_TURNS: ${{ steps.config.outputs.max-turns }}
+          # The branch a resumed run continued, which still holds the work
+          # when the run finished without a commit of its own.
+          LANE_RESUME: ${{ steps.issue-prior.outputs.resume-branch }}
+          # A run that exited non-zero, and the API error it ended on, so a
+          # funding stop is named as one (report-outcome readFunding).
+          LANE_FAILED: ${{ steps.act-skill.outcome == 'failure' }}
+          LANE_API_STATUS: ${{ steps.act-error.outputs.status }}
+          LANE_ERROR_TEXT: ${{ steps.act-error.outputs.text }}
         run: |
           mkdir -p "$OUT_DIR"
           rm -f "$OUT_DIR/work-outcome.json" "$OUT_DIR/lane.json"
@@ -1904,7 +1981,10 @@ jobs:
             head -c 65536 "$SCRATCH_OUTCOME" >"$OUT_DIR/work-outcome.json"
           fi
           jq -n --arg branch "$LANE_BRANCH" --arg class "$LANE_CLASS" --arg resets "$LANE_RESETS" \
-            '{branch: $branch, class: $class, resets: $resets}' >"$OUT_DIR/lane.json"
+            --arg max_turns "$LANE_MAX_TURNS" --arg resume "$LANE_RESUME" \
+            --arg failed "$LANE_FAILED" --arg status "$LANE_API_STATUS" --arg error_text "$LANE_ERROR_TEXT" \
+            '{branch: $branch, class: $class, resets: $resets, "max-turns": $max_turns, resume: $resume,
+              failed: $failed, "api-error-status": $status, "error-text": $error_text}' >"$OUT_DIR/lane.json"
 
       - name: Upload the issue outcome
         if: >-

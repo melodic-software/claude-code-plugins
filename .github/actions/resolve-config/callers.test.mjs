@@ -331,6 +331,26 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
   assert.equal(concurrency["cancel-in-progress"], false);
 });
 
+// The run job's timeout is the issue size's (models.issue-dimensions), resolved
+// from the base config before the job starts; no literal stands in for it.
+test("work-resolve-issue.yml: resolve-issue's timeout is the resolved issue dimensions'", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const dims = jobs["pick-slot"].steps.find((s) => s.id === "dimensions");
+  assert.equal(dims.uses, "./.base/.github/actions/resolve-config");
+  assert.deepEqual([dims.with.lane, dims.with.activity], ["work-resolve-issue", "resolve-issue"]);
+  assert.notEqual(dims["continue-on-error"], true, "unresolved dimensions must not start a run");
+  // The org fields are readable only with issues: read.
+  assert.equal(jobs["pick-slot"].permissions.issues, "read");
+  assert.equal(jobs["pick-slot"].outputs["timeout-minutes"], "${{ steps.dimensions.outputs.timeout-minutes }}");
+  assert.equal(jobs["resolve-issue"].with["timeout-minutes"], "${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}");
+  // The run takes the dimensions whose timeout it got, not fields set while it waited.
+  assert.equal(jobs["pick-slot"].outputs["issue-dimensions"], "${{ steps.dimensions.outputs.issue-dimensions }}");
+  assert.equal(jobs["resolve-issue"].with["issue-dimensions"], "${{ needs.pick-slot.outputs.issue-dimensions }}");
+  const write = workflow("pr-run-activity-write.yml");
+  const config = write.jobs.run.steps.find((s) => s.id === "config");
+  assert.equal(config.with["issue-dimensions"], "${{ inputs.issue-dimensions }}");
+});
+
 // A queued resolve-issue run starts on the workflow files of its label event.
 // The broker refuses its mint as workflow-modified when either file's blob at
 // the run's commit differs from main's tip (azure-iac binding.mjs), so the
