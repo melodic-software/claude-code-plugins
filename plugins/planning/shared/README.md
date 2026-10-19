@@ -307,7 +307,7 @@ writing nothing when nothing would change:
 
 | Route | Body | Who and what |
 |---|---|---|
-| `/api/discussion` | `{qid, text}` | Anyone who may write. "@Claude" in the text also files an ask request with it (`request` on the comment), owner-gated like any guest request; the owner's own runs at once. It shares `/api/request`'s one a second. Too soon after a request, or with too many requests waiting, the comment still posts, with `requestRefused` and no request. A person keeps at most 30 comments on a question (hidden ones count); a question at most 200 and the session at most 2000 that everyone sees. People already in that Discussion get a rolled-up `discussion` notification; a mention notifies as usual. Posting marks the Discussion read for its author only when no one else's comment is unread to them |
+| `/api/discussion` | `{qid, text, attachments?}` | Anyone who may write. "@Claude" in the text also files an ask request with it (`request` on the comment), owner-gated like any guest request; the owner's own runs at once. It shares `/api/request`'s one a second. Too soon after a request, or with too many requests waiting, the comment still posts, with `requestRefused` and no request. A person keeps at most 30 comments on a question (hidden ones count); a question at most 200 and the session at most 2000 that everyone sees. People already in that Discussion get a rolled-up `discussion` notification; a mention notifies as usual. Posting marks the Discussion read for its author only when no one else's comment is unread to them |
 | `/api/discussion/edit`, `/delete` | `{qid, id, text?}` | The comment's author only; another person's comment reads as 404. A comment that filed a request cannot be edited (409 `sent-to-claude`); deleting it leaves the request as it is |
 | `/api/discussion/hide` | `{qid, id, on}` | Owner only. A hidden comment leaves every other snapshot and the digest; its author still sees it, with `hidden`. A request it filed that still waits is declined, as by the owner's Decline |
 | `/api/discussion/react` | `{qid, id, emoji, on}` | The chat's emoji set and caps |
@@ -434,10 +434,21 @@ Upstream link formats (volatile; read the pages, never copy their limits here):
 
 ## Uploads
 
-Off until the owner turns on Uploads (`shared_session.uploads`). The answer composer's attach button
-then offers "Upload a file", and lists the person's files the owner accepted, which an answer or a
-pick carries (C44, at most four; `attachments` on `POST /api/answer` and `POST /api/pick` replaces
-the list, left out it is kept). While Uploads is off no upload control shows.
+Off until the owner turns on Uploads (`shared_session.uploads`). Every place people write (the answer
+box, Ask Claude, a question's ask box, a suggestion, chat, the Discussion and Propose) then has an
+Attach button that offers "Upload a file" and lists the person's files the owner accepted. A picture
+pasted into any of those fields (PNG, JPEG, WebP or GIF on the clipboard) is made at most 1600 px and
+512 KB in the browser, offered as a file, and shown as a thumbnail chip, never as text in the field;
+it reads "Waiting for the host" until the owner accepts it, and the form will not send until then.
+While Uploads is off no upload control shows and a pasted picture adds nothing.
+
+What carries files (C44, at most four, each an upload of the writer's own the owner accepted, each
+once): `attachments` on `POST /api/answer` and `POST /api/pick` replaces the list, left out it is
+kept; on `/api/chat`, `/api/request`, `/api/suggest`, `/api/propose` and `/api/discussion` it is
+optional and refused (403 `uploads-off`) while Uploads is off, and on `/api/request` with `runner:
+self` (400 `bad-field`). A request filed by "@Claude" in chat or a comment carries that message's
+files, a proposal forwarded from chat its message's, and `request-run` lists a request's
+`attachments`. Declining or withdrawing a file takes it off everything that carries it.
 
 1. `POST /api/upload/offer` `{file, size, type, qid?, thumb?}` (96 KB) records the offer; the file
    stays in the browser (IndexedDB, or memory where a private window refuses it) until the owner
@@ -471,11 +482,21 @@ entry over 1 MiB may pack tighter than 100 to 1; otherwise it fails and is delet
 loses control, format (bidi), private-use and unassigned characters, and the owner's queue shows
 the server's extension beside it.
 
-Nothing uploaded is served back: the files sit in the private data folder, named by the server
-(`uploads/pending/<32 hex>`, then `uploads/accepted/<yyyymmdd>-<upload id>.<ext>`); the person's
-file name is display text only. The snapshot never carries a path: `myUploads` (one's own),
-`uploads` (the owner's, with a picture's preview) and `files` (name, kind, size and status of the
-files shown answers carry). Each start deletes pending files no upload names, declines files still
+The files sit in the private data folder, named by the server (`uploads/pending/<32 hex>`, then
+`uploads/accepted/<yyyymmdd>-<upload id>.<ext>`); the person's file name is display text only. The
+snapshot never carries a path: `myUploads` (one's own), `uploads` (the owner's, with a picture's
+preview) and `files` (name, kind, size and status of the files on what that viewer reads: shown
+answers, chat, comments and suggestions, plus their own hidden answers and comments, the proposals
+they see and their own requests, every one for the owner). A file shows only where what carries it
+shows, so a Just me request's, a proposal's or a hidden comment's never reaches another guest.
+
+Only a received picture is read back. `files`, `myUploads` and `uploads` mark one `image` when it is
+done, of kind PNG, JPEG, JPG, WebP or GIF (never SVG or HTML), and at most 10 MB.
+`GET /api/upload/image?id=` (auth class person) answers its uploader, the owner, and whoever's
+`files` lists it with `{id, image}`, a data: URL whose type comes from the bytes' magic number,
+under the usual JSON headers (`nosniff`); any other id is 404 `not-found`. The page shows it as a
+tile that opens the viewer; the page policy's `img-src 'self' data:` is unchanged. Claude reads an
+upload only through the Read-only `upload-reader` agent. Each start deletes pending files no upload names, declines files still
 on their way from someone no longer in the session, and cuts a partial file back to the pieces its
 record counts. A state whose upload id, extension or received name is not one the server makes
 does not load.
@@ -612,7 +633,7 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `.shared-reported` | `share.py` | 0600 | The guest link the last `ensure-running` printed (for `shareChanged`) |
 | `.watch-seq`, `.watch-replay` | `watch.sh` | | |
 | `assets/<16 hex>.<ext>`, `assets/.<id>.json` | server (`add-asset`) | | The file, and its kind, size and scale |
-| `uploads/pending/<32 hex>`, `uploads/accepted/<yyyymmdd>-<upload id>.<ext>` | server | 0700 folders, 0600 files | An accepted upload's pieces so far; a received one (see [Uploads](#uploads)). Never served |
+| `uploads/pending/<32 hex>`, `uploads/accepted/<yyyymmdd>-<upload id>.<ext>` | server | 0700 folders, 0600 files | An accepted upload's pieces so far; a received one (see [Uploads](#uploads)). Only a received picture is read back, as a data: URL from `GET /api/upload/image` |
 | `reports/<report id>[-<n>].<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot, and with `-<n>` the reporter's nth added one ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads one back, and Claude reads one only through the Read-only `upload-reader` agent |
 
 Every `GET /api/state` with identity carries `schemaVersion`, `rev` and `build` (a hash of the
@@ -753,6 +774,7 @@ node plugins/planning/shared/tests/ui_acceptance.js
 node plugins/planning/shared/tests/ui_proto.js
 node plugins/planning/shared/tests/ui_connect.js
 node plugins/planning/shared/tests/ui_uploads.js
+node plugins/planning/shared/tests/ui_attach_paste.js
 node plugins/planning/shared/tests/ui_report.js
 node plugins/planning/shared/tests/ui_general.js
 node plugins/planning/shared/tests/ui_advance.js
@@ -799,6 +821,12 @@ again" in the person's settings bringing both back; and a 44 px Skip on a 390x84
 while Uploads is off, an offer held in the guest's browser, the owner's Accept, a chunked send
 that resumes after a dropped piece and a reload, the file attached to a pick and shown to another
 guest, and a declined file deleted from the browser and shown as "Not accepted".
+
+`ui_attach_paste.js` checks attach and paste on a desktop guest: with Uploads off a pasted picture adds nothing; on,
+the answer box, Ask Claude, chat, the Discussion and Propose each show Attach, and a picture pasted into each becomes a
+thumbnail chip reading "Waiting for the host" with the field's text left as typed; chat will not send before the
+owner's Accept; once received, another guest sees the picture as a tile on the chat message, the answer and the
+comment, and it opens in the viewer, while the proposal's, the request's and, once hidden, the comment's stay from him.
 
 `ui_report.js` checks Report a problem with Uploads off: on a 390x844 phone from More, the sent
 list before Send, a 3200x1800 screenshot re-encoded to 1600 px, the field and Send report above a
