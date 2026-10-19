@@ -3,7 +3,7 @@
 Record for the loop-lane convention's [confirm-then-record pattern](README.md#confirm-then-record).
 It lists each lane with an external side effect (a comment, label, issue, check, merge or release)
 and says what stops two overlapping runs of it from both passing a check-then-act dedupe. Research
-only: it changes no lane. As of 2026-10-18, read from `.github/workflows/*.yml` on the default
+only: it changes no lane. As of 2026-10-19, read from `.github/workflows/*.yml` on the default
 branch.
 
 **Recheck trigger**: a workflow is added, or one gains or loses a `concurrency:` block or a write
@@ -24,7 +24,8 @@ Marks: **concurrency** (a workflow `concurrency:` group), **claim** (another ato
 | `pr-review-hosted`, `pr-review-security-hosted` | review comments, check | concurrency: `<workflow>-<pr>`, `cancel-in-progress: true` |
 | `pr-check-managed-files-hosted`, `pr-verify` | read-only token at job level; no comment or label write found | concurrency (per PR or head sha); not verified to post |
 | `pr-require-checks` | statuses; the advisory linkage comment and the `needs-issue-linkage` label (`check-contract`); re-runs of red contract-only sibling runs (`actions: write`) | uncovered. Label and body-edit events take a per-run group (`ci-contract-<pr>-<run_id>`), so those runs do not serialize. Each status write is a fresh set, not a check-then-act. The comment upsert is check-then-act: it looks up the newest bot comment carrying the `<!-- pr-contract:linkage -->` marker, so two overlapping runs that both find none each post one, and every later run edits only the newest. The duplicate is an advisory comment a person can ignore; the gate is the status, not the comment. A label add or remove is idempotent, and the next contract event re-derives it from the current body. A duplicate sibling re-run repeats the contract check, whose writes are covered above |
-| `pr-run-activity-read`, `pr-run-activity-write` | reusable workflows | covered by the calling workflow's group (`pr-pipeline-write-<pr>` for `pr-refine` and `pr-unblock`) |
+| `pr-run-activity-write` (reusable; called by `pr-refine`, `pr-unblock` and `work-resolve-issue`) | the caller's writes | covered by the caller's group: `pr-pipeline-write-<pr>` (`queue: max`) on the `pr-refine` and `pr-unblock` jobs; the `work-resolve-issue-<issue>-<is agent-ready label>` run group for `work-resolve-issue`, whose `resolve-issue` job also queues on `work-resolve-issue-slot-<slot>` |
+| `pr-run-activity-read` (reusable; one caller, the `pr-unblock` `fix-ci` job) | a check run; a patch artifact that `apply-ci-fix` pushes through `pr-run-activity-write` | concurrency: the caller's run group `pr-unblock-fix-ci-<pr>`, `cancel-in-progress: false`. The `fix-ci` job takes no group of its own, since one with that name would wait on its own run |
 | `pr-merge` | merge | concurrency: `pr-merge`, `queue: max` |
 | `pr-bump-plugin-version` | version commit on the PR | concurrency: `pr-bump-plugin-version-<pr>` |
 | `dependabot-fragments` | fragment commit | concurrency: `dependabot-fragments` |
