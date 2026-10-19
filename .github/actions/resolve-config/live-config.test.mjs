@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
-import { resolve, resolveGrant } from "./resolve.mjs";
+import { checkPatchRules, resolve, resolveGrant } from "./resolve.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -393,4 +393,20 @@ test("live config: fix-docs applies to a Markdown change and waits on needs-huma
 
 test("live config: fix-docs does not apply to a draft PR", () => {
   assert.equal(skipReason("pr-refine", "fix-docs", { draft: true }), "not-applicable");
+});
+
+// Each activity's applied-by lands with the phase that moves it to the read
+// runner, after the broker serves a reader that knows the field; until then
+// no live activity sets it.
+test("live config: no activity sets applied-by yet", () => {
+  const { activities } = parse(FILES.config);
+  assert.deepEqual(
+    Object.keys(activities).filter((name) => Object.hasOwn(activities[name], "applied-by")),
+    [],
+  );
+});
+
+test("live config: the shipped patch rules pass against the live activities", () => {
+  const rules = json("./patch-rules.json");
+  assert.equal(checkPatchRules(rules, json("./patch-rules.schema.json"), parse(FILES.config).activities), rules);
 });

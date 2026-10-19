@@ -5,10 +5,12 @@ description: >
   a skill the base plugins/ and .claude-plugin/ to
   $RUNNER_TEMP/base-marketplace, plus the plugins to install, prompt (with its
   changed-paths) and claude_args (with read access to the marketplace copy,
-  and for any effect but read the write tool set, a scratch directory, the
-  web tools when the activity sets web-access, the tidy passes and their
-  routing tool when it sets tidy and, unless the runner commits for it, the
-  instruction to commit). Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
+  and for an activity that edits, the write tool set, a scratch directory,
+  the web tools when the activity sets web-access, the tidy passes and their
+  routing tool when it sets tidy and, when it commits, the instruction to
+  commit). An activity edits when its effect is not read, or
+  when its applied-by sets patch: it then leaves its change uncommitted for
+  the runner to collect as a patch. Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
   step 8 and Skill activities.
 
 inputs:
@@ -29,8 +31,9 @@ inputs:
     default: ""
   effect:
     description: >
-      The activity's effect, from resolve-config. Any effect but `read` gets
-      the write tool set below.
+      The activity's effect, from resolve-config. Any effect but `read`, or
+      `read` with applied-by.patch in the resolved file, gets the write tool
+      set below.
     required: true
   can-commit:
     description: >
@@ -169,7 +172,15 @@ runs:
         plugins="${SKILL%%:*}@$marketplace"
         disallowed=""
         system_prompt=""
-        case "$EFFECT" in
+        # A read skill that hands on a patch edits like a write skill, but
+        # commits nothing: the runner collects its change. ci-context keeps
+        # its own tool set.
+        edits=$EFFECT
+        if [ "$EFFECT" = read ] && [ "$PREPARE" != ci-context ] &&
+          jq -e '.selected["applied-by"].patch // empty' "$RESOLVED" >/dev/null; then
+          edits=patch
+        fi
+        case "$edits" in
           read)
             # ci-context: the job holds no write token, so the skill gets the
             # tools to rerun the failing checks and fix them (Bash, Edit,
@@ -186,7 +197,7 @@ runs:
               system_prompt="You run unattended as a CI lane activity on $subject, and no one can answer a question. Run every step the skill instructions name. Your scratchpad directory is $SCRATCH: put every temporary or state file there. The context file is $CI_DIR/context.json. Leave every fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
             fi
             ;;
-          mutate-branch | mutate-tracker | publish-artifact | merge)
+          patch | mutate-branch | mutate-tracker | publish-artifact | merge)
             # What a write skill needs to do its job unattended: edit files,
             # run subagents, keep state files in a scratch directory (added
             # as a working directory) and commit through the action's signed
@@ -199,12 +210,14 @@ runs:
             allowed="$allowed,Edit,Write,Agent"
             # delete_files carries a rename's old path or a removal to the
             # branch, which commit_files cannot.
-            if [ "$PREPARE" != merge-base ]; then
+            if [ "$PREPARE" != merge-base ] && [ "$edits" != patch ]; then
               allowed="$allowed,mcp__github_file_ops__commit_files,mcp__github_file_ops__delete_files"
             fi
             allowed="$allowed,Edit(/$SCRATCH/**)"
             system_prompt="You run unattended as a CI lane activity on $subject, and no one can answer a question. Run every step the skill instructions name. Your scratchpad directory is $SCRATCH: put every temporary or state file there."
-            if [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
+            if [ "$edits" = patch ]; then
+              system_prompt="$system_prompt Leave every change uncommitted in the working tree: the runner turns it into a patch that a later job applies."
+            elif [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
               # The slash command never says the edits reach the PR only as
               # commits on CLAUDE_BRANCH. commit_files takes each file's mode
               # from disk, and Write creates a file without the executable bit.
@@ -398,8 +411,9 @@ runs:
             # area. Exactly the listed skills are allowed and their plugins
             # installed. The tool runs from a read-only base copy with its
             # cutoff and pass list fixed, so the rule takes no arguments.
-            # A share that rounds to no turn grants nothing.
-            if jq -e '(.selected.tidy.turns // 0) > 0' "$RESOLVED" >/dev/null; then
+            # Only a mutate-branch skill tidies (the schema says so too), and
+            # a share that rounds to no turn grants nothing.
+            if [ "$EFFECT" = mutate-branch ] && jq -e '(.selected.tidy.turns // 0) > 0' "$RESOLVED" >/dev/null; then
               [[ $TIDY_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
                 fail "the tidy tool directory or workspace has a name a rule cannot carry"
               max=$(jq -r '.selected.tidy["max-changed-lines"]' "$RESOLVED")

@@ -3,15 +3,19 @@
 // (a step summary it cannot). pr-merge.yml runs it after the summary step and
 // uploads what it writes as the `pr-merge-summary` artifact:
 //   run_id, event, live, started_at   the run
-//   candidates                        candidates.json's length (held excluded)
+//   candidates                        the candidates listed, held excluded:
+//                                     candidates.json's length (the gated
+//                                     ones) plus the skipped ones
+//   skipped                           rows the skip step carried
 //   enqueued, merged                  rows the gate enqueued or merged
 //   ready_unmerged                    ready rows a report-only run left alone
 //   refusal_counts                    every other row, by normalized reason
 //                                     (`enqueue failed` for a live ready row)
 //   held                              held.json's length
-//   budget_stop                       {reached, candidates, next_after} when
-//                                     the gate ended green before the last
-//                                     candidate (its only early exit), else null
+//   budget_stop                       {reached, skipped, candidates, next_after}
+//                                     when the gate ended green before the last
+//                                     gated candidate (its only early exit),
+//                                     else null; reached counts gated rows only
 //   results                           the summary rows, blockers trimmed as
 //                                     the step summary trims them
 // A reason is read as the step summary reads it (`.reason // "not ready"`),
@@ -80,17 +84,22 @@ export function summarize({
       : normalizeReason(result.reason);
     refusals.set(key, (refusals.get(key) ?? 0) + 1);
   }
-  const reached = results.length - held.length;
+  // `candidates` is the gated count; the skip step took the carried rows'
+  // candidates out of candidates.json, so the listed count adds them back.
+  const skipped = results.filter((result) => "carried" in result).length;
+  const reached = results.length - held.length - skipped;
   const stopped =
     gateOutcome === "success" &&
     Number.isInteger(candidates) &&
     reached < candidates;
+  const listed = Number.isInteger(candidates) ? candidates + skipped : null;
   return {
     run_id: runId,
     event,
     live,
     started_at: startedAt,
-    candidates,
+    candidates: listed,
+    skipped,
     enqueued,
     merged,
     ready_unmerged: readyUnmerged,
@@ -99,7 +108,8 @@ export function summarize({
     budget_stop: stopped
       ? {
           reached,
-          candidates,
+          skipped,
+          candidates: listed,
           next_after: Number.isInteger(cursor?.last) ? cursor.last : null,
         }
       : null,
