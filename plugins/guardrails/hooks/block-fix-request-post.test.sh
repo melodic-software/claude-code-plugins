@@ -155,6 +155,20 @@ deny "curl -d @- from a heredoc" "curl -s https://api.github.com/repos/o/r/issue
 {\"body\":\"Context\\n$P\"}
 EOF"
 
+# --- 3b. A fence only the guard would see (review on #8448) ------------------
+# The lane opens a fence only on a line starting with up to three spaces and
+# ``` or ~~~ (address-feedback.mjs isFixRequest), so a marker after `x=` or a
+# quote is no fence to it.
+deny "body word with a marker after x=" "gh pr comment 12 --body \$'x=$F\\n$P'"
+deny "echo of a fence before a heredoc body" "echo \"$F\"
+gh pr comment 12 -F - <<EOF
+$P
+EOF"
+mcp "MCP add_issue_comment, marker after x=" mcp__github__add_issue_comment "{\"body\":\"x=$F\\n$P\"}" 2
+deny "unquoted \$(cat file) as the body" "gh pr comment 12 --body \$(cat body.md)"
+deny "backtick cat as the body" "gh pr comment 12 --body \`cat body.md\`"
+deny "here-string fed to --input -" "gh api repos/o/r/issues/1/comments --input - <<< '{\"body\":\"$P\"}'"
+
 # --- 4. The GitHub MCP server's write tools -------------------------------------
 mcp "MCP add_issue_comment" mcp__github__add_issue_comment "{\"owner\":\"o\",\"repo\":\"r\",\"issue_number\":1,\"body\":\"$P\"}" 2
 mcp "MCP add_reply_to_pull_request_comment, plugin server" mcp__plugin_github_github__add_reply_to_pull_request_comment "{\"body\":\"Done.\\n$P\"}" 2
@@ -176,6 +190,8 @@ quiet "gh api -X GET with the phrase as a query field" "gh api -X GET search/iss
 quiet "gh api graphql query, not a mutation" "gh api graphql -f query='query { search(query: \"$P\", type: ISSUE, first: 5) { issueCount } }'"
 quiet "curl to another host" "curl -s https://example.com/hook -d 'body=$P'"
 quiet "curl GET of a GitHub search" "curl -s -G https://api.github.com/search/issues --data-urlencode 'q=$P'"
+quiet "rg of the phrase, then an unrelated post (review on #8448)" "rg -n \"$P\" .github/scripts/pr-unblock/address-feedback.mjs; gh pr comment 12 --body \"Thanks, fixed.\""
+quiet "git log --grep of the phrase, then a post from a plain file" "git log --oneline --grep \"$P\" && gh pr comment 12 --body-file plain.md"
 quiet_plain "git show" "git show HEAD -- .github/scripts/pr-unblock/address-feedback.mjs"
 quiet_plain "gh pr view" "gh pr view 12 --comments"
 

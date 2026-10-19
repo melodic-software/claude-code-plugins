@@ -22,17 +22,22 @@
 #               are read.
 #   GraphQL     through either, only when the query text names a mutation.
 #   MCP         the tool's `body`, and a review's `comments`.
-# The body is read from the command's words, the whole command text (heredocs,
-# `$(cat <<EOF ...)`, pipes), and every file the command names as a body, or
-# feeds through `cat` or `<`. Relative paths resolve against the payload's cwd.
-# A `bash -c`/`sh -c` operand and an `eval` are read as commands too.
+# The body is read from the posting command's own words (a quoted
+# `$(cat <<EOF ...)` stays in its word, and a quoted `$(cat file)` is read) and
+# every file it names as a body. When a posting command reads stdin, holds an
+# unquoted substitution, or runs on PowerShell, the whole command text
+# (heredocs, pipes), here-strings and every file fed through `cat` or `<` are
+# read too. Relative paths resolve against the payload's cwd. A `bash -c`/
+# `sh -c` operand and an `eval` are read as commands too.
 #
 # HOW A BODY IS READ. Case-insensitively, as FIX_REQUEST is, and line by line:
 # a line counts when the phrase starts it, or follows a quote or `=` that opens
 # a value (`--body "PR-fix ...`, `"body":"PR-fix ...`, `body=PR-fix ...`), and
 # is not followed by a letter, digit or `_`. JSON (`\n`, `\u000a`) and URL
-# (`%0A`, `+`) escapes are decoded first. A line inside a ``` or ~~~ fence
-# (either marker toggles it, as the lane does today) does not count, nor does a
+# (`%0A`, `+`) escapes are decoded first. A line inside a fence does not count,
+# with the lane's own fence rule (a line starting with up to three spaces and
+# ``` or ~~~, either marker toggling it), so the guard never sees a fence the
+# lane does not; nor does a
 # line starting `>`, nor a mention later in a line. Doubt resolves to a block:
 # the phrase inside an HTML comment counts, as it does for the lane, and so
 # does a quoted mention mid-line (`see "PR-fix lane: please fix this finding"`).
@@ -107,7 +112,7 @@ _BFR_PHRASE='pr-fix lane: please fix this finding'
 _bfr_q="[\"'=]"
 _BFR_RE_ANY="(["$'\n'"\"'=])${_BFR_PHRASE}([^[:alnum:]_]|\$)"
 _BFR_RE_LINE="^(.*${_bfr_q})?${_BFR_PHRASE}([^[:alnum:]_]|\$)"
-_BFR_RE_FENCE="^(.*${_bfr_q})? {0,3}(\`\`\`|~~~)"
+_BFR_RE_FENCE="^ {0,3}(\`\`\`|~~~)"
 # A 1 MiB read covers a comment body.
 _BFR_MAX_READ=1048576
 
@@ -204,10 +209,13 @@ _bfr_read_to() {
 
 # What the parse collects. A command posts when one segment posts; then every
 # collected text and file is read.
-_BFR_POST=""  # the form of the first posting segment
-_BFR_TEXTS=() # words of posting segments, and here-strings
-_BFR_FILES=() # body files, `cat` operands and `<` targets
-_BFR_STDIN=0  # a posting segment reads stdin
+_BFR_POST=""      # the form of the first posting segment
+_BFR_TEXTS=()     # words of posting segments
+_BFR_FILES=()     # body files of posting segments
+_BFR_STDIN=0      # a posting segment reads stdin
+_BFR_SUBST=0      # a posting segment holds an unquoted substitution
+_BFR_AUX_TEXTS=() # here-strings, read only when stdin or a substitution is
+_BFR_AUX_FILES=() # `cat` operands and `<` targets, likewise
 
 # _bfr_file_operand <value>: record a body file, or stdin for `-`.
 # shellcheck disable=SC2329  # reached from the parse callback
@@ -373,8 +381,8 @@ _bfr_segment() {
   for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
     ((${HOOK_SEG_REDIR_OPAQUE[j]:-0})) && continue
     case "${HOOK_SEG_REDIR_OP[j]}" in
-    '<') _BFR_FILES+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
-    '<<<') _BFR_TEXTS+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
+    '<') _BFR_AUX_FILES+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
+    '<<<') _BFR_AUX_TEXTS+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
     *) ;;
     esac
   done
@@ -411,7 +419,7 @@ _bfr_segment() {
     ;;
   cat | type | get-content | gc)
     for j in "$@"; do
-      [[ "$j" == -* ]] || _BFR_FILES+=("$j")
+      [[ "$j" == -* ]] || _BFR_AUX_FILES+=("$j")
     done
     return 0
     ;;
@@ -442,9 +450,14 @@ _bfr_segment() {
   esac
   [[ -n "$form" ]] || return 0
   [[ -n "$_BFR_POST" ]] || _BFR_POST="$form"
-  _BFR_TEXTS+=("$@")
-  # A quoted `$(cat file)` or `$(<file)` stays inside its word, unparsed.
   local w rest
+  _BFR_TEXTS+=("$@")
+  # An unquoted `$(` or backtick splits the segment there, so its text sits
+  # outside these words: a word left ending in `$` marks one.
+  for w in "$@"; do
+    [[ "$w" == *'$' ]] && _BFR_SUBST=1
+  done
+  # A quoted `$(cat file)` or `$(<file)` stays inside its word, unparsed.
   # shellcheck disable=SC2016  # a regex: `$(` is matched, not expanded
   local re_sub='(\$\(|`)(cat[[:space:]]+|<[[:space:]]*)([^)`]*)'
   for w in "$@"; do
@@ -505,7 +518,18 @@ if [[ -z "$_BFR_POST" ]]; then
   exit 0
 fi
 
-_bfr_carries "$COMMAND" && block "$_BFR_POST"
+# Stdin, a `$(` substitution split out of the posting words, or PowerShell
+# (whose quoting the bash tokenizer only approximates): the body may sit
+# anywhere in the command, so read all of it. A backtick may open a
+# substitution too, but ``` in a fenced body is one as well, so it adds only
+# the files `cat` and `<` name.
+if ((_BFR_STDIN || _BFR_SUBST)) || [[ "$TOOL_NAME" == PowerShell ]]; then
+  _bfr_carries "$COMMAND" && block "$_BFR_POST"
+  _BFR_TEXTS+=(${_BFR_AUX_TEXTS[@]+"${_BFR_AUX_TEXTS[@]}"})
+  _BFR_FILES+=(${_BFR_AUX_FILES[@]+"${_BFR_AUX_FILES[@]}"})
+elif [[ "$COMMAND" == *'`'* ]]; then
+  _BFR_FILES+=(${_BFR_AUX_FILES[@]+"${_BFR_AUX_FILES[@]}"})
+fi
 for _bfr_t in ${_BFR_TEXTS[@]+"${_BFR_TEXTS[@]}"}; do
   _bfr_carries "$_bfr_t" && block "$_BFR_POST"
 done
