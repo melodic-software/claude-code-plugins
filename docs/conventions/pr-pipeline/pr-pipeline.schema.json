@@ -58,6 +58,13 @@
           "maximum": 10,
           "default": 3,
           "description": "fix-ci commits the lanes App pushed to one PR before the next fix-ci run escalates to needs-human, before any model turn."
+        },
+        "hand-fix-attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 2,
+          "description": "Attempts to fix one PR's failing checks, shared by fix-ci and the attended hand-fix session; at the limit the PR gets needs-human and its issue is dispatched again. Declared; no lane reads it yet."
         }
       }
     },
