@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: dg-variations-arrow-blocks
+graders:
+  - name: changed-line-marker
+    type: regex
+    pattern: '►'
+    target: last_message
+  - name: full-section-blocks
+    type: regex
+    pattern: '(?:[\s\S]*?Eighty miles of nothing){3}'
+    flags: 'i'
+    target: last_message
+  - name: labeled-variations
+    type: regex
+    pattern: '(?:[\s\S]*?(?:\b(?:variation|version|option|block|take)\s*#?\s*(?:[1-4]|[A-D])\b|^[ \t>#*_]*\(?(?:[1-4]|[A-D])[.):])){3}'
+    flags: 'im'
+    target: last_message
+  - name: menu-capped-at-four
+    type: regex
+    pattern: '\b(?:variation|version|option|block|take)\s*#?\s*(?:[5-9]|1\d|[E-H])\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message

@@ -9,7 +9,8 @@
 #   --read          print this identity's canonical comment body (empty when it has
 #                   none) and write nothing; the re-anchor read of the state block.
 #   --app-slug SLUG the GitHub App whose installation token gh runs under; its
-#                   writes land as SLUG[bot].
+#                   writes land as SLUG[bot]. Empty, or a literal unsubstituted
+#                   ${user_config.…} placeholder, counts as absent.
 #
 # Only comments written by this script's own write identity count, whoever else
 # posts the public sentinel. The identity is the `gh api user` login when that call
@@ -81,6 +82,7 @@ type -P gh >/dev/null 2>&1 || die 4 "gh not found; nothing written"
 [[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && ! "/$REPO/" =~ /\.+/ ]] ||
   die 3 "--repo must be owner/repo (got '$REPO'); nothing written"
 [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || die 3 "--issue must be a positive integer (got '$ISSUE'); nothing written"
+[[ "$APP_SLUG" == "\${"* ]] && APP_SLUG=""
 [[ -z "$APP_SLUG" || "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
   die 3 "--app-slug must be a GitHub App slug (got '$APP_SLUG'); nothing written"
 

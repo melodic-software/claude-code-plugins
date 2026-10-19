@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Open-question register\n\n- Q1 | open | round 1 | What should checkout show for an undeliverable address? |\n- Q2 | open | round 1 | Is a second address-validation provider known, a category, or speculative? |\n",
+      "why": "the intent question is registered open at ask-time"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no ledger written"
+    },
+    {
+      "answer": "## Open-question register\n\n- Q1 | open | round 1 | What should checkout show for an undeliverable address? |\n",
+      "why": "the register has no intent row"
+    },
+    {
+      "answer": "## Open-question register\n\n- Q1 | answered | round 1 | Is a second provider coming? | auto-assumed: no\n",
+      "why": "the intent row was resolved without the user's answer, not left open"
+    }
+  ]
+}

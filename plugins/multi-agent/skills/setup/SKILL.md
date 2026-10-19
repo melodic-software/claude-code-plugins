@@ -83,7 +83,7 @@ It modifies nothing.
 ### The fan-out guard
 
 With `fanout.frontier_guard: true`, the bundled value, a stage that runs more
-than one agent never runs them on a frontier model: under a Fable or `best`
+than one agent never runs them on a frontier model: under a Fable
 session, or a session the caller did not name, each fan-out variant that would
 inherit or name a frontier model takes `fanout.model` (`opus`) instead. A
 single synthesis or judge agent keeps the role's own model. The basis is

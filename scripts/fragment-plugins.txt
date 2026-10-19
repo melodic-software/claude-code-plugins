@@ -2,6 +2,8 @@
 # a comment. A listed plugin's pull requests add a fragment under
 # .changes/<plugin>/ (scripts/new-changelog-fragment.sh) instead of bumping
 # plugin.json and CHANGELOG.md, and scripts/release-plugins.sh releases it.
+# A name with no plugin and a docs/conventions/<name>/CHANGELOG.md is a
+# convention, released the same way from its newest CHANGELOG heading.
 # Read by scripts/lib/changelog-fragments.sh.
 actionlint
 adhd
@@ -24,9 +26,11 @@ context7
 coupling
 debugging
 desktop-notification
+developer-experience
 discipline
 discovery
 disk-hygiene
+display-redaction
 docs-hygiene
 docs-naming
 domain-driven-design
@@ -67,6 +71,7 @@ playgrounds
 playwright
 plugin-quality
 powershell-format
+pr-pipeline
 prototype
 rate-limit-guard
 repo-fleet-hygiene
@@ -83,6 +88,7 @@ tdd
 testing
 toolchain
 typos-format
+user-experience
 user-interface
 verification
 visualization

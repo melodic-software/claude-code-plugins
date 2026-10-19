@@ -43,7 +43,7 @@ into broader grants (the never-self-retry posture: a denial is a stop, not a sig
 `preflight.sh` only probes `permissions.allow`/`deny` **coverage** for a fixed git/gh verb set. It
 does not, and should not, probe the tracker script's `claim`/`reclaim` verbs (see "The allow floor"
 below for why a hand-maintained tracker-path rule doesn't fit that model). Work-loop self-observation
-`#1381` recorded a denial this preflight has no way to surface: the seam `reclaim` verb was refused
+`#1381` recorded a denial this preflight has no way to surface: the tracker script's `reclaim` verb was refused
 by the auto-mode classifier while the sibling `claim` verb on the same script, invoked moments
 later, was NOT. At the time of writing, **neither** verb carries an explicit
 `permissions.allow`/`deny` rule in the fleet's floor (`standards`
@@ -124,20 +124,39 @@ floor, whose destructive-verb rules are flag-scoped (`git push --force …`) rat
 
 **`settings.local.json` scope on the autonomous path.** The preflight treats the **main
 checkout's** `.claude/settings.local.json` as shared by the repository's linked worktrees, because
-that is where a "Yes, don't ask again" approval lands on the harness versions this plugin targets
-when Claude Code uses the repository root. It does not hold everywhere: on some platforms and
-layouts the approval stays with the worktree it was granted in, and the preflight does not detect
-that case (read which cases from the pointer below).
+that is where a "Yes, don't ask again" approval lands when Claude Code uses the repository root,
+which it does from **v2.1.211** (the floor; the preflight never probes the running version and has
+no version branch). It does not hold everywhere: the approval stays with the worktree it was granted
+in on Windows, when the repository root is the user's home directory, and when the repository root
+or its `.git` or `.claude` entry is not owned by the user. The preflight detects those three cases
+(also outside a git repository, which cannot apply to a linked worktree):
+
+- **Windows**: `uname -s` matching `MINGW*`, `MSYS*` or `CYGWIN*` (`PREFLIGHT_UNAME` injects it for
+  tests).
+- **Root equal to `$HOME`**: the verified main checkout's root, compared after the same path folding
+  the coverage checks use, and again as physical paths, so a symlinked `$HOME` matches.
+- **Root not owned by the user**: the owner (`stat`) of the root, its `.git` or its `.claude` entry
+  differs from `id -u` (for tests `PREFLIGHT_UID` overrides the current uid, and
+  `PREFLIGHT_OWNER_ROOT`, `PREFLIGHT_OWNER_GIT` or `PREFLIGHT_OWNER_CLAUDE` one entry's owner).
+
+In any of those layouts only the **worktree's own** `settings.local.json` is credited; the main
+checkout's file is not, and the report opens with a `per-worktree approvals layout (<causes>)` line.
+Deny rules keep reading the main checkout's file, erring wide as everywhere else. When the layout
+cannot be determined (the platform, an owner or the current uid is unreadable, or neither `HOME` nor
+`USERPROFILE` is set) the main checkout's file is likewise not credited, the layer is reported
+`UNREAD LAYER`, and the summary is `PREFLIGHT: INCOMPLETE`, never `OK`.
 
 - **Pointer**: when checking where a saved approval lands and which sessions it reaches, fetch
-  [permissions § Permission system](https://code.claude.com/docs/en/permissions#permission-system)
-  and [worktrees § What worktrees share with the main checkout](https://code.claude.com/docs/en/worktrees#what-worktrees-share-with-the-main-checkout)
-  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes where "Yes, don't ask
-  again" saves the rule, how it resolves through worktrees, or which cases keep it in the worktree.
+  [permissions § Permission system](https://code.claude.com/docs/en/permissions#permission-system),
+  [worktrees § What worktrees share with the main checkout](https://code.claude.com/docs/en/worktrees#what-worktrees-share-with-the-main-checkout)
+  and [settings § Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
+  live. **As of**: 2026-10-18. **Recheck trigger**: any of these sections changes where "Yes, don't
+  ask again" saves the rule, how it resolves through worktrees, or the list of cases that keep the
+  file with the worktree.
 
 Where the shared save applies, the main
 checkout's local file is therefore part of a fresh worker worktree's effective settings, and the
-preflight reads it in **every** mode, but only once it has **verified** which directory that is.
+preflight credits it in **every** mode, but only once it has **verified** which directory that is.
 
 **Resolving the main checkout.** Candidates are proposed cheapest-first and each is put through one
 predicate before it is trusted; a candidate that fails is discarded, never named. The predicate has
@@ -184,10 +203,11 @@ that worktree. Two cases:
 
 **Two residual limits apply to BOTH modes above.**
 
-- **Older harness: MASKING.** On a Claude Code version that predates the repository-wide save (the
-  pointer above names the version), a worktree session loads its own local file, not the main
+- **Older harness: MASKING.** On a Claude Code version before v2.1.211, which predates the
+  repository-wide save, a worktree session loads its own local file, not the main
   checkout's, so crediting a main-local-only grant suppresses a gap the worker really hits. Nothing
-  in the preflight detects it: it never probes the running Claude Code version. This is a floor on
+  in the preflight detects it: it never probes the running Claude Code version, and versions below
+  the floor are out of scope. This is a floor on
   the *harness*, not on the repository layout, so wherever the installed Claude Code saves
   repository-wide it is a documentation-completeness matter rather than a live defect.
   Observation: the machine this was verified against ran v2.1.222.
@@ -206,7 +226,7 @@ that worktree. Two cases:
   layout. So the preflight resolves to `<path>`: **git's own answer**, arrived at by verification
   rather than by string arithmetic. Where the operator intended a different directory to be the
   working tree, the layout is ambiguous at the git level and no consumer of git can do better.
-  Two consequences worth knowing: `--separate-git-dir "$HOME/.git"` makes `$HOME` the main checkout
+  Two consequences: `--separate-git-dir "$HOME/.git"` makes `$HOME` the main checkout
   by git's reckoning, so the operator's own `~/.claude/settings.local.json` is genuinely in scope for
   that repository; and a spelling that is *not* `<something>/.git` (a separate git dir under any
   other name) yields no candidate at all. That is the **unresolved** outcome above, which is
@@ -298,7 +318,10 @@ It is report-only and always exits `0`. Each output line is one of:
   was not read and the findings are incomplete: a grant there is not credited (a verb may be
   over-reported) and a deny there is not reported at all. The summary is then
   `PREFLIGHT: INCOMPLETE …` rather than `OK`. Re-run from the main checkout, or pass `--project-root`
-  naming it, to read that layer.
+  naming it, to read that layer. The same line and summary report an undeterminable approvals
+  layout (above), where the layer was read but not credited.
+- `PREFLIGHT: per-worktree approvals layout (…)`: Windows, a root equal to `$HOME`, or a root not
+  owned by the user, so only the worktree's own `settings.local.json` is credited.
 
 `--count` prints just the integer GAP count (NOTEs excluded) for a scripted gate. An unread layer is
 not a gap, so the count is unchanged by it. Read the summary line, not only the count. Surface any gap

@@ -247,8 +247,18 @@ Verified 2026-07-22 via a research fan-out over official documentation; re-fetch
 before relying on a time-sensitive detail, and recheck when the interactive-mode page changes
 what terminal Markdown rendering covers.
 
-- Terminal Markdown rendering (code-block syntax highlighting, hyperlinks):
-  `https://code.claude.com/docs/en/interactive-mode.md`.
+- Terminal Markdown rendering (code-block syntax highlighting, hyperlinks): the page documents the
+  syntax-highlighting toggle and clickable issue references, but no general statement about
+  rendered Markdown or its construct set (tables, headings, lists, links), which stays undocumented.
+  - **Pointer**: for syntax highlighting, fetch
+    [Interactive mode: Theme and display](https://code.claude.com/docs/en/interactive-mode#theme-and-display)
+    (the `Ctrl+T` row, which works inside the `/theme` picker); for clickable issue references,
+    fetch
+    [Issue reference links](https://code.claude.com/docs/en/interactive-mode#issue-reference-links)
+    live.
+  - **As of**: 2026-10-18
+  - **Recheck trigger**: the page adds a section that enumerates the Markdown constructs the
+    terminal renders, or changes either section above.
 - Mermaid emitted as source, not terminal-rendered (verified 2026-09-04): no
   official page documents terminal mermaid rendering. Absence checked in
   `https://code.claude.com/docs/en/interactive-mode.md` and

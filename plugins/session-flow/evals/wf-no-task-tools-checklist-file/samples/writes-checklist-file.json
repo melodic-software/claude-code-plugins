@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": ".work/currency-filter/workflow-checklist.md", "content": "# Workflow Checklist\n\n- [ ] 1. Explore\n"}}
+      ],
+      "why": "checklist written under the memory-tier slice"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "templates/checklist.md"}},
+        {"tool": "Write", "input": {"file_path": "/work/.work/report/workflow-checklist.md", "content": "- [ ] 1. Explore\n"}}
+      ],
+      "why": "template read first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool calls"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": ".work/currency-filter/workflow-checklist.md"}}
+      ],
+      "why": "reads the file instead of writing it"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "notes.md", "content": "stages"}}
+      ],
+      "why": "writes a different file"
+    }
+  ]
+}
