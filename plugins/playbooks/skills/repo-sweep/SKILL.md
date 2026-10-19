@@ -41,7 +41,8 @@ melodic-software/.github#153), recorded in
 since changed which Bash forms isolation refuses, but neither the section below nor the release
 notes read through Claude Code 2.1.296 name these three forms, so all three stay unverified and
 the conservative procedure stays. Not re-probed in a live isolated session. The procedure files
-point here for these shapes.
+point here for these three forms; `/source-control:worktree` owns the general accepted shapes,
+under "Accepted command shapes for body-time and subagent Bash".
 
 - **Pointer**: when deciding which Bash forms an isolated session accepts, fetch
   <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> live.

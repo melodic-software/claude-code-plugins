@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | CRITICAL | high | Injection | SQL injection (CWE-89): `q` is concatenated into the LIKE clause. | src/routes/search.js:8 | Bind the term with a `?` placeholder |",
+      "why": "class then file on one row"
+    },
+    {
+      "answer": "Blocking: src/routes/search.js builds its query from the q parameter, an SQL-injection path to the users table.",
+      "why": "file then class"
+    },
+    {
+      "answer": "P1 SQLi in routes/search.js through the q parameter.",
+      "why": "short form"
+    }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    {
+      "answer": "SQL injection risk in the new search endpoint.",
+      "why": "names the class but no file"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | Secrets | Hardcoded admin token. | src/routes/admin.js:5 | Move it to configuration |",
+      "why": "a different finding in the phase-1 file"
+    }
+  ]
+}

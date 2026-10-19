@@ -38,6 +38,16 @@ never used in its place. An invalid value never stops the run.
 | `plan_store` | `local`, `tracker` | `local` | `/planning:plan`, final persist step: `tracker` also publishes the approved plan to the claimed work item through `/work-items:track publish-plan` | repository file over user config over default |
 | `phase_order` | `composed`, `subtraction-first`, `riskiest-first` | `composed` | `/planning:plan` Step 2, after build-technique selection: the order of the plan's phases | repository file over user config over default |
 | `scaffold_stubs` | `true`, `false` (bare YAML booleans; a quoted `"true"` is invalid) | `false` | `/planning:design` handoff: names the stub files and their signatures; `/planning:plan` Step 2: places the stub phase | repository file over user config over default |
+| `shared_session.uploads` | `true`, `false` | `false` | `/planning:interview` shared lane, at start: guests may offer files | repository file over default |
+| `shared_session.names` | `full`, `initials`, `someone` | `full` | same: what guests see of who answered and voted | repository file over default |
+| `shared_session.digest_names` | `true`, `false` | `false` | same: whether the round sent to Claude names who answered, except people a question is aimed at, who are always named | repository file over default |
+| `shared_session.claude_take` | `answer-first`, `always` | `answer-first` | same: when people see Claude's suggestion cards | repository file over default |
+| `shared_session.voting` | `true`, `false` | `true` | same: people vote on answers | repository file over default |
+| `shared_session.signoff` | `true`, `false` | `false` | same: a leader's lock needs everyone's agreement | repository file over default |
+| `shared_session.chat` | `true`, `false` | `true` | same: the side chat, never sent to Claude | repository file over default |
+| `shared_session.follow` | `true`, `false` | `true` | same: pages move to a new round when it arrives | repository file over default |
+| `shared_session.accent` | `teal`, `indigo`, `violet`, `amber` | `teal` | same: the page's accent color | repository file over default |
+| `shared_session_open_browser` | `true`, `false` | `true` | same: opens the owner's page in the browser at start | user config over default |
 
 `phase_order` values, in phase order:
 
@@ -55,3 +65,9 @@ file with the signatures it declares, and `/planning:plan` makes those stubs one
 after the dead-code removal step, or first when the plan has none. A stub body is the language's
 ordinary not-implemented form. When the stubs leave the build red, that phase carries a
 `**Planned breakage:**` line naming the stub paths. `false` adds no stub phase.
+
+The `shared_session.*` keys sit under one `shared_session` object in the repository file and have
+no user-config option. The interview's shared lane resolves them once, when it starts a session,
+and writes them into that session's data folder; the server reads them only when it first creates
+the session's state, so later edits reach new sessions, and a running session changes from its Host
+view.
