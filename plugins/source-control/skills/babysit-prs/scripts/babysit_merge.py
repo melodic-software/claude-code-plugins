@@ -3000,6 +3000,15 @@ def score_unattended(
         if inputs.get("authority") == merge_policy.PR_MERGE
         else {}
     )
+    # Read at the base SHA, so a pull request cannot drop its own declaration:
+    # every plugin's from a clone holding the base, else only the plugins its
+    # changed files sit in.
+    changed = [path for f in files for path in (f.path, f.previous_path)]
+    declarations = (
+        merge_policy.declarations_at(repo, pr, changed)
+        if lane_switches.get("high_floor", True)
+        else ()
+    )
     risk = babysit_risk.score(
         babysit_risk.RiskInput(
             work_class=eligible.work_class,
@@ -3012,6 +3021,7 @@ def score_unattended(
             floor_script_scopes=config.floor_script_scopes,
             # The floor additions follow the switch in every lane.
             floor_extensions=config.high_path_floor,
+            declarations=declarations,
             lanes=lanes,
             blast_radius=None,
             **lane_switches,

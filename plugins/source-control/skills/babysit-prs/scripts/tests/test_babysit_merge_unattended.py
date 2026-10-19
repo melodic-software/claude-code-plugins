@@ -726,6 +726,7 @@ class Unattended(unittest.TestCase):
                 side_effect=self._dependabot_eligibility,
             ),
             mock.patch.object(policy, "changed_files", return_value=self.files),
+            mock.patch.object(policy, "declarations_at", return_value=()),
             mock.patch.object(
                 policy,
                 "entry_hold",

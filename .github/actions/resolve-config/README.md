@@ -19,13 +19,16 @@ effort, turn budget) and the App token grant. The config's contract is the
 | `pr-number` | empty | `check-trusted-trigger`'s `pr-number` output |
 | `head-sha` | empty | The gated head SHA; a `mergeable` predicate needs it |
 | `prepare-supported` | `false` | `true` only from a runner that performs a leaf's `prepare` step |
+| `applied-by-supported` | empty | The `applied-by` keys this runner hands on, comma- or space-separated; `pr-run-activity-read.yml` passes `patch` |
 | `github-token` | `${{ github.token }}` | Read-only; used only when a predicate needs the PR's labels, draft state, mergeability or changed files |
 
 It reads, all under `base-path`: the config, `docs/conventions/pr-pipeline/pr-pipeline.schema.json`
 and `.github/standards/github-actions-conventions/vocabulary.json`. The lane rules
 ([`lane-rules.json`](lane-rules.json)), per-leaf rules ([`activity-rules.json`](activity-rules.json))
-and effect grants ([`effect-grants.json`](effect-grants.json)) ship in this folder, which a lane
-runs from its own base checkout.
+effect grants ([`effect-grants.json`](effect-grants.json)) and patch rules
+([`patch-rules.json`](patch-rules.json), validated by
+[`patch-rules.schema.json`](patch-rules.schema.json)) ship in this folder, which a lane runs from its
+own base checkout.
 
 ## What it rejects
 
@@ -53,11 +56,24 @@ The step fails and writes no file when:
 9. An activity is named `run` or `report`, the runner's own job names.
 10. A composite contains itself, directly or through another (`activity-cycle`), or holds a
     composite, which would put a leaf more than two layers below its lane (`activity-depth`).
-11. A leaf whose effect is `read` sets `prepare` (`invalid-prepare`).
+11. A leaf sets `prepare` with an effect its mode does not take: `ci-context` needs `read`,
+    `apply-patch` `mutate-branch`, the others an effect other than `read` (`invalid-prepare`).
 12. The selected leaf applies and sets `prepare`, and `prepare-supported` is not `true`: the
     runner would run the skill without its prepare step. The action checks this; `resolveGrant`
     does not.
-13. `models.default-profile` or a route names a profile `models.profiles` does not define
+13. An `applied-by` target is not a script activity, a `patch` target does not set
+    `prepare: apply-patch`, or a lane that holds the producer lacks the target or its slot does not
+    `needs` the producer (`invalid-applied-by`).
+14. The patch rules or their schema are missing, fail the schema, or a row does not refuse the
+    universal set, commits with the base as a parent with an `allow` other than exactly
+    `[merge-result]`, or a patch-producing activity's prepare mode has no row (`patch-rules`). The
+    action checks this right after `loadConfig` (rejections 1-11, 13 and 16) and before it gathers
+    any fact or resolves a slot, for every lane; rejections 12 and 15 come after the slot
+    resolves. `loadConfig` and `resolveGrant` do not check the patch rules, so the token broker
+    never reads these files.
+15. The selected leaf applies and its `applied-by` sets a key `applied-by-supported` does not name
+    (`applied-by-unsupported`). The action checks this; `resolveGrant` does not.
+16. `models.default-profile` or a route names a profile `models.profiles` does not define
     (`undefined-profile`), or a route key is neither a skill activity nor a run route
     (`verify-pr`, `review-code`, `review-security`, `triage-issue`, `summarize-reuse`; `undefined-route`), so a mistyped route cannot quietly take the default.
 
@@ -85,7 +101,7 @@ an `issues` event cannot be decided and fails the step.
 
 The file at `output-path` holds `version`, `source` (`base-path`, `config-path`), `lane` (name,
 stage, enabled, and every slot resolved), `selected` (the requested activity's slot, or null),
-`loop`, `limits` and `merge`. Every default is applied: `scope` `diff`, `enabled` true, `loop` 2 and 3,
+`loop`, `limits` and `merge`. A slot whose activity sets `applied-by` carries it. Every default is applied: `scope` `diff`, `enabled` true, `loop` 2 and 3,
 the `limits` ([README, Limits](../../../docs/conventions/pr-pipeline/README.md#limits)),
 `merge.rung` `off`, `stack-landing` `manual`. A skill slot carries `models`: its profile name and
 that profile's `model`, `effort` (null when unset), `subagent-model` (`inherit` when unset) and
@@ -122,8 +138,9 @@ grant would mint a token with every App permission.
 A slot whose activity declares the `changed-paths` input and applies also carries
 `changed-paths`: the PR's changed files the head still holds, filtered as the
 [skill activities contract](../../../docs/conventions/pr-pipeline/pr-run-activity.md#skill-activities)
-states. It selects what the activity is asked to work on and is not a control; for a write effect
-it leaves out instruction surfaces and every path in the base `.github/CODEOWNERS`. An empty
+states. It selects what the activity is asked to work on and is not a control; for a write effect,
+or a skill whose `applied-by` sets `patch`, it leaves out instruction surfaces and every path in
+the base `.github/CODEOWNERS`. An empty
 result turns the slot into `not-applicable-paths`. Declaring the
 input makes the reader fetch the PR's files even without a `paths` predicate.
 
@@ -151,13 +168,16 @@ and `effort` for that route.
 `resolve.mjs` exports `resolveGrant(files, { lane, activity, configPath })` for the token broker,
 which fetches `effect-grants.json` and `lane-rules.json` from this repository's default-branch tip
 and decides a lane's App token grant through it. It runs the same file checks as the action
-(rejections 1-11 and 13 above) and the effect-grant check, for one required leaf `activity`, and returns
+(rejections 1-11, 13 and 16 above) and the effect-grant check, for one required leaf `activity`, and returns
 `{ effect, grant }`, where `grant` is a frozen copy of the effect's row in `effect-grants.json`. A
 slot whose lane or slot sets `enabled: false` gets no grant: it rejects with `slot-disabled`. It
 decides no `applies-when` predicate, so it takes no facts. `applies-when` is not an authorization
 control: it decides whether a slot runs, never what its token may do. Like `resolve()`, it throws
 a `Rejection` whose `code` names the failure. `files.activityRules` is required: a caller that
-passes none is rejected with `activity-rules`.
+passes none is rejected with `activity-rules`. The broker passes only the files its
+`binding.mjs` lists, so a file `loadConfig` comes to need must join that list, and the
+`test_files` list of azure-iac's `scripts/deploy/fetch-resolve-config.sh`, in the same pin bump;
+[`broker-vendoring.test.mjs`](broker-vendoring.test.mjs) checks both against a copy of those lists.
 
 ## Job contract
 
