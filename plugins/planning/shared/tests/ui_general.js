@@ -86,12 +86,16 @@ async function main() {
       && li.querySelector(".vf-msent")?.textContent === "Sent to Claude · Answered"), ASK));
     // ---------- a shared answer whose chat message chat no longer keeps still opens, in Ask Claude ----------
     // Ann's page reads the answer's message as one the server never kept, so GET /api/chat?around= answers 404.
-    await ann.route(/\/api\/state\?/, async route => {
-      const res = await route.fetch(), body = await res.text();
-      let j; try { j = JSON.parse(body); } catch { return route.fulfill({ response: res, body }); }
-      for (const x of j.results?.session || []) if (x.msg) x.msg = "M999999";
-      return route.fulfill({ response: res, body: JSON.stringify(j) });
-    });
+    // A poll still in flight when the page reloads is aborted under the handler, so fetch or fulfill can throw.
+    const lostMsg = async route => {
+      try {
+        const res = await route.fetch(), body = await res.text();
+        let j; try { j = JSON.parse(body); } catch { return await route.fulfill({ response: res, body }); }
+        for (const x of j.results?.session || []) if (x.msg) x.msg = "M999999";
+        await route.fulfill({ response: res, body: JSON.stringify(j) });
+      } catch { /* the request was aborted or already answered */ }
+    };
+    await ann.route(/\/api\/state\?/, lostMsg);
     await ann.reload();
     await until(ann, () => (window.Core.state.research.session || []).some(x => x.msg === "M999999"), null, 10000);
     await openInbox(ann);
