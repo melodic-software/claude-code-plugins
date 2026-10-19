@@ -12,6 +12,12 @@ name: post-merge-demotion-alert
 # record from each filer; both hold the rung off. This workflow merges,
 # reverts and dequeues nothing.
 #
+# Only a failure whose merges include one the lanes App put in the merge queue
+# demotes. When every merge in the failing range was enqueued by someone else
+# (a person, a release App), the issue's first line is `<!-- post-merge-failure
+# sha=<S> signal=<name> -->` instead: still needs-human, but no reader treats
+# it as a demotion. Anything the lookup cannot prove demotes.
+#
 # A red full run files only after one re-run of its failed jobs, which the
 # job waits up to 20 minutes for, fails again or does not finish, and only for checks that were not already failing on main's newest
 # completed run of the same event at an earlier SHA (babysit_postmerge.py
@@ -23,8 +29,8 @@ name: post-merge-demotion-alert
 # Test: scripts/post-merge-demotion-alert.test.sh runs the step body.
 
 on:
-  # The job checks out nothing, runs no action, and holds a token that can
-  # write issues only, so no code from the triggering run executes here. The
+  # The job checks out nothing and runs no action, so no code from the
+  # triggering run executes here. The
   # step reads the event's fields through env and acts only on runs of this
   # repository's main branch.
   workflow_run: # zizmor: ignore[dangerous-triggers]
@@ -43,6 +49,8 @@ jobs:
       issues: write # file the demotion issue or comment on it
       actions: write # re-run a red full run's failed jobs; read jobs and runs
       checks: read # read the hygiene aggregator's annotations
+      contents: read # read merge.agent-identity from main's pr-pipeline.yaml
+      pull-requests: read # read each merged PR's merge-queue event
     # One group per signal and SHA, so two attempts of one run cannot both
     # find no record and file two.
     concurrency:
@@ -193,7 +201,90 @@ jobs:
           sighting="$RUN_URL/attempts/$RUN_ATTEMPT"
           again='The post-merge check found this failure again: '
 
+          # A full run covers every first-parent commit since main's last
+          # green full run, so the failure is charged to that whole range.
+          range=()
+          declare -A parent=() entry=()
+          if [[ "$signal" != canary ]]; then
+            base="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&created=%3C$RUN_CREATED&per_page=100" \
+              --jq '[.workflow_runs[] | select(.head_branch == "main" and (.event | IN("schedule", "workflow_dispatch"))
+                and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
+                | max_by(.created_at) // empty | .head_sha')" || base=''
+            if [[ "$base" =~ ^[0-9a-f]{40}$ ]]; then
+              commits="$(gh api "repos/$GITHUB_REPOSITORY/compare/$base...$RUN_SHA" \
+                --jq '.commits[] | [.sha, (.parents[0].sha // "none"), (.author.login // .commit.author.name // "unknown"),
+                  (.commit.message | split("\n")[0])] | @tsv')" || commits=''
+              while IFS=$'\t' read -r c p a s; do
+                if [[ -n "$c" ]]; then
+                  parent[$c]="$p"
+                  entry[$c]="$a"$'\t'"$s"
+                fi
+              done <<<"$commits"
+              at="$RUN_SHA"
+              while [[ -n "$at" && "$at" != "$base" && -n "${entry[$at]+x}" ]]; do
+                range=("$at" "${range[@]}")
+                at="${parent[$at]}"
+              done
+              if [[ "$at" != "$base" ]]; then
+                range=()
+              fi
+            fi
+          fi
+
+          # Only a merge the lanes App put in the merge queue demotes the
+          # lane: the test babysit_merge_policy.derive_auto_merge applies, the
+          # agent identity as the actor or enqueuer of each PR's latest
+          # AddedToMergeQueueEvent (never the commit author, which a lane merge
+          # of a human's PR does not carry). Anything unproven demotes: a canary
+          # or an unknown range, a commit with no (#N) subject, an unreadable
+          # identity, or a failed lookup. One GraphQL call covers the range,
+          # made only when a new issue is filed (classify, below).
+          lane=1
+          classify() {
+          if [[ "${#range[@]}" -gt 0 && "${#range[@]}" -le 100 ]]; then
+            identity="$(gh api -H 'Accept: application/vnd.github.raw' \
+              "repos/$GITHUB_REPOSITORY/contents/docs/conventions/pr-pipeline.yaml?ref=main" |
+              sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: \([^[:space:]]*\)[[:space:]]*$/\1/p')" || identity=''
+            declare -A numbers=()
+            missing=''
+            for c in "${range[@]}"; do
+              s="${entry[$c]#*$'\t'}"
+              if [[ "$s" =~ \(#([0-9]+)\)$ ]]; then
+                numbers[${BASH_REMATCH[1]}]=1
+              else
+                missing=1
+              fi
+            done
+            if [[ "$identity" =~ ^[A-Za-z0-9-]+(\[bot\])?$ && -z "$missing" ]]; then
+              fields=''
+              for n in "${!numbers[@]}"; do
+                fields="$fields p$n: pullRequest(number: $n) { timelineItems(itemTypes: [ADDED_TO_MERGE_QUEUE_EVENT], last: 1) {
+                  nodes { ... on AddedToMergeQueueEvent { actor { __typename login } enqueuer { __typename login } } } } }"
+              done
+              query="query(\$owner: String!, \$name: String!) { rateLimit { cost remaining }
+                repository(owner: \$owner, name: \$name) { $fields } }"
+              verdicts="$(IDENTITY="$identity" gh api graphql -f query="$query" \
+                -f owner="${GITHUB_REPOSITORY%%/*}" -f name="${GITHUB_REPOSITORY#*/}" \
+                --jq 'def key: ((.login // "") | ascii_downcase)
+                    + (if .__typename == "Bot" and ((.login // "") | endswith("[bot]") | not) then "[bot]" else "" end);
+                  "cost \(.data.rateLimit.cost) remaining \(.data.rateLimit.remaining)",
+                  (.data.repository | to_entries[] | .value.timelineItems.nodes[-1]? // null
+                    | if . == null then "unproven"
+                      elif any(.actor, .enqueuer; key == (env.IDENTITY | ascii_downcase)) then "lane"
+                      else "other" end)')" || verdicts=''
+              echo "merge-queue lookup for ${#numbers[@]} pull requests: ${verdicts%%$'\n'*}"
+              others="$(grep -cx other <<<"$verdicts" || true)"
+              if [[ "$verdicts" == cost* && "$others" -eq "${#numbers[@]}" ]]; then
+                lane=''
+              fi
+            fi
+          fi
+          }
+
+          # An existing record is found by either marker, so an attempt whose
+          # lookup would answer differently still updates the record filed first.
           marker="<!-- babysit-merge-demotion sha=$RUN_SHA signal=$signal -->"
+          failure_marker="<!-- post-merge-failure sha=$RUN_SHA signal=$signal -->"
           # Records are read by their filer, github-actions[bot], which is any
           # workflow's GITHUB_TOKEN: an issue a user opens with the marker
           # cannot stand in for this one.
@@ -208,7 +299,7 @@ jobs:
           state=''
           filed=''
           while IFS=$'\t' read -r n s first failing; do
-            if [[ "$first" == "$marker" ]]; then
+            if [[ "$first" == "$marker" || "$first" == "$failure_marker" ]]; then
               number="$n"
               state="$s"
               filed="$failing"
@@ -251,33 +342,78 @@ jobs:
             exit 0
           fi
 
+          classify
+          if [[ -z "$lane" ]]; then
+            marker="$failure_marker"
+          fi
+          pulls="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull"
           subject="${RUN_COMMIT_MESSAGE%%$'\n'*}"
           pr='unknown (the head commit names none)'
-          title="Post-merge $signal failure at ${RUN_SHA:0:12}: unattended merging demoted"
+          outcome="unattended merging demoted"
+          if [[ -z "$lane" ]]; then
+            outcome="lane not demoted"
+          fi
+          title="Post-merge $signal failure at ${RUN_SHA:0:12}: $outcome"
           if [[ "$subject" =~ \(#([0-9]+)\)$ ]]; then
-            pr="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull/${BASH_REMATCH[1]}"
-            title="Post-merge $signal failure after #${BASH_REMATCH[1]}: unattended merging demoted"
+            pr="$pulls/${BASH_REMATCH[1]}"
+            title="Post-merge $signal failure after #${BASH_REMATCH[1]}: $outcome"
           fi
           sha_label='Main at the failing run'
           if [[ "$signal" == canary ]]; then
             sha_label='Merge commit'
           fi
           fence='```'
-          body="$marker
-
-          The post-merge check found a \`$signal\` failure on main. The unattended merge path stays at
-          rung off until a human closes this issue directly (not through a pull request's closing keyword).
-
-          - Pull request: $pr
-          - $sha_label: \`$RUN_SHA\`
-          - Failing run: $sighting${newly:+
-          - Newly failing: $newly}
-
-          To revert the merge, a human runs:
+          lead="The post-merge check found a \`$signal\` failure on main."
+          revert="To revert the merge, a human runs:
 
           ${fence}sh
           git revert $RUN_SHA
           ${fence}"
+          pr_line="- Pull request: $pr
+          "
+          if [[ "${#range[@]}" -gt 1 ]]; then
+            lead="$lead It is attributed to the range of ${#range[@]} merges since main's last green full run at \`$base\`, not to one pull request."
+            pr_line="- Merges in the range, oldest first:
+          "
+            first='' last=''
+            for c in "${range[@]}"; do
+              IFS=$'\t' read -r a s <<<"${entry[$c]}"
+              name="${c:0:12}" link="no pull request ($s)"
+              if [[ "$s" =~ \(#([0-9]+)\)$ ]]; then
+                name="#${BASH_REMATCH[1]}" link="$pulls/${BASH_REMATCH[1]}"
+              fi
+              first="${first:-$name}" last="$name"
+              pr_line="$pr_line  - $link, merge commit \`$c\`, by $a
+          "
+            done
+            title="Post-merge $signal failure after $first..$last: $outcome"
+            revert='A human reads the failing suites in the run above, picks the merge responsible, and reverts that one.'
+          elif [[ "$signal" != canary && "${#range[@]}" -eq 0 ]]; then
+            lead="$lead The last green full run on main before this one could not be found, so the merges this failure covers are unknown; only the head commit is listed."
+            revert='A human reads the failing suites in the run above and finds the merge responsible before reverting anything.'
+          fi
+          rung="The unattended merge path stays at
+          rung off until a human closes this issue directly (not through a pull request's closing keyword)."
+          if [[ -z "$lane" ]]; then
+            rung='No merge in it was put in the merge queue by the lanes App, so the lane is NOT demoted and keeps merging; a human fixes main.'
+            if [[ "${#range[@]}" -eq 1 ]]; then
+              pr_line="- Pull request: $pr, by ${entry[${range[0]}]%%$'\t'*}
+          "
+            fi
+          fi
+          body="$marker
+
+          $lead $rung
+
+          $pr_line- $sha_label: \`$RUN_SHA\`
+          - Failing run: $sighting${newly:+
+          - Newly failing: $newly}
+
+          $revert"
           gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
             -f title="$title" -f body="$body" -f 'labels[]=needs-human' >/dev/null
-          echo "filed the $signal demotion issue for $RUN_SHA"
+          kind='demotion issue'
+          if [[ -z "$lane" ]]; then
+            kind='post-merge-failure issue (lane not demoted)'
+          fi
+          echo "filed the $signal $kind for $RUN_SHA"
