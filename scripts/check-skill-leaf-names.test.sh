@@ -125,6 +125,18 @@ else
   fail "wildcard entry should pass (rc=$rc): $out"
 fi
 
+# 5f. A leaf name registered twice fails, even when one entry matches. The
+#     registry merges with merge=union, so two branches that each change one
+#     entry leave both lines behind, and neither may silently win.
+printf 'shared alpha,beta\nshared alpha,beta,gamma\n' >"$REGISTRY"
+out="$(run --check)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'registers shared more than once' <<<"$out"; then
+  ok "a leaf name registered twice fails"
+else
+  fail "duplicate registry entry should fail (rc=$rc): $out"
+fi
+
 # 6. Stale guard: a registry entry that no longer collides fails, under the one
 #    STALE BASELINE prefix scripts/lib/read-list.sh owns for every list gate.
 printf 'shared\nvanished\n' >"$REGISTRY"

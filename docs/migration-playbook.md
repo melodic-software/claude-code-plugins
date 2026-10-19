@@ -389,6 +389,10 @@ description, optional `files` fixtures, and an `expectations` array of objective
 cover trigger/routing, the happy path, at least one refusal/guardrail, and one anti-pattern the skill
 must not do.
 
+Give a new case a slug `id`, the same kebab-case text as its `name`, never the next integer: two
+pull requests that each take the next number collide on merge. The schema accepts integer and
+string ids and the quality lint requires only that they are unique, so existing integer ids stay.
+
 **Method source.** The methodology behind this policy is Anthropic's "Define success criteria and
 build evaluations" ([indexed in official-docs.md](official-docs.md#evaluation-guidance-platform-docs);
 the `evals` plugin distills it). The rich form is that guidance's eval anatomy with the golden
