@@ -422,7 +422,8 @@ def _open_findings(
     a whole-review link counts the most findings any completed whole review
     of its head reported, and every link counts the most inline findings
     left without a thread by any review of its kind (whole or incremental)
-    at its head.
+    at its head. A link counts only reviews of its own kind at its head, so
+    the other kind's thread-less inline findings at that head drop.
 
     A resolved thread is closed when:
     - a human resolved it;

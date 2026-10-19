@@ -1028,6 +1028,37 @@ class CoveringReviewTests(Base):
         )
         self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 1)
 
+    def test_threadless_inline_finding_of_an_earlier_chain_link_counts(
+        self,
+    ) -> None:
+        runs = self.two_reviews(
+            "findings=1 inline=1 scope=whole",
+            f"findings=0 inline=0 scope=incremental since={S0}",
+        )
+        self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 1)
+
+    def test_threadless_inline_finding_of_the_other_kind_at_the_head_drops(
+        self,
+    ) -> None:
+        # At S: a whole review left a thread-less inline finding, then the
+        # newest run, an incremental review back to the whole one at S0.
+        runs = [
+            whole("claude-review", S0),
+            run(
+                "claude-review",
+                S,
+                "findings=1 inline=1 scope=whole",
+                created="2026-01-01T01:00:00Z",
+            ),
+            run(
+                "claude-review",
+                S,
+                f"findings=0 inline=0 scope=incremental since={S0}",
+                created="2026-01-01T02:00:00Z",
+            ),
+        ]
+        self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 0)
+
     def test_threadless_inline_finding_of_a_same_head_whole_rerun_counts(
         self,
     ) -> None:
