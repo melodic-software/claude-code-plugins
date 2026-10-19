@@ -942,8 +942,13 @@
     for (const [k, label] of [["ask", "Ask"], ["research", "Research"]]) {
       const b = btn("vf-seg-btn", label); b.onclick = () => { ui.askKind = k; renderAsk(); }; askSeg.append(b); askKinds[k] = b;
     }
+    // Follow-up item 2: a guest asks in one box, and Claude works out the kind of request and says what it did; "Use the
+    // web" sends it as research. The owner keeps the kind picker.
+    const webChip = () => { const b = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle vf-webchip", "Use the web"); b.setAttribute("aria-pressed", "false"); return b; };
+    const askWeb = webChip();
+    askWeb.onclick = () => { ui.askWeb = !ui.askWeb; renderAsk(); };
     const askLabel = E("label", "vf-asklabel", "What should Claude find out?");
-    askHead.append(askLabel, askSeg);
+    askHead.append(askLabel, askSeg, askWeb);
     const askTa = E("textarea", "vf-ta"); askTa.rows = 2; askTa.id = "vf-ask-ta"; askLabel.htmlFor = askTa.id; askTa.maxLength = 2000;
     const askRow = E("div", "vf-crow");
     const askCancel = btn("vf-btn vf-btn-ghost", "Cancel");
@@ -1847,7 +1852,9 @@
     const apAttach = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach a file");
     const apSend = E("button", "vf-btn vf-btn-primary", "Send request"); apSend.type = "submit";
     apRow.append(apAttach, E("span", "vf-spacer"), apSend);
-    apForm.append(apQWrap.w, apLabel, apTa, apSelf, apNote, apRow);
+    const apWeb = webChip();
+    apWeb.onclick = () => { ui.apWeb = !ui.apWeb; render(); };
+    apForm.append(apQWrap.w, apLabel, apTa, apWeb, apSelf, apNote, apRow);
     const apConnect = E("section", "vf-apconnect"); apConnect.setAttribute("aria-labelledby", "vf-apc-h");
     const apcHead = E("h3", "vf-pop-sub", "Connect your Claude"); apcHead.id = "vf-apc-h";
     const apcLinks = E("div", "vf-acts vf-apc-links");
@@ -2341,10 +2348,10 @@
     apForm.onsubmit = e => {
       e.preventDefault();
       const text = apTa.value.trim(); if (!text) return apTa.focus();
-      const mode = ui.askMode, qid = apQWrap.s.value || ui.cur || Core.GENERAL, own = selfAsk();
+      const mode = guestKind(ui.askMode, ui.apWeb), qid = apQWrap.s.value || ui.cur || Core.GENERAL, own = selfAsk();
       apSend.disabled = true;
       Core.request(qid, mode, text, attExtra(apSlot), own ? "self" : "host").then(() => {
-        apTa.value = ""; grow(apTa); apSlot.clear();
+        apTa.value = ""; grow(apTa); apSlot.clear(); ui.apWeb = false;
         flash(own ? "Added to your requests. Run it on your own Claude from there."
           : Core.me.isOwner ? `Sent to Claude. The answer shows ${qid === Core.GENERAL ? genWhere() : "on the question"} and in your Inbox.` : "Sent to the host. It runs once they press Run.");
         render();
@@ -2356,6 +2363,8 @@
     // A guest's `runner: self` request runs on their own Claude: a watcher in Claude Code or Desktop's Code tab, or one
     // prompt copied (or opened in Desktop chat) with the answer pasted back. Prompts and links come from connect.js.
     const askGeneral = () => (apQWrap.s.value || ui.askQ) === Core.GENERAL;
+    /** The kind a request goes as: the owner's pick, else ask, or research with "Use the web" on. */
+    const guestKind = (picked, web) => (Core.me.isOwner ? picked : web ? "research" : "ask");
     const selfAsk = () => !Core.me.isOwner && !!ui.askSelf && !askGeneral(); // a general ask runs on the host's Claude only
     const sessionBase = () => location.origin; // the address this guest reaches the session at; their Claude runs beside them
     async function copyOut(text, done, title, from) {
@@ -3606,8 +3615,8 @@
       e.preventDefault();
       const text = askTa.value.trim(); if (!text) return askTa.focus();
       askSend.disabled = true;
-      Core.request(ui.cur, ui.askKind, text, attExtra(askSlot)).then(() => {
-        askTa.value = ""; askSlot.clear(); ui.askOpen = false; renderAsk();
+      Core.request(ui.cur, guestKind(ui.askKind, ui.askWeb), text, attExtra(askSlot)).then(() => {
+        askTa.value = ""; askSlot.clear(); ui.askOpen = false; ui.askWeb = false; renderAsk();
         flash(Core.me.isOwner ? "Sent to Claude. The answer shows on the question and in your Inbox." : "Sent to the host. It runs once they press Run.");
       }).catch(fail).finally(() => { askSend.disabled = false; });
     };
@@ -4362,11 +4371,14 @@
       askForm.hidden = !ui.askOpen;
       askBtn.setAttribute("aria-expanded", String(ui.askOpen));
       for (const [k, b] of Object.entries(askKinds)) b.setAttribute("aria-pressed", String(k === ui.askKind));
-      askTa.placeholder = ui.askKind === "ask" ? "A question for Claude about this, answered on the question" : "What to look up, compare or verify";
-      askLabel.textContent = ui.askKind === "ask" ? "What should Claude answer?" : "What should Claude find out?";
+      const kind = guestKind(ui.askKind, ui.askWeb);
+      askSeg.hidden = !Core.me.isOwner; askWeb.hidden = Core.me.isOwner;
+      askWeb.setAttribute("aria-pressed", String(!!ui.askWeb));
+      askTa.placeholder = kind === "ask" ? "A question for Claude about this, answered on the question" : "What to look up, compare or verify";
+      askLabel.textContent = kind === "ask" ? "What should Claude answer?" : "What should Claude find out?";
       const askNote = askForm.querySelector(".vf-asknote");
       if (askNote) askNote.textContent = Core.me.isOwner ? "Claude runs it now; the result lands on this question for everyone, with your request text."
-        : "The host runs it; the result lands on this question. Your request text shows on the result for everyone.";
+        : `The host runs it; Claude works out how to answer${ui.askWeb ? ", looking on the web," : ""} and says what it did. The result lands on this question, with your request text, for everyone.`;
       if (ui.askOpen) grow(askTa);
     }
     function reviewText(q) { return q.needsReview ? `Needs review: ${q.needsReview.because} changed` : ""; }
@@ -5333,10 +5345,12 @@
 
     // ---------- Ask Claude panel ----------
     function renderAskPanel(S) {
-      const mode = !v8() && ui.askMode === "explore" ? "ask" : ui.askMode;
-      ui.askMode = mode;
+      ui.askMode = !v8() && ui.askMode === "explore" ? "ask" : ui.askMode;
+      const mode = guestKind(ui.askMode, ui.apWeb);
       for (const [k, b] of Object.entries(apModeBtns)) { b.setAttribute("aria-selected", String(k === mode)); b.setAttribute("aria-pressed", String(k === mode)); }
       apModeBtns.explore.hidden = !v8();
+      apModes.hidden = !Core.me.isOwner; apWeb.hidden = Core.me.isOwner;
+      apWeb.setAttribute("aria-pressed", String(!!ui.apWeb));
       const qs = S.questions;
       const want = ui.askQ === Core.GENERAL || qs.some(q => q.id === ui.askQ) ? ui.askQ : ui.cur || Core.GENERAL;
       const qk = qs.map(q => q.id + q.text).join("|");
@@ -5353,9 +5367,9 @@
       apSelf.hidden = Core.me.isOwner || general;
       apSelf.setAttribute("aria-checked", String(!!ui.askSelf));
       apNote.textContent = own ? "Only you see this request. Your own Claude runs it; the host reviews its answer before anyone else sees it."
-        : general ? (Core.me.isOwner ? `Claude runs it now and the answer shows ${genWhere()} for everyone.` : `The host runs it; once they share the answer, it shows ${genWhere()} for everyone.`)
+        : general ? (Core.me.isOwner ? `Claude runs it now and the answer shows ${genWhere()} for everyone.` : `The host runs it; Claude works out how to answer and says what it did. Once the host shares the answer, it shows ${genWhere()} for everyone.`)
         : Core.me.isOwner ? "Claude runs it now and the answer shows on the question's Claude thread for everyone."
-        : "The host runs it; the result lands on the question's Claude thread. Your request text shows there for everyone.";
+        : "The host runs it; Claude works out how to answer and says what it did. The result lands on the question's Claude thread, with your request text, for everyone.";
       const selfOpen = (S.myRequests || []).some(r => r.runner === "self" && (r.status === "pending" || r.status === "running"));
       apConnect.hidden = Core.me.isOwner || !(own || selfOpen);
       if (!apConnect.hidden) {
