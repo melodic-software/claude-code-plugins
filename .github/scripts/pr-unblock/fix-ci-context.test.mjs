@@ -87,6 +87,38 @@ test("ci-status, passing checks and a check whose later run passed are left out"
   assert.equal(result.skipReason, "not-applicable");
 });
 
+test("a failure a later skipped or neutral run of the same check hides is still failing", async () => {
+  const api = fakeApi({
+    checkRuns: [
+      run(11, "lint-shell", "failure"),
+      run(12, "test-node", "failure"),
+      run(15, "lint-shell", "skipped"),
+      run(16, "test-node", "neutral"),
+      run(17, "ci-status", "failure"),
+    ],
+  });
+  const result = await selectWith(api);
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(
+    result.file.checks.map((check) => check.name),
+    ["lint-shell", "test-node"],
+  );
+});
+
+test("a later success still outranks an earlier failure when a skip follows it", async () => {
+  const api = fakeApi({
+    checkRuns: [run(11, "lint-shell", "failure"), run(14, "lint-shell", "success"), run(16, "lint-shell", "skipped")],
+  });
+  const result = await selectWith(api);
+  assert.equal(result.decision, "skip");
+});
+
+test("a check with only skipped runs is not failing", async () => {
+  const api = fakeApi({ checkRuns: [run(11, "lint-shell", "skipped"), run(15, "lint-shell", "skipped")] });
+  const result = await selectWith(api);
+  assert.equal(result.decision, "skip");
+});
+
 test("a github-actions check run that is no workflow job (a lane's own check) is left out", async () => {
   const api = fakeApi({ checkRuns: [run(11, "lint-shell", "failure"), run(77, "pr-unblock / address-feedback", "failure")] });
   const result = await selectWith(api);
