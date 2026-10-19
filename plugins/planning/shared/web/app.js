@@ -2326,7 +2326,7 @@
       Core.request(qid, mode, text, attExtra(apSlot), own ? "self" : "host").then(() => {
         apTa.value = ""; grow(apTa); apSlot.clear();
         flash(own ? "Added to your requests. Run it on your own Claude from there."
-          : Core.me.isOwner ? `Sent to Claude. The answer shows ${qid === Core.GENERAL ? "in chat" : "on the question"} and in your Inbox.` : "Sent to the host. It runs once they press Run.");
+          : Core.me.isOwner ? `Sent to Claude. The answer shows ${qid === Core.GENERAL ? genWhere() : "on the question"} and in your Inbox.` : "Sent to the host. It runs once they press Run.");
         render();
       }).catch(fail).finally(() => { apSend.disabled = false; });
     };
@@ -2535,6 +2535,8 @@
     /** A request about the whole session has no question: it shows under this label, and opens in Ask Claude or chat. */
     const GEN_LABEL = "General", GEN_Q = { id: GEN_LABEL, text: "about the whole session" };
     const ixWhere = i => (i.qid ? `on ${i.qid}` : "about the session");
+    /** Where everyone reads a shared general answer: chat, or with chat off only Ask Claude's General list. */
+    const genWhere = () => (Core.state.settings?.chat ? "in chat" : "in Ask Claude, About the whole session");
     /** The request a chat message's @Claude filed, as this viewer knows it, as discReq does for a comment. */
     function genReq(S, rid) {
       const x = (S.research?.[Core.GENERAL] || []).find(r => r.requestId === rid);
@@ -4490,7 +4492,7 @@
       // A guest's own Claude's answer the owner shared can still come down; the host's own Claude's cannot.
       const takeDown = btn("vf-btn vf-btn-ghost vf-btn-sm vf-res-takedown", "Take down");
       share.append(shareNote, E("span", "vf-spacer"), discard, publish, takeDown);
-      publish.onclick = () => Core.requestAct(li._x.id, "publish").then(() => flash(`Shared. Everyone sees it ${li._q === GEN_Q ? "in chat" : "on the question"}.`)).catch(fail);
+      publish.onclick = () => Core.requestAct(li._x.id, "publish").then(() => flash(`Shared. Everyone sees it ${li._q === GEN_Q ? genWhere() : "on the question"}.`)).catch(fail);
       discard.onclick = guarded({ title: "Discard this result?", ok: "Discard", body: "Nobody else sees it, and the person who asked hears it was not shared." },
         () => Core.requestAct(li._x.id, "discard").then(() => flash("Discarded.")).catch(fail));
       takeDown.onclick = guarded({ title: "Take this answer down?", ok: "Take down", body: "Nobody sees it any more, and the person whose Claude wrote it hears it was not shared." },
@@ -5326,7 +5328,7 @@
       apSelf.hidden = Core.me.isOwner || general;
       apSelf.setAttribute("aria-checked", String(!!ui.askSelf));
       apNote.textContent = own ? "Only you see this request. Your own Claude runs it; the host reviews its answer before anyone else sees it."
-        : general ? (Core.me.isOwner ? "Claude runs it now and the answer shows in chat for everyone." : "The host runs it; once they share the answer, it shows in chat for everyone. Your request text shows there too.")
+        : general ? (Core.me.isOwner ? `Claude runs it now and the answer shows ${genWhere()} for everyone.` : `The host runs it; once they share the answer, it shows ${genWhere()} for everyone.`)
         : Core.me.isOwner ? "Claude runs it now and the answer shows on the question's Claude thread for everyone."
         : "The host runs it; the result lands on the question's Claude thread. Your request text shows there for everyone.";
       const selfOpen = (S.myRequests || []).some(r => r.runner === "self" && (r.status === "pending" || r.status === "running"));

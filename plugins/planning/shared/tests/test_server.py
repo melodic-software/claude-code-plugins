@@ -2339,6 +2339,17 @@ class TestGeneralAsk(ServerCase):
     def test_the_owners_own_at_claude_in_chat_runs_at_once(self):
         out = self.chat(self.owner, "@claude sum up the session")
         self.assertEqual(self.req(out["request"])["status"]["kind"], "running")
+        (ev,) = [e for e in self.app.session.state["log"]["events"] if e["kind"] == "request-run"]
+        self.assertEqual(ev["requests"], [{"id": out["request"], "scope": "session", "from": "chat", "kind": "ask", "text": "@claude sum up the session"}])
+
+    def test_the_answer_replies_to_the_asking_message_even_once_chat_dropped_it_from_its_scan(self):
+        asked = self.chat(self.owner, "@Claude where are we?")
+        self.assertEqual(self.req(asked["request"])["msg"], asked["id"])
+        with self.app.session._tx() as st:  # its request still names the message, whatever chat holds after it
+            st["chat"][:] = [m for m in st["chat"] if m["id"] == asked["id"]]
+            st["chat"][0].pop("request")
+        self.answer(asked["request"], "Halfway.")
+        self.assertEqual(self.app.session.state["chat"][-1]["replyTo"]["id"], asked["id"])
 
     def test_at_claude_in_chat_matches_only_the_word(self):
         claude_pid, _ = self.join("Claude")
@@ -2418,6 +2429,16 @@ class TestGeneralAsk(ServerCase):
             self.assertEqual((code, out.get("field")), (400, field), op)
         self.assertEqual(self.ops({**base, "request": on_q1, "qid": "Q1"})[0], 200)
 
+    def test_with_chat_off_a_shared_general_answer_stays_out_of_chat(self):
+        self.assertEqual(self.post("/api/session/settings", {"chat": False}, self.owner)[0], 200)
+        code, _, out = self.post("/api/request", {"scope": "session", "kind": "ask", "text": "Where are we?"}, self.owner)
+        self.assertEqual(code, 200, out)
+        res = self.answer(out["id"], "Halfway.")
+        self.assertEqual(res["published"], True)
+        self.assertEqual(self.app.session.state["chat"], [])
+        (x,) = self.get("/api/state", self.ann)[2]["results"]["session"]
+        self.assertEqual((x["summary"], "msg" in x), ("Halfway.", False))
+
     def test_declining_a_general_request_tells_its_asker_about_the_session(self):
         rid = self.chat(self.ann, "@Claude anything?")["request"]
         self.post("/api/request/act", {"action": "decline", "id": rid}, self.owner)
@@ -2432,6 +2453,7 @@ class TestGeneralAsk(ServerCase):
         time.sleep(1.05)
         self.assertEqual(self.post("/api/chat", {"text": "Thanks", "replyTo": mid}, self.ann)[0], 200)
         self.assertEqual([n for n in self.app.session.state["notifications"].get("host", []) if n["kind"] in ("reaction", "reply")], [])
+        self.assertEqual(self.app.session.state["chat"][-1]["replyTo"], {"id": mid, "pid": "host", "excerpt": "Halfway.", "claude": True})  # quoted as Claude's on every page
         code, _, out = self.post("/api/chat/propose", {"id": mid}, self.owner)
         self.assertEqual((code, out["error"]), (409, "wrong-status"))
 

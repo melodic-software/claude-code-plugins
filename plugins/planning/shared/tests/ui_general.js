@@ -99,6 +99,26 @@ async function main() {
     ok("sending it files a request with no question", await until(ann, t => (window.Core.state.myRequests || []).some(r => r.text === t && r.qid === ""), PICK_ASK));
     ok("  listed under Your requests as General", await until(ann, t => [...document.querySelectorAll(".vf-apreqs > li")].some(li => li.textContent.includes(t) && li.querySelector(".vf-qref").textContent === "General"), PICK_ASK));
 
+    // ---------- a reply to Claude's answer quotes Claude ----------
+    await ann.keyboard.press("Escape");
+    await openChat(ann);
+    const cmid = await ann.evaluate(a => window.Core.state.chat.find(m => m.claude && m.text === a)?.id, ANSWER);
+    await ann.evaluate(id => window.Core.chat("Thanks, Claude", id), cmid);
+    ok("Bo sees a reply to Claude's answer quoting Claude, not the host", await until(bo, () => [...document.querySelectorAll(".vf-msg")].some(li =>
+      li.textContent.includes("Thanks, Claude") && li.querySelector(".vf-mquote-n")?.textContent === "Claude"), null, 10000));
+
+    // ---------- with chat off, the page says the answer shows in Ask Claude ----------
+    await owner.evaluate(() => window.Core.saveSettings({ chat: false }));
+    await until(owner, () => window.Core.state.settings.chat === false);
+    await owner.keyboard.press("Escape");
+    await owner.click(".vf-asktop");
+    await owner.selectOption(".vf-apq select", "session");
+    ok("chat off: Ask Claude says the answer shows in Ask Claude, About the whole session", await until(owner, () =>
+      [...document.querySelectorAll(".vf-apform .vf-pop-note")].some(p => p.textContent === "Claude runs it now and the answer shows in Ask Claude, About the whole session for everyone.")));
+    await owner.fill("#vf-ap-ta", "Where are we, with chat off?");
+    await owner.click(".vf-apform button[type=submit]");
+    ok("  and sending says so too", await toast(owner, /^Sent to Claude\. The answer shows in Ask Claude, About the whole session and in your Inbox\.$/));
+
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
     ok("no page error", errs.length === 0, errs.slice(0, 3).join(" | "));

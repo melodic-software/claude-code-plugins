@@ -835,7 +835,7 @@
           "type": "object",
           "required": ["id", "pid", "excerpt"],
           "additionalProperties": false,
-          "properties": {"id": {"type": "string"}, "pid": {"$ref": "#/$defs/pid"}, "excerpt": {"type": "string", "maxLength": 140}}
+          "properties": {"id": {"type": "string"}, "pid": {"$ref": "#/$defs/pid"}, "excerpt": {"type": "string", "maxLength": 140}, "claude": {"enum": [true]}}
         },
         "proposed": {"type": "string"},
         "request": {"type": "string", "description": "The request about the whole session its \"@Claude\" filed."},
@@ -888,6 +888,7 @@
         "id": {"type": "string"},
         "pid": {"$ref": "#/$defs/pid"},
         "qid": {"$ref": "#/$defs/qid"},
+        "msg": {"type": "string", "description": "The chat message whose \"@Claude\" filed it."},
         "at": {"$ref": "#/$defs/ts"},
         "kind": {"$ref": "#/$defs/requestKind"},
         "text": {"$ref": "#/$defs/text"},

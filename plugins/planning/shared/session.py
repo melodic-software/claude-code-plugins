@@ -3055,14 +3055,14 @@ class Session:
                 to = next((m for m in st["chat"] if m["id"] == reply_to and self._active(m["pid"])), None)
                 if to is None:
                     raise DomainError(404, "not-found", "The message you replied to is gone.")
-                msg["replyTo"] = {"id": to["id"], "pid": to["pid"], "excerpt": clip(one_line(to["text"]), MAX_EXCERPT)}
+                msg["replyTo"] = {"id": to["id"], "pid": to["pid"], "excerpt": clip(one_line(to["text"]), MAX_EXCERPT), **({"claude": True} if "claude" in to else {})}
                 if "claude" not in to:  # Claude's answer is written as the host's message, but it is not the host's to hear about
                     self._notify(to["pid"], "reply", "replied to your message.", actor=pid, by=pid, body=clip(one_line(text), 160), msg=msg["id"])
                     skip = (to["pid"],)
             refused = None
             if ASK_CLAUDE.search(text):  # after tokenizing, as in a comment: a person called Claude is their mention
                 try:  # a general ask: no question, owner-gated as any guest request; Claude's answer replies to this message
-                    msg["request"] = self._new_request(pid, None, "ask", text, "host", now)["id"]
+                    msg["request"] = self._new_request(pid, None, "ask", text, "host", now, msg=msg["id"])["id"]
                 except DomainError as e:  # too soon or too many waiting: the message still posts, without a request
                     if e.code not in ("slow-down", "too-many-pending"):
                         raise
@@ -3427,10 +3427,10 @@ class Session:
         self._wrote(pid, "request", now)
         return {"id": rid}
 
-    def _new_request(self, pid, q, kind, text, runner, now):
+    def _new_request(self, pid, q, kind, text, runner, now, msg=None):
         """A request pid makes on q, or about the whole session when q is None (no qid): one a second on the "request"
         route, which the caller records once it commits; past MAX_PENDING_REQUESTS refused; the host's own runs now, a
-        guest's waits for Run."""
+        guest's waits for Run. `msg`: the chat message whose "@Claude" filed it."""
         st = self.state
         self._throttle(pid, "request", now)
         pending = sum(1 for r in st["requests"] if r["pid"] == pid and (r["status"]["kind"] == "pending" or (r["runner"] == "self" and r["status"]["kind"] == "running")))
@@ -3438,7 +3438,7 @@ class Session:
             raise DomainError(429, "too-many-pending", f"You have {MAX_PENDING_REQUESTS} requests waiting already.")
         rid = self._next("R")
         st["requests"].append(
-            {"id": rid, "pid": pid, **({"qid": q["id"]} if q else {}), "at": now, "kind": kind, "text": text, "edited": False, "runner": runner, "status": {"kind": "pending"}}
+            {"id": rid, "pid": pid, **({"qid": q["id"]} if q else {}), **({"msg": msg} if msg else {}), "at": now, "kind": kind, "text": text, "edited": False, "runner": runner, "status": {"kind": "pending"}}
         )
         r = st["requests"][-1]
         if runner == "host" and pid == HOST:  # the host's own request needs no Run: it reaches Claude now
@@ -3501,7 +3501,7 @@ class Session:
         when a chat message's "@Claude" filed it (its answer then replies in chat)."""
         if "qid" in r:
             return {"qid": r["qid"], "question": self._question(r["qid"])["text"]}
-        return {"scope": GENERAL, **({"from": "chat"} if any(m.get("request") == r["id"] for m in self.state["chat"]) else {})}
+        return {"scope": GENERAL, **({"from": "chat"} if "msg" in r else {})}
 
     def _from_active(self, res):
         """A result is the host's, or its guest is still in: a removed guest's own Claude's results leave every view."""
@@ -3543,12 +3543,13 @@ class Session:
 
     def _claude_says(self, res, req):
         """A result about the whole session, once shared, is also Claude's chat message (`claude`, written as the host's
-        so it stays while anyone reads chat), replying to the message whose "@Claude" asked for it when that is kept."""
-        if "qid" in res:
-            return
+        so it stays while anyone reads chat), replying to the message whose "@Claude" asked for it when that is kept.
+        With chat off it stays only under results.session, which Ask Claude lists."""
         st = self.state
+        if "qid" in res or not st["session"]["settings"]["chat"]:
+            return
         msg = {"id": self._next("M"), "pid": HOST, "text": clip(res["summary"], MAX_TEXT), "at": self.now(), "claude": {"result": res["id"]}}
-        asked = next((m for m in st["chat"] if req and m.get("request") == req["id"] and self._active(m["pid"])), None)
+        asked = next((m for m in st["chat"] if req and m["id"] == req.get("msg") and self._active(m["pid"])), None)
         if asked:
             msg["replyTo"] = {"id": asked["id"], "pid": asked["pid"], "excerpt": clip(one_line(asked["text"]), MAX_EXCERPT)}
         st["chat"].append(msg)

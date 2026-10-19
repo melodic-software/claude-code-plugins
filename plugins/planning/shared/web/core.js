@@ -207,7 +207,7 @@
     const byClaude = new Set((s.chat || []).filter(m => m.claude).map(m => m.id));
     const who = (pid, claude) => (claude ? { cid: "claude", name: "Claude" } : { cid: pid, name: nameOf(pid) });
     view.chat = (s.chat || []).map(m => ({ id: m.id, ...who(m.pid, m.claude), text: plain(m.text), ts: m.at, ...(m.gapAbove ? { gapAbove: true } : {}),
-      ...(m.replyTo ? { replyTo: { id: m.replyTo.id, ...who(m.replyTo.pid, byClaude.has(m.replyTo.id)), text: plain(m.replyTo.excerpt) } } : {}),
+      ...(m.replyTo ? { replyTo: { id: m.replyTo.id, ...who(m.replyTo.pid, m.replyTo.claude || byClaude.has(m.replyTo.id)), text: plain(m.replyTo.excerpt) } } : {}),
       ...(m.proposed ? { forwarded: m.proposed } : {}), ...(m.claude ? { claude: true, result: m.claude.result } : {}), ...(m.request ? { request: m.request } : {}),
       reactions: m.reactions || {} }));
     // Each question's Discussion, oldest first; `seen` is when I last opened it, so others' comments after it are new.

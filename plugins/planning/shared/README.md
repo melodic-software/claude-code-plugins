@@ -319,12 +319,15 @@ A request about the whole session names no question: "@Claude" as a word in a ch
 carries `request`; the composer says so), or `POST /api/request` with `scope: "session"` in place of `qid`, Ask
 Claude's pinned "About the whole session". It runs only on the host's Claude, waits for the owner's Run like any
 guest request (the owner's own runs at once), shares the request route's one a second and the waiting cap, and a
-message whose request is refused still posts with `requestRefused`. Chat has no edit, delete or hide, so nothing
+message whose request is refused still posts with `requestRefused`; a filed one keeps the message's id as the
+request's `msg`. Chat has no edit, delete or hide, so nothing
 else applies. `request-run` lists it with `scope: "session"` and no `qid` or `question`, plus `from: "chat"` when a
 message asked; the `result` op answers it with no `qid`, and its result is kept under `results.session` with no
 `qid`, so a file from before loads as it is. Once shared (the owner's own at once), the result is also Claude's
 chat message: the host's, marked `claude: {result}`, replying to the asking message while chat keeps it; the
-result's `msg` names it. Reactions and replies to it tell no one, and it cannot become a proposal. The Inbox, its
+result's `msg` names it. With chat off it is not posted, and stays in Ask Claude. A reply to it carries
+`replyTo.claude`, so its quote reads Claude's wherever the page reads it. Reactions and replies to it tell no one,
+and it cannot become a proposal. The Inbox, its
 toasts and the Run cards say General, or "about the session", where they name a question; the owner shares it from
 Ask Claude on "About the whole session", which lists those answers. A digest result carries `scope: "session"` in
 place of `qid`.
