@@ -124,11 +124,25 @@ export function structuredOutput(messages) {
   return result.structured_output;
 }
 
-export const artifactName = (verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
+// The execution file is the last leg's alone, so a denial on an earlier leg
+// (the key leg, before a credit stop) shows only in run-claude-cli's log, one
+// object per leg.
+export function earlierDenials(logText) {
+  const total = logText
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .reduce((sum, line) => sum + (JSON.parse(line)?.denials?.count ?? 0), 0);
+  if (total > 0) {
+    throw new Error(`the run's legs hit ${total} permission denial(s)`);
+  }
+}
+
+export const artifactName =(verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
 
 export function main(env = process.env) {
   for (const key of [
     "EXECUTION_FILE",
+    "LOG_FILE",
     "PR_NUMBER",
     "HEAD_SHA",
     "BASE_SHA",
@@ -149,6 +163,13 @@ export function main(env = process.env) {
     throw new Error("the execution file is unreadable");
   }
   const output = structuredOutput(messages);
+  let logText;
+  try {
+    logText = readFileSync(env.LOG_FILE, "utf8");
+  } catch {
+    throw new Error("the run log is unreadable");
+  }
+  earlierDenials(logText);
   let linkedIssues;
   try {
     linkedIssues = JSON.parse(readFileSync(env.SPEC_FILE, "utf8"));

@@ -122,6 +122,7 @@ test("the outcome is reported whenever the judge ran, and a missing verdict fail
   assert.equal(input(report, "step-started-at"), "${{ steps.prompt.outputs.started-at }}");
   assert.ok(index("Write the prompt and schema") === index("Judge the pull request") - 1);
   assert.match(step("Write the verdict"), /^ {10}EXECUTION_FILE: \$\{\{ steps\.judge\.outputs\.execution-file \}\}$/m);
+  assert.match(step("Write the verdict"), /^ {10}LOG_FILE: \$\{\{ steps\.judge\.outputs\.log-file \}\}$/m);
 
   const last = steps.at(-1);
   assert.equal(last.name, "Fail without a verdict");

@@ -128,7 +128,7 @@ test("the structured output is the last result message's", () => {
     last,
   );
   for (const messages of [[], [{ type: "assistant" }], [{ type: "result", subtype: "error_max_turns" }], {}, null]) {
-    assert.throws(() => structuredOutput(messages), undefined, JSON.stringify(messages));
+    assert.throws(() => structuredOutput(messages), /no result with a structured output/, JSON.stringify(messages));
   }
 });
 
@@ -176,7 +176,14 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     writeFileSync(file, JSON.stringify([{ type: "system" }, { type: "result", subtype: "success", structured_output: output }]));
     return file;
   };
+  // run-claude-cli's log: one JSON object per leg, each with its denial count.
+  const log = (name, ...counts) => {
+    const file = path.join(dir, `${name}.jsonl`);
+    writeFileSync(file, counts.map((count, i) => JSON.stringify({ leg: i + 1, denials: { count } })).join("\n"));
+    return file;
+  };
   const env = {
+    LOG_FILE: log("clean-log", 0),
     PR_NUMBER: "41",
     HEAD_SHA: HEAD,
     BASE_SHA: BASE,
@@ -202,6 +209,10 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     ["missing execution file", { EXECUTION_FILE: path.join(dir, "missing.json") }],
     ["unparsable execution file", { EXECUTION_FILE: unparsable }],
     ["unreadable spec", { EXECUTION_FILE: okFile, SPEC_FILE: path.join(dir, "missing.json") }],
+    // A denial on the key leg, then a credit stop and a clean subscription leg.
+    ["a denial on an earlier leg", { EXECUTION_FILE: okFile, LOG_FILE: log("denied-log", 1, 0) }],
+    ["missing log file", { EXECUTION_FILE: okFile, LOG_FILE: path.join(dir, "missing.jsonl") }],
+    ["no log file", { EXECUTION_FILE: okFile, LOG_FILE: "" }],
   ]) {
     const other = { ...env, VERDICT_DIR: path.join(dir, `none-${label}`), GITHUB_OUTPUT: path.join(dir, `out-${label}`), ...extra };
     assert.throws(() => main(other), undefined, label);

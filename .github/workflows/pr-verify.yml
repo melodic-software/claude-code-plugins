@@ -275,6 +275,7 @@ jobs:
         if: steps.judge.outcome == 'success'
         env:
           EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge.outputs.log-file }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
