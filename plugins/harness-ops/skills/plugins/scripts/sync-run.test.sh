@@ -1350,6 +1350,7 @@ div_row_of() {
 div_attr='"pre_existing":4,"new_total":1,"new_by_interval":{"in_repo":1,"user_sweep":0}'
 # All actionable, a project resolved: converge is the only pointer.
 div_row=$(div_row_of "{\"project_root\":\"/w\",\"divergences\":{\"post\":5,$div_attr,\"actionable_here\":2,\"actionable_elsewhere\":3,\"in_worktrees\":0,\"blocked\":0}}")
+# shellcheck disable=SC2016  # the backticks are literal report text
 assert_eq "divergences split: all actionable points at converge only" \
   'Divergences: 2 actionable here, 3 actionable elsewhere on this machine → run `/harness-ops:plugins converge` (of 5 in all: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep))' \
   "$div_row"
@@ -1357,6 +1358,7 @@ assert_not_contains "divergences split: all actionable has no worktree pointer" 
 assert_not_contains "divergences split: all actionable has no blocked part" "$div_row" "blocked"
 # Mixed: three parts, and converge is named once, on the actionable part.
 div_row=$(div_row_of "{\"divergences\":{\"post\":10,$div_attr,\"actionable_here\":0,\"actionable_elsewhere\":2,\"in_worktrees\":3,\"blocked\":5}}")
+# shellcheck disable=SC2016  # the backticks are literal report text
 assert_eq "divergences split: mixed names each non-zero part" \
   'Divergences: 2 actionable elsewhere on this machine → run `/harness-ops:plugins converge`; 3 in linked worktrees → remove the worktree; /source-control:worktree audit (if installed) classifies them; 5 blocked, path not present → see Stale project records below (of 10 in all: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep))' \
   "$div_row"
@@ -1369,9 +1371,11 @@ assert_eq "divergences split: only blocked names the stale-records note" \
 assert_not_contains "divergences split: only blocked has no converge pointer" "$div_row" "converge"
 # A digest written before the split: the text it always rendered.
 div_old="\"post\":5,$div_attr"
+# shellcheck disable=SC2016  # the backticks are literal report text
 assert_eq "divergences split: an old digest without split fields renders as before" \
   'Divergences: 5 actionable: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep) → run `/harness-ops:plugins converge`' \
   "$(div_row_of "{\"divergences\":{$div_old}}")"
+# shellcheck disable=SC2016  # the backticks are literal report text
 assert_eq "divergences split: an old digest with a project leads with the here count" \
   'Divergences: 2 behind here → run `/harness-ops:plugins converge`; on this whole machine 5 actionable: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep)' \
   "$(div_row_of "{\"project_root\":\"/w\",\"divergences_here\":2,\"divergences\":{$div_old}}")"
