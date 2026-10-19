@@ -1,0 +1,3 @@
+2026-10-16T10:00:00Z INF Requesting new quick Tunnel on trycloudflare.com...
+2026-10-16T10:00:01Z ERR Error unmarshaling QuickTunnel response: error code: 1015 error="invalid character 'e' looking for beginning of value" status_code="429 Too Many Requests"
+2026-10-16T10:00:01Z ERR failed to request quick Tunnel: Post "https://api.trycloudflare.com/tunnel": dial tcp: lookup api.trycloudflare.com: no such host

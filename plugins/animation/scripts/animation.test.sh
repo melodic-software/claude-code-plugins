@@ -4,7 +4,8 @@
 # pip). test_inkstats and test_woodcut_marks need numpy and opencv (../requirements.in pins them,
 # ../requirements.txt hash-locks them) and skip without them, so ANIMATION_REQUIRE_DEPS=1 fails the run
 # instead: a lane that provisions the pinned requirements sets it, and missing dependencies then read as a
-# broken environment, not as passing coverage.
+# broken environment, not as passing coverage. test_render renders through node and playwright-core with
+# Chromium and skips without them, or fails under ANIMATION_REQUIRE_DEPS=1.
 # test-scope: plugins/animation/skills/*/SKILL.md plugins/animation/skills/*/scripts/* plugins/animation/hooks/*.sh plugins/animation/scripts/*
 # test-scope: plugins/animation/requirements.in plugins/animation/styles/*
 set -uo pipefail
@@ -29,4 +30,4 @@ if ((${#missing[@]} > 0)); then
   echo "SKIP: numpy/opencv suites: ${missing[*]} missing (set ANIMATION_REQUIRE_DEPS=1 to fail instead)" >&2
 fi
 
-exec python3 -m unittest test_produce test_pydeps test_inkstats test_woodcut_marks -q
+exec python3 -m unittest test_produce test_pydeps test_inkstats test_woodcut_marks test_render -q

@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.2.0] - 2026-10-18
+
+Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
+
+- **Confirm-then-record.** A short section names `UNREPORTED` and the record-then-marker order as
+  this repository's pattern and the failure direction it chose, with no new state word. A new
+  record, `posting-lanes.md`, lists each posting lane as covered by a `concurrency:` group, covered
+  by another claim, or uncovered with the reason overlap cannot do harm (#7672).
+
 ## [12.1.1] - 2026-10-17
 
 Patch. Clarifies an existing rule; no topology, escalation-contract, capability-tier or §4

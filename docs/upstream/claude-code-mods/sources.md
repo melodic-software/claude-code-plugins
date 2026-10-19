@@ -94,6 +94,18 @@ The shipped binary itself is not a URL. Every `BINARY` claim (the gate
 the 512-file / 8,388,608-byte limits) was read from the locally installed Claude Code 2.1.278 and is
 re-derived by the greps in [go-no-go.md](go-no-go.md).
 
+## Reference mods and their licenses
+
+Working examples read for `docs/conventions/mod-authoring/`, each pinned to a commit. Read and
+cite them; nothing from them is copied into this repository.
+
+| Link | What we used it for | As of | Used by |
+|---|---|---|---|
+| <https://github.com/anthropics/claude-code-playground/tree/569c5283d9a0a7ee7938df85bb32e4f48cbb8c86/claude-code/mods> | Sample mods (Token Weather, Blast Radius, Replay Theater) as pattern examples. License: Apache-2.0 per the GitHub API (`gh api repos/anthropics/claude-code-playground --jq .license.spdx_id`); reusing its code would need its attribution and NOTICE terms. | 2026-10-17 | `docs/conventions/mod-authoring/README.md` |
+| <https://github.com/anthropics/claude-code/tree/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/mods/diff> | The built-in `diff` mod as a pattern example. | 2026-10-17 | `docs/conventions/mod-authoring/README.md` |
+| <https://github.com/anthropics/claude-code/tree/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/mods/agents-md> | The built-in `agents-md` mod as a pattern example. | 2026-10-17 | `docs/conventions/mod-authoring/README.md` |
+| <https://github.com/anthropics/claude-code/blob/dd6bee38458cc3e6dc5f2b16eca1f0f364619ad8/LICENSE.md> | License of `anthropics/claude-code`, which covers both built-in mods above: "All rights reserved", so read and cite, never copy. | 2026-10-17 | `docs/conventions/mod-authoring/README.md` |
+
 ## Anthropic staff statements
 
 Two of the five seed X posts the research started from are staff and sit here; the other three are

@@ -54,8 +54,10 @@ answers, so lane sessions carry none. `--permission-prompts none` is documented 
 unattended runs; that a `--bg` lane denies with it is not probed. Never use bypass mode or
 `--dangerously-skip-permissions`: lanes read untrusted issue and PR text while holding push
 credentials. On a long run, keep the task list in a file and tick it as you go, so the work
-survives a compaction: read the file, not the scrollback. End with three headings: Blocked on me,
-Changed, Found, unless a skill defines its own report shape.
+survives a compaction: read the file, not the scrollback. End with four headings: Needs you (decisions,
+approvals or commands only the human can give, each restated in full), Waiting on me (work you will clear
+yourself, with what it waits on and the next step), Done, Found, unless a skill defines its own report
+shape. An empty section says "None".
 
 ## Org architecture
 

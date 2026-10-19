@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: mt-loneliness-labeled-menu
+graders:
+  - name: two-type-labels
+    type: regex
+    pattern: '\bexpressed identity\b[\s\S]*\b(?:qualifying|verbal)\b|\b(?:qualifying|verbal)\b[\s\S]*\bexpressed identity\b|\bqualifying\b[\s\S]*\bverbal\b|\bverbal\b[\s\S]*\bqualifying\b'
+    flags: 'i'
+    target: last_message
+  - name: family-distance-label
+    type: regex
+    pattern: '\b(?:family\s+)?distance\b(?:\*\*)?[^\n]{0,40}?\b(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\|'
+    flags: 'i'
+    target: last_message
+  - name: finder-question-lists
+    type: regex
+    pattern: '(?=[\s\S]*\bcharacteristics\b)(?=[\s\S]*\bwhat else\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-single-winner
+    type: regex
+    pattern: '\b(?:the|my)\s+(?:single\s+)?(?:best|top|strongest)\s+(?:one|rhyme|metaphor|option|choice|pick|fit|candidate)\s+(?:here\s+)?(?:is|would be)\b(?!\s+(?:whichever|the one that|the one you|up to you|yours|your call|a matter))|\bmy\s+(?:top\s+|one\s+|single\s+|own\s+)?(?:pick|choice|recommendation|vote|favorite)\s*(?:is|would be|:)|\bI(?:[''’]d| would)\s+(?:go with|pick|choose|use)\b|^[ \t>*#-]*(?:\*\*)?winner(?:\*\*)?\s*:|\bthe answer is\b|\bgo with\s+[\"“*_]'
+    flags: 'im'
+    match: not_contains
+    target: last_message

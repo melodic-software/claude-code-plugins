@@ -22,9 +22,15 @@ by estimation. The condition shape and limit can change between versions: read t
 
 ## Step 0. Lever fit (is `/goal` even the right tool?)
 
-`/goal` starts the next turn when the previous one finishes and stops when a fresh evaluator model
-confirms a completion condition holds. Confirm that fits the intent; if it does not, route instead
-of drafting.
+Confirm `/goal` fits the intent before drafting: read when it starts the next turn and when it
+stops from the pointer below, and if that does not fit the intent, route instead of drafting.
+
+- **Pointer**: the "when the next turn starts" and "stops when" columns of
+  <https://code.claude.com/docs/en/goal#compare-ways-to-keep-a-session-running>, for when `/goal`,
+  `/loop` and a Stop hook start the next turn and when each stops.
+- **As of**: 2026-10-19
+- **Recheck trigger**: that section's table changes the `/goal` row or adds an approach beside
+  `/loop` and the Stop hook.
 
 A lever that repeats build-and-check rounds (a metric hill-climb, or a `/goal`, `/loop` or routine
 that edits each round) pays off only when the task repeats and the agent can run what it builds and
@@ -192,9 +198,15 @@ and that a goal the page says is removed must be re-set.
 
 ## Boundary, the built-in `/goal` command and `ProposeGoal` tool
 
-- **`/goal` (built-in command)**: `/goal <condition>` sets a completion condition that a fresh
-  evaluator checks before the session stops; `/goal clear` removes it, and bare `/goal` shows the
-  current one. It is reserved for the person to run; the model does not invoke it.
+- **`/goal` (built-in command)**: sets, shows and clears the session's completion condition, in
+  the forms the pointer below names. It is reserved for the person to run; the model does not
+  invoke it.
+  - **Pointer**: <https://code.claude.com/docs/en/goal#set-a-goal> for what setting a goal does,
+    <https://code.claude.com/docs/en/goal#check-status> and
+    <https://code.claude.com/docs/en/goal#clear-a-goal> for the other two forms.
+  - **As of**: 2026-10-19
+  - **Recheck trigger**: the "Set a goal" section changes what setting a goal does, or the
+    status or clear forms move.
 - **`ProposeGoal` (built-in tool)**: the model proposes a goal condition and the person approves
   it with one keypress (`ask_user` true, the default); `ask_user` false sets it with no dialog.
   It cannot clear a goal, and it is refused in subagents, outside interactive local sessions, and

@@ -170,6 +170,54 @@ test("a dispatched pr-unblock run re-fires only when its failed check is on the 
   assert.equal(pushes(rerun.calls).length, 0);
 });
 
+// The comment text pr-merge posted for every lane until now, verbatim: markers
+// already on open PRs carry it.
+const POSTED = (path, blob, head) =>
+  `<!-- pr-lane-refire ${path}@${blob} head ${head} -->\nA lane run on this pull request's head failed because the token broker refused it as workflow-modified: \`${path}\` changed on main after the run's event, and a rerun keeps the old file. pr-merge pushes an empty commit so new runs start on main's files. It does this once per version of that file, so if a run fails the same way again, a person looks at it.`;
+const UNBLOCK_START =
+  "the conflict-resolution run starts at the next push to main, or when a listed person runs `pr-unblock-dispatch` by hand";
+const postedBody = (calls) => JSON.parse(posts(calls)[0].replace(/^POST \S+ /, "")).body;
+const dispatchedRun = (id, number) =>
+  run(id, { head: sha(1), event: "workflow_dispatch", title: `pr-unblock resolve-conflicts #${number}`, headBranch: "main", messages: [denial(WRITER)], actor: ACTIONS_BOT });
+const linkedCheck = (id) => ({ conclusion: "failure", details_url: `https://github.com/${REPO}/actions/runs/${id}` });
+
+test("a pr-unblock re-fire says its conflict-resolution run waits for the next push to main or a listed person's dispatch", async () => {
+  const w = world({ pulls: [pr(9)], runs: { "pr-unblock.yml": [dispatchedRun(90, 9)] }, checks: { [sha(9)]: [linkedCheck(90)] } });
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  const body = postedBody(w.calls);
+  assert.equal(body.split("\n")[0], `<!-- pr-lane-refire ${WRITER}@${BLOB} head ${sha(9)} -->`);
+  assert.ok(body.includes(UNBLOCK_START), body);
+  assert.ok(!body.includes("so new runs start on main's files"), body);
+});
+
+test("a pr-refine re-fire says the push starts no pr-refine run, which waits for a reopen or a dispatch", async () => {
+  const w = world({ pulls: [pr(7)], runs: { "pr-refine.yml": [run(70, { head: sha(7) })] } });
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  assert.equal(
+    postedBody(w.calls),
+    `${POSTED(REFINE, BLOB, sha(7))} The push starts no pr-refine run itself: pr-refine runs again when the pull request is reopened or a listed person dispatches \`pr-refine\` with its number.`,
+  );
+});
+
+test("a marker posted in the earlier wording still stops a second pr-refine re-fire", async () => {
+  const w = world({ pulls: [pr(7)], runs: { "pr-refine.yml": [run(70, { head: sha(7) })] }, comments: { 7: [{ user: BOT, created_at: "2026-10-17T21:50:00Z", body: POSTED(REFINE, BLOB, sha(6)) }] } });
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  assert.deepEqual(pushes(w.calls), []);
+  assert.deepEqual(posts(w.calls), []);
+});
+
+test("a marker posted in the earlier wording still stops a second pr-unblock re-fire", async () => {
+  const w = world({
+    pulls: [pr(9)],
+    runs: { "pr-unblock.yml": [dispatchedRun(90, 9)] },
+    checks: { [sha(9)]: [linkedCheck(90)] },
+    comments: { 9: [{ user: BOT, created_at: "2026-10-17T21:50:00Z", body: POSTED(WRITER, BLOB, sha(8)) }] },
+  });
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  assert.deepEqual(pushes(w.calls), []);
+  assert.deepEqual(posts(w.calls), []);
+});
+
 test("a run started or rerun by an unlisted account or by the lanes App re-fires nothing", async () => {
   for (const failedRun of [
     run(75, { head: sha(7), actor: STRANGER }),

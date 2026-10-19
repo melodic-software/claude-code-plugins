@@ -3,6 +3,16 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.1] - 2026-10-18
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
+### Security
+
+- **illustrate keeps the model-chosen slug out of its build command.** The builder takes `--out-dir` and reads the slug from the model JSON, refuses one that is not lowercase letters, digits and hyphens (exit 2), and derives the record and page paths itself, so the command the skill runs carries only fixed paths. The model file is per session, so two sessions sharing the data directory cannot build each other's topic. (#7374)
+
 ## [0.17.0] - 2026-10-14
 
 ### Added

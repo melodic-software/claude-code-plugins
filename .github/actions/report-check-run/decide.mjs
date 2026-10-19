@@ -12,6 +12,12 @@ const SHA = /^[0-9a-f]{40}$/;
 const GATES = ["kill-switch", "trigger"];
 const CONFIG = new Set(["valid", "invalid", "not-read"]);
 const OUTCOME = new Set(["success", "failure", "skipped", "not-run"]);
+// The read file's patch output mode. The title is fixed text per value.
+const PATCH_TITLE = { written: "Passed: patch written", empty: "Passed: no changes" };
+const PATCH_SUMMARY = {
+  written: "The activity ran and wrote its changes to a patch artifact.",
+  empty: "The activity ran and changed nothing, so it wrote no patch.",
+};
 
 const isPlainObject = (value) =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -37,7 +43,8 @@ function isVerdict(verdict) {
       typeof verdict["skip-reason"] === "string") &&
     (verdict["head-sha"] == null || typeof verdict["head-sha"] === "string") &&
     (verdict["dirty-tree"] == null ||
-      typeof verdict["dirty-tree"] === "boolean")
+      typeof verdict["dirty-tree"] === "boolean") &&
+    (verdict.patch == null || Object.hasOwn(PATCH_TITLE, verdict.patch))
   );
 }
 
@@ -153,6 +160,11 @@ export function decide(verdict, inputs) {
     return failure(
       "The activity step did not run and no skip reason explains it.",
     );
+  }
+  // Written after head code ran, so a forged value changes only which fixed
+  // title a success carries; the patch's consumer checks the patch itself.
+  if (verdict.patch != null) {
+    return post("success", PATCH_TITLE[verdict.patch], PATCH_SUMMARY[verdict.patch]);
   }
   return post("success", "Passed", "The activity ran and passed.");
 }

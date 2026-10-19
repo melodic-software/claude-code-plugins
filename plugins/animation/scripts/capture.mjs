@@ -3,7 +3,8 @@
 //        node capture.mjs [--playwright-core DIR] <url> <outdir> --fps <n> <workers>  every frame of the film:
 //                                               window.renderFrame(i / n) -> fNNNN.png
 //        node capture.mjs [--playwright-core DIR] --probe   launch Chromium, print {browser_build}, exit
-// Saves canvas#c at its own size after awaiting the render Promise; prints one JSON line
+// Waits for render.html's window.sceneReady (the scene module and its top-level awaits), so a DURATION set after an
+// await is the one read. Saves canvas#c at its own size after awaiting the render Promise; prints one JSON line
 // {browser_build, size, frames, duration}. Exit 1 when the scene fails (a page error, DURATION missing or not a
 // positive finite number, renderDrawing missing), 2 when playwright-core or its Chromium is missing (remedy printed).
 // render.py serves the scene, calls this, and encodes.
@@ -64,6 +65,12 @@ const open = async () => {
   const p = await browser.newPage();
   p.on('pageerror', e => { console.error('pageerror:', e.message); failed = true; });
   await p.goto(url);
+  await p.waitForFunction(() => 'sceneReady' in window, null, { timeout: 30000 });
+  const loaded = await p.evaluate(() => Promise.race([
+    window.sceneReady.then(() => null, e => `the scene module failed: ${e?.message ?? e}`),
+    new Promise(r => setTimeout(() => r('the scene module did not finish loading in 30 s'), 30000)),
+  ]));
+  if (loaded) { console.error(`capture.mjs: ${loaded}`); process.exit(1); }
   await p.waitForFunction(() => typeof window.renderFrame === 'function', null, { timeout: 30000 });
   return p;
 };

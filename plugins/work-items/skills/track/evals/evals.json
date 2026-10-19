@@ -68,6 +68,19 @@
         "Passes the body to the adapter as a file, not as text on a command line",
         "Checks the plan file for an Approval: line before any write"
       ]
+    },
+    {
+      "id": 6,
+      "name": "add-stamps-native-issue-type-and-no-work-class-label",
+      "prompt": "/work-items:track add \"Export fails on empty ledger\" --type fix\n\nThe repository is in an organization, so native Issue Types are available.",
+      "expected_output": "Maps --type fix to the coarse type Bug and creates the item through the seam with the native Issue Type Bug passed as --type. The type is not added to the labels, so no type: label is written. No work-class: label is added and no status field is written.",
+      "files": [],
+      "expectations": [
+        "Creates the item with the native Issue Type Bug through the seam's --type",
+        "Does not add a type: label to the labels",
+        "Does not add a work-class: label",
+        "Writes no status field"
+      ]
     }
   ]
 }

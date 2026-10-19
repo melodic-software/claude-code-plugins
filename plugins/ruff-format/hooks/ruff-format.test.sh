@@ -18,7 +18,7 @@
 #
 # Requires a real Ruff binary: $RUFF_TEST_BIN if set, else `ruff` on PATH.
 # Without one the behavioral assertions cannot run, so the suite skips.
-# test-scope: plugins/ruff-format/.claude-plugin/plugin.json plugins/ruff-format/hooks/hooks.json plugins/ruff-format/prerequisites.json
+# test-scope: plugins/ruff-format/.claude-plugin/plugin.json plugins/ruff-format/hooks/hooks.json plugins/ruff-format/prerequisites.json plugins/ruff-format/lib/prerequisites.mjs plugins/ruff-format/lib/git-hooks/install.mjs
 
 set -uo pipefail
 
