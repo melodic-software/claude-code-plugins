@@ -57,6 +57,13 @@ inputs:
       only from a pull read whose head is this SHA.
     required: false
     default: ""
+  issue-dimensions:
+    description: >
+      The dimensions an earlier resolve of this run read (its issue-dimensions
+      output), for a run whose job timeout they already set: the run takes
+      them instead of reading the issue's fields again.
+    required: false
+    default: ""
   prepare-supported:
     description: >
       `true` only from a runner that performs a leaf's `prepare` step. An
@@ -67,7 +74,7 @@ inputs:
     description: >
       Read-only token, used only when an applies-when predicate needs the
       PR's labels, draft state, mergeability or changed files, or an issue's
-      labels or comments.
+      labels, comments or issue-dimension fields (issues: read).
     required: false
     default: ${{ github.token }}
 
@@ -108,7 +115,7 @@ outputs:
       or empty when its subagent-model is inherit, and for a script.
     value: ${{ steps.resolve.outputs.settings-json }}
   max-turns:
-    description: The profile's turn budget; empty for a script.
+    description: The profile's turn budget, or the issue dimensions'; empty for a script.
     value: ${{ steps.resolve.outputs.max-turns }}
   model:
     description: >
@@ -121,6 +128,15 @@ outputs:
       The profile's effort, for run-claude-cli's `effort` input; empty when
       the profile sets none, and for a script.
     value: ${{ steps.resolve.outputs.effort }}
+  issue-dimensions:
+    description: >
+      `<size>/<complexity>/<uncertainty>` as models.issue-dimensions reads
+      the issue's fields, or `not-assessed`, for a skill activity with input
+      issue; empty otherwise.
+    value: ${{ steps.resolve.outputs.issue-dimensions }}
+  timeout-minutes:
+    description: The issue size's job timeout in minutes; empty when issue-dimensions is.
+    value: ${{ steps.resolve.outputs.timeout-minutes }}
   reads-untrusted:
     description: "`true` when the activity reads untrusted text."
     value: ${{ steps.resolve.outputs.reads-untrusted }}
@@ -128,7 +144,7 @@ outputs:
     description: "`true` when the activity runs on this event; `false` comes with a skip-reason."
     value: ${{ steps.resolve.outputs.applies }}
   skip-reason:
-    description: "`disabled-by-config`, `not-applicable-paths`, `not-applicable`, `awaiting-human`, `prerequisite-missing`, or empty."
+    description: "`disabled-by-config`, `not-applicable-paths`, `not-applicable`, `awaiting-human`, `prerequisite-missing`, `not-assessed`, `split-required`, `research-first`, `probe-first`, or empty."
     value: ${{ steps.resolve.outputs.skip-reason }}
   prepare:
     description: "The leaf's prepare mode (`merge-base`), empty when it sets none."
@@ -164,6 +180,7 @@ runs:
         PR_NUMBER: ${{ inputs.pr-number }}
         HEAD_SHA: ${{ inputs.head-sha }}
         PREPARE_SUPPORTED: ${{ inputs.prepare-supported }}
+        ISSUE_DIMENSIONS: ${{ inputs.issue-dimensions }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |

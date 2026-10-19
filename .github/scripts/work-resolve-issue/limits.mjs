@@ -14,14 +14,17 @@ export const LIMIT_DEFAULTS = Object.freeze({
   "limit-stops-per-head": 3,
   "limit-stops-per-issue": 3,
   "wip-cap": 60,
+  "turn-cap-restarts": 0,
 });
+// The leaves 0 is a valid value of; every other leaf is at least 1.
+const ZERO_ALLOWED = new Set(["turn-cap-restarts"]);
 
-// Every leaf, each set positive integer over its default.
+// Every leaf, each set integer within its range over its default.
 export const resolveLimits = (limits) =>
   Object.fromEntries(
     Object.entries(LIMIT_DEFAULTS).map(([key, value]) => {
       const set = limits?.[key];
-      return [key, Number.isInteger(set) && set > 0 ? set : value];
+      return [key, Number.isInteger(set) && set >= (ZERO_ALLOWED.has(key) ? 0 : 1) ? set : value];
     }),
   );
 

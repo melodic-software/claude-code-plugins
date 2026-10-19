@@ -32,6 +32,7 @@ const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
 const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
+const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -66,6 +67,43 @@ function readUnderBase(basePath, relative) {
 function readJsonUnderBase(basePath, relative) {
   const text = readUnderBase(basePath, relative);
   return text === undefined ? undefined : JSON.parse(text);
+}
+
+// The REST version that documents issue-field-values.
+const FIELD_API_VERSION = "2026-03-10";
+// The newest field events; the REST timeline names the actor but not the field.
+const FIELD_EVENTS = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) {
+    timelineItems(last: 100, itemTypes: [ISSUE_FIELD_ADDED_EVENT, ISSUE_FIELD_CHANGED_EVENT, ISSUE_FIELD_REMOVED_EVENT]) {
+      nodes {
+        __typename
+        ... on IssueFieldAddedEvent { actor { ...who } issueField { ...field } }
+        ... on IssueFieldChangedEvent { actor { ...who } issueField { ...field } }
+        ... on IssueFieldRemovedEvent { actor { ...who } issueField { ...field } }
+      }
+    }
+  } }
+}
+fragment who on Actor { ... on User { databaseId } ... on Bot { databaseId } }
+fragment field on IssueFields { ... on IssueFieldSingleSelect { fullDatabaseId } }`;
+
+// Field id -> the account id that last set it (null after a removal or for an
+// actor with no id), from the issue's newest 100 field events, oldest first.
+export async function fieldSetters(github, repository, number) {
+  const [owner, name] = repository.split("/");
+  const answer = await github("POST", "/graphql", { query: FIELD_EVENTS, variables: { owner, name, number } });
+  if (Array.isArray(answer?.errors) && answer.errors.length > 0) {
+    throw new Error(`the issue's field events could not be read: ${answer.errors.map((e) => e?.message).join("; ")}`);
+  }
+  const setters = Object.create(null);
+  for (const node of answer?.data?.repository?.issue?.timelineItems?.nodes ?? []) {
+    const field = node?.issueField?.fullDatabaseId;
+    if (typeof field === "string" && /^[1-9][0-9]*$/.test(field)) {
+      const id = node.actor?.databaseId;
+      setters[field] = node.__typename === "IssueFieldRemovedEvent" || !Number.isInteger(id) ? null : id;
+    }
+  }
+  return setters;
 }
 
 async function gatherFacts(
@@ -115,6 +153,20 @@ async function gatherFacts(
   if (issue !== undefined) {
     if (needed.includes("labeledAt") && typeof issue.updated_at === "string") {
       facts.labeledAt = issue.updated_at;
+    }
+    if (needed.includes("fieldValues")) {
+      // The issue's org field values: REST answers the integer field and
+      // option ids the config maps (GraphQL answers only node ids).
+      const rows = await github("GET", `/repos/${repository}/issues/${Number(issue.number)}/issue-field-values`, undefined, {
+        "X-GitHub-Api-Version": FIELD_API_VERSION,
+      });
+      facts.fieldValues = (Array.isArray(rows) ? rows : []).map((row) => ({
+        field: row?.issue_field_id,
+        option: row?.single_select_option?.id ?? null,
+      }));
+    }
+    if (needed.includes("fieldSetters")) {
+      facts.fieldSetters = await fieldSetters(github, repository, Number(issue.number));
     }
     if (needed.includes("labels")) {
       const labels = needed.includes("freshLabels")
@@ -202,6 +254,9 @@ function outputsFor({ lane, selected }) {
     // Only a read grant cannot commit; any other value keeps the signed-commit check.
     "can-commit": String(selected.grant.contents !== "read"),
     ...(selected.prepare === undefined ? {} : { prepare: selected.prepare }),
+    ...(selected["issue-dimensions"] === undefined
+      ? {}
+      : { "issue-dimensions": selected["issue-dimensions"], "timeout-minutes": String(selected["timeout-minutes"]) }),
   };
 }
 
@@ -225,6 +280,7 @@ function filesUnderBase(basePath, configPath) {
     schema,
     vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
     codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
+    trustedActors: readJsonUnderBase(basePath, TRUSTED_ACTORS_PATH),
     laneRules: readOwn("./lane-rules.json"),
     effectGrants: readOwn("./effect-grants.json"),
     activityRules: readOwn("./activity-rules.json"),
@@ -244,6 +300,7 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
     activity: env.ACTIVITY || undefined,
     configPath,
     basePath,
+    pinnedDimensions: env.ISSUE_DIMENSIONS || undefined,
   };
   if (absentAsNull && !laneHasActivity(files, request)) {
     return null;

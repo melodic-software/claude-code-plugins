@@ -86,12 +86,20 @@ an `issues` event cannot be decided and fails the step.
 The file at `output-path` holds `version`, `source` (`base-path`, `config-path`), `lane` (name,
 stage, enabled, and every slot resolved), `selected` (the requested activity's slot, or null),
 `loop`, `limits` and `merge`. Every default is applied: `scope` `diff`, `enabled` true, `loop` 2 and 3,
-the six `limits` (5, 1, 168, 5, 3, 3; [README, Limits](../../../docs/conventions/pr-pipeline/README.md#limits)),
+the `limits` ([README, Limits](../../../docs/conventions/pr-pipeline/README.md#limits)),
 `merge.rung` `off`, `stack-landing` `manual`. A skill slot carries `models`: its profile name and
 that profile's `model`, `effort` (null when unset), `subagent-model` (`inherit` when unset) and
 `max-turns`, from its activity's route, else `models.default-profile`, else, with no `models`
 block, the built-in `standard` profile (model `default`, 75 turns); a script slot carries `models`
-null. A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` always
+null. A skill slot with input `issue`, in a config with `models.issue-dimensions`, also carries
+`issue-dimensions` and `timeout-minutes`, and its `max-turns` is the dimensions' turn cap. The
+issue's field values are read over REST (`issue-field-values`, which needs `issues: read`) and
+their setters from the GraphQL field events, unless input `issue-dimensions` names what an
+earlier resolve read. A value counts only when its latest setter is a listed human on the base
+trusted-actor list or the lanes App; an option no entry maps fails the step
+(`unmapped-dimension`); an applying slot becomes `not-assessed`, `research-first`,
+`probe-first` or `split-required` in that order
+([README, Models](../../../docs/conventions/pr-pipeline/README.md#models)). A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` always
 gains the config path, `.github/**` and the trusted-actor list.
 
 The lane's slots are its leaves: each composite is replaced by its children, depth first in list
@@ -122,8 +130,9 @@ input makes the reader fetch the PR's files even without a `paths` predicate.
 Step outputs: `enabled` and `slots` (a JSON list of names); with `activity`, also `kind`,
 `effect`, `gating` (`gate` or `advisory`), `skill`, `script`, `profile`, `claude-args`,
 `settings-json`, `max-turns`, `model`, `effort`, `reads-untrusted`, `applies`, `skip-reason`, `contents`,
-`pull-requests`, `issues` and `can-commit` (`false` only when `contents` is `read`), and `prepare`
-only when the leaf sets it. `args` is free text and stays in the file.
+`pull-requests`, `issues` and `can-commit` (`false` only when `contents` is `read`), `prepare`
+only when the leaf sets it, and `issue-dimensions` and `timeout-minutes` only when the slot reads
+issue dimensions. `args` is free text and stays in the file.
 
 `claude-args` is `--model <alias>` unless the model is `default`, then `--max-turns <n>`, then
 `--effort <level>` when the profile sets one; `settings-json` is
