@@ -94,8 +94,10 @@ field() { printf '%s' "$out" | sed -n "s/.*\"$1\": \"\\([^\"]*\\)\".*/\\1/p"; }
 fails=0
 while :; do
   # The body comes back on stdout (no file path reaches curl), with the status on a last line.
+  # The token header goes in on stdin (`-H @-`), so it never appears in curl's argv.
   resp=$("$curl_bin" -s -w '\n%{http_code}' --noproxy '*' --max-time $((WAIT_TIMEOUT + 10)) \
-    -H "$header: $TOKEN" "http://127.0.0.1:$PORT/api/wait?after=handled&replayed=$replayed&timeout=$WAIT_TIMEOUT&watcher=$watcher&pid=$$")
+    -H @- "http://127.0.0.1:$PORT/api/wait?after=handled&replayed=$replayed&timeout=$WAIT_TIMEOUT&watcher=$watcher&pid=$$" \
+    <<<"$header: $TOKEN")
   code=${resp##*$'\n'}
   out=${resp%$'\n'*}
   if [[ "$code" == 409 && "$out" == *'"lease held"'* ]]; then
