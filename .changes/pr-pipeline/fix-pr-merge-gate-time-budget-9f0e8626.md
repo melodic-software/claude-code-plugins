@@ -1,0 +1,12 @@
+---
+bump: minor
+---
+
+### Added
+
+- New config: `merge.gate-budget-minutes` (a whole number of minutes; absent is no budget). The
+  pr-merge workflow's gate loop starts no further candidate once it has run that long, and the
+  candidate in progress finishes first, so the budget never stops a gate between its check and its
+  merge-queue write. Each run starts after the last candidate the previous loop reached, read from
+  the `pr-merge-gate-cursor` artifact of a run of the default branch's `pr-merge.yml`, and wraps
+  round to the lowest PR number, so every candidate is reached across runs. `version` stays 2.
