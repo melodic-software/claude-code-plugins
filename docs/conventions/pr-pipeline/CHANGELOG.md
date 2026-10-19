@@ -1,10 +1,18 @@
 # Changelog for the PR pipeline convention
 
-## 2.15.0 - 2026-10-18
+## 2.16.0 - 2026-10-18
 
 New config: `merge.max-queue-ejections` (default 2, 1 to 20). The unattended merge gate refuses to
 enqueue a head the merge queue has removed that many times for failed checks since the head last
 changed (a pushed commit or a force push); an unreadable timeline also refuses. `version` stays 2.
+
+## 2.15.0 - 2026-10-18
+
+`pr-unblock-dispatch.yml` starts pr-unblock's `fix-ci` for open lanes App pull requests whose
+head's `ci-status` failed, from one GraphQL query per page with its `rateLimit.cost` logged, at
+most `limits.fix-ci-per-run` per run and, on a head whose earlier runs all failed, at most
+`limits.fix-ci-restarts` more times ([README](README.md#lanes)). Its job's concurrency group
+now cancels a run in progress. `version` stays 2.
 
 ## 2.14.0 - 2026-10-18
 
