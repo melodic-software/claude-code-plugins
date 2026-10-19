@@ -4355,7 +4355,7 @@
       li._self = makeSelfActs();
       li.append(head, who, text, acts, li._self);
       li._att = attRowEl(); text.after(li._att);
-      run.onclick = () => Core.requestAct(li._r.id, "run").then(() => flash("Running. The result shows here.")).catch(fail);
+      run.onclick = () => Core.requestAct(li._r.id, "run").then(() => flash("Running. The result shows here.")).catch(runFail);
       decline.onclick = () => Core.requestAct(li._r.id, "decline").then(() => flash("Request declined.")).catch(fail);
       failB.onclick = () => Core.requestAct(li._r.id, "fail").then(() => flash("Marked failed. The requester sees it.")).catch(fail);
       rerun.onclick = () => Core.requestAct(li._r.id, "rerun").then(() => flash("Running again.")).catch(fail);
@@ -5092,7 +5092,7 @@
       const a = [];
       if (it.t === "request" && owner) {
         if (it.r.status === "pending") a.push(qAct("Decline", "vf-btn-ghost", () => Core.requestAct(it.r.id, "decline").then(() => flash("Request declined.")).catch(fail)),
-          qAct("Run", "vf-btn-primary", () => Core.requestAct(li._it.r.id, "run").then(() => flash("Running. The result shows on the question.")).catch(fail)));
+          qAct("Run", "vf-btn-primary", () => Core.requestAct(li._it.r.id, "run").then(() => flash("Running. The result shows on the question.")).catch(runFail)));
         else if (it.r.status === "running") a.push(qAct("Mark failed", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "fail").catch(fail)));
         else a.push(qAct("Run again", "vf-btn-ghost", () => Core.requestAct(li._it.r.id, "rerun").catch(fail)));
         a.push(qAct("Edit in Requests", "vf-btn-ghost", () => openPanel(RQ.pop, reqRow.offsetParent ? reqRow : li)));
