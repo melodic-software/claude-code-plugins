@@ -40,17 +40,26 @@ from a completed, successful one. Any other artifact is ignored.
 `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and
 `verify:untrusted-spec` need a human, who merges in person. Any read that fails refuses
 (`verify:unreadable`). The repository's artifacts are listed once per
-`Reader`, which pr-merge.yml builds once per candidate gate run, every page,
-and filtered on the name here: the API's name filter matches whole names only.
-A listing that got a 5xx or a fast network error is read again after each of
-`LISTING_WAITS`, every read inside one gh timeout in all; any other failure, a
-timeout, a 429 or a rate-limit 403 included, is not. A failed listing is kept
-as well, so one outage refuses every entry of the run without paging again:
-it holds the whole queue rather than merging blind.
+`Reader`, every page, and filtered on the name here: the API's name filter
+matches whole names only, and a FAIL counts under any number and head.
+pr-merge.yml builds one `Reader` per candidate gate run and names a file in
+`LISTING_ENV`: a successful listing is saved there, and later candidates of
+the run read it instead of paging again. No judgment uses a listing, saved
+or in memory, begun more than `LISTING_MAX_AGE` before it: an older one is
+read again and saved. A listing taken earlier in the run
+can only lack later uploads, so a refusal on it stands; before the gate's own
+candidate is allowed on it, babysit_merge.py calls `refresh()` and judges it
+again on a listing of its own. A listing that got a 5xx or a fast network
+error is read again after each of `LISTING_WAITS`, every read inside one gh
+timeout in all; any other failure, a timeout, a 429 or a rate-limit 403
+included, is not. A failed listing is never saved, and is kept as well, so one
+outage refuses every entry of the gate run without paging again: it holds the
+whole queue rather than merging blind.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -63,13 +72,20 @@ from typing import Any
 
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
+import babysit_run_cache as run_cache
 from babysit_classify import is_dependency_author
-from babysit_gh import flatten_paginated_items, gh_http_status, gh_timeout_seconds
+from babysit_gh import (
+    flatten_paginated_items,
+    gh_http_status,
+    gh_timeout_seconds,
+    pull_request_commits_once,
+)
 from babysit_util import is_json_array, is_json_object, json_array, json_object
 
 WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
+LISTING_ENV = "BABYSIT_VERIFY_LISTING"
 NAME_RE = re.compile(r"pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)")
 PASSES = ("pass", "pass-notes")
 # Artifacts last at most 90 days in this repository (the retention maximum,
@@ -80,6 +96,8 @@ TOO_OLD_DAYS = 80
 COMMITS_CAP = 250
 # The waits before the second and third listing reads (judgment).
 LISTING_WAITS = (2.0, 4.0)
+# The oldest listing any judgment uses, saved or in memory (see the bound).
+LISTING_MAX_AGE = run_cache.MAX_AGE
 # How gh reports a request that never got an HTTP response: its own
 # "error connecting to <host>" for a failed lookup, else Go's net/http error.
 NETWORK_ERRORS = (
@@ -111,6 +129,29 @@ CLOSING_QUERY = (
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
 # verifier origin, not a completed success), or counted (both).
 UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
+# The run cache's section of run records, and the fields `_run_state` reads.
+RUN_SECTION = "run-record"
+RECORD_SECTION = "fail-head-ref"
+# What earlier pr-merge runs read, copied into this run's cache by
+# .github/scripts/pr-merge/carry-run-cache.mjs from a cache entry any job in
+# the default branch's cache scope could have written. Each is used only
+# where it counts a FAIL; any other answer is read from GitHub.
+CARRIED_RUN_SECTION = "carried-run-record"
+CARRIED_RECORD_SECTION = "carried-fail-head-ref"
+CARRIED_ON_BRANCH = "carried-on-branch"
+RUN_FIELDS = (
+    "id",
+    "path",
+    "event",
+    "head_branch",
+    "head_sha",
+    "repository",
+    "head_repository",
+    "status",
+    "conclusion",
+    "run_attempt",
+    "run_started_at",
+)
 
 
 class _Unreadable(Exception):
@@ -137,6 +178,18 @@ def _listing_sleep(seconds: float) -> None:
 
 def _listing_clock() -> float:
     return time.monotonic()
+
+
+def _wall_clock() -> datetime:
+    return datetime.now(UTC)
+
+
+def _recent(fetched_at: datetime | None) -> bool:
+    """A listing begun at most `LISTING_MAX_AGE` ago; a time with no zone, or
+    one in the future, is not."""
+    if fetched_at is None or fetched_at.tzinfo is None:
+        return False
+    return timedelta(0) <= _wall_clock() - fetched_at <= LISTING_MAX_AGE
 
 
 def dependency_bot(user: Any) -> bool:
@@ -199,35 +252,107 @@ class Reader:
     branch: str
     now: datetime | None = None
     # The token for the Actions reads (artifact listing, run records,
-    # download): pr-merge.yml passes the job's GITHUB_TOKEN, which holds
+    # download) and the run heads' compares: pr-merge.yml passes the job's GITHUB_TOKEN, which holds
     # `actions: read`, while the lane token it runs gh with holds none.
     actions_token: str | None = field(
         default_factory=lambda: os.environ.get(TOKEN_ENV) or None
     )
+    # The run's saved listing (`LISTING_ENV`), when pr-merge.yml names one.
+    listing_path: str | None = field(
+        default_factory=lambda: os.environ.get(LISTING_ENV) or None
+    )
     _artifacts: list[dict[str, Any]] | None = None
+    _fetched_at: datetime | None = None  # when `_artifacts` began to be read
+    _saved: bool = False  # `_artifacts` came from `listing_path`
+    _own: bool = False  # `refresh()` asked for a listing of this Reader's own
     _listing_error: str | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
+    # Runs whose standing came from the run cache (`_run_state`).
+    _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
     _records: dict[tuple[int, str], dict[str, Any]] = field(default_factory=dict)
     _humans: frozenset[int] | None = None
+    _humans_at: datetime | None = None  # when `_humans` was read
 
     def _listing(self) -> list[dict[str, Any]]:
-        """Every repository artifact, read once: a failed read is kept too,
-        so one outage refuses each later entry without paging again."""
+        """`_current_listing`, noting when it began to be read
+        (`run_cache.note`)."""
+        listing = self._current_listing()
+        if self._fetched_at is not None:
+            run_cache.note(self._fetched_at)
+        return listing
+
+    def _current_listing(self) -> list[dict[str, Any]]:
+        """Every repository artifact, read at most `LISTING_MAX_AGE` before
+        this judgment (from the run's saved listing when it is that recent): a
+        failed read is kept too, so one outage refuses each later entry
+        without paging again."""
         if self._listing_error is not None:
             raise _Unreadable(self._listing_error)
-        listing = self._artifacts
-        if listing is None:
-            try:
-                listing = flatten_paginated_items(
-                    self._read_listing(), "repository artifacts", items_key="artifacts"
-                )
-            except (_Unreadable, RuntimeError) as exc:
-                self._listing_error = str(exc)
-                raise _Unreadable(self._listing_error) from exc
-            self._artifacts = listing
+        if self._artifacts is not None and _recent(self._fetched_at):
+            return self._artifacts
+        saved = None if self._own else self._load_saved()
+        if saved is not None:
+            self._fetched_at, self._artifacts = saved
+            self._saved = True
+            return self._artifacts
+        fetched_at = _wall_clock()
+        try:
+            listing = flatten_paginated_items(
+                self._read_listing(), "repository artifacts", items_key="artifacts"
+            )
+        except (_Unreadable, RuntimeError) as exc:
+            self._listing_error = str(exc)
+            raise _Unreadable(self._listing_error) from exc
+        self._artifacts, self._fetched_at = listing, fetched_at
+        self._saved = self._own = False
+        self._save(listing, fetched_at)
         return listing
+
+    @property
+    def saved(self) -> bool:
+        """Whether the listing judged on was read from `listing_path`."""
+        return self._saved
+
+    def refresh(self) -> None:
+        """Drop a saved listing: the next judgment pages the API itself (and
+        saves that listing for the rest of the run)."""
+        if self._saved:
+            self._artifacts, self._saved, self._own = None, False, True
+
+    def _load_saved(self) -> tuple[datetime, list[dict[str, Any]]] | None:
+        """The run's saved listing and when it began to be read. A missing or
+        malformed file, or one with no `fetchedAt` within `LISTING_MAX_AGE`,
+        is none, so the listing is read from the API instead."""
+        if not self.listing_path:
+            return None
+        try:
+            saved = json_object(
+                json.loads(Path(self.listing_path).read_text(encoding="utf-8"))
+            )
+            fetched_at = datetime.fromisoformat(saved["fetchedAt"])
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+        listing = saved.get("artifacts")
+        if (
+            not _recent(fetched_at)
+            or not is_json_array(listing)
+            or not all(map(is_json_object, listing))
+        ):
+            return None
+        return fetched_at, listing
+
+    def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
+        """Best effort: a failed write leaves the next candidate to list."""
+        if not self.listing_path:
+            return
+        path = Path(self.listing_path)
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        payload = {"fetchedAt": fetched_at.isoformat(), "artifacts": listing}
+        with contextlib.suppress(OSError):
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
+            os.replace(tmp, path)
 
     def _read_listing(self) -> Any:
         """The listing payload, read again after a 5xx or a fast network
@@ -278,51 +403,122 @@ class Reader:
         except ValueError as exc:
             raise _Unreadable(f"{label}: {exc}") from exc
 
-    def _contains(self, sha: str) -> bool:
+    def _contains(self, sha: str, *, shared: bool = False) -> bool:
+        """Whether the branch holds `sha`, read under the Actions token (a
+        contents read). A yes stays true while the branch only moves forward
+        (main's ruleset forbids force pushes), so the run shares it; a no is
+        read again by each gate process. A yes an earlier run found
+        (`CARRIED_ON_BRANCH`) serves a FAIL's run only (`shared`), where it
+        can only count the FAIL."""
         if sha not in self._on_branch:
+            key = f"{self.repo}|{sha}...{self.branch}"
+            if run_cache.get("on-branch", key, None) is True:
+                self._on_branch[sha] = True
+                return True
+            if shared and run_cache.get(CARRIED_ON_BRANCH, key, None) is True:
+                return True
             compare = json_object(
-                _read(
+                self._actions(
                     ["api", f"repos/{self.repo}/compare/{sha}...{self.branch}"],
                     f"compare {sha[:12]}...{self.branch}",
                 )
             )
             self._on_branch[sha] = compare.get("status") in ("ahead", "identical")
+            if self._on_branch[sha]:
+                run_cache.put("on-branch", key, True)
         return self._on_branch[sha]
 
-    def _run_state(self, run_id: int) -> str:
-        if run_id not in self._runs:
-            try:
+    def _run_state(self, run_id: int, *, shared: bool = False) -> str:
+        """The run's standing. A FAIL's run (`shared`) may be judged on a
+        record another gate process of the run read, however long ago, or
+        on one an earlier run carried in when it shows origin: a
+        FAIL counts whether its run is origin or counted, and origin rests
+        only on fields a re-run keeps (id, path, event, branch, repositories,
+        head) plus a live branch check, never on status, conclusion or
+        attempt, so a stale record cannot turn a FAIL away. A PASS needs a
+        completed success, which a re-run can undo, so its run is read by
+        this process, never taken from a FAIL's judgment."""
+        if run_id in self._runs and (shared or run_id not in self._shared_runs):
+            return self._runs[run_id]
+        key = f"{self.repo}|{run_id}"
+        record = run_cache.get(RUN_SECTION, key, None) if shared else None
+        cached = is_json_object(record)
+        origin: bool | None = None
+        if shared and not cached:
+            # A carried record counts the FAIL when it shows origin; any
+            # other answer from it could turn the FAIL away, so the run is
+            # read instead.
+            carried = run_cache.get(CARRIED_RUN_SECTION, key, None)
+            if is_json_object(carried):
+                try:
+                    if self._origin(carried, run_id, shared=True):
+                        record, cached, origin = carried, True, True
+                except _Unreadable:
+                    pass
+        try:
+            if not cached:
                 record = json_object(
                     self._actions(
                         ["api", f"repos/{self.repo}/actions/runs/{run_id}"],
                         f"run {run_id}",
                     )
                 )
-                head = record.get("head_sha")
-                origin = (
-                    record.get("id") == run_id
-                    and record.get("path") == WORKFLOW_PATH
-                    and record.get("event") == "workflow_run"
-                    and record.get("head_branch") == self.branch
-                    and json_object(record.get("repository")).get("full_name")
-                    == self.repo
-                    and json_object(record.get("head_repository")).get("full_name")
-                    == self.repo
-                    and isinstance(head, str)
-                    and merge_policy.SHA_RE.fullmatch(head) is not None
-                    and self._contains(head)
-                )
-                self._started[run_id] = record.get("run_started_at")
-                done = (
-                    record.get("status") == "completed"
-                    and record.get("conclusion") == "success"
-                )
-                self._runs[run_id] = (
-                    FOREIGN if not origin else COUNTED if done else ORIGIN
-                )
-            except _Unreadable:
-                self._runs[run_id] = UNREAD
+            if origin is None:
+                origin = self._origin(record, run_id, shared=shared)
+        except _Unreadable:
+            self._shared_runs.discard(run_id)
+            self._runs[run_id] = UNREAD
+            return UNREAD
+        if cached or shared:
+            self._shared_runs.add(run_id)
+        else:
+            self._shared_runs.discard(run_id)
+        if not cached:
+            self._started[run_id] = record.get("run_started_at")
+            run_cache.put(RUN_SECTION, key, {k: record.get(k) for k in RUN_FIELDS})
+        done = (
+            record.get("status") == "completed"
+            and record.get("conclusion") == "success"
+        )
+        self._runs[run_id] = FOREIGN if not origin else COUNTED if done else ORIGIN
         return self._runs[run_id]
+
+    def _origin(self, record: dict[str, Any], run_id: int, *, shared: bool) -> bool:
+        """Whether `record` names a run of the verifier on the branch of this
+        repository whose head the branch holds."""
+        head = record.get("head_sha")
+        return (
+            record.get("id") == run_id
+            and record.get("path") == WORKFLOW_PATH
+            and record.get("event") == "workflow_run"
+            and record.get("head_branch") == self.branch
+            and json_object(record.get("repository")).get("full_name") == self.repo
+            and json_object(record.get("head_repository")).get("full_name") == self.repo
+            and isinstance(head, str)
+            and merge_policy.SHA_RE.fullmatch(head) is not None
+            and self._contains(head, shared=shared)
+        )
+
+    def _head_ref(self, run_id: int, name: str, artifact_id: Any, head_ref: str) -> Any:
+        """The head ref an untied FAIL's verdict.json records, shared by the
+        run's gate processes under the artifact's id: an id names contents
+        that never change (an overwrite uploads a new id), and a FAIL whose
+        artifact has since gone still refuses. An artifact with no id is not
+        shared."""
+        shared = isinstance(artifact_id, int) and not isinstance(artifact_id, bool)
+        key = f"{self.repo}|{artifact_id}"
+        dated = run_cache.get_dated(RECORD_SECTION, key, None) if shared else None
+        if dated is not None and is_json_object(dated[0]):
+            return dated[0].get("head_ref")
+        # A carried head ref ties the FAIL to this PR; one naming another
+        # ref could untie it, so the record is read instead.
+        carried = run_cache.get(CARRIED_RECORD_SECTION, key, None) if shared else None
+        if head_ref and is_json_object(carried) and carried.get("head_ref") == head_ref:
+            return head_ref
+        record = self._record(run_id, name)
+        if shared:
+            run_cache.put(RECORD_SECTION, key, {"head_ref": record.get("head_ref")})
+        return record.get("head_ref")
 
     def _record(self, run_id: int, name: str) -> dict[str, Any]:
         """The artifact's verdict.json, downloaded once."""
@@ -349,8 +545,18 @@ class Reader:
         return self._records[key]
 
     def _trusted_humans(self) -> frozenset[int]:
+        """The trusted list's human ids at the branch, shared by the run's
+        gate processes for `run_cache.MAX_AGE`; each answer notes when it
+        was read (`run_cache.note`)."""
+        key = f"{self.repo}@{self.branch}"
+        if self._humans is None:
+            shared = run_cache.get_dated("trusted-humans", key, run_cache.MAX_AGE)
+            if shared is not None and is_json_array(shared[0]):
+                self._humans = frozenset(i for i in shared[0] if type(i) is int)
+                self._humans_at = shared[1]
         humans = self._humans
         if humans is None:
+            self._humans_at = run_cache.now()
             listing = json_object(
                 _read(
                     [
@@ -371,6 +577,9 @@ class Reader:
                 if a.get("kind") == "human" and isinstance(a.get("id"), int)
             )
             self._humans = humans
+            run_cache.put("trusted-humans", key, sorted(humans), self._humans_at)
+        if self._humans_at is not None:
+            run_cache.note(self._humans_at)
         return humans
 
     def _trusted_actor(self, kind: Any, actor_id: Any, login: Any, author: str) -> bool:
@@ -478,11 +687,16 @@ class Reader:
                 )
         return live
 
-    def _commits(self, number: int) -> set[str]:
+    def _commits(self, number: int, head: str) -> set[str]:
         try:
-            commits = postmerge._paginated(
-                f"repos/{self.repo}/pulls/{number}/commits?per_page=100",
-                f"#{number} commits",
+            commits = pull_request_commits_once(
+                self.repo,
+                number,
+                head,
+                lambda: postmerge._paginated(
+                    f"repos/{self.repo}/pulls/{number}/commits?per_page=100",
+                    f"#{number} commits",
+                ),
             )
         except postmerge.PostMergeReadError as exc:
             raise _Unreadable(str(exc)) from exc
@@ -512,7 +726,7 @@ class Reader:
             return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
         head_ref = str(json_object(pr.get("head")).get("ref") or "")
         author = str(json_object(pr.get("user")).get("login") or "")
-        commits = self._commits(number) | {head}
+        commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str]] = []
         ignored = 0
@@ -539,7 +753,7 @@ class Reader:
                 else:
                     ignored += 1
                 continue
-            state = self._run_state(run_id)
+            state = self._run_state(run_id, shared=True)
             if state == FOREIGN:
                 ignored += 1
                 continue
@@ -551,7 +765,7 @@ class Reader:
                 continue
             if not tied:
                 try:
-                    recorded = self._record(run_id, name).get("head_ref")
+                    recorded = self._head_ref(run_id, name, item.get("id"), head_ref)
                 except _Unreadable:
                     unreadable = unreadable or f"record of {name}"
                     continue

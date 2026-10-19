@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:sweep-all"
+          }
+        }
+      ],
+      "why": "the sweep itself is not another corrector"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval-ws/skills/reason-dont-recite/SKILL.md"
+          }
+        }
+      ],
+      "why": "reading a corrector's file is not calling it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:reason-dont-recite"
+          }
+        }
+      ],
+      "why": "calls another corrector through the Skill tool"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "tighten-your-output",
+            "args": "digest"
+          }
+        }
+      ],
+      "why": "bare skill name"
+    }
+  ]
+}

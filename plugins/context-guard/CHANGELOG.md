@@ -5,6 +5,16 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-10-18
+
+### Changed
+
+- The reader contract now lists `DISABLE_COMPACT` as its own row, citing the env-vars page that documents it as also disabling manual `/compact`, drops the "unconfirmed by docs" note, and dates the `DISABLE_AUTO_COMPACT` manual-`/compact` sentence 2026-10-15.
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [1.0.3] - 2026-10-16
 
 ### Changed

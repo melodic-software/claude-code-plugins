@@ -50,6 +50,31 @@
         "Routes the audit to /harness-config:audit and its named siblings rather than performing it",
         "Applies no fix and fetches no documentation or marketplace data"
       ]
+    },
+    {
+      "id": 5,
+      "name": "wsl-profile-prints-and-states-its-limit",
+      "prompt": "/harness-config:setup wsl-profile\n\nAssume the detect step reports a WSL2 Ubuntu host and the print step returns the profile for it.",
+      "expected_output": "Detects the WSL host, prints the settings block with the running user's paths, Read and Edit deny rules using // absolute paths and a pinned env.TMPDIR, and states that deny rules do not stop a subprocess that opens files itself and that the sandbox is the OS-level control. Names appendWindowsPath and the PowerShell symlink as host steps for the human. Writes nothing.",
+      "files": [],
+      "expectations": [
+        "Runs the detect step before printing and prints the block from wsl-profile.sh",
+        "Every path rule is Read( or Edit( with a // prefix; none is a Write(path) rule",
+        "States that deny rules do not stop a script that opens files itself and points at the sandbox",
+        "Treats appendWindowsPath=false and the PowerShell symlink as host steps and edits neither",
+        "Writes no settings file and asks the user to merge the block themselves"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "wsl-profile-does-not-apply-off-wsl",
+      "prompt": "/harness-config:setup wsl-profile\n\nAssume the detect step exits 1 because this is a native macOS host.",
+      "expected_output": "Detection fails, so the skill says the WSL profile does not apply to this host and prints no block.",
+      "files": [],
+      "expectations": [
+        "Says the profile does not apply on a non-WSL host",
+        "Prints no settings block and writes nothing"
+      ]
     }
   ]
 }

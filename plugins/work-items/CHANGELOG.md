@@ -3,6 +3,31 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.8.0] - 2026-10-18
+
+### Changed
+
+- Unattended loops hold to one GitHub API budget, now in the GitHub adapter reference (60 s background waits, GraphQL-only fields read once, writes one at a time, stop on the first rate-limit error); `tracker-seam.md`, work-loop's seam exit 8 handling and the triage lane point at it.
+
+- **The `work` CI mode skips its pre-PR review when the CI code-review lane covers the repository.** When the runner writes a `review-venue.txt` whose `code-review` line reads `ci`, the run records `review` as `skipped` and notes the line in `not_done`; with no file, or a `local` line, it reviews its diff as before, as the stand-in for the CI lane.
+
+- `/work-items:attend-queue` says to edit an item's body before `agent-ready` is added, since that label alone admits the item to the issue lane and a title or body changed after it fails the run.
+
+- Shared `watch.sh` synced: a watcher whose lease was released while it waited exits 3 with a message starting `handed over, not a failure`.
+
+- **`/work-items:decompose` and `/work-items:track add` stamp the native Issue Type and nothing more.** Both now say outright that a created item gets no `work-class:` label and no status field, and each skill's evals gain a case asserting a created item with a native Issue Type and no `work-class:` label.
+
+### Fixed
+
+- `/work-items:work` CI mode reads the trusted comments the issue lane now passes in `issue.json`: a listed human's `**Decision recorded.**` comment, marked `decision: true` by the runner, settles the matching open question in the body, so only a question no such comment answers is a reason to push back, and a recorded keep-`Refs` decision sets `"link": "refs"` in the outcome.
+- `/work-items:attend-queue` updates the item body's open-question section after writing an escalation answer back, so the issue states its own decision.
+
+- `/work-items:work` CI mode no longer stops on a check the issue names as a PR or CI check: when the run cannot run it, it records it in `not_done` as left to the PR's CI with `"required": false`, so the issue lane opens the PR instead of handing the issue back.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
+- `/work-items:work` names `/source-control:pull-request create` in its branch-name step only when it is among the available skills, with a fallback of the orchestrator writing the adapter's link line into the PR body itself.
+
 ## [2.7.1] - 2026-10-16
 
 ### Changed

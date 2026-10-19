@@ -17,12 +17,21 @@ current harness exposes:
 - monitors;
 - scheduled / cron tasks;
 - dynamic workflows;
-- spawned subagents.
+- spawned subagents;
+- nested agents: the subagents a subagent spawned in turn, and the agents running
+  inside a dynamic workflow.
 
 Treat that list as **examples of the kinds** to look for, not a fixed
 catalogue. The tool surface evolves; the specific tools that hold off-thread
 work change over time. Inventory what exists now, not only the mechanisms named
 here.
+
+Inventory descends through **every level the harness exposes**: for each
+subagent, look for the agents it spawned; for each workflow, look for the agents
+it is running; and repeat for each of those. Read every level's real state by the
+same rule below, never only the top level's. Where a level cannot be enumerated
+from the resumed session, say so in the report, naming the level, rather than
+omitting it or implying it was checked.
 
 ## Inspect real state, never assume
 

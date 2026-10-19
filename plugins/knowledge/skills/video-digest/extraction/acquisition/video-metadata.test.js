@@ -41,6 +41,11 @@ describe("parseVideoMetadata", () => {
     expect(metadata.chapters).toEqual([]);
     expect(metadata.heatmap).toBeNull();
     expect(metadata.comments).toEqual([]);
+    expect(metadata.durationSec).toBeNull();
+  });
+
+  it("parses the metadata duration", () => {
+    expect(parseVideoMetadata({ id: "abc", duration: 10446 }).durationSec).toBe(10446);
   });
 });
 
