@@ -3,6 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.0] - 2026-10-18
+
+### Changed
+
+- `/review:code-review` reads the issues a pull request closes from the lane's PR context file (`PR CONTEXT:` prompt line, default `.claude-lane/pr-context.md`) and reports each acceptance criterion the change leaves unmet (blocking) or untested, and reads the `.claude/rules/` files whose `paths:` match changed files as review criteria.
+
+- Shared `watch.sh` synced: a watcher whose lease was released while it waited exits 3 with a message starting `handed over, not a failure`.
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
+### Security
+
+- `explain-change` publish gates take the repository from the pull request's own URL in `facts.json`, never from a model-typed argument, so a mistyped public repository can no longer make a private pull request's diff publishable. `digest-policy.mjs --publish-gate` now takes `--facts <facts.json>` in place of `--repo`, and `publish-hosted.mjs` takes `--facts <facts.json>` in place of `--repo` and `--pr`. Its sidecar key, host included, comes from the same URL. In the gate, a missing facts file or one with no pull request URL gates as `UNKNOWN`. The hosted publisher publishes nothing in that case.
+- The visibility lookup always names the URL's host, github.com included, so `GH_HOST` cannot send it to another server. Owner, name and number are checked the way `read-pr.sh` checks them.
+- The skill reads the diff by the facts file's pull request URL, so the gated diff is the pull request whose visibility was looked up. A facts file the model wrote by hand, with no `source-control` plugin, keeps the page as a file.
+
 ## [0.46.2] - 2026-10-17
 
 ### Fixed
