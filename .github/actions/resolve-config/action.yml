@@ -18,7 +18,7 @@ inputs:
       review-code for pr-review-hosted.yml, review-security for
       pr-review-security-hosted.yml, triage-issue for intake-triage.yml):
       resolve only its model profile, for the profile, claude-args,
-      settings-json and max-turns outputs. Set it or lane, not both.
+      settings-json, max-turns, model and effort outputs. Set it or lane, not both.
     required: false
     default: ""
   activity:
@@ -110,6 +110,17 @@ outputs:
   max-turns:
     description: The profile's turn budget; empty for a script.
     value: ${{ steps.resolve.outputs.max-turns }}
+  model:
+    description: >
+      The profile's model alias, for run-claude-cli's `model` input. Empty
+      when the model is `default`, which the launcher cannot pass, so a
+      launcher caller must fail on it; empty for a script.
+    value: ${{ steps.resolve.outputs.model }}
+  effort:
+    description: >
+      The profile's effort, for run-claude-cli's `effort` input; empty when
+      the profile sets none, and for a script.
+    value: ${{ steps.resolve.outputs.effort }}
   reads-untrusted:
     description: "`true` when the activity reads untrusted text."
     value: ${{ steps.resolve.outputs.reads-untrusted }}

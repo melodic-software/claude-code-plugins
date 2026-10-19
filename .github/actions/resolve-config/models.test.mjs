@@ -273,6 +273,8 @@ test("main with model-route verify-pr writes the verifier's outputs and file", a
     "claude-args": "--model opus --max-turns 60",
     "settings-json": "",
     "max-turns": "60",
+    model: "opus",
+    effort: "",
   });
   assert.equal(JSON.parse(readFileSync(env.OUTPUT_PATH, "utf8")).models.profile, "review");
 });
@@ -285,7 +287,24 @@ test("main with model-route triage-issue writes the triage profile's outputs", a
     "claude-args": "--model sonnet --max-turns 30 --effort medium",
     "settings-json": "",
     "max-turns": "30",
+    model: "sonnet",
+    effort: "medium",
   });
+});
+
+// A launcher caller (run-claude-cli) takes model and effort as inputs. A
+// `default` model passes no --model, which the launcher cannot express, so its
+// model output is empty and the caller fails on it.
+test("main gives a default model and an unset effort as empty model and effort outputs", async () => {
+  const env = routeEnv();
+  const doc = parse(readFileSync(join(env.BASE_PATH, CONFIG_PATH), "utf8"));
+  doc.models.profiles.review.model = "default";
+  writeFileSync(join(env.BASE_PATH, CONFIG_PATH), stringify(doc));
+  assert.equal(await main({ env }), 0);
+  const outputs = readOutputs(env.GITHUB_OUTPUT);
+  assert.equal(outputs.model, "");
+  assert.equal(outputs.effort, "");
+  assert.equal(outputs["claude-args"], "--max-turns 60");
 });
 
 test("main refuses an unknown model-route, and writes no file", async () => {
