@@ -9,6 +9,7 @@
 - [5. Consumers and launch surfaces](#5-consumers-and-launch-surfaces)
 - [6. Rate-limit guard binding](#6-rate-limit-guard-binding)
 - [7. Operator steering through GitHub state](#7-operator-steering-through-github-state)
+- [Confirm-then-record](#confirm-then-record)
 - [8. Scheduled reader](#8-scheduled-reader)
 - [Versioning](#versioning)
 
@@ -1203,6 +1204,23 @@ item is human-gated or escalated and no PR is in flight.
 **Stop a lane: no GitHub control exists.** Stopping is a session action on the lane's own host:
 `/harness-ops:lanes stop <lane>` there, reached from another machine through `/fleet:reach`.
 
+### Confirm-then-record
+
+This repository's confirm-then-record pattern for a lane's external write is two rules already
+stated above, with no state word beyond the one the telemetry read-back reports:
+
+- **`UNREPORTED` is the state for a write that cannot be proven.** A branch that ends without a
+  verified body reports `UNREPORTED` and does nothing that assumes the write landed (§4 "Telemetry
+  comment").
+- **Record first, marker second.** The record is written before the marker that suppresses a repeat,
+  so an unproven stop re-escalates, a duplicate a person discards, and never loses the signal (§2
+  "Escalation record write"). That is the failure direction chosen.
+
+A check-then-act dedupe does not cover two runs that overlap. Every posting lane, marked covered by a
+`concurrency:` group, by another atomic claim, or uncovered, is listed in
+[`posting-lanes.md`](posting-lanes.md). A reconciliation pass and a two-phase in-progress record are
+out of scope.
+
 ## 8. Scheduled reader
 
 A scheduled reader is a lane that reads sources on a schedule and posts what changed. The
@@ -1216,7 +1234,7 @@ a checklist of its own:
 | Bookmark per source | `/harness-ops:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, the probe tracked in #7674 |
 | Failed read reported as unreadable | `/harness-ops:morning-brief` "Degraded sections"; for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
 | Live re-check before posting | [`pr-run-activity.md`](../pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
-| Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, the research tracked in #7672 |
+| Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, [`posting-lanes.md`](posting-lanes.md) |
 | Config re-read each run from a store the lane cannot edit | §4 "Headless-config floor"; base-SHA config in `.github/workflows/pr-run-activity-read.yml`; [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) decision 4, with the review and intake lanes tracked in #7234; for local lanes, the research tracked in #7680 |
 | Read-only access, and a cap on each run | Not met for read-only access: CI lanes hold the write token their job needs and every tool, the gap [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) accepts and bounds with short-lived, scoped tokens (decision 3); for run limits per task class, the mechanism tracked in #7677 |
 
