@@ -1724,9 +1724,10 @@
     const ixMineEmpty = E("p", "vf-empty vf-empty-sm", "No requests yet. Ask Claude on a question and it shows here, with its status, until you open the answer.");
     ixMine.append(ixMineList, ixMineEmpty);
     // What waits on the owner, one group per kind, each item linking to where it is handled.
-    // The host's review view (follow-up item 13): every request to Claude and every answer, newest first, shown by the
-    // status chips this device remembers, each row with its own actions. It replaced the rail's Requests panel.
-    const REV_STATS = [["waiting", "Waiting"], ["running", "Running"], ["failed", "Failed"], ["unshared", "Not shared"], ["shared", "Shared"]];
+    // The host's review view: every request to Claude and every answer, newest first, shown by the status chips this
+    // device remembers, each row with its own actions. Not shared is what waits for the host's Share; Private is out to
+    // its asker alone (Just me, or taken down).
+    const REV_STATS = [["waiting", "Waiting"], ["running", "Running"], ["failed", "Failed"], ["unshared", "Not shared"], ["private", "Private"], ["shared", "Shared"]];
     const revBox = E("div", "vf-ixgroup vf-review"), revHead = E("div", "vf-rev-head");
     const revChips = E("div", "vf-rev-chips"); revChips.setAttribute("role", "group"); revChips.setAttribute("aria-label", "Show requests that are");
     const revChip = {};
@@ -2643,8 +2644,10 @@
     function genReq(S, rid) {
       const x = (S.research?.[Core.GENERAL] || []).find(r => r.requestId === rid);
       const r = (Core.me.isOwner ? S.requests || [] : []).concat(S.myRequests || []).find(r2 => r2.id === rid);
-      return { x, r, label: x ? (x.published === false ? "Answered, waiting for the host to share" : "Answered") : r ? rstat(r) : "" };
+      return { x, r, label: x ? ansLabel(x) : r ? rstat(r) : "" };
     }
+    /** What became of an answer, as its request's line says it. */
+    const ansLabel = x => (x.takenDown ? "Taken down by the host" : x.private ? (isMe(x.byCid) ? "Answered, just for you" : "Answered, just for the asker") : x.published === false ? "Answered, waiting for the host to share" : "Answered");
     /** Ask Claude on "About the whole session", with one answer ("x:<id>") or request ("r:<id>") of it in view. */
     function openGeneral(key) {
       if (key?.startsWith("x:")) ui.resClosed.delete(key.slice(2));
@@ -2800,7 +2803,7 @@
       for (const [qid, lst] of Object.entries(S.research || {})) for (const x of lst) res.push({ qid: qid === Core.GENERAL ? "" : qid, x });
       const byReq = new Map(res.filter(e => e.x.requestId).map(e => [e.x.requestId, e]));
       const reqs = S.requests || [], asked = new Set(reqs.map(r => r.id));
-      const st2 = (r, x) => (r && r.status !== "done" ? { pending: "waiting", running: "running", failed: "failed" }[r.status] : x?.published ? "shared" : "unshared");
+      const st2 = (r, x) => (r && r.status !== "done" ? { pending: "waiting", running: "running", failed: "failed" }[r.status] : x?.published ? "shared" : x?.private ? "private" : "unshared");
       const rows = reqs.filter(r => r.status !== "declined").map(r => { const e = byReq.get(r.id); return { key: "r:" + r.id, r, x: e?.x, qid: r.qid, ts: r.ts, st: st2(r, e?.x) }; });
       for (const e of res) if (!e.x.requestId || !asked.has(e.x.requestId)) rows.push({ key: "x:" + e.x.id, x: e.x, qid: e.qid, ts: e.x.ts, st: st2(null, e.x) });
       return rows.sort((a, b) => b.ts - a.ts);
@@ -2832,7 +2835,7 @@
         ring(li);
       });
     }
-    /** A review row: the request (as the Requests panel had it) and, once Claude answered, the answer with Share,
+    /** A review row: the request with its own actions and, once Claude answered, the answer with Share,
      *  Discard and Take down. A row with no request is an answer no host request asked for (a guest's own Claude's). */
     function makeRev() {
       const li = makeReq(), k = li._k;
@@ -2888,8 +2891,8 @@
         k.text.hidden = !x.ask; if (x.ask) fillClamp(k.text, "rx:" + x.id, x.ask, `What ${disp(x.by || "someone")} asked`, q ? `${q.id}: ${q.text}` : "");
         for (const b of [k.edit, k.save, k.cancel, k.decline, k.run, k.failB, k.rerun]) b.hidden = true;
       }
-      k.stat.textContent = REV_WORD[row.st]; k.stat.dataset.stat = row.st;
-      if (row.r?.justMe || x?.justMe) k.stat.textContent += ", just me";
+      k.stat.textContent = row.st === "private" ? (x.takenDown ? "Taken down" : "Just me") : REV_WORD[row.st]; k.stat.dataset.stat = row.st;
+      if (row.st !== "private" && (row.r?.justMe || x?.justMe)) k.stat.textContent += ", just me";
       li.dataset.stat = row.st;
       li._unread = inbox().filter(i => i.unread && (i.key === "run:" + row.r?.id || (x && i.key === "share:" + x.id))).map(i => i.key);
       k.dot.hidden = !li._unread.length;
@@ -2898,7 +2901,7 @@
       const draft = !x.published, held = draft && !x.private;
       k.rwho.textContent = x.published ? "Everyone sees it" : x.takenDown ? "Taken down: only you and the asker see it" : x.private ? "Just me: only you and the asker see it" : "Only you see it until you share it";
       fillClamp(k.sum, "rv:" + x.id, x.summary, "Claude's answer", q ? `${q.id}: ${q.text}` : GEN_LABEL);
-      k.share.hidden = k.discard.hidden = !draft;
+      k.share.hidden = !draft; k.discard.hidden = !held; // a delivered answer is its asker's: take it down instead
       k.share.textContent = held && x.justMe ? `Send to ${disp(x.by || "the person who asked")}` : "Share with everyone";
       k.takeDown.hidden = !!draft;
     }
@@ -4829,7 +4832,7 @@
         : x.takenDown ? "The host took this down. Only you and the host see it."
         : "Just me: only you and the host see this. Share it if it helps everyone.";
       k.publish.textContent = owner && held && x.justMe ? `Send to ${who}` : "Share with everyone";
-      k.discard.hidden = !(owner && draft);
+      k.discard.hidden = !(owner && held);
       k.publish.hidden = !((owner && draft) || canShare);
       k.takeDown.hidden = !(owner && !draft);
       li.classList.toggle("vf-res-draft", draft);
@@ -4969,7 +4972,7 @@
     function discReq(S, q, c) {
       const x = (S.research?.[q.id] || []).find(r => r.requestId === c.request);
       const r = (Core.me.isOwner ? S.requests || [] : []).concat(S.myRequests || []).find(r2 => r2.id === c.request);
-      return { x, r, label: x ? (x.published === false ? "Answered, waiting for the host to share" : "Answered") : r ? rstat(r) : "" };
+      return { x, r, label: x ? ansLabel(x) : r ? rstat(r) : "" };
     }
     /** Show a comment: the question, its Discussion open, the comment in view. */
     function openComment(qid, id) {

@@ -283,9 +283,10 @@ status they see: `waiting`, `running`, `answered` (an answer only its asker and 
 share"), `shared`, `declined` or `failed`. The owner's also lists what waits on them under "Waiting
 on you": requests to run, results to share, open problem reports, merge requests and join requests.
 The owner's page shows the requests and results there as one review list, newest first, with
-status chips (Waiting, Running, Failed, Not shared, Shared) whose choice, like the Inbox tab, the
-device remembers, and Run, Decline, Edit, Mark failed, Run again, Share, Discard and Take down on
-each row; failed rows say why. It replaced the rail's Requests panel. The snapshot's `inbox` carries these
+status chips (Waiting, Running, Failed, Not shared for what waits on the owner's Share, Private for
+an answer out to its asker alone, Shared; Private and Shared start off) whose choice, like the Inbox
+tab, the device remembers, and Run, Decline, Edit, Mark failed, Run again, Share, Discard and Take
+down on each row; failed rows say why. The snapshot's `inbox` carries these
 items, built by `session.py` for the viewer alone (never another person's request or a result its
 requester cannot see). `inboxSeen` in `state.json` keeps, per person, the status each item had
 when they opened it; an item whose status moved since is unread, and only
@@ -342,7 +343,9 @@ A request names who sees its answer: `audience` on `POST /api/request`, `everyon
 already waits for the owner). Ask Claude defaults to Everyone on a question and to Just me about the
 whole session; "@Claude" in chat or a Discussion always asks for everyone.
 
-- **When it arrives.** Asked for everyone, Claude's answer is shared at once (on its question, or
+- **When it arrives.** Only `ask` and `research` answers skip the owner, and only while their asker
+  is still in: an `explore`, `design` or `prototype` answer (which reads the linked project), or one
+  whose asker was removed, waits for the owner's Share. Asked for everyone, such an answer is shared at once (on its question, or
   into chat for a general ask). Asked Just me, it is `private`: only its asker and the owner see it,
   and it stays out of the digest. Either way the asker hears it is done. A result no request asked
   for, and a guest's own Claude's, still waits for the owner's Share.
@@ -351,14 +354,17 @@ whole session; "@Claude" in chat or a Discussion always asks for everyone.
   it; the owner's Share of a held Just me answer sends it to its asker alone. A new session writes
   it off; a state file from before it lacks it and so reviews, so a running session never changes
   under its people. The owner's own requests need no review.
-- **Share later.** `POST /api/result/share {id}` shares a `private` answer with everyone: its asker
-  (one a second), or the owner (as `publish`). Another person's answer, or one they cannot see,
+- **Share later.** `POST /api/result/share {id}` shares an unshared answer with everyone: its asker
+  their own `private` one (one a second), the owner any. Another person's answer, or one they cannot see,
   reads 404 `not-found`; a taken-down answer or a guest's own Claude's is the owner's to share (403
   `host-only`).
 - **Take down.** The owner's `/api/request/act {action: "takedown", id}` unshares any shared answer:
-  it becomes `private` with `takenDown {at}`, its asker hears it, its chat message goes, and a chat
-  quote of that message reads "Taken down by the host." Only the owner shares it again; a digest
-  already sent keeps what it listed.
+  it becomes `private` with `takenDown {at}`, and its asker hears it. Its chat message stays as
+  Claude's with `claude: {takenDown: true}` and the text "Taken down by the host.", as does every
+  chat quote of it, and each is touched so open pages read it again; the owner's Share puts the
+  answer back in that message. Only the owner shares it again; Discard is refused (409
+  `wrong-status`) on a `private` answer, which its asker already has. A digest already sent keeps
+  what it listed.
 
 ## Connect your Claude
 

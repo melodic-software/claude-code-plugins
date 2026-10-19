@@ -854,9 +854,10 @@
         "claude": {
           "description": "Claude's shared answer to a request about the whole session, written as the host's message.",
           "type": "object",
-          "required": ["result"],
-          "additionalProperties": false,
-          "properties": {"result": {"type": "string"}}
+          "oneOf": [
+            {"required": ["result"], "additionalProperties": false, "properties": {"result": {"type": "string"}}},
+            {"required": ["takenDown"], "additionalProperties": false, "properties": {"takenDown": {"const": true}}, "description": "The owner took the answer down; its text reads so."}
+          ]
         },
         "reactions": {
           "description": "emoji -> the people who put it on this message; at most 20 emoji, from the page's fixed set (session.CHAT_EMOJI).",

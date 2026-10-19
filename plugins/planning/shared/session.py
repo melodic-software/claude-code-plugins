@@ -3571,6 +3571,8 @@ class Session:
         # A guest's own Claude's result the owner already shared can still be discarded; the host's own is taken down.
         if res["published"] and not (action == "discard" and res["by"]["kind"] == "guest-claude"):
             raise DomainError(409, "wrong-status", "This result is already shown.", status="published")
+        if action == "discard" and res.get("private", False):
+            raise DomainError(409, "wrong-status", "Its asker already has this answer.", status="private")
         if action == "publish":
             if self._held(res) and req and req.get("audience") == "me" and res["by"]["kind"] == "host-claude":
                 res["private"] = True  # a Just me answer the owner reviewed goes to its asker alone
@@ -3607,40 +3609,31 @@ class Session:
             self._notify(req["pid"], "request", f"The answer to your request {_on(req)} was shared with everyone.", actor=by, qid=req.get("qid"), msg=res.get("msg"))
 
     def _take_down(self, res, req, by):
-        """The owner unshares a result: only its asker and the owner see it again, its chat message goes, and any chat
-        quote of that message reads TAKEN_DOWN. Only the owner can share it again."""
-        st = self.state
+        """The owner unshares a result: only its asker and the owner see it again, its chat message and any chat quote
+        of it read TAKEN_DOWN (kept, and touched, so every open page reads it again). Only the owner shares it again."""
         res["published"] = False
         res["private"] = True
         res["takenDown"] = {"at": self.now()}
-        mid = res.pop("msg", None)
-        if mid is not None:
-            st["chat"][:] = [m for m in st["chat"] if m["id"] != mid]
-            for m in st["chat"]:
-                if m.get("replyTo", {}).get("id") == mid:
-                    m["replyTo"]["excerpt"] = TAKEN_DOWN
-                    self._touch_chat(m["id"])
+        self._chat_text(res, TAKEN_DOWN, {"takenDown": True})
         asker = self._asker(res)
         if asker is not None:
             self._notify(asker, "request", f"The answer to your request {_on(req or res)} was taken down.", actor=by, qid=res.get("qid"))
 
     def share_result(self, pid, body):
-        """POST /api/result/share: the asker shares their own Just me answer with everyone; the owner may share any.
-        Another person's answer, or one this person cannot see, reads as 404; one the owner took down, or a guest's own
-        Claude's, only the owner shares."""
+        """POST /api/result/share: share an unshared answer with everyone. Its asker shares their own Just me answer;
+        the owner shares any. Another person's answer, or one this person cannot see, reads as 404; one the owner took
+        down, or a guest's own Claude's, only the owner shares."""
         rid = _ident(body, "id")
         with self._write_as(pid, "result-share"):
-            if pid == HOST:
-                return self._act_on_result(pid, rid, "publish")
             try:
                 res = self._find_result(rid)
             except DomainError:
                 res = None
-            if res is None or self._asker(res) != pid or not self._result_seen_by(res, pid):
+            if res is None or (pid != HOST and self._asker(res) != pid) or not self._result_seen_by(res, pid):
                 raise DomainError(404, "not-found", f"No result {rid}.")
             if res["published"]:
                 raise DomainError(409, "wrong-status", "This answer is already shared.", status="published")
-            if "takenDown" in res or res["by"]["kind"] == "guest-claude":
+            if pid != HOST and ("takenDown" in res or res["by"]["kind"] == "guest-claude"):
                 raise DomainError(403, "host-only", "Only the host can share this answer.")
             self._share(res, next((r for r in self.state["requests"] if r["id"] == res["request"]), None), pid)
             return {"id": res["id"], "published": True}
@@ -3652,6 +3645,8 @@ class Session:
         st = self.state
         if "qid" in res or not st["session"]["settings"]["chat"]:
             return
+        if self._chat_text(res, clip(res["summary"], MAX_TEXT), {"result": res["id"]}):
+            return  # shared again: its taken-down message comes back in place
         msg = {"id": self._next("M"), "pid": HOST, "text": clip(res["summary"], MAX_TEXT), "at": self.now(), "claude": {"result": res["id"]}}
         asked = next((m for m in st["chat"] if req and m["id"] == req.get("msg") and self._active(m["pid"])), None)
         if asked:
@@ -3659,6 +3654,20 @@ class Session:
         st["chat"].append(msg)
         del st["chat"][:-MAX_CHAT]
         res["msg"] = msg["id"]
+
+    def _chat_text(self, res, text, claude):
+        """Rewrite the chat message a result posted, and the quotes of it, and touch each; False when chat no longer keeps it."""
+        mid = res.get("msg")
+        m = next((m for m in self.state["chat"] if m["id"] == mid), None) if mid else None
+        if m is None:
+            return False
+        m["text"], m["claude"] = text, claude
+        self._touch_chat(mid)
+        for r in self.state["chat"]:
+            if r.get("replyTo", {}).get("id") == mid:
+                r["replyTo"]["excerpt"] = clip(one_line(text), MAX_EXCERPT)
+                self._touch_chat(r["id"])
+        return True
 
     def _new_result(self, qid, req, body, by, published):
         summary = _text(body, "summary", limit=MAX_SUMMARY)
@@ -4956,7 +4965,9 @@ class Session:
             raise _bad("qid", "A result names its question, or the request about the whole session it answers.")
         # The host's own request needs no review; a guest's needs the owner's Share only while the session reviews answers.
         # Asked for everyone, the answer is shared now; asked Just me, it goes to its asker (and the owner) alone.
-        out = req is not None and (req["pid"] == HOST or not self._review())
+        # Unreviewed sharing is for ask and research answers to an asker still in: explore, design and prototype read
+        # the linked project, so they wait for the owner.
+        out = req is not None and (req["pid"] == HOST or (not self._review() and req["kind"] in ("ask", "research") and self._active(req["pid"])))
         me = req is not None and req.get("audience") == "me"
         res = self._new_result(q and q["id"], req, op, {"kind": "host-claude"}, out and not me)
         if out and me:

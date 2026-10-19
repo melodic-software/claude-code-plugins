@@ -14,6 +14,9 @@ const { loadPlaywright, suite, recorder, until, joinAs, openClaude } = require("
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
 const ASK1 = "Ann asks on Q1 for everyone", ASK2 = "Ann asks just for herself", ASK3 = "Bo asks something that fails";
 const ANS1 = "Everyone reads this answer.", ANS2 = "Only Ann reads this answer.", WHY = "No sources found.";
+const CHAT_ASK = "@Claude where do we stand overall?", CHAT_ANS = "We stand halfway, with the copy open.";
+const DISC_ASK = "@Claude is the first payment common?", DISC_ANS = "Cards come first almost everywhere.";
+const openChat = async page => { if (await page.evaluate(() => document.querySelector(".vf-chat").hidden)) await page.click(".vf-fab"); return until(page, () => !document.querySelector(".vf-chat").hidden); };
 
 const openInbox = async page => { if (await page.evaluate(() => document.querySelector(".vf-inboxpop").hidden)) await page.click(".vf-bell"); return until(page, () => !document.querySelector(".vf-inboxpop").hidden); };
 /** The Ask boxes' Everyone / Just me group: which one is pressed, or "" while it is hidden. */
@@ -67,7 +70,7 @@ async function main() {
       const r = [...document.querySelectorAll(".vf-revlist > li")].map(li => li.textContent);
       return r.length === 3 && ts.every((t, i) => r[i].includes(t)) && [...document.querySelectorAll(".vf-revlist .vf-revstat")].every(c => c.textContent.startsWith("Waiting"));
     }, [ASK3, ASK1, ASK2]), JSON.stringify(await rows(owner)));
-    ok("  with the Waiting, Running, Failed and Not shared chips on and Shared off", JSON.stringify(await chips(owner)) === JSON.stringify({ Waiting: true, Running: true, Failed: true, "Not shared": true, Shared: false }), JSON.stringify(await chips(owner)));
+    ok("  with the Waiting, Running, Failed and Not shared chips on and Private and Shared off", JSON.stringify(await chips(owner)) === JSON.stringify({ Waiting: true, Running: true, Failed: true, "Not shared": true, Private: false, Shared: false }), JSON.stringify(await chips(owner)));
     ok("the rail has no Requests panel any more", await owner.evaluate(() => ![...document.querySelectorAll(".vf-proprow")].some(b => b.textContent.includes("Requests"))));
     for (const t of [ASK1, ASK2, ASK3]) await row(owner, t).locator("button", { hasText: /^Run$/ }).click();
     ok("Run on each row moves it to Running", await until(owner, () => [...document.querySelectorAll(".vf-revlist .vf-revstat")].every(c => c.textContent.startsWith("Running")), null, 8000), JSON.stringify(await rows(owner)));
@@ -88,10 +91,19 @@ async function main() {
     ok("the answer asked for everyone shows to Bo when it arrives", await until(bo, a => (window.Core.state.research.Q1 || []).some(x => x.summary === a), ANS1, 10000));
     ok("the Just me answer shows to Ann", await until(ann, a => (window.Core.state.research.Q1 || []).some(x => x.summary === a), ANS2, 10000));
     ok("  and never to Bo", !(await sees(bo, ANS2)) && !(await bo.evaluate(a => JSON.stringify(window.Core.snapshot()).includes(a), ANS2)));
-    ok("the shared row leaves the default view, the Just me one reads Not shared", await until(owner, ([a, b]) => {
+    ok("the shared row and the delivered Just me row both leave the default view", await until(owner, ([a, b]) => {
       const r = [...document.querySelectorAll(".vf-revlist > li")];
-      return !r.some(li => li.textContent.includes(a)) && r.find(li => li.textContent.includes(b))?.querySelector(".vf-revstat").textContent.startsWith("Not shared");
+      return r.length > 0 && !r.some(li => li.textContent.includes(a) || li.textContent.includes(b));
     }, [ASK1, ASK2], 10000), JSON.stringify(await rows(owner)));
+    await owner.click(".vf-rev-chip[data-stat=private]");
+    ok("the Private chip shows the Just me row, with no Discard", await until(owner, t => {
+      const li = [...document.querySelectorAll(".vf-revlist > li")].find(l => l.textContent.includes(t));
+      return li?.querySelector(".vf-revstat").textContent === "Just me" && ![...li.querySelectorAll("button")].some(b => !b.hidden && b.textContent === "Discard");
+    }, ASK2), JSON.stringify(await rows(owner)));
+    await row(owner, ASK2).locator(".vf-rev-open").click();
+    ok("  and its answer card offers the host no Discard", await until(owner, a => [...document.querySelectorAll(".vf-res")].some(li => li.textContent.includes(a)
+      && !li.querySelector(".vf-res-share").hidden && ![...li.querySelectorAll("button")].some(b => !b.hidden && b.textContent === "Discard")), ANS2));
+    await openInbox(owner);
     await owner.click(".vf-rev-chip[data-stat=shared]");
     ok("the Shared chip shows the shared row with Take down", await until(owner, t => {
       const li = [...document.querySelectorAll(".vf-revlist > li")].find(l => l.textContent.includes(t));
@@ -103,7 +115,7 @@ async function main() {
     await owner.locator("dialog[open] button", { hasText: "Take down" }).click();
     ok("Take down hides the answer from Bo", await until(bo, a => !(window.Core.state.research.Q1 || []).some(x => x.summary === a), ANS1, 10000));
     ok("  Ann still sees it", await sees(ann, ANS1));
-    ok("  and its row reads Not shared", await until(owner, t => [...document.querySelectorAll(".vf-revlist > li")].find(l => l.textContent.includes(t))?.querySelector(".vf-revstat").textContent === "Not shared", ASK1));
+    ok("  and its row reads Taken down", await until(owner, t => [...document.querySelectorAll(".vf-revlist > li")].find(l => l.textContent.includes(t))?.querySelector(".vf-revstat").textContent === "Taken down", ASK1));
 
     // ---------- the asker shares their Just me answer ----------
     await ann.click(".vf-q[data-qid=Q1]");
@@ -112,6 +124,41 @@ async function main() {
     ok("Ann's Just me answer offers Share with everyone", await until(ann, a => [...document.querySelectorAll(".vf-res")].some(li => li.textContent.includes(a) && [...li.querySelectorAll("button")].some(b => !b.hidden && b.textContent === "Share with everyone")), ANS2, 8000));
     await annShare.click();
     ok("  and sharing it shows it to Bo", await until(bo, a => (window.Core.state.research.Q1 || []).some(x => x.summary === a), ANS2, 10000));
+
+    // ---------- a general answer taken down leaves every open chat, and its asker's line says so ----------
+    await ann.waitForTimeout(1100);
+    await ann.evaluate(t => window.Core.chat(t), CHAT_ASK);
+    const grid = await owner.evaluate(async t => {
+      for (let i = 0; i < 50 && !(window.Core.state.requests || []).some(r => r.text === t); i++) await new Promise(r => setTimeout(r, 100));
+      return window.Core.state.requests.find(r => r.text === t).id;
+    }, CHAT_ASK);
+    await owner.evaluate(id => window.Core.requestAct(id, "run"), grid);
+    const gx = s.apply(A.dir, [{ op: "result", request: grid, kind: "ask", summary: CHAT_ANS, sources: [], report: "", used: [], why: "" }]).results[0].id;
+    await openChat(bo);
+    ok("Bo's open chat shows Claude's general answer", await until(bo, a => [...document.querySelectorAll(".vf-msg-claude")].some(li => li.textContent.includes(a)), CHAT_ANS, 10000));
+    await owner.evaluate(id => window.Core.requestAct(id, "takedown"), gx);
+    ok("  taking it down replaces it there with Taken down by the host, no reload", await until(bo, a => !document.body.textContent.includes(a)
+      && [...document.querySelectorAll(".vf-msg-claude")].some(li => li.textContent.includes("Taken down by the host.")), CHAT_ANS, 10000));
+    await openChat(ann);
+    ok("Ann's @Claude message reads Sent to Claude · Taken down by the host", await until(ann, t => [...document.querySelectorAll(".vf-msg")].some(li => li.textContent.includes(t)
+      && li.querySelector(".vf-msent")?.textContent === "Sent to Claude · Taken down by the host"), CHAT_ASK, 10000));
+
+    // ---------- a Discussion ask taken down says so on its comment ----------
+    await ann.waitForTimeout(1100);
+    await ann.evaluate(t => window.Core.comment("Q2", t), DISC_ASK);
+    const drid = await owner.evaluate(async t => {
+      for (let i = 0; i < 50 && !(window.Core.state.requests || []).some(r => r.text === t); i++) await new Promise(r => setTimeout(r, 100));
+      return window.Core.state.requests.find(r => r.text === t).id;
+    }, DISC_ASK);
+    await owner.evaluate(id => window.Core.requestAct(id, "run"), drid);
+    const dx = s.apply(A.dir, [{ op: "result", qid: "Q2", request: drid, kind: "ask", summary: DISC_ANS, sources: [], report: "", used: [], why: "" }]).results[0].id;
+    await until(ann, a => (window.Core.state.research.Q2 || []).some(x => x.summary === a), DISC_ANS, 10000);
+    await owner.evaluate(id => window.Core.requestAct(id, "takedown"), dx);
+    await ann.click(".vf-q[data-qid=Q2]");
+    if ((await ann.getAttribute(".vf-disc-head", "aria-expanded")) !== "true") await ann.click(".vf-disc-head");
+    ok("Ann's @Claude comment reads Sent to Claude · Taken down by the host", await until(ann, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)
+      && li.querySelector(".vf-cm-became-t")?.textContent === "Sent to Claude · Taken down by the host"), DISC_ASK, 10000),
+      await ann.evaluate(t => [...document.querySelectorAll(".vf-cm")].find(li => li.textContent.includes(t))?.querySelector(".vf-cm-became-t")?.textContent || "none", DISC_ASK));
 
     // ---------- the chips and the tab are remembered on this device ----------
     await owner.reload();
