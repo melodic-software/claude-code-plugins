@@ -66,7 +66,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     await aa.click(); await page.waitForTimeout(200);
     const dlgAll = await page.evaluate(() => document.getElementById("dlgBody").innerText);
     ok("the all-questions dialog lists the unopened Q5 beside Q3 and names no unopened exclusion", /Q3/.test(dlgAll) && /Q5/.test(dlgAll) && !/you have not opened/.test(dlgAll) && /challenges a commitment: Q4/.test(dlgAll), dlgAll.replace(/\s+/g, " ").slice(0, 300));
-    ok("the all-questions dialog shows Q3's commitment as unconfirmed and Q4's full recommendation", /Commits you to, stays unconfirmed: Rebuilds the cache when the lock file changes/.test(dlgAll) && /Ten minutes, then it fails\./.test(dlgAll), dlgAll.replace(/\s+/g, " ").slice(0, 400));
+    ok("the all-questions dialog shows Q3's commitment as unconfirmed and Q3's full recommendation", /Commits you to, stays unconfirmed: Rebuilds the cache when the lock file changes/.test(dlgAll) && /Entries expire after fourteen days\./.test(dlgAll), dlgAll.replace(/\s+/g, " ").slice(0, 400));
     await tap("#dlgCancel", 200);
     // select Q3 and Q4 with the rail checkboxes: Accept selected takes just those
     await page.check('[data-pick="Q3"]'); await page.check('[data-pick="Q4"]'); await page.waitForTimeout(150);
