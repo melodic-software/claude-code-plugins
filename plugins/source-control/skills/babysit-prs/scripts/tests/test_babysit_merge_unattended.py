@@ -424,8 +424,10 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
                 )
             raise AssertionError(f"unexpected gh call: {args}")
 
-        # The process seams every real gh read reaches, whichever module makes it.
+        # The process seams every real gh read reaches, whichever module makes
+        # it; no local clone holds the SHA, so the config comes from the API.
         with (
+            mock.patch.object(policy, "_history_checkouts", return_value=[]),
             mock.patch.object(policy, "gh_capture", side_effect=fake_gh),
             mock.patch.object(gh, "_run_gh", side_effect=AssertionError("gh call")),
             mock.patch.object(
@@ -2053,6 +2055,110 @@ class HeadPushers(unittest.TestCase):
         bot = {"login": IDENTITY}
         lanes, _ = self.read([{"sha": "a" * 40, "author": bot, "committer": bot}])
         self.assertEqual(len(lanes), 2)
+
+
+class CandidateReadsOnce(unittest.TestCase):
+    """One candidate's gate process reads the pull request's commits once
+    per head, and the record's commit count once, across the policy, the
+    lane evidence, the verifier reader and the signature check. Before the
+    scope existed those readers made three commit-list reads and a second
+    record read (the pr-merge profile in the scope notes)."""
+
+    BASE = "b" * 40
+
+    def run_readers(self, rows: list[dict[str, Any]], *, scoped: bool) -> list[str]:
+        """Every gh REST endpoint the four readers request, in order."""
+        record = {
+            "number": PR,
+            "commits": len(rows),
+            "created_at": "2026-10-12T00:00:00Z",
+            "user": {"login": IDENTITY},
+            "base": {"ref": "main", "sha": self.BASE},
+            "head": {"ref": "feat", "sha": HEAD},
+        }
+        endpoints: list[str] = []
+
+        def fake_gh(args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+            endpoint = args[1]
+            endpoints.append(endpoint + (" --jq" if "--jq" in args else ""))
+            if "--jq" in args:
+                payload: Any = record["commits"]
+            elif endpoint.endswith("/commits?per_page=100"):
+                payload = [rows]
+            elif "--paginate" in args:
+                payload = [[]]
+            elif endpoint == f"repos/owner/repo/pulls/{PR}":
+                payload = record
+            else:
+                raise AssertionError(f"unexpected gh call: {args}")
+            return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
+
+        scope = gh.candidate_reads() if scoped else contextlib.nullcontext()
+        with (
+            mock.patch.object(gh, "_run_gh", side_effect=fake_gh),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            mock.patch.object(merge, "collect_lane_runs", return_value=[]),
+            scope,
+        ):
+            pr = policy.pull_request("owner/repo", PR)
+            merge._lane_evidence(
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write"
+            )
+            reader = merge.verify_evidence.Reader("owner/repo", "main")
+            self.assertEqual(
+                reader._commits(PR, HEAD), {str(row["sha"]) for row in rows}
+            )
+            blockers, _ = merge.evaluate_required_signatures("owner/repo", PR, HEAD)
+            self.assertEqual(blockers, [])
+        return endpoints
+
+    def signed(self, *shas: str) -> list[dict[str, Any]]:
+        bot = {"login": IDENTITY}
+        verified = {"verification": {"verified": True, "reason": "valid"}}
+        return [
+            {"sha": sha, "author": bot, "committer": bot, "commit": verified}
+            for sha in shas
+        ]
+
+    def counts(self, endpoints: list[str]) -> tuple[int, int, int]:
+        """(commit-list reads, record reads, record count reads)."""
+        commits = f"repos/owner/repo/pulls/{PR}/commits?per_page=100"
+        record = f"repos/owner/repo/pulls/{PR}"
+        return (
+            endpoints.count(commits),
+            endpoints.count(record),
+            endpoints.count(record + " --jq"),
+        )
+
+    def test_outside_a_candidate_scope_every_reader_reads(self) -> None:
+        endpoints = self.run_readers(self.signed("a" * 40, HEAD), scoped=False)
+        self.assertEqual(self.counts(endpoints), (3, 1, 1))
+
+    def test_a_candidate_scope_reads_the_commits_and_the_record_once(self) -> None:
+        endpoints = self.run_readers(self.signed("a" * 40, HEAD), scoped=True)
+        self.assertEqual(self.counts(endpoints), (1, 1, 0))
+
+    def test_a_list_not_ending_at_the_head_is_read_again(self) -> None:
+        # Read while the head moved: no reader reuses it.
+        endpoints = self.run_readers(self.signed("a" * 40, "c" * 40), scoped=True)
+        self.assertEqual(self.counts(endpoints)[0], 3)
+
+    def test_another_head_is_read_fresh(self) -> None:
+        rows = self.signed(HEAD)
+        with (
+            gh.candidate_reads(),
+            mock.patch.object(
+                gh, "fetch_paginated_api", side_effect=[rows, self.signed("d" * 40)]
+            ) as read,
+        ):
+            for head in (HEAD, HEAD, "d" * 40):
+                gh.pull_request_commits_once(
+                    "owner/repo",
+                    PR,
+                    head,
+                    lambda: gh.fetch_paginated_api("commits", "label"),
+                )
+        self.assertEqual(read.call_count, 2)
 
 
 class QueueRead(unittest.TestCase):

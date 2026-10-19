@@ -177,11 +177,13 @@ from babysit_gh import (
     fetch_pull_request_review_comments,
     fetch_pull_request_reviews,
     fetch_review_threads,
+    candidate_reads,
     gh_capture,
     gh_http_status,
     gh_json,
     normalized_rest_author,
     parse_repo_number,
+    pull_request_commits_once,
     resolve_author,
     resolve_authors,
     view_pr_fields,
@@ -717,7 +719,7 @@ SIGNATURE_REMEDIES = {
 
 
 def evaluate_required_signatures(
-    repo: str, number: int
+    repo: str, number: int, head: str | None = None
 ) -> tuple[list[str], dict[str, Any]]:
     """Enforce a `required_signatures` rule against the PR's actual commits.
 
@@ -732,7 +734,7 @@ def evaluate_required_signatures(
     """
     record: dict[str, Any] = {"required": True, "checked": False, "unverified": []}
     try:
-        commits = fetch_pull_request_commits(repo, number)
+        commits = fetch_pull_request_commits(repo, number, head)
     except (RuntimeError, json.JSONDecodeError) as exc:
         return (
             [
@@ -1643,7 +1645,7 @@ def evaluate(
     }
     if rules.get("requireSignatures"):
         signature_blockers, signature_result = evaluate_required_signatures(
-            repo, number
+            repo, number, str(head) if head else None
         )
         blockers.extend(signature_blockers)
     if head_matches is False:
@@ -2767,8 +2769,13 @@ def _lane_evidence(
     timeline = fetch_paginated_api(
         f"repos/{repo}/issues/{number}/timeline?per_page=100", f"#{number} timeline"
     )
-    commits = fetch_paginated_api(
-        f"repos/{repo}/pulls/{number}/commits?per_page=100", f"#{number} commits"
+    commits = pull_request_commits_once(
+        repo,
+        number,
+        head.get("sha"),
+        lambda: fetch_paginated_api(
+            f"repos/{repo}/pulls/{number}/commits?per_page=100", f"#{number} commits"
+        ),
     )
     # The commits list is capped: a longer head has pushers no list names.
     total = pr.get("commits")
@@ -3603,6 +3610,12 @@ def build_settle(logins: Iterable[str], minutes: str) -> ReviewSettleConfig | No
 
 
 def main() -> int:
+    # One candidate per gate process: its PR commits are read once per head.
+    with candidate_reads():
+        return _main()
+
+
+def _main() -> int:
     configure_stdio()
     # This gate run's own record of what it took from the run cache.
     global SHARE_BASE_READS
