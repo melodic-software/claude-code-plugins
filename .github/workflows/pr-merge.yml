@@ -37,9 +37,9 @@ name: pr-merge
 # One exception to the switch: when the merge queue lands any PR on main,
 # whoever enqueued it, the push starts a full CI run of main (the
 # dispatch-full-run job), even while the switch or report-only is on, since it
-# merges nothing. If that run fails, post-merge-demotion-alert.yml files a
-# needs-human issue; it demotes the lane only when the lanes App enqueued one
-# of the merges the run covers, or when it cannot tell who enqueued them.
+# merges nothing. That run raises no workflow_run event (GITHUB_TOKEN started
+# it), so post-merge-demotion-alert.yml never sees it; when it fails a lane
+# merge, the merge job's post-merge check files the demotion record.
 #
 # On its schedule it also gives a PR a new head, an empty commit, when a lane
 # run on its current head was refused by the token broker as
@@ -504,6 +504,36 @@ jobs:
           echo "::endgroup::"
           needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
           echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
+          echo "code=$code" >>"$GITHUB_OUTPUT"
+
+      # A failed lane merge (the check above exited 1) holds the gate until a
+      # human closes its demotion record, and the gate reads only records the
+      # lanes App or github-actions[bot] filed. post-merge-demotion-alert.yml
+      # files none for a full run this workflow dispatched: a run started with
+      # GITHUB_TOKEN raises no workflow_run event. So the check runs again
+      # with --remediate under the lane token, which files the record (or
+      # comments on it, reopening it on a new sighting) and dequeues the
+      # lane's merge-queue entries. The lane token holds no Actions
+      # permission, so the re-run and dispatch --remediate also attempts fail
+      # here and are reported as a write failure (exit 4). Live mode only.
+      - name: Record a failed lane merge
+        if: steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          code=0
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+            --repo "$REPO" --agent-identity "$identity" --lane-merges-only --remediate \
+            </dev/null >"$RUNNER_TEMP/post-merge-remediate.json" || code=$?
+          echo "::group::post-merge remediation: exit $code"
+          cat "$RUNNER_TEMP/post-merge-remediate.json"
+          echo "::endgroup::"
+          case $code in
+            2 | 3 | 4) echo "::warning::the post-merge remediation exited $code (2 refused, 3 unreadable, 4 write failed)" ;;
+          esac
 
       # The gate itself, once per candidate, using the lane App's token. It is
       # the same script the local babysit loop uses, run as the pr-merge lane:
@@ -768,7 +798,7 @@ jobs:
 
       # Holds the push group until the run finishes, so a burst of merges
       # waits here as one pending job. One REST read a minute; the run's
-      # result is post-merge-demotion-alert.yml's to judge, not this job's.
+      # result is the merge job's post-merge check's to judge, not this job's.
       - name: Wait for the full run to finish
         if: github.event_name == 'push'
         env:

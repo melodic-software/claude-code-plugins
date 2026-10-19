@@ -249,3 +249,53 @@ test("a sweep stopped mid-loop keeps the verdicts it reached in the summary", ()
     ],
   );
 });
+
+// A failed lane merge holds the gate until a human closes its demotion
+// record, and only a `--remediate` run under the lanes App files one (pr-merge
+// run 39201629405 refused every candidate on a failure with no record).
+test("a failed lane merge reruns the check with --remediate under the lane token", () => {
+  const names = steps.map((s) => s.name);
+  const check = names.indexOf("Check earlier lane merges");
+  const record = names.indexOf("Record a failed lane merge");
+  assert.ok(check >= 0 && record === check + 1, "the record step follows the check");
+  assert.ok(record < names.indexOf("Run the merge gate on each candidate"));
+  const block = step("Record a failed lane merge");
+  assert.match(block, /\n {8}if: steps\.mode\.outputs\.live == 'true' && steps\.post-merge\.outputs\.code == '1'\n/);
+  assert.match(block, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
+  assert.match(runScript("Check earlier lane merges"), /^echo "code=\$code" >>"\$GITHUB_OUTPUT"$/m);
+});
+
+// Runs the record step against a fake python3 that saves its arguments and
+// exits `code`.
+const runRecord = (code) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-record-"));
+  try {
+    const bin = join(dir, "bin");
+    execFileSync("mkdir", [bin]);
+    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >"${dir}/args"\necho '{}'\nexit ${code}\n`);
+    chmodSync(join(bin, "python3"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    const result = spawnSync("bash", ["-c", runScript("Record a failed lane merge")], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r" },
+    });
+    return { status: result.status, stdout: result.stdout, args: readFileSync(join(dir, "args"), "utf8").split("\n") };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("the record step passes --remediate and warns only when it cannot act", () => {
+  const run = runRecord(1);
+  assert.equal(run.status, 0);
+  assert.ok(run.args.includes("--remediate"), run.args.join(" "));
+  assert.ok(run.args.includes("--lane-merges-only"));
+  assert.equal(run.args[run.args.indexOf("--agent-identity") + 1], "melodic-automation-lanes[bot]");
+  assert.doesNotMatch(run.stdout, /::warning::/);
+  for (const code of [2, 3, 4]) {
+    const failed = runRecord(code);
+    assert.equal(failed.status, 0);
+    assert.match(failed.stdout, new RegExp(`^::warning::the post-merge remediation exited ${code} `, "m"));
+  }
+});
