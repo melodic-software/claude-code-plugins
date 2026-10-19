@@ -502,6 +502,14 @@ merge:
   # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
   # candidate included, inside the 15 minutes between scheduled runs.
   gate-budget-minutes: 10
+  # A candidate the last run refused on unchanged inputs is reported with that
+  # refusal instead of gated again (babysit_merge_skip.py); it is gated again
+  # once its refusal is max-minutes old or has been skipped max-skips runs in
+  # a row. 3 skips at the 15-minute schedule gate it about hourly; 60 caps
+  # the wait whatever else starts runs (judgment). 0 in either: no skips.
+  skip-unchanged:
+    max-minutes: 60
+    max-skips: 3
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane
