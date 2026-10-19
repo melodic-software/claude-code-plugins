@@ -856,9 +856,9 @@ holds a write token: a base job, a read model job in this mode, and an
    Residual: the skill runs head code by design, so head code can reach what any step of a read
    job can (the job's read-only token, the Actions runtime token through a process left running
    or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
-   leaves is checked only by [`apply-patch`](#prepare-apply-patch), which refuses `.github/**`
-   alone (the owner's 2026-10-18 path-guard decision); a change elsewhere, such as
-   `.gitattributes` or a check's own script, reaches the branch and its review.
+   leaves is checked only by [`apply-patch`](#prepare-apply-patch), which refuses `.github/**` and
+   the agent instruction paths (the owner's 2026-10-18 path-guard decision); a change elsewhere,
+   such as `.gitattributes` or a check's own script, reaches the branch and its review.
 4. The run is in [patch output mode](#patch-output-mode); its `reply-attempt` output names the
    skill's reply, whose `<check>: escalated <reason> <sentence>` lines are the report.
 
@@ -882,8 +882,10 @@ passes the model job's `patch-state`, `patch-sha256`, `patch-attempt`, `head-sha
    the gated head into the index, runs `git apply --cached --check` then `git apply --cached`
    (escalating `ci-fix-not-applied` on failure), writes the tree, and lists it against the gated
    head with `git diff-tree -r --no-renames`. A path under `.github/` (thread-scope.mjs's
-   `isProtectedPath`, the rule the review-threads mode applies) escalates
-   `ci-fix-protected-path`; a mode `120000` or `160000` on either side, or no change, escalates
+   `isProtectedPath`, the rule the review-threads mode applies), or an agent instruction path at
+   any depth and in any case (`CLAUDE.md`, `AGENTS.md`, a `.claude/` or `.claude-plugin/` directory,
+   a plugin's `hooks/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), escalates
+   `ci-fix-protected-path` and pushes none of the patch, whatever the report escalated; a mode `120000` or `160000` on either side, or no change, escalates
    `ci-fix-invalid`. It then re-reads the pull request and its labels and stops uncommitted
    (`awaiting-human`) on a draft or a hold label, fails when `git/ref heads/<head ref>` is no
    longer the gated head, uploads the changed blobs, builds the tree on the head's tree and fails

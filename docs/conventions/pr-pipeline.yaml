@@ -143,8 +143,11 @@ activities:
     # commit, without force. A script, no model, and it runs no head code.
     script: .github/scripts/pr-unblock/apply-ci-fix.mjs
     # Before the mint the runner checks the patch artifact and the head;
-    # the script refuses a change under .github/, a symbolic link or a
-    # gitlink, and hands an empty, invalid or unappliable patch to a person.
+    # the script refuses the whole patch when any change is under .github/,
+    # an agent instruction path (CLAUDE.md, AGENTS.md, .claude/ or
+    # .claude-plugin/, a plugin's hooks/, .mcp.json, .gitmodules, CODEOWNERS), a
+    # symbolic link or a gitlink, and hands an empty, invalid or unappliable
+    # patch to a person.
     prepare: apply-patch
     # Pushes the fix to the pull request's branch, nothing else.
     effect: mutate-branch

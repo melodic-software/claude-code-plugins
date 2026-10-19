@@ -215,6 +215,62 @@ test("a patch that touches .github/ is refused before anything is written", asyn
   assert.deepEqual(api.calls, []);
 });
 
+// The owner's 2026-10-18 path list: agent instructions, plugin hooks and
+// manifests, MCP config, submodules and code owners, at any depth and in any case.
+const INSTRUCTION_PATHS = [
+  "CLAUDE.md",
+  "AGENTS.md",
+  "plugins/p/skills/s/CLAUDE.md",
+  "docs/Agents.MD",
+  ".claude/settings.json",
+  "plugins/p/.claude/rules/r.md",
+  ".CLAUDE/x.md",
+  "plugins/p/hooks/hooks.json",
+  "plugins/p/Hooks/run.mjs",
+  "plugins/p/.claude-plugin/plugin.json",
+  ".claude-plugin/marketplace.json",
+  "vendor/m/.Claude-Plugin/marketplace.json",
+  ".mcp.json",
+  "plugins/p/.MCP.json",
+  ".gitmodules",
+  "CODEOWNERS",
+  "docs/CODEOWNERS",
+  "docs/codeowners",
+];
+
+test("a patch that touches an agent instruction path is refused before anything is written", async (t) => {
+  for (const path of INSTRUCTION_PATHS) {
+    const fix = repoWithPatch(t, (repo) => {
+      mkdirSync(join(repo, path, ".."), { recursive: true });
+      writeFileSync(join(repo, path), "injected\n");
+    });
+    const api = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await pushWith(fix, api), { outcome: "escalate", escalationReason: "ci-fix-protected-path" }, path);
+    assert.deepEqual(api.calls, [], path);
+  }
+});
+
+test("one protected entry beside an allowed one refuses the whole patch", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\necho ok\n");
+    writeFileSync(join(repo, "CLAUDE.md"), "injected\n");
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await pushWith(fix, api), { outcome: "escalate", escalationReason: "ci-fix-protected-path" });
+  assert.deepEqual(api.calls, []);
+});
+
+test("code and test files, in plugins too, stay editable", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    mkdirSync(join(repo, "plugins/p/scripts"), { recursive: true });
+    writeFileSync(join(repo, "plugins/p/scripts/run.test.mjs"), "test\n");
+    writeFileSync(join(repo, "plugins/p/scripts/run.py"), "print(1)\n");
+    writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\necho ok\n");
+    writeFileSync(join(repo, "CLAUDE.md.bak"), "notes\n");
+  });
+  assert.equal((await pushWith(fix, fakeApi(fix.repo, fix.head))).outcome, "pushed");
+});
+
 test("a patch that adds a symbolic link is refused", async (t) => {
   const fix = repoWithPatch(t, (repo) => symlinkSync("/etc/passwd", join(repo, "link")));
   const api = fakeApi(fix.repo, fix.head);
