@@ -350,6 +350,20 @@ describe("relayoutSlice", () => {
       expect(read(targetDir, `media/${VIDEO_ID}.mp4`)).toBe("other-video-bytes");
     });
 
+    it("keeps the caption tracks when the recorded metadata file lacks the .info.json suffix", async () => {
+      const fixture = makeTwoVideoFixture({
+        video: `${VIDEO_ID}.mp4`,
+        infoJson: `${VIDEO_ID}.json`,
+      });
+      const state = JSON.parse(read(fixture.sliceDir, "run-state/watch.json"));
+      writeTree(state.tempSession.workDir, { [`${VIDEO_ID}.json`]: JSON.stringify({ id: VIDEO_ID }) });
+
+      const result = await relayoutSlice({ sliceDir: fixture.sliceDir, targetDir: fixture.targetDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(fs.existsSync(path.join(fixture.targetDir, "transcript/en.vtt"))).toBe(true);
+    });
+
     it("still refuses media mode when no primary entry is recorded", async () => {
       const { sliceDir, targetDir } = makeTwoVideoFixture(null);
 

@@ -215,7 +215,8 @@ export async function relayoutSlice({
       return typeof value === "string" && value === path.basename(value) && work.includes(value) ? value : null;
     };
     const recordedVideo = recordedName("video");
-    const recordedInfo = recordedName("infoJson");
+    // Acquisition can record a bare `<id>.json` fallback; only an `.info.json` name yields a caption stem.
+    const recordedInfo = recordedName("infoJson")?.endsWith(".info.json") ? recordedName("infoJson") : null;
     const videos = recordedVideo ? [recordedVideo] : work.filter((name) => VIDEO_FILE.test(name));
     const id = videos.length === 1 ? path.basename(videos[0], path.extname(videos[0])) : "";
     const infoName = recordedVideo && recordedInfo ? recordedInfo : `${id}.info.json`;
