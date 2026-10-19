@@ -78,8 +78,10 @@ itself the thing this skill removes.
    waiting. Exit `2`: bad argument or the pid is not running. Exit `3`:
    the process table could not be read. Exit `4`: none waiting, but some
    verdicts are `unknown`. `unknown` (an elevated process the session
-   cannot inspect, or a platform with no signal) is never read as `no`:
-   inspect that process by other means before calling it slow.
+   cannot inspect, a platform with no signal, or on Linux a process the
+   script can read only through `/proc/<pid>/wchan`, which flags a tty
+   read and nothing else) is never read as `no`: inspect that process by
+   other means before calling it slow.
 2. **Inspect real state, never assume.** Read each item's actual state
    from the source of truth, per that doc's inspect-real-state invariant:
    do not infer "it probably finished" or "it probably died". Only the

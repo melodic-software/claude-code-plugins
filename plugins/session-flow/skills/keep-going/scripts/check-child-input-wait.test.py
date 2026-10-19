@@ -2,6 +2,7 @@
 import importlib.util
 import os
 import platform
+import pty
 import subprocess
 import sys
 import time
@@ -83,6 +84,54 @@ class LinuxTreeTests(unittest.TestCase):
             root.kill()
             root.wait()
 
+    def wchan_only_verdict(self, root, needle):
+        # Real kernel wchan symbols, with /proc/<pid>/syscall made unreadable
+        # as it is for a non-ancestor checker under Yama ptrace_scope>=1.
+        real_open = open
+
+        def no_syscall(path, *a, **k):
+            if str(path).endswith("/syscall"):
+                raise PermissionError(path)
+            return real_open(path, *a, **k)
+
+        deadline = time.time() + 10
+        verdict = None
+        while time.time() < deadline:
+            table = mod._linux_table()
+            for pid, depth in mod.descendants(table, root.pid):
+                if depth > 0 and needle in table[pid][1]:
+                    with real_open(f"/proc/{pid}/stat") as fh:
+                        sleeping = fh.read().rsplit(")", 1)[1].split()[0] == "S"
+                    if sleeping:
+                        with mock.patch("builtins.open", no_syscall):
+                            verdict = mod._linux_verdict(pid)
+            if verdict is not None:
+                break
+            time.sleep(0.2)
+        return verdict
+
+    def test_wchan_fallback_never_flags_a_pipe_read(self):
+        root = self.spawn("bash -c 'read x'; true")
+        try:
+            self.assertEqual(self.wchan_only_verdict(root, "read x"), "unknown")
+        finally:
+            root.kill()
+            root.wait()
+
+    def test_wchan_fallback_on_a_tty_read_is_not_no(self):
+        primary, secondary = pty.openpty()
+        root = subprocess.Popen(
+            ["bash", "-c", "bash -c 'read x'; true"], stdin=secondary,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        try:
+            self.assertIn(self.wchan_only_verdict(root, "read x"), ("yes", "unknown"))
+        finally:
+            root.kill()
+            root.wait()
+            os.close(primary)
+            os.close(secondary)
+
     def test_sleeping_child_is_not_flagged(self):
         root = self.spawn("sleep 30; true")
         try:
@@ -112,6 +161,13 @@ class VerdictTests(unittest.TestCase):
 
     def test_wchan_nanosleep_is_unknown(self):
         self.assertEqual(self.wchan_verdict("hrtimer_nanosleep"), "unknown")
+
+    def test_wchan_pipe_and_generic_waits_are_unknown(self):
+        # wchan cannot see the fd: a pipeline consumer sits in a pipe read,
+        # and wait_woken backs socket and tty waits alike.
+        for wchan in ("pipe_read", "anon_pipe_read", "pipe_wait", "wait_woken"):
+            with self.subTest(wchan=wchan):
+                self.assertEqual(self.wchan_verdict(wchan), "unknown")
 
     def test_linux_table_survives_exit_between_reads(self):
         # An empty cmdline sends the table to /proc/<pid>/comm, which can be

@@ -19,7 +19,11 @@ Exit codes:
   4 - none waiting, but at least one verdict is "unknown"
 
 Signals: Linux reads /proc/<pid>/syscall and reports "yes" when the process is
-blocked in read(2) on fd 0, falling back to /proc/<pid>/wchan. macOS reads the
+blocked in read(2) on fd 0. Where that file is unreadable (a non-ancestor
+checker under Yama ptrace_scope>=1) it falls back to /proc/<pid>/wchan, which
+answers "yes" only for n_tty_read and "unknown" for any other wait, since it
+cannot see the fd; kernels that report a tty read as wait_woken therefore give
+"unknown", not "yes". macOS reads the
 table with ps and answers "no" for a running or zombie process, else "unknown".
 Windows lists the tree through PowerShell and answers "unknown" throughout.
 """
@@ -40,7 +44,9 @@ NO_INPUT_SYSCALLS = {
     "aarch64": (101, 115, 260, 95),
     "arm64": (101, 115, 260, 95),
 }
-WAIT_WCHAN ={"pipe_read", "pipe_wait", "n_tty_read", "wait_woken"}
+# wchan cannot see the fd, so only a tty read is a prompt; a pipe read or a
+# generic wake wait (a pipeline consumer, a socket) stays "unknown".
+TTY_READ_WCHAN = "n_tty_read"
 
 
 def _linux_table() -> dict[int, tuple[int, str]]:
@@ -99,7 +105,7 @@ def _linux_verdict(pid: int) -> str:
             wchan = fh.read().strip()
     except OSError:
         return "unknown"
-    return "yes" if wchan in WAIT_WCHAN else "unknown"
+    return "yes" if wchan == TTY_READ_WCHAN else "unknown"
 
 
 def _ps_table() -> tuple[dict[int, tuple[int, str]], dict[int, str]]:
