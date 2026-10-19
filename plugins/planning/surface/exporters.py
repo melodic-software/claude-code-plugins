@@ -6,9 +6,10 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  given a ledger's text it merges into that ledger's register (merged_register)
   sync_ledger    a ledger's text with only its register rows replaced by the merged rows
   export_brief   the PLAN.md `## Brief` sections and an empty `## Plan`; given a ledger's text it
-                 numbers as that ledger and carries its ledger-only rows. Goal, Constraints, Acceptance
-                 criteria and Out-of-scope come from the newest confirmed restatement rev, and the
-                 TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
+                 numbers as that ledger and carries its ledger-only rows. Problem, Goal, Work size,
+                 Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed
+                 restatement rev (Problem reads `unknown` and Work size `not assessed` without
+                 one), and the TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
   export_report  one self-contained HTML file (no external resources; everything escaped); it
                  also inlines each file visual that resolves inside the data dir
 import_ledger seeds an empty questions document from a ledger's register rows.
@@ -949,8 +950,14 @@ def export_brief(d, text=None):
             stamp = f"UNCONFIRMED (latest rev {latest}); no rev was confirmed"
         out.append(f"- Restatement: {stamp}")
     title = (doc.get("meta") or {}).get("title") or "Interview decisions"
+    out += ["", "### Problem", "", *(bullets(sections.get("problem")) or ["- unknown"])]
     out += ["", "### Goal", "", para(sections.get("goal")) or para(title), ""]
-    out += ["### Constraints", ""]
+    out += [
+        "### Work size",
+        "",
+        *(bullets(sections.get("workSize")) or ["- not assessed"]),
+    ]
+    out += ["", "### Constraints", ""]
     out += [
         *bullets(sections.get("constraints")),
         *(
