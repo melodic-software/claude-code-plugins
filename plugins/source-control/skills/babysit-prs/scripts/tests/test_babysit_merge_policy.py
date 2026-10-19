@@ -263,6 +263,29 @@ class ReadConfigAt(unittest.TestCase):
                 self.assertEqual(config.rung, "C2")
                 self.assertEqual(any("max-in-flight" in n for n in config.notes), noted)
 
+    def test_max_queue_ejections_defaults_to_two_and_reads_a_count(self) -> None:
+        def with_cap(value: str) -> str:
+            return PIPELINE.replace(
+                "merge:\n", f"merge:\n  max-queue-ejections: {value}\n"
+            )
+
+        for text, expected, noted in (
+            (PIPELINE, 2, False),
+            (with_cap("3"), 3, False),
+            (with_cap(str(policy.MAX_QUEUE_EJECTIONS_LIMIT)), 20, False),
+            (with_cap("0"), 2, True),
+            (with_cap(str(policy.MAX_QUEUE_EJECTIONS_LIMIT + 1)), 2, True),
+            (with_cap("two"), 2, True),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.max_queue_ejections, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(
+                    any("max-queue-ejections" in n for n in config.notes), noted
+                )
+
     def test_a_parse_error_is_off(self) -> None:
         config_fake(self, "merge:\n  rung: [C2\n")
         config = policy.read_config_at(REPO, SHA)

@@ -445,7 +445,17 @@ class PipelineConfig:
     # Absent, or anything but a whole number of at least 1, is 1. The gate
     # reads it at the default branch head instead (`_run_max_in_flight`).
     max_in_flight: int = 1
+    # `merge.max-queue-ejections`: failed-check merge-queue removals since
+    # the head last changed at which the gate stops enqueuing that head.
+    # Absent, or anything but a whole number from 1 to
+    # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
+    max_queue_ejections: int = 2
 
+
+# The most `merge.max-queue-ejections` may be, and the timeline items the
+# enqueue reads back. A full read with no head change in it may have missed
+# older removals, so it counts as unreadable and refuses.
+MAX_QUEUE_EJECTIONS_LIMIT = 20
 
 LOCAL_BABYSIT = "local-babysit"
 PR_MERGE = "pr-merge"
@@ -573,6 +583,7 @@ def read_config_at(
             ("merge.dependabot.mode", False),
             ("merge.dependabot.majors", False),
             ("merge.max-in-flight", False),
+            ("merge.max-queue-ejections", False),
         ],
     )
     if values is None:
@@ -630,6 +641,16 @@ def read_config_at(
             f"merge.max-in-flight {in_flight_cap!r} is not a count of 1 or more"
         )
         in_flight_cap = None
+    ejections = scalar("merge.max-queue-ejections")
+    if ejections is not None and not (
+        re.fullmatch(r"[1-9][0-9]?", ejections)
+        and int(ejections) <= MAX_QUEUE_EJECTIONS_LIMIT
+    ):
+        notes.append(
+            f"merge.max-queue-ejections {ejections!r} is not a count from 1 to "
+            f"{MAX_QUEUE_EJECTIONS_LIMIT}"
+        )
+        ejections = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -647,6 +668,7 @@ def read_config_at(
         c2_contradictions=c2_contradictions,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
+        max_queue_ejections=int(ejections) if ejections else 2,
     )
 
 

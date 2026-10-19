@@ -419,17 +419,17 @@ class Reader:
 
     def _run_state(self, run_id: int, *, shared: bool = False) -> str:
         """The run's standing. A FAIL's run (`shared`) may be judged on a
-        record another gate process of the run read within
-        `run_cache.MAX_AGE`: a FAIL counts whether its run is origin or
-        counted, and origin rests only on fields a re-run keeps (id, path,
-        event, branch, repositories, head), never on status, conclusion or
+        record another gate process of the run read, however long ago: a
+        FAIL counts whether its run is origin or counted, and origin rests
+        only on fields a re-run keeps (id, path, event, branch, repositories,
+        head) plus a live branch check, never on status, conclusion or
         attempt, so a stale record cannot turn a FAIL away. A PASS needs a
         completed success, which a re-run can undo, so its run is read by
         this process."""
         if run_id in self._runs and (shared or run_id not in self._shared_runs):
             return self._runs[run_id]
         key = f"{self.repo}|{run_id}"
-        record = run_cache.get(RUN_SECTION, key, run_cache.MAX_AGE) if shared else None
+        record = run_cache.get(RUN_SECTION, key, None) if shared else None
         cached = is_json_object(record)
         try:
             if not cached:

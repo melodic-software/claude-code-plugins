@@ -66,6 +66,7 @@ def _queue_read(
     armed: bool = False,
     state: str | None = None,
     position: int | None = None,
+    failed_ejections: int | None = 0,
 ) -> dict[str, Any]:
     """A `read_merge_queue` answer; the default is a base with no merge queue."""
     return {
@@ -76,6 +77,7 @@ def _queue_read(
         "autoMergeArmed": armed,
         "state": state,
         "position": position,
+        "failedEjections": failed_ejections,
     }
 
 
