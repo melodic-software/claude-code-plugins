@@ -243,8 +243,8 @@ function helpers(page) {
 
 function views(page, CFG) {
   const { clickIn, phone, more, mode, joinIfAsked } = helpers(page);
-  // the Claude thread: its own column from 1200px, a tab below that
-  const claudeTab = async () => { await clickIn(".vf-splittabs .vf-seg-btn", "Claude"); return true; };
+  // the Claude thread: the "Claude on this question" section below the answers, opened
+  const claudeTab = async () => { if (await page.evaluate(() => document.querySelector(".vf-cltoggle")?.getAttribute("aria-expanded") !== "true")) await page.click(".vf-cltoggle"); return true; };
   const gotoQ = async id => { await mode("tree"); const ok = await clickIn(`[data-tkey="q:${id}"]`); await mode("focus"); return ok; };
   const railTab = async () => { if (await phone()) await clickIn(".vf-tab", "Questions"); };
   const W = ms => page.waitForTimeout(ms);
@@ -308,9 +308,9 @@ function views(page, CFG) {
     "ref-add": async () => { await gotoQ("Q5"); return clickIn(".vf-refadd"); },
     "ref-reader": async () => { await gotoQ("Q1"); return clickIn(".vf-ref-img"); },
     "reply": async () => { await clickIn(".vf-fab"); await W(150); await clickIn(".vf-msgmore"); await W(120); return clickIn(".vf-msgmenu .vf-menu-item", "Reply"); },
-    "confirm-unlock": async () => { await gotoQ("Q4"); await clickIn(".vf-splittabs .vf-seg-btn", "Answers"); return clickIn(".vf-lock .vf-btn", "Unlock"); },
+    "confirm-unlock": async () => { await gotoQ("Q4"); return clickIn(".vf-lock .vf-btn", "Unlock"); },
     "confirm-remove": async () => { await mode("host"); return clickIn(".vf-hpeople .vf-btn-danger", "Remove"); },
-    "pick-thumbs": async () => { await gotoQ("Q11"); await clickIn(".vf-splittabs .vf-seg-btn", "Answers"); return page.evaluate(() => { const a = document.querySelector(".vf-alist .vf-pickthumb:not([hidden])"); a?.scrollIntoView({ block: "center" }); return !!a; }); },
+    "pick-thumbs": async () => { await gotoQ("Q11"); return page.evaluate(() => { const a = document.querySelector(".vf-alist .vf-pickthumb:not([hidden])"); a?.scrollIntoView({ block: "center" }); return !!a; }); },
     "more": async () => ((await phone()) ? clickIn(".vf-tab", "More") : "skip"),
     // last: these leave the seeded page; the next view reloads it
     "empty-host": async () => { await page.goto(CFG.emptyHost); await page.reload(); await joinIfAsked("Kyle"); return true; },

@@ -108,7 +108,7 @@
     MENTIONS = { live: labels(live.map(p => p.pid)), all: labels([...Object.keys(people), ...Object.keys(s.mentions || {})]), label };
     const plain = t => (typeof t === "string" && t.includes("<@") ? t.replace(TOKEN, (_, p) => "@" + label(p)) : t);
     const view = {
-      ...DEFAULTS,
+      ...structuredClone(DEFAULTS), // its own maps: a question whose last answer, lock, suggestion or result went must lose its key
       schemaVersion: s.schemaVersion, rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", ended: !!s.ended, serverTime: s.serverTime,
       settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always" },
       people, ownerPid: "host",
@@ -563,8 +563,14 @@
     revokeWatcher: () => act("/api/watcher/revoke", {}),
     later: (id, reason) => act("/api/proposal/act", { id, action: "later", reason }),
     /** Owner: edit | decline | fail | rerun one request, publish | discard a result; runRequests runs the given ids still pending. */
-    requestAct: (id, action, text) => act("/api/request/act", { id, action, ...(text != null ? { text } : {}) }),
-    runRequests: ids => act("/api/request/act", { action: "run", ids }),
+    requestAct: (id, action, text) => (action === "run" ? Core.runRequests([id])
+      : act("/api/request/act", { id, action, ...(text != null ? { text } : {}) })),
+    /** The given ids still waiting show as running at once; a refusal puts them back. */
+    runRequests: ids => act("/api/request/act", { action: "run", ids }, { key: "run:" + ids.join(), patch: s => {
+      for (const r of [...(s.requests || []), ...(s.myRequests || [])]) {
+        if (ids.includes(r.id) && r.status.kind === "pending") r.status = { kind: "running", since: s.serverTime };
+      }
+    } }),
     proposal: (id, action) => act("/api/proposal/act", { id, action }),
     setTitle: title => act("/api/session/title", { title }),
     merge: (from, to) => act("/api/person/merge", { from, to }),
