@@ -190,10 +190,20 @@ test("a pr-unblock re-fire says its conflict-resolution run waits for the next p
   assert.ok(!body.includes("so new runs start on main's files"), body);
 });
 
-test("a pr-refine re-fire keeps the wording it has always posted", async () => {
+test("a pr-refine re-fire says the push starts no pr-refine run, which waits for a reopen or a dispatch", async () => {
   const w = world({ pulls: [pr(7)], runs: { "pr-refine.yml": [run(70, { head: sha(7) })] } });
   assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
-  assert.equal(postedBody(w.calls), POSTED(REFINE, BLOB, sha(7)));
+  assert.equal(
+    postedBody(w.calls),
+    `${POSTED(REFINE, BLOB, sha(7))} The push starts no pr-refine run itself: pr-refine runs again when the pull request is reopened or a listed person dispatches \`pr-refine\` with its number.`,
+  );
+});
+
+test("a marker posted in the earlier wording still stops a second pr-refine re-fire", async () => {
+  const w = world({ pulls: [pr(7)], runs: { "pr-refine.yml": [run(70, { head: sha(7) })] }, comments: { 7: [{ user: BOT, created_at: "2026-10-17T21:50:00Z", body: POSTED(REFINE, BLOB, sha(6)) }] } });
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  assert.deepEqual(pushes(w.calls), []);
+  assert.deepEqual(posts(w.calls), []);
 });
 
 test("a marker posted in the earlier wording still stops a second pr-unblock re-fire", async () => {

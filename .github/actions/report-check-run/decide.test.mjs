@@ -380,6 +380,47 @@ test("a skip-reason never neutralizes a run job that did not succeed", () => {
   }
 });
 
+// The patch output mode of pr-run-activity-read.yml: the outcome is named in
+// the title, so a run that changed nothing reads differently from one that
+// wrote a patch.
+test("a written patch posts success titled for the patch", () => {
+  const report = posted(decide(verdict({ patch: "written" }), inputs()));
+  assert.equal(report.conclusion, "success");
+  assert.equal(report.output.title, "Passed: patch written");
+});
+
+test("an empty patch posts success with its own title", () => {
+  const report = posted(decide(verdict({ patch: "empty" }), inputs()));
+  assert.equal(report.conclusion, "success");
+  assert.equal(report.output.title, "Passed: no changes");
+});
+
+test("a run with no patch keeps the plain success title", () => {
+  for (const patch of [null, undefined]) {
+    const report = posted(decide(verdict({ patch }), inputs()));
+    assert.equal(report.output.title, "Passed", String(patch));
+  }
+});
+
+test("a patch never turns a failed act step, a failed run or a dirty tree into success", () => {
+  for (const [v, i] of [
+    [{ patch: "written" }, { actOutcome: "failure" }],
+    [{ patch: "empty" }, { runResult: "failure" }],
+    [{ patch: "written", "dirty-tree": true }, {}],
+  ]) {
+    const report = posted(decide(verdict(v), inputs(i)));
+    assert.equal(report.conclusion, "failure", JSON.stringify([v, i]));
+  }
+});
+
+test("a patch value outside written and empty is a malformed verdict", () => {
+  for (const patch of ["none", true, 1, ""]) {
+    const report = posted(decide(verdict({ patch }), inputs()));
+    assert.equal(report.conclusion, "failure", JSON.stringify(patch));
+    assert.equal(report.output.summary, "The verdict does not match its contract.");
+  }
+});
+
 test("a run job that did not succeed posts failure even when the act step succeeded", () => {
   const report = posted(decide(verdict(), inputs({ runResult: "failure" })));
   assert.equal(report.conclusion, "failure");

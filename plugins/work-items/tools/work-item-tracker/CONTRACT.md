@@ -259,7 +259,8 @@ assignee AND not a container (a `work-map` item is never its own frontier item, 
 "Containers and state"). With `--autonomous`, items labeled `needs-human` are additionally
 excluded, as are items carrying a **human-floor work class**: `work-class: structural` (C4)
 or `work-class: untrusted-provenance` (C5), whose admission disposition is human-gated
-regardless of any other signal. The floor wins over the autonomous-eligible role label: an
+regardless of any other signal, and items labeled `status: needs-decision` or
+`status: needs-info`, which wait on a person. The floor wins over the autonomous-eligible role label: an
 item carrying both is contradictory, and resolving it against the floor is what keeps a
 worker from claiming and then escalating it once per lane pass. `work-class: scoped` (C3) is
 deliberately not floored here: its disposition turns on bug-fix-vs-feature shape and
