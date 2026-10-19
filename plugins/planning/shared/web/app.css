@@ -1843,9 +1843,6 @@
 @media (prefers-reduced-motion: no-preference) {
   .app .vf-bell-n.vf-badge-pop { animation: vf-pop-in 300ms var(--ease-out) both; }
 }
-.app .vf-bellpop { inline-size: 380px; max-block-size: min(560px, calc(100% - 64px)); padding: 0; display: flex; flex-direction: column; }
-.app .vf-bellpop .vf-pp-head { padding: 8px 8px 8px 16px; border-block-end: 1px solid var(--line); }
-.app .vf-bpscroll { flex: 1 1 auto; padding: 6px; display: grid; align-content: start; gap: 2px; }
 .app .vf-bptools { display: flex; justify-content: flex-end; padding: 2px 4px 4px; }
 .app .vf-nlist { display: grid; gap: 2px; grid-template-columns: minmax(0, 1fr); }
 /* lead, text, time, unread dot; the lead and the dot center on the title's first line (20px) */
@@ -2014,18 +2011,29 @@
 .app .vf-inboxbtn .vf-bell-n { position: static; box-shadow: none; background: var(--accent); color: var(--on-accent); }
 /* .vf-tbtn's min-inline-size replaces flex's min-content floor: on a crowded top bar the title gives way, not these labels */
 .app :is(.vf-inboxbtn, .vf-sharebtn) { flex-shrink: 0; }
-.app .vf-inboxpop { inline-size: 420px; max-block-size: min(640px, calc(100% - 64px)); }
-.app .vf-inboxpop .vf-pp-head { gap: 8px; }
-.app .vf-inboxpop .vf-pp-head .vf-pop-title { flex: 0 1 auto; }
+/* Spec PR 9: the Inbox is a page of its own in the session's place below the top bar (positioned on that grid area, so
+   it never moves the session's own rows), its content in one centered column; the session under it keeps its scroll
+   positions (hidden, never removed) */
+.app .vf-inboxpage { position: absolute; inset: 0; grid-row: 2 / 4; grid-column: 1; z-index: 30; min-block-size: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); }
+.app .vf-inboxpage[hidden] { display: none; }
+.app.vf-inboxon > :is(.vf-body, .vf-fab, .vf-tabs, .vf-chat) { visibility: hidden; }
+.app .vf-ibtop { display: grid; gap: 10px; padding: 12px max(16px, calc((100% - 860px) / 2)); background: var(--pane); border-block-end: 1px solid var(--line); }
+.app .vf-ibhead { display: flex; align-items: center; gap: 10px; min-inline-size: 0; }
+.app .vf-ibback .vf-i { inline-size: 14px; block-size: 14px; }
+.app .vf-ibtitle { margin: 0; font-size: 20px; line-height: 28px; font-weight: 700; }
 .app .vf-ixcount { border-radius: 8px; }
-.app .vf-inboxpop .vf-pp-head .vf-ixcount + .vf-btn { margin-inline-start: auto; }
-.app .vf-ixtabs { justify-self: start; margin: 4px 4px 6px; flex-wrap: wrap; }
-.app .vf-ixsec { display: grid; gap: 6px; padding: 4px 2px 10px; }
-.app .vf-ixh { margin: 0; padding-inline: 8px; font-size: 12px; font-weight: 650; color: var(--muted); }
-.app .vf-ixgh { margin: 2px 0 0; padding-inline: 8px; font-size: 11.5px; font-weight: 600; color: var(--faint); }
-.app .vf-ixgroup { display: grid; gap: 6px; }
-.app .vf-ixwait { padding: 8px 6px 10px; border: 1px solid color-mix(in oklch, var(--brass) 35%, transparent); border-radius: var(--r-md); background: var(--brass-soft); }
-.app .vf-ixwait > .vf-ixh { color: var(--brass-text); }
+.app .vf-ixtabs { justify-self: start; margin: 0; flex-wrap: wrap; }
+.app .vf-ibchips { padding-inline: 0; }
+.app .vf-ibchips[hidden] { display: none; }
+.app .vf-ibscroll { min-block-size: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px max(16px, calc((100% - 860px) / 2)) 40px; scrollbar-width: thin; scrollbar-color: var(--sb) transparent; }
+.app .vf-ibtab { display: grid; align-content: start; gap: 18px; }
+.app .vf-ibtab[hidden], .app .vf-ixgroup[hidden] { display: none; }
+.app .vf-ixgh { margin: 2px 0 0; padding-inline: 2px; font-size: 12px; font-weight: 600; color: var(--faint); }
+.app .vf-ixgroup { display: grid; gap: 8px; }
+.app .vf-ibempty { padding-block: 24px; text-align: center; }
+.app .vf-ibq { gap: 8px; grid-template-columns: minmax(0, 1fr); }
+.app .vf-ibq .vf-ibnav { justify-content: flex-start; }
+.app .vf-ibq .vf-ibnav[hidden] { display: none; }
 .app .vf-ixlist { display: grid; gap: 6px; grid-template-columns: minmax(0, 1fr); }
 /* question line and status chip; what was asked and when; a reason or a wait under it; the unread dot in the gutter */
 .app .vf-ixitem {
@@ -2052,7 +2060,6 @@
 .app .vf-ixchip[data-stat="shared"] { color: var(--claude); background: color-mix(in oklch, var(--claude) 13%, transparent); border-color: color-mix(in oklch, var(--claude) 35%, transparent); }
 .app .vf-ixchip[data-stat="declined"] { text-decoration: line-through; color: var(--faint); }
 .app .vf-ixchip[data-stat="failed"] { color: var(--warn); background: color-mix(in oklch, var(--warn) 12%, transparent); border-color: color-mix(in oklch, var(--warn) 40%, transparent); }
-.app .vf-ixnotes { padding-block-start: 10px; border-block-start: 1px solid var(--line); }
 @media (hover: hover) and (pointer: fine) {
   .app .vf-ixitem:hover { background: var(--raise); }
 }
@@ -2066,13 +2073,21 @@
   .app .vf-person:not(.vf-person-me) { display: none; }
   .app .vf-bell { order: 2; }
   .app .vf-people { order: 3; }
-  .app .vf-bellpop[data-place="sheet"] {
-    inset-inline: 0; inset-block: auto 0; inline-size: auto; max-block-size: 86%;
-    border-radius: var(--r-lg) var(--r-lg) 0 0; border-block-end: 0; padding-block-end: env(safe-area-inset-bottom); transform-origin: bottom center;
-  }
-  .app .vf-bellpop .vf-tbtn { inline-size: 44px; block-size: 44px; }
-  /* the Inbox on a phone: the whole screen, its tabs and items full width */
-  .app .vf-inboxpop[data-place="sheet"] { inset: 0; max-block-size: none; block-size: 100%; border-radius: 0; border: 0; padding-block-end: env(safe-area-inset-bottom); }
+  /* the Inbox page on a phone: a tighter head, Back as a 44 px icon, the list clear of the home indicator */
+  .app .vf-ibtop { padding-block: 10px; gap: 8px; }
+  .app .vf-ibtitle { font-size: 18px; }
+  .app .vf-ibback span { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .app .vf-ibback { min-inline-size: 44px; min-block-size: 44px; justify-content: center; }
+  .app .vf-ibhead .vf-btn { min-block-size: 44px; }
+  .app .vf-ixtabs .vf-seg-btn { min-block-size: 44px; flex: none; white-space: nowrap; }
+  /* tabs and chips each keep one row that scrolls sideways, so the list starts high on the screen */
+  .app .vf-ibtop :is(.vf-ixtabs, .vf-ibchips) { flex-wrap: nowrap; max-inline-size: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .app .vf-ibchips > .vf-btn { flex: none; }
+  /* a request row's question and status each take a line of their own */
+  .app .vf-inboxpage .vf-rhead2 { flex-wrap: wrap; row-gap: 4px; }
+  .app .vf-inboxpage .vf-rhead2 .vf-qref { order: 5; flex-basis: 100%; }
+  .app .vf-inboxpage .vf-rhead2 .vf-rstat { order: 6; flex-basis: 100%; text-align: start; }
+  .app .vf-ibscroll { padding-block-end: calc(24px + env(safe-area-inset-bottom)); }
   .app .vf-inbox-l { display: none; }
   .app .vf-inboxbtn { min-inline-size: 44px; block-size: 44px; }
   .app .vf-ixitem { padding-block: 10px; }
@@ -2123,8 +2138,9 @@
   .app[data-kb] .vf-tabs, .app[data-kb] .vf-fab:not([aria-expanded="true"]) { display: none; }
   .app[data-kb] .vf-chat { block-size: calc(100% - 8px); border-radius: var(--r-lg) var(--r-lg) 0 0; }
   /* the keyboard covers the home indicator, so a sheet sits right on the keyboard without the bottom safe-area inset */
-  .app[data-kb] :is(.vf-chat, .vf-drawer, .vf-pop.vf-panel, .vf-bellpop[data-place="sheet"]) { padding-block-end: 0; }
-  .app[data-kb] :is(.vf-drawer, .vf-pop.vf-panel, .vf-bellpop[data-place="sheet"]) { max-block-size: calc(100% - 8px); }
+  .app[data-kb] :is(.vf-chat, .vf-drawer, .vf-pop.vf-panel) { padding-block-end: 0; }
+  .app[data-kb] :is(.vf-drawer, .vf-pop.vf-panel) { max-block-size: calc(100% - 8px); }
+  .app[data-kb] .vf-ibscroll { padding-block-end: 16px; }
   /* the Ask Claude sheet takes all the room above the keyboard, and its Send row stays at the sheet's
      bottom edge while the form is in view */
   .app[data-kb] .vf-drawer { block-size: calc(100% - 8px); }

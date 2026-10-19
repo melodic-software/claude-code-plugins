@@ -86,7 +86,9 @@ NOTIFY_CAP = 500
 MAX_INBOX_READ = 100  # judgment: Inbox items one read marks; a person opens one at a time, "all" sends the unread ones
 INBOX_MARKS = ("waiting", "running", "answered", "unshared", "shared", "declined", "failed", "open")  # state.schema.json inboxSeen
 INBOX_STATUS = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}  # a request's Inbox status; done is answered, shared or unshared
+NOT_SHARED = "The owner did not share the result."  # a discarded result's request fails with this reason
 NOTIFY_SHOWN = 100
+POPUP_KINDS = ("join", "run", "report", "share", "merge", "fail")  # the owner's Inbox items that may pop up (web/app.js HOST_URGENT)
 MAX_COMMENTS = 200  # judgment: Discussion comments kept on one question; at the cap a new one is refused, none dropped
 MAX_ALL_COMMENTS = 2000  # judgment: comments across the session, as MAX_CHAT; at the cap a new one is refused
 MAX_MY_COMMENTS = 30  # judgment: comments one person keeps on one question, as MAX_MY_NOTES; their hidden ones count too
@@ -274,6 +276,7 @@ PREFS = {
     "tour": lambda v: v in ("done", "skipped"),
     "toolbar": lambda v: v in ("simple", "full"),
     "autoAdvance": lambda v: isinstance(v, bool),
+    "popups": lambda v: isinstance(v, list) and len(v) <= len(POPUP_KINDS) and all(k in POPUP_KINDS for k in v),
 }
 
 # Round state machine (Contracts, "Round state machine"): (from status, action) -> (who, to status).
@@ -3647,7 +3650,7 @@ class Session:
             if not lst:
                 self.state["results"].pop(key)
             if req:
-                req["status"] = {"kind": "failed", "at": self.now(), "reason": "The owner did not share the result.", "cancelled": False}
+                req["status"] = {"kind": "failed", "at": self.now(), "reason": NOT_SHARED, "cancelled": True}  # the owner ended it
                 self._notify(req["pid"], "request", f"Your request {_on(req)} was not shared.", actor=pid, qid=req.get("qid"))
         return {"id": res["id"], "published": action == "publish"}
 
@@ -4431,8 +4434,9 @@ class Session:
 
     def _inbox(self, pid):
         """This person's Inbox: their own requests, each with the status they would see, and for the owner what
-        waits on them. `unread`: the status moved since they last opened the item. Never another person's request
-        or a result its requester cannot see."""
+        waits on them: requests to run, answers to share, guests' requests Claude failed (read once opened, then only
+        history), open reports not yet asked about, merges and joins. `unread`: the status moved since they last opened
+        the item. Never another person's request or a result its requester cannot see."""
         st = self.state
         results = {r["id"]: r for lst in st["results"].values() for r in lst}
         seen = st["inboxSeen"].get(pid, {})
@@ -4460,8 +4464,11 @@ class Session:
                   for r in st["requests"] if r["runner"] == "host" and r["status"]["kind"] == "pending" and r["pid"] != HOST and self._active(r["pid"])),
                 *({"key": "share:" + x["id"], "kind": "share", "id": x["id"], **_where(x), **({"by": x["by"]["pid"]} if "pid" in x["by"] else {}), "at": x["at"]}
                   for lst in st["results"].values() for x in lst if self._held(x) and self._from_active(x)),
+                *({"key": "fail:" + r["id"], "kind": "fail", "id": r["id"], **_where(r), "by": r["pid"], "at": r["status"]["at"]}
+                  for r in st["requests"] if r["runner"] == "host" and r["pid"] != HOST and self._active(r["pid"]) and self._claude_failed(r)),
+                # an open report the owner already asked Claude about waits on Claude; the reporter's next addition brings it back
                 *({"key": "report:" + f, "kind": "report", "id": f, "by": rep["by"], "at": max([rep["ts"], *(a["ts"] for a in rep.get("adds", []))])}
-                  for f, rep in st.get("reports", {}).items() if rep["status"] == "open"),
+                  for f, rep in st.get("reports", {}).items() if rep["status"] == "open" and "asked" not in rep),
                 *({"key": "merge:" + m["id"], "kind": "merge", "id": m["id"], "by": m["from"], "at": m["at"]}
                   for m in st["mergeRequests"] if m["status"]["kind"] == "pending"),
                 *({"key": "join:" + v["pid"], "kind": "join", "id": v["pid"], "by": v["pid"], "at": v["status"]["at"]}
@@ -4471,6 +4478,13 @@ class Session:
         for i in out:
             i["unread"] = seen.get(i["key"]) != i["status"]
         return out
+
+    @staticmethod
+    def _claude_failed(r):
+        """A request Claude failed, which only Run again moves on; not one the owner cancelled or discarded (a state from
+        before discards were marked cancelled says so in its reason)."""
+        s = r["status"]
+        return s["kind"] == "failed" and not s["cancelled"] and s["reason"] != NOT_SHARED
 
     def _moderator_pids(self):
         return [p for p, v in self.state["people"].items() if v["role"] in ("owner", "leader") and v["status"]["kind"] == "active"]

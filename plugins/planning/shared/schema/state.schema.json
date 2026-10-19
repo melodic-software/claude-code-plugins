@@ -1117,7 +1117,8 @@
         "mute": {"$ref": "#/$defs/pref"},
         "tour": {"$ref": "#/$defs/pref"},
         "toolbar": {"$ref": "#/$defs/pref"},
-        "autoAdvance": {"$ref": "#/$defs/pref"}
+        "autoAdvance": {"$ref": "#/$defs/pref"},
+        "popups": {"$ref": "#/$defs/pref"}
       }
     },
     "notification": {

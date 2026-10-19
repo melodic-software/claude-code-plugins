@@ -2454,6 +2454,40 @@ class TestInbox(TestRequests):
         self.read(HOST, f"share:{xid}")
         self.assertNotIn(f"run:{r1}", self.s.state["inboxSeen"][HOST])  # a mark of an item gone is dropped on the next read
 
+    def test_handled_requests_and_reports_leave_what_waits_on_the_host(self):
+        """Follow-up 23: a request the host ran, shared, discarded or cancelled, and a report it resolved, marked seen or
+        asked Claude about, no longer wait on the host; a failed guest request waits until the host opens it."""
+        report = {"ctx": {"view": "focus", "device": "phone", "browser": "safari", "viewport": {"w": 390, "h": 844}, "errors": []}}
+        shared, discarded, cancelled, failed = (self.ask(self.ann, t) for t in ("shared", "discarded", "cancelled", "failed"))
+        self.act("act_on_request", HOST, {"action": "run", "ids": [shared, discarded, cancelled, failed]})
+        self.act("act_on_request", HOST, {"action": "publish", "id": self.apply(self.result_op(shared))["results"][0]["id"]})
+        self.act("act_on_request", HOST, {"action": "discard", "id": self.apply(self.result_op(discarded))["results"][0]["id"]})
+        self.act("act_on_request", HOST, {"action": "fail", "id": cancelled})
+        self.apply({"op": "fail-request", "request": failed, "reason": "No sources found."})
+        fids = []
+        for text in ("resolved", "seen", "asked"):
+            self.clock.tick(10)
+            fids.append(self.act("report", self.bo, {"text": text, **report})["id"])
+        for fid, action in zip(fids, ("resolved", "seen", "ask")):
+            self.act("act_on_report", HOST, {"action": action, "id": fid})
+        waiting = self.inbox(HOST, "waiting")
+        self.assertEqual(sorted(waiting), [f"fail:{failed}"])
+        self.assertEqual((waiting[f"fail:{failed}"]["unread"], waiting[f"fail:{failed}"]["qid"]), (True, "Q1"))
+        self.read(HOST, f"fail:{failed}")
+        self.assertFalse(self.inbox(HOST, "waiting")[f"fail:{failed}"]["unread"])  # opened: history from here on
+        self.act("act_on_request", HOST, {"action": "rerun", "id": failed})
+        self.assertEqual(self.inbox(HOST, "waiting"), {})
+        self.clock.tick(10)
+        self.act("add_to_report", self.bo, {"id": fids[2], "text": "Still broken on the phone."})
+        self.assertEqual(sorted(self.inbox(HOST, "waiting")), [f"report:{fids[2]}"])  # new words from the reporter wait again
+
+    def test_a_request_discarded_before_discards_were_marked_cancelled_never_waits(self):
+        rid = self.ask(self.ann)
+        self.act("act_on_request", HOST, {"action": "run", "ids": [rid]})
+        self.act("act_on_request", HOST, {"action": "discard", "id": self.apply(self.result_op(rid))["results"][0]["id"]})
+        self.s.state["requests"][0]["status"]["cancelled"] = False  # as every discard wrote it before
+        self.assertEqual(self.inbox(HOST, "waiting"), {})
+
     def test_a_read_takes_one_to_a_hundred_string_keys_and_works_while_ended(self):
         rid = self.ask(self.ann)
         for bad in ({}, {"keys": []}, {"keys": "R1"}, {"keys": [1]}, {"keys": ["R1"] * 101}):
@@ -2777,6 +2811,13 @@ class TestSessionControls(SessionCase):
         self.refused("bad-field", "set_prefs", self.ann, {"set": {"autoAdvance": "on"}})
         self.act("set_prefs", self.ann, {"set": {"autoAdvance": None}})
         self.assertNotIn(self.ann, self.s.state["prefs"])
+
+    def test_popups_name_only_the_owners_inbox_kinds_and_belong_to_their_person(self):
+        self.assertEqual(self.act("set_prefs", HOST, {"set": {"popups": ["join", "share"]}})["prefs"], {"popups": ["join", "share"]})
+        self.assertEqual(self.s.snapshot(self.ann)["me"]["prefs"], {})
+        self.act("set_prefs", HOST, {"set": {"popups": []}})  # every kind off: the Inbox only
+        for bad in ("join", ["mention"], ["join"] * 7):
+            self.refused("bad-field", "set_prefs", HOST, {"set": {"popups": bad}})
 
     def test_title_is_1_to_80_and_goal_up_to_200(self):
         self.act("set_title", HOST, {"title": "  Payment step  "})
@@ -4582,7 +4623,8 @@ class TestStateFrom394a8bc(unittest.TestCase):
         self.assertEqual((tmp / "state.v3.json").read_text(encoding="utf-8").rstrip("\n"), json.dumps(raw, ensure_ascii=False))
         for pid in (self.ANN, self.BO, HOST):
             self.assertEqual([i["key"] for i in s.snapshot(pid)["inbox"] if i["group"] == "mine" and i["unread"]], [], pid)
-        self.assertEqual([i["key"] for i in s.snapshot(HOST)["inbox"] if i["group"] == "waiting"], ["run:R1", "share:X1"])
+        # Bo's request Claude failed (R6) waits on the host until the host opens it, as one failed after the upgrade would
+        self.assertEqual([(i["key"], i["unread"]) for i in s.snapshot(HOST)["inbox"] if i["group"] == "waiting"], [("run:R1", True), ("share:X1", True), ("fail:R6", True)])
         s.act_on_request(HOST, {"action": "publish", "id": "X1"})
         item = next(i for i in s.snapshot(self.ANN)["inbox"] if i["key"] == "R3")
         self.assertEqual((item["status"], item["unread"], item["result"]), ("shared", True, "X1"))

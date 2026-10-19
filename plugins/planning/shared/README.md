@@ -277,25 +277,39 @@ for a free-form selector an earlier build took.
 
 ## Inbox
 
-The top bar's Inbox (in the bell's place) lists a person's own requests, newest first, with the
-status they see: `waiting`, `running`, `answered` (an answer only its asker and the owner see),
-`unshared` (an answer waiting for the owner's Share, shown as "Answered, waiting for the host to
-share"), `shared`, `declined` or `failed`. The owner's also lists what waits on them under "Waiting
-on you": requests to run, results to share, open problem reports, merge requests and join requests.
-The owner's page shows the requests and results there as one review list, newest first, with
-status chips (Waiting, Running, Failed, Not shared for what waits on the owner's Share, Private for
-an answer out to its asker alone, Shared; Private and Shared start off) whose choice, like the Inbox
-tab, the device remembers, and Run, Decline, Edit, Mark failed, Run again, Share, Discard and Take
-down on each row; failed rows say why. The snapshot's `inbox` carries these
-items, built by `session.py` for the viewer alone (never another person's request or a result its
-requester cannot see). `inboxSeen` in `state.json` keeps, per person, the status each item had
-when they opened it; an item whose status moved since is unread, and only
-`POST /api/inbox/read {keys}` (keys of the caller's own Inbox; others mark nothing) marks one
-read. Notifications stay under the Inbox; its badge leaves out the `request` kind, which its
-items already show. The owner gets no `queue` line for what its Inbox lists as waiting
-(requests, shares, reports, merges, joins); queue lines for proposals, suggestions and upload
-offers still count. The owner's own requests skip the queue: one starts running when
-sent. A guest's request, the owner's guest identity included, still waits for Run.
+The top bar's Inbox opens a page of its own in the session's place below the top bar, for everyone, at every width;
+Back to the session or Escape closes it, and every row opens where it happened and closes it. Its tabs, each behind
+filter chips by status or kind that the device remembers, like the tab:
+
+- Needs you: what needs this person now. Everyone sees the answers to their requests they have not opened and the
+  questions they are asked to answer; a leader adds proposals and suggestions to place and a round to mark ready; the
+  owner adds requests to run, answers to share, requests Claude failed (until opened), files offered, pictures to
+  approve, open problem reports not yet asked about, merge and join requests, and a round marked ready, with Run,
+  Share, Approve and the rest on the rows. Only the owner's actions do anything: the server refuses them from anyone
+  else.
+- My requests: this person's requests that wait, run or have news, with the status they see: `waiting`, `running`,
+  `answered` (an answer only its asker and the owner see), `unshared` (shown as "Answered, waiting for the host to
+  share"), `shared`, `declined` or `failed`.
+- Notifications: every notification, newest first, twenty at a time, by kind or unread only.
+- History: what was handled: opened requests that are finished, and for the owner the other requests to Claude
+  (running, shared, Just me, taken down, declined, discarded), reports seen or with Claude, and pictures done.
+
+The snapshot's `inbox` carries a person's own requests and, for the owner, what waits on them (`run:`, `share:`,
+`fail:` for a guest's request Claude failed, `report:` for an open report not yet asked about, `merge:`, `join:`),
+built by `session.py` for the viewer alone (never another person's request or a result its requester cannot see).
+`inboxSeen` in `state.json` keeps, per person, the status each item had when they opened it; an item whose status
+moved since is unread, and only `POST /api/inbox/read {keys}` (keys of the caller's own Inbox; others mark nothing)
+marks one read. The badge leaves out the `request` notification kind, which the items already show. The owner gets
+no `queue` line for what its Inbox lists as waiting (requests, shares, reports, merges, joins); queue lines for
+proposals, suggestions and upload offers still count. The owner's own requests skip the queue: one starts running
+when sent. A guest's request, the owner's guest identity included, still waits for Run.
+
+The owner's pop-ups are for a join, a request waiting for Run and a problem report alone (`HOST_URGENT` in
+`web/app.js`); everything else reaches the owner in the Inbox only. The Pop-ups switches at the top of the owner's
+Notifications tab turn each kind of item waiting on the owner (also answers to share, merge requests and requests
+Claude failed) on or off, kept as the owner's `popups` pref (`session.py` POPUP_KINDS); guests see no such section.
+Pop-ups that arrive while one shows become one with a count and Open Inbox ("3 requests wait on you"), and an item
+that stops waiting drops out of it. Guests' pop-ups are unchanged.
 
 ## Discussion
 
@@ -822,9 +836,13 @@ the picker.
 
 `ui_review.js` checks sharing Claude's answers and the host's review view: Everyone on a question's Ask box and
 Ask Claude, Just me about the whole session; an answer asked for everyone reaching another guest when it arrives, a
-Just me one reaching only its asker until they share it; the Inbox's Waiting on you listing requests newest first
-behind status chips with Shared off, Run, a failed row's reason and Run again, Take down hiding an answer from others,
-and the chips and the Inbox tab kept over a reload.
+Just me one reaching only its asker until they share it; the Inbox page's Needs you listing requests newest first,
+Run moving them to History, a failed row's reason and Run again, Take down hiding an answer from others, and the
+chips and the Inbox tab kept over a reload.
+
+`ui_inbox_page.js` checks the Inbox page: Needs you holding a request Claude failed until it is opened but never one
+the owner discarded or cancelled, nor a report already asked about; History holding them; rows opening where they
+happened and closing the page; a leader's proposals to place and the server refusing a leader's Run.
 
 `ui_myreports.js` checks Your reports on a 390x844 phone from More and on a desktop from Help: no entry before a
 report, the list with Sent, Seen by the host and Fixed, a line and a screenshot added (the owner's Problem item shows
