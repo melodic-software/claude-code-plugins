@@ -5,7 +5,8 @@
 // leaves the review on the reusable's defaults; intake never runs without
 // resolved arguments; and each sparse checkout holds what this action loads.
 // Also: pr-unblock.yml leaves a publish-feedback check on the head whether or
-// not its reply job runs, and work-resolve-issue.yml caps its concurrent runs.
+// not its reply job runs, and a fix-ci check when fix-ci-context skips, and
+// work-resolve-issue.yml caps its concurrent runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -16,6 +17,7 @@ import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
+import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -242,10 +244,88 @@ test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback
   assert.equal(evaluate(notRun.if, context("false", "")), false, "a gate stop gated no head to post on");
   assert.equal(evaluate(notRun.if, context("", "", "resolve-conflicts")), false);
 
-  // The step's inputs reach report-check-run.mjs through the action's env map.
+  const calls = await postNotRunCheck(notRun, context("false", head));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, "pr-unblock / publish-feedback");
+  assert.equal(calls[0].head_sha, head);
+  assert.equal(calls[0].conclusion, "neutral");
+  assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
+});
+
+// A fix-ci-context skip with no fix-ci check on the head would let the
+// dispatcher send the same head again on every run.
+test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and the dispatcher counts it", async () => {
+  const head = "d".repeat(40);
+  const { jobs } = workflow("pr-unblock.yml");
+  const fixCi = jobs["fix-ci"];
+  const notRun = jobs["fix-ci-not-run"];
+  // fix-ci-context.mjs writes proceed "true" or "false"; a kill-switch stop
+  // skips its step and leaves every output empty.
+  const context = (proceed, escalation, headSha, activity = "fix-ci") => ({
+    "inputs.activity": activity,
+    "needs.fix-ci-context.outputs.proceed": proceed,
+    "needs.fix-ci-context.outputs.escalation-reason": escalation,
+    "needs.fix-ci-context.outputs.head-sha": headSha,
+  });
+  assert.equal(evaluate(fixCi.if, context("true", "", head)), true);
+  assert.equal(evaluate(notRun.if, context("true", "", head)), false);
+  assert.equal(evaluate(notRun.if, context("false", "", head)), true);
+  assert.equal(evaluate(notRun.if, context("false", "ci-fix-round-cap", head)), false, "report-escalation owns it");
+  assert.equal(evaluate(notRun.if, context("", "", "")), false, "a kill-switch stop names no head");
+  assert.equal(evaluate(notRun.if, context("", "", "", "resolve-conflicts")), false);
+
+  const calls = await postNotRunCheck(notRun, context("false", "", head));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, "pr-unblock / fix-ci");
+  assert.equal(calls[0].head_sha, head);
+  assert.equal(calls[0].conclusion, "neutral");
+  assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
+
+  // fix-ci-dispatch.mjs dispatches a head with no fix-ci check run; the
+  // posted one, as the listing returns it, means the head was handled.
+  const appSenderId = 7;
+  const node = {
+    number: 8171,
+    isDraft: false,
+    isCrossRepository: false,
+    baseRefName: "main",
+    headRefOid: head,
+    author: { databaseId: appSenderId },
+    labels: { nodes: [] },
+    commits: {
+      nodes: [
+        {
+          commit: {
+            oid: head,
+            statusCheckRollup: {
+              contexts: {
+                nodes: [
+                  { name: "ci-status", status: "COMPLETED", conclusion: "FAILURE" },
+                  {
+                    name: calls[0].name,
+                    status: calls[0].status.toUpperCase(),
+                    conclusion: calls[0].conclusion.toUpperCase(),
+                    title: calls[0].output.title,
+                  },
+                ].map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run })),
+                pageInfo: { hasNextPage: false },
+              },
+            },
+          },
+        },
+      ],
+    },
+  };
+  const options = { ...CI_FIX_DEFAULTS, appSenderId, restarts: 1 };
+  assert.equal(skipReason(node, options), "head already has a pr-unblock / fix-ci check run");
+});
+
+// Runs a not-run job's report-check-run step, its inputs reaching
+// report-check-run.mjs through the action's env map; returns the POST bodies.
+async function postNotRunCheck(job, context) {
   const action = parse(read("../report-check-run/action.yml"));
-  const step = notRun.steps.find((s) => s.uses === "./.base/.github/actions/report-check-run");
-  const values = { ...context("false", head), "github.token": "test-token" };
+  const step = job.steps.find((s) => s.uses === "./.base/.github/actions/report-check-run");
+  const values = { ...context, "github.token": "test-token" };
   const env = {};
   for (const [name, value] of Object.entries(action.runs.steps[0].env)) {
     const input = value.match(/^\$\{\{ inputs\.([\w-]+) \}\}$/)[1];
@@ -267,12 +347,8 @@ test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback
     log: () => {},
   });
   assert.equal(code, 0);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].name, "pr-unblock / publish-feedback");
-  assert.equal(calls[0].head_sha, head);
-  assert.equal(calls[0].conclusion, "neutral");
-  assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
-});
+  return calls;
+}
 
 // GitHub runs at most one job per concurrency group, and `queue: max` keeps
 // the rest waiting instead of cancelling them (workflow-syntax#concurrency),

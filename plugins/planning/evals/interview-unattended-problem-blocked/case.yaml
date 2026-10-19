@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: interview-unattended-problem-blocked
+description: A caller-declared unattended lock on a prescribed solution still writes the Brief, opens its Problem with Status unconfirmed, records the problem confirmation as a USER-RESERVED deferred question, and names the blocker
+tags: [interview, problem-framing, unattended, lock, scaffold]
+expected_outcome: The run writes .work/webhook-retry/PLAN.md whose ### Problem opens with Status unconfirmed and whose ### Deferred questions carries a Q<N> entry for the problem confirmation (with the rethink-or-accept question) tagged arbiter USER-RESERVED, and the reply names that confirmation as a blocker.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the interview skill from the planning plugin with the lock action, topic webhook-retry. This run is unattended: no human will answer any question, so do not wait for replies. Task: add a retry wrapper around the webhook sender in src/webhooks/sender.py."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 1200
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+  - name: problem-unconfirmed
+    type: tool_used
+    tool: Write
+    input_match: '^(?=[\s\S]*"file_path":"[^"]*PLAN\.md")(?=[\s\S]*### Problem(?:(?!###)[\s\S]){0,400}?[Ss][Tt][Aa][Tt][Uu][Ss]\W{0,8}[Uu][Nn][Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ee][Dd])'
+    arm: both
+  - name: deferred-user-reserved
+    type: tool_used
+    tool: Write
+    input_match: '^(?=[\s\S]*"file_path":"[^"]*PLAN\.md")(?=[\s\S]*### Deferred questions(?:(?!###)[\s\S])*?Q\d+(?=(?:(?!\\n-|\\n\\n|###)[\s\S])*?(?:[Pp][Rr][Oo][Bb][Ll][Ee][Mm]|[Rr][Ee][Tt][Hh][Ii][Nn][Kk]))(?:(?!\\n-|\\n\\n|###)[\s\S])*?USER-RESERVED)'
+    arm: both
+  - name: blocker-named
+    type: regex
+    pattern: '(?:\bblock(?:er|ers|ed|ing)\b|\bstopped\b|\bwaiting on you\b|\bonly you can\b)[\s\S]{0,300}?(?:\bproblem\b[\s\S]{0,80}?(?:\bright\b|\bcorrect\b|\w*confirm\w*)|\w*confirm\w*[\s\S]{0,40}?\bproblem\b)|(?:\bproblem\b[\s\S]{0,80}?(?:\bright\b|\bcorrect\b|\w*confirm\w*)|\w*confirm\w*[\s\S]{0,40}?\bproblem\b)[\s\S]{0,300}?(?:\bblock(?:er|ers|ed|ing)\b|\bstopped\b|\bwaiting on you\b|\bonly you can\b)'
+    flags: i
+    arm: both
