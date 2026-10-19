@@ -36,6 +36,14 @@ const RUN_RECORD_NAME = /^pr-feedback-dispatched-([1-9][0-9]{0,14})-([1-9][0-9]{
 // the dispatcher run is still going, for at most 2 min (judgment).
 const RECORD_WAIT_MS = 5000;
 const RECORD_MAX_SLEEPS = 24;
+// The lost-run reconciler re-runs a lane run once, on its first attempt, so
+// the attempt it starts is always the second.
+const RERUN_ATTEMPT = 2;
+const RECONCILER_EVENTS = new Set(["schedule", "workflow_dispatch"]);
+
+// The artifact the reconciler run uploads before it re-runs a lane run: the
+// run, the attempt the re-run starts, and the run's head SHA.
+export const rerunRecordName = (runId, headSha) => `reconcile-rerun-${runId}-${RERUN_ATTEMPT}-${headSha}`;
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -196,17 +204,40 @@ function checkRerunnerLogin({ ids, logins }, deniedIds, triggeringActor, pool = 
 
 const timeOf = (value) => (typeof value === "string" ? Date.parse(value) : Number.NaN);
 
-async function readOrRefuse(github, apiPath) {
+async function readOrRefuse(github, apiPath, reason = "untrusted-actor") {
   let body;
   try {
     body = await github("GET", apiPath);
   } catch {
-    throw new Stop("untrusted-actor");
+    throw new Stop(reason);
   }
   if (!isPlainObject(body)) {
-    throw new Stop("untrusted-actor");
+    throw new Stop(reason);
   }
   return body;
+}
+
+// The run at headSha ran the default branch's own code: no tag shares the
+// branch's name (a run on that tag would report the same head_branch; only a
+// 404 proves it absent), and headSha is the branch tip or behind it.
+async function requireOnDefaultBranch(github, repository, defaultBranch, headSha, reason) {
+  let tagAbsent = false;
+  try {
+    await github("GET", `/repos/${repository}/git/ref/tags/${defaultBranch}`);
+  } catch (error) {
+    tagAbsent = error instanceof GitHubError && error.status === 404;
+  }
+  if (!tagAbsent) {
+    throw new Stop(reason);
+  }
+  const tip = await readOrRefuse(github, `/repos/${repository}/git/ref/heads/${defaultBranch}`, reason);
+  if (tip.ref !== `refs/heads/${defaultBranch}` || !SHA.test(tip.object?.sha ?? "")) {
+    throw new Stop(reason);
+  }
+  const comparison = await readOrRefuse(github, `/repos/${repository}/compare/${headSha}...${tip.object.sha}`, reason);
+  if (comparison.status !== "ahead" && comparison.status !== "identical") {
+    throw new Stop(reason);
+  }
 }
 
 // What a record name says about this run: null when it does not list it,
@@ -355,28 +386,7 @@ async function verifyDispatcher({
   if (!trusted) {
     throw new Stop("untrusted-actor");
   }
-  // A tag with the branch's name would give a run on that tag the same
-  // head_branch, so one must not exist; only a 404 proves that.
-  let tagAbsent = false;
-  try {
-    await github("GET", `/repos/${repository}/git/ref/tags/${defaultBranch}`);
-  } catch (error) {
-    tagAbsent = error instanceof GitHubError && error.status === 404;
-  }
-  if (!tagAbsent) {
-    throw new Stop("untrusted-actor");
-  }
-  const tip = await readOrRefuse(github, `/repos/${repository}/git/ref/heads/${defaultBranch}`);
-  if (tip.ref !== `refs/heads/${defaultBranch}` || !SHA.test(tip.object?.sha ?? "")) {
-    throw new Stop("untrusted-actor");
-  }
-  const comparison = await readOrRefuse(
-    github,
-    `/repos/${repository}/compare/${dispatcher.head_sha}...${tip.object.sha}`,
-  );
-  if (comparison.status !== "ahead" && comparison.status !== "identical") {
-    throw new Stop("untrusted-actor");
-  }
+  await requireOnDefaultBranch(github, repository, defaultBranch, dispatcher.head_sha, "untrusted-actor");
   if (expectedUpstreamHead !== "" && (!viaRun || !SHA.test(expectedUpstreamHead))) {
     throw new Stop("untrusted-actor");
   }
@@ -460,6 +470,97 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
   }
 }
 
+// A re-run github-actions[bot] started names no human, so it is trusted only
+// as the lost-run reconciler's re-run of this run: this run's attempt
+// RERUN_ATTEMPT, started by github-actions[bot], and an unexpired
+// rerunRecordName artifact, created no later than that attempt started, of a
+// reconcilerWorkflow run in this repository on the default branch, started by
+// its schedule or a listed human's dispatch, any re-run of it by a listed
+// human, its head SHA the default branch tip or behind it, and this attempt
+// started between that run's start and WINDOW_MS after it. A run id names one
+// run and its second attempt starts once, so a record vouches for one attempt.
+// The reconciler uploads the record before it re-runs; one more read follows
+// RECORD_WAIT_MS for any lag in the artifact list. Every refusal is
+// untrusted-rerunner, as for an unlisted re-runner.
+async function verifyReconcilerRerun({ github, repository, event, list, deniedIds, reconcilerWorkflow, runId, runAttempt, sleep }) {
+  const refuse = "untrusted-rerunner";
+  const defaultBranch = event.repository?.default_branch;
+  if (
+    deniedIds.has(ACTIONS_BOT_ID) ||
+    !RUN_ID.test(runId) ||
+    runAttempt !== String(RERUN_ATTEMPT) ||
+    typeof defaultBranch !== "string" ||
+    !HEAD_REF.test(defaultBranch)
+  ) {
+    throw new Stop(refuse);
+  }
+  const own = await readOrRefuse(github, `/repos/${repository}/actions/runs/${runId}/attempts/${RERUN_ATTEMPT}`, refuse);
+  const ownStarted = timeOf(own.run_started_at);
+  if (
+    String(own.id) !== runId ||
+    own.run_attempt !== RERUN_ATTEMPT ||
+    own.triggering_actor?.id !== ACTIONS_BOT_ID ||
+    own.repository?.full_name !== repository ||
+    !SHA.test(own.head_sha ?? "") ||
+    Number.isNaN(ownStarted)
+  ) {
+    throw new Stop(refuse);
+  }
+  const name = rerunRecordName(runId, own.head_sha);
+  const isListedHuman = (user) =>
+    Number.isInteger(user?.id) && list.humans.has(user.id) && !deniedIds.has(user.id);
+  // Anyone's run can upload an artifact of this name, so each candidate's run
+  // is read and judged.
+  const vouches = async (artifact) => {
+    if (
+      !isPlainObject(artifact) ||
+      artifact.name !== name ||
+      artifact.expired !== false ||
+      !Number.isSafeInteger(artifact.workflow_run?.id) ||
+      !(timeOf(artifact.created_at) <= ownStarted)
+    ) {
+      return false;
+    }
+    const run = await readOrRefuse(github, `/repos/${repository}/actions/runs/${artifact.workflow_run.id}`, refuse);
+    const started = timeOf(run.run_started_at);
+    const trusted =
+      run.id === artifact.workflow_run.id &&
+      run.repository?.full_name === repository &&
+      run.path === reconcilerWorkflow &&
+      run.head_branch === defaultBranch &&
+      RECONCILER_EVENTS.has(run.event) &&
+      (run.event === "schedule" || isListedHuman(run.actor)) &&
+      SHA.test(run.head_sha ?? "") &&
+      Number.isInteger(run.run_attempt) &&
+      run.run_attempt >= 1 &&
+      (run.run_attempt === 1 || isListedHuman(run.triggering_actor)) &&
+      started <= ownStarted &&
+      ownStarted <= started + WINDOW_MS;
+    if (!trusted) {
+      return false;
+    }
+    await requireOnDefaultBranch(github, repository, defaultBranch, run.head_sha, refuse);
+    return true;
+  };
+  const listingPath = `/repos/${repository}/actions/artifacts?name=${name}&per_page=100`;
+  for (let read = 0; read < 2; read += 1) {
+    if (read > 0) {
+      console.log(`check-trusted-trigger: reconciler record: absent, re-read (run ${runId})`);
+      await sleep(RECORD_WAIT_MS);
+    }
+    const body = await readOrRefuse(github, listingPath, refuse);
+    if (!Array.isArray(body.artifacts)) {
+      throw new Stop(refuse);
+    }
+    for (const artifact of body.artifacts) {
+      if (await vouches(artifact)) {
+        return;
+      }
+    }
+  }
+  throw new Stop(refuse);
+}
+
 // app-label: the lanes App applying exactly that label to an issue starts the
 // lane; the label alone admits the issue. Any other App event stops. The
 // re-runner is the App itself or a listed human.
@@ -526,6 +627,8 @@ export async function evaluateTrigger({
   requireKind = "",
   appLabel = "",
   runId = "",
+  runAttempt = "",
+  reconcilerWorkflow = "",
   dispatchedWorkflow = "",
   github,
   sleep = defaultSleep,
@@ -607,7 +710,11 @@ export async function evaluateTrigger({
     if (!actors.every((actor) => isListed(ids, actor))) {
       throw new Stop("untrusted-actor");
     }
-    checkRerunnerLogin(list, deniedIds, triggeringActor);
+    if (reconcilerWorkflow !== "" && String(triggeringActor).toLowerCase() === "github-actions[bot]") {
+      await verifyReconcilerRerun({ github, repository, event, list, deniedIds, reconcilerWorkflow, runId, runAttempt, sleep });
+    } else {
+      checkRerunnerLogin(list, deniedIds, triggeringActor);
+    }
   }
   if (!isListed(ids, pull.user)) {
     throw new Stop("untrusted-author");
@@ -669,6 +776,8 @@ export async function main({ env = process.env, github, sleep = defaultSleep } =
       appLabel: env.APP_LABEL ?? "",
       dispatchedWorkflow: env.DISPATCHED_WORKFLOW ?? "",
       runId: env.GITHUB_RUN_ID ?? "",
+      runAttempt: env.GITHUB_RUN_ATTEMPT ?? "",
+      reconcilerWorkflow: env.RECONCILER_WORKFLOW ?? "",
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
       sleep,
     });

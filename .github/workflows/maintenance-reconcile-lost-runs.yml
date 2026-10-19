@@ -1,19 +1,28 @@
 name: maintenance-reconcile-lost-runs
 
-# Re-runs PR CI runs a GitHub outage ended without a result, so nobody has to
-# re-run them by hand. Every 30 minutes it looks at each open, non-draft pull
-# request into main from a branch of this repository. A CI workflow whose
-# newest run on the PR's current head ended cancelled, timed_out or
+# Re-runs PR CI and verify runs a GitHub outage ended without a result, so
+# nobody has to re-run them by hand. Every 30 minutes it looks at each open,
+# non-draft pull request into main from a branch of this repository, and at
+# the last day's pr-verify runs. A CI workflow whose newest run on the PR's
+# current head, or a pr-verify run, ended cancelled, timed_out or
 # startup_failure, on its first attempt, is re-run once with this job's own
 # token. The attempt number is the record: a run at attempt 2 was already
 # re-run and is never touched again.
 #
+# pr-verify's trigger check trusts a re-run github-actions[bot] starts only
+# through this run's record of it: the plan step names an artifact
+# reconcile-rerun-<run id>-2-<head sha> for each pr-verify run it will re-run,
+# the upload steps below write them, and only then does the act step re-run
+# those runs. Only steps of a run of this file on main can upload this run's
+# artifacts, which is what the check verifies
+# (.github/actions/check-trusted-trigger/README.md).
+#
 # It does nothing while githubstatus.com shows Actions as anything but
 # operational, or the page cannot be read, so it adds no load mid-incident. At
-# most 3 PRs have a re-run in flight at once, auto-merge PRs first, and its
-# writes are at least a second apart. A lost lane run (a review, verify or
-# refine lane) is listed in the run summary for a person: those lanes refuse a
-# re-run github-actions[bot] starts. No model, and no PR code is checked out.
+# most 3 re-runs are in flight at once, auto-merge PRs first, and its writes
+# are at least a second apart. A lost review or refine lane run is listed in
+# the run summary for a person: those lanes, or the lanes token broker, refuse
+# a re-run github-actions[bot] starts. No model, and no PR code is checked out.
 # Rules: .github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs.
 #
 # How to stop it: set the organization or repository lanes kill-switch
@@ -40,7 +49,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: write # list runs and re-run a lost CI run
+      actions: write # list runs and re-run a lost run
       contents: read # check out main
       pull-requests: read # list the open PRs
     steps:
@@ -64,9 +73,52 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      - name: Re-run lost CI runs
+      - name: Find lost runs
+        id: plan
         env:
+          MODE: plan
+          PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
+          RECORD_PATH: ${{ runner.temp }}/reconcile-record/record.json
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/reconcile-record"
+          node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
+
+      # One record per pr-verify run the act step re-runs, uploaded first. A
+      # failed upload fails the job, so that run is not re-run.
+      - name: Record lane re-run 1
+        if: steps.plan.outputs.record-1 != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-1 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Record lane re-run 2
+        if: steps.plan.outputs.record-2 != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-2 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Record lane re-run 3
+        if: steps.plan.outputs.record-3 != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-3 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Re-run lost runs
+        env:
+          MODE: act
+          PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
