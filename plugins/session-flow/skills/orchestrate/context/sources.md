@@ -283,12 +283,12 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields> (the `effort` field).
   As of: 2026-10-01. Recheck trigger: that field is renamed, removed, or stops overriding the
   session's effort.
-- **Delegating bulk work and tuning effort are judgment calls, with measurements beside them.**
+- **Delegating bulk work and tuning effort are judgment calls.**
   Our reading: past a wide fan-out the cheaper tier is the default, and effort is matched to the
-  subtask. It states costs we do not copy. Pointer:
+  subtask. The upstream page is linked, not restated. Pointer:
   <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work>
   and <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort>.
-  As of: 2026-10-18. Recheck trigger: either section changes its measured cases or advice.
+  As of: 2026-10-18. Recheck trigger: either section changes its advice.
 - **Volume-driven default: a fleet inherits the session model unless explicitly routed.** A
   workflow stage that does not need the strongest model names a smaller one; an unrouted fleet runs
   on the session's model, the same resolution as the subagent path at fan-out scale. Pointer:
