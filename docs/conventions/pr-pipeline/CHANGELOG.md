@@ -8,9 +8,10 @@ before its PR opens. `--uncommitted` checks the work tree as the commit the API 
 untracked files and file modes included, and leaves the checkout's HEAD and index as they were.
 The checks copy now carries the base's `.shellcheckrc` and `.markdownlint-cli2.jsonc`, which
 `check-affected.sh` lints with, and `.github/requirements-ci.txt`, where `run-ruff.sh` reads its
-pin. A skill with `checks` is now told to fix what a check reports in the working tree and name
-anything it could not fix in its report; one that commits is told to run the checks, fix and re-run
-them before it commits. `version` stays 2.
+pin. A check's wrapper now unsets `GH_TOKEN` and `GITHUB_TOKEN` and pins git config the way a
+verify-script's wrapper does. A skill with `checks` is now told to fix what a check reports in the
+working tree and name anything it could not fix in its report; one that commits is told to run the
+checks, fix and re-run them before it commits. `version` stays 2.
 
 ## 2.15.0 - 2026-10-18
 

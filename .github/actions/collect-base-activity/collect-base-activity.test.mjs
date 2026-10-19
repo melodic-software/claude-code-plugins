@@ -223,6 +223,32 @@ test("prepare: merge-base with checks is never told to commit", () => {
   assert.doesNotMatch(systemPrompt, /\bcommit/i);
 });
 
+// #8319 review: a check's wrapper gets the verify-script wrapper's
+// environment, so the check and what it runs never hold the GitHub token or
+// load system, global, hook or fsmonitor git config.
+test("a listed check's wrapper drops the GitHub token and pins git config", () => {
+  const script =
+    '#!/usr/bin/env bash\necho "gh=${GH_TOKEN-unset} github=${GITHUB_TOKEN-unset} global=$GIT_CONFIG_GLOBAL system=$GIT_CONFIG_NOSYSTEM hooks=$(git config core.hooksPath) fsmonitor=$(git config core.fsmonitor)"\n';
+  mkdirSync(path.join(base, "scripts"), { recursive: true });
+  writeFileSync(path.join(base, "scripts", "check-env.sh"), script, { mode: 0o755 });
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-env.sh"]);
+    assert.equal(status, 0);
+    const run = spawnSync(path.join(checksDir, "bin", "check-env"), [], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, GH_TOKEN: "secret-gh", GITHUB_TOKEN: "secret-github" },
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(
+      run.stdout.trim(),
+      "gh=unset github=unset global=/dev/null system=1 hooks=/dev/null fsmonitor=false",
+    );
+  } finally {
+    rmSync(path.join(base, "scripts", "check-env.sh"));
+  }
+});
+
 for (const check of ["scripts/check-x.sh; rm -rf /", "../scripts/check-x.sh", "scripts/check-x.sh --x=$(id)", "plugins/a.sh"]) {
   test(`a check outside the allowed shape fails red: ${check}`, () => {
     const { status, stdout, args } = withChecks([check]);
