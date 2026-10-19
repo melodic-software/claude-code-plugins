@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: mp-chorus-stress-count
+graders:
+  - name: stress-map-marked
+    type: regex
+    pattern: '\b(?:[a-z]+-)*[A-Z]{2,}(?:-[a-z]+)+\b|\b(?:[a-z]+-)+[A-Z]{2,}\b|\bDUM\b|ˈ|(?:^|[ \t])(?:[u˘x×][ \t]+/|/[ \t]+[u˘x×])(?=[ \t]|$)|\*\*[a-z]+\*\*-[a-z]+|[a-z]+-\*\*[a-z]+\*\*'
+    flags: 'm'
+    target: last_message
+  - name: stress-count-reported
+    type: regex
+    pattern: '\b(?:[1-6]|one|two|three|four|five|six)\s+(?:strong\s+)?(?:stresses|stressed(?:\s+syllables)?|beats|accents)\b|\b(?:stress(?:es)?|stressed)\s*(?:count)?\s*[:=]\s*[1-6]\b|\b[1-6](?:\s*/\s*[1-6]){3}\b|\|[ \t]*[1-6][ \t]*\|[ \t]*$'
+    flags: 'im'
+    target: last_message
+  - name: raw-count-not-balance
+    type: regex
+    pattern: '\braw[- ]syllables?\b|\bsyllable counts?\b[^\n.]{0,60}\b(?:doesn[''’]t|does not|don[''’]t|do not|isn[''’]t|is not|aren[''’]t|can[''’]t|cannot|won[''’]t|misleading|tells? you nothing)\b|\b(?:count|measure)(?:s|ed|ing)? (?:the )?(?:stresses|stressed syllables),? not (?:raw )?syllables\b'
+    flags: 'i'
+    target: last_message
+  - name: no-rewritten-line
+    type: regex
+    pattern: '^[ \t>*#-]*(?:\*\*)?(?:Rewrite|rewrite|Rewritten|rewritten|Revised|revised|Revision|revision|Suggested|suggested|Try|try|Alternative|alternative)(?: line)?(?:\*\*)?[ \t]*:[ \t]*(?:\*\*)?[ \t]*[\"“_*][A-Za-z]'
+    flags: 'm'
+    match: not_contains
+    target: last_message

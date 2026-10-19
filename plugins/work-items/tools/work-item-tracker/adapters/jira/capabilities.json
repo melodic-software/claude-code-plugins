@@ -12,6 +12,7 @@
     "add-sub-item": false,
     "list-items": true,
     "label-provenance": false,
+    "set-fields": false,
     "list-sub-items": false,
     "capabilities": true,
     "change-link": true

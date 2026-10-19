@@ -1,5 +1,41 @@
 # Changelog for the PR pipeline convention
 
+## 2.15.1 - 2026-10-18
+
+`work-resolve-issue` no longer takes the model's word that its checks passed. A new `run-checks`
+job, on a fresh runner after `resolve-issue`, runs each of the activity's `checks` from the default
+branch tip's copy against a checkout of the lane branch whose `scripts/` is the base's, so
+`scripts/fragment-plugins.txt` comes from the base and only the branch's own files, such as
+`.changes/`, are checked. It hands the results (branch, tip, each check's exit status) to
+`report-outcome` as a job output, never through the outcome artifact that code the model started
+can rewrite, and only when `run-checks` succeeded. `report-outcome` lists those results under
+Verification and stops a done run whose checks failed, are missing, or ran on a tip the branch has
+since left, even when the outcome file's `not_done` is empty ([#7497](https://github.com/melodic-software/claude-code-plugins/issues/7497)).
+`version` stays 2.
+
+## 2.15.0 - 2026-10-18
+
+`pr-unblock-dispatch.yml` starts pr-unblock's `fix-ci` for open lanes App pull requests whose
+head's `ci-status` failed, from one GraphQL query per page with its `rateLimit.cost` logged, at
+most `limits.fix-ci-per-run` per run and, on a head whose earlier runs all failed, at most
+`limits.fix-ci-restarts` more times ([README](README.md#lanes)). Its job's concurrency group
+now cancels a run in progress. `version` stays 2.
+
+## 2.14.0 - 2026-10-18
+
+`prepare` gains `ci-context`, the one mode for a `read` skill, and `apply-patch`, the one mode for
+a script, a `mutate-branch` one. `pr-run-activity-read.yml` performs `ci-context`: it downloads a
+base job's `ci-context-<attempt>` artifact, checks its SHA-256 and head, and gives the skill that
+file plus Bash, Edit and Write; it takes `ci-context-attempt` and `ci-context-sha256` and gains a
+`reply-attempt` output. `pr-run-activity-write.yml` performs `apply-patch` with the new
+`patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity` and
+`reply-attempt` inputs ([pr-run-activity.md](pr-run-activity.md#prepare-apply-patch)). The
+pr-unblock lane adds `fix-ci` and `apply-ci-fix`, which refuses the whole patch on a change to
+`.github/**` or an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a
+plugin's `hooks/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), and `report-escalation` takes six `ci-fix-*`
+reasons. New config: `loop.fix-ci-rounds` (3), `limits.fix-ci-per-run` (2) and
+`limits.fix-ci-restarts` (1). `version` stays 2.
+
 ## 2.13.0 - 2026-10-18
 
 `pr-run-activity-read.yml` gains an `output-mode` input. The default, `clean-tree`, keeps failing a

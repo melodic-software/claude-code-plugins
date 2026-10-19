@@ -408,10 +408,11 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   condition limit. Over it, shorten the condition text; the directive line stays whole. Record:
   the claims are that a condition holds up to 4,000 characters, that setting a goal starts a turn
   at once with the condition as the directive, and that a `◎ /goal active` indicator shows while it
-  is active; basis <https://code.claude.com/docs/en/goal> ("The condition can be up to 4,000
-  characters"; "Setting a goal starts a turn immediately, with the condition itself as the
-  directive"); as of 2026-09-29; recheck when that page changes the limit, the start-a-turn
-  behavior, or the indicator text. This is the one place the limit is stated.
+  is active; basis <https://code.claude.com/docs/en/goal#write-an-effective-condition> ("The
+  condition can be up to 4,000 characters") and <https://code.claude.com/docs/en/goal#set-a-goal>
+  ("Setting a goal starts a turn immediately, with the condition itself as the directive"; the
+  `◎ /goal active` indicator); as of 2026-10-18; recheck when either section changes the limit,
+  the start-a-turn behavior, or the indicator text. This is the one place the limit is stated.
 
   **Order follows what the user asked for.** The region for the payload the user asked for comes
   first, so a fresh-goal request puts the goal region above the resume region. When the user asked

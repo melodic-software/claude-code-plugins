@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "**T1 Payload contract.** Door: one-way, since three partners build against it at launch.\nRecommend: a versioned envelope with `event`, `version`, `data`. Basis: verified, the Brief's Constraints.\nADR: once T1 resolves I will offer `/architecture:record-decision`.",
+      "why": "one-way call, ADR prompt a few lines later"
+    },
+    {
+      "answer": "1. Payload shape is a one-way door: record it with /architecture:record-decision when we settle it.",
+      "why": "same line"
+    },
+    {
+      "answer": "ADR prompt for T1 (the payload schema, a one-way door): want me to run /architecture:record-decision after this round?",
+      "why": "ADR named before the one-way call on the same line"
+    },
+    {
+      "answer": "After this round: once you answer Q2 and Q4, I'll draft the contract and sequence diagrams. Once you answer Q2 and Q7, I'll settle security. Then come type modeling and the naming pass. The ADR tool isn't available here, so each one-way door (Q1, Q2, Q3, Q4, Q7) will need a manual ADR once it's decided.",
+      "why": "kept branch run: 'isn't available' is about the tool, the one-way doors still get an ADR"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "1. Payload shape: a one-way door, so design it carefully with two candidates.\n2. Retry policy: exponential backoff for 24 hours.",
+      "why": "one-way call with no ADR prompt"
+    },
+    {
+      "answer": "Nothing here is a one-way door, so no ADR is needed.",
+      "why": "negated one-way call"
+    },
+    {
+      "answer": "T2 retry schedule is a two-way door: no ADR.\nT1 payload: one-way door, decided with two candidates.",
+      "why": "the only ADR mention is negated"
+    },
+    {
+      "answer": "T1 payload: one-way door; skip the ADR for now.",
+      "why": "ADR mentioned only to skip it"
+    },
+    {
+      "answer": "T1 payload is a one-way door.\nADR: not required.",
+      "why": "negated ADR on the next line"
+    },
+    {
+      "answer": "T1 payload is a one-way door, but it stays internal for now, so I won't prompt an ADR.",
+      "why": "declined ADR prompt"
+    },
+    {
+      "answer": "The ADR tool isn't available, so I won't prompt an ADR for the one-way door.",
+      "why": "tool unavailable and the ADR prompt declined"
+    }
+  ]
+}
