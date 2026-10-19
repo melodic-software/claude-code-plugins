@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | CRITICAL | high | SQL injection | q concatenated into SQL | src/routes/search.js:8 | Use a placeholder |",
+      "why": "only the phase-2 file"
+    },
+    {
+      "answer": "Phase 2 touches src/app.js and src/routes/search.js; the search route is injectable.",
+      "why": "names both phase-2 files"
+    }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty reply" },
+    {
+      "answer": "| 1 | CRITICAL | SQL injection | src/routes/search.js:8 |\n| 2 | IMPORTANT | Hardcoded token | src/routes/admin.js:5 |",
+      "why": "reviews the phase-1 file below the base"
+    },
+    {
+      "answer": "No issues found.",
+      "why": "names no phase-2 file"
+    }
+  ]
+}
