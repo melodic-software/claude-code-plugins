@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Paste the text between the rails.\n\n────────────────────\nYou are a spawned worker and did NOT inherit the parent session's context or the repo's conditional rules, these instructions are your only copy.\n\nWaiting: poll in the foreground with a bounded loop, or return what you have; never end your turn to wait on your own background job.\n\nORCHESTRATION BRIEF — standing instructions for the whole task.\n\n1. DELEGATE / FAN OUT\n2. SPEC EVERY SPAWN\n3. FRESH-CONTEXT VERIFY\n4. RUN WORKERS WELL\n5. NESTED SUBAGENTS\n6. SURFACE DRIFT\n7. CALIBRATE TO CONDITIONS\n\nDiscipline: trigger-evaluation is mandatory.\n────────────────────\n\nNothing was spawned.",
+      "why": "compact keeps the waiting line before headline 1"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Paste the text between the rails.\n\n────────────────────\nYou are a spawned worker and did NOT inherit the parent session's context or the repo's conditional rules, these instructions are your only copy.\n\nORCHESTRATION BRIEF — standing instructions for the whole task.\n\n1. DELEGATE / FAN OUT\n2. SPEC EVERY SPAWN\n3. FRESH-CONTEXT VERIFY\n4. RUN WORKERS WELL\n5. NESTED SUBAGENTS\n6. SURFACE DRIFT\n7. CALIBRATE TO CONDITIONS\n\nDiscipline: trigger-evaluation is mandatory.\n────────────────────\n\nNothing was spawned.",
+      "why": "compact dropped the waiting line"
+    }
+  ]
+}
