@@ -77,3 +77,10 @@ export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS }) {
   }
   return stops >= limits["limit-stops-per-head"];
 }
+
+// Whether `runs` hold a run that handles the head for good: completed, not an
+// untrusted skip, and not a limit stop. anyHandles is true for such a run
+// whatever `now` and `limits` are, so a dispatcher may record the head and
+// skip reading its check runs again.
+export const permanentlyHandles = (runs) =>
+  runs.some((run) => run.status === "completed" && !untrustedSkip(run) && limitResetsAt(run) === null);

@@ -393,8 +393,9 @@ A skip reports as a neutral check with one reason from the schema's `$defs/skip-
 `changed-paths`), `not-applicable` (a label, event, work-class, `mergeable` or `draft` predicate
 missed), `prerequisite-missing` (among others, mergeability still unknown at the gated head after
 bounded re-reads), `cost-gated`, `awaiting-human` (among others, a `labels-absent` label is on the
-PR), `superseded-sha`, `disabled-by-config` or `untrusted-trigger` (a fork, no same-repository PR, or an
-actor or author not on the trusted-actor list). Silence is not a skip, with three exceptions that
+PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no same-repository PR, or an
+actor or author not on the trusted-actor list) or `workflow-modified` (the token broker refused a
+write lane's mint for a workflow file the PR itself changes). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
