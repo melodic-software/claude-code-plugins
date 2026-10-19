@@ -132,8 +132,9 @@ class RiskInput:
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
     # Each DECLARATION_FILES file at the base SHA as (path, text), None when
-    # unreadable. What they declare runs joins HIGH_FLOOR while it applies.
-    declarations: tuple[tuple[str, str | None], ...] = ()
+    # unreadable; None when the base tree could not be listed. What they
+    # declare runs joins HIGH_FLOOR while it applies.
+    declarations: tuple[tuple[str, str | None], ...] | None = ()
 
 
 @dataclass(frozen=True)

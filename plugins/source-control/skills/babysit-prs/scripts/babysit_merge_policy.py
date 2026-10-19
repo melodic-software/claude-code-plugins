@@ -56,7 +56,12 @@ from babysit_gh import (
     pull_request_commits_once,
     record_pull_request_total,
 )
-from babysit_risk import ChangedFile, glob_match, is_capability_path
+from babysit_risk import (
+    DECLARATION_FILES,
+    ChangedFile,
+    glob_match,
+    is_capability_path,
+)
 from babysit_util import (
     is_json_array,
     is_json_object,
@@ -2661,6 +2666,47 @@ def with_capability_contents(
             )
             read.append(replace(changed, contents_error=reason))
     return tuple(read)
+
+
+_TREE_MODE = "040000"
+
+
+def declarations_at(
+    repo: str, pr: Mapping[str, Any]
+) -> tuple[tuple[str, str | None], ...] | None:
+    """`babysit_risk.RiskInput.declarations`: each `DECLARATION_FILES` file at
+    the base SHA as (path, text), from a clone holding it, else the contents
+    API, with None for a file that could not be read. None when the base tree
+    cannot be listed; the scorer holds the floor either way."""
+    owner, name = _split_repo(repo)
+    base = json_object(pr.get("base")).get("sha")
+    try:
+        if not SHA_RE.fullmatch(str(base)):
+            raise PolicyReadError("the pull request record names no base SHA")
+        modes = _tree_modes(owner, name, str(base))
+        root = next(_clones_holding(str(base)), None)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"declarations at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return None
+    if modes is None:
+        return None
+    found: list[tuple[str, str | None]] = []
+    for path, mode in sorted(modes.items()):
+        if mode == _TREE_MODE or not any(
+            glob_match(g, path) for g in DECLARATION_FILES
+        ):
+            continue
+        try:
+            text = (
+                _git_file_at(root, path, str(base))
+                if root is not None
+                else _text_at(owner, name, path, str(base))
+            )
+        except (PolicyReadError, ValueError) as exc:
+            print(f"declaration {path!r}: {type(exc).__name__}", file=sys.stderr)
+            text = None
+        found.append((path, text))
+    return tuple(found)
 
 
 # --- Promotion evidence -----------------------------------------------------------------------
