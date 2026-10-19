@@ -65,7 +65,7 @@ Delete audit log entries older than 30 days, show the window to admins, and docu
 
 **Goal.** Enforce, expose and document a 30-day audit log retention window.
 
-### Phase 1: Retention job, API and docs [TODO]
+### Phase 1: Retention job, API and docs
 - `app/cleanup/job.py`: add `AUDIT_RETENTION_DAYS = 30` and `purge_audit_log(store, now)`, which
   deletes entries older than `AUDIT_RETENTION_DAYS`.
 - `app/api/settings_view.py`: add `"audit_retention_days": 30` to the `get_limits()` response.
