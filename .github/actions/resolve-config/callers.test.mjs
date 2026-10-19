@@ -143,8 +143,9 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
 
   const intake = jobs["intake-triage"];
   assert.match(intake.if, /&& needs\.born-triaged\.outputs\.claude-args != '' \}\}$/);
-  const runs = (skip, claudeArgs) =>
+  const runs = (skip, claudeArgs, event = "issues") =>
     evaluate(intake.if, {
+      "github.event_name": event,
       "needs.born-triaged.outputs.skip": skip,
       "needs.born-triaged.outputs.claude-args": claudeArgs,
     });
@@ -152,8 +153,10 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.equal(runs("", args), true, "a failed or false born-triaged check falls through to the reusable's gate");
   assert.equal(runs("false", args), true);
   assert.equal(runs("true", args), false, "a born-triaged issue skips intake");
+  assert.equal(runs("true", args, "workflow_dispatch"), true, "a dispatch triages a born-triaged issue");
   assert.equal(runs("", ""), false, "intake never runs without resolved claude-args");
   assert.equal(runs("false", ""), false);
+  assert.equal(runs("true", "", "workflow_dispatch"), false, "a dispatch never runs without resolved claude-args");
   assert.equal(intake.with["claude-args"], "${{ needs.born-triaged.outputs.claude-args }}");
 });
 
