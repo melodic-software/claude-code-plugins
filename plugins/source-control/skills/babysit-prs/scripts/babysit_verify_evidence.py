@@ -164,6 +164,11 @@ class _Transient(_Unreadable):
     """A failed read that may succeed if repeated."""
 
 
+class SummaryUnreadable(Exception):
+    """`Reader.fail_summary` could not read the record, which is not the
+    same as a record with nothing to quote."""
+
+
 def _transient(detail: str) -> bool:
     """A 5xx, or a network error with no HTTP response. A rate limit is not:
     a fixed short wait outlasts neither a Retry-After nor an hourly reset, and
@@ -815,17 +820,21 @@ class Reader:
             max(head_fails) if refusal == FAIL else None,
         )
 
-    def fail_summary(self, run_id: int, name: str, head: str) -> str | None:
-        """The `summary` a FAIL artifact's verdict.json records for `head`,
-        or None when it cannot be read or records another head or verdict.
-        Untrusted model text: the caller frames it as data."""
+    def fail_summary(
+        self, run_id: int, name: str, number: int, head: str
+    ) -> str | None:
+        """The `summary` a FAIL artifact's verdict.json records for pull
+        request `number` at `head`, or None when it records another pull
+        request, head or verdict. Raises `SummaryUnreadable` when it cannot be
+        read. Untrusted model text: the caller frames it as data."""
         try:
             record = self._record(run_id, name)
-        except _Unreadable:
-            return None
+        except _Unreadable as exc:
+            raise SummaryUnreadable(str(exc)) from exc
         summary = record.get("summary")
         if (
-            record.get("head_sha") != head
+            record.get("pr") != number
+            or record.get("head_sha") != head
             or record.get("verdict") != "fail"
             or not isinstance(summary, str)
         ):

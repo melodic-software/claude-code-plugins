@@ -3150,11 +3150,12 @@ def upsert_marker_comment(
     body: str,
     comments: list[dict[str, Any]] | None,
     marker: str = RISK_MARKER,
+    keep_prefix: str | None = None,
 ) -> str:
     """Post or rewrite the identity's one comment whose first or second line
     is `marker` (the reasons comment, Design T14, by default): `unchanged` when
-    the newest one already says this, else `updated` or `created`. Raises
-    `RuntimeError` on a failed read or write."""
+    the newest one already says this or starts with `keep_prefix`, else
+    `updated` or `created`. Raises `RuntimeError` on a failed read or write."""
     if comments is None:
         comments = fetch_paginated_api(
             f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
@@ -3173,7 +3174,8 @@ def upsert_marker_comment(
     ]
     if mine:
         newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
-        if str(newest.get("body") or "") == body:
+        current = str(newest.get("body") or "")
+        if current == body or (keep_prefix and current.startswith(keep_prefix)):
             return "unchanged"
         args = [
             "api",
@@ -3206,6 +3208,8 @@ def verify_escalation_body(refusal: str, head: str, summary: str | None = None) 
         text = _CONTROL.sub("?", summary.replace("\r\n", "\n"))
         if len(text) > VERIFY_SUMMARY_MAX:
             text = text[:VERIFY_SUMMARY_MAX] + " [cut]"
+        # A lone surrogate from a JSON escape cannot be encoded for `gh`.
+        text = text.encode("utf-8", "replace").decode("utf-8")
         lines += [
             "",
             "The verdict's summary, as the verifier wrote it:",
@@ -3243,23 +3247,30 @@ def escalate_verify(
     refusal: str,
     inputs: Mapping[str, Any],
     summary: str | None = None,
+    keep_quote: bool = False,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal."""
+    """`escalate` for a needs-human verifier refusal. `keep_quote`, set when
+    the summary could not be read, leaves a comment that already quotes one
+    for this refusal and head as it is rather than dropping its quote."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
+    body = verify_escalation_body(refusal, head, summary)
     return escalate(
         repo,
         number,
         identity,
-        verify_escalation_body(refusal, head, summary),
+        body,
         VERIFY_ESCALATION_MARKER,
         inputs,
+        keep_prefix=body + "\n" if keep_quote else None,
     )
 
 
-def _fail_summary(verify: Mapping[str, Any], inputs: Mapping[str, Any]) -> str | None:
+def _fail_summary(
+    verify: Mapping[str, Any], inputs: Mapping[str, Any], number: int
+) -> tuple[str | None, bool]:
     """The summary of the head FAIL a `verify:fail` refusal names, read
-    through the gate's verdict reader; None for any other refusal or when it
-    cannot be read."""
+    through the gate's verdict reader (None for any other refusal), and
+    whether the record was read: False when its read failed."""
     fail = json_object(verify.get("headFail"))
     reader = inputs.get("verify_reader")
     run_id, name = fail.get("run"), fail.get("artifact")
@@ -3269,8 +3280,11 @@ def _fail_summary(verify: Mapping[str, Any], inputs: Mapping[str, Any]) -> str |
         or not isinstance(run_id, int)
         or not isinstance(name, str)
     ):
-        return None
-    return reader.fail_summary(run_id, name, str(verify.get("head")))
+        return None, True
+    try:
+        return reader.fail_summary(run_id, name, number, str(verify.get("head"))), True
+    except verify_evidence.SummaryUnreadable:
+        return None, False
 
 
 def escalate(
@@ -3280,6 +3294,7 @@ def escalate(
     body: str,
     marker: str,
     inputs: Mapping[str, Any],
+    keep_prefix: str | None = None,
 ) -> dict[str, Any]:
     """The escalation contract (loop-lane README §2): one comment carrying
     `marker`, then the tracker's human-gated role label on the pull request,
@@ -3289,7 +3304,13 @@ def escalate(
     a failed write."""
     pr = json_object(inputs.get("pr"))
     comment = upsert_marker_comment(
-        repo, number, identity, body, inputs.get("comments"), marker=marker
+        repo,
+        number,
+        identity,
+        body,
+        inputs.get("comments"),
+        marker=marker,
+        keep_prefix=keep_prefix,
     )
     try:
         label = human_gated_label(repo)
@@ -3499,13 +3520,15 @@ def unattended_writes(
     verify = json_object((policy.details or {}).get("verify"))
     if not stopped and verify.get("needsHuman") is True:
         try:
+            summary, read = _fail_summary(verify, inputs, number)
             report["escalation"] = escalate_verify(
                 repo,
                 number,
                 identity,
                 str(verify.get("refusal")),
                 inputs,
-                _fail_summary(verify, inputs),
+                summary,
+                keep_quote=not read,
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")
