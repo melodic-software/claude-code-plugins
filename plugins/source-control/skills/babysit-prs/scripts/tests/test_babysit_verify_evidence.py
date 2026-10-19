@@ -1160,11 +1160,18 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
 _no_sleep = mock.patch.object(ve, "_listing_sleep")
 
 
+# The tracker's human-gated label read an autonomous gate makes: stubbed so
+# no test reads GitHub; a test that remaps it patches it again.
+_role_label = mock.patch.object(postmerge, "_role_label", return_value="needs-human")
+
+
 def setUpModule() -> None:
     _no_sleep.start()
+    _role_label.start()
 
 
 def tearDownModule() -> None:
+    _role_label.stop()
     _no_sleep.stop()
 
 
@@ -1474,6 +1481,9 @@ class LaneRequiresAVerdict(unattended.Unattended):
             out["unattended"]["writes"]["escalation"],
             {"label": "present", "comment": "unchanged"},
         )
+        # The escalation's own label is a merge hold too; the reason still
+        # names the verifier refusal.
+        self.assertEqual(out["unattended"]["reason"], "verify:spec-changed")
 
     def test_report_only_reports_a_needs_human_refusal_and_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, report_only=True)

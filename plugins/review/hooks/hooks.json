@@ -1,0 +1,32 @@
+{
+  "description": "Before the Artifact tool publishes an HTML page whose content security policy names a loopback connect-src (a connected page that works only on this machine), denies the call and tells the model to keep it a local file; every other Artifact call passes.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /review:check CONNECTED_PAGE_GUARD_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /review:check CONNECTED_PAGE_GUARD_ENABLED",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Artifact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/connected-page-gate.mjs"],
+            "timeout": 10,
+            "statusMessage": "Checking the page is not a connected page..."
+          }
+        ]
+      }
+    ]
+  }
+}

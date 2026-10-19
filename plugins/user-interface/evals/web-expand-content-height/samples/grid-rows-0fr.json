@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ".panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 250ms ease-out; }\n.panel[data-open] { grid-template-rows: 1fr; }\n.panel > div { min-height: 0; overflow: hidden; }",
+      "why": "grid rows 0fr to 1fr"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".panel { max-height: 0; overflow: hidden; transition: max-height 250ms ease-out; }\n.panel[data-open] { max-height: 1000px; }",
+      "why": "animates max-height"
+    },
+    {
+      "answer": ".panel { height: 0; overflow: hidden; transition: height 250ms; }\n.panel[data-open] { height: auto; }",
+      "why": "animates height to auto"
+    }
+  ]
+}

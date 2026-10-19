@@ -73,15 +73,15 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" <PLAN.md>` and r
 
 - **Every phase has ≥1 `Sanity Check`**, counted per phase section.
 - **Every phase carries a valid status tag**. Each `### Phase N:` ends in `[TODO]`, `[DOING]`, or `[DONE]`.
-- **Every unilateral decision has a table row**. When the plan carries an `[EXEC-SHAPE]` / `[FALLBACK]` tag from Step 4.6, the "Decisions made (gate-passed)" table (`| Decision | What it changes in the plan | ...`) is in PLAN.md with at least one row.
+- **Every unilateral decision has a table row**. When the plan carries an `[EXEC-SHAPE]` / `[FALLBACK]` tag from Step 4.6, the "Decisions made (gate-passed)" table (`| Decision | What it changes in the plan | ...`) is in PLAN.md with at least one row. A tag may carry an id (`[EXEC-SHAPE D4]`) that its row starts its first column with; the script fails a tag id with no row and a row id no tag cites, and prints `mapped=<n>` (see [context/tag-decisions.md](context/tag-decisions.md) "Presentation contract").
 - **Blast radius assessed**. A Blast-radius line naming LOW, MEDIUM, HIGH, or CRITICAL exists (from Step 3b).
 - **Planned breakage is well formed**. Each `**Planned breakage:**` line (the optional per-phase line in [context/plan-template.md](context/plan-template.md)) sits in a phase section, names a kind of `build`, `tests` or `lint`, a later `### Phase` heading to stay red until, and the failing paths or test filter: the `planned-breakage` criterion. A plan with no such line passes.
 - **Paths are portable**. No drive-letter path and no `/Users/<name>` or `/home/<name>` path, since a published PLAN.md is read on other machines; a deliberate example carries `<!-- path-example -->` on its line.
 
 Checked by reading, or by their own script:
 
-- **Every brief scope-item maps to a phase**. No scope-item silently dropped, no in-scope phase missing.
-- **Each tag has its own row**. Every tagged decision appears in that table with its what-it-changes column filled; below-bar decisions were interviewed, not decided. The script checks only that the table has rows.
+- **Every brief acceptance criterion maps to a phase, and no phase does Out-of-scope work**. Walk the Brief's Acceptance criteria and Out-of-scope sections: each criterion lands in at least one phase, and no phase does work the Brief lists as Out-of-scope.
+- **Each tag has its own row**. Every tagged decision appears in that table with its what-it-changes column filled; below-bar decisions were interviewed, not decided. The script maps only tags that carry an id; a bare tag passes with a `warning=bare-tag` line, so map those by reading.
 - **Displaced answers are listed at Step 5**. When an interview ledger exists, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>`. It passes when the verdict reports `open=0` and `superseded=N` (exit 1 is expected when N > 0) and every id on the ledger's `| superseded-by-plan |` rows (the verdict prints only the count) appears in the Step 5 "Displaced answers and new external effects" block.
 
 This self-check does NOT replace the human approval at Step 5; the user is the terminal gate.

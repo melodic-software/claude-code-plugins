@@ -27,6 +27,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge as merge
+import babysit_postmerge
 from repo_config_fake import RepoConfigFake
 
 HEAD = "a" * 40
@@ -114,17 +115,20 @@ class SettleHarness(unittest.TestCase):
                     # what a re-run actually looks like: `classify_checks` would
                     # dedupe these to the newest, so a hold reading its output
                     # instead of the raw rollup loses the original timestamp.
-                    base = dict(base, statusCheckRollup=[
-                        {
-                            "__typename": "CheckRun",
-                            "name": check_name,
-                            "workflowName": "ci",
-                            "status": "COMPLETED",
-                            "conclusion": "SUCCESS",
-                            "startedAt": started,
-                        }
-                        for started in check_starts
-                    ])
+                    base = dict(
+                        base,
+                        statusCheckRollup=[
+                            {
+                                "__typename": "CheckRun",
+                                "name": check_name,
+                                "workflowName": "ci",
+                                "status": "COMPLETED",
+                                "conclusion": "SUCCESS",
+                                "startedAt": started,
+                            }
+                            for started in check_starts
+                        ],
+                    )
                 return base
             if args[0] == "api" and "/rules/branches/" in args[1]:
                 return RULES
@@ -138,23 +142,35 @@ class SettleHarness(unittest.TestCase):
             mock.patch.object(merge, "gh_json", side_effect=gh_json),
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
             mock.patch.object(
-                merge, "fetch_pull_request_reviews", return_value=(reviews or []),
+                merge,
+                "fetch_pull_request_reviews",
+                return_value=(reviews or []),
             ) as reviews_mock,
             mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
             mock.patch.object(
-                merge, "fetch_pull_request_review_comments",
+                merge,
+                "fetch_pull_request_review_comments",
                 return_value=(review_comments or []),
             ) as review_comments_mock,
             mock.patch.object(merge, "datetime", wraps=datetime) as clock,
         ):
             clock.now.return_value = NOW
             result = merge.evaluate(
-                "owner/repo", PR_NUMBER, HEAD, {"owner"}, frozenset(),
-                False, False, None, settle=settle,
+                "owner/repo",
+                PR_NUMBER,
+                HEAD,
+                {"owner"},
+                frozenset(),
+                False,
+                False,
+                None,
+                settle=settle,
             )
         result["_reviews_called"] = reviews_mock.called
         result["_review_comments_called"] = review_comments_mock.called
-        result["_commit_reads"] = [a for a in calls if a[0] == "api" and "/commits/" in a[1]]
+        result["_commit_reads"] = [
+            a for a in calls if a[0] == "api" and "/commits/" in a[1]
+        ]
         return result
 
     def _settle_blockers(self, result: dict[str, Any]) -> list[str]:
@@ -217,13 +233,15 @@ class HoldClearsWithoutAddedLatency(SettleHarness):
     def test_inline_review_comment_on_this_head_also_clears_it(self) -> None:
         # Codex posts its findings as inline review comments; those carry the
         # commit id too and are evidence the reviewer saw this head.
-        inline = [{
-            "id": 7,
-            "user": {"login": f"{REVIEWER}[bot]", "type": "Bot"},
-            "commit_id": HEAD,
-            "html_url": "https://example/c",
-            "body": "",
-        }]
+        inline = [
+            {
+                "id": 7,
+                "user": {"login": f"{REVIEWER}[bot]", "type": "Bot"},
+                "commit_id": HEAD,
+                "html_url": "https://example/c",
+                "body": "",
+            }
+        ]
         result = self._evaluate(reviews=[], review_comments=inline)
         self.assertEqual(result["reviewSettle"]["state"], "reviewed")
         self.assertEqual(result["_commit_reads"], [])
@@ -233,7 +251,8 @@ class HoldIsBounded(SettleHarness):
     def test_head_older_than_the_window_stops_waiting(self) -> None:
         # A reviewer that never engages must not wedge the PR.
         result = self._evaluate(
-            reviews=[], head_committed_at="2026-07-26T21:00:00Z",
+            reviews=[],
+            head_committed_at="2026-07-26T21:00:00Z",
         )
         self.assertTrue(result["ready"], result["blockers"])
         self.assertEqual(self._settle_blockers(result), [])
@@ -328,14 +347,16 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         # StatusContext rollup entries carry `createdAt`, not `startedAt`.
         result = self._evaluate(
             reviews=[],
-            pr=_pr(statusCheckRollup=[
-                {
-                    "__typename": "StatusContext",
-                    "context": "legacy",
-                    "state": "SUCCESS",
-                    "createdAt": "2026-07-26T21:45:00Z",
-                }
-            ]),
+            pr=_pr(
+                statusCheckRollup=[
+                    {
+                        "__typename": "StatusContext",
+                        "context": "legacy",
+                        "state": "SUCCESS",
+                        "createdAt": "2026-07-26T21:45:00Z",
+                    }
+                ]
+            ),
         )
         self.assertEqual(result["reviewSettle"]["headAgeSource"], "check-start")
         self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 220)
@@ -350,7 +371,9 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         # Documented behavior, asserted so a future change to it is deliberate:
         # with no server timestamp available the gate can only trust the commit.
         result = self._evaluate(
-            reviews=[], head_committed_at=self.OLD_COMMIT, check_starts=[],
+            reviews=[],
+            head_committed_at=self.OLD_COMMIT,
+            check_starts=[],
         )
         self.assertTrue(result["ready"], result["blockers"])
         self.assertEqual(result["reviewSettle"]["headAgeSource"], "committer-date")
@@ -379,14 +402,16 @@ class ARestoredHeadIsNotItsOwnEarlierReview(SettleHarness):
     def test_an_inline_comment_predating_the_fresh_runs_does_not_clear_it_either(
         self,
     ) -> None:
-        inline = [{
-            "id": 9,
-            "user": {"login": f"{REVIEWER}[bot]", "type": "Bot"},
-            "commit_id": HEAD,
-            "created_at": "2026-07-26T18:10:00Z",
-            "html_url": "https://example/c",
-            "body": "",
-        }]
+        inline = [
+            {
+                "id": 9,
+                "user": {"login": f"{REVIEWER}[bot]", "type": "Bot"},
+                "commit_id": HEAD,
+                "created_at": "2026-07-26T18:10:00Z",
+                "html_url": "https://example/c",
+                "body": "",
+            }
+        ]
         result = self._evaluate(
             reviews=[],
             review_comments=inline,
@@ -463,19 +488,29 @@ class ReviewCorpusIsFetchedOnce(unittest.TestCase):
             mock.patch.object(merge, "gh_json", side_effect=gh_json),
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
             mock.patch.object(
-                merge, "fetch_pull_request_reviews",
+                merge,
+                "fetch_pull_request_reviews",
                 return_value=[_review(HEAD, login="approver-bot", state="APPROVED")],
             ) as reviews_mock,
             mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
             mock.patch.object(
-                merge, "fetch_pull_request_review_comments", return_value=[],
+                merge,
+                "fetch_pull_request_review_comments",
+                return_value=[],
             ) as review_comments_mock,
             mock.patch.object(merge, "datetime", wraps=datetime) as clock,
         ):
             clock.now.return_value = NOW
             result = merge.evaluate(
-                "owner/repo", PR_NUMBER, HEAD, {"owner"}, frozenset(),
-                False, False, tier, settle=SETTLE,
+                "owner/repo",
+                PR_NUMBER,
+                HEAD,
+                {"owner"},
+                frozenset(),
+                False,
+                False,
+                tier,
+                settle=SETTLE,
             )
         self.assertEqual(reviews_mock.call_count, 1)
         self.assertEqual(review_comments_mock.call_count, 1)
@@ -498,8 +533,15 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
         out = io.StringIO()
         with (
             mock.patch.object(
-                sys, "argv",
-                ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner", *extra],
+                sys,
+                "argv",
+                [
+                    "babysit_merge.py",
+                    "owner/repo#1",
+                    "--allowed-owners",
+                    "owner",
+                    *extra,
+                ],
             ),
             contextlib.redirect_stdout(out),
             mock.patch("sys.stderr", new=io.StringIO()),
@@ -519,7 +561,10 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
 
     def test_empty_login_set_is_refused(self) -> None:
         code, out = self._run(
-            "--review-bot-logins", " , ", "--review-settle-minutes", "10",
+            "--review-bot-logins",
+            " , ",
+            "--review-settle-minutes",
+            "10",
         )
         self.assertEqual(code, 2)
         self.assertIn("must be non-empty", out)
@@ -531,14 +576,18 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
         for value in ("0", "-5", "abc", "nan", "inf"):
             with self.subTest(value=value):
                 code, out = self._run(
-                    "--review-bot-logins", REVIEWER,
-                    "--review-settle-minutes", value,
+                    "--review-bot-logins",
+                    REVIEWER,
+                    "--review-settle-minutes",
+                    value,
                 )
                 self.assertEqual(code, 2)
                 self.assertIn("at least one second", out)
 
         code, out = self._run(
-            "--review-bot-logins", REVIEWER, "--review-settle-minutes=-inf",
+            "--review-bot-logins",
+            REVIEWER,
+            "--review-settle-minutes=-inf",
         )
         self.assertEqual(code, 2)
         self.assertIn("at least one second", out)
@@ -550,8 +599,10 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
         for value in ("0.008", "1e-9"):
             with self.subTest(value=value):
                 code, out = self._run(
-                    "--review-bot-logins", REVIEWER,
-                    "--review-settle-minutes", value,
+                    "--review-bot-logins",
+                    REVIEWER,
+                    "--review-settle-minutes",
+                    value,
                 )
                 self.assertEqual(code, 2)
                 self.assertIn("at least one second", out)
@@ -568,10 +619,18 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
         with (
             mock.patch.object(merge, "evaluate", side_effect=fake_evaluate),
             mock.patch.object(
-                sys, "argv",
-                ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner",
-                 "--review-bot-logins", f"{REVIEWER}[bot]",
-                 "--review-settle-minutes", "10"],
+                sys,
+                "argv",
+                [
+                    "babysit_merge.py",
+                    "owner/repo#1",
+                    "--allowed-owners",
+                    "owner",
+                    "--review-bot-logins",
+                    f"{REVIEWER}[bot]",
+                    "--review-settle-minutes",
+                    "10",
+                ],
             ),
             contextlib.redirect_stdout(io.StringIO()),
         ):
@@ -593,7 +652,8 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
         with (
             mock.patch.object(merge, "evaluate", side_effect=fake_evaluate),
             mock.patch.object(
-                sys, "argv",
+                sys,
+                "argv",
                 ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner"],
             ),
             contextlib.redirect_stdout(io.StringIO()),
@@ -727,10 +787,17 @@ class SettleConfigUnit(unittest.TestCase):
         # so a window of N seconds waits N seconds and not a run longer.
         committed = NOW - timedelta(seconds=SETTLE.settle_seconds)
         with mock.patch.object(
-            merge, "head_appeared_at", return_value=(committed, "check-start"),
+            merge,
+            "head_appeared_at",
+            return_value=(committed, "check-start"),
         ):
             blockers, result = merge.evaluate_review_settle(
-                "owner/repo", HEAD, SETTLE, [], [], now=NOW,
+                "owner/repo",
+                HEAD,
+                SETTLE,
+                [],
+                [],
+                now=NOW,
             )
         self.assertEqual(blockers, [])
         self.assertEqual(result["state"], "settled")
@@ -738,10 +805,17 @@ class SettleConfigUnit(unittest.TestCase):
     def test_one_second_inside_the_window_holds(self) -> None:
         committed = NOW - timedelta(seconds=SETTLE.settle_seconds - 1)
         with mock.patch.object(
-            merge, "head_appeared_at", return_value=(committed, "check-start"),
+            merge,
+            "head_appeared_at",
+            return_value=(committed, "check-start"),
         ):
             blockers, result = merge.evaluate_review_settle(
-                "owner/repo", HEAD, SETTLE, [], [], now=NOW,
+                "owner/repo",
+                HEAD,
+                SETTLE,
+                [],
+                [],
+                now=NOW,
             )
         self.assertEqual(len(blockers), 1)
         self.assertEqual(result["state"], "settling")
@@ -750,7 +824,12 @@ class SettleConfigUnit(unittest.TestCase):
         # An absent head is already blocked upstream; the hold must not add a
         # second, more confusing blocker for the same condition.
         blockers, result = merge.evaluate_review_settle(
-            "owner/repo", None, SETTLE, [], [], now=NOW,
+            "owner/repo",
+            None,
+            SETTLE,
+            [],
+            [],
+            now=NOW,
         )
         self.assertEqual(blockers, [])
         self.assertEqual(result["state"], "no-head")
@@ -761,6 +840,21 @@ class SettleConfigUnit(unittest.TestCase):
 
     def test_blank_timestamp_is_none(self) -> None:
         self.assertIsNone(merge.parse_github_timestamp("   "))
+
+
+# The tracker's human-gated label read an autonomous gate makes: stubbed so
+# no test reads GitHub.
+_role_label = mock.patch.object(
+    babysit_postmerge, "_role_label", return_value="needs-human"
+)
+
+
+def setUpModule() -> None:
+    _role_label.start()
+
+
+def tearDownModule() -> None:
+    _role_label.stop()
 
 
 if __name__ == "__main__":

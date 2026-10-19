@@ -252,10 +252,14 @@ version_at_least() { # <candidate> <minimum>
 # answer. GNU timeout (or gtimeout) is used only when it has --kill-after; macOS
 # ships neither, so a pure-Bash watchdog is the fallback: TERM after the bound,
 # KILL after a short grace. LANES_PROBE_TIMEOUT_S shortens the bound for tests;
-# LANES_FORCE_BASH_TIMEOUT=1 forces the fallback.
+# LANES_PLUGIN_TEST_TIMEOUT_S shortens only the `claude plugin test` bound, so a
+# test can hang that probe without also racing the `claude --version` probe before
+# it; LANES_FORCE_BASH_TIMEOUT=1 forces the fallback.
 PROBE_TIMEOUT_S="${LANES_PROBE_TIMEOUT_S:-20}"
 PROBE_KILL_AFTER_S=2
 [[ "$PROBE_TIMEOUT_S" =~ ^[1-9][0-9]*$ ]] || PROBE_TIMEOUT_S=20
+PLUGIN_TEST_TIMEOUT_S="${LANES_PLUGIN_TEST_TIMEOUT_S:-$PROBE_TIMEOUT_S}"
+[[ "$PLUGIN_TEST_TIMEOUT_S" =~ ^[1-9][0-9]*$ ]] || PLUGIN_TEST_TIMEOUT_S="$PROBE_TIMEOUT_S"
 PROBE_TIMEOUT_CMD=""
 if [[ "${LANES_FORCE_BASH_TIMEOUT:-}" != "1" ]]; then
   for candidate in timeout gtimeout; do
@@ -267,12 +271,14 @@ if [[ "${LANES_FORCE_BASH_TIMEOUT:-}" != "1" ]]; then
   done
 fi
 
-# run_bounded <cmd...>: runs the command under PROBE_TIMEOUT_S; exits 124 on a
+# run_bounded <seconds> <cmd...>: runs the command under the bound; exits 124 on a
 # timeout, like GNU timeout. The watchdog's output goes to /dev/null so a $(...)
 # around run_bounded does not wait on the watchdog's sleep.
 run_bounded() {
+  local bound_s="$1"
+  shift
   if [[ -n "$PROBE_TIMEOUT_CMD" ]]; then
-    "$PROBE_TIMEOUT_CMD" --signal=TERM --kill-after="${PROBE_KILL_AFTER_S}s" "${PROBE_TIMEOUT_S}s" "$@"
+    "$PROBE_TIMEOUT_CMD" --signal=TERM --kill-after="${PROBE_KILL_AFTER_S}s" "${bound_s}s" "$@"
     return
   fi
   local child watchdog status flag
@@ -280,7 +286,7 @@ run_bounded() {
   "$@" &
   child=$!
   (
-    sleep "$PROBE_TIMEOUT_S"
+    sleep "$bound_s"
     kill -TERM "$child" 2>/dev/null || exit 0
     [[ -n "$flag" ]] && printf 'timeout\n' >"$flag"
     sleep "$PROBE_KILL_AFTER_S"
@@ -304,7 +310,7 @@ run_bounded() {
 CLI_VERSION_CACHE=""
 cli_version() {
   [[ -n "$CLI_VERSION_CACHE" ]] && return 0
-  CLI_VERSION_CACHE="$(run_bounded claude --version 2>/dev/null | tr -d '\r' |
+  CLI_VERSION_CACHE="$(run_bounded "$PROBE_TIMEOUT_S" claude --version 2>/dev/null | tr -d '\r' |
     grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
   [[ -n "$CLI_VERSION_CACHE" ]] || CLI_VERSION_CACHE="unknown"
   return 0
@@ -351,11 +357,11 @@ probe_machine_mods() {
     return 0
   fi
   local rc=0
-  out="$(cd "${REPO:-.}" 2>/dev/null && run_bounded claude plugin test "$empty" 2>&1)" || rc=$?
+  out="$(cd "${REPO:-.}" 2>/dev/null && run_bounded "$PLUGIN_TEST_TIMEOUT_S" claude plugin test "$empty" 2>&1)" || rc=$?
   out="${out//$'\r'/}"
   rmdir "$empty" 2>/dev/null
   if ((rc == 124)); then
-    MODS_STATE="unknown" MODS_CAUSE="claude plugin test did not finish in ${PROBE_TIMEOUT_S} s"
+    MODS_STATE="unknown" MODS_CAUSE="claude plugin test did not finish in ${PLUGIN_TEST_TIMEOUT_S} s"
     return 0
   fi
   case "$out" in
