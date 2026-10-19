@@ -172,10 +172,13 @@ async function main() {
     });
     const toasts = (page, t) => page.evaluate(x => window.__toasts.filter(y => y === x).length, t);
     for (const p of [owner, lee]) await watchToasts(p);
-    const quiet = () => until(owner, () => !document.querySelector(".vf-toast.vf-on"), null, 15000); // an earlier pop-up would take the next one in
+    // An earlier pop-up would take the next one in: an urgent one stays until closed (Q39), so close it.
+    const quiet = async () => { if (await owner.locator(".vf-toast.vf-on .vf-toast-x:not([hidden])").isVisible()) await owner.click(".vf-toast-x"); return until(owner, () => !document.querySelector(".vf-toast.vf-on"), null, 15000); };
     await quiet();
     await ann.evaluate(() => window.Core.request("Q2", "ask", "Ann's third question, waiting on Run"));
     ok("a guest's request waiting on Run pops one toast for the owner", await until(owner, t => window.__toasts.includes(t), RUN_T, 10000), JSON.stringify(await owner.evaluate(() => window.__toasts)));
+    await owner.waitForTimeout(10000); // past the 9 s an ordinary toast with an action stays
+    ok("  which stays while it waits, with Close (Q39)", await owner.evaluate(t => document.querySelector(".vf-toast.vf-on span")?.textContent === t && !document.querySelector(".vf-toast-x").hidden, RUN_T));
     await owner.evaluate(() => window.Core.runRequests([window.Core.state.requests.find(r => r.text === "Ann's third question, waiting on Run").id]));
     ok("  once it no longer waits, its pop-up goes", await until(owner, t => document.querySelector(".vf-toast span")?.textContent !== t || !document.querySelector(".vf-toast.vf-on"), RUN_T, 10000));
     await owner.evaluate(() => window.Core.saveSettings({ approveJoins: true }));

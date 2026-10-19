@@ -650,11 +650,14 @@
 .app .vf-toast { transition-property: opacity, translate; }
 /* The toast stays in the tree as a live region; while off it is transparent, empty and not clickable. */
 .app .vf-toast:not(.vf-on) { opacity: 0; pointer-events: none; }
-.app .vf-toast-act {
+.app :is(.vf-toast-act, .vf-toast-x) {
   all: unset; box-sizing: border-box; cursor: pointer; flex: none; padding: 4px 10px; border-radius: var(--r-sm);
   border: 1px solid color-mix(in oklch, var(--bg) 45%, transparent); font-weight: 700; min-block-size: 30px;
 }
-.app .vf-toast-act:focus-visible { outline: 2px solid var(--bg); outline-offset: 2px; }
+.app :is(.vf-toast-act, .vf-toast-x):focus-visible { outline: 2px solid var(--bg); outline-offset: 2px; }
+.app .vf-toast-x { display: grid; place-items: center; padding: 0; inline-size: 30px; border-color: transparent; }
+.app .vf-toast-x[hidden] { display: none; }
+.app .vf-toast-x .vf-i { inline-size: 14px; block-size: 14px; }
 @media (prefers-reduced-motion: no-preference) {
   .app .vf-toast { transition: opacity 200ms var(--ease-out), translate 200ms var(--ease-out); }
   .app .vf-toast:not(.vf-on) { translate: -50% 6px; }
@@ -1096,7 +1099,8 @@
   /* small avatars keep their size; a transparent ring makes the touch area 44px */
   .app .core-avatar[data-pid][role="button"] { position: relative; }
   .app .core-avatar[data-pid][role="button"]::after { content: ""; position: absolute; inset: -11px; }
-  .app :is(.vf-lbtn, .vf-fwd, .vf-res-head, .vf-qref, .vf-pick-btn, .vf-menu-item, .vf-merge-item, .vf-seg-sm .vf-seg-btn, .vf-col-q, .vf-toast-act) { min-block-size: 44px; }
+  .app :is(.vf-lbtn, .vf-fwd, .vf-res-head, .vf-qref, .vf-pick-btn, .vf-menu-item, .vf-merge-item, .vf-seg-sm .vf-seg-btn, .vf-col-q, .vf-toast-act, .vf-toast-x) { min-block-size: 44px; }
+  .app .vf-toast-x { inline-size: 44px; }
   .app :is(.vf-lbtn, .vf-fwd) { padding-inline: 6px; }
   .app .vf-swatch { inline-size: 44px; block-size: 44px; }
   .app .vf-cctl { gap: 6px; }

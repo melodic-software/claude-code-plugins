@@ -576,9 +576,10 @@
     // ---------- toast ----------
     // The toast is a live region from load; text goes in a frame after it is cleared, so screen readers announce it.
     const toast = E("div", "vf-toast"); toast.setAttribute("role", "status");
-    const toastTxt = E("span"), toastAct = btn("vf-toast-act");
-    toastAct.hidden = true;
-    toast.append(toastTxt, toastAct);
+    const toastTxt = E("span"), toastAct = btn("vf-toast-act"), toastX = ibtn("vf-toast-x", "x", "Close");
+    toastAct.hidden = true; toastX.hidden = true;
+    toast.append(toastTxt, toastAct, toastX);
+    toastX.onclick = () => { ui.alertOpen = false; hideToast(); };
     // A second, visually hidden polite region for content that arrives (new answers), never the answer list itself.
     const srLive = E("div", "vf-sr"); srLive.setAttribute("aria-live", "polite");
     let toastT = 0, clearT = 0, toastPaint = 0;
@@ -589,18 +590,20 @@
       // A second message in the same pass (a new round and a placed proposal) waits its turn instead of
       // overwriting the first before it paints.
       if (toastPaint) { toastQ.push([msg, action, tag]); return; }
-      if (typeof msg === "function") { const r = msg(); if (!r) { if (toastQ.length) flash(...toastQ.shift()); return; } [msg, action] = r; }
+      if (typeof msg === "function") { const r = msg(); if (!r) { if (tag === "alert") ui.alertOpen = false; if (toastQ.length) flash(...toastQ.shift()); return; } [msg, action] = r; }
       clearTimeout(toastT); clearTimeout(clearT);
-      toastTxt.textContent = ""; toastAct.hidden = true;
+      toastTxt.textContent = ""; toastAct.hidden = true; toastX.hidden = true;
       toastPaint = requestAnimationFrame(() => {
-        toastPaint = 0; toast._tag = tag || "";
+        toastPaint = 0; toast._tag = tag || ""; toastX.hidden = tag !== "alert";
         toastTxt.textContent = msg;
         toastAct.hidden = !action;
-        if (action) { toastAct.textContent = action.label; toastAct.onclick = () => { hideToast(); action.run(); }; }
+        if (action) { toastAct.textContent = action.label; toastAct.onclick = () => { if (tag === "alert") ui.alertOpen = false; hideToast(); action.run(); }; }
         placeToast();
         toast.classList.add("vf-on");
       });
-      toastT = setTimeout(() => (toastQ.length ? flash(...toastQ.shift()) : hideToast()), action ? 9000 : 3200);
+      // Q39: an urgent pop-up stays until it is closed or opened; the rest go after a few seconds.
+      if (tag === "alert") ui.alertOpen = true;
+      else toastT = setTimeout(() => (toastQ.length ? flash(...toastQ.shift()) : hideToast()), action ? 9000 : 3200);
     }
     /** Centered on the center pane (the part the chat leaves uncovered; the whole page when the pane is hidden),
      *  12px above whatever is docked at the bottom under it: tab bar, chat button, panel or the phone edit sheet. */
@@ -628,7 +631,9 @@
       toast.style.insetBlockStart = high ? top.getBoundingClientRect().bottom - R.top + 8 + "px" : "";
     }
     function hideToast() {
+      const was = toast._tag;
       toast.classList.remove("vf-on"); toast._tag = "";
+      if (was !== "alert" && ui.alertOpen) { flash(alertToast, null, "alert"); return; } // an urgent pop-up another toast covered comes back
       clearT = setTimeout(() => { toastTxt.textContent = ""; toastAct.hidden = true; }, 250);
     }
     function announce(msg) { srLive.textContent = ""; requestAnimationFrame(() => { srLive.textContent = msg; }); }
@@ -3911,13 +3916,13 @@
     /** New urgent keys join the pop-up showing (or queued) now, else start one; each pass also drops what stopped waiting. */
     function hostAlerts(fresh) {
       const showing = toast._tag === "alert" && toast.classList.contains("vf-on"), queued = toastQ.some(e => e[2] === "alert");
-      if (fresh.length) ui.alertKeys = [...(showing || queued ? ui.alertKeys || [] : []), ...fresh];
+      if (fresh.length) ui.alertKeys = [...(showing || queued || ui.alertOpen ? ui.alertKeys || [] : []), ...fresh];
       if (showing) {
         const r = alertToast();
-        if (!r) { clearTimeout(toastT); hideToast(); return; }
-        if (toastTxt.textContent !== r[0]) { toastTxt.textContent = r[0]; toastAct.textContent = r[1].label; toastAct.onclick = () => { hideToast(); r[1].run(); }; placeToast(); }
-        if (fresh.length) { clearTimeout(toastT); toastT = setTimeout(() => (toastQ.length ? flash(...toastQ.shift()) : hideToast()), 9000); }
-      } else if (fresh.length && !queued) flash(alertToast, null, "alert");
+        if (!r) { ui.alertOpen = false; hideToast(); return; }
+        if (toastTxt.textContent !== r[0]) { toastTxt.textContent = r[0]; toastAct.textContent = r[1].label; toastAct.onclick = () => { ui.alertOpen = false; hideToast(); r[1].run(); }; placeToast(); }
+      } else if (ui.alertOpen && !queued && !alertToast()) ui.alertOpen = false; // covered, and nothing waits any more
+      else if (fresh.length && !queued && !ui.alertOpen) flash(alertToast, null, "alert");
     }
 
     // ---------- empty session ----------

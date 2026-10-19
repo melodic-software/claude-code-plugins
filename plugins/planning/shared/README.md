@@ -309,7 +309,8 @@ The owner's pop-ups are for a join, a request waiting for Run and a problem repo
 Notifications tab turn each kind of item waiting on the owner (also answers to share, merge requests and requests
 Claude failed) on or off, kept as the owner's `popups` pref (`session.py` POPUP_KINDS); guests see no such section.
 Pop-ups that arrive while one shows become one with a count and Open Inbox ("3 requests wait on you"), and an item
-that stops waiting drops out of it. Guests' pop-ups are unchanged.
+that stops waiting drops out of it. Such a pop-up stays until it is closed or opened, or nothing in it waits any more;
+every other toast goes after a few seconds. Guests' pop-ups are unchanged.
 
 ## Discussion
 
