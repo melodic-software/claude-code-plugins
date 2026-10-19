@@ -402,7 +402,7 @@ merge:
   # docs/conventions/**, agent instructions, hooks, lib/, scripts/, package
   # manifests and more) now applies in the pr-merge lane too. A lane PR
   # touching a floor path or script, or changing
-  # capability frontmatter in a SKILL.md, agents/*.md or commands/*.md,
+  # capability frontmatter in a SKILL.md, agents/**/*.md or commands/**/*.md,
   # scores HIGH and waits for a human, who merges it in person. A denied path
   # would instead make the PR ineligible. The switch governs both lanes: in
   # the local babysit lane, false would leave out floor-paths,

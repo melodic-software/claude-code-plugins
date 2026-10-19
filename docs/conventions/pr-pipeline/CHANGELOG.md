@@ -4,10 +4,10 @@
 
 `merge.diff-check.floor-paths` (a list of globs) adds paths to the risk scorer's HIGH path floor
 while `high-path-floor` applies; a pull request touching one waits for a human, where a denied path
-makes it ineligible. With the floor, a SKILL.md, agents/*.md or commands/*.md change to `hooks`,
+makes it ineligible. With the floor, a SKILL.md, agents/**/*.md or commands/**/*.md change to `hooks`,
 `allowed-tools`, `tools`, `permissionMode`, `mcpServers`, `memory` or another capability key
 `babysit_risk.py` lists in its frontmatter, at any indentation, or a new `!` backtick
-command line, also scores HIGH. `merge.diff-check.floor-script-scopes` (a list of globs) holds a
+command line or ```` ```! ```` block, also scores HIGH. `merge.diff-check.floor-script-scopes` (a list of globs) holds a
 `.ps1` or `.cjs` file, or one with git mode 100755, inside one of them or at the top level the same
 way. This repository lists `bin/`, `.lsp.json`, `settings*.json` and the scripts of the plugins
 the CI lanes load as floor paths, and those plugins as script scopes (Q646), and sets
