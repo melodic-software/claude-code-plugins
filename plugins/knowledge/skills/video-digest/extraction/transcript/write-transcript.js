@@ -34,28 +34,6 @@ function countParagraphs(transcript) {
   return transcript ? transcript.split("\n\n").length : 0;
 }
 
-/**
- * Whisper keeps only the tail of a long initial prompt, so the terms go in
- * lexicon order (title first) up to a character budget well inside its window.
- */
-const INITIAL_PROMPT_MAX_CHARS = 800;
-
-/**
- * @param {readonly string[]} lexicon
- * @returns {string | null} the comma-joined leading terms, or null for an empty lexicon
- */
-function buildInitialPrompt(lexicon) {
-  /** @type {string[]} */
-  const kept = [];
-  let length = 0;
-  for (const term of lexicon) {
-    length += term.length + 2;
-    if (length > INITIAL_PROMPT_MAX_CHARS) break;
-    kept.push(term);
-  }
-  return kept.length > 0 ? kept.join(", ") : null;
-}
-
 const BOUNDARY_REPEAT_MIN_WORDS = 2;
 const BOUNDARY_REPEAT_MAX_WORDS = 12;
 const PARAGRAPH_STAMP = /^(\[[^\]]*\]\s*)([\s\S]*)$/;
@@ -394,10 +372,10 @@ export async function writeEnvelopeTranscriptArtifacts(
     requested === "asr" || entries.some((entry) => !entry.caption && entry.mediaPath);
   const asrDetection = needAsrProbe ? await detectAsr() : null;
 
-  // Every strategy gets the lexicon: captions+repair and ASR cues are repaired
-  // against it, and the ASR runner is biased with it.
+  // Every strategy gets the lexicon, repair-only: captions+repair and ASR cues
+  // are repaired against it. It is never fed to ASR as an initial prompt (the
+  // probe in reference/sources/x.md showed no gain and a worse hallucination).
   const repairLexicon = buildRepairLexicon(metadata.description, harvestedLinks, metadata.title);
-  const initialPrompt = buildInitialPrompt(repairLexicon);
 
   /** @type {EnvelopeTranscriptEntry[]} */
   const transcripts = [];
@@ -429,7 +407,6 @@ export async function writeEnvelopeTranscriptArtifacts(
       const asr = await runAsr({
         mediaPath: entry.mediaPath,
         python: /** @type {string} */ (asrDetection?.python),
-        initialPrompt,
       });
       if (!asr.success || !asr.cues) {
         // An ASR failure degrades the entry explicitly rather than failing the

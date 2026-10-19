@@ -478,9 +478,9 @@ so I opened clawed code today
     expect(files[path.join(sliceDir, "source", "transcript.txt")]).toContain("spoken words");
   });
 
-  it("the asr rung passes the title and description proper nouns as initialPrompt", async () => {
-    /** @type {string | null | undefined} */
-    let seenPrompt;
+  it("the asr rung runs without an initialPrompt (the lexicon is repair-only)", async () => {
+    /** @type {Record<string, unknown> | undefined} */
+    let seenOptions;
     const options = asrCandidateOptions();
     const result = await writeEnvelopeTranscriptArtifacts(
       {
@@ -497,8 +497,8 @@ so I opened clawed code today
         {
           readFile: async () => "",
           detectAsr: asrDetected,
-          runAsr: async (/** @type {{initialPrompt?: string | null}} */ asrOptions) => {
-            seenPrompt = asrOptions.initialPrompt;
+          runAsr: async (/** @type {Record<string, unknown>} */ asrOptions) => {
+            seenOptions = asrOptions;
             return { success: true, cues: [{ startSec: 0, endSec: 2, text: "hello" }], words: [] };
           },
         },
@@ -506,8 +506,8 @@ so I opened clawed code today
     );
 
     expect(result.transcripts[0].strategy).toBe("asr");
-    expect(seenPrompt).toContain("Pstack");
-    expect(seenPrompt).toContain("Claude Code");
+    expect(seenOptions).toBeDefined();
+    expect(seenOptions).not.toHaveProperty("initialPrompt");
   });
 
   it("asr cues pass through repairCues and repairedTermCount counts the repairs", async () => {
