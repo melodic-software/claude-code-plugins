@@ -18,7 +18,7 @@ graders:
     arm: with-only
   - name: restates-problem-and-asks
     type: regex
-    pattern: '^(?=[\s\S]*\bproblem\b[\s\S]{0,300}\b(?:time[sd]?[ -]?outs?|timing out|large accounts?|10,?000)\b)(?=[\s\S]*(?:\b(?:confirm|yes|correct|right|accurate)\b[^\n]{0,160}\?|\?[^\n]{0,40}\b(?:yes|confirm)))'
+    pattern: '^(?=[\s\S]*\b(?:time[sd]?[ -]?outs?|timing out|large accounts?|10,?000)\b)(?=[\s\S]*(?:\b(?:is|does|did|was)\s+(?:that|this)\b[^\n?]{0,80}\?|\b(?:got|have)\s+(?:that|this)\s+right\b[^\n?]{0,40}\?|\bconfirm\s+(?:that|this|it|the\s+(?:problem|restatement))\b[^\n]{0,160}\?|,\s*(?:right|correct)\s*\?))'
     flags: i
     arm: both
   - name: no-plan-write

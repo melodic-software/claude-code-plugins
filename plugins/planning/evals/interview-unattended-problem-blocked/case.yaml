@@ -19,12 +19,12 @@ graders:
   - name: problem-unconfirmed
     type: tool_used
     tool: Write
-    input_match: '^(?=[\s\S]*"file_path":"[^"]*PLAN\.md")(?=[\s\S]*### Problem(?:(?!###)[\s\S]){0,400}?[Ss]tatus\W{0,8}unconfirmed)'
+    input_match: '^(?=[\s\S]*"file_path":"[^"]*PLAN\.md")(?=[\s\S]*### Problem(?:(?!###)[\s\S]){0,400}?[Ss][Tt][Aa][Tt][Uu][Ss]\W{0,8}[Uu][Nn][Cc][Oo][Nn][Ff][Ii][Rr][Mm][Ee][Dd])'
     arm: both
   - name: deferred-user-reserved
     type: tool_used
     tool: Write
-    input_match: '^(?=[\s\S]*"file_path":"[^"]*PLAN\.md")(?=[\s\S]*### Deferred questions(?:(?!###)[\s\S])*?Q\d+(?=(?:(?!\\n-|\\n\\n|###)[\s\S])*?(?:[Pp]roblem|[Cc]onfirm|[Rr]ethink))(?:(?!\\n-|\\n\\n|###)[\s\S])*?USER-RESERVED)'
+    input_match: '^(?=[\s\S]*"file_path":"[^"]*PLAN\.md")(?=[\s\S]*### Deferred questions(?:(?!###)[\s\S])*?Q\d+(?=(?:(?!\\n-|\\n\\n|###)[\s\S])*?(?:[Pp][Rr][Oo][Bb][Ll][Ee][Mm]|[Rr][Ee][Tt][Hh][Ii][Nn][Kk]))(?:(?!\\n-|\\n\\n|###)[\s\S])*?USER-RESERVED)'
     arm: both
   - name: blocker-named
     type: regex

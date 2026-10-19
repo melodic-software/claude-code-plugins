@@ -18,7 +18,7 @@ graders:
     arm: with-only
   - name: evidence-rated
     type: regex
-    pattern: '\b(?:evidence|problem|gap)\b[^\n]{0,200}\b(?:observed|reported|inferred)\b|\b(?:observed|reported|inferred)\b[^\n]{0,200}\b(?:evidence|problem|gap)\b'
+    pattern: '\b(?:evidence|rating)\b(?:\W{0,6}|\s+(?:is|rated)\s+)(?:observed|reported|inferred)\b|\((?:observed|reported|inferred)\b[^)\n]{0,120}\)|\b(?:problem|gap)\b[^\n.?]{0,80}\b(?:is|was|rated)\s+(?:observed|reported|inferred)\b'
     flags: i
     arm: both
   - name: rethink-or-accept-asked

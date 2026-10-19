@@ -23,6 +23,30 @@
         }
       ],
       "why": "bold Status label"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/webhook-retry/PLAN.md",
+            "content": "## Brief\n\n### TLDR\n- Retry transient webhook failures\n\n### Problem\n- Status: Unconfirmed\n- Gap: deliveries are lost when an endpoint fails briefly\n- Evidence: inferred from src/webhooks/sender.py\n\n### Goal\nDeliveries survive transient failures.\n\n### Deferred questions\n- Q1: Confirm the problem, and rethink the approach or accept the retry wrapper?; **arbiter: USER-RESERVED**\n- Q2: Retry budget?; **arbiter: /planning:plan**\n\n## Plan\n"
+          }
+        }
+      ],
+      "why": "capitalized status value"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/webhook-retry/PLAN.md",
+            "content": "## Brief\n\n### TLDR\n- Retry transient webhook failures\n\n### Problem\n- STATUS: UNCONFIRMED\n- Gap: deliveries are lost when an endpoint fails briefly\n- Evidence: inferred from src/webhooks/sender.py\n\n### Goal\nDeliveries survive transient failures.\n\n### Deferred questions\n- Q1: Confirm the problem, and rethink the approach or accept the retry wrapper?; **arbiter: USER-RESERVED**\n- Q2: Retry budget?; **arbiter: /planning:plan**\n\n## Plan\n"
+          }
+        }
+      ],
+      "why": "upper-case status line"
     }
   ],
   "fail": [

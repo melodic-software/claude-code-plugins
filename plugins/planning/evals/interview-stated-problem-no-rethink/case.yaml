@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: interview-stated-problem-no-rethink
 description: A request that states its problem and a solution gets the problem restated and confirmed, and no rethink-or-accept question
 tags: [interview, problem-framing, stated-problem, scaffold]
-expected_outcome: The reply restates the stated problem (webhook deliveries dropped when customer endpoints return 503 during their deploys) and asks the user to confirm it, without asking whether to rethink the approach or accept the retry wrapper; no Write or Edit touches PLAN.md.
+expected_outcome: The reply asks no rethink-or-accept question and does not question the retry wrapper as the fix; it may restate the stated problem (webhook deliveries dropped when customer endpoints return 503 during their deploys) and ask the user to confirm it now or in a later round; no Write or Edit touches PLAN.md.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -19,7 +19,7 @@ graders:
   - name: confirms-without-rethink
     type: llm
     arm: both
-    criteria: "PASS only if the reply restates the problem the user stated (webhook deliveries dropped when customer endpoints return 503 during deploys) and asks the user to confirm that restatement, and does NOT ask the user whether to rethink the approach or accept the retry wrapper, or otherwise question whether a retry wrapper is the right fix. Ordinary questions about the wrapper's details (retry count, backoff, which errors to retry) are allowed. FAIL if the reply asks a rethink-or-accept question or argues for a different approach, if it never restates the problem, if it asks for no confirmation of the problem, or if it writes a Brief or plan."
+    criteria: "PASS only if the reply does NOT ask the user whether to rethink the approach or accept the retry wrapper, does not otherwise question whether a retry wrapper is the right fix, and does not argue for a different approach. Restating the stated problem (webhook deliveries dropped when customer endpoints return 503 during deploys) and asking the user to confirm it is expected, but a first turn that asks ordinary questions without confirming the problem yet still passes, since outside lock the confirmation may come in a later round. Ordinary questions about the wrapper's details (retry count, backoff, which errors to retry) are allowed. FAIL if the reply asks a rethink-or-accept question or argues for a different approach, or if it writes a Brief or plan."
   - name: no-plan-write
     type: tool_used
     tool: Write
