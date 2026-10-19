@@ -37,7 +37,7 @@
     "library_dir": {
       "type": "directory",
       "title": "Library directory",
-      "description": "Where synthesized knowledge artifacts land. The default, ., is the session's working-tree root (its worktree, once entered); a relative value resolves there. An absolute path, a leading ~, or a ${NAME} or %NAME% variable also work. video-digest relocates its work root here and supports one re-layout (watch/relayout-slice.js); other project artifacts conventions are not applied automatically.",
+      "description": "Where synthesized knowledge artifacts land. The default, ., is the session's working-tree root (its worktree, once entered); relative values resolve there. An absolute path, ~, ${NAME} or %NAME% also work. video-digest moves its work root here; other artifacts conventions are not auto-applied.",
       "default": "."
     },
     "yt_dlp_js_runtimes": {
