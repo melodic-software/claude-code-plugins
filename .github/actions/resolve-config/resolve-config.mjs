@@ -21,6 +21,7 @@ import {
   neededFacts,
   resolve,
   resolveLimits,
+  resolveLoop,
   resolveRoute,
   resolveWipLeaf,
 } from "./resolve.mjs";
@@ -281,6 +282,13 @@ export function wipFromBase(env) {
   const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
   const files = filesUnderBase(basePath, configPath);
   return { limits: resolveLimits(files, { configPath }), wip: resolveWipLeaf(files, { configPath }) };
+}
+
+// The base config's resolved `loop` caps, likewise.
+export function loopFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  return resolveLoop(filesUnderBase(basePath, configPath), { configPath });
 }
 
 // A run that is no lane activity resolves only its model route.

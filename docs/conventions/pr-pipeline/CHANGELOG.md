@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 2.14.0 - 2026-10-18
+## 2.16.0 - 2026-10-18
 
 A new optional `wip` block derives the issue lane's WIP cap from the lane merge rate: merged lanes-App
 pull requests per hour over `merge-rate-window-hours` (24) times `target-lead-time-hours` (2),
@@ -11,6 +11,29 @@ this`) no longer count against it and form their own buffer, `held-cap` (60), wi
 those merged. Over a cap the check alerts, and pauses the lane only on or after `pause-from`
 (empty: never). The check publishes its status as the `wip` step output, the step summary and its
 log line ([README, WIP cap](README.md#wip-cap)). `version` stays 2.
+
+## 2.15.0 - 2026-10-18
+
+`pr-unblock-dispatch.yml` starts pr-unblock's `fix-ci` for open lanes App pull requests whose
+head's `ci-status` failed, from one GraphQL query per page with its `rateLimit.cost` logged, at
+most `limits.fix-ci-per-run` per run and, on a head whose earlier runs all failed, at most
+`limits.fix-ci-restarts` more times ([README](README.md#lanes)). Its job's concurrency group
+now cancels a run in progress. `version` stays 2.
+
+## 2.14.0 - 2026-10-18
+
+`prepare` gains `ci-context`, the one mode for a `read` skill, and `apply-patch`, the one mode for
+a script, a `mutate-branch` one. `pr-run-activity-read.yml` performs `ci-context`: it downloads a
+base job's `ci-context-<attempt>` artifact, checks its SHA-256 and head, and gives the skill that
+file plus Bash, Edit and Write; it takes `ci-context-attempt` and `ci-context-sha256` and gains a
+`reply-attempt` output. `pr-run-activity-write.yml` performs `apply-patch` with the new
+`patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity` and
+`reply-attempt` inputs ([pr-run-activity.md](pr-run-activity.md#prepare-apply-patch)). The
+pr-unblock lane adds `fix-ci` and `apply-ci-fix`, which refuses the whole patch on a change to
+`.github/**` or an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a
+plugin's `hooks/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), and `report-escalation` takes six `ci-fix-*`
+reasons. New config: `loop.fix-ci-rounds` (3), `limits.fix-ci-per-run` (2) and
+`limits.fix-ci-restarts` (1). `version` stays 2.
 
 ## 2.13.0 - 2026-10-18
 

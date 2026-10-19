@@ -14,7 +14,8 @@
 // config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
 // The same run then starts review-dependency for review-tier Dependabot PRs
-// (dependency-dispatch.mjs), and its run ids join the same record.
+// (dependency-dispatch.mjs) and fix-ci for lanes App PRs whose ci-status
+// failed (fix-ci-dispatch.mjs), and their run ids join the same record.
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -22,6 +23,7 @@ import { pathToFileURL } from "node:url";
 import { POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
+import { dispatchCiFixes, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { anyHandles } from "./limit-stop.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
@@ -241,6 +243,11 @@ export function createGitHubApi({
       const data = await graphql(LIST_QUERY, { owner, name, base, after: after ?? null });
       return data.repository.pullRequests;
     },
+    // fix-ci-dispatch.mjs's listing: one query per page, with its cost.
+    async listCiFixCandidates({ base, after }) {
+      const data = await graphql(CI_FIX_QUERY, { owner, name, base, after: after ?? null });
+      return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests };
+    },
     async getPulls(numbers) {
       const fields = numbers
         .map((number) => {
@@ -325,7 +332,7 @@ export async function main(
       throw new Error(`${key} is not set`);
     }
   }
-  const client =
+  const base =
     api ??
     createGitHubApi({
       token: env.GITHUB_TOKEN,
@@ -333,6 +340,18 @@ export async function main(
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
     });
+  // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
+  // returns, so a run cancelled mid-step still records what it sent.
+  const client = {
+    ...base,
+    async dispatchWorkflow(request) {
+      const result = await base.dispatchWorkflow(request);
+      if (env.RUN_IDS_FILE && RUN_ID.test(String(result.workflowRunId))) {
+        appendFileSync(env.RUN_IDS_FILE, `${result.workflowRunId}\n`);
+      }
+      return result;
+    },
+  };
   const limits = await loadLimits(env);
   const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits, now });
   const reviews = await dispatchDependencyReviews({
@@ -343,8 +362,22 @@ export async function main(
     policy: readPolicy(env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`, log),
     repository: env.GITHUB_REPOSITORY,
   });
-  const dispatched = [...conflicts.dispatched, ...reviews.dispatched];
-  const failed = conflicts.failed + reviews.failed;
+  // A missing lanes App id stops fix-ci alone, as a failure.
+  let fixes = { dispatched: [], failed: 1 };
+  if (/^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "")) {
+    fixes = await dispatchCiFixes({
+      api: client,
+      runId: env.GITHUB_RUN_ID,
+      log,
+      appSenderId: Number(env.APP_SENDER_ID),
+      maxDispatch: limits["fix-ci-per-run"] ?? 2,
+      restarts: limits["fix-ci-restarts"] ?? 1,
+    });
+  } else {
+    log("::error::APP_SENDER_ID is not the lanes App's user id; no fix-ci dispatched");
+  }
+  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched];
+  const failed = conflicts.failed + reviews.failed + fixes.failed;
   if (dispatched.length > 0) {
     const ids = dispatched.map((run) => run.workflowRunId).join(" ");
     appendFileSync(env.GITHUB_OUTPUT, `run-ids=${ids}\n`);

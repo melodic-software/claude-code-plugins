@@ -311,6 +311,12 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
+## Next
+
+/session-flow:retro
+
+Optional, once the PR has merged: it reviews how the session went.
+
 ## Gotchas
 
 - **Verify every agent review finding before presenting it.** Automated reviewers produce incorrect findings often enough that an unverified finding is not evidence; check each against current docs and actual code (step 1.3) before it reaches the user
