@@ -346,6 +346,19 @@ models:
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
 
+# The funding role whose secrets pay for each Claude lane's runs (README.md,
+# Funding). A lane passes its role to ci-workflows' claude-lane with
+# <ROLE>_CLAUDE_API_KEY and <ROLE>_CLAUDE_CODE_OAUTH_TOKEN, role upper-snake.
+funding:
+  intake: automations
+  pr-unblock: automations
+  fix-ci: automations
+  pr-verify: automations
+  pr-refine: automations
+  claude-review: reviews
+  claude-security-review: reviews
+  work-resolve-issue: issue-lane
+
 loop:
   review-rounds: 3
   dependency-review-rounds: 2

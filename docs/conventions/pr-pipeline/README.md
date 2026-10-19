@@ -13,6 +13,7 @@
 - [Trust-root paths](#trust-root-paths)
 - [The lane sweep](#the-lane-sweep)
 - [Models](#models)
+- [Funding](#funding)
 - [Loop caps](#loop-caps)
 - [Limits](#limits)
 - [Planning lane work](#planning-lane-work)
@@ -930,6 +931,16 @@ every skill activity's; `review` (`opus`, 60 turns, no effort), the verifier's; 
 (`sonnet`, effort `high`, 75 turns), both review lanes'; `triage` (`sonnet`, effort `medium`,
 30 turns), intake triage's and the [lane sweep](#the-lane-sweep)'s; and `summary` (`sonnet`, effort `medium`, 10 turns), the reuse
 summary pass's.
+
+## Funding
+
+`funding` maps each Claude lane id to the funding role whose secrets pay for its runs: `reviews`,
+`automations` or `issue-lane`. A lane passes its role to ci-workflows' `claude-lane` action with
+the role's two secrets, `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` (role
+upper-snake, so `issue-lane` gives `ISSUE_LANE_`); the action tries the key first and the
+subscription token only after a credit stop. This repository's map: `intake`, `pr-unblock`,
+`fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
+`claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
 
 ## Loop caps
 

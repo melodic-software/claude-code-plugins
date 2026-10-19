@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 2.15.0 - 2026-10-18
+
+New config: `funding`, a map from Claude lane id to its funding role (`reviews`, `automations` or
+`issue-lane`), whose `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` secrets the lane
+passes to claude-lane ([README.md, Funding](README.md#funding)). `version` stays 2.
+
 ## 2.14.0 - 2026-10-18
 
 `prepare` gains `ci-context`, the one mode for a `read` skill, and `apply-patch`, the one mode for

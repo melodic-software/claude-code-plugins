@@ -127,12 +127,14 @@ jobs:
     concurrency:
       group: intake-triage-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@ff8cd36321423de961381e608e4a31563e74adb3 # v0.49.0
+    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@f2294fd357627e9c9eb4ff4d6247b912c032f42c # pre-release pin: ci-workflows feat/intake-on-claude-lane head
     with:
       runner: ubuntu-24.04
+      role: automations
       claude-args: ${{ needs.born-triaged.outputs.claude-args }}
       issue-number: ${{ inputs.issue-number }}
       allowed-author-ids: ${{ needs.born-triaged.outputs.human-ids }}
       allowed-bot-sender-ids: ${{ needs.born-triaged.outputs.bot-ids }}
     secrets:
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      CLAUDE_API_KEY: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
