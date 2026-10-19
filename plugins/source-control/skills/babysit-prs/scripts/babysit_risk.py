@@ -15,7 +15,9 @@ The HIGH path floor and the lane table are fixed here on purpose. A weaker value
 could only come from a file a pull request can edit, and this module's own path
 is in the floor, so a pull request cannot change the rule it is judged by. The
 configured `merge.diff-check.denied-paths` and `floor-paths` are joined to the
-floor, never in place of it. With the floor, a SKILL.md, agents/**/*.md or
+floor, never in place of it. So are the paths each plugin's base-side
+`DECLARATION_FILES` declare as run (`RiskInput.declarations`); a declaration it
+cannot read rates HIGH as `high-path:**`. With the floor, a SKILL.md, agents/**/*.md or
 commands/**/*.md file whose head text gains or changes a capability frontmatter
 key, adds a `!` command, or changes a line inside a ```! block, compared with
 its base text, or whose text could not be read, rates HIGH as
@@ -46,6 +48,7 @@ and a blast radius other than LOW above C2 to `blast-radius-missing`.
 from __future__ import annotations
 
 import enum
+import json
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -128,6 +131,9 @@ class RiskInput:
     c2_contradictions: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
+    # Each DECLARATION_FILES file at the base SHA as (path, text), None when
+    # unreadable. What they declare runs joins HIGH_FLOOR while it applies.
+    declarations: tuple[tuple[str, str | None], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -184,6 +190,20 @@ HIGH_FLOOR: tuple[str, ...] = (
 FLOOR_ADDITIONS: tuple[str, ...] = (
     "plugins/*/monitors/**",  # commands Claude Code runs in the background
     "plugins/*/workflows/**",
+)
+
+# Plugin files that declare what Claude Code runs. The caller reads each at the
+# base SHA, so a pull request cannot drop the declaration that floors its code.
+DECLARATION_FILES: tuple[str, ...] = (
+    "plugins/*/.claude-plugin/plugin.json",
+    "plugins/*/.mcp.json",
+    "plugins/*/hooks/hooks.json",
+)
+# plugin.json keys whose values Claude Code runs or reads as run config; its
+# other `./` paths (types, skills) are not executable.
+_EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
+_PLUGIN_ROOT_REF = re.compile(
+    r"\$(?:\{CLAUDE_PLUGIN_ROOT\}|CLAUDE_PLUGIN_ROOT\b)([^\s\"'`;|&<>(){}$]*)"
 )
 
 # Lane -> (code, severity) for an open finding on that lane. Both lanes are
@@ -421,6 +441,78 @@ def _readable_globs(value: Any, unsafe: list[str]) -> tuple[str, ...]:
     return globs
 
 
+def _strings(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if not isinstance(value, (dict, list)):
+        return []
+    items = value.values() if isinstance(value, dict) else value
+    return [s for item in items for s in _strings(item)]
+
+
+def _under_root(root: str, rest: str) -> str | None:
+    """A declared path as the directory holding it (code beside an entry point
+    runs with it), or the path itself at the plugin root; None when it leaves
+    the plugin."""
+    parts: list[str] = []
+    for segment in rest.replace("\\", "/").split("/"):
+        if segment == "..":
+            if not parts:
+                return None
+            parts.pop()
+        elif segment not in ("", "."):
+            parts.append(segment)
+    return "/".join([root, *(parts[:-1] if len(parts) > 1 else parts)])
+
+
+_DECLARATION_NAMES = {g.removeprefix("plugins/*/") for g in DECLARATION_FILES}
+_PLUGIN_JSON = ".claude-plugin/plugin.json"
+
+
+def _declared_paths(value: Any, unsafe: list[str]) -> tuple[str, ...]:
+    """The paths base-side declarations run: every `${CLAUDE_PLUGIN_ROOT}`
+    reference, and in plugin.json every `./` path under an executable key.
+    A declaration it cannot read, or a path outside its plugin, is unsafe."""
+    entries = _sequence(value)
+    if entries is None:
+        unsafe.append(f"declarations unreadable: {_show(value)}")
+        return ()
+    found = []
+    for entry in entries:
+        pair = _sequence(entry)
+        path, text = pair if pair is not None and len(pair) == 2 else (entry, None)
+        normalized, safe = normalize_path(path)
+        parts = normalized.split("/")
+        name = "/".join(parts[2:]).casefold()
+        if not safe or parts[0] != "plugins" or name not in _DECLARATION_NAMES:
+            unsafe.append(f"declaration file not recognized: {_show(path)}")
+            continue
+        root = "/".join(parts[:2])
+        try:
+            if not isinstance(text, str):
+                raise TypeError("no text")
+            data = json.loads(text)
+            if not isinstance(data, dict):
+                raise ValueError("not an object")
+            plugin_json = name == _PLUGIN_JSON
+            scope = [data.get(k) for k in _EXECUTABLE_KEYS] if plugin_json else data
+            strings = _strings(scope)
+        except (TypeError, ValueError, RecursionError):
+            unsafe.append(f"declaration unreadable: {_show(path)}")
+            continue
+        for string in strings:
+            refs = [m.group(1) for m in _PLUGIN_ROOT_REF.finditer(string)]
+            if plugin_json and string.startswith("./"):
+                refs.append(string)
+            for ref in refs:
+                declared = _under_root(root, ref)
+                if declared is None or not normalize_path(declared)[1]:
+                    unsafe.append(f"{_show(path)} declares {_show(ref)}")
+                else:
+                    found.append(declared)
+    return tuple(dict.fromkeys(found))
+
+
 _SCRIPT_SUFFIXES = (".ps1", ".cjs")
 _EXECUTABLE_MODE = "100755"
 
@@ -649,7 +741,8 @@ def _high_path_reasons(
         if extended
         else ()
     )
-    floor = (*HIGH_FLOOR, *added) if on else ()
+    declared = _declared_paths(inp.declarations, unsafe) if on else ()
+    floor = (*HIGH_FLOOR, *added, *declared) if on else ()
     scopes = _readable_globs(inp.floor_script_scopes, unsafe) if extended else ()
     reasons = []
     if unsafe:
