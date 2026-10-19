@@ -51,7 +51,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
-    goal: "", intro: "", annotations: [], uploads: [], reports: [], passes: {}, myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
+    goal: "", intro: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
@@ -248,7 +248,9 @@
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
-    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, asked: !!r.asked, ts: r.ts }));
+    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, asked: !!r.asked, ts: r.ts, adds: r.adds || [] }));
+    // My own problem reports (Your reports): their words, additions and status, never the page context.
+    view.myReports = (s.myReports || []).map(r => ({ id: r.id, text: r.text, image: r.image, status: r.status, ts: r.ts, adds: r.adds || [] }));
     view.files = s.files || {};
     // Passes and their reasons (owner only): qid -> pid -> {reason?, ts}.
     view.passes = s.passes || {};
@@ -563,9 +565,11 @@
     /** Owner: mark a report seen or resolved; either tells the reporter. */
     /** Owner: seen | resolved tell the reporter; ask hands a report to Claude once (a report alone never reaches it). */
     reportAct: (id, action) => act("/api/report/act", { id, action }),
-    /** Owner: one report's picture, as a data: URL. */
-    reportImage: async id => {
-      const r = await fetch(`/api/report/image?${new URLSearchParams({ id })}`, { headers: ident() });
+    /** The reporter: a line, a screenshot (a data: URL) or both added to their own report while it is not fixed. */
+    addToReport: (id, text, image) => act("/api/report/add", { id, ...(text ? { text } : {}), ...(image ? { image } : {}) }),
+    /** Owner: one report's picture, or its Nth addition's, as a data: URL. */
+    reportImage: async (id, add) => {
+      const r = await fetch(`/api/report/image?${new URLSearchParams({ id, ...(add ? { add } : {}) })}`, { headers: ident() });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw { status: r.status, ...j };
       return j.image;

@@ -756,6 +756,16 @@
       E("p", "vf-pop-note", "Take a screenshot first, then add it here. Only the host and Claude see your report."), repShot,
       E("h3", "vf-pop-sub", "Sent with this report"), repSent, repErr);
 
+    // Follow-up item 3: Your reports, the person's own problem reports in this session with where each stands. While one
+    // is not fixed they can add a line or a screenshot to it (the same screenshot path and caps). Only they and the host
+    // see a report.
+    const myRepPop = E("div", "vf-pop vf-reportpop vf-myreps"); myRepPop.setAttribute("role", "dialog"); myRepPop.setAttribute("aria-label", "Your reports"); myRepPop.hidden = true;
+    const myRepList = E("ul", "vf-plist vf-myrep-list"); myRepList.setAttribute("role", "list");
+    const myRepDone = btn("vf-btn vf-btn-ghost", "Done");
+    const myRepRow = E("div", "vf-crow"); myRepRow.append(E("span", "vf-spacer"), myRepDone);
+    myRepPop.append(E("h2", "vf-pop-title", "Your reports"), E("p", "vf-pop-note", "Only you and the host see these."), myRepList, myRepRow);
+    const REP_WORD = { open: "Sent", seen: "Seen by the host", resolved: "Fixed" };
+
     // Wide panels: beside the rail when there is room, over the center pane when not, a bottom sheet on phones.
     function panel(title, label) {
       const pop = E("div", "vf-pop vf-panel"); pop.setAttribute("role", "dialog"); pop.setAttribute("aria-label", label); pop.hidden = true;
@@ -913,11 +923,20 @@
     const orIntro = E("p", "vf-orient-intro"), orHow = E("p", "vf-orient-how");
     orWhy.append(orIntro, orHow);
     orRow.append(orStart, orWhyBtn, orTour);
-    const orHide = ibtn("vf-tbtn vf-icon-btn vf-orient-x", "x", "Hide this introduction");
+    // Follow-up item 6: this is the welcome card, shown once per person on each device until Skip or Start here; Skip
+    // closes it and the tour offer at once. "Show the tour again" in the person's settings brings both back.
+    const orLead = E("p", "vf-orient-lead", "Enter your name to join, then answer this round's questions.");
+    const orHide = btn("vf-btn vf-btn-ghost vf-btn-sm vf-orient-x", "Skip"); orHide.setAttribute("aria-label", "Skip the welcome and the tour");
     const orCatch = catchUpEl(() => { ui.orientHidden = true; });
-    orient.append(orHide, orH, orGoal, orAsk, orCatch, orRow, orWhy);
+    orient.append(orHide, orLead, orH, orGoal, orAsk, orCatch, orRow, orWhy);
     orWhyBtn.onclick = () => { ui.introOpen = !introOpen(); render(); };
-    orHide.onclick = () => { ui.orientHidden = true; render(); qText.focus({ preventScroll: true }); };
+    const WELCOME_SEEN = () => "vf-welcome-seen:" + (Core.me.cid || "anon");
+    const welcomeDone = () => { store.put(WELCOME_SEEN(), true); ui.welcomeAgain = false; ui.orientHidden = true; };
+    orHide.onclick = () => {
+      welcomeDone();
+      if (!pref("tour", "")) setPrefs({ tour: "skipped" });
+      render(); qText.focus({ preventScroll: true });
+    };
     const introOpen = () => !!ui.introOpen;
     const INTRO_SEEN = () => "vf-intro-seen:" + (Core.me.cid || "anon");
 
@@ -942,8 +961,13 @@
     for (const [k, label] of [["ask", "Ask"], ["research", "Research"]]) {
       const b = btn("vf-seg-btn", label); b.onclick = () => { ui.askKind = k; renderAsk(); }; askSeg.append(b); askKinds[k] = b;
     }
+    // Follow-up item 2: a guest asks in one box, and Claude works out the kind of request and says what it did; "Use the
+    // web" sends it as research. The owner keeps the kind picker.
+    const webChip = () => { const b = btn("vf-btn vf-btn-ghost vf-btn-sm vf-toggle vf-webchip", "Use the web"); b.setAttribute("aria-pressed", "false"); return b; };
+    const askWeb = webChip();
+    askWeb.onclick = () => { ui.askWeb = !ui.askWeb; renderAsk(); };
     const askLabel = E("label", "vf-asklabel", "What should Claude find out?");
-    askHead.append(askLabel, askSeg);
+    askHead.append(askLabel, askSeg, askWeb);
     const askTa = E("textarea", "vf-ta"); askTa.rows = 2; askTa.id = "vf-ask-ta"; askLabel.htmlFor = askTa.id; askTa.maxLength = 2000;
     const askRow = E("div", "vf-crow");
     const askCancel = btn("vf-btn vf-btn-ghost", "Cancel");
@@ -1197,8 +1221,14 @@
         .catch(x => { passErr.textContent = `Not passed: ${Core.errorText(x)}`; }).finally(() => { passSave.disabled = false; render(); });
     };
     passUndo.onclick = () => Core.pass(ui.cur, "", false).then(() => flash("Pass taken back.")).catch(fail);
+    // Follow-up item 1: "Go to the next question after I answer" (the autoAdvance pref, off by default). One pick, a
+    // confirm or a scale value with the comment box empty moves on in 2 s unless Stay; never pick-many, rank or text.
+    const ADV = { timer: 0, qid: "" };
+    const advBar = E("p", "vf-advance"); advBar.setAttribute("role", "status"); advBar.hidden = true;
+    const advStay = btn("vf-btn vf-btn-ghost vf-btn-sm vf-advance-stay", "Stay");
+    advBar.append(E("span", null, "Next question in 2 s"), E("span", "vf-advance-sep", "·"), advStay);
     // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
-    scroll.append(orient, qMeta, forBox, qText, refBox, reviewRow, onIt, fmtBox, composer, passBox, ansPane, clSec, discSec);
+    scroll.append(orient, qMeta, forBox, qText, refBox, reviewRow, onIt, fmtBox, advBar, composer, passBox, ansPane, clSec, discSec);
     focusV.append(scroll);
 
     // Compare view
@@ -1477,7 +1507,8 @@
     const helpTour = btn("vf-btn vf-btn-primary vf-btn-sm vf-help-tour", "Show me around");
     const helpIntro = btn("vf-btn vf-btn-ghost vf-btn-sm vf-help-intro", "Why you're here");
     const helpReport = btn("vf-btn vf-btn-ghost vf-btn-sm vf-help-report", "Report a problem");
-    keysPop.append(E("h2", "vf-pop-title", "Help"), E("p", "vf-pop-note", "A one-minute tour of the questions, your answer, other people's answers and the chat."), helpTour, helpIntro, helpReport,
+    const helpMyReps = btn("vf-btn vf-btn-ghost vf-btn-sm vf-help-myreps", "Your reports");
+    keysPop.append(E("h2", "vf-pop-title", "Help"), E("p", "vf-pop-note", "A one-minute tour of the questions, your answer, other people's answers and the chat."), helpTour, helpIntro, helpReport, helpMyReps,
       Core.telemetry.notice("core-rec vf-help-rec"), E("h3", "vf-pop-sub", "Keyboard shortcuts"), keyList, E("p", "vf-pop-note", "They work when you are not typing in a field."));
 
     // Phase 4c: "Why you're here", reopened from the header (or More on a phone) after the first view.
@@ -1725,6 +1756,7 @@
     const msTour = msItem("help", "Show me around"); msTour._d.textContent = "A one-minute tour";
     const msIntro = msItem("doc", "Why you're here");
     const msReport = msItem("alert", "Report a problem"); msReport._d.textContent = "Tell the host something is broken";
+    const msMyReps = msItem("doc", "Your reports"); msMyReps._d.textContent = "What you reported and where it stands";
     const msRecords = msItem("doc", "What this page records");
     moreSheet.append(msHead, msList);
 
@@ -1841,7 +1873,9 @@
     const apAttach = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach a file");
     const apSend = E("button", "vf-btn vf-btn-primary", "Send request"); apSend.type = "submit";
     apRow.append(apAttach, E("span", "vf-spacer"), apSend);
-    apForm.append(apQWrap.w, apLabel, apTa, apSelf, apNote, apRow);
+    const apWeb = webChip();
+    apWeb.onclick = () => { ui.apWeb = !ui.apWeb; render(); };
+    apForm.append(apQWrap.w, apLabel, apTa, apWeb, apSelf, apNote, apRow);
     const apConnect = E("section", "vf-apconnect"); apConnect.setAttribute("aria-labelledby", "vf-apc-h");
     const apcHead = E("h3", "vf-pop-sub", "Connect your Claude"); apcHead.id = "vf-apc-h";
     const apcLinks = E("div", "vf-acts vf-apc-links");
@@ -1880,7 +1914,7 @@
     devicePop.append(E("h2", "vf-pop-title", "Use on another device"), E("p", "vf-pop-note", "Scan this on your phone, or open the link in another browser. You stay the same person there, with your answers and votes."), qrBox, devField, devRow, devWarn);
 
     keysBtn.before(introBtn);
-    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, RQ.pop, confirmPop, tiePop, proposePop, reportPop, askMenu, citePop, msgMenu, askPanel, devicePop,
+    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, RQ.pop, confirmPop, tiePop, proposePop, reportPop, myRepPop, askMenu, citePop, msgMenu, askPanel, devicePop,
       bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
 
     // ---------- actions ----------
@@ -1912,6 +1946,7 @@
     function select(qid, { manual = false } = {}) {
       if (manual && following() && Core.owner() && Core.owner().q !== qid) { setFollow(false); flash(`Stopped following ${disp(Core.owner().name)}.`); }
       if (qid === ui.cur) return;
+      stopAdvance();
       closeSheet();
       if (ui.cur) { ui.drafts[ui.cur] = ta.value; ui.discDrafts.set(ui.cur, discTa.value); markSeen(ui.cur); }
       ui.cur = qid;
@@ -1940,6 +1975,32 @@
       }
       select(ids[(i + d + ids.length) % ids.length], { manual: true });
     }
+    function stopAdvance() { clearTimeout(ADV.timer); ADV.timer = 0; ADV.qid = ""; advBar.hidden = true; }
+    /** After my own single pick on the question in view: with the switch on, the comment box empty and another
+     *  question still open for me, Next in 2 s. */
+    /** Whether moving on from qid is still wanted: the switch on, not following the host, my pick or value still
+     *  held, the comment box empty, and nothing else being written in the pane (Ask Claude, Pass, any text field). */
+    function advanceWanted(qid) {
+      const q = qById(qid), rec = myRec(qid), f = document.activeElement;
+      return !!pref("autoAdvance", false) && !following() && ui.cur === qid && ["choice", "confirm", "prototype", "scale"].includes(q?.format)
+        && (q.format === "scale" ? rec?.value != null : !!rec?.pick) && !ta.value.trim() && !ui.askOpen && !ui.passOpen
+        && !(scroll.contains(f) && f.matches("textarea, input:not([type=radio], [type=checkbox], [type=button], [type=file])"));
+    }
+    /** The next question after qid, in the order and filters Next uses, that is still open for me; "" when none is. */
+    function nextOpen(qid) {
+      const shown = shownQuestions().map(q => q.id), ids = shown.includes(qid) ? shown : [qid, ...shown], i = ids.indexOf(qid);
+      for (let j = 1; j < ids.length; j++) { const id = ids[(i + j) % ids.length]; if (isOpenForMe(id)) return id; }
+      return "";
+    }
+    function armAdvance(qid) {
+      if (!advanceWanted(qid) || !nextOpen(qid)) return;
+      stopAdvance();
+      ADV.qid = qid; advBar.hidden = false;
+      ADV.timer = setTimeout(() => { const to = advanceWanted(ADV.qid) && nextOpen(ADV.qid); stopAdvance(); if (to) select(to, { manual: true }); }, 2000);
+    }
+    // Writing anywhere in the question pane stays on the question.
+    on(scroll, "input", e => { if (e.target.matches?.("textarea, input:not([type=radio], [type=checkbox])")) stopAdvance(); });
+    advStay.onclick = () => { stopAdvance(); (ta.disabled ? qText : ta).focus({ preventScroll: true }); };
     function focusQuestion(qid) { select(qid, { manual: true }); setMode("focus"); if (phone.matches) setTab("answer"); }
     function setFollow(v) { setPrefs({ follow: v }); follow.setAttribute("aria-pressed", String(v)); render(); }
     const sameCites = qid => JSON.stringify(ui.cites[qid] || []) === JSON.stringify(myRec(qid)?.cites || []);
@@ -2001,7 +2062,7 @@
     function openPop(pop, anchor) {
       closePop(); hideCard();
       ui.pop = pop; pop.hidden = false; pop._return = null;
-      if (phone.matches && (pop === proposePop || pop === reportPop)) pop.removeAttribute("style"); // a sheet: the stylesheet places it
+      if (phone.matches && (pop === proposePop || pop === reportPop || pop === myRepPop)) pop.removeAttribute("style"); // a sheet: the stylesheet places it
       else placeNear(pop, anchor);
       anchor.setAttribute("aria-expanded", "true"); pop._anchor = anchor;
       render();
@@ -2322,10 +2383,10 @@
     apForm.onsubmit = e => {
       e.preventDefault();
       const text = apTa.value.trim(); if (!text) return apTa.focus();
-      const mode = ui.askMode, qid = apQWrap.s.value || ui.cur || Core.GENERAL, own = selfAsk();
+      const mode = guestKind(ui.askMode, ui.apWeb), qid = apQWrap.s.value || ui.cur || Core.GENERAL, own = selfAsk();
       apSend.disabled = true;
       Core.request(qid, mode, text, attExtra(apSlot), own ? "self" : "host").then(() => {
-        apTa.value = ""; grow(apTa); apSlot.clear();
+        apTa.value = ""; grow(apTa); apSlot.clear(); ui.apWeb = false;
         flash(own ? "Added to your requests. Run it on your own Claude from there."
           : Core.me.isOwner ? `Sent to Claude. The answer shows ${qid === Core.GENERAL ? genWhere() : "on the question"} and in your Inbox.` : "Sent to the host. It runs once they press Run.");
         render();
@@ -2337,6 +2398,8 @@
     // A guest's `runner: self` request runs on their own Claude: a watcher in Claude Code or Desktop's Code tab, or one
     // prompt copied (or opened in Desktop chat) with the answer pasted back. Prompts and links come from connect.js.
     const askGeneral = () => (apQWrap.s.value || ui.askQ) === Core.GENERAL;
+    /** The kind a request goes as: the owner's pick, else ask, or research with "Use the web" on. */
+    const guestKind = (picked, web) => (Core.me.isOwner ? picked : web ? "research" : "ask");
     const selfAsk = () => !Core.me.isOwner && !!ui.askSelf && !askGeneral(); // a general ask runs on the host's Claude only
     const sessionBase = () => location.origin; // the address this guest reaches the session at; their Claude runs beside them
     async function copyOut(text, done, title, from) {
@@ -2709,6 +2772,9 @@
     helpIntro.onclick = () => { closePop(); openIntro(keysBtn.offsetParent ? keysBtn : gear.offsetParent ? gear : top); };
     helpReport.onclick = () => openReport(keysBtn);
     msReport.onclick = () => openReport(tabBtns.more);
+    helpMyReps.onclick = () => openPop(myRepPop, keysBtn);
+    msMyReps.onclick = () => openPop(myRepPop, tabBtns.more);
+    myRepDone.onclick = () => { const a = myRepPop._anchor; closePop(); if (a?.isConnected && a.offsetParent) a.focus({ preventScroll: true }); };
     msRecords.onclick = () => { closePop(); Core.telemetry.openRecords(); };
     on(hIntroIn, "input", () => { ui.introDirty = hIntroIn.value.trim() !== (Core.state.intro || ""); counter(hIntroCount, hIntroIn, 500); hIntroSave.disabled = !ui.introDirty; });
     hIntroSave.onclick = () => {
@@ -2720,7 +2786,7 @@
     helpTour.onclick = () => startTour(keysBtn.offsetParent ? keysBtn : null);
     orTour.onclick = () => startTour(orTour);
     orStart.onclick = () => {
-      const id = orStart._q; ui.orientHidden = true;
+      const id = orStart._q; welcomeDone();
       if (id) focusQuestion(id); else render();
       requestAnimationFrame(() => {
         const q = qById(ui.cur), sel = { choice: ".vf-optchoose:not(:disabled)", confirm: ".vf-pickbtn:not(:disabled)", multi: ".vf-check-box:not(:disabled)",
@@ -3476,9 +3542,10 @@
       if (!q || readOnly(q) || Core.lockOf(qid) || rec?.pick === optId) return;
       if (optionsOf(q).find(x => x.id === optId)?.other) return openOther(qid);
       const label = optionsOf(q).find(x => x.id === optId)?.label || "it";
-      Core.pick(qid, optId, keptComment(q, rec)).then(() => announce(rec?.pick ? `Your choice moved to ${label}.` : `You picked ${label}.`)).catch(fail);
+      Core.pick(qid, optId, keptComment(q, rec)).then(() => { announce(rec?.pick ? `Your choice moved to ${label}.` : `You picked ${label}.`); armAdvance(qid); }).catch(fail);
     };
     const clearPick = (qid = ui.cur) => {
+      stopAdvance();
       const rec = myRec(qid), q = qById(qid);
       if (!q || !rec?.pick || readOnly(q) || Core.lockOf(qid)) return;
       Core.pick(qid, "", keptComment(q, rec)).then(() => announce("Your choice is cleared.")).catch(fail);
@@ -3506,7 +3573,7 @@
     composer.onsubmit = e => { e.preventDefault(); submit(); };
     clearBtn.onclick = () => { ta.value = ""; ui.dirty = true; ui.drafts[ui.cur] = ""; Core.setTyping(); grow(ta); render(); ta.focus(); };
     on(ta, "input", () => {
-      ui.dirty = true; ui.drafts[ui.cur] = ta.value; Core.setTyping(); renderComposer();
+      ui.dirty = true; ui.drafts[ui.cur] = ta.value; Core.setTyping(); renderComposer(); stopAdvance(); // writing a comment stays
       // in the phone sheet, writing at the end keeps the last line (the caret) in view
       if (composer.classList.contains("vf-composer-sheet") && ta.selectionEnd === ta.value.length) ta.scrollTop = ta.scrollHeight;
     });
@@ -3587,8 +3654,8 @@
       e.preventDefault();
       const text = askTa.value.trim(); if (!text) return askTa.focus();
       askSend.disabled = true;
-      Core.request(ui.cur, ui.askKind, text, attExtra(askSlot)).then(() => {
-        askTa.value = ""; askSlot.clear(); ui.askOpen = false; renderAsk();
+      Core.request(ui.cur, guestKind(ui.askKind, ui.askWeb), text, attExtra(askSlot)).then(() => {
+        askTa.value = ""; askSlot.clear(); ui.askOpen = false; ui.askWeb = false; renderAsk();
         flash(Core.me.isOwner ? "Sent to Claude. The answer shows on the question and in your Inbox." : "Sent to the host. It runs once they press Run.");
       }).catch(fail).finally(() => { askSend.disabled = false; });
     };
@@ -3676,6 +3743,61 @@
       Core.report(text, REP.ctx, REP.image).then(() => { repTa.value = ""; repCount.textContent = `0 / ${repTa.maxLength}`; dropShot(); repBack(); flash("Report sent. The host and Claude will look at it."); })
         .catch(x => { repErr.textContent = `Not sent: ${x?.message || Core.errorText(x)}`; }).finally(() => { repSend.disabled = false; });
     };
+    function makeMyRep() {
+      const li = E("li", "vf-pitem vf-myrep");
+      const head = E("div", "vf-rhead2"), status = E("span", "vf-chip vf-myrep-status"), when = E("span", "vf-meta");
+      head.append(status, E("span", "vf-spacer"), when);
+      const text = E("p", "vf-myrep-text"), adds = E("ul", "vf-myrep-adds"); adds.setAttribute("role", "list");
+      const form = E("form", "vf-myrep-add"), ta = E("textarea", "vf-ta"), file = E("input", "vf-rep-file");
+      ta.rows = 2; ta.maxLength = 2000; ta.setAttribute("aria-label", "Add a line to this report"); ta.placeholder = "Add a line";
+      file.type = "file"; file.accept = "image/png,image/jpeg,image/webp"; file.id = "vf-myrep-file-" + Math.random().toString(36).slice(2, 10);
+      const pick = E("label", "vf-btn vf-btn-ghost vf-btn-sm vf-rep-add", "Add a screenshot"); pick.htmlFor = file.id;
+      const shot = E("img", "vf-rep-shot"); shot.alt = "Your screenshot"; shot.hidden = true;
+      const send = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Add"); send.type = "submit";
+      const err = E("p", "vf-rep-err"); err.setAttribute("role", "alert");
+      const row = E("div", "vf-crow"); row.append(pick, E("span", "vf-spacer"), send);
+      form.append(ta, file, row, shot, err);
+      li.append(head, text, adds, form);
+      li._k = { status, when, text, adds, form, ta, file, pick, shot, send, err, image: "" };
+      const k = li._k;
+      on(file, "change", async () => {
+        const f = file.files?.[0]; if (!f) return;
+        err.textContent = "";
+        try {
+          if (!["image/png", "image/jpeg", "image/webp"].includes(f.type)) throw new Error("type");
+          const sh = await shrinkShot(f);
+          k.image = sh.url; shot.src = sh.url; shot.hidden = false; pick.textContent = "Change screenshot";
+        } catch { k.image = ""; file.value = ""; shot.hidden = true; err.textContent = "That picture could not be added. Use a PNG, JPEG or WebP screenshot."; }
+      });
+      form.onsubmit = e => {
+        e.preventDefault();
+        const t = ta.value.trim();
+        if (!t && !k.image) return ta.focus();
+        send.disabled = true; err.textContent = "";
+        Core.addToReport(li._r.id, t, k.image).then(() => {
+          ta.value = ""; k.image = ""; file.value = ""; shot.hidden = true; shot.removeAttribute("src"); pick.textContent = "Add a screenshot";
+          flash("Added to your report. The host sees it.");
+        }).catch(x => { err.textContent = `Not added: ${x?.message || Core.errorText(x)}`; }).finally(() => { send.disabled = false; });
+      };
+      return li;
+    }
+    function fillMyRep(li, r) {
+      const k = li._k;
+      li._r = r; li.dataset.status = r.status;
+      k.status.textContent = REP_WORD[r.status] || r.status;
+      k.when.textContent = ago(r.ts) === "now" ? "just now" : `${ago(r.ts)} ago`;
+      k.text.textContent = r.text;
+      const lines = r.adds.map(a => E("li", null, [a.text, a.image ? "Screenshot added" : ""].filter(Boolean).join(" · ")));
+      if (k.adds.childElementCount !== lines.length || [...k.adds.children].some((c, i) => c.textContent !== lines[i].textContent)) k.adds.replaceChildren(...lines);
+      k.adds.hidden = !lines.length;
+      k.form.hidden = r.status === "resolved";
+    }
+    function renderMyReps(S) {
+      const mine = (S.myReports || []).slice().sort((a, b) => b.ts - a.ts);
+      msMyReps.hidden = helpMyReps.hidden = !mine.length;
+      if (myRepPop.hidden) return;
+      sync(myRepList, mine, r => r.id, makeMyRep, fillMyRep);
+    }
     newGuestBtn.onclick = guarded({ title: "Make a new guest link?", body: "The guest link you shared stops working: nobody new can join with it. People already here stay. You share the new link again.", ok: "Make new guest link" },
       () => Core.newGuestLink().then(() => { openPop(sharePop, shareBtn.offsetParent ? shareBtn : gear); flash("New guest link made. Share it again."); }).catch(fail));
     newOwnerBtn.onclick = guarded({ title: "Make a new owner link?", body: "Your current owner link stops working everywhere, including other devices and tabs that use it. This page reloads with the new one: save it, or you lose host access.", ok: "Make new owner link" },
@@ -3812,12 +3934,24 @@
     }
     const COLOR_NAMES = ["Pink", "Blue", "Green", "Amber", "Violet", "Red", "Cyan", "Orange", "Lime", "Magenta"];
     const nameOf = (pid, fallback = "") => Core.state.people?.[pid]?.name || Core.state.presence.find(p => p.cid === pid)?.name || fallback || "Someone";
+    /** "Show the tour again": the welcome card and the tour offer come back, on this device and in my prefs. */
+    function showWelcomeAgain() {
+      store.put(WELCOME_SEEN(), false);
+      setPrefs({ tour: null });
+      hideCard();
+      if (Core.me.isOwner) { render(); return startTour(null); } // the owner has no welcome card: the tour itself
+      ui.orientHidden = false; ui.welcomeAgain = true;
+      setMode("focus"); if (phone.matches) setTab("answer");
+      render();
+      scroll.scrollTop = 0;
+      orStart.focus({ preventScroll: true });
+    }
     function fillPcard() {
       const c = ui.pcard; if (!c) return;
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
       const q = here?.q && qById(here.q);
-      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -3857,6 +3991,13 @@
           cseg.append(b);
         }
         parts.push(E("h3", "vf-pop-sub", "Claude's take"), cseg);
+        const advOn = !!prefs().autoAdvance, adv = k(btn("vf-sw-row vf-advsw"), "adv");
+        adv.setAttribute("role", "switch"); adv.setAttribute("aria-checked", String(advOn));
+        adv.append(E("span", "vf-sw-txt vf-sw-label", "Go to the next question after I answer"), E("span", "vf-switch"));
+        adv.onclick = () => { setPrefs({ autoAdvance: !advOn }); if (advOn) stopAdvance(); fillPcard(); };
+        const again = k(lbtn("vf-menu-item vf-menu-plain vf-tour-again", "help", "Show the tour again"), "tourAgain");
+        again.onclick = showWelcomeAgain;
+        parts.push(adv, again);
         if (c.pinned) {
           // Away by hand (the snooze): others see me as Away until my next key, click or touch.
           const awayB = k(lbtn("vf-menu-item vf-menu-plain vf-away-btn", "moon", Core.isAway() ? "You show as Away. Any key or tap ends it" : "Show me as Away"), "away");
@@ -4338,11 +4479,14 @@
       askForm.hidden = !ui.askOpen;
       askBtn.setAttribute("aria-expanded", String(ui.askOpen));
       for (const [k, b] of Object.entries(askKinds)) b.setAttribute("aria-pressed", String(k === ui.askKind));
-      askTa.placeholder = ui.askKind === "ask" ? "A question for Claude about this, answered on the question" : "What to look up, compare or verify";
-      askLabel.textContent = ui.askKind === "ask" ? "What should Claude answer?" : "What should Claude find out?";
+      const kind = guestKind(ui.askKind, ui.askWeb);
+      askSeg.hidden = !Core.me.isOwner; askWeb.hidden = Core.me.isOwner;
+      askWeb.setAttribute("aria-pressed", String(!!ui.askWeb));
+      askTa.placeholder = kind === "ask" ? "A question for Claude about this, answered on the question" : "What to look up, compare or verify";
+      askLabel.textContent = kind === "ask" ? "What should Claude answer?" : "What should Claude find out?";
       const askNote = askForm.querySelector(".vf-asknote");
       if (askNote) askNote.textContent = Core.me.isOwner ? "Claude runs it now; the result lands on this question for everyone, with your request text."
-        : "The host runs it; the result lands on this question. Your request text shows on the result for everyone.";
+        : `The host runs it; Claude works out how to answer${ui.askWeb ? ", looking on the web," : ""} and says what it did. The result lands on this question, with your request text, for everyone.`;
       if (ui.askOpen) grow(askTa);
     }
     function reviewText(q) { return q.needsReview ? `Needs review: ${q.needsReview.because} changed` : ""; }
@@ -5137,7 +5281,7 @@
         const rec = myRec(qid);
         delete ui.fdraft[qid];
         if (rec?.value === n) return render();
-        Core.pickWith(qid, { value: n }, { comment: commentOf(rec) }).then(() => announce(`You chose ${n}.`)).catch(fail).finally(render);
+        Core.pickWith(qid, { value: n }, { comment: commentOf(rec) }).then(() => { announce(`You chose ${n}.`); armAdvance(qid); }).catch(fail).finally(render);
       };
       if (now) save(); else FMT.timer = setTimeout(save, 450);
     }
@@ -5309,10 +5453,12 @@
 
     // ---------- Ask Claude panel ----------
     function renderAskPanel(S) {
-      const mode = !v8() && ui.askMode === "explore" ? "ask" : ui.askMode;
-      ui.askMode = mode;
+      ui.askMode = !v8() && ui.askMode === "explore" ? "ask" : ui.askMode;
+      const mode = guestKind(ui.askMode, ui.apWeb);
       for (const [k, b] of Object.entries(apModeBtns)) { b.setAttribute("aria-selected", String(k === mode)); b.setAttribute("aria-pressed", String(k === mode)); }
       apModeBtns.explore.hidden = !v8();
+      apModes.hidden = !Core.me.isOwner; apWeb.hidden = Core.me.isOwner;
+      apWeb.setAttribute("aria-pressed", String(!!ui.apWeb));
       const qs = S.questions;
       const want = ui.askQ === Core.GENERAL || qs.some(q => q.id === ui.askQ) ? ui.askQ : ui.cur || Core.GENERAL;
       const qk = qs.map(q => q.id + q.text).join("|");
@@ -5329,9 +5475,9 @@
       apSelf.hidden = Core.me.isOwner || general;
       apSelf.setAttribute("aria-checked", String(!!ui.askSelf));
       apNote.textContent = own ? "Only you see this request. Your own Claude runs it; the host reviews its answer before anyone else sees it."
-        : general ? (Core.me.isOwner ? `Claude runs it now and the answer shows ${genWhere()} for everyone.` : `The host runs it; once they share the answer, it shows ${genWhere()} for everyone.`)
+        : general ? (Core.me.isOwner ? `Claude runs it now and the answer shows ${genWhere()} for everyone.` : `The host runs it; Claude works out how to answer and says what it did. Once the host shares the answer, it shows ${genWhere()} for everyone.`)
         : Core.me.isOwner ? "Claude runs it now and the answer shows on the question's Claude thread for everyone."
-        : "The host runs it; the result lands on the question's Claude thread. Your request text shows there for everyone.";
+        : "The host runs it; Claude works out how to answer and says what it did. The result lands on the question's Claude thread, with your request text, for everyone.";
       const selfOpen = (S.myRequests || []).some(r => r.runner === "self" && (r.status === "pending" || r.status === "running"));
       apConnect.hidden = Core.me.isOwner || !(own || selfOpen);
       if (!apConnect.hidden) {
@@ -5418,8 +5564,9 @@
         const ctx = E("ul", "vf-rep-sent"), show = btn("vf-btn vf-btn-ghost vf-btn-sm", "Show screenshot"), img = E("img", "vf-rep-shot");
         img.alt = "The reporter's screenshot"; img.hidden = true;
         show.onclick = () => { show.disabled = true; Core.reportImage(li._it.f.id).then(src => { img.src = src; img.hidden = false; show.hidden = true; }).catch(e => { show.disabled = false; fail(e); }); };
-        extra.append(ctx, show, img);
-        li._k.rep = { ctx, show };
+        const adds = E("ul", "vf-myrep-adds vf-rep-adds"); adds.setAttribute("aria-label", "Added by the reporter");
+        extra.append(ctx, show, img, adds);
+        li._k.rep = { ctx, show, adds };
       }
       return li;
     }
@@ -5453,6 +5600,21 @@
           `${c.device}, ${BROWSER_NAME[c.browser] || "other browser"}, ${c.viewport.w} × ${c.viewport.h}${v ? ` (visible ${Math.round(v.w)} × ${Math.round(v.h)} at ${v.scale}×)` : ""}`,
           ...(c.build ? [`Page version ${c.build}`] : []), ...c.errors.map(e => `Error: ${e}`)].map(t => E("li", null, t)));
         k.rep.show.hidden = !it.f.image || !!k.rep.show.nextSibling.getAttribute("src");
+        // What the reporter added since: each line, and a screenshot that loads only when the owner asks.
+        const sig = JSON.stringify(it.f.adds);
+        if (k.rep.adds._sig !== sig) {
+          k.rep.adds._sig = sig;
+          k.rep.adds.replaceChildren(...it.f.adds.map((a, i) => {
+            const row = E("li", null, `Added: ${a.text || "a screenshot"}`);
+            if (a.image) {
+              const b = btn("vf-lbtn", "Show screenshot"), im = E("img", "vf-rep-shot"); im.alt = "The reporter's added screenshot"; im.hidden = true;
+              b.onclick = () => { b.disabled = true; Core.reportImage(li._it.f.id, i + 1).then(src => { im.src = src; im.hidden = false; b.hidden = true; }).catch(e => { b.disabled = false; fail(e); }); };
+              row.append(" ", b, im);
+            }
+            return row;
+          }));
+        }
+        k.rep.adds.hidden = !it.f.adds.length;
       }
       fillAtts(k.att, (it.r || it.i || it.x)?.att, `${QT[it.t]} from ${disp(person[1] || "someone")}`);
       const sig = [it.t, it.r?.status, it.u?.status, it.f?.status, it.f?.asked, owner, Core.canModerate()].join("|");
@@ -6002,7 +6164,8 @@
       railEmpty.hidden = qs.length > 0;
       if (!qs.length) renderEmpty(S);
       // Triage 3: until a guest answers anything, the Focus view opens with the goal, the host's ask and where to start.
-      orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden || S.questions.some(x => ["answered", "took"].includes(myState(x.id)));
+      orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden
+        || (!ui.welcomeAgain && (!!store.get(WELCOME_SEEN(), false) || S.questions.some(x => ["answered", "took"].includes(myState(x.id)))));
       introBtn.hidden = !S.intro && !me.isOwner; msIntro.hidden = helpIntro.hidden = introBtn.hidden;
       if (!orient.hidden) {
         const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];
@@ -6025,6 +6188,7 @@
         orient.classList.toggle("vf-orient-open", !orWhy.hidden);
         orTour.hidden = !!pref("tour", "") || (phone.matches && !introOpen());
         if (phone.matches && !orTour.hidden) orWhy.append(orTour); else if (orTour.parentNode !== orRow) orRow.append(orTour);
+        if (phone.matches) { if (orHide.parentNode !== orRow) orRow.append(orHide); } else if (orHide.parentNode !== orient) orient.prepend(orHide);
       }
       if (q) {
         renderRefs(q);
@@ -6418,6 +6582,7 @@
       tabs.style.setProperty("--tabs-n", "5");
       renderBell(S, mod);
       renderMore(S, mod);
+      renderMyReps(S);
 
       // a color someone just chose: repaint their avatars wherever they are
       for (const a of root.querySelectorAll(".core-avatar[data-who]")) { const c = Core.colorFor(a.dataset.who); if (a.style.getPropertyValue("--av") !== c) a.style.setProperty("--av", c); }

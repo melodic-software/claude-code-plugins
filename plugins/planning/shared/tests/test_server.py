@@ -1811,6 +1811,23 @@ class TestReports(ServerCase):
         self.assertEqual([n["kind"] for n in self.get("/api/state", self.ann)[2]["me"]["notifications"]][-1], "report")
 
 
+    def test_a_reporter_adds_a_screenshot_to_their_report_which_only_the_owner_reads_back(self):
+        self.report(self.ann)
+        bo_pid, bo = self.join("Bo")
+        code, _, out = self.post("/api/report/add", {"id": "F1", "text": "me too"}, bo)
+        self.assertEqual((code, out["error"]), (404, "not-found"))
+        code, _, out = self.post("/api/report/add", {"id": "F1", "text": "On Q2 as well", "image": self.data_url("png", PNG)}, self.ann)
+        self.assertEqual((code, out["adds"]), (200, 1), out)
+        mine = self.get("/api/state?since=0", self.ann)[2]["myReports"]
+        self.assertEqual([(r["id"], r["status"], [(a["text"], a["image"]) for a in r["adds"]]) for r in mine], [("F1", "open", [("On Q2 as well", True)])])
+        self.assertEqual(self.get("/api/state?since=0", bo)[2]["myReports"], [])
+        code, _, out = self.get("/api/report/image?id=F1&add=1", self.ann)
+        self.assertEqual((code, out["error"]), (403, "owner-only"))
+        code, _, out = self.get("/api/report/image?id=F1&add=1", self.owner)
+        self.assertEqual((code, out["image"]), (200, self.data_url("png", PNG)))
+        code, _, out = self.get("/api/report/image?id=F1&add=%C2%B2", self.owner)  # "²", a Unicode digit
+        self.assertEqual((code, out["error"]), (400, "bad-field"))
+
 class TestUploads(ServerCase):
     """Phase 9 routes: /api/upload/offer, /api/upload/act, /api/upload/chunk. Expected values come from the Design's
     Guest listener routes (offer cap 96 KB; chunk raw bytes with X-Upload-Id, X-Chunk-Index, X-Chunk-Total,
