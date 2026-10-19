@@ -30,8 +30,8 @@ their own session are filed as issues (see [Decisions and follow-ups](#decisions
 ## Source and verification
 
 - Pointer for every row: [Prompting Claude Opus 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5)
-  on the Claude platform docs, read 2026-09-23. The usage guide by Addy Osmani, published
-  2026-09-22: (correlate with `https://claude.dev/blog/getting-the-most-out-of-opus-5-5/`).
+  on the Claude platform docs, read 2026-09-23. The usage guide is by Addy Osmani, published
+  2026-09-22 (correlate with `https://claude.dev/blog/getting-the-most-out-of-opus-5-5/`).
 - Pointer for model behavior: the Claude Code
   [Model configuration](https://code.claude.com/docs/en/model-config) page, read 2026-09-23 (effort
   defaults, the `opus` alias, `MAX_THINKING_TOKENS`, and
