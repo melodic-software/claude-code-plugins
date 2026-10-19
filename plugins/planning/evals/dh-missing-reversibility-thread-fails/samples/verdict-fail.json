@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "**Gate: FAIL.** design-threads.md has no Lifecycle and reversibility thread.\n",
+      "why": "bold verdict"
+    },
+    {
+      "answer": "The design gate failed: no decision carries a one-way or two-way door call.\n",
+      "why": "prose, gate failed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "**Gate: PASS.** Every thread is resolved with a recorded rationale.\n",
+      "why": "wrong verdict: the missing thread went unnoticed"
+    },
+    {
+      "answer": "The gate would FAIL if a required thread were missing; here it passes.\n",
+      "why": "conditional, not a verdict"
+    },
+    {
+      "answer": "No FAIL: reversibility is advisory, so I'll hand off.\n",
+      "why": "negated"
+    }
+  ]
+}
