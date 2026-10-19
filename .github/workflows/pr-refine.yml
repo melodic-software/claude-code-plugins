@@ -41,6 +41,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-refine
       activity: fix-docs
       pr-number: ${{ inputs.pr-number }}

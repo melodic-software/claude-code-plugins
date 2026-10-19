@@ -118,6 +118,7 @@ jobs:
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
       lane: work-resolve-issue
+      role: issue-lane
       activity: resolve-issue
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
@@ -125,7 +126,7 @@ jobs:
       timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
     secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
 
   # One `pipeline/<activity>` commit status per lane step on the lane branch's
   # head (post-statuses.mjs). No step is skipped on them; a failing one holds
@@ -323,6 +324,7 @@ jobs:
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
       lane: work-resolve-issue
+      role: issue-lane
       activity: report-outcome
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
