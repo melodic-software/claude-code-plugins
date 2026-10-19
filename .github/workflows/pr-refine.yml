@@ -5,9 +5,11 @@ name: pr-refine
 # exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
 
+# No synchronize: fix-docs runs once when a PR opens ready or turns ready, not
+# after every author push. A later docs change waits for a reopen or a dispatch.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       pr-number:

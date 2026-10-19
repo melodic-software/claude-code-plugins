@@ -49,6 +49,12 @@
 # interleave and the per-suite markers that CI log tooling reads survive. The
 # block is printed the moment its suite finishes, so progress stays visible.
 #
+# ADVISORY SUITES. With PLUGIN_TEST_ADVISORY=1 a failing suite named in
+# scripts/run-plugin-tests-advisory.txt prints a ::warning:: and its FAIL block
+# but does not fail the run. CI sets the variable only for runs on main, so a
+# pull request or merge group still fails on it. Without the variable the list
+# changes nothing. Its entries get the serial list's stale guard.
+#
 # --list prints the discovered corpus, one repo-relative path per line, and
 # runs nothing. scripts/selection-audit.sh reads it to learn which suites the
 # full-corpus fallback runs.
@@ -90,6 +96,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 runner="$script_dir/${BASH_SOURCE[0]##*/}"
 SERIAL_LIST="${PLUGIN_TEST_SERIAL_LIST:-$script_dir/run-plugin-tests-serial.txt}"
 SECONDS_LIST="${PLUGIN_TEST_SECONDS_LIST:-$script_dir/suite-seconds.txt}"
+ADVISORY_LIST="${PLUGIN_TEST_ADVISORY_LIST:-$script_dir/run-plugin-tests-advisory.txt}"
 
 usage() {
   echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE] | --list [--root DIR]" >&2
@@ -219,31 +226,35 @@ if ((list)); then
   exit 0
 fi
 
-# The serial allowlist: one repo-relative suite path per line, `#` comments and
-# blank lines ignored. Read before anything runs so a stale entry fails the run
-# up front rather than after minutes of suites.
-serial_entries=()
-if [[ -f "$SERIAL_LIST" ]]; then
+declare -A discovered=()
+for t in "${tests[@]}"; do
+  discovered["$t"]=1
+done
+# read_suite_list <file> <assoc-name>: the serial and advisory lists, one
+# repo-relative suite path per line, `#` comments and blank lines ignored. Read
+# before anything runs so a stale entry fails the run up front rather than
+# after minutes of suites.
+read_suite_list() {
+  local file="$1" line
+  local -n into="$2"
+  [[ -f "$file" ]] || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%%#*}"
     line="${line#"${line%%[![:space:]]*}"}"
     line="${line%"${line##*[![:space:]]}"}"
     [[ -n "$line" ]] || continue
-    serial_entries+=("$line")
-  done <"$SERIAL_LIST"
-fi
-declare -A discovered=()
-for t in "${tests[@]}"; do
-  discovered["$t"]=1
-done
-declare -A is_serial=()
-for s in ${serial_entries[@]+"${serial_entries[@]}"}; do
-  if [[ -z "${discovered[$s]+x}" ]]; then
-    echo "error: $SERIAL_LIST names '$s', which matches no discovered suite; remove the stale entry" >&2
-    exit 2
-  fi
-  is_serial["$s"]=1
-done
+    if [[ -z "${discovered[$line]+x}" ]]; then
+      echo "error: $file names '$line', which matches no discovered suite; remove the stale entry" >&2
+      exit 2
+    fi
+    # shellcheck disable=SC2034 # a nameref; the caller's array is what it writes.
+    into["$line"]=1
+  done <"$file"
+}
+declare -A is_serial=() is_advisory=()
+read_suite_list "$SERIAL_LIST" is_serial
+read_suite_list "$ADVISORY_LIST" is_advisory
+[[ "${PLUGIN_TEST_ADVISORY:-}" == 1 ]] || is_advisory=()
 # The supplied selection replaces the discovered corpus HERE: after the stale
 # guard, so the allowlist is still matched against the full discovery, and
 # before the shard, so --suites-from and --shard compose the way --shard alone
@@ -324,6 +335,7 @@ if [[ ${#parallel_suites[@]} -gt 0 ]]; then
 fi
 
 failed=0
+advisory_failed=0
 total_optional_skips=0
 total_discriminating_skips=0
 skipped_suites=()
@@ -337,7 +349,12 @@ for i in "${!tests[@]}"; do
     continue
   fi
   rc="$(<"$log.rc")"
-  ((rc == 0)) || failed=1
+  if ((rc != 0)) && [[ -n "${is_advisory[$t]+x}" ]]; then
+    echo "::warning::$t failed (exit $rc) but is advisory on this run (PLUGIN_TEST_ADVISORY=1, scripts/run-plugin-tests-advisory.txt)"
+    advisory_failed=$((advisory_failed + 1))
+  elif ((rc != 0)); then
+    failed=1
+  fi
   opt_skips="$(grep -c '^SKIP:' "$log.out" 2>/dev/null || true)"
   disc_skips="$(grep -c '^DISCRIMINATING SKIP:' "$log.out" 2>/dev/null || true)"
   total_optional_skips=$((total_optional_skips + opt_skips))
@@ -380,7 +397,9 @@ if [[ $failed -ne 0 ]]; then
   echo "One or more plugin tests failed." >&2
   exit 1
 fi
-if ((total_optional_skips > 0)); then
+if ((advisory_failed > 0)); then
+  echo "All required plugin tests passed; ${advisory_failed} advisory suite(s) FAILED (named above)."
+elif ((total_optional_skips > 0)); then
   echo "All executed plugin tests passed; ${total_optional_skips} case(s) skipped (named above)."
 else
   echo "All plugin tests passed."
