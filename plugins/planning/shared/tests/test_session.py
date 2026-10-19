@@ -2824,7 +2824,7 @@ class TestSessionControls(SessionCase):
         self.assertEqual(self.act("set_prefs", HOST, {"set": {"popups": ["join", "share"]}})["prefs"], {"popups": ["join", "share"]})
         self.assertEqual(self.s.snapshot(self.ann)["me"]["prefs"], {})
         self.act("set_prefs", HOST, {"set": {"popups": []}})  # every kind off: the Inbox only
-        for bad in ("join", ["mention"], ["join"] * 7, ["join", "join"]):
+        for bad in ("join", ["mention"], ["join"] * 7, ["join", "join"], [["join"]], [{}], [1]):
             self.refused("bad-field", "set_prefs", HOST, {"set": {"popups": bad}})
 
     def test_title_is_1_to_80_and_goal_up_to_200(self):

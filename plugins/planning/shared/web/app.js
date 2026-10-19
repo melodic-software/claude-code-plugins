@@ -2626,6 +2626,7 @@
     function openBell(anchor) {
       if (ui.pop === bellPop) { closePop(); anchor?.focus?.({ preventScroll: true }); return; }
       closePop(); hideCard();
+      if (ui.chatOpen) setChat(false); // the page stands in for the session, chat included: a hidden chat must not hold Tab
       ui.muteOpen = false;
       ui.reqSeen = new Set((Core.state.requests || []).filter(r => r.status === "pending").map(r => r.id)); // what Run all shown may run
       ui.pop = bellPop; bellPop._return = null; bellPop._anchor = anchor; bellPop.hidden = false;
@@ -2657,6 +2658,8 @@
     const POPUP_KINDS = [["join", "Someone asks to join"], ["run", "A request waits for Run"], ["report", "Someone reports a problem"],
       ["share", "An answer waits for Share"], ["merge", "Someone asks to be joined with an earlier name"], ["fail", "Claude could not answer a request"]];
     const urgent = () => { const v = pref("popups", null); return Array.isArray(v) ? v : HOST_URGENT; };
+    /** What may pop up: a waiting item of a kind switched on, never the host's own report, and a failure only until opened. */
+    const alertable = i => i.group === "waiting" && urgent().includes(i.kind) && !isMe(i.byCid) && (i.kind !== "fail" || i.unread);
     for (const [k, label] of POPUP_KINDS) {
       const b = btn("vf-sw-row"); b.setAttribute("role", "switch"); b.dataset.k = k;
       b.append(E("span", "vf-sw-txt vf-sw-label", label), E("span", "vf-switch"));
@@ -3883,7 +3886,7 @@
         for (const u of S.uploads || []) if (u.status === "offered" && !isMe(u.cid)) note("uo:" + u.id, "seen", `${disp(u.by)} offered a file: ${u.file}.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); }, isNew: true });
         // What urgently waits on me pops up once when it arrives, those arriving together as one.
         const fresh = [];
-        for (const i of S.inbox || []) if (i.group === "waiting" && !(("iw:" + i.key) in seen) && urgent().includes(i.kind) && !isMe(i.byCid)) { seen["iw:" + i.key] = "seen"; if (!first) fresh.push(i.key); }
+        for (const i of S.inbox || []) if (alertable(i) && !(("iw:" + i.key) in seen)) { seen["iw:" + i.key] = "seen"; if (!first) fresh.push(i.key); }
         const waits = new Set((S.inbox || []).filter(i => i.group === "waiting").map(i => "iw:" + i.key));
         for (const k of Object.keys(seen)) if (k.startsWith("iw:") && !waits.has(k)) delete seen[k]; // one that comes back pops up again
         hostAlerts(fresh);
@@ -3908,7 +3911,7 @@
     /** The pop-up for what urgently waits on the host now: one item in its own words, several as one count with
      *  Open Inbox. Items that no longer wait drop out; with none left, null. */
     function alertToast() {
-      const live = new Map(inbox().filter(i => i.group === "waiting" && urgent().includes(i.kind) && !isMe(i.byCid)).map(i => [i.key, i])); // never the host's own report
+      const live = new Map(inbox().filter(alertable).map(i => [i.key, i]));
       ui.alertKeys = (ui.alertKeys || []).filter(k => live.has(k));
       const items = ui.alertKeys.map(k => live.get(k));
       if (!items.length) return null;
@@ -3923,7 +3926,8 @@
       if (showing) {
         const r = alertToast();
         if (!r) { ui.alertOpen = false; hideToast(); return; }
-        if (toastTxt.textContent !== r[0]) { toastTxt.textContent = r[0]; toastAct.textContent = r[1].label; toastAct.onclick = () => { ui.alertOpen = false; hideToast(); r[1].run(); }; placeToast(); }
+        toastAct.textContent = r[1].label; toastAct.onclick = () => { ui.alertOpen = false; hideToast(); r[1].run(); }; // the same words can name a newer item
+        if (toastTxt.textContent !== r[0]) { toastTxt.textContent = r[0]; placeToast(); }
       } else if (ui.alertOpen && !queued && !alertToast()) ui.alertOpen = false; // covered, and nothing waits any more
       else if (fresh.length && !queued && !ui.alertOpen) flash(alertToast, null, "alert");
     }

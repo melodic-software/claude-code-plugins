@@ -125,6 +125,43 @@ async function main() {
     await owner.keyboard.press("Escape");
     await closed(owner);
 
+    // ---------- review round 2: an opened failure never pops up; Open follows the newer item; chat yields ----------
+    await showTab(owner, "notes");
+    await owner.click(".vf-ibpops [data-k=fail]");
+    await until(owner, () => (window.Core.state.me.prefs.popups || []).includes("fail"), null, 8000);
+    await owner.keyboard.press("Escape");
+    await owner.waitForTimeout(2500); // a few polls
+    ok("with Failed pop-ups on, a failure the owner already opened does not pop up", await owner.evaluate(() => !window.__toasts.some(t => /could not answer/.test(t))), JSON.stringify(await owner.evaluate(() => window.__toasts)));
+    const po = await rec.open(A.ownerUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
+    await until(po, () => window.Core.snapshot()?.me?.role === "owner" && window.Core.live);
+    await po.waitForTimeout(1500); // primed: what waits already never pops up here
+    const REP_A = "The total jumps on Q1.", REP_B = "The total jumps on Q2 as well.";
+    await ann.evaluate(([t, c]) => window.Core.report(t, c), [REP_A, CTX]);
+    await until(owner, () => document.querySelector(".vf-toast.vf-on span")?.textContent === "Ann reported a problem.", null, 10000);
+    const fa = await owner.evaluate(t => window.Core.state.reports.find(r => r.text === t).id, REP_A);
+    await po.click(".vf-fab");
+    await until(po, () => !document.querySelector(".vf-chat").hidden);
+    await ann.waitForTimeout(10500); // one report every 10 s a person (session.py REPORT_INTERVAL)
+    await Promise.all([owner.evaluate(id => window.Core.reportAct(id, "seen"), fa), ann.evaluate(([t, c]) => window.Core.report(t, c), [REP_B, CTX])]);
+    await until(owner, t => window.Core.state.inbox.some(i => i.kind === "report" && window.Core.state.reports.find(r => r.id === i.id)?.text === t)
+      && !window.Core.state.inbox.some(i => i.key.startsWith("report:") && window.Core.state.reports.find(r => r.id === i.id)?.status === "seen"), REP_B, 10000);
+    await until(owner, () => document.querySelector(".vf-toast.vf-on span")?.textContent === "Ann reported a problem.", null, 10000);
+    await owner.click(".vf-toast-act");
+    ok("Open on a pop-up whose words stayed the same opens the newer report's row", await until(owner, t => !document.querySelector(".vf-inboxpage").hidden
+      && [...document.querySelectorAll(".vf-ibq > li")].some(li => li.textContent.includes(t) && li.classList.contains("vf-hl") && !li.closest("[hidden]")), REP_B));
+    await owner.keyboard.press("Escape");
+    ok("390, chat open: the report pops up for the owner", await until(po, () => document.querySelector(".vf-toast.vf-on span")?.textContent === "Ann reported a problem.", null, 10000));
+    await po.click(".vf-toast-act");
+    await until(po, () => !document.querySelector(".vf-inboxpage").hidden);
+    for (let i = 0; i < 6; i++) await po.keyboard.press("Tab");
+    ok("  Open from it gives the Inbox page the screen: chat closed, the top bar live, Tab inside the page", await po.evaluate(() => document.querySelector(".vf-chat").hidden
+      && !document.querySelector(".vf-top").inert && document.querySelector(".vf-inboxpage").contains(document.activeElement)));
+    await po.context().close();
+    await showTab(owner, "notes");
+    await owner.click(".vf-ibpops [data-k=fail]"); // back to the defaults the switches check below
+    await until(owner, () => !(window.Core.state.me.prefs.popups || []).includes("fail"), null, 8000);
+    await owner.keyboard.press("Escape");
+
     // ---------- a guest: the question they are asked, and a notification ----------
     s.apply(A.dir, [{ op: "set-for", qid: "Q2", for: [annPid] }]);
     await showTab(ann, "needs");

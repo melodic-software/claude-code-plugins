@@ -276,7 +276,7 @@ PREFS = {
     "tour": lambda v: v in ("done", "skipped"),
     "toolbar": lambda v: v in ("simple", "full"),
     "autoAdvance": lambda v: isinstance(v, bool),
-    "popups": lambda v: isinstance(v, list) and len(set(v)) == len(v) <= len(POPUP_KINDS) and all(k in POPUP_KINDS for k in v),
+    "popups": lambda v: isinstance(v, list) and all(isinstance(k, str) and k in POPUP_KINDS for k in v) and all(v.count(k) == 1 for k in v),
 }
 
 # Round state machine (Contracts, "Round state machine"): (from status, action) -> (who, to status).
