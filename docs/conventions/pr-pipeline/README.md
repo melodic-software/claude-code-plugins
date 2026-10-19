@@ -153,8 +153,8 @@ permission on the repository, never edited, or last edited by a person on that l
 `>` line never matches). On a thread the lanes App never commented on, one fix request after the
 reviewer bot's finding makes the thread one `address-feedback` works, as long as every other
 comment is the reviewer bot's or a trusted person's; their comments from the first fix request on
-are direction. Such a thread is worked even when its review is on an earlier head than the one
-the reviewed-head markers name.
+are direction. Such a thread, and one a trusted person answered after the lane escalated it, is
+worked even when its review is on an earlier head than the one the reviewed-head markers name.
 `pr-feedback-dispatch.yml` runs only when a review run completes, so a fix request posted after
 the head's review starts nothing on its own. To start the round, an account on the trusted-actor
 list dispatches the lane directly:
@@ -1088,7 +1088,9 @@ role's token as the run's credential.
 One counter per PR, in the findings store, is shared by every lane. After `loop.review-rounds`
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
 escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
-rounds have run. The default is 2; this repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
+rounds have run, unless a write-access trusted person asked for a fix on a thread after the
+newest round: that runs one more round, on the requested threads only. The default is 2; this
+repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
 App may push to one PR; the next fix-ci run hands it to a person before any model turn.
 
