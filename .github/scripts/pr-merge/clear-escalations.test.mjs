@@ -21,7 +21,7 @@ const ENV = { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRACKER_CONFIG: "
 const escalationBody = (reason) =>
   `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${KEY} -->\nThe pr-unblock lane stopped on this pull request and needs a person: why.\n\n- Reason: \`${reason}\`\n- Resume key: \`${KEY}\` (the head the lane stopped on)\n`;
 const labeled = (actor, at) => ({ event: "labeled", actor, label: { name: "needs-human" }, created_at: at });
-const commented = (user, body, at) => ({ event: "commented", user, actor: user, body, created_at: at });
+const commented = (user, body, at, updatedAt = at) => ({ event: "commented", user, actor: user, body, created_at: at, updated_at: updatedAt });
 const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10:00:05Z" } = {}) => commented(user, escalationBody(reason), at);
 
 // One open PR #7 labeled needs-human; `timeline` is its timeline and
@@ -162,6 +162,14 @@ test("a pr-merge escalation by the App after the label keeps it", async () => {
     await run(w);
     assert.deepEqual(w.writes(), [], marker);
   }
+});
+
+test("an App comment written before the label and edited after it with another marker keeps it", async () => {
+  const marker = "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-verify-escalation -->";
+  const edited = commented(BOT, `${marker}\nUnattended merge: held.`, "2026-10-18T09:00:00Z", "2026-10-18T12:00:00Z");
+  const w = world({ timeline: [edited, labeled(BOT, "2026-10-18T10:00:00Z"), escalated()] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
 });
 
 test("a reason a person decides is never cleared", async () => {
