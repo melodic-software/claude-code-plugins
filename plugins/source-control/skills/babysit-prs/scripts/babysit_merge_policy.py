@@ -2675,14 +2675,15 @@ _TREE_MODE = "040000"
 def declarations_at(
     repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
 ) -> tuple[tuple[str, str | None], ...] | None:
-    """`babysit_risk.RiskInput.declarations`: each `DECLARATION_FILES` file of
-    a plugin directory a changed path sits in, and each config file its
-    plugin.json points at, at the base SHA as (path, text), from a clone
-    holding it, else the contents API, with None for a file that could not be
-    read. A declared path outside its own plugin is unsafe, so no other
-    plugin's declarations can floor a changed file, and a change outside every
-    plugin reads none. None when the base tree cannot be listed; the scorer
-    holds the floor either way."""
+    """`babysit_risk.RiskInput.declarations`: `DECLARATION_FILES` files and
+    the config files their plugin.json points at, at the base SHA as (path,
+    text), with None for a file that could not be read. From a clone holding
+    the base, every plugin's, which costs no API call; else, through the
+    contents API, only those of a plugin directory a changed path sits in: a
+    declared path outside its own plugin is unsafe, so only another plugin's
+    escaping declaration could floor a changed file, and a change outside
+    every plugin reads none. None when the base tree cannot be listed; the
+    scorer holds the floor either way."""
     plugins = {
         "/".join(parts[:2]).casefold()
         for path in changed
@@ -2690,15 +2691,15 @@ def declarations_at(
         and len(parts := path.split("/")) >= 3
         and parts[0].casefold() == "plugins"
     }
-    if not plugins:
-        return ()
     owner, name = _split_repo(repo)
     base = str(json_object(pr.get("base")).get("sha"))
     try:
         if not SHA_RE.fullmatch(base):
             raise PolicyReadError("the pull request record names no base SHA")
-        modes = _tree_modes(owner, name, base)
         root = next(_clones_holding(base), None)
+        if root is None and not plugins:
+            return ()
+        modes = _tree_modes(owner, name, base)
     except (PolicyReadError, ValueError) as exc:
         print(f"declarations at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
         return None
@@ -2719,7 +2720,7 @@ def declarations_at(
     found = [
         (path, read(path))
         for path in sorted(modes)
-        if "/".join(path.split("/")[:2]).casefold() in plugins
+        if (root is not None or "/".join(path.split("/")[:2]).casefold() in plugins)
         and any(glob_match(g, path) for g in DECLARATION_FILES)
     ]
     named = {path for path, _ in found}

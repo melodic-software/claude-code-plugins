@@ -13,7 +13,9 @@ from __future__ import annotations
 import base64
 import json
 import pathlib
+import subprocess
 import sys
+import tempfile
 import types
 import unittest
 from unittest import mock
@@ -373,6 +375,68 @@ class DeclarationsAtTests(unittest.TestCase):
 
     def test_declared_executable_reader_no_base_sha_is_none(self):
         self.assertIsNone(self._read(_fake_get(), pr={"number": 7, "head": {}}))
+
+
+def _git(cwd, *args):
+    return subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
+class DeclarationsFromACloneTests(unittest.TestCase):
+    """A clone holding the base answers every plugin's declarations through
+    git, with no API call."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = pathlib.Path(tmp.name)
+        _git(self.root, "init", "-q")
+        escaping = _server("node", "${CLAUDE_PLUGIN_ROOT}/../example-plugin/x.js")
+        self.files = {
+            "plugins/example-plugin/.mcp.json": MCP,
+            "plugins/example-plugin/x.js": "run();\n",
+            "plugins/other-plugin/.mcp.json": json.dumps(escaping),
+        }
+        for path, text in self.files.items():
+            target = self.root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text)
+        _git(self.root, "add", ".")
+        _git(self.root, "commit", "-q", "-m", "base")
+        self.base = _git(self.root, "rev-parse", "HEAD").strip()
+
+    def _read(self, changed):
+        get = mock.Mock(side_effect=AssertionError("API call"))
+        pr = {"number": 7, "base": {"sha": self.base}, "head": {"sha": HEAD}}
+        with (
+            mock.patch.object(policy, "_history_checkouts", return_value=[self.root]),
+            mock.patch.object(policy, "_get", get),
+        ):
+            return policy.declarations_at(REPO, pr, changed)
+
+    def test_declared_executable_clone_reads_every_plugin(self):
+        found = self._read(["plugins/example-plugin/x.js"])
+        self.assertEqual(
+            found,
+            (
+                ("plugins/example-plugin/.mcp.json", MCP),
+                (
+                    "plugins/other-plugin/.mcp.json",
+                    self.files["plugins/other-plugin/.mcp.json"],
+                ),
+            ),
+        )
+
+    def test_declared_executable_clone_catches_an_untouched_plugin_escaping(self):
+        declarations = self._read(["plugins/example-plugin/x.js"])
+        result = _risk("plugins/example-plugin/x.js", declarations=declarations)
+        self.assertIs(result.score, Risk.HIGH)
+        self.assertIn("high-path:**", _codes(result))
 
 
 class ScoreUnattendedTests(unittest.TestCase):
