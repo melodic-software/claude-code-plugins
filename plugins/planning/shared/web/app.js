@@ -1986,11 +1986,17 @@
         && (q.format === "scale" ? rec?.value != null : !!rec?.pick) && !ta.value.trim() && !ui.askOpen && !ui.passOpen
         && !(scroll.contains(f) && f.matches("textarea, input:not([type=radio], [type=checkbox], [type=button], [type=file])"));
     }
+    /** The next question after qid, in the order and filters Next uses, that is still open for me; "" when none is. */
+    function nextOpen(qid) {
+      const shown = shownQuestions().map(q => q.id), ids = shown.includes(qid) ? shown : [qid, ...shown], i = ids.indexOf(qid);
+      for (let j = 1; j < ids.length; j++) { const id = ids[(i + j) % ids.length]; if (isOpenForMe(id)) return id; }
+      return "";
+    }
     function armAdvance(qid) {
-      if (!advanceWanted(qid) || !Core.state.questions.some(x => x.id !== qid && isOpenForMe(x.id))) return;
+      if (!advanceWanted(qid) || !nextOpen(qid)) return;
       stopAdvance();
       ADV.qid = qid; advBar.hidden = false;
-      ADV.timer = setTimeout(() => { const go = advanceWanted(ADV.qid); stopAdvance(); if (go) step(1); }, 2000);
+      ADV.timer = setTimeout(() => { const to = advanceWanted(ADV.qid) && nextOpen(ADV.qid); stopAdvance(); if (to) select(to, { manual: true }); }, 2000);
     }
     // Writing anywhere in the question pane stays on the question.
     on(scroll, "input", e => { if (e.target.matches?.("textarea, input:not([type=radio], [type=checkbox])")) stopAdvance(); });

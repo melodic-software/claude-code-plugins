@@ -141,6 +141,28 @@ async function main() {
     const savedQ3 = await until(ann, () => (window.Core.snapshot()?.cards?.Q3 || []).some(c => c.pid === window.Core.me.cid));
     ok("a written answer never moves on", savedQ3 && await stays("Q3"), `saved: ${savedQ3}`);
 
+    // ---------- a filter that hides the only other open question: no countdown, no move ----------
+    // Bo answers Q1 and Q6 with the switch off, then shows only his own questions (the full toolbar, filter Mine): Q1 and
+    // Q6 are listed, both answered, and the open ones are filtered out. Changing his pick on Q1 has nowhere to go.
+    const bo = await rec.open(A.localUrl, desk);
+    await joinAs(bo, "Bo");
+    const boPick = async (id, label) => {
+      await bo.locator(".vf-q", { hasText: textOf(id) }).first().click();
+      await until(bo, t => document.querySelector(".vf-qtext")?.textContent === t, textOf(id));
+      await bo.locator(".vf-opt", { hasText: label }).locator(".vf-optchoose").click();
+      return until(bo, ([q, o]) => (window.Core.snapshot()?.cards?.[q] || []).some(c => c.pid === window.Core.me.cid && c.pick === o), [id, label === "Card" || label === "Short" ? "opt-1" : "opt-2"]);
+    };
+    const boReady = await boPick("Q1", "Card") && await boPick("Q6", "Short");
+    await bo.evaluate(() => window.Core.savePrefs({ toolbar: "full", filter: "mine", autoAdvance: true }));
+    const listed = await until(bo, () => { const qs = [...document.querySelectorAll(".vf-rail .vf-q")].filter(e => e.getClientRects().length).map(e => e.textContent); return qs.length === 2; }, null, 8000);
+    const moved = await boPick("Q1", "Saved method");
+    await bo.waitForTimeout(400);
+    const boBar = await bo.evaluate(() => { const b = document.querySelector(".vf-advance"); return !!b && !b.hidden; });
+    await bo.waitForTimeout(2200);
+    const boAt = await bo.evaluate(() => document.querySelector(".vf-qtext")?.textContent || "");
+    ok("with a filter hiding every other open question, a single pick shows no countdown and stays",
+      boReady && listed && moved && !boBar && boAt === textOf("Q1"), JSON.stringify({ boReady, listed, moved, boBar, boAt }));
+
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
     ok("no page error", errs.length === 0, errs.slice(0, 3).join(" | "));
