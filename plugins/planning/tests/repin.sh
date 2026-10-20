@@ -4,22 +4,25 @@
 #   repin.sh [--test-file <path>] <pin-label> <justification>
 #
 # A person runs this after reading the git diff of the guarded text and confirming
-# the defense still holds. It never runs unattended: the pin is human-gated, only
-# the mechanics are one command. It
+# the defense still holds. It refuses to write unless stdin and stdout are both
+# terminals, and then writes only after the person answers y to the shown old and
+# new digest and diff stat. There is no flag or variable to skip either check. It
 #   1. finds the one digest pin (pin_section, pin_frontmatter, pin_case_digest,
 #      pin_case_set or pin_file) whose call line contains <pin-label> (backslashes
 #      ignored, so a label with backticks is typed plainly),
 #   2. runs the test and reads that pin's `want X, got Y` failure,
-#   3. rewrites only that pin's sha256 literal to Y and inserts `# <justification>`
+#   3. checks for a terminal, shows the old and new digest and `git diff --stat`
+#      of the plugin, and asks y/N (default N),
+#   4. rewrites only that pin's sha256 literal to Y and inserts `# <justification>`
 #      on the line above the call, beside the existing re-pin comments,
-#   4. reruns the test and prints PASS or FAIL.
+#   5. reruns the test and prints PASS or FAIL.
 # Every other line of the file stays byte-identical.
 #
 # Exit: 0 re-pinned and the test passes; 1 re-pinned but the test still fails;
 # 2 usage or an unreadable test file; 3 the label matches no digest pin, or more
 # than one; 4 nothing changed: the digest already matches, or the pin fails for a
 # reason a new digest does not fix (such as a section boundary that is no longer a
-# unique heading line).
+# unique heading line); 5 stdin or stdout is not a terminal; 6 the person declined.
 set -uo pipefail
 
 self="$(basename "$0")"
@@ -88,6 +91,22 @@ if [[ -z "$new" ]]; then
   stripped="$(sed -n "${call_line}p" "$test_file" | tr -d "\\\\")"
   echo "$self: nothing to change for ${stripped}: the digest already matches, or the pin fails for a reason a new digest does not fix." >&2
   exit 4
+fi
+
+if ! [[ -t 0 && -t 1 ]]; then
+  echo "$self: refusing to re-pin: stdin and stdout must both be a terminal. A person runs this after reading the diff; an unattended run reports the failing pin and stops." >&2
+  exit 5
+fi
+echo "Pin: $(sed -n "${call_line}p" "$test_file" | tr -d "\\\\")"
+echo "Old digest: $old"
+echo "New digest: $new"
+plugin_dir="$(cd "$(dirname "$test_file")/.." && pwd)"
+echo "Changes under $plugin_dir since HEAD:"
+git -C "$plugin_dir" diff --stat HEAD -- . 2>/dev/null || echo "(no git diff available)"
+read -r -p "Write the new digest? [y/N] " answer || answer=""
+if [[ "$answer" != [yY] && "$answer" != [yY][eE][sS] ]]; then
+  echo "$self: not re-pinned." >&2
+  exit 6
 fi
 
 tmp="$(mktemp "${TMPDIR:-/tmp}/repin.XXXXXX")" || exit 2

@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # repin.sh rewrites exactly one digest pin of a copy of the test file: one sha literal and
 # one justification comment change, every other line stays byte-identical; an unknown or
-# ambiguous label is refused and a matching digest is a no-op. The copy is a stand-in test
-# with the real call shape (label, then the sha256 literal alone on the last line) that
-# prints the same `want X, got Y` failure, so the real pins are never touched.
+# ambiguous label is refused and a matching digest is a no-op. It writes only when stdin and
+# stdout are both terminals and the person answers y: any other run refuses and writes
+# nothing. The copy is a stand-in test with the real call shape (label, then the sha256
+# literal alone on the last line) that prints the same `want X, got Y` failure, so the real
+# pins are never touched. `script` (util-linux) gives the attended cases a pty; hosts
+# without it skip them.
 #
 # test-scope: plugins/planning/tests/repin.sh
 set -uo pipefail
@@ -60,28 +63,71 @@ exit \$FAILS
 EOF
 }
 
-run_repin() { bash "$REPIN" "$@" 2>&1; }
+# Unattended: no terminal on stdin or stdout, as a lane runs it.
+run_repin() { bash "$REPIN" "$@" </dev/null 2>&1; }
 
-# --- one pin changes, every other line is byte-identical ---------------------------------
+# --- an unattended run refuses and writes nothing ----------------------------------------
 t="$WORK/stale.test.sh"
 make_fixture "$STALE" "$BETA" "$t"
 cp "$t" "$WORK/stale.before"
-out="$(run_repin --test-file "$t" 'alpha file' 'Alpha text edited; the defense still holds.')"
+out="$(run_repin --test-file "$t" 'alpha file' 'An injected justification.')"
 rc=$?
-if [[ $rc -eq 0 ]]; then ok "stale pin re-pinned: exit 0"; else fail "stale pin: expected exit 0, got $rc: $out"; fi
-if [[ "$out" == *PASS* ]]; then ok "prints PASS"; else fail "no PASS in output: $out"; fi
-changes="$(diff "$WORK/stale.before" "$t" | grep -c '^[<>]')"
-if [[ "$changes" -eq 3 ]]; then ok "exactly three lines differ: old sha, new sha, justification"; else fail "expected 3 differing lines, got $changes"; fi
-if grep -qx "  \"$ALPHA\"" "$t"; then ok "alpha sha rewritten"; else fail "alpha sha not rewritten"; fi
-if grep -qx "  \"$BETA\"" "$t"; then ok "beta pin left as it was"; else fail "beta pin changed"; fi
-if grep -qx '# Alpha text edited; the defense still holds.' "$t"; then ok "justification inserted"; else fail "justification missing"; fi
-before_call="$(grep -n '^pin_file "alpha' "$t" | cut -d: -f1)"
-if [[ "$(sed -n "$((before_call - 1))p" "$t")" == '# Alpha text edited; the defense still holds.' ]]; then ok "justification sits beside the pin"; else fail "justification not above the pin call"; fi
+if [[ $rc -eq 5 ]]; then ok "no terminal: exit 5"; else fail "no terminal: expected exit 5, got $rc: $out"; fi
+if [[ "$out" == *"terminal"* ]]; then ok "no terminal: says why"; else fail "no terminal: no reason given: $out"; fi
+if cmp -s "$WORK/stale.before" "$t"; then ok "no terminal: pin unchanged"; else fail "file changed on an unattended run"; fi
 
-# --- a backslash in the justification is kept literally ----------------------------------
-make_fixture "$STALE" "$BETA" "$t"
-run_repin --test-file "$t" 'alpha file' 'Kept a\nliteral \\ backslash.' >/dev/null
-if grep -qxF '# Kept a\nliteral \\ backslash.' "$t"; then ok "backslashes in the justification stay literal"; else fail "justification was mangled"; fi
+# Attended: stdin and stdout on a pty, <answer> typed at the prompt. Extra args after
+# `--` are appended to the command line (a redirect), already shell-quoted.
+HAVE_PTY=0
+if command -v script >/dev/null 2>&1 && script -qec true /dev/null </dev/null >/dev/null 2>&1; then HAVE_PTY=1; fi
+run_tty() {
+  local answer="$1" cmd
+  shift
+  cmd="$(printf '%q ' bash "$REPIN" "$@")"
+  printf '%s\n' "$answer" | SHELL="$(command -v bash)" timeout 30 script -qec "$cmd${TTY_SUFFIX:-}" /dev/null 2>&1
+}
+
+if [[ $HAVE_PTY -eq 1 ]]; then
+  # --- attended and confirmed: one pin changes, every other line is byte-identical -------
+  make_fixture "$STALE" "$BETA" "$t"
+  out="$(run_tty y --test-file "$t" 'alpha file' 'Alpha text edited; the defense still holds.')"
+  rc=$?
+  if [[ $rc -eq 0 ]]; then ok "stale pin re-pinned: exit 0"; else fail "stale pin: expected exit 0, got $rc: $out"; fi
+  if [[ "$out" == *PASS* ]]; then ok "prints PASS"; else fail "no PASS in output: $out"; fi
+  if [[ "$out" == *"$STALE"* && "$out" == *"$ALPHA"* ]]; then ok "shows old and new digest before asking"; else fail "old/new digest not shown: $out"; fi
+  changes="$(diff "$WORK/stale.before" "$t" | grep -c '^[<>]')"
+  if [[ "$changes" -eq 3 ]]; then ok "exactly three lines differ: old sha, new sha, justification"; else fail "expected 3 differing lines, got $changes"; fi
+  if grep -qx "  \"$ALPHA\"" "$t"; then ok "alpha sha rewritten"; else fail "alpha sha not rewritten"; fi
+  if grep -qx "  \"$BETA\"" "$t"; then ok "beta pin left as it was"; else fail "beta pin changed"; fi
+  if grep -qx '# Alpha text edited; the defense still holds.' "$t"; then ok "justification inserted"; else fail "justification missing"; fi
+  before_call="$(grep -n '^pin_file "alpha' "$t" | cut -d: -f1)"
+  if [[ "$(sed -n "$((before_call - 1))p" "$t")" == '# Alpha text edited; the defense still holds.' ]]; then ok "justification sits beside the pin"; else fail "justification not above the pin call"; fi
+
+  # --- a backslash in the justification is kept literally --------------------------------
+  make_fixture "$STALE" "$BETA" "$t"
+  run_tty y --test-file "$t" 'alpha file' 'Kept a\nliteral \\ backslash.' >/dev/null
+  if grep -qxF '# Kept a\nliteral \\ backslash.' "$t"; then ok "backslashes in the justification stay literal"; else fail "justification was mangled"; fi
+
+  # --- attended but declined (n, or Enter for the default) writes nothing ----------------
+  for answer in n ''; do
+    make_fixture "$STALE" "$BETA" "$t"
+    out="$(run_tty "$answer" --test-file "$t" 'alpha file' 'unused')"
+    rc=$?
+    if [[ $rc -eq 6 ]]; then ok "answer '$answer': exit 6"; else fail "answer '$answer': expected exit 6, got $rc: $out"; fi
+    if cmp -s "$WORK/stale.before" "$t"; then ok "answer '$answer': pin unchanged"; else fail "file changed after answer '$answer'"; fi
+  done
+
+  # --- a terminal on only one of stdin and stdout refuses --------------------------------
+  for half in "stdout to a file:>$(printf '%q' "$WORK/redir.out")" "stdin from /dev/null:</dev/null"; do
+    make_fixture "$STALE" "$BETA" "$t"
+    out="$(TTY_SUFFIX=" ${half#*:}" run_tty y --test-file "$t" 'alpha file' 'unused')"
+    rc=$?
+    if [[ $rc -eq 5 ]]; then ok "${half%%:*}: exit 5"; else fail "${half%%:*}: expected exit 5, got $rc: $out"; fi
+    if cmp -s "$WORK/stale.before" "$t"; then ok "${half%%:*}: pin unchanged"; else fail "file changed with ${half%%:*}"; fi
+  done
+else
+  echo "skip - attended re-pin cases (no util-linux script)"
+fi
 
 # --- matching digest is a no-op ----------------------------------------------------------
 make_fixture "$ALPHA" "$BETA" "$t"
