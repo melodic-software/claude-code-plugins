@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/harness-ops/skills/morning-brief/scripts/morning-brief.sh\" --data-dir /tmp/data --now 2026-07-20T08:00Z --decisions-json brief/decisions.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted script path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /x/morning-brief.sh --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help only, no fixtures"
+    }
+  ]
+}

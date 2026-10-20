@@ -59,7 +59,7 @@ On a 404, gh also prints `gh: Not Found (HTTP 404)` to stderr; that line is expe
 ## Record the head before the refresh
 
 Run the wait, flip and confirm blocks below in the same shell as this one, since they share
-`HEAD_BEFORE`, `HEAD_SHA`, `CI_WORKFLOW`, `RUNS_BEFORE` and `ready_run_seen`. When 2.5.2 is skipped,
+`HEAD_BEFORE`, `HEAD_SHA`, `RUNS_BEFORE` and `ready_run_seen`. When 2.5.2 is skipped,
 still run this line, before the push.
 
 ```bash
@@ -111,19 +111,23 @@ comments, so the comment cannot set or lift a hold there.
 
 ## Wait for the push's CI run
 
-`CI_WORKFLOW` is the repository's CI workflow file (`ci.yml` here). Skip the wait when the head is
-unchanged, but still run the first two assignments, which the flip block reads. A run listed for the head SHA means the push's event reached the workflow; the wait
-does not look at the run's result.
+The run lists here and below name no workflow: they count every `pull_request` run for the head
+SHA, so they work in any repository without knowing its CI file name. A run listed for the head
+SHA means the push's event reached the workflows; the wait does not look at any run's result. The
+push starts one run per workflow, and they may register a few seconds apart, so the wait ends only
+when the count is above zero and unchanged across two polls, which keeps a late sibling out of the
+flip's snapshot. Skip the wait when the head is unchanged, but still run the `HEAD_SHA`
+assignment, which the flip block reads.
 
 ```bash
-CI_WORKFLOW=ci.yml
 HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exit 1
 if [ "$HEAD_SHA" != "$HEAD_BEFORE" ]; then
-  FOUND=0
+  FOUND=0 PREV=0
   for _ in $(seq 18); do   # 18 polls x 5 s = 90 s
-    N=$(gh run list --workflow "$CI_WORKFLOW" --commit "$HEAD_SHA" --event pull_request \
+    N=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
       --json databaseId -q 'length') || N=0
-    [ "${N:-0}" -gt 0 ] && { FOUND=1; break; }
+    [ "${N:-0}" -gt 0 ] && [ "$N" = "$PREV" ] && { FOUND=1; break; }
+    PREV=${N:-0}
     sleep 5
   done
 fi
@@ -131,13 +135,19 @@ fi
 
 `FOUND=0` after the loop is a timeout: report it and flip anyway.
 
+`--commit` and `--event` filter the list server side, and `-L 100` lifts the default page so a
+repository with many workflows is counted in full. Pointer:
+[gh run list](https://cli.github.com/manual/gh_run_list) for the flags and the default limit. As
+of: 2026-10-18. Recheck trigger: a gh release that changes `run list` filtering or its default
+limit.
+
 ## Flip to ready
 
 Snapshot the head's run ids first, so the confirmation can tell a run the flip started from an
 earlier draft one:
 
 ```bash
-RUNS_BEFORE=$(gh run list --workflow "$CI_WORKFLOW" --commit "$HEAD_SHA" --event pull_request \
+RUNS_BEFORE=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
   --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
 gh pr ready "$PR_NUMBER"
 ```
@@ -161,7 +171,7 @@ calls it (24 polls x 5 s = 120 s):
 ```bash
 ready_run_seen() {
   for _ in $(seq 24); do
-    N=$(gh run list --workflow "$CI_WORKFLOW" --commit "$HEAD_SHA" --event pull_request \
+    N=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
       --json databaseId -q "map(select(.databaseId as \$id | $RUNS_BEFORE | index(\$id) | not)) | length") || N=0
     [ "${N:-0}" -gt 0 ] && return 0
     sleep 5
@@ -182,7 +192,7 @@ When it returns 1, toggle once and wait again. A rerun replays the draft payload
 help:
 
 ```bash
-RUNS_BEFORE=$(gh run list --workflow "$CI_WORKFLOW" --commit "$HEAD_SHA" --event pull_request \
+RUNS_BEFORE=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
   --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
 gh pr ready "$PR_NUMBER" --undo && gh pr ready "$PR_NUMBER" && ready_run_seen
 ```

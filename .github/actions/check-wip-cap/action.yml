@@ -1,0 +1,49 @@
+name: Check the WIP cap
+description: >
+  Read the lanes App's open, merged and opened pull requests in this
+  repository with serial searches on the job's own token; derive the issue
+  lane's WIP cap from the merge rate and the default branch's pr-pipeline.yaml
+  `wip` block; count held pull requests apart; and publish the status. Set
+  `capped` to `true` only when the lane pauses (over the WIP cap on or after
+  `wip.pause-from`; the held cap only alerts). A read that fails never caps.
+  Run it from the default branch checkout, before any slot or lane token.
+
+inputs:
+  base-path:
+    description: The default-branch checkout that holds this action and the config.
+    required: false
+    default: .base
+  github-token:
+    description: A token that can search this repository's pull requests.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  capped:
+    description: "`true` only while the lane pauses (over the WIP cap on or after `wip.pause-from`; the held cap only alerts); otherwise `false`, including when a read fails."
+    value: ${{ steps.check.outputs.capped }}
+  wip:
+    description: "The status as one flat JSON object: countable_lane_prs, held_lane_prs, held_oldest_age_hours, held_over_alarm_count, wip_cap, wip_cap_source and the rest (pr-pipeline README, WIP cap)."
+    value: ${{ steps.check.outputs.wip }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version-file: ${{ inputs.base-path }}/.node-version
+        package-manager-cache: false
+
+    # The cap comes through resolve-config, which needs its dependencies; an
+    # install that fails leaves the default cap.
+    - name: Count the open lane PRs
+      id: check
+      shell: bash
+      env:
+        BASE_PATH: ${{ inputs.base-path }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        npm ci --ignore-scripts --omit=dev --prefix "$BASE_PATH/.github/actions/resolve-config" ||
+          echo "::warning::resolve-config's dependencies did not install; the default WIP config applies"
+        node "$GITHUB_ACTION_PATH/check-wip-cap.mjs"

@@ -73,6 +73,15 @@ if [[ $? -eq 2 && "$out" == *"no plugin named 'gamma'"* ]]; then
 else
   fail "expected exit 2 for gamma, got: $out"
 fi
+mkdir -p "$f/docs/conventions/demo"
+printf '# Changelog\n\n## 1.0.0 - 2026-10-01\n\nFirst.\n' >"$f/docs/conventions/demo/CHANGELOG.md"
+printf 'alpha\ndemo\n' >"$f/scripts/fragment-plugins.txt"
+out="$(run_new "$f" demo patch 2>&1)"
+if [[ $? -eq 0 && "$out" =~ ^\.changes/demo/feat-some_thing-[0-9a-f]{8}\.md$ ]]; then
+  ok "writes a fragment for a listed convention"
+else
+  fail "expected a .changes/demo/ fragment, got: $out"
+fi
 out="$(run_new "$f" alpha huge 2>&1)"
 if [[ $? -eq 2 && "$out" == *usage* ]]; then
   ok "refuses an unknown bump level"

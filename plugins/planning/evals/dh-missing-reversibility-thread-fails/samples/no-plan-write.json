@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/export-archive/design/gate-notes.md",
+            "content": "FAIL\n"
+          }
+        }
+      ],
+      "why": "a write that is not PLAN.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/export-archive/PLAN.md",
+            "content": "## Design\n"
+          }
+        }
+      ],
+      "why": "wrote PLAN.md on a failed gate"
+    }
+  ]
+}

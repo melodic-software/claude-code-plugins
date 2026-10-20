@@ -143,7 +143,7 @@ test("prepare: merge-base leaves out the commit tool and the instruction to comm
 // pr-run-activity.md, "Skill activities": each listed check runs from the base
 // copy against the checkout, through a wrapper that takes no arguments, and
 // that wrapper is the only Bash the runner grants.
-function withChecks(checks, overrides = {}) {
+function withChecks(checks, overrides = {}, selected = {}) {
   const dir = mkdtempSync(path.join(root, "checks-"));
   const workspace = path.join(dir, "workspace");
   mkdirSync(path.join(workspace, "scripts"), { recursive: true });
@@ -152,7 +152,7 @@ function withChecks(checks, overrides = {}) {
   writeFileSync(path.join(base, "scripts", "check-x.sh"), script, { mode: 0o755 });
   writeFileSync(path.join(workspace, "scripts", "check-x.sh"), "#!/usr/bin/env bash\necho head code\n", { mode: 0o755 });
   const file = path.join(dir, "resolved.json");
-  writeFileSync(file, JSON.stringify({ selected: { args: "ci", checks } }));
+  writeFileSync(file, JSON.stringify({ selected: { args: "ci", checks, ...selected } }));
   const checksDir = path.join(dir, "lane-checks");
   return { workspace, checksDir, ...stage({ RESOLVED: file, CHECKS_DIR: checksDir, WORKSPACE: workspace, ...overrides }) };
 }
@@ -176,6 +176,112 @@ test("a listed check gets a no-argument wrapper that runs the base copy against 
     run.stdout.trim(),
     `from=${path.join(checksDir, "scripts", "check-x.sh")} data=${workspace} pwd=${workspace} args=--check`,
   );
+});
+
+// #8310: self-checks are the skill's own advisory checks; the skill runs
+// them through the same wrapper as checks, and the runner does not rerun them.
+test("a self-check gets the same no-argument wrapper as a check", () => {
+  const { status, allowed, args, workspace, checksDir } = withChecks(undefined, {}, {
+    "self-checks": ["scripts/check-x.sh --check"],
+  });
+  assert.equal(status, 0);
+  const wrapper = path.join(checksDir, "bin", "check-x");
+  assert.deepEqual(wrapperRules(allowed), [`Bash(${wrapper})`]);
+  assert.ok(args.includes(wrapper), "the system prompt names the self-check");
+  const run = spawnSync(wrapper, [], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(
+    run.stdout.trim(),
+    `from=${path.join(checksDir, "scripts", "check-x.sh")} data=${workspace} pwd=${workspace} args=--check`,
+  );
+});
+
+test("checks and self-checks each get a wrapper, and a script in both fails red", () => {
+  writeFileSync(path.join(base, "scripts", "check-y.sh"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+  try {
+    const both = withChecks(["scripts/check-x.sh --check"], {}, { "self-checks": ["scripts/check-y.sh"] });
+    assert.equal(both.status, 0);
+    assert.deepEqual(wrapperRules(both.allowed), [
+      `Bash(${path.join(both.checksDir, "bin", "check-x")})`,
+      `Bash(${path.join(both.checksDir, "bin", "check-y")})`,
+    ]);
+    const dup = withChecks(["scripts/check-x.sh --check"], {}, { "self-checks": ["scripts/check-x.sh"] });
+    assert.notEqual(dup.status, 0);
+    assert.match(dup.stdout, /::error::two checks run the same script/);
+  } finally {
+    rmSync(path.join(base, "scripts", "check-y.sh"));
+  }
+});
+
+// #8310: check-affected.sh passes shellcheck and markdownlint the configs beside
+// its copy, and run-ruff.sh reads its pin from .github/requirements-ci.txt there;
+// without them the lane's shellcheck reports what CI's does not and ruff skips.
+test("a listed check's copy carries the base's shellcheck, markdownlint and ruff-pin files", () => {
+  mkdirSync(path.join(base, ".github"), { recursive: true });
+  writeFileSync(path.join(base, ".shellcheckrc"), "external-sources=true\n");
+  writeFileSync(path.join(base, ".markdownlint-cli2.jsonc"), '{ "config": { "MD013": false } }\n');
+  writeFileSync(path.join(base, ".github", "requirements-ci.txt"), "ruff==0.0.1\n");
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-x.sh --check"]);
+    assert.equal(status, 0);
+    assert.equal(readFileSync(path.join(checksDir, ".shellcheckrc"), "utf8"), "external-sources=true\n");
+    assert.equal(
+      readFileSync(path.join(checksDir, ".markdownlint-cli2.jsonc"), "utf8"),
+      '{ "config": { "MD013": false } }\n',
+    );
+    assert.equal(readFileSync(path.join(checksDir, ".github", "requirements-ci.txt"), "utf8"), "ruff==0.0.1\n");
+  } finally {
+    rmSync(path.join(base, ".shellcheckrc"));
+    rmSync(path.join(base, ".markdownlint-cli2.jsonc"));
+    rmSync(path.join(base, ".github"), { recursive: true });
+  }
+});
+
+// A skill that commits runs its checks, fixes and re-runs them before it
+// commits, since the checks read the working tree (#8319 review).
+test("a committing skill with checks is told to commit after the checks and their fixes", () => {
+  const { status, args, allowed } = withChecks(["scripts/check-x.sh --check"]);
+  assert.equal(status, 0);
+  assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
+  const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
+  assert.match(systemPrompt, /Run the checks before you commit: run them, fix, run them again, then commit/);
+});
+
+// A skill with checks but no commit tool (merge-base: the runner commits what
+// the skill staged) must not be told to commit its check fixes.
+test("prepare: merge-base with checks is never told to commit", () => {
+  const { status, args, allowed } = withChecks(["scripts/check-x.sh --check"], { PREPARE: "merge-base" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.includes(COMMIT_TOOL), allowed.join(" | "));
+  const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
+  assert.match(systemPrompt, /run each of these repository checks/);
+  assert.doesNotMatch(systemPrompt, /\bcommit/i);
+});
+
+// #8319 review: a check's wrapper gets the verify-script wrapper's
+// environment, so the check and what it runs never hold the GitHub token or
+// load system, global, hook or fsmonitor git config.
+test("a listed check's wrapper drops the GitHub token and pins git config", () => {
+  const script =
+    '#!/usr/bin/env bash\necho "gh=${GH_TOKEN-unset} github=${GITHUB_TOKEN-unset} global=$GIT_CONFIG_GLOBAL system=$GIT_CONFIG_NOSYSTEM hooks=$(git config core.hooksPath) fsmonitor=$(git config core.fsmonitor)"\n';
+  mkdirSync(path.join(base, "scripts"), { recursive: true });
+  writeFileSync(path.join(base, "scripts", "check-env.sh"), script, { mode: 0o755 });
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-env.sh"]);
+    assert.equal(status, 0);
+    const run = spawnSync(path.join(checksDir, "bin", "check-env"), [], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, GH_TOKEN: "secret-gh", GITHUB_TOKEN: "secret-github" },
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(
+      run.stdout.trim(),
+      "gh=unset github=unset global=/dev/null system=1 hooks=/dev/null fsmonitor=false",
+    );
+  } finally {
+    rmSync(path.join(base, "scripts", "check-env.sh"));
+  }
 });
 
 for (const check of ["scripts/check-x.sh; rm -rf /", "../scripts/check-x.sh", "scripts/check-x.sh --x=$(id)", "plugins/a.sh"]) {
@@ -809,6 +915,47 @@ test("prepare: dependency-review with no context file, or as a gate, fails red b
   assert.match(gate.stdout, /::error::dependency-review: the activity must be advisory/);
 });
 
+// pr-run-activity.md, "prepare: ci-context": a read skill that holds no write
+// token gets Bash, Edit and Write to rerun and fix the failing checks, reads
+// the runner's read-only context file, and gets no commit tool.
+function withCiContext({ file = true, effect = "read" } = {}) {
+  const dir = mkdtempSync(path.join(root, "ci-"));
+  const ciDir = path.join(dir, "lane-ci");
+  mkdirSync(ciDir, { recursive: true });
+  if (file) writeFileSync(path.join(ciDir, "context.json"), "{}");
+  return { ciDir, ...stage({ PREPARE: "ci-context", CI_DIR: ciDir, EFFECT: effect, CAN_COMMIT: "false", SKILL: "source-control:pull-request" }) };
+}
+
+test("prepare: ci-context gives a read skill Bash, Edit and Write and the read-only context file", () => {
+  const { status, args, allowed, denied, ciDir } = withCiContext();
+  assert.equal(status, 0);
+  for (const tool of ["Bash", "Edit", "Write", `Read(/${ciDir}/**)`]) {
+    assert.ok(allowed.includes(tool), `${tool} in ${allowed.join(" | ")}`);
+  }
+  assert.ok(!allowed.includes(COMMIT_TOOL), allowed.join(" | "));
+  assert.ok(denied.includes(`Edit(/${ciDir}/**)`) && denied.includes(`Write(/${ciDir}/**)`), denied.join(" | "));
+  assert.ok(denied.includes("WebFetch") && denied.includes("WebSearch"), denied.join(" | "));
+  assert.ok(args.includes(`${ciDir}/context.json`), "the system prompt names the context file");
+  const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", path.join(ciDir, "context.json")]);
+  assert.notEqual(write.status, 0, "the context file is read-only");
+});
+
+test("a read skill without ci-context gets no Bash, Edit or Write", () => {
+  const { status, allowed } = stage({ EFFECT: "read", CAN_COMMIT: "false" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => /^(Bash|Edit|Write)/.test(rule)), allowed.join(" | "));
+});
+
+test("prepare: ci-context with no context file, or on a write effect, fails red before any output", () => {
+  const missing = withCiContext({ file: false });
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stdout, /::error::ci-context: the runner wrote no context file/);
+  assert.equal(missing.args, "");
+  const write = withCiContext({ effect: "mutate-branch" });
+  assert.notEqual(write.status, 0);
+  assert.match(write.stdout, /::error::ci-context: the activity's effect must be read/);
+});
+
 test("an unknown prepare mode fails red before any output", () => {
   const { status, stdout, args } = stage({ PREPARE: "rebase" });
   assert.notEqual(status, 0);
@@ -932,4 +1079,56 @@ test("a read skill gets no web tools even with web-access", () => {
   assert.equal(status, 0);
   assert.ok(!allowed.some((rule) => rule.startsWith("Web")), allowed.join(" | "));
   assert.deepEqual(plugins, ["work-items@melodic-software"]);
+});
+
+// A read skill whose applied-by sets patch hands its change on as a patch
+// (pr-run-activity.md, Skill activities): the write tool set, no commit tool,
+// and the instruction to leave the change uncommitted.
+const UNCOMMITTED_SENTENCE = "Leave every change uncommitted in the working tree";
+
+function withAppliedBy(appliedBy, overrides = {}) {
+  const dir = mkdtempSync(path.join(root, "applied-by-"));
+  const file = path.join(dir, "resolved.json");
+  writeFileSync(file, JSON.stringify({ selected: { args: "--ci", "applied-by": appliedBy } }));
+  return stage({ EFFECT: "read", CAN_COMMIT: "false", RESOLVED: file, ...overrides });
+}
+
+test("a read skill that hands on a patch gets Edit, Write and Agent, no commit tool, and is told to leave its change uncommitted", () => {
+  const { status, args, allowed } = withAppliedBy({ patch: "apply-patch" });
+  assert.equal(status, 0);
+  for (const tool of ["Edit", "Write", "Agent"]) {
+    assert.ok(allowed.includes(tool), `${tool} in ${allowed.join(" | ")}`);
+  }
+  assert.ok(!allowed.some((rule) => rule.startsWith("mcp__github_file_ops__")), allowed.join(" | "));
+  assert.ok(!allowed.includes(CHMOD_RULE), allowed.join(" | "));
+  assert.ok(args.includes(UNCOMMITTED_SENTENCE), args);
+  assert.ok(!args.includes(COMMIT_SENTENCE), args);
+});
+
+test("a read skill whose applied-by names no patch keeps the read tool set", () => {
+  const { status, args, allowed } = withAppliedBy({ "feedback-replies": "publish-feedback" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => /^(Bash|Edit|Write)/.test(rule)), allowed.join(" | "));
+  assert.ok(!args.includes(UNCOMMITTED_SENTENCE), args);
+});
+
+test("a read skill that hands on a patch gets its checks' wrappers and the web tools its web-access sets", () => {
+  const { status, allowed } = withChecks(
+    ["scripts/check-x.sh"],
+    { EFFECT: "read", CAN_COMMIT: "false" },
+    { "applied-by": { patch: "apply-patch" }, "web-access": { enabled: true, domains: ["code.claude.com"] } },
+  );
+  assert.equal(status, 0);
+  assert.equal(wrapperRules(allowed).length, 1, allowed.join(" | "));
+  assert.ok(allowed.includes("WebFetch(domain:code.claude.com)"), allowed.join(" | "));
+});
+
+test("prepare: ci-context with applied-by.patch keeps the ci-context tool set", () => {
+  const ciDir = mkdtempSync(path.join(root, "ci-ab-"));
+  writeFileSync(path.join(ciDir, "context.json"), "{}");
+  const { status, args, allowed } = withAppliedBy({ patch: "apply-patch" }, { PREPARE: "ci-context", CI_DIR: ciDir });
+  assert.equal(status, 0);
+  assert.ok(allowed.includes("Bash"), allowed.join(" | "));
+  assert.ok(args.includes(`${ciDir}/context.json`), args);
+  assert.ok(!args.includes(UNCOMMITTED_SENTENCE), args);
 });

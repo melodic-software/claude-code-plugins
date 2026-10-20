@@ -1,0 +1,128 @@
+{
+  "skill": "writing:be-concise",
+  "plugin": "writing",
+  "skill_dir": "plugins/writing/skills/be-concise",
+  "ranking_note": "Authored from the before descriptions at commit a060b10761, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors live in other plugins; plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "competitors": [
+    "discipline:tighten-your-output",
+    "docs-hygiene:compress",
+    "adhd:clarify",
+    "docs-hygiene:write-for-humans"
+  ],
+  "competitor_dirs": {
+    "discipline:tighten-your-output": "plugins/discipline/skills/tighten-your-output",
+    "docs-hygiene:compress": "plugins/docs-hygiene/skills/compress",
+    "adhd:clarify": "plugins/adhd/skills/clarify",
+    "docs-hygiene:write-for-humans": "plugins/docs-hygiene/skills/write-for-humans"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our product owner only skims tickets. Rewrite this one so the decision I need from her is the first line: [ticket text pasted below]"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This PR description is four paragraphs of backstory. Cut it down so a reviewer sees what changed and what to check, and tell me how many words you removed."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "From now on, anything you write for my team's status updates should lead with the outcome and skip the preamble."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Nobody reads my weekly project update past the first sentence. Reshape it so the bottom line comes first and the rest is easy to scan."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make this incident write-up scannable for the director: she needs the impact, the ask, and the deadline, in that order."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Shorten this Jira comment before I post it. Keep the two error codes and the question for the vendor, drop the rest of the rambling."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Draft the handoff note for the on-call engineer. Busy reader, so put the one thing they must do tonight at the top."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Rewrite this design-doc summary for stakeholders who will read three lines at most, factual tone, no selling."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before you write the release email, keep in mind the readers are managers who skim: conclusion first, short, no padding."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Your last answers in this chat have been too wordy. Keep your replies shorter from here on."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Trim the filler and hedging out of docs/runbook.md word by word, but keep every directive and threshold intact."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Your last message was a wall of text. Break it down so I can see one decision at a time, and don't cut anything."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write the README for this library, following the project style guide and the right doc type for onboarding."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Simplify this nested loop into fewer lines of code without changing what it does."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Say it in fewer words: why did the build fail? Just the one-line cause in the chat, please."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Compress the markdown in CONTRIBUTING.md without losing any qualifier or example, and check nothing changed in meaning."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I can't parse this long explanation of the migration options. Help me understand what I'm actually choosing between."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Translate this customer email into Spanish."
+    }
+  ]
+}

@@ -197,7 +197,7 @@ const SOURCE_HOSTS = new Set(sources.map(hostOf))
 // the session model is unknown here, and a frontier session must never fan out
 // on its own model.
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
-const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
+const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable']
 const FALLBACK_ROLES = {
   worker: { single: { model: 'inherit', effort: 'medium' }, fanout: { model: 'opus', effort: 'medium' } },
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },

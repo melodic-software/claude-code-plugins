@@ -1,43 +1,36 @@
 ---
-description: "Run a co-writing session and generate titles and high-volume options with Pat Pattison's methods, the No-Free-Zone co-write protocol and feedback discipline, the Title Game (chained vowel-cascade title generation), title generation from an idea, and high-volume brainstorm dumps for ONE line or ONE section. Use when: 'co-write tonight', 'co-write rules', 'no-free-zone', 'Title Game', '10 titles fast', 'title candidates for X', 'give me 30 options for this line', 'brainstorm the whole chorus'. For blank-page/idea/fragment starts use /songwriting:workflow; for rhyme dumps use /songwriting:rhyme."
+description: "Co-writing sessions under the No-Free-Zone protocol and feedback discipline, the Title Game (chained vowel-cascade title generation), title generation from an idea, and high-volume option dumps for ONE line or ONE section, with Pat Pattison's methods. Use when: 'co-write tonight', 'co-write rules', 'no-free-zone', 'Title Game', '10 titles fast', 'title candidates for X', 'give me 30 options for this line', 'brainstorm the whole chorus'. For blank-page/idea/fragment starts use /songwriting:workflow; for rhyme dumps use /songwriting:rhyme."
 argument-hint: "[co-write|title-game|title|line-brainstorm|section-brainstorm] [args]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
-**Arguments.** `[co-write|title-game|title|line-brainstorm|section-brainstorm] [args]`. e.g., /songwriting:co-write, /songwriting:co-write title-game, /songwriting:co-write line-brainstorm "..." Full actions in body
-
 ## Mandatory pre-flight. Response Filter
 
-Before emitting titles, line/section option dumps, or co-write feedback, run **§5 Title + hook**
-and **§2 Line-writing** of [response-filter](../../context/pat-pattison/research/response-filter.md)
-(add **§4 Coaching posture** when facilitating a live session). NAME each box's pass / fail /
-skip-with-reason (aloud or in reasoning); correct before emission. Skips are valid; silent skips
-are not.
+Before emitting titles, line or section option dumps, or co-write feedback, run **§5 Title +
+hook** and **§2 Line-writing** of
+[response-filter](../../context/pat-pattison/research/response-filter.md) (add **§4 Coaching
+posture** when facilitating a live session). NAME each box's pass / fail / skip-with-reason (aloud
+or in reasoning); correct before emission. Skips are valid; silent skips are not.
 
-§2's **Reference:** line is a load list, not a bibliography: §2 has not been run until the files it
-names have been read this session, at minimum
-[meter](../../context/pat-pattison/research/meter.md) and
-[phrasing](../../context/pat-pattison/research/phrasing.md) before the first candidate. Plus
-[metaphor](../../context/pat-pattison/research/metaphor.md) when the request asks for an image or a
-figure. Naming the §2 boxes while those files were never opened attests to the filter instead of
-applying it, per
-[response-filter](../../context/pat-pattison/research/response-filter.md) "§2 Line-writing filter".
-Attestation is what lets bad lines through: a miscounted stress or a plain description labeled a
-metaphor comes out of a §2 that was named rather than loaded. Loading is therefore an input,
-checked in the hard gate below, not a step recorded afterward.
+§2's **Reference:** line is a load list, not a bibliography: §2 has not run until the files it
+names were read this session, at minimum [meter](../../context/pat-pattison/research/meter.md)
+and [phrasing](../../context/pat-pattison/research/phrasing.md) before the first candidate, plus
+[metaphor](../../context/pat-pattison/research/metaphor.md) when the request asks for an image or
+a figure, per [response-filter](../../context/pat-pattison/research/response-filter.md) "§2
+Line-writing filter". Naming the §2 boxes without opening those files attests to the filter
+instead of applying it, and that is what lets bad lines through: a miscounted stress, or a plain
+description labeled a metaphor. Loading is an input, checked in the hard gate below.
 
-And when the output is a candidate LYRIC LINE about to be shown, §2's boxes are cycled inside
-[line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md). Load it and run the
-FULL cycle per candidate, in its order, naming each pass. On fixed-melody work, pass 1 (positional
-fit) coming back CLEAN is the condition for showing anything at all.
+When the output is a candidate LYRIC LINE about to be shown, cycle §2's boxes inside
+[line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md): load it and run the
+FULL cycle per candidate, in its order, naming each pass. On fixed-melody work, show nothing
+unless pass 1 (positional fit) comes back CLEAN.
 *(Plugin-authored, not Pat Pattison's.)*
 
 ## Purpose
 
-Collaborative generation: running a co-write with feedback discipline, generating titles (including
-the Title Game), and dumping high-volume labeled options for a single line or section so the writer
-has raw material to choose from.
+The high-volume options are raw material for the writer to choose from, not finished lines.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
 author's method plugs in at `context/<author>/` without changing this skill, the author seam per
@@ -45,7 +38,8 @@ the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 
-`/songwriting:co-write <action> [args]`. Parse `$ARGUMENTS`: first token = action when it matches a listed action, remainder = args; otherwise treat all of `$ARGUMENTS` as payload for the default.
+`/songwriting:co-write <action> [args]`. Parse `$ARGUMENTS`: first token = action when it matches
+a listed action, remainder = args; otherwise treat all of `$ARGUMENTS` as payload for the default.
 No action → open the co-write protocol (No-Free-Zone session opener).
 
 | Action | Use when the user asks for | Load |
@@ -58,59 +52,55 @@ No action → open the co-write protocol (No-Free-Zone session opener).
 
 ## Handlers
 
-- **Pre-flight:** run response-filter §5 + §2 (+ §4 when facilitating) before output.
-- Co-write facilitation is coaching, not monologue: keep the No-Free-Zone discipline. No idea is
+- Facilitate a co-write as coaching, not monologue, under No-Free-Zone discipline: no idea is
   free, every suggestion earns its place; surface choice points, do not decide for the writers.
-- Line/section brainstorm writes each option to a labeled menu (per the `variations`/`worksheets`
-  persistence convention), not an inline dump.
-- **The DUMP goes to the file; the MENU goes to chat**. 3-4 candidates, each a full section block
-  in context with changed lines marked `►`, one labeled block per variation. The 30-50+ columns stay
-  in `variations/`/`worksheets/`; the display cap never lowers the generated volume. That is what
-  "not an inline dump" means, and a response with nothing singable in it has not been delivered. See
-  [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates: chat vs file".
+- **Line and section brainstorms: the DUMP goes to the file; the MENU goes to chat.** The 30-50+
+  columns go to a labeled menu in `variations/` or `worksheets/`, never inline, and the display cap
+  never lowers the generated volume. Chat gets 3-4 candidates, each a full section block in context
+  with changed lines marked `►`, one labeled block per variation. A response with nothing singable
+  in it has not been delivered. See
+  [variations](../../context/pat-pattison/research/variations.md) "Presenting the candidates: chat
+  vs file".
 - **Rubric before the menu:** every candidate cycles all passes of
   [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) before it is shown,
-  and pass 1 must come back CLEAN, not merely run. A candidate the AI has itself flagged as failing
-  a pass is **removed, not disclosed**. Showing it with the flag attached is the rule violation,
-  not the honest version of it. Present fewer candidates instead.
+  and pass 1 must come back CLEAN, not merely run. A candidate that you flagged as failing a pass is
+  **removed, not disclosed**: showing it with the flag attached is the rule violation, not the
+  honest version of it. Present fewer candidates instead.
 - **Two rejected executions in a slot stops generation.** *Slot* = the lyric position under
-  revision. One line, or one section when the section is being rewritten whole; not the metrical
+  revision: one line, or one section when the section is being rewritten whole; not the metrical
   or rhyme slot the craft files mean. *Rejection* = the writer declines the batch's EXECUTION:
   "none of these", "the idea's right, the lines aren't", or no candidate picked. Picking one and
   asking for a tweak is not a rejection, and rejecting the CONCEPT resets the count, because the
   next batch answers a different brief. On the second rejection do not produce a third batch; hand
-  the concept over. (1) what the line has to do here, in one sentence; (2) the constraints, as the
+  the concept over: (1) what the line has to do here, in one sentence; (2) the constraints, as the
   marked positional template plus the section's rhyme and sound obligations; (3) the unused raw
   material, naming images still sitting in the song's `ideation/`; (4) what the two rejected
   batches had in common, named as the failure mode; (5) one question for the writer. No candidate
-  lines in that handoff. **Two** is the writer's threshold; the AI does not raise it.
+  lines in that handoff. **Two** is the writer's threshold; do not raise it.
 
 ## Persistence and template overrides
 
 Write generated files to the paths in
-[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)
-"Where generated work persists", and honor a consuming project's own songwriting layout when it
-defines one. Line/section brainstorm output goes to `variations/` or `worksheets/` as a labeled
-menu (not inline). Before loading any bundled `templates/<name>.md`, check
+[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md) "Where
+generated work persists", and honor a consuming project's own songwriting layout when it defines
+one. Before loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
-override wins over the bundled skill default, first match, per that file's "Template override".
+override wins over the bundled default, first match, per that file's "Template override".
 
 ## Boundary. This skill owns line emission, and pays for it
 
-Every other craft skill routes finished lyric lines here. That makes this the one place where
-generic output escapes into a song, so the gate is an **input** gate: what must exist BEFORE lines
-are written, not a checklist named afterward.
+Every other craft skill routes finished lyric lines here, which makes this the one place generic
+output escapes into a song. So the gate is an **input** gate: what must exist BEFORE lines are
+written, not a checklist named afterward.
 
 ### Hard gate. Show the artifacts, do not claim them
 
 A box is passed when its output is **visible in this response or on disk at a named path**. A box
 named as passed with nothing to show is a failed box. For the source rows, what is shown is a
-citation of what the file settled in THIS line, a filename is not an artifact, and neither is the
-claim that the method is known. Every row applies before any line is emitted; the rhyme row applies
-when the line sits in a rhyme position.
-
-The rows run in the order work actually happens: inputs, then the rubric's recorded passes, then
-the skeptic's refutation from a fresh context.
+citation of what the file settled in THIS line; a filename is not an artifact, and neither is the
+claim that the method is known. Every row applies before any line is emitted; the rhyme row
+applies when the line sits in a rhyme position. The rows run in the order work happens: inputs,
+then the rubric's recorded passes, then the skeptic's refutation from a fresh context.
 
 | Required before emission | What "shown" means |
 | --- | --- |
@@ -124,46 +114,43 @@ the skeptic's refutation from a fresh context.
 | Rubric cycled per candidate, pass 1 CLEAN | the pass-by-pass result visible in this response, or at the candidate's named path under the song's `variations/`, per [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md). Pass 1's artifact is the marked template above; on free-melody work the stress map stands in. Counts are run, not estimated: syllables per word from `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh syllables <word>`, and pass 2's repeated words from a word-frequency count over the draft file (a `sort \| uniq -c` pipeline) |
 | Skeptic refutation returned | the strongest case AGAINST each candidate, visible in this response or at a named path under the song's `variations/`, from a fresh subagent that READ [response-filter](../../context/pat-pattison/research/response-filter.md) §2, the marked map, and [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) at those paths. A line survives when its refutation is stated and judged insufficient; a return holding nothing against anything has shown nothing |
 
-**Every row except the rubric row may be skipped**, and a skip is **named, with its reason, in the
-output**. That is the "tools, not rules" stance applied honestly. A silent skip is the failure, and
-so is listing a box as passed while its artifact does not exist. Those rows stay skippable because
-how much support a line gets is the writer's craft call, and "There are no rules, only tools."
-(*Writing Better Lyrics* (2009), Chapter 18, quoted in
-[response-filter](../../context/pat-pattison/research/response-filter.md)) is why. The skeptic row
-is in that class deliberately: a refutation pass costs a subagent dispatch, and whether one is
-worth spending on a given batch is a judgment, not a rule the writer laid down. Skip it by name
-and reason, and expect to be asked why, because self-attestation is what failed.
+**Every row except the rubric row may be skipped**, and a skip is **named, with its reason, in
+the output**. A silent skip is the failure, and so is listing a box as passed while its artifact
+does not exist. Those rows stay skippable because how much support a line gets is the writer's
+craft call: "There are no rules, only tools." (*Writing Better Lyrics* (2009), Chapter 18, quoted
+in [response-filter](../../context/pat-pattison/research/response-filter.md)). The skeptic row is
+in that class deliberately: a refutation pass costs a subagent dispatch, and whether a batch is
+worth one is a judgment, not a rule the writer laid down. Skip it by name and reason, and expect
+to be asked why, because self-attestation is what failed.
 
-**The rubric row alone does not carry that clause**, because it is not offered to the writer at all:
-it is his standing rule for every candidate, not a craft box he may decline. Its record is not a
-verdict on the candidate. The countable passes run as commands, and the judgment passes are tested
-by the skeptic row's fresh context. The full statement of the rules behind it is
-[line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md)
+**The rubric row is never skipped**: it is the writer's standing rule for every candidate, not a
+craft box he may decline. Its record is not a verdict on the candidate: the countable passes run
+as commands, and the skeptic row's fresh context tests the judgment passes. The rules behind it
+are in [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md)
 `## Standing operating rules`; in short, the cycle runs on every candidate every time with no
-fatigue exception, and a FAILED pass kills the candidate rather than annotating it. Under load, emit
-fewer candidates, not unchecked ones. Passes scoped out by their own headings (no fixed melody, no
-rhyme position, no figure, no voiceprint on disk) are declared and stepped past. That is the pass
-running, not a skip. This leaves the response-filter's own box-level skip clause untouched: its
-§1-§8 boxes remain skippable-with-reason.
+fatigue exception, and a FAILED pass kills the candidate rather than annotating it. Under load,
+emit fewer candidates, not unchecked ones. Passes scoped out by their own headings (no fixed
+melody, no rhyme position, no figure, no voiceprint on disk) are declared and stepped past: that is
+the pass running, not a skip. The response filter's own §1-§8 boxes stay skippable-with-reason.
 
-If a gate's input is missing, the correct move is to invoke the skill that produces it, not to
-proceed and note the absence. Lines written without their inputs are LLM defaults wearing the
-method's vocabulary, which is what the writer rejects. A source row's missing input is a file, so
-the move is to READ it. Summarizing what a craft file probably says, or working from a remembered
-version of it, is the same failure as skipping the gate with the skip left unnamed.
+If a gate's input is missing, invoke the skill that produces it; do not proceed and note the
+absence. Lines written without their inputs are LLM defaults wearing the method's vocabulary,
+which is what the writer rejects. A source row's missing input is a file, so READ it: summarizing
+what a craft file probably says, or working from a remembered version, is the same failure as an
+unnamed skip.
 *(Plugin-authored, not Pat Pattison's.)*
 
 ### Refute, do not review
 
 *(Plugin-authored, not Pat Pattison's.)* A self-graded pass is indistinguishable from a real one
-when the same context produced both: a model running the response filter on its own output
-passes itself. So the skeptic is dispatched to build the case AGAINST each candidate, and it gets
-nothing but the candidate batch, the slot's positional template or marked scansion map, and the
-source paths to read: not the reasoning that produced the candidates, not which one you prefer.
-This is a hard boundary, not a default, the same blind-dispatch mechanic that makes
+when the same context produced both: a model running the response filter on its own output passes
+itself. So dispatch the skeptic to build the case AGAINST each candidate, and give it nothing but
+the candidate batch, the slot's positional template or marked scansion map, and the source paths
+to read: not the reasoning that produced the candidates, not which one you prefer. This is a hard
+boundary, not a default, the same blind-dispatch mechanic that makes
 `/songwriting:object-writing generate`'s fleet work. Its kill rules rank singability and verbosity
 ABOVE cleverness: a clever line that cannot be sung in the slot's length is refuted, not merely
-ranked lower. The pass runs before the writer sees the batch and settles nothing, the writer's
+ranked lower. The pass runs before the writer sees the batch and settles nothing; the writer's
 sing-check is still the last word. Any general subagent honors this today; no agent in this plugin
 is a skeptic, and a preloaded-skill skeptic agent is deliberately not shipped here.
 
@@ -172,32 +159,29 @@ is a skeptic, and a preloaded-skill skeptic agent is deliberately not shipped he
 Verses show; the chorus tells. Verses carry specific situation, image, and action; the chorus makes
 the broader statement the verses keep recoloring. Name the mode first, then check each emitted line
 against it. A chorus of concrete inventory is verse material in the wrong box, however good the
-inventory is, and a chorus is sung back, so unsingable length is a defect, not a polish item.
+inventory, and a chorus is sung back, so unsingable length is a defect, not a polish item.
 
 ### Mine → adapt → say it aloud
 
-Object-writing output is ore. Pull ONE image forward and build the line around it. Pasting a run of
-sensory material into a section is not using the material; it is relocating it.
+Object-writing output is ore. Pull ONE image forward and build the line around it; pasting a run of
+sensory material into a section relocates the material, it does not use it. Running the first step
+and skipping the other two is the failure this section prevents.
 
-Three steps. Running the first and skipping the other two is the failure this section exists to
-prevent.
-
-1. **Mine**. Take ONE image, verb, or detail off the page. Pat's own framing of what a finished
-   write is for: *"Once you become adept in your object writing, with bushels of sense-bound images
+1. **Mine**. Take ONE image, verb, or detail off the page. A finished write is preparation, not
+   draft: *"Once you become adept in your object writing, with bushels of sense-bound images
    glittering on the kitchen table, what do you do with them?"* (*Writing Better Lyrics* (2009),
-   Chapter 2). Preparation, not draft.
-2. **Adapt**. Rewrite the mined image in plain sung English BEFORE it enters a slot. Object-write
-   prose carries its own texture; quoting that texture into a lyric slot is what failed ("hung
-   where it stops being anybody's" is ore that reads like a line). Pat's printed demonstration of
-   the crafted shape is the collar: "Hot rod hearts and high school rings" replacing "All the
-   things we used to do" (*Writing Better Lyrics* (2009), Chapter 2). That every word in it is a
-   common one is this plugin's reading of the example, not a claim Pat makes about it. **The step
-   itself is plugin-authored:** Pat draws the raw-material-vs-crafted-line distinction and prints
-   no translation procedure. See
+   Chapter 2).
+2. **Adapt**. Rewrite the mined image in plain sung English BEFORE it enters a slot. Quoting
+   object-write texture into a lyric slot is what failed ("hung where it stops being anybody's" is
+   ore that reads like a line). Pat's printed demonstration of the crafted shape is the collar:
+   "Hot rod hearts and high school rings" replacing "All the things we used to do" (*Writing Better
+   Lyrics* (2009), Chapter 2). That every word in it is a common one is this plugin's reading, not
+   Pat's claim. **The step itself is plugin-authored:** Pat draws the raw-material-vs-crafted-line
+   distinction and prints no translation procedure. See
    [object-writing](../../context/pat-pattison/research/object-writing.md).
 3. **Say it aloud**. Would a person SAY the adapted line, talk-sung? Writer-derived from the same
-   sessions. The box lives in
-   [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) pass 8; a line that
+   sessions; the box lives in
+   [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) pass 8. A line that
    fails it goes back to step 2, never forward to a rarer word.
 
 ## Related skills

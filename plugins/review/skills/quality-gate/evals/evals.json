@@ -409,6 +409,31 @@
         "Does NOT dispatch a general-purpose subagent for the review, despite the user asking for one",
         "Gives the reason: the worker must not be able to fan out"
       ]
+    },
+    {
+      "id": 32,
+      "name": "code-mode-routes-convention-review-to-this-mode-not-code-review",
+      "prompt": "/review:quality-gate code\n\nReview my branch against this project's conventions and our REVIEW.md. The bundled /code-review skill is available in this session. pr-review-toolkit is not installed.",
+      "expected_output": "Convention and REVIEW.md review always routes to code mode, because the review must ground in the project's own standards and severity vocabulary, stay report-only, and land in the gate's unified findings report. The skill runs code mode and dispatches its convention-aware reviewer, and does not hand the review to the bundled /code-review skill or pick a /code-review effort level in its place.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Output runs code mode for the review rather than routing it to the bundled /code-review skill",
+        "Output grounds the review in the project's conventions and REVIEW.md, resolved through the standards index",
+        "Output does NOT treat any /code-review effort level as a substitute for this mode"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "code-mode-routes-fast-zero-dependency-pass-to-code-review",
+      "prompt": "/review:quality-gate code\n\nI don't need anything tied to our project standards or REVIEW.md. Just give me a quick correctness pass over my current diff with no setup or plugins needed. The bundled /code-review skill is available in this session.",
+      "expected_output": "A fast zero-dependency pass where project-standards grounding is not the point routes to the bundled /code-review skill rather than to this mode's convention-aware reviewers. The skill points the user to /code-review and does not run the convention-aware reviewers.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Output routes the quick zero-dependency pass to the bundled /code-review skill instead of running this mode's convention-aware reviewers",
+        "Output gives the reason: project-standards grounding is not the point of the request"
+      ]
     }
   ]
 }

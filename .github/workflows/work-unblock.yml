@@ -27,8 +27,9 @@ name: work-unblock
 # limit has reset, the App removes and re-adds agent-ready (at most five a run);
 # after three limit stops since a person added agent-ready it adds needs-human.
 # It re-fires the same way an issue whose work-resolve-issue run failed with no
-# report: a crash, or a rerun the token broker refused as workflow-modified
-# (a rerun keeps its first event's workflow files). It does that once per issue
+# report: a crash, a rerun the token broker refused as workflow-modified
+# (a rerun keeps its first event's workflow files), or a run that waited in
+# its slot past a lane workflow change and stopped as workflow-stale. It does that once per issue
 # per version of the lane's two workflow files on main, recorded in a comment.
 # When that run opened a lanes-App PR instead, and the PR merged with `Refs:`
 # or was closed unmerged, the App adds needs-triage and takes agent-ready off,
