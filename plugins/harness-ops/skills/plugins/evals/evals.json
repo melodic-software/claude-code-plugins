@@ -79,7 +79,7 @@
       ]
     },
     {
-      "id": 14,
+      "id": 17,
       "name": "converge-defaults-to-update-for-committed-enable",
       "prompt": "/harness-ops:plugins converge: fleet-state.sh reports two actionable divergences with versionsMatch: false, both with a user-scope record at 2.0.0 and a project-scope record at 1.0.0 whose projectPath is present. For alpha@market1 the repository's tracked .claude/settings.json (git ls-files --error-unmatch exits 0) holds `enabledPlugins[\"alpha@market1\"]: true`. For beta@market1 the tracked settings hold no enabledPlugins entry for it. The catalog reads 2.0.0 for both.",
       "expected_output": "Because user scope holds the highest version, both rows would normally default to uninstall. The alpha row mirrors a committed enable, so its default is `(cd \"<projectPath>\" && claude plugin update alpha@market1 -s project)`; uninstall is offered only as the non-default option with a warning that it removes a committed enabledPlugins entry. The beta row, absent from the tracked settings, still defaults to `(cd \"<projectPath>\" && claude plugin uninstall beta@market1 -s project --keep-data)`. Each preview row states why its default was chosen. Nothing runs before a per-row confirm.",
@@ -94,7 +94,7 @@
       ]
     },
     {
-      "id": 15,
+      "id": 18,
       "name": "converge-keeps-uninstall-for-missing-or-untracked-settings",
       "prompt": "/harness-ops:plugins converge: fleet-state.sh reports two actionable divergences with versionsMatch: false, both with a user-scope record at 2.0.0 and a project-scope record at 1.0.0 whose projectPath is present. For alpha@market1 the project has no .claude/settings.json at all. For beta@market1 the project's .claude/settings.json holds `enabledPlugins[\"beta@market1\"]: true`, but `git ls-files --error-unmatch .claude/settings.json` exits 1 because the file is not tracked. The catalog reads 2.0.0 for both.",
       "expected_output": "Neither row mirrors a committed enable: a missing file and an untracked file hold nothing every clone reads. Both rows keep the uninstall default, `(cd \"<projectPath>\" && claude plugin uninstall <id> -s project --keep-data)`, and each preview row states why (no tracked enable). The settings file is read with the Read tool, not jq or a shell capture. Nothing runs before a per-row confirm.",
@@ -109,7 +109,7 @@
       ]
     },
     {
-      "id": 16,
+      "id": 19,
       "name": "converge-defaults-to-update-for-non-git-project-path",
       "prompt": "/harness-ops:plugins converge: fleet-state.sh reports one actionable divergence with versionsMatch: false for alpha@market1: a user-scope record at 2.0.0 and a project-scope record at 1.0.0 whose projectPath is present. That projectPath's .claude/settings.json holds `enabledPlugins[\"alpha@market1\"]: true`, and `git -C <projectPath> ls-files --error-unmatch .claude/settings.json` exits 128 with `fatal: not a git repository`. The catalog reads 2.0.0.",
       "expected_output": "The git error is not a \"not tracked\" answer, so the check cannot decide and is treated as a committed enable. The default is `(cd \"<projectPath>\" && claude plugin update alpha@market1 -s project)`; uninstall is offered only as the non-default option with a warning that it may remove a committed enabledPlugins entry. The preview row states why. Nothing runs before a per-row confirm.",
@@ -124,7 +124,7 @@
       ]
     },
     {
-      "id": 17,
+      "id": 20,
       "name": "converge-defaults-to-update-for-committed-false",
       "prompt": "/harness-ops:plugins converge: fleet-state.sh reports one actionable divergence with versionsMatch: false for alpha@market1: a user-scope record at 2.0.0 and a project-scope record at 1.0.0 whose projectPath is present. The repository's tracked .claude/settings.json (git ls-files --error-unmatch exits 0) holds `enabledPlugins[\"alpha@market1\"]: false`. The catalog reads 2.0.0.",
       "expected_output": "A committed `false` is still a committed enabledPlugins entry, and uninstall would delete it. The default is `(cd \"<projectPath>\" && claude plugin update alpha@market1 -s project)`; uninstall is offered only as the non-default option with a warning that it removes a committed enabledPlugins entry. The preview row states why. Nothing runs before a per-row confirm.",
@@ -138,7 +138,7 @@
       ]
     },
     {
-      "id": 18,
+      "id": 21,
       "name": "converge-local-row-skips-committed-enable-check",
       "prompt": "/harness-ops:plugins converge: fleet-state.sh reports one actionable divergence with versionsMatch: false for alpha@market1: a user-scope record at 2.0.0 and a local-scope record at 1.0.0 whose projectPath is present. The repository's tracked .claude/settings.json (git ls-files --error-unmatch exits 0) holds `enabledPlugins[\"alpha@market1\"]: true`. The catalog reads 2.0.0.",
       "expected_output": "The committed-enable check applies to project-scope rows only: `-s local` writes settings.local.json, which is not tracked. The local row keeps the uninstall default, `(cd \"<projectPath>\" && claude plugin uninstall alpha@market1 -s local --keep-data)`, and the preview row states why. Nothing runs before a per-row confirm.",
