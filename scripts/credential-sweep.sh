@@ -374,20 +374,48 @@ strings_pass() {
 # fetch_config: the pinned default config without its global path allowlist,
 # into $STATE/sweep.toml. A [allowlist] or [[allowlists]] table loses every
 # paths key; [[rules.allowlists]] tables are kept whole. Dies when the file is
-# unreadable or holds no rules.
+# unreadable or holds no rules, when a global paths key survives the strip, or
+# when the strip lost a rule.
 fetch_config() {
-  local raw="$STATE/default.toml"
+  local raw="$STATE/default.toml" out="$STATE/sweep.toml"
   api_get "$raw" "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=$GITLEAKS_CONFIG_COMMIT" \
     -H 'Accept: application/vnd.github.raw' ||
     die "cannot read the gitleaks $GITLEAKS_PIN default config: ${STOPPED:-$API_ERR}"
   grep -q '^\[\[rules\]\]' "$raw" || die "the gitleaks $GITLEAKS_PIN default config holds no rules"
+  # A header resets the state; comments are cut from header lines only, since
+  # content lines hold regexes with # inside.
   awk '
-    /^\[/ { global = ($0 == "[allowlist]" || $0 == "[[allowlists]]"); skip = 0 }
-    global && /^paths *= *\[ *$/ { skip = 1; next }
-    skip { if ($0 ~ /^\]/) skip = 0; next }
-    global && /^paths *=/ { next }
+    /^[[:space:]]*\[/ {
+      h = $0; sub(/#.*$/, "", h); gsub(/[[:space:]]/, "", h)
+      global = (h == "[allowlist]" || h == "[[allowlists]]"); skip = 0
+    }
+    skip { if ($0 ~ /^[[:space:]]*\]/ || $0 ~ /\][[:space:]]*$/) skip = 0; next }
+    global && /^[[:space:]]*paths[[:space:]]*=/ {
+      v = $0; sub(/^[^=]*=[[:space:]]*/, "", v)
+      if (v ~ /^\[/ && v !~ /\][[:space:]]*(#.*)?$/) skip = 1
+      next
+    }
     { print }
-  ' "$raw" >"$STATE/sweep.toml"
+  ' "$raw" >"$out"
+  ! global_paths "$out" ||
+    die "could not strip the global path allowlist from the gitleaks $GITLEAKS_PIN default config: a [allowlist] or [[allowlists]] table still has a paths key"
+  [[ "$(grep -c '^\[\[rules\]\]' "$out")" == "$(grep -c '^\[\[rules\]\]' "$raw")" ]] ||
+    die "stripping the global path allowlist from the gitleaks $GITLEAKS_PIN default config lost a [[rules]] table"
+}
+
+# global_paths <toml>: true when a global allowlist table, matched more loosely
+# than the strip does (spaced or quoted names and keys, a dotted
+# allowlist.paths before any table), still sets paths.
+global_paths() {
+  awk '
+    /^[[:space:]]*\[/ {
+      h = $0; sub(/#.*$/, "", h); gsub(/[[:space:]"\047]/, "", h)
+      table = 1; global = (h == "[allowlist]" || h == "[[allowlists]]")
+    }
+    !table && /^[[:space:]]*["\047]?allowlists?["\047]?[[:space:]]*\.[[:space:]]*["\047]?paths["\047]?[[:space:]]*=/ { found = 1 }
+    global && /^[[:space:]]*["\047]?paths["\047]?[[:space:]]*=/ { found = 1 }
+    END { exit !found }
+  ' "$1"
 }
 
 # scan: gitleaks over the whole download tree; writes $OUT/findings.json with

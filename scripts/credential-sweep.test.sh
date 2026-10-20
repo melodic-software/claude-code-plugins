@@ -228,6 +228,47 @@ rm -f "$F/$(key "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=83d9c
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-noconfig" --repo r
 expect_rc "an unreadable scanner config exits 3" 3
 
+# --- The global path allowlist is stripped; rule allowlists are kept ---------
+# strip_case <name> <global-allowlist-block>: sweeps a config holding the block
+# and two rules, the first with its own path allowlist; sets TOML.
+strip_case() {
+  F="$TMP/strip-$1"
+  base_fixture "$F" r
+  printf '%s\n' 'title = "fixture"' "$2" "[[rules]]" 'id = "github-pat"' "regex = '''ghp_[0-9a-zA-Z]{36}'''" \
+    "[[rules.allowlists]]" "paths = [" "    '''RULEPATH'''," "]" "[[rules]]" 'id = "second"' "regex = '''zz'''" \
+    >"$F/$(key "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=83d9cd684c87d95d656c1458ef04895a7f1cbd8e")"
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-strip-$1" --repo r --keep
+  TOML="$TMP/out-strip-$1/state/sweep.toml"
+}
+expect_stripped() {
+  if [[ "$RC" -ne 0 ]]; then
+    fail "$1: expected exit 0, got $RC; output: $OUT"
+  elif grep -q GLOBALPATH "$TOML"; then
+    fail "$1: a global allowlist path survives: $(cat "$TOML")"
+  elif ! grep -q RULEPATH "$TOML" || ! grep -q GLOBALREGEX "$TOML" ||
+    [[ "$(grep -c '^\[\[rules\]\]' "$TOML")" -ne 2 ]]; then
+    fail "$1: the strip removed more than the global paths: $(cat "$TOML")"
+  else
+    ok "$1"
+  fi
+}
+strip_case multiline "$(printf '%s\n' '[allowlist]' 'paths = [' "    '''GLOBALPATH1'''," "    '''GLOBALPATH2'''," ']' \
+  'regexes = [' "    '''GLOBALREGEX'''," ']' '[[allowlists]]' '  paths = [' "    '''GLOBALPATH3'''," '  ]')"
+expect_stripped "a multi-line global paths list is removed and rule paths are kept"
+strip_case opening "$(printf '%s\n' '[allowlist]' "paths = [ '''GLOBALPATH1'''," "    '''GLOBALPATH2'''," ']' \
+  "regexes = ['''GLOBALREGEX''']")"
+expect_stripped "a global paths list with an element on its opening line is removed"
+strip_case oneline "$(printf '%s\n' '[allowlist]' "paths = ['''GLOBALPATH1''', '''GLOBALPATH2''']" "regexes = ['''GLOBALREGEX''']")"
+expect_stripped "a one-line global paths list is removed"
+strip_case comment "$(printf '%s\n' '[allowlist] # global' 'paths = [' "    '''GLOBALPATH1'''," ']' "regexes = ['''GLOBALREGEX''']")"
+expect_stripped "a global allowlist header with a trailing comment is handled"
+
+# A global paths key the strip does not remove stops the sweep before it starts.
+strip_case quoted "$(printf '%s\n' '[allowlist]' "\"paths\" = ['''GLOBALPATH1''']" "regexes = ['''GLOBALREGEX''']")"
+expect_rc "a global paths key left in place exits 3" 3
+expect_out "the unstripped allowlist is named" 'still has a paths key'
+if [[ "$LOG" != *actions/* ]]; then ok "nothing is swept with the allowlist in place"; else fail "swept with the allowlist: $LOG"; fi
+
 # --- Check runs of every attempt are swept, not only the latest -------------
 F="$TMP/attempts"
 base_fixture "$F" r
