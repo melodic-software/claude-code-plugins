@@ -3358,7 +3358,7 @@ class TestSupersedeResolve(DirCase):
         import exporters
 
         old = exporters.encode({"proposal": "x", "was": "accepted: Postgres"}, None)
-        for neighbour, want in (
+        for neighbor, want in (
             ("accepted: SQS", "accepted: Postgres"),
             (
                 exporters.encode({"answer": "accepted: SQS"}, None),
@@ -3368,7 +3368,7 @@ class TestSupersedeResolve(DirCase):
             self.ledger.write_text(
                 "# Interview ledger\n\n## Open-question register\n\n"
                 f"- Q1 | superseded-by-plan | round 1 | Which store? | {old}\n"
-                f"- Q2 | answered | round 1 | Which queue? | {neighbour}\n",
+                f"- Q2 | answered | round 1 | Which queue? | {neighbor}\n",
                 encoding="utf-8",
             )
             self.edit("resolve", "Q1", "restore")
