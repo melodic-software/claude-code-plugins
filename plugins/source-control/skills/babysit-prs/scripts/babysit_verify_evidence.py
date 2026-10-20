@@ -324,6 +324,15 @@ class Reader:
         self._save(listing, fetched_at)
         return listing
 
+    def listing(self) -> list[dict[str, Any]]:
+        """Every repository artifact, as a judgment reads it, saved to
+        `listing_path` for the run's gate processes. Raises `RuntimeError`
+        when it cannot be read."""
+        try:
+            return self._listing()
+        except _Unreadable as exc:
+            raise RuntimeError(str(exc)) from exc
+
     @property
     def saved(self) -> bool:
         """Whether the listing judged on was read from `listing_path`."""

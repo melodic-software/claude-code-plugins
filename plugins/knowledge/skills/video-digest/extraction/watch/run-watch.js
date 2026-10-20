@@ -287,6 +287,7 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     temp.recorded = true;
     const continuationPrompt = await writeContinuationPrompt(sliceDir, next);
 
+    /** @type {ReturnType<typeof postBootstrapSlice> | null} */
     let postBootstrap = null;
     try {
       postBootstrap = postBootstrapSlice(sliceDir);
@@ -337,12 +338,22 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     return 0;
   }
 
-  const vttText = primary.caption ? await fs.readFile(primary.caption.path, "utf8") : "";
-  const cues = (vttText ? parseVttSegment(vttText) : []).map((cue) => ({
-    startSec: cue.startSec,
-    endSec: cue.endSec,
-    text: cue.text,
-  }));
+  // The cues the primary transcript was built from: caption cues, or the ASR
+  // cues when no caption exists.
+  // An explicit asr override that fails on a captioned entry writes no
+  // transcript, so the caption still supplies the cues, as it always did.
+  const primaryCues = written.transcripts.find(
+    (entry) => entry.entryIndex === written.primaryEntryIndex,
+  )?.cues;
+  const cues =
+    primaryCues ??
+    (primary.caption
+      ? parseVttSegment(await fs.readFile(primary.caption.path, "utf8")).map((cue) => ({
+          startSec: cue.startSec,
+          endSec: cue.endSec,
+          text: cue.text,
+        }))
+      : []);
 
   // Persist state + tempSession before the long extraction phase so an
   // interrupt during ffmpeg/contact-sheet work leaves a watch.json that

@@ -888,6 +888,7 @@ export async function acquireXMedia(url, context) {
   // Pass 2 — media, only in full mode and only when the post itself carries
   // twitter-extracted video with a clean provenance record (structural gate;
   // the foreign case has already hard-failed above).
+  /** @type {number | null} */
   let mediaPassMs = null;
   if (mode === "full" && inspected.twitterVideos.length > 0 && inspected.foreign.length === 0) {
     await sleep(resolveAcquirePhaseGapMs());

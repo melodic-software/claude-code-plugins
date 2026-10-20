@@ -315,10 +315,8 @@ jobs:
       # pull request touching only a lockfile, only a workflow file or only the
       # ShellCheck configuration changes what every lane would find, so it must
       # run every lane rather than none. `shell`, `python`, `docs` and
-      # `powershell` feed no output: `shell`, `python` and `powershell` are the
-      # groups the path filters of .github/workflows/pr-test-windows.yml repeat,
-      # and the unread groups exist so a consumer can be added without touching
-      # the resolver. The test lanes read the plan below, not a group.
+      # `powershell` feed no output: the unread groups exist so a consumer can
+      # be added without touching the resolver. The test lanes read the plan below, not a group.
       # Patterns are ROOT-ANCHORED gitignore rules, and the action rejects `!`,
       # `?` and `+` outright.
       #
@@ -3039,6 +3037,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           BROKER_PATHS='.github/actions/resolve-config/resolve.mjs
+          .github/actions/resolve-config/dimensions.mjs
           .github/actions/resolve-config/predicate.mjs
           .github/actions/resolve-config/vocabulary.mjs
           .github/actions/resolve-config/package.json
