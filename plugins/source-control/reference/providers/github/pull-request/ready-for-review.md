@@ -153,8 +153,9 @@ bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
   gh pr ready "$PR_NUMBER"
 ```
 
-`verify-gate.sh check` exits 0 only when the verify step recorded `pass` (or `skipped`, for
-`--skip verify`) for exactly `HEAD_SHA`; exit 3 is a recorded failure and exit 2 a missing result.
+`verify-gate.sh check` exits 0 only when the record that ends 2.5.3 holds `pass`, or `skipped`,
+when `--skip` removed `verify` or `pre_ready` disabled it, for exactly `HEAD_SHA`; exit 3 is a
+recorded failure and exit 2 a missing or unreadable result.
 The `&&` keeps the refusal and the flip in one command, so a refused check cannot be followed by
 the flip. The cloud-session routes below are not covered by it: before either, run the `check`
 command above as its own preceding command, and flip only when it exits 0.
