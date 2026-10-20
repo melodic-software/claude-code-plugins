@@ -753,3 +753,24 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.match(upload, /\n {10}name: pr-merge-rerun-\$\{\{ steps\.post-merge\.outputs\.lane-rerun \}\}-attempt-2\n/);
 });
+
+test("a recent sweep skips an event run's listing and gate, but not its post-merge check", () => {
+  const names = steps.map((s) => s.name);
+  const recent = names.indexOf("Skip the sweep after a recent one");
+  assert.ok(recent > names.indexOf("Read report-only") && recent < names.indexOf("List the candidate PRs"));
+  const block = step("Skip the sweep after a recent one");
+  assert.match(block, /\n {8}id: recent-sweep\n/);
+  assert.match(block, /\n {8}if: steps\.lane-token\.outputs\.token != ''\n/);
+  assert.match(block, /\n {8}continue-on-error: true\n/);
+  assert.match(block, /\n {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}\n/);
+  assert.match(block, /\n {10}MIN_MINUTES: \$\{\{ steps\.mode\.outputs\.event-sweep-min-minutes \}\}\n/);
+  assert.match(block, /run: node \.base\/\.github\/scripts\/pr-merge\/recent-sweep\.mjs\n?/);
+  assert.match(
+    step("List the candidate PRs"),
+    /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.recent-sweep\.outputs\.skip != 'true'\n/,
+  );
+  assert.match(runScript("Read report-only"), /echo "event-sweep-min-minutes=\$\(yq '\.merge\."event-sweep-min-minutes" \/\/ ""' "\$config"\)"/);
+  for (const name of ["Check earlier lane merges", "Record a failed lane merge"]) {
+    assert.doesNotMatch(step(name), /recent-sweep/, name);
+  }
+});

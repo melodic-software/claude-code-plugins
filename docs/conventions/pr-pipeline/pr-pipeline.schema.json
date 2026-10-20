@@ -747,6 +747,11 @@
           "minimum": 1,
           "description": "Minutes the pr-merge workflow's gate loop runs before it starts no further candidate. The candidate in progress finishes, so no gate stops between its check and its enqueue; the next run starts after the last candidate reached. Keep it below the merge job's timeout-minutes less the longest single candidate. Absent: no budget."
         },
+        "event-sweep-min-minutes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minutes after a pr-merge sweep finishes (its pr-merge-summary artifact) during which a run woken by pull_request_target skips its candidate listing and gate; the post-merge check still runs. Scheduled and hand-started runs always sweep. 0: never skip. Absent: 10."
+        },
         "skip-unchanged": {
           "type": "object",
           "additionalProperties": false,

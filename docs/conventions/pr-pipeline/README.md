@@ -739,6 +739,12 @@ position is the `pr-merge-gate-cursor` artifact, read only from a scheduled or h
 `pr-merge.yml` run on the default branch, found through that workflow's run list; it sets the order
 and never a verdict.
 
+A run woken by `pull_request_target` skips its listing and gate when a sweep finished within
+`merge.event-sweep-min-minutes` (absent: 10, `0`: never), read from the newest `pr-merge-summary`
+artifact of a `pr-merge.yml` run on the default branch. That sweep read every candidate and the next
+scheduled run reads them again, so the event's change waits at most one schedule interval; the
+post-merge check still runs. Scheduled and hand-started runs always sweep, and any error sweeps.
+
 Before the loop, the workflow sets aside each candidate the last gating run refused on inputs that
 have not changed, and reports it with that refusal, marked `carried`. A skip only repeats a refusal:
 it never enqueues. The inputs are the head and `updatedAt`, labels, base SHA, check rollup at the

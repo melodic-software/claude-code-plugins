@@ -451,6 +451,7 @@ jobs:
             echo "gate-budget-minutes=$(yq '.merge."gate-budget-minutes" // ""' "$config")"
             echo "skip-max-minutes=$(yq '.merge."skip-unchanged"."max-minutes" // ""' "$config")"
             echo "skip-max-skips=$(yq '.merge."skip-unchanged"."max-skips" // ""' "$config")"
+            echo "event-sweep-min-minutes=$(yq '.merge."event-sweep-min-minutes" // ""' "$config")"
           } >>"$GITHUB_OUTPUT"
 
       # Swaps this job's GitHub identity proof for a short-lived token of the
@@ -492,6 +493,22 @@ jobs:
             lane ${{ steps.lane-token.outputs.token }}
             github-token ${{ github.token }}
 
+      # A pull_request_target run skips its listing and gate when a sweep
+      # finished within merge.event-sweep-min-minutes (absent: 10, 0: never):
+      # that sweep read every candidate, and the next scheduled run reads them
+      # again. The post-merge check below still runs. Scheduled and
+      # hand-started runs always sweep. Any error sweeps. Rules:
+      # .github/scripts/pr-merge/recent-sweep.mjs.
+      - name: Skip the sweep after a recent one
+        id: recent-sweep
+        if: steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          # The lane token holds no Actions permission.
+          ACTIONS_TOKEN: ${{ github.token }}
+          MIN_MINUTES: ${{ steps.mode.outputs.event-sweep-min-minutes }}
+        run: node .base/.github/scripts/pr-merge/recent-sweep.mjs
+
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) opened, plus Dependabot's unless
       # merge.dependabot.mode is off. This is only a shortlist; the gate checks
@@ -504,7 +521,7 @@ jobs:
       # reports it. Read with the job's own read-only token.
       - name: List the candidate PRs
         id: candidates
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && steps.recent-sweep.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
