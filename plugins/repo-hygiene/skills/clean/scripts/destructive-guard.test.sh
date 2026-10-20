@@ -155,7 +155,7 @@ else
   fail "an ordinary call does not refresh the marker" "$nearly_idle" "$refreshed"
 fi
 
-# A call to one of the skill's own scripts is run activity: a dry-run refreshes
+# Running one of the skill's own scripts is run activity: a dry-run refreshes
 # the stamp, so a long dry-run and confirmation phase keeps the run open.
 printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
 assert_exit "nearly idle marker: skill-script dry-run is allowed" 0 \
@@ -173,6 +173,39 @@ printf '1\n' >"$LIVE_MARKER"
 assert_exit "stale marker: skill-script apply is still blocked" 2 \
   "$(guard_exit "bash scripts/clean-caches.sh --apply --manifest /m")"
 assert_file_exists "stale marker: a skill-script call keeps the marker" "$LIVE_MARKER"
+
+# Only an invocation counts. A command that merely names a script (staging it,
+# grepping it, quoting it in a comment) is an ordinary call, and so is one behind
+# a wrapper, which the guard's command-position parsing does not resolve.
+mention_cmds=(
+  "git add plugins/repo-hygiene/skills/clean/scripts/clean-batch.sh"
+  "grep -n apply clean-batch.sh" # portability-ok: a test command string, never executed
+  "sudo bash scripts/clean-caches.sh --dry-run"
+)
+for cmd in "${mention_cmds[@]}"; do
+  printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
+  guard_exit "$cmd" >/dev/null
+  read -r refreshed <"$LIVE_MARKER"
+  if [[ "$refreshed" == "$nearly_idle" ]]; then
+    pass "a script mention does not refresh the marker: $cmd"
+  else
+    fail "a script mention does not refresh the marker: $cmd" "$nearly_idle" "$refreshed"
+  fi
+done
+
+printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
+guard_exit "bash -c 'bash scripts/clean-caches.sh --dry-run'" >/dev/null
+read -r refreshed <"$LIVE_MARKER"
+if ((refreshed >= $(printf '%(%s)T' -1) - 5)); then
+  pass "a skill-script dry-run inside bash -c refreshes the marker"
+else
+  fail "a skill-script dry-run inside bash -c refreshes the marker" "within 5s of now" "$refreshed"
+fi
+
+printf '1\n' >"$LIVE_MARKER"
+assert_exit "stale marker: a comment naming a script is allowed" 0 \
+  "$(guard_exit "gh issue comment 1 --body 'see clean-caches.sh'")"
+assert_file_absent "stale marker: a comment naming a script removes it" "$LIVE_MARKER"
 
 # An unreadable stamp keeps the guard armed.
 printf 'garbage\n' >"$LIVE_MARKER"

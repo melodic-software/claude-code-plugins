@@ -35,7 +35,7 @@
 # scan-batch) and removes when the run reaches its final outcome. With no marker
 # for the hook input's session_id the guard allows the command. A marker idle for
 # RUN_MARKER_IDLE_SECONDS (lib/run-marker.sh) is deleted and the command allowed;
-# a call naming one of the skill's mutating scripts (dry-run included) refreshes
+# a call that runs one of the skill's mutating scripts (dry-run included) refreshes
 # the marker, even a stale one, as does an acknowledged or destructive call;
 # ordinary calls do not. An unresolved CLAUDE_PLUGIN_DATA or a
 # missing or unusable session_id keeps the guard armed (fail closed), and so does
@@ -102,8 +102,10 @@ fi
 # as --no-pager) between `git` and the subcommand. git clean keys on the force flag (-f/--force) only: -x/-X/-d
 # without force are git no-ops, so blocking them (including dry-run -nx) is a
 # false positive.
-# The clean skill's mutating scripts by basename, anywhere in the raw text.
-CLEAN_SCRIPT_RE='(^|[[:space:][:punct:]])(clean-caches|clean-build|git-prune|git-tree-reset-batch|git-tree-reset|remove-path|clean-batch)\.sh([^[:alnum:]_.-]|$)'
+# The clean skill's mutating scripts: their names, and their basenames anywhere
+# in the raw text.
+CLEAN_SCRIPT_NAMES='clean-caches|clean-build|git-prune|git-tree-reset-batch|git-tree-reset|remove-path|clean-batch'
+CLEAN_SCRIPT_RE="(^|[[:space:][:punct:]])(${CLEAN_SCRIPT_NAMES})\\.sh([^[:alnum:]_.-]|$)"
 
 is_destructive() {
   local cmd="$1"
@@ -246,6 +248,46 @@ argv_segment() {
   return 0
 }
 
+SCRIPT_HIT=0
+# script_segment <word>... : hook::bash_parse_segments callback. Sets SCRIPT_HIT
+# when the segment runs one of the skill's mutating scripts: the script is the
+# command word, or the first operand of a shell at the command position. Leading
+# VAR=val words are skipped and `bash -c` operands re-parsed, as
+# hook::shell_c_operand does; a wrapper in front (sudo, env) is not resolved.
+# shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
+script_segment() {
+  ((SCRIPT_HIT)) && return 0
+  if hook::shell_c_operand "$@"; then
+    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" script_segment
+    return 0
+  fi
+  local -a w=("$@")
+  local n=${#w[@]} i=0 base
+  while ((i < n)) && [[ "${w[i]}" == *=* && "${w[i]}" != -* ]]; do ((i++)); done
+  base="${w[i]:-}"
+  base="${base##*/}"
+  base="${base##*\\}"
+  case "$base" in
+  bash | sh)
+    for ((i++; i < n; i++)); do [[ "${w[i]}" == -* ]] || break; done
+    base="${w[i]:-}"
+    base="${base##*/}"
+    base="${base##*\\}"
+    ;;
+  *) ;;
+  esac
+  [[ "$base" =~ ^(${CLEAN_SCRIPT_NAMES})\.sh$ ]] && SCRIPT_HIT=1
+  return 0
+}
+
+# invokes_clean_script <command> : 0 when a segment of the command runs one of
+# the skill's mutating scripts. Needs hook-utils.sh to be sourced.
+invokes_clean_script() {
+  SCRIPT_HIT=0
+  hook::bash_parse_segments "$1" script_segment
+  ((SCRIPT_HIT))
+}
+
 # is_destructive_bash <command> : is_destructive() for the Bash tool, over parsed
 # segments instead of the raw string. Needs hook-utils.sh to be sourced.
 is_destructive_bash() {
@@ -289,27 +331,28 @@ refresh_marker() {
   [[ -z "$MARKER_FILE" ]] || run_marker_write "$MARKER_FILE"
 }
 
-# A call to one of the skill's scripts is the run's own step, so it keeps even a
-# stale marker: an hour-long confirmation gate still reaches its apply gated.
 MARKER_FILE="" MARKER_STATE=""
 if run_marker_path_to MARKER_FILE "${CLAUDE_PLUGIN_DATA:-}" "$SESSION"; then
   run_marker_state_to MARKER_STATE "$MARKER_FILE"
-  if [[ "$MARKER_STATE" != absent ]] && grep -qE "$CLEAN_SCRIPT_RE" <<<"$CMD"; then
-    MARKER_STATE=live
-    refresh_marker
-  fi
-  case "$MARKER_STATE" in
-  absent) exit 0 ;;
-  stale)
-    rm -f "$MARKER_FILE"
-    exit 0
-    ;;
-  *) ;;
-  esac
+  [[ "$MARKER_STATE" != absent ]] || exit 0
 fi
 
 # shellcheck source=hook-utils.sh
 source "$SCRIPT_DIR/hook-utils.sh"
+
+# Running one of the skill's scripts is the run's own step, so it keeps even a
+# stale marker: an hour-long confirmation gate still reaches its apply gated.
+# A command that only names a script is an ordinary call.
+if [[ -n "$MARKER_STATE" ]]; then
+  if invokes_clean_script "$CMD"; then
+    MARKER_STATE=live
+    refresh_marker
+  fi
+  if [[ "$MARKER_STATE" == stale ]]; then
+    rm -f "$MARKER_FILE"
+    exit 0
+  fi
+fi
 
 # Acknowledged path: the skill's confirmation gate prefixes the command with an
 # assignment. The ack is a deny-to-allow widening, so it is accepted only as
