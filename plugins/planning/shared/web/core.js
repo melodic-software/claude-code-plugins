@@ -54,7 +54,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
-    goal: "", intro: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
+    goal: "", intro: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
@@ -120,7 +120,7 @@
       removed: (s.removed || []).map(p => p.pid),
       rounds: rounds.map(r => ({ n: r.n, status: r.status.kind })),
       round: last ? { current: last.n, status: last.status.kind, sentAt: last.status.sentAt,
-        ...(last.status.ready ? { ready: { by: nameOf(last.status.ready.by), ts: last.status.ready.at } } : {}) } : { current: 1, status: "open" },
+        ...(last.status.ready ? { ready: { by: nameOf(last.status.ready.by), cid: last.status.ready.by, ts: last.status.ready.at } } : {}) } : { current: 1, status: "open" },
       requestCounts: s.requestCounts || DEFAULTS.requestCounts,
       shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, guestKey: s.guestKey || "",
     };
@@ -258,6 +258,8 @@
     // My own problem reports (Your reports): their words, additions and status, never the page context.
     view.myReports = (s.myReports || []).map(r => ({ id: r.id, text: r.text, image: r.image, status: r.status, ts: r.ts, adds: r.adds || [] }));
     view.files = { ...held.files, ...(s.files || {}) };
+    // Follow-up 32: qid -> received pictures offered on it that nothing carries, as far as this viewer may see them.
+    view.questionPics = s.questionPics || {};
     // Passes and their reasons (owner only): qid -> pid -> {reason?, ts}.
     view.passes = s.passes || {};
     // Present people are active or away (with since when); a person with no heartbeat for a while is absent: offline.
@@ -362,6 +364,13 @@
     state: structuredClone(DEFAULTS),
     live: false,
     errorText,
+    /** The time since ts (server seconds): "5 min", "2 h", "3 d", or "" under a minute. */
+    span(ts) {
+      const s = Math.max(0, Math.round((Core.state.serverTime || Date.now() / 1000) - ts));
+      return s < 60 ? "" : s < 3600 ? `${Math.floor(s / 60)} min` : s < 86400 ? `${Math.floor(s / 3600)} h` : `${Math.floor(s / 86400)} d`;
+    },
+    /** When ts was, as the page writes it everywhere: "just now", "5 min ago". */
+    since(ts) { const d = Core.span(ts); return d ? `${d} ago` : "just now"; },
 
     /** fn(state, Core) runs after every poll and every local change. Returns an unsubscribe function. */
     subscribe(fn) { listeners.add(fn); fn(Core.state, Core); return () => listeners.delete(fn); },

@@ -71,9 +71,20 @@ async function main() {
     ok("  it lists the view, question and round, device and browser, screen and visible area, build and recent errors", want.every(re => list.items.some(t => re.test(t))), list.items.join(" | "));
     ok("  and nothing anyone wrote", !list.items.join(" ").includes(ANSWER) && !list.items.join(" ").includes(CHAT));
 
+    // F3: a pasted picture becomes the attachment chip every other form shows; its x takes it off.
+    await pia.evaluate(async () => {
+      const c = document.createElement("canvas"); c.width = 640; c.height = 400; c.getContext("2d").fillRect(0, 0, 640, 400);
+      const dt = new DataTransfer(); dt.items.add(new File([await new Promise(r => c.toBlob(r, "image/png"))], "clip.png", { type: "image/png" }));
+      document.querySelector("#vf-rep-ta").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    });
+    ok("a screenshot pasted into the report's field shows as an attachment chip", await until(pia, () => [...document.querySelectorAll(".vf-reportpop .vf-attdraft .vf-ref")]
+      .some(li => li.textContent.includes("Screenshot, 640 × 400") && li.querySelector(".vf-ref-thumb img")?.getAttribute("src")?.startsWith("data:image/"))));
+    ok("  the sent list names it, and the field keeps no text", (await pia.locator(".vf-reportpop .vf-rep-sent li", { hasText: "Your screenshot, 640 × 400" }).count()) === 1 && (await pia.inputValue("#vf-rep-ta")) === "");
+    await pia.locator(".vf-reportpop .vf-attdraft .vf-ref-x").tap();
+    ok("  its x takes it off", await until(pia, () => document.querySelector(".vf-reportpop .vf-attdraft").hidden && ![...document.querySelectorAll(".vf-reportpop .vf-rep-sent li")].some(li => /screenshot/.test(li.textContent))));
     await pia.locator(".vf-reportpop input[type=file]").setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: png(3200, 1800, [800, 1000]) });
-    ok("the screenshot shows in the form", await until(pia, () => !!document.querySelector(".vf-reportpop .vf-rep-shot:not([hidden])")?.naturalWidth));
-    const shot = await pia.evaluate(() => { const i = document.querySelector(".vf-reportpop .vf-rep-shot"); return { w: i.naturalWidth, h: i.naturalHeight, src: i.src.slice(0, 30) }; });
+    ok("the screenshot shows in the form", await until(pia, () => !!document.querySelector(".vf-reportpop .vf-attdraft .vf-ref-thumb img")?.naturalWidth));
+    const shot = await pia.evaluate(() => { const i = document.querySelector(".vf-reportpop .vf-attdraft .vf-ref-thumb img"); return { w: i.naturalWidth, h: i.naturalHeight, src: i.src.slice(0, 30) }; });
     ok("  re-encoded in the browser to 1600 px on its long edge", shot.w === 1600 && shot.h === 900, JSON.stringify(shot));
     ok("  as WebP or JPEG", /^data:image\/(webp|jpeg);base64,/.test(shot.src), shot.src);
     ok("  and the sent list names it", (await pia.locator(".vf-reportpop .vf-rep-sent li", { hasText: "Your screenshot, 1600 × 900" }).count()) === 1);

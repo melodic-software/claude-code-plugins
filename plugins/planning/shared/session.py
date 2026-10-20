@@ -415,6 +415,14 @@ def _flat(by_qid):
     return [x for lst in by_qid.values() for x in lst]
 
 
+def _pics_by_q(uploads):
+    """qid -> the ids of these uploads offered on it, oldest first."""
+    out = {}
+    for u in sorted(uploads, key=lambda u: u["at"]):
+        out.setdefault(u["qid"], []).append(u["id"])
+    return out
+
+
 def _shows_as_image(u):
     """A received upload of a picture kind, small enough to read back; its bytes passed its kind's check on arrival."""
     return u["status"]["kind"] == "done" and u["ext"] in IMAGE_KINDS and u["size"] <= SHOWN_IMAGE_MAX
@@ -5304,6 +5312,15 @@ class Session:
         }
         # every upload what everyone reads carries, older chat included: who may read a picture back (upload_image)
         self._public_uploads = {uid for r in [*_answers(cards), *chat, *_flat(discussions), *_flat(suggestions)] for uid in r.get("attachments", [])}
+        # Follow-up 32: received pictures offered on a question that no record carries show under that question;
+        # everyone sees the approved ones, the owner and each uploader also those waiting for approval (snapshot).
+        carried = {uid for _, r in _attaching(st) for uid in r.get("attachments", ())}
+        self._loose_pics = [u for u in st["uploads"] if u.get("qid") and _shows_as_image(u) and u["id"] not in carried and self._active(u["pid"])]
+        approved = [u for u in self._loose_pics if _approved(u)]
+        if approved:
+            base["questionPics"] = _pics_by_q(approved)
+            base["files"].update(self._files_of([{"attachments": [u["id"] for u in approved]}]))
+            self._public_uploads |= {u["id"] for u in approved}
         if len(chat) > CHAT_WINDOW:
             base["chatBefore"] = base["chat"][0]["id"]  # older messages exist: GET /api/chat?before=<it> reads them
             touched = max((self._chat_touch.get(m["id"], 0) for m in chat[:-CHAT_WINDOW]), default=0)
@@ -5515,6 +5532,10 @@ class Session:
                     *visible, *snap["myRequests"], *(st["requests"] if owner else [])]
             if any("attachments" in r for r in seen):  # what only this viewer reads: hidden answers and comments, proposals, requests
                 snap["files"] = {**base["files"], **self._files_of(seen)}
+            waiting = [u for u in self._loose_pics if not _approved(u) and (owner or u["pid"] == pid)]
+            if waiting:
+                snap["questionPics"] = _pics_by_q([u for u in self._loose_pics if _approved(u) or u in waiting])
+                snap["files"] = {**snap["files"], **self._files_of([{"attachments": [u["id"] for u in waiting]}])}
             if moderator:
                 snap["guestKey"] = st["session"]["guestKey"]
                 snap["behind"] = self._behind()

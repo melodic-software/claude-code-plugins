@@ -5206,6 +5206,27 @@ class TestAttachmentsEverywhere(UploadCase):
         self.refused("wrong-status", "act_on_upload", HOST, {"id": self.offered_and_accepted(self.ann, name="c.png"), "action": "approve"})
         self.assertIsNone(session.document_error(self.disk()))
 
+    def test_a_picture_on_a_question_that_no_record_carries_shows_under_it(self):
+        def loose(pid, name):
+            uid = self.offer(pid, name, PIC, qid="Q1")["id"]
+            if pid != HOST:
+                self.act("act_on_upload", HOST, {"id": uid, "action": "accept"})
+            self.send_all(pid, uid, PIC)
+            return uid
+        pic, own, sent = loose(self.ann, "a.png"), loose(HOST, "h.png"), loose(self.ann, "c.png")
+        self.act("chat", self.ann, {"text": "Carried", "attachments": [sent]})
+        pics = lambda pid: self.s.snapshot(pid).get("questionPics")
+        # Waiting for approval: the owner and the uploader see it, with the owner's own; Bo only the owner's.
+        self.assertEqual((pics(HOST), pics(self.ann), pics(self.bo)), ({"Q1": [pic, own]}, {"Q1": [pic, own]}, {"Q1": [own]}))
+        self.assertEqual(self.s.snapshot(self.ann)["files"][pic]["awaitsHost"], True)
+        self.assertNotIn(pic, self.s.snapshot(self.bo)["files"])
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": pic}).http, 404)
+        self.act("act_on_upload", HOST, {"id": pic, "action": "approve"})
+        self.assertEqual((pics(self.bo), self.s.snapshot(self.bo)["files"][pic]["image"]), ({"Q1": [pic, own]}, True))
+        self.assertEqual(self.s.upload_image(self.bo, {"id": pic})["id"], pic)
+        self.act("act_on_upload", self.ann, {"id": pic, "action": "remove"})  # the uploader's Remove
+        self.assertEqual(pics(self.bo), {"Q1": [own]})
+
     def test_each_form_keeps_its_attachments(self):
         uid = self.offered_and_accepted(self.ann)
         m = self.act("chat", self.ann, {"text": "Look", "attachments": [uid]})["id"]

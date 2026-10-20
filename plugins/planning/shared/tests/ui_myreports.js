@@ -70,7 +70,7 @@ async function main() {
     // ---------- add a screenshot: re-encoded, the owner reads it back ----------
     await pia.waitForTimeout(1200); // one addition a second
     await pia.locator(".vf-myrep input[type=file]").setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: png(3200, 1800, [800, 1000]) });
-    await until(pia, () => !document.querySelector(".vf-myrep .vf-rep-shot").hidden);
+    ok("the picked screenshot shows as an attachment chip", await until(pia, () => !!document.querySelector(".vf-myrep .vf-attdraft:not([hidden]) .vf-ref-thumb img")?.naturalWidth));
     await pia.locator(".vf-myrep-add button[type=submit]").tap();
     ok("the screenshot shows as added", await until(pia, () => [...document.querySelectorAll(".vf-myrep-adds li")].some(li => li.textContent === "Screenshot added")));
     const shot = await owner.evaluate(async id => {
