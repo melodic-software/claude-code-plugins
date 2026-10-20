@@ -12,7 +12,7 @@ allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/
 ## Pre-computed context
 
 ```!
-node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python "${user_config.asr_python}"
 ```
 
 If the report above did not run or shows no readiness lines, run that command by hand before any
@@ -31,9 +31,12 @@ rather than a value is unset: treat it as the default.
 | `yt_dlp_cookies_file` | `${user_config.yt_dlp_cookies_file}` | empty |
 | `yt_dlp_cookies_from_browser` | `${user_config.yt_dlp_cookies_from_browser}` | empty |
 | `max_concurrent_acquires` | `${user_config.max_concurrent_acquires}` | `1` |
+| `asr_python` | `${user_config.asr_python}` | empty |
 
 How each value becomes a `run.mjs` flag: `context/output-contract.md` (`library_dir`) and
-`reference/sources/youtube.md` (the yt-dlp options).
+`reference/sources/youtube.md` (the yt-dlp options). `asr_python` applies to every source: when it
+holds a non-empty value that is not a literal `user_config` token, pass `--asr-python "<value>"` as
+a leading flag on every `run.mjs` invocation; otherwise omit it.
 
 # Video digest. YouTube and X
 
@@ -267,7 +270,7 @@ runs without bash) and **Node 22 or newer** (the runner reads
 as of 2026-10-10; recheck when either section changes.
 
 Verify before starting (stop and route to the fix path on failure). The readiness report is
-`node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`;
+`node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python "${user_config.asr_python}"`;
 run it by hand when the pre-computed context did not run. It also prints where the dependencies
 install. `--data-dir` is the relocation override: pass another directory to both `setup-deps.mjs`
 and `run.mjs` when the default is not writable.
@@ -328,11 +331,30 @@ proceeds caption-less with the downloaded video; a failed or rate-limited captio
 still stops) and available on request via
 `--transcript-strategy asr` even when captions exist. Either way it runs under `watch` only. ASR
 needs the media file and the `transcript` action never downloads media. Detected at runtime
-through the machine's Python (`python`, `python3`, or `py`. Whichever imports `faster_whisper`)
+through the machine's Python (the `asr_python` interpreter from the table above when set, then
+`python`, `python3`, or `py`. Whichever imports `faster_whisper`)
 and **never auto-installed**. When it is absent the pipeline degrades explicitly rather than
 failing: it falls back to a caption strategy where a caption exists, otherwise completes the
 digest without a transcript, and either way records the reason in the `transcriptDegradation`
 field (`watch.json` phase metrics and the CLI's stdout JSON), never silently.
+
+**Faster-whisper install recipe.** A default Python that refuses `pip install --user` (PEP 668,
+externally managed) needs a virtual environment. Run these yourself; the skill never does. Replace
+`<dir>` with a directory of your choice, then set the `asr_python` option to the venv's interpreter
+(`<dir>/bin/python`, or `<dir>\Scripts\python.exe` on Windows): <!-- portability-ok: Windows path, not a shell regex -->
+
+```bash
+uv venv <dir> --python 3.13  # prereq-ok: user-run recipe; the skill never runs uv
+uv pip install --python <dir> faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12 "av<19"  # prereq-ok: user-run recipe; the skill never runs uv
+```
+
+The `nvidia-*` wheels supply the CUDA libraries for GPU runs; skip them for CPU-only. On Windows the
+runner script adds each `site-packages/nvidia/*/bin` directory as a DLL directory, so no PATH edit is
+needed. The recipe pins `av` for faster-whisper's audio decoding; the live state is
+[SYSTRAN/faster-whisper#1589](https://github.com/SYSTRAN/faster-whisper/issues/1589) and its fix,
+[SYSTRAN/faster-whisper#1495](https://github.com/SYSTRAN/faster-whisper/pull/1495), merged but in
+no release as of 2026-10-20. Recheck when a faster-whisper release ships that includes #1495, then
+drop the pin.
 
 ## Eval fixtures
 
