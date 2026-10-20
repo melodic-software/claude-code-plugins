@@ -294,7 +294,6 @@ function mergeRoutes(bundled, teamRouting, path, warn, presence) {
   return { rows, touched };
 }
 
-const RESERVED = [".claude", ".git"];
 const DEFAULTS = { jtbd_school: "unset", research_paths: [], persona_paths: [], output_home: null };
 
 /** The team file's settings beyond routing; a bad value falls back to its default with a warning. */
@@ -306,31 +305,47 @@ function teamSettings(doc, warn) {
     warn(`jtbd_school ${quote(school)} is not one of ${props.jtbd_school.enum.join(", ")}; unset used`);
     school = DEFAULTS.jtbd_school;
   }
-  // A project path outside .claude and .git: a deliverable there would become a standing project
-  // rule, and research read from there is configuration, not research.
-  const reserved = (rel) => RESERVED.includes(rel.split(/[\\/]/)[0].toLowerCase());
-  // Checked as written and as resolved, so a symlink inside the project that points at .claude
-  // or .git cannot carry a path there.
-  const resolvesReserved = (rel) => {
+  // A project path whose first segment is not a dotfile or dot-directory: a deliverable under
+  // .claude would become a standing project rule, and research read from .claude, .git, .env or
+  // .aws is configuration or secrets, not research. The project root (".") counts too, since a
+  // research path there reads every dot location under it and an output home there writes beside
+  // tool config at the root.
+  const reserved = (rel) => rel.split(/[\\/]/)[0].startsWith(".");
+  // Checked as written and as resolved, so a symlink inside the project that points at a dot
+  // location cannot carry a path there.
+  const resolved = (rel) => {
     const root = realpathSync(resolve(opts.project));
     let at = resolve(opts.project, rel);
+    const exists = existsSync(at);
     while (!existsSync(at)) at = dirname(at);
-    return reserved(relative(root, realpathSync(at)));
+    return { real: relative(root, realpathSync(at)), exists };
   };
+  // relative() gives "" for the root, so an existing path that resolves there (a symlink to the
+  // root) is the root; a missing path whose nearest existing ancestor is the root is not.
+  const resolvesToRoot = (rel) => {
+    const { real, exists } = resolved(rel);
+    return exists && real === "";
+  };
+  const resolvesReserved = (rel) => resolvesToRoot(rel) || reserved(resolved(rel).real);
   const usable = (p) => {
     const rel = inside(p);
     return rel === null || reserved(rel) || resolvesReserved(rel) ? null : rel;
   };
+  const ROOT_REASON = "resolves to the repository root, which holds tool config and secrets; name a subdirectory";
+  const why = (p, fallback) => {
+    const rel = inside(p);
+    return rel === "." || (rel !== null && resolvesToRoot(rel)) ? ROOT_REASON : fallback;
+  };
   const paths = (k) =>
     listAt(doc[k], k, warn).flatMap((p) => {
       const rel = usable(p);
-      if (rel === null) warn(`${k} entry ${quote(p)} is outside the project, under .claude or .git, or not a path; dropped`);
+      if (rel === null) warn(`${k} entry ${quote(p)} ${why(p, "is outside the project, starts with a dot, or is not a path")}; dropped`);
       return rel === null ? [] : [rel];
     });
   let home = DEFAULTS.output_home;
   if (doc.output_home != null) {
     home = usable(doc.output_home);
-    if (home === null) warn(`output_home ${quote(doc.output_home)} is outside the project, under .claude or .git, or not a path; default used`);
+    if (home === null) warn(`output_home ${quote(doc.output_home)} ${why(doc.output_home, "is outside the project, starts with a dot, or is not a path")}; default used`);
   }
   return { jtbd_school: school, research_paths: paths("research_paths"), persona_paths: paths("persona_paths"), output_home: home };
 }
