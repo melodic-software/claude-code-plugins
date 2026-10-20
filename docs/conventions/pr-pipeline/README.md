@@ -741,14 +741,14 @@ position is the `pr-merge-gate-cursor` artifact, read only from a scheduled or h
 `pr-merge.yml` run on the default branch, found through that workflow's run list; it sets the order
 and never a verdict.
 
-A run woken by `pull_request_target` skips its listing and gate when a sweep finished within
-`merge.event-sweep-min-minutes` (absent: 10, `0`: never) and reached every candidate: the newest
-`pr-merge-summary` artifact of a `pr-merge.yml` run on the default branch shows no budget stop and one
-non-held row per listed candidate. A sweep the budget, a failure or a cancel ended early does not
-count. The event's change then waits for the next scheduled run: one schedule interval, or longer
-when that run also stops at its budget before reaching the pull request, as for any change the
-schedule picks up. The post-merge check still runs. Scheduled and hand-started runs always sweep, and
-any error or unreadable summary sweeps.
+A run woken by `pull_request_target` skips its listing and gate when another sweep already read the
+event's change: the newest `pr-merge-summary` artifact of a `pr-merge.yml` run on the default branch
+shows a sweep that started after this run was created, reached every candidate (no budget stop, one
+non-held row per listed candidate) and finished within `merge.event-sweep-min-minutes` (absent: 10,
+`0`: never). A sweep that started earlier may have read the pull request before the event, and one
+the budget, a failure or a cancel ended early may not have reached it; neither counts. The post-merge
+check still runs. Scheduled and hand-started runs always sweep, and any error, unreadable summary or
+missing time sweeps.
 
 Before the loop, the workflow sets aside each candidate the last gating run refused on inputs that
 have not changed, and reports it with that refusal, marked `carried`. A skip only repeats a refusal:

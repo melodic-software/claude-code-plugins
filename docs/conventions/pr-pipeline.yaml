@@ -489,13 +489,12 @@ merge:
   # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
   # candidate included, inside the 15 minutes between scheduled runs.
   gate-budget-minutes: 10
-  # Minutes after a pr-merge sweep that reached every candidate finishes,
-  # during which a pull_request_target run skips its own sweep; scheduled and
+  # Minutes after a pr-merge sweep finishes during which a pull_request_target
+  # run skips its own sweep, when that sweep started after the run was created
+  # and reached every candidate, so it read the event's change; scheduled and
   # hand-started runs always sweep, and 0 never skips. 2026-10-20
   # 05:54-06:55Z: 26 event runs, 12 sweeps, 1,781 job-token calls, the bucket
-  # empty twice. An event's change waits for the next scheduled run (15
-  # minutes, longer if that run stops at its budget first); 10 leaves room for
-  # one event sweep between scheduled ones (judgment).
+  # empty twice. 10 bounds how old a reused sweep may be (judgment).
   event-sweep-min-minutes: 10
   # Minutes a MED or HIGH reasons comment must stand unchanged at the head
   # before the gate adds the human-gated label; 0 is no minimum. 60 is longer

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // recent-sweep.mjs: tells a pr-merge `merge` job woken by pull_request_target
-// whether to skip its sweep because another one finished within
-// merge.event-sweep-min-minutes. Such a sweep already read every candidate,
-// and the next scheduled run, at most 15 minutes away, reads them again, so
-// the event's change waits at most that long. Scheduled and hand-started runs
-// always sweep.
+// whether to skip its sweep because another sweep already read the event's
+// change: one that started after this run was created, reached every
+// candidate, and finished within merge.event-sweep-min-minutes. A sweep reads
+// its candidates after it starts, so one that started before this run was
+// created may have read the pull request before the event; it does not count.
+// Scheduled and hand-started runs always sweep.
 //
 // A sweep finished when its run uploaded the pr-merge-summary artifact, which
 // a run that ran the gate does even when the gate stopped early (its budget,
@@ -12,13 +13,15 @@
 // is main's pr-merge.yml (scheduled or hand-started on main, or
 // pull_request_target) and its pr-merge-sweep.json shows the gate reached
 // every candidate: budget_stop null and one non-held row per listed candidate
-// (sweep-summary.mjs). A skip prints one line for counting saved sweeps:
+// (sweep-summary.mjs), and its started_at (the run's run_started_at) is later
+// than this run's created_at (GET /actions/runs/{GITHUB_RUN_ID}). A skip
+// prints one line for counting saved sweeps:
 //   event-sweep-skip: last-sweep-finished=<iso> age-min=<n> min-minutes=<N>
 //
 // Any failure, or a summary missing a field, answers `skip=false`: the run
-// sweeps, as every run did before this check. Two REST calls, and a third, the
-// artifact download, only when the sweep is inside the window; all with the
-// job's own token (actions: read).
+// sweeps, as every run did before this check. Two REST calls, and two more
+// (this run's record and the artifact download) only when the sweep finished
+// inside the window; all with the job's own token (actions: read).
 //
 // Environment:
 //   ACTIONS_TOKEN        the job's GITHUB_TOKEN
@@ -126,14 +129,28 @@ export async function main({ env = process.env, actions, download, now = Date.no
       console.log(`the last pr-merge sweep finished ${age} minutes ago, not within ${min}; this run sweeps`);
       return 0;
     }
+    const self = await actions("GET", `/repos/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`);
+    const created = Date.parse(self?.created_at);
+    if (Number.isNaN(created)) {
+      throw new Error("this run has no readable created_at");
+    }
     download ??= ghDownload({ repo: env.GITHUB_REPOSITORY, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP || tmpdir() });
-    if (!sweptAll(JSON.parse(download(newest.id)))) {
+    const sweep = JSON.parse(download(newest.id));
+    if (!sweptAll(sweep)) {
       console.log(`run ${run.id}'s sweep did not reach every candidate; this run sweeps`);
+      return 0;
+    }
+    const started = Date.parse(sweep.started_at);
+    if (Number.isNaN(started)) {
+      throw new Error(`run ${run.id}'s summary has no readable started_at`);
+    }
+    if (started <= created) {
+      console.log(`run ${run.id}'s sweep started before this run was created, so it may predate the event; this run sweeps`);
       return 0;
     }
     skip = true;
     console.log(`event-sweep-skip: last-sweep-finished=${new Date(finished).toISOString()} age-min=${age} min-minutes=${min}`);
-    const msg = `run ${run.id} (${run.event}) finished a sweep ${age} minutes ago, within merge.event-sweep-min-minutes (${min}), so this run skips its sweep; the next scheduled run checks every candidate`;
+    const msg = `run ${run.id} (${run.event}) started a sweep after this run was created and finished it ${age} minutes ago, within merge.event-sweep-min-minutes (${min}), reaching every candidate, so this run skips its sweep`;
     console.log(`::notice::${escapeCommand(msg)}`);
     if (env.GITHUB_STEP_SUMMARY) {
       appendFileSync(env.GITHUB_STEP_SUMMARY, `- ${msg}\n`);

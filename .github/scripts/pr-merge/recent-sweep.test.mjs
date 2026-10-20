@@ -4,8 +4,9 @@
 // artifact from a pr-merge.yml run is younger than
 // merge.event-sweep-min-minutes (absent: 10, 0: never skip) and its
 // pr-merge-sweep.json shows the gate reached every candidate (sweep-summary.mjs:
-// budget_stop null, and every listed candidate a non-held row). Any failure
-// sweeps, as every run did before this check.
+// budget_stop null, and every listed candidate a non-held row) and that sweep
+// started after this run was created, so it read the event's change. Any
+// failure sweeps, as every run did before this check.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -32,9 +33,11 @@ const artifact = (runId, minutes, extra = {}) => ({
   workflow_run: { id: runId },
   ...extra,
 });
-// A complete sweep: two candidates, one held row, both candidates gated.
+// A complete sweep: two candidates, one held row, both candidates gated,
+// started 30 minutes ago; this run was created 60 minutes ago.
 const complete = (extra = {}) =>
-  JSON.stringify({ candidates: 2, held: 1, skipped: 0, budget_stop: null, results: [{}, {}, {}], ...extra });
+  JSON.stringify({ started_at: minutesAgo(30), candidates: 2, held: 1, skipped: 0, budget_stop: null, results: [{}, {}, {}], ...extra });
+const thisRun = (minutes = 60) => ({ id: Number(THIS_RUN), created_at: minutesAgo(minutes) });
 const sweepRun = (id, event = "schedule", extra = {}) => ({
   id,
   event,
@@ -44,7 +47,8 @@ const sweepRun = (id, event = "schedule", extra = {}) => ({
 });
 
 let n = 0;
-async function check({ event = "pull_request_target", min = "", artifacts = [], runs = {}, fail, body, summary: sweep = complete() } = {}) {
+async function check({ event = "pull_request_target", min = "", artifacts = [], runs = {}, fail, body, summary: sweep = complete(), created = 60 } = {}) {
+  runs = { [THIS_RUN]: thisRun(created), ...runs };
   n += 1;
   const output = join(dir, `output-${n}`);
   const summary = join(dir, `summary-${n}`);
@@ -103,7 +107,7 @@ test("an event run within the default 10 minutes of a finished sweep skips, with
   const run = await check({ artifacts: [artifact(400, 4)], runs: { 400: sweepRun(400) } });
   assert.equal(run.status, 0);
   assert.equal(run.skip, true);
-  assert.deepEqual(run.calls, [`GET ${ARTIFACTS}`, `GET ${RUN(400)}`]);
+  assert.deepEqual(run.calls, [`GET ${ARTIFACTS}`, `GET ${RUN(400)}`, `GET ${RUN(THIS_RUN)}`]);
   assert.deepEqual(run.downloads, [9400]);
   assert.match(run.stdout, /^event-sweep-skip: last-sweep-finished=2026-10-20T06:56:00\.000Z age-min=4 min-minutes=10$/m);
 });
@@ -131,8 +135,26 @@ test("a sweep that ended before its last candidate, with no budget stop, does no
   assert.equal(run.skip, false);
 });
 
+test("a sweep that started before this run was created, though it ended inside the window, does not count", async () => {
+  const run = await check({ artifacts: [artifact(400, 1)], runs: { 400: sweepRun(400) }, summary: complete({ started_at: minutesAgo(9) }), created: 5 });
+  assert.equal(run.skip, false);
+  assert.match(run.stdout, /started before this run was created/);
+});
+
+test("a complete sweep that started after this run was created counts", async () => {
+  const run = await check({ artifacts: [artifact(400, 1)], runs: { 400: sweepRun(400) }, summary: complete({ started_at: minutesAgo(4) }), created: 5 });
+  assert.equal(run.skip, true);
+});
+
+test("a missing or unreadable creation time for this run sweeps", async () => {
+  for (const created_at of [undefined, "soon"]) {
+    const run = await check({ artifacts: [artifact(400, 1)], runs: { 400: sweepRun(400), [THIS_RUN]: { id: 500, created_at } } });
+    assert.equal(run.skip, false, String(created_at));
+  }
+});
+
 test("a summary missing a field does not count", async () => {
-  for (const key of ["candidates", "held", "budget_stop", "results"]) {
+  for (const key of ["started_at", "candidates", "held", "budget_stop", "results"]) {
     const parsed = JSON.parse(complete());
     delete parsed[key];
     const run = await check({ artifacts: [artifact(400, 2)], runs: { 400: sweepRun(400) }, summary: JSON.stringify(parsed) });
@@ -184,7 +206,7 @@ test("the newest unexpired artifact is the one checked", async () => {
     runs: { 401: sweepRun(401), 403: sweepRun(403) },
   });
   assert.equal(run.skip, true);
-  assert.deepEqual(run.calls, [`GET ${ARTIFACTS}`, `GET ${RUN(403)}`]);
+  assert.deepEqual(run.calls, [`GET ${ARTIFACTS}`, `GET ${RUN(403)}`, `GET ${RUN(THIS_RUN)}`]);
 });
 
 test("an artifact from another workflow, a pull_request run, or a hand-started run off main does not count", async () => {
