@@ -69,7 +69,7 @@ If the user mentions a specific version, use the version-specific ID:
 
 ```bash
 # Latest indexed
-MSYS_NO_PATHCONV=1 ctx7 docs /vercel/next.js "app router middleware"
+MSYS_NO_PATHCONV=1 ctx7 docs /vercel/next.js "app router proxy"
 
 # Version-specific (version format comes from the library result's Versions field)
 MSYS_NO_PATHCONV=1 ctx7 docs /vercel/next.js/v14.3.0 "app router middleware"
@@ -90,7 +90,7 @@ Query quality directly affects results. Be specific and include relevant details
 
 Describe what to look up in the library's documentation, not the task to complete. Distill the user's question into a focused query: keep the details that describe the library problem, drop everything else. A `NullReferenceException` trace from change-tracking code becomes `"EF Core DbContext change tracking null reference"`. Vague one-word queries return generic results.
 
-Keep each query to a **single concept**. When a prompt asks about several independent topics, split them and run a separate `docs` / `query-docs` lookup per topic. A combined query dilutes ranking and returns shallow results for every topic. Combine concepts in one query only when the question is about how they interact (e.g. `"Next.js middleware with NextAuth session validation"`).
+Keep each query to a **single concept**. When a prompt asks about several independent topics, split them and run a separate `docs` / `query-docs` lookup per topic. A combined query dilutes ranking and returns shallow results for every topic. Combine concepts in one query only when the question is about how they interact (e.g. `"Next.js proxy with NextAuth session validation"`).
 
 ## Output content types
 
