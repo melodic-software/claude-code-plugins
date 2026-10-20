@@ -197,6 +197,19 @@
         "The only line the response adds after the render is the reload guidance, stated as the docs' two-step: bare /reload-plugins first, /reload-plugins --force only if the bare command warns about re-reading the conversation",
         "The response does not append its own monitor restart call-out; that bullet comes from the render's Action needed when updated_with_monitors is non-empty"
       ]
+    },
+    {
+      "id": 16,
+      "name": "install-new-ask-leftover-chunk-of-one-in-second-call",
+      "prompt": "Sync my plugins — I have `install_new` set to `ask` and there are 17 new catalog plugins not yet installed.",
+      "expected_output": "The first AskUserQuestion call carries 4 multi-select questions of 4 options each (16 plugins), each with distinct question text. The 17th plugin is left over as a chunk of 1 and goes in a further call as a single-select Install/Skip question, not a one-option multi-select, with no hand-added Other option. No `claude plugin install` runs until the answers are obtained; an unanswered chunk counts as declined.",
+      "files": [],
+      "expectations": [
+        "No question carries more than 4 options and no call carries more than 4 questions",
+        "Every one of the 17 plugins appears in exactly one question",
+        "The leftover 17th plugin is asked in a further call as a single-select Install/Skip question, not a one-option multi-select",
+        "No `claude plugin install` command runs before the user's answers are obtained"
+      ]
     }
   ]
 }

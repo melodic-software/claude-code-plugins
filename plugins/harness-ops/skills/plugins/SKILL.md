@@ -295,8 +295,9 @@ record; for option types and fixed options, see
 
 - `ask` (default). Offer every not-yet-installed catalog plugin in `AskUserQuestion` chunks of at
   most 4 options per question and at most 4 questions per call, with a further call past 16, each
-  chunk's question text distinct (answers are keyed by it). A gap of 1 is a single-select
-  Install/Skip question with no hand-added Other option. The limits are the tool's, per
+  chunk's question text distinct (answers are keyed by it). A chunk of 1, whether a gap of 1 or
+  the one left over from a gap of 5, 9, 13 and so on, is a single-select Install/Skip question
+  with no hand-added Other option. The limits are the tool's, per
   [Handle approvals and user input](https://code.claude.com/docs/en/agent-sdk/user-input.md)
   (as of 2026-10-18; recheck if that page changes them). Then install and enable each pick,
   including one the CLI installs disabled by default. An unanswered or dismissed chunk counts as

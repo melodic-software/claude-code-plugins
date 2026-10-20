@@ -58,8 +58,9 @@ step's prose, is what to branch on:
 - **`ask`** (default): present every entry through `AskUserQuestion` multi-selects worded
   as "install and enable", in chunks of at most 4 options per question and at most 4 questions per
   call, with a further call past 16 entries. Each chunk's question text is distinct, because
-  answers are keyed by question text. A gap of 1 is one single-select Install/Skip question, with
-  no hand-added Other option. The limits are the tool's, per
+  answers are keyed by question text. A chunk of 1, whether a gap of 1 or the one left over from a
+  gap of 5, 9, 13 and so on, is one single-select Install/Skip question, with no hand-added Other
+  option. The limits are the tool's, per
   [Handle approvals and user input](https://code.claude.com/docs/en/agent-sdk/user-input.md) (as
   of 2026-10-18; recheck if that page changes them). Then `claude plugin install <id> -s user` for each the user picks. A
   pick is the user's choice, so a pick the CLI reports as disabled by default is then enabled with
