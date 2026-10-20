@@ -262,6 +262,10 @@ async function main() {
     const digest = doc.log.events.find(e => e.kind === "round-sent")?.digest;
     ok("the round's digest hands Claude each note with its element", JSON.stringify(digest?.annotations?.map(x => [x.variant, x.element, x.text])) === JSON.stringify([
       ["v-1", BUTTON_PATH, "Make the total sit next to Pay now."], ["v-2", "img", "This band hides the address."], ["v-1", "html", "Too long for a phone."]]), JSON.stringify(digest?.annotations));
+    await owner.evaluate(() => window.Core.endSession(true));
+    ok("once the session ends, a guest's Choose is disabled and says the session has ended (B6)", await until(proto, () => {
+      const b = document.querySelector(".vp-choose"); return b.disabled && b.title === "This session has ended."; }),
+      await proto.evaluate(() => document.querySelector(".vp-choose").title));
 
     ok("no request was answered 429 (slow down)", rec.too.length === 0, rec.too.slice(0, 5).join(", "));
     const csp = [...await rec.cspViolations(), ...(await proto.evaluate(() => window.__csp || []))];

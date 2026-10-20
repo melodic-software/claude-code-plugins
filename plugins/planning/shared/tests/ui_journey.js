@@ -144,7 +144,7 @@ async function main() {
 
     // send
     await owner.locator(".vf-round-cur .vf-send").click();
-    const confirm = owner.locator(".vf-confirm button", { hasText: "Send anyway" });
+    const confirm = owner.locator("dialog.vf-cdlg[open] button", { hasText: "Send anyway" });
     if (await confirm.isVisible().catch(() => false)) await confirm.click();
     const sent = await until(owner, () => window.Core.snapshot()?.round?.status === "sent");
     ok("the owner sends the round to Claude", sent && share(dA, "status").round?.status === "sent", JSON.stringify(share(dA, "status").round));
