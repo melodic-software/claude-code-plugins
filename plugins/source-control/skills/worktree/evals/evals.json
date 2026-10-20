@@ -282,6 +282,18 @@
         "Reports the other two items as kept",
         "Does not run a bulk delete such as xcrun simctl delete unavailable"
       ]
+    },
+    {
+      "id": 23,
+      "name": "audit-reports-pr-lookup-incomplete",
+      "prompt": "/worktree audit — the PR lookup timed out for one worktree whose branch has an open pull request on the forge.",
+      "expected_output": "The audit runs status internally and lists the worktree whose Status is pr-unknown among the findings as PR lookup incomplete, instead of treating it as healthy.",
+      "files": [],
+      "expectations": [
+        "Counts a worktree whose Status is `pr-unknown` as an issue in the audit findings",
+        "Reports it as PR lookup incomplete rather than as stale, merged or healthy",
+        "Does not remove or clean up that worktree"
+      ]
     }
   ]
 }
