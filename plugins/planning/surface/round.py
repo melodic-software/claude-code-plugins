@@ -981,6 +981,7 @@ def op_reply(d, doc, a):
         doc["handledSeq"] = max(doc.get("handledSeq") or 0, a.handled)
     mark_handled(doc, [a.seq])
     q.setdefault("history", []).append(line)
+    q.pop("claudeRevising", None)
     return [q], f"replied on {a.id}"
 
 
@@ -1128,6 +1129,7 @@ def op_revise(d, doc, a):
     if a.seq is not None:
         lines[0]["replyTo"] = a.seq
     q.setdefault("history", []).extend(lines)
+    q.pop("claudeRevising", None)
     mark_handled(doc, [a.seq])
     return [q], f"revised {a.id}: {', '.join(changed)}"
 
@@ -1223,6 +1225,38 @@ def op_set_status(d, doc, a):
         return [], "status cleared"
     doc["status"] = {"text": text, "at": now()}
     return [], "status set"
+
+
+def op_revising_by_claude(d, doc, a):
+    """Declare that Claude is revising questions `ids`, with a reason, or clear the mark (on `ids`,
+    else on every question). A `revise` or `reply` of a question clears its own mark. Not the
+    server-derived `revising` flag, which marks the user's unhandled answer."""
+    why = capped("revising-by-claude why", (a.why or "").strip(), LINE_CAP)
+    if bool(why) == bool(a.clear):
+        sys.exit(
+            "refused: revising-by-claude takes ids with a non-empty why, or clear, not both"
+        )
+    ids = list(dict.fromkeys(a.ids or []))
+    known = {q["id"]: q for q in doc["questions"]}
+    unknown = [qid for qid in ids if qid not in known]
+    if unknown:
+        sys.exit(
+            f"refused: unknown question ids in revising-by-claude: {', '.join(unknown)}"
+        )
+    if a.clear:
+        pool = [known[qid] for qid in ids] if ids else doc["questions"]
+        marked = [q for q in pool if q.pop("claudeRevising", None)]
+        names = ", ".join(q["id"] for q in marked) or "no question"
+        return marked, f"revising mark cleared on {names}"
+    if not ids:
+        sys.exit("refused: revising-by-claude needs ids to mark")
+    at = now()
+    for qid in ids:
+        known[qid]["claudeRevising"] = {"why": why, "at": at}
+    return (
+        [known[qid] for qid in ids],
+        f"{', '.join(ids)} marked as being revised: {why}",
+    )
 
 
 ZONE_CAP = 40
@@ -1589,6 +1623,10 @@ OP_ARGS = {
         {"id": None, "decision": None, "alt": None, "text": None},
     ),
     "set-status": (op_set_status, {"text": None, "clear": False}),
+    "revising-by-claude": (
+        op_revising_by_claude,
+        {"ids": None, "why": None, "clear": False},
+    ),
     "context": (
         op_context,
         {"percent": None, "zone": None, "handoff": None, "clear": False},

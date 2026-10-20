@@ -71,9 +71,9 @@ function evaluate(expression, context) {
 const SUBAGENT = '{"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"haiku"}}';
 const ARGS = "--model sonnet --max-turns 75 --effort high";
 
-for (const [file, job, route] of [
-  ["pr-review-hosted.yml", "pr-review", "review-code"],
-  ["pr-review-security-hosted.yml", "pr-review-security", "review-security"],
+for (const [file, job, route, laneSwitch] of [
+  ["pr-review-hosted.yml", "pr-review", "review-code", "CLAUDE_REVIEW_DISABLED"],
+  ["pr-review-security-hosted.yml", "pr-review-security", "review-security", "CLAUDE_SECURITY_REVIEW_DISABLED"],
 ]) {
   const { jobs } = workflow(file);
   const resolver = jobs["resolve-model"];
@@ -100,10 +100,11 @@ for (const [file, job, route] of [
 
   test(`${file}: the review runs after a failed resolve-model, on the reusable's defaults`, () => {
     const review = jobs[job];
-    assert.equal(review.needs, "resolve-model");
+    assert.deepEqual(review.needs, ["resolve-model", "kill-switch"]);
     for (const result of ["success", "failure", "skipped"]) {
       const context = {
         "github.event.pull_request.draft": false,
+        "needs.kill-switch.outputs.proceed": "true",
         "needs.resolve-model.result": result,
         "needs.resolve-model.outputs.claude-args": result === "success" ? ARGS : "",
       };
@@ -121,6 +122,45 @@ for (const [file, job, route] of [
       "needs.resolve-model.outputs.claude-args": ARGS,
     };
     assert.equal(evaluate(review.with["model-args"], failed), "");
+  });
+
+  test(`${file}: the review runs only when the kill-switch job says proceed`, () => {
+    const review = jobs[job];
+    const gate = jobs["kill-switch"];
+    assertKillSwitchJob(gate);
+    for (const proceed of ["true", "false", ""]) {
+      const context = {
+        "github.event.pull_request.draft": false,
+        "needs.kill-switch.outputs.proceed": proceed,
+      };
+      assert.equal(evaluate(review.if, context), proceed === "true", `proceed=${JSON.stringify(proceed)}`);
+    }
+    // The org and repository switches fail closed in the action; the lane's
+    // own switch stops the review only at `true` (github-iac README).
+    const proceeds = (lanes, lane) =>
+      evaluate(gate.outputs.proceed, { "steps.kill.outputs.proceed": lanes, [`vars.${laneSwitch}`]: lane });
+    assert.equal(proceeds("true", "false"), "true");
+    assert.equal(proceeds("true", ""), "true", "an unset lane switch leaves the review running");
+    assert.equal(proceeds("true", "true"), "false");
+    assert.equal(proceeds("false", "false"), "false");
+    assert.equal(proceeds("", "false"), "false", "an unreadable lanes switch stops the review");
+  });
+}
+
+// The kill-switch job reads the action from the default branch with a
+// read-only token and passes it the org and repository switches.
+function assertKillSwitchJob(gate) {
+  assert.deepEqual(gate.permissions, { contents: "read" });
+  const checkout = gate.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+  assert.equal(checkout.with.ref, "refs/heads/main");
+  assert.equal(checkout.with["persist-credentials"], false);
+  assert.ok(checkout.with["sparse-checkout"].split("\n").includes("/.github/actions/check-kill-switch/"));
+  const kill = gate.steps.find((step) => step.uses?.startsWith("./.base/.github/actions/check-kill-switch"));
+  assert.equal(kill.id, "kill");
+  assert.equal(kill["continue-on-error"], undefined);
+  assert.deepEqual(kill.with, {
+    value: "${{ vars.CLAUDE_LANES_DISABLED }}",
+    "repo-value": "${{ vars.CLAUDE_LANES_REPO_DISABLED }}",
   });
 }
 
@@ -143,11 +183,12 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
 
   const intake = jobs["intake-triage"];
   assert.match(intake.if, /&& needs\.born-triaged\.outputs\.claude-args != '' \}\}$/);
-  const runs = (skip, claudeArgs, event = "issues") =>
+  const runs = (skip, claudeArgs, event = "issues", proceed = "true") =>
     evaluate(intake.if, {
       "github.event_name": event,
       "needs.born-triaged.outputs.skip": skip,
       "needs.born-triaged.outputs.claude-args": claudeArgs,
+      "needs.kill-switch.outputs.proceed": proceed,
     });
   const args = "--model sonnet --max-turns 30 --effort medium";
   assert.equal(runs("", args), true, "a failed or false born-triaged check falls through to the reusable's gate");
@@ -157,7 +198,14 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.equal(runs("", ""), false, "intake never runs without resolved claude-args");
   assert.equal(runs("false", ""), false);
   assert.equal(runs("true", "", "workflow_dispatch"), false, "a dispatch never runs without resolved claude-args");
+  assert.equal(runs("false", args, "issues", "false"), false, "the kill switch stops intake");
+  assert.equal(runs("false", args, "workflow_dispatch", ""), false, "a failed kill-switch job stops intake");
   assert.equal(intake.with["claude-args"], "${{ needs.born-triaged.outputs.claude-args }}");
+  assert.deepEqual(intake.needs, ["born-triaged", "kill-switch"]);
+  const killSwitch = jobs["kill-switch"];
+  assertKillSwitchJob(killSwitch);
+  assert.equal(killSwitch.if, jobs["born-triaged"].if, "the kill switch runs wherever the gate runs");
+  assert.equal(killSwitch.outputs.proceed, "${{ steps.kill.outputs.proceed }}");
 });
 
 test("intake-triage.yml: a dispatch runs only from main and passes the gate's ids", () => {

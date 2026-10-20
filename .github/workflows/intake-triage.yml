@@ -116,13 +116,58 @@ jobs:
           fi
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
 
+  # The pinned reusable reads no kill switch, so this caller does. Intake has
+  # no lane switch of its own; the org and repository switches fail closed
+  # (check-kill-switch), and a failed job leaves proceed empty, which also
+  # stops intake.
+  kill-switch:
+    if: github.event_name == 'issues' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out the default branch for the kill-switch action
+    outputs:
+      proceed: ${{ steps.kill.outputs.proceed }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/check-kill-switch/
+            /.node-version
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::notice::the lanes kill switch stops this triage (reason: ${REASON:-unreadable})"
+
   # A dispatch asks for triage, so the born-triaged skip applies to an opened
   # issue only: intake-reenter.yml dispatches an answered issue that was born
   # triaged and may still carry a status label.
   intake-triage:
-    needs: born-triaged
+    needs: [born-triaged, kill-switch]
     if: >-
       ${{ !cancelled()
+      && needs.kill-switch.outputs.proceed == 'true'
       && (github.event_name == 'workflow_dispatch' || needs.born-triaged.outputs.skip != 'true')
       && needs.born-triaged.outputs.claude-args != '' }}
     permissions:

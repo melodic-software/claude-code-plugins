@@ -438,8 +438,11 @@ async page => {
   if (PHASE === 2) {
     await page.waitForTimeout(900); // SSE brings the external revise of A2 and the emoji switch
     ok("R-J: no anchors when emojiMarkers is false", !(await page.textContent("#dscroll .dhead h3")).includes(Q_MARK) && (await recHead()) === "Recommendation (Rec)", await recHead());
+    // A2 was selected with a choice armed when the shell revised its recommendation: the notice is up before any Save
+    const early = await page.evaluate(() => { const c = document.getElementById("conflict"); return {hidden: c.hidden, text: c.textContent}; });
+    ok("a revision landing on the armed question shows the changed notice before Save", !early.hidden && /A2 just changed: review/.test(early.text) && /Recommendation/.test(early.text), JSON.stringify(early));
     await page.click("#dlgOk"); await page.waitForTimeout(900);
-    const ev = await events(), acc = ev.filter(e => e.kind === "accept" && (e.id === "A1" || e.id === "A2")).map(e => e.id);
+    const ev = await events(), acc =ev.filter(e => e.kind === "accept" && (e.id === "A1" || e.id === "A2")).map(e => e.id);
     ok("AC23: Accept all skips the question whose contentRev changed", acc.join(",") === "A1", acc.join(","));
     ok("AC23: the toast names the skipped question", /Skipped A2/.test(await page.textContent("#toast")), await page.textContent("#toast"));
     // Accept all goes with the revision each question was opened at: A2 was opened in phase 1,
@@ -470,6 +473,8 @@ async page => {
     ok("toast reads Wrapping up", /Wrapping up/.test(await page.textContent("#dscroll")));
     await pick("Q3"); await page.click("main.detail h3"); await page.keyboard.press("1");
     ok("Save disabled during the wrap-up freeze", await page.$eval("[data-save]", el => el.disabled) && /Rec/.test(await armed()));
+    // The shell declared Q3 as being revised between phases: the rail card and the detail pane say so, and answering stays possible
+    ok("a revising-by-claude mark shows on the rail card and the detail pane", /Claude is revising this: auditing the cache choice/.test(await page.textContent('.qbtn[data-q="Q3"]')) && /Claude is revising this:.*auditing the cache choice.*You can still answer/.test(await page.textContent("#dscroll")), await page.textContent('.qbtn[data-q="Q3"]'));
     await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(500); await page.keyboard.press("Escape");
     ok("Ctrl+Enter records nothing during the freeze", (await events()).length === n0 + 1);
     // The shell's revise between phases dropped P2's alternative (b), which its kept decision names
