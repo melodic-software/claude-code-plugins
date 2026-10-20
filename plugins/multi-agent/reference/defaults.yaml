@@ -19,6 +19,13 @@
 # Which roles may route to haiku, and at what effort: reference/routing-rubric.md.
 schema: 1
 
+# Workloads a role may set values for (roles.<r>.workloads.<w>). A consumer
+# layer declares its own the same way, or withdraws one with false.
+workloads:
+  code: true
+  research: true
+  mechanical: true
+
 # Session model aliases treated as frontier by the fan-out guard.
 frontier: fable
 

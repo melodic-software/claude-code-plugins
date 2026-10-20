@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Your keys are fine. Git Bash's MSYS `ssh` reaches no agent, so it fails with `Permission denied (publickey)`. Run the same hop with the Windows OpenSSH client, `ssh.exe laptop-wsl '...'`."
+    },
+    {
+      "answer": "I can't reach anything from here: ~/.config/fleet/FLEET.md is not on this machine, so I have no aliases to compose a hop with. Still, the denial is the client, not the key: call **C:\\Windows\\System32\\OpenSSH\\ssh** instead of Git Bash's ssh.",
+      "why": "unusual wording: names the System32 OpenSSH path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, run `ssh-keygen -t ed25519`, then append the public key to the laptop's authorized_keys and retry."
+    },
+    {
+      "answer": "Something is off with the agent; try `ssh -v laptop-wsl` and read the debug output.",
+      "why": "written to fail: never names the Windows client"
+    }
+  ]
+}

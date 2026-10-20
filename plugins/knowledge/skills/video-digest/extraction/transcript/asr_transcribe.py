@@ -13,7 +13,26 @@ caller records the capability as absent.
 
 import argparse
 import json
+import os
 import sys
+from pathlib import Path
+
+
+def add_nvidia_dll_directories() -> None:
+    """On Windows, make CUDA libraries installed as `nvidia-*` wheels loadable.
+
+    Each existing `site-packages/nvidia/*/bin` becomes a DLL directory, so no PATH
+    edit is needed. A no-op on every other platform.
+    """
+    if sys.platform != "win32":
+        return
+    for entry in sys.path:
+        nvidia = Path(entry) / "nvidia"
+        if not nvidia.is_dir():
+            continue
+        for bin_dir in sorted(nvidia.glob("*/bin")):
+            if bin_dir.is_dir():
+                os.add_dll_directory(str(bin_dir))
 
 
 def main() -> int:
@@ -25,6 +44,8 @@ def main() -> int:
     parser.add_argument("--device", default="auto")
     parser.add_argument("--compute-type", default="default")
     args = parser.parse_args()
+
+    add_nvidia_dll_directories()
 
     try:
         from faster_whisper import BatchedInferencePipeline, WhisperModel

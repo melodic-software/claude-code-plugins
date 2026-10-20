@@ -12,6 +12,12 @@ one, so every surface it reads is written in this subset:
   floats, `true`/`false`, `null`/`~`, and an empty value meaning `null`;
 - `#` comments outside quotes, and blank lines.
 
+This reader stays its own implementation instead of retiring onto the shared
+`lib/yaml-subset.mjs`: the plugin requires Python 3 and treats Node as optional
+(`prerequisites.json`), so a config read cannot depend on a node runtime. It
+follows the shared reader's quoting rules, including a backslash-escaped quote
+inside a double-quoted string, which does not end the string.
+
 Everything else is outside the subset and is reported with its line number
 rather than parsed partially: flow mappings (`{`), anchors and aliases (`&`,
 `*`), tags (`!`), block scalars (`|`, `>`), multi-document markers (`---`),
@@ -59,9 +65,14 @@ def _value_starts_at(text: str, index: int) -> bool:
 
 def _strip_comment(text: str) -> str:
     quote = None
+    escaped = False
     for index, ch in enumerate(text):
         if quote:
-            if ch == quote:
+            if escaped:
+                escaped = False
+            elif ch == "\\" and quote == '"':
+                escaped = True
+            elif ch == quote:
                 quote = None
         elif ch in ("'", '"') and _value_starts_at(text, index):
             quote = ch
@@ -137,10 +148,15 @@ def _flow_sequence(text: str, line: int) -> list[Any]:
     current = ""
     quote = None
     depth = 0
+    escaped = False
     for ch in body:
         if quote:
             current += ch
-            if ch == quote:
+            if escaped:
+                escaped = False
+            elif ch == "\\" and quote == '"':
+                escaped = True
+            elif ch == quote:
                 quote = None
             continue
         if ch in ("'", '"'):

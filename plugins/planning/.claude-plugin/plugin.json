@@ -1,6 +1,6 @@
 {
   "name": "planning",
-  "version": "0.76.0",
+  "version": "0.77.1",
   "userConfig": {
     "surface": {
       "type": "string",
@@ -48,6 +48,12 @@
       "type": "boolean",
       "title": "Stub scaffold commit",
       "description": "When on, /planning:design hands off the stub files and signatures a change needs, and /planning:plan puts one stub phase right after dead-code removal (first when there is none). Default: off. A repository's docs/conventions/planning.yaml scaffold_stubs key overrides this value.",
+      "default": false
+    },
+    "time_units": {
+      "type": "boolean",
+      "title": "Time units in estimates",
+      "description": "When on, the planning skills may state an estimate or budget of work in hours, days or weeks; when off they use the work_size levels instead. Practice cadence and measurement windows are not affected. Default: off. A repository's docs/conventions/planning.yaml time_units key overrides this value.",
       "default": false
     }
   },

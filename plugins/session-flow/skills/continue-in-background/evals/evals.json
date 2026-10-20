@@ -11,6 +11,7 @@
         "A save-point is produced per the shared engine doc and the rails resume prompt is emitted first (transparency + manual fallback)",
         "The dirty-tree gate runs git status --porcelain -uall and exempts only save-point files under the handoff location",
         "A background agent is launched with the rails prompt via claude --bg and the launch result is reported, replacing the /clear-then-paste instruction",
+        "The claude --bg launch command carries --permission-mode auto, and the report states that auto mode may deny an action and that where a denied action is reported is unverified; a report that says nothing about denied actions fails, and so does one that promises they appear in the launched session's final hand-off",
         "The report surfaces launched-session behavior: the agent is a NEW session that inherits neither the current session's CLI flags nor its model/effort choices",
         "The skill STOPS after the launch report — no monitoring, polling, or new work items"
       ]
@@ -206,6 +207,20 @@
         "claude --cloud carries --effort with a single level name, not below medium, before the prompt argument",
         "Only if the CLI rejects --effort with --cloud does the skill relaunch without it and advise /effort in the report",
         "The report names the session id, the teleport and follow-up commands, and the signed-in account"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "bgisolation-none-dirty-tree-launches-with-warning",
+      "prompt": "/continue-in-background — keep the work moving while I'm away. (Note: the working tree has unrelated uncommitted edits in src/other-feature.ts from a different task, this session is not in a linked worktree, and the project's .claude/settings.json sets \"worktree\": {\"bgIsolation\": \"none\"}.)",
+      "expected_output": "The dirty-tree gate reads the effective `worktree.bgIsolation` before judging the unrelated edits and finds `none`, so the background session will edit this checkout in place rather than in an isolated worktree, and the unrelated edits stay visible to it. The skill launches the background agent despite the dirty tree, and the launch report warns that the launched session edits this checkout in place alongside the user and states that the read did not cover a `--settings` value. The skill then STOPS.",
+      "files": [],
+      "expectations": [
+        "The skill reads `worktree.bgIsolation` from the settings files before judging the unrelated src/other-feature.ts edits, and finds `none` in the project's .claude/settings.json",
+        "It launches the background agent despite the unrelated uncommitted changes, and does NOT fall back to /clear-then-paste on account of the dirty tree",
+        "The launch report warns that the launched session edits this checkout in place, alongside the user, not in an isolated worktree",
+        "The launch report states that the settings read did not cover a `--settings` value",
+        "The skill STOPS after the launch report — no monitoring, polling, or new work items"
       ]
     }
   ]

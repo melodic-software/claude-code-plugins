@@ -86,7 +86,9 @@ NOTIFY_CAP = 500
 MAX_INBOX_READ = 100  # judgment: Inbox items one read marks; a person opens one at a time, "all" sends the unread ones
 INBOX_MARKS = ("waiting", "running", "answered", "unshared", "shared", "declined", "failed", "open")  # state.schema.json inboxSeen
 INBOX_STATUS = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}  # a request's Inbox status; done is answered, shared or unshared
+NOT_SHARED = migrate.NOT_SHARED  # a discarded result's request fails with this reason
 NOTIFY_SHOWN = 100
+POPUP_KINDS = ("join", "run", "report", "share", "merge", "fail")  # the owner's Inbox items that may pop up (web/app.js HOST_URGENT)
 MAX_COMMENTS = 200  # judgment: Discussion comments kept on one question; at the cap a new one is refused, none dropped
 MAX_ALL_COMMENTS = 2000  # judgment: comments across the session, as MAX_CHAT; at the cap a new one is refused
 MAX_MY_COMMENTS = 30  # judgment: comments one person keeps on one question, as MAX_MY_NOTES; their hidden ones count too
@@ -274,6 +276,7 @@ PREFS = {
     "tour": lambda v: v in ("done", "skipped"),
     "toolbar": lambda v: v in ("simple", "full"),
     "autoAdvance": lambda v: isinstance(v, bool),
+    "popups": lambda v: isinstance(v, list) and all(isinstance(k, str) and k in POPUP_KINDS for k in v) and all(v.count(k) == 1 for k in v),
 }
 
 # Round state machine (Contracts, "Round state machine"): (from status, action) -> (who, to status).
@@ -3554,6 +3557,7 @@ class Session:
                 self._notify(r["pid"], "request", f"Your request {_on(r)} was cancelled.", actor=pid, qid=r.get("qid"))
             else:
                 self._run([r])
+                self._unseen(HOST, "fail:" + r["id"])  # a later failure waits on the owner again
             return {"id": r["id"], "status": r["status"]["kind"]}
 
     def _decline(self, r, by):
@@ -3647,7 +3651,7 @@ class Session:
             if not lst:
                 self.state["results"].pop(key)
             if req:
-                req["status"] = {"kind": "failed", "at": self.now(), "reason": "The owner did not share the result.", "cancelled": False}
+                req["status"] = {"kind": "failed", "at": self.now(), "reason": NOT_SHARED, "cancelled": True}  # the owner ended it
                 self._notify(req["pid"], "request", f"Your request {_on(req)} was not shared.", actor=pid, qid=req.get("qid"))
         return {"id": res["id"], "published": action == "publish"}
 
@@ -3686,18 +3690,22 @@ class Session:
         down, or a guest's own Claude's, only the owner shares."""
         rid = _ident(body, "id")
         with self._write_as(pid, "result-share"):
-            try:
-                res = self._find_result(rid)
-            except DomainError:
-                res = None
-            if res is None or (pid != HOST and self._asker(res) != pid) or not self._result_seen_by(res, pid):
-                raise DomainError(404, "not-found", f"No result {rid}.")
-            if res["published"]:
-                raise DomainError(409, "wrong-status", "This answer is already shared.", status="published")
-            if pid != HOST and ("takenDown" in res or res["by"]["kind"] == "guest-claude"):
-                raise DomainError(403, "host-only", "Only the host can share this answer.")
-            self._share(res, next((r for r in self.state["requests"] if r["id"] == res["request"]), None), pid)
-            return {"id": res["id"], "published": True}
+            return self._share_result(pid, rid)
+
+    def _share_result(self, pid, rid):
+        """The one share behind the result-share route and Claude's share-result op."""
+        try:
+            res = self._find_result(rid)
+        except DomainError:
+            res = None
+        if res is None or (pid != HOST and self._asker(res) != pid) or not self._result_seen_by(res, pid):
+            raise DomainError(404, "not-found", f"No result {rid}.")
+        if res["published"]:
+            raise DomainError(409, "wrong-status", "This answer is already shared.", status="published")
+        if pid != HOST and ("takenDown" in res or res["by"]["kind"] == "guest-claude"):
+            raise DomainError(403, "host-only", "Only the host can share this answer.")
+        self._share(res, next((r for r in self.state["requests"] if r["id"] == res["request"]), None), pid)
+        return {"id": res["id"], "published": True}
 
     def _claude_says(self, res, req):
         """A result about the whole session, once shared, is also Claude's chat message (`claude`, written as the host's
@@ -4211,6 +4219,7 @@ class Session:
                 adds.append(add)
                 r["status"] = "open"
                 r.pop("asked", None)  # new words from the reporter: the owner may ask Claude again
+                self._unseen(HOST, "report:" + fid)  # and it waits on the owner again, unread
         except BaseException:
             if saved:
                 self._discard(saved)
@@ -4229,23 +4238,26 @@ class Session:
         action = _choice(body, "action", ("seen", "resolved", "ask"))
         with self._tx():
             self._owner(pid)
-            fid = _ident(body, "id")
-            r = self._report(fid)
-            if action == "ask":
-                if r["status"] == "resolved" or "asked" in r:
-                    state = "asked" if "asked" in r else r["status"]
-                    raise DomainError(409, "wrong-status", f"Report {fid} is {state}.", status=state)
-                r["asked"] = self.now()
-                adds = r.get("adds", [])
-                self._event("report-filed", report=fid, qid=r["ctx"].get("qid"), text=r["text"],
-                            adds=[a["text"] for a in adds if "text" in a], addImages=sum(1 for a in adds if "image" in a))
-                return {"id": fid, "status": r["status"], "asked": True}
-            if r["status"] == "resolved" or r["status"] == action:
-                raise DomainError(409, "wrong-status", f"Report {fid} is {r['status']}.", status=r["status"])
-            r["status"] = action
-            said = "saw your problem report" if action == "seen" else "marked your problem report resolved"
-            self._notify(r["by"], "report", f"The host {said}.", actor=pid)
-            return {"id": fid, "status": action}
+            return self._act_on_report(pid, _ident(body, "id"), action)
+
+    def _act_on_report(self, pid, fid, action):
+        """The one report action behind the owner's report route and Claude's resolve-report op."""
+        r = self._report(fid)
+        if action == "ask":
+            if r["status"] == "resolved" or "asked" in r:
+                state = "asked" if "asked" in r else r["status"]
+                raise DomainError(409, "wrong-status", f"Report {fid} is {state}.", status=state)
+            r["asked"] = self.now()
+            adds = r.get("adds", [])
+            self._event("report-filed", report=fid, qid=r["ctx"].get("qid"), text=r["text"],
+                        adds=[a["text"] for a in adds if "text" in a], addImages=sum(1 for a in adds if "image" in a))
+            return {"id": fid, "status": r["status"], "asked": True}
+        if r["status"] == "resolved" or r["status"] == action:
+            raise DomainError(409, "wrong-status", f"Report {fid} is {r['status']}.", status=r["status"])
+        r["status"] = action
+        said = "saw your problem report" if action == "seen" else "marked your problem report resolved"
+        self._notify(r["by"], "report", f"The host {said}.", actor=pid)
+        return {"id": fid, "status": action}
 
     def report_image(self, pid, body):
         """GET /api/report/image?id=[&add=N]: owner only. A report's picture, or its Nth addition's, as a data: URL."""
@@ -4429,10 +4441,17 @@ class Session:
         if item:
             self.state["inboxSeen"].setdefault(pid, {})[key] = item["status"]
 
+    def _unseen(self, pid, key):
+        """Forget pid's read mark of an Inbox item that left the Inbox, so its return reads as new."""
+        seen = self.state["inboxSeen"].get(pid)
+        if seen and seen.pop(key, None) is not None and not seen:
+            self.state["inboxSeen"].pop(pid)
+
     def _inbox(self, pid):
         """This person's Inbox: their own requests, each with the status they would see, and for the owner what
-        waits on them. `unread`: the status moved since they last opened the item. Never another person's request
-        or a result its requester cannot see."""
+        waits on them: requests to run, answers to share, guests' requests Claude failed (read once opened, then only
+        history), open reports not yet asked about, merges and joins. `unread`: the status moved since they last opened
+        the item. Never another person's request or a result its requester cannot see."""
         st = self.state
         results = {r["id"]: r for lst in st["results"].values() for r in lst}
         seen = st["inboxSeen"].get(pid, {})
@@ -4460,8 +4479,11 @@ class Session:
                   for r in st["requests"] if r["runner"] == "host" and r["status"]["kind"] == "pending" and r["pid"] != HOST and self._active(r["pid"])),
                 *({"key": "share:" + x["id"], "kind": "share", "id": x["id"], **_where(x), **({"by": x["by"]["pid"]} if "pid" in x["by"] else {}), "at": x["at"]}
                   for lst in st["results"].values() for x in lst if self._held(x) and self._from_active(x)),
+                *({"key": "fail:" + r["id"], "kind": "fail", "id": r["id"], **_where(r), "by": r["pid"], "at": r["status"]["at"]}
+                  for r in st["requests"] if r["runner"] == "host" and r["pid"] != HOST and self._active(r["pid"]) and self._claude_failed(r)),
+                # an open report the owner already asked Claude about waits on Claude; the reporter's next addition brings it back
                 *({"key": "report:" + f, "kind": "report", "id": f, "by": rep["by"], "at": max([rep["ts"], *(a["ts"] for a in rep.get("adds", []))])}
-                  for f, rep in st.get("reports", {}).items() if rep["status"] == "open"),
+                  for f, rep in st.get("reports", {}).items() if rep["status"] == "open" and "asked" not in rep),
                 *({"key": "merge:" + m["id"], "kind": "merge", "id": m["id"], "by": m["from"], "at": m["at"]}
                   for m in st["mergeRequests"] if m["status"]["kind"] == "pending"),
                 *({"key": "join:" + v["pid"], "kind": "join", "id": v["pid"], "by": v["pid"], "at": v["status"]["at"]}
@@ -4471,6 +4493,12 @@ class Session:
         for i in out:
             i["unread"] = seen.get(i["key"]) != i["status"]
         return out
+
+    @staticmethod
+    def _claude_failed(r):
+        """A request Claude failed, which only Run again moves on; not one the owner cancelled or discarded (migrate.py
+        5 -> 6 marks discards from before as cancelled)."""
+        return r["status"]["kind"] == "failed" and not r["status"]["cancelled"]
 
     def _moderator_pids(self):
         return [p for p, v in self.state["people"].items() if v["role"] in ("owner", "leader") and v["status"]["kind"] == "active"]
@@ -5121,6 +5149,18 @@ class Session:
         prop["status"] = {"kind": "question", "question": q["id"]}
         self._notify(prop["pid"], "proposal", f"Your proposal became question {q['id']}, in round {n}.", qid=q["id"])
         return {"question": q["id"], "round": n}
+
+    def _op_resolve_report(self, op):
+        """The owner asked in the terminal to mark a problem report seen or resolved, as the owner's page does."""
+        return self._act_on_report(HOST, op["id"], op["action"])
+
+    def _op_share_result(self, op):
+        """The owner asked in the terminal to share an unshared answer with everyone, as the result-share route does."""
+        return self._share_result(HOST, op["id"])
+
+    def _op_take_down_result(self, op):
+        """The owner asked in the terminal to take a shared answer down, as the owner's page does."""
+        return self._act_on_result(HOST, op["id"], "takedown")
 
     def _op_handle(self, op):
         log = self.state["log"]

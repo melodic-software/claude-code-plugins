@@ -77,6 +77,11 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(doc["registries"], ["scripts/a.txt", "scripts/b.txt"])
         self.assertEqual(doc["lanes"], ["typescript", "python"])
 
+    def test_an_escaped_quote_does_not_end_a_quoted_flow_item(self) -> None:
+        doc = parse('x: ["a\\",b", c]  # note\ny: ["p\\\\", q]\n')
+        self.assertEqual(doc["x"], ['a",b', "c"])
+        self.assertEqual(doc["y"], ["p\\", "q"])
+
     def test_sequence_of_mappings_starting_on_the_dash_line(self) -> None:
         doc = parse(
             """
