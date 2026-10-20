@@ -417,6 +417,11 @@ export function judgeLeg({ stdout, status, timedOut = false, resolved }) {
     models_used: Object.keys(result?.modelUsage ?? {}),
     turns: result?.num_turns ?? null,
   };
+  // Any denial voids the run whatever else happened, as write-verdict.mjs's
+  // earlierDenials does over every leg.
+  if (Array.isArray(result?.permission_denials) && result.permission_denials.length > 0) {
+    return { outcome: "denied", reason: `${result.permission_denials.length} permission denial(s)`, ...facts };
+  }
   if (timedOut) {
     return { outcome: "no-verdict", reason: "leg timeout", ...facts };
   }

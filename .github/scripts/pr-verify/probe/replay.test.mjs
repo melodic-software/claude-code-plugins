@@ -186,6 +186,14 @@ test("judgeLeg writes a verdict only where the workflow would", () => {
     resolved: RESOLVED,
   });
   assert.equal(denied.outcome, "denied");
+  // A denial on a run that also failed is still a denial, never retried.
+  for (const fields of [
+    { is_error: true, subtype: "error_max_turns" },
+    { is_error: true, api_error_status: 529 },
+  ]) {
+    const failed = stream(INIT, result({ ...fields, permission_denials: [{ tool_name: "Bash" }] }));
+    assert.equal(judgeLeg({ stdout: failed, status: 1, resolved: RESOLVED }).outcome, "denied");
+  }
 
   // The model's own outcomes, which production ends with no verdict and the
   // replay never retries.
