@@ -18,8 +18,9 @@
 #       fragment, a CHANGELOG.md, a plugin.json) has changed on <base-ref> since
 #       the release was cut, its build base being the merge base with
 #       <base-ref>. A fragment <base-ref> added since then rides the next
-#       release. In the merge queue <base-ref> is HEAD^1, the tree the queued
-#       commit lands on, which is also its merge base, so the step passes there
+#       release. In the merge queue (GITHUB_EVENT_NAME=merge_group) <base-ref>
+#       is the group's base commit and the release is CHANGELOG_PR_HEAD, the
+#       queued pull request's head; without a readable one it refuses
 #
 # Shipped files are everything under plugins/<name>/, or docs/conventions/<name>/
 # for a listed convention. On the release pull request
@@ -86,7 +87,17 @@ if ! jq --version >/dev/null 2>&1; then
 fi
 
 head_commit=HEAD
-if git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1 && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
+if [[ "$mode" == --check-release && "${GITHUB_EVENT_NAME:-}" == merge_group ]]; then
+  # The queue checks out the group's squash commit, which has one parent and
+  # carries nothing of the release branch, so the release is read from the
+  # queued pull request's own head commit.
+  # shellcheck disable=SC2310  # the non-zero return IS the handled case
+  if [[ -z "${CHANGELOG_PR_HEAD:-}" ]] || ! changed_files::verify_base "$CHANGELOG_PR_HEAD"; then
+    echo "$self: in the merge queue --check-release reads the release from CHANGELOG_PR_HEAD, the queued pull request's head commit, which is unset or unreadable; refusing to pass without it." >&2
+    exit 2
+  fi
+  head_commit="$CHANGELOG_PR_HEAD"
+elif git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1 && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
   head_commit='HEAD^2'
 fi
 if ! merge_base="$(git merge-base "$base" "$head_commit")"; then

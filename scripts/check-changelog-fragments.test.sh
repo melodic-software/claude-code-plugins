@@ -336,24 +336,59 @@ else
 fi
 rm -rf "$f"
 
-# The merge queue: each queued pull request is one squash commit on top of main
-# and the entries ahead of it, and the gate reads HEAD^1 as the landing base.
+# The merge queue checks out the group's squash commit, whose one parent holds
+# main and the entries ahead of it, so the release is read from the queued pull
+# request's head (CHANGELOG_PR_HEAD) and judged against the group's base.
+# queue_on <fixture>: a queue branch whose commit stands in for the squash.
+queue_on() {
+  git_test_config "$1" checkout -qb "queue-$2" main
+  git_test_config "$1" commit -q --allow-empty -m "queued squash"
+}
+# expect_queue <label> <rc> <needle> <release-head> <base>
+expect_queue() {
+  local out rc
+  out="$(cd "$f" && GITHUB_EVENT_NAME=merge_group CHANGELOG_HEAD_REF=release/plugins CHANGELOG_PR_HEAD="$4" \
+    bash scripts/check-changelog-fragments.sh --check-release "$5" 2>&1)"
+  rc=$?
+  if ((rc == $2)) && [[ "$out" == *"$3"* ]]; then ok "$1"; else fail "$1: want rc=$2 and '$3', got rc=$rc: $out"; fi
+}
+
+base_fixture f alpha beta
+release_branch "$f"
+release_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q main
+fragment "$f" alpha late-z-fedcba98 patch
+fragment "$f" beta late-z-fedcba98 patch
+commit "$f" late
+queue_on "$f" newer
+expect_queue "--check-release in the queue passes when the group's base only added newer fragments" 0 "for the 1 plugin(s) it bumps" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
+expect_queue "--check-release in the queue refuses an absent group base" 2 "" "$release_head" ""
+expect_queue "--check-release in the queue refuses an unreadable group base" 2 "not a resolvable commit" "$release_head" 0000000000000000000000000000000000000000
+expect_queue "--check-release in the queue refuses without the queued release's head" 2 "CHANGELOG_PR_HEAD" "" "$(git -C "$f" rev-parse HEAD^1)"
+rm -rf "$f"
+
 base_fixture f alpha
 release_branch "$f"
-release_commit="$(git -C "$f" rev-parse HEAD)"
-git_test_config "$f" checkout -qb queue-alone main
-git_test_config "$f" cherry-pick "$release_commit" >/dev/null
-expect "--check-release HEAD^1 passes a queued release that lands on the base it was cut from" 0 "for the 1 plugin(s) it bumps" "$f" --check-release 'HEAD^1'
-git_test_config "$f" checkout -qb queue-behind main
-fragment "$f" alpha queued-a-0badc0de patch
-commit "$f" "fragment pull request ahead in the queue"
-git_test_config "$f" cherry-pick "$release_commit" >/dev/null
-expect "--check-release HEAD^1 passes a queued release behind a newer fragment for a plugin it bumps" 0 "for the 1 plugin(s) it bumps" "$f" --check-release 'HEAD^1'
-git_test_config "$f" checkout -qb queue-other main
-printf 'v2\n' >"$f/plugins/beta/skills/a.md"
-printf '{\n  "name": "beta",\n  "version": "1.0.1"\n}\n' >"$f/plugins/beta/.claude-plugin/plugin.json"
-commit "$f" "legacy pull request"
-expect "--check-release HEAD^1 passes a queued pull request that bumps a plugin with no fragments" 0 "for the 1 plugin(s) it bumps" "$f" --check-release 'HEAD^1'
+release_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q main
+fragment "$f" alpha feat-x-0123abcd minor "### Added
+
+- Reworded after the release was cut."
+commit "$f" edit-consumed
+queue_on "$f" edited
+expect_queue "--check-release in the queue fails when the group's base edited a consumed fragment" 1 "EDITED FRAGMENT: .changes/alpha/feat-x-0123abcd.md" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+printf '# Changelog\n\n## [1.1.0] - 2026-10-02\n\n### Fixed\n\n- A fix.\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First.\n' >"$f/plugins/alpha/CHANGELOG.md"
+commit "$f" "release changelog"
+release_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q main
+printf '# Changelog\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First, reworded.\n' >"$f/plugins/alpha/CHANGELOG.md"
+commit "$f" changelog-on-main
+queue_on "$f" changelog
+expect_queue "--check-release in the queue fails when the group's base changed a released CHANGELOG.md" 1 "CHANGED ON BASE: plugins/alpha/CHANGELOG.md" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
 rm -rf "$f"
 
 # --- a listed convention under docs/conventions/<name>/ ---------------------------

@@ -1787,9 +1787,11 @@ jobs:
       # such a plugin for one. --check-release keeps a release from merging over
       # a file it changes (a consumed fragment, a CHANGELOG.md, a plugin.json)
       # that the base changed since the release was cut: on the release pull
-      # request against the base, and in the merge queue against HEAD^1, the
-      # tree the queued squash commit lands on (main plus every entry ahead of
-      # it), which is also its merge base, so it passes there.
+      # request against the base, and in the merge queue against the group's
+      # base commit, `merge_group.base_sha` ("The SHA of the merge group's
+      # parent commit", https://docs.github.com/en/webhooks/webhook-events-and-payloads#merge_group).
+      # HEAD^1 there is the queued squash's own merge base, so it cannot see
+      # the change; the release is read from the queued pull request's head.
       - name: Verify every changelog fragment is well formed
         id: changelog_fragments_check
         continue-on-error: true
@@ -1825,11 +1827,26 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
-          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          CHANGELOG_HEAD_REF: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.head_ref || github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          CHANGELOG_PR_HEAD: ${{ steps.queued_pr.outputs.head_sha }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          QUEUED_PR: ${{ steps.queued_pr.outcome }}
         shell: bash scripts/run-hygiene-gate.sh changelog-fragments-release {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            scripts/check-changelog-fragments.sh --check-release 'HEAD^1'
+            if [ "$QUEUED_PR" != success ]; then
+              echo "::error::The queued pull request could not be resolved; refusing to pass the release gate without knowing whether it is the release."
+              exit 1
+            fi
+            if [ "$CHANGELOG_HEAD_REF" != release/plugins ]; then
+              echo "::notice::Declined: the queued pull request is not the release."
+              exit 0
+            fi
+            if [ -z "$MERGE_GROUP_BASE_SHA" ]; then
+              echo "::error::The merge group carries no base_sha; refusing to judge the release without the commit it lands on."
+              exit 1
+            fi
+            scripts/check-changelog-fragments.sh --check-release "$MERGE_GROUP_BASE_SHA"
           elif [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$CHANGELOG_HEAD_REF" = release/plugins ]; then
             scripts/check-changelog-fragments.sh --check-release "origin/$BASE_REF"
           else
