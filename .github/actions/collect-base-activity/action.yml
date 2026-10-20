@@ -203,8 +203,12 @@ runs:
             # is the review step; no tool here limits which files it changes.
             # In merge-base mode the runner commits what the skill staged,
             # so the skill gets no commit tool and no instruction to commit.
+            # On Linux the Grep and Glob tools exist only when --allowedTools
+            # names them (https://code.claude.com/docs/en/tools-reference,
+            # "Glob tool behavior"), and the Bash deny list below removes grep
+            # and find, so without them the skill has no way to search.
             mkdir -p "$SCRATCH"
-            allowed="$allowed,Edit,Write,Agent"
+            allowed="$allowed,Edit,Write,Agent,Grep,Glob"
             # delete_files carries a rename's old path or a removal to the
             # branch, which commit_files cannot.
             if [ "$PREPARE" != merge-base ] && [ "$edits" != patch ]; then

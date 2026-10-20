@@ -158,6 +158,15 @@ test("a writing skill that can commit gets the commit tool and the instruction t
   assert.ok(args.includes(CHMOD_SENTENCE), args);
 });
 
+test("a writing skill gets the Grep and Glob tools, since its shell cannot grep or find", () => {
+  for (const overrides of [{}, { PREPARE: "merge-base" }]) {
+    const { status, args, allowed } = stage(overrides);
+    assert.equal(status, 0);
+    assert.ok(allowed.includes("Grep") && allowed.includes("Glob"), allowed.join(" | "));
+    assert.ok(args.includes("Bash(grep *)") && args.includes("Bash(find *)"), args);
+  }
+});
+
 test("a writing skill that cannot commit gets no chmod rule and no chmod instruction", () => {
   const { status, args, allowed } = stage({ CAN_COMMIT: "false" });
   assert.equal(status, 0);
@@ -175,7 +184,7 @@ test("prepare: merge-base leaves out the commit tool and the instruction to comm
   assert.ok(!allowed.includes(CHMOD_RULE), allowed.join(" | "));
   assert.ok(!args.includes("chmod"), args);
   // Still a writing skill: it edits and stages its resolution.
-  assert.match(args, /--allowedTools "Skill\(source-control:resolve-conflicts\),Read\([^)]*\),Edit,Write,Agent,Edit\(/);
+  assert.match(args, /--allowedTools "Skill\(source-control:resolve-conflicts\),Read\([^)]*\),Edit,Write,Agent,Grep,Glob,Edit\(/);
   assert.ok(args.includes(`--disallowedTools "WebFetch,WebSearch,${SHELL_DENIED.join(",")}"`), args);
 });
 

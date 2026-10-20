@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.1] - 2026-10-20
+
+### Changed
+
+- **`/education:teach` codebase mode looks for `GLOSSARY.md`.** The repository vocabulary lookup names `GLOSSARY.md` (or the domain-driven-design `glossary_file` setting) and `GLOSSARY-MAP.md` in a multi-context repository, in place of `UBIQUITOUS-LANGUAGE.md`.
+
 ## [0.18.0] - 2026-10-20
 
 ### Changed
