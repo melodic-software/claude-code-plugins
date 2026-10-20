@@ -5225,7 +5225,8 @@ class TestAttachmentsEverywhere(UploadCase):
             return uid
         pic, own, sent = loose(self.ann, "a.png"), loose(HOST, "h.png"), loose(self.ann, "c.png")
         self.act("chat", self.ann, {"text": "Carried", "attachments": [sent]})
-        pics = lambda pid: self.s.snapshot(pid).get("questionPics")
+        def pics(pid):
+            return self.s.snapshot(pid).get("questionPics")
         # Waiting for approval: the owner and the uploader see it, with the owner's own; Bo only the owner's.
         self.assertEqual((pics(HOST), pics(self.ann), pics(self.bo)), ({"Q1": [pic, own]}, {"Q1": [pic, own]}, {"Q1": [own]}))
         self.assertEqual(self.s.snapshot(self.ann)["files"][pic]["awaitsHost"], True)
