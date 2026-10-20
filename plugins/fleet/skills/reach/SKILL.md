@@ -1,5 +1,5 @@
 ---
-description: "Reach another Claude Code lane in the fleet, here or remote, to run, prompt, query or message it or start a session, with no human copying prompts. Use when: 'run this on HOST', 'ask the desktop to', 'cross-machine', 'remote agent', 'reach the fleet', 'message the Windows session', 'from WSL to Windows'. Not for: a session in THIS lane (ListAgents/SendMessage), a detached local background session (session-flow:continue-in-background), or repository fleets (repo-fleet-hygiene)."
+description: "Reach another Claude Code lane in the fleet, on this machine or another, to run, prompt, query, message or start a session, with no human copying prompts. Use when: 'run this on HOST', 'ask the desktop to', 'cross-machine', 'remote agent', 'reach the fleet', 'message the Windows session', 'from WSL to Windows'. Not for: a session in THIS lane (ListAgents/SendMessage), a detached local background session (session-flow:continue-in-background), or repository fleets (repo-fleet-hygiene)."
 argument-hint: "[relay]"
 user-invocable: true
 disable-model-invocation: false
@@ -10,18 +10,23 @@ metadata:
 
 ## Purpose
 
-A **lane** is one Claude Code install with its own sign-in: the WSL distro or native Windows, on
-each machine. From any lane this reaches every other lane: run a script there, prompt it, query it
-and wait, message one of its sessions, or start a named session in it.
+One procedure for agent-to-agent reach across the fleet. A **lane** is one Claude Code install
+with its own sign-in: the WSL distro or native Windows, on each machine. From any lane this reaches
+every other lane: run a script there, prompt it, query it and wait, message one of its sessions, or
+start a named session in it.
 
-**WSL is the default agent lane**: it has the repos, the toolchain and sshd. Use native Windows
-only for Windows-only work and Windows-side sessions.
+Prefer the richest lane for the work. **WSL is the default agent lane**: it has the repos, the
+toolchain and sshd. Use native Windows only for Windows-only work and Windows-side sessions.
+
+Read `~/.config/fleet/FLEET.md` before composing anything. It is rendered per machine and carries
+the real aliases, accounts and paths; the commands below are the same commands with placeholders.
 
 ## Route matrix
 
-`<agent>` is the headless turn from [Verbs](#verbs): `claude` in a WSL lane, `<claude-exe>` in a
-Windows lane. "Tested" means a real run of that exact shape; what each run showed is in
-[reference/relay.md § Verified behavior](reference/relay.md#verified-behavior).
+Find the row for where you are and where the work goes. `<agent>` is the headless turn from
+[Verbs](#verbs); in a WSL lane it is `claude`, in a Windows lane `<claude-exe>`. "Tested" means a
+real run of that exact shape; see [reference/relay.md](reference/relay.md#verified-behavior) for
+what each run showed.
 
 | # | From | To | Command shape | Status |
 |---|---|---|---|---|
@@ -33,42 +38,38 @@ Windows lane. "Tested" means a real run of that exact shape; what each run showe
 | R5 | Windows | other machine, WSL | `ssh.exe <wsl-alias> 'claude <agent-args> < /dev/null'` | untested from a Windows origin (same hop as R2) |
 | R6 | Windows | other machine, Windows | `ssh.exe <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args> < /dev/null'` | untested from a Windows origin (same hop as R3) |
 
-A script with no agent takes the same hop with the command in place of the `claude` part; on R1
-that is `powershell.exe -NoProfile -Command '<cmd>'` from a Windows-side directory. A Windows
-script on another machine goes over port 22 instead: `<ssh> <win-alias> '<pwsh command>'` (see
-[Port 22](#port-22-is-not-an-agent-lane)).
+A script with no agent goes over the same hop with the command in place of the `claude` part; on
+R1 that is `powershell.exe -NoProfile -Command '<cmd>'` from a Windows-side directory. The exception is a Windows script on another machine, which goes over port 22 instead:
+`<ssh> <win-alias> '<pwsh command>'` (see [Port 22](#port-22-is-not-an-agent-lane)).
 
-Fill each placeholder from FLEET.md or a probe, never by guessing:
+Placeholders, each filled from FLEET.md or a probe, never guessed:
 
 - `<ssh>`: the Windows OpenSSH client. `ssh.exe` from Windows; from WSL,
   `/mnt/c/Windows/System32/OpenSSH/ssh.exe`, because the distro holds no key.
 - `<wsl-alias>` / `<win-alias>`: the target's `wsl-shell` (port 2222) and `windows-shell` (port 22)
   aliases.
 - `<claude-exe>`: `/mnt/c/Users/<user>/.local/bin/claude.exe`, by absolute path.
-- `<win-dir>`: a scratch directory under `/mnt/c/Users/<user>/` (`claude.exe` needs a Windows-side
-  working directory), never a repository that defines the fleet's accounts or firewall.
+- `<win-dir>`: a scratch directory under `/mnt/c/Users/<user>/`, never a repository that defines the
+  fleet's accounts or firewall. `claude.exe` needs a Windows-side working directory.
 - `<distro>`: from `wsl.exe -l -q`. `<shell>`: the distro account's login shell, so `claude` is on
   `PATH`.
 
-[reference/relay.md](reference/relay.md) holds the per-route hop detail, the named receiver and its
-nested quoting, background sessions, reply patterns, and the mechanisms not used here (Remote
-Control, cloud sessions, Channels). Read it when a row or verb needs more than its cell.
+Per-route detail, the receiver and the reply patterns are in [reference/relay.md](reference/relay.md).
 
 ## Resolve the target first
 
-1. Read `~/.config/fleet/FLEET.md` before composing anything: it is rendered per machine with the
-   real aliases, accounts and paths. Done when you can name the target host and lane and see its
+1. Read `~/.config/fleet/FLEET.md`. Done when you can name the target host and lane and see its
    reach entries (alias, port, account, shell).
 2. Pick the lane by the work: agent work goes to WSL; Windows-only work or a Windows-side session
-   goes to Windows. Done when you hold a matrix row and every placeholder in it.
-3. A host absent from FLEET.md is not a fleet host: say so and stop. Address machines by hostname
-   over the tailnet, never by session name.
+   goes to Windows. Done when you hold a concrete row from the matrix and every placeholder in it.
+3. A host absent from FLEET.md is not a fleet host. Say so and stop. Machines are addressed by
+   hostname over the tailnet, never by session name.
 
 ## Verify the hop before you trust it
 
 Run the row with `hostname && <agent> -p "echo ok"` as the agent part. The hostname proves which
-machine answered; `ok` proves that lane's Claude is signed in. A Windows lane that answers with an
-expired-OAuth-session authentication error routed correctly and is signed out: someone runs
+machine answered; `ok` proves that lane's Claude is signed in. A Windows lane that answers with
+an expired-OAuth-session authentication error routed correctly and is signed out: someone runs
 `/login` at that machine's console (or over RDP). Nothing remote fixes it, and no credential
 travels in a prompt.
 
@@ -78,17 +79,16 @@ travels in a prompt.
 
 ## Verbs
 
-Each verb fills `<agent-args>` in a matrix row. Every verb but the first starts an agent, and each
-agent turn costs real usage, even a one-line turn, mostly from SessionStart hooks and context
-loading (how to read it:
-[Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs); the dated
-measurement and how to re-measure are in the Cost row of
-[reference/relay.md § Verified behavior](reference/relay.md#verified-behavior)). When a script can
-do the job, run the script.
+Each verb fills `<agent-args>` in a matrix row. All but the first start an agent, and each agent
+turn costs real usage, even a one-line turn, mostly from SessionStart hooks and context loading
+(what drives usage and how to read it:
+[Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs); the
+Cost row of [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior) holds
+the dated measurement and says how to re-measure it). When a script can do the job, run the script.
 
 | Verb | `<agent-args>` | Status |
 |---|---|---|
-| Run a script | none: the command replaces `claude ...` over the same hop | tested on R1, R2, R4; port 22 untested |
+| Run a script | none: the command itself replaces `claude ...` over the same hop | tested on R1, R2, R4; port 22 untested |
 | Prompt | `-p "<prompt>"` | tested on R1, R2, R4 |
 | Multi-turn | `-p --session-id <uuid> "<prompt>"`, then `-p --resume <uuid> "<prompt>"` against the same lane | tested on R1, R2 |
 | One open pipe | `-p --input-format stream-json --output-format stream-json --verbose`, user messages as NDJSON on stdin | tested on R2 |
@@ -103,43 +103,48 @@ do the job, run the script.
   turn ends before the notice arrives. Send the message, then poll `claude agents --json` in that
   lane, or `--resume` the receiver or read its output.
 - **Multi-turn versus one open pipe.** The pipe keeps context in one process while the connection
-  stays open; per-turn `--resume` survives a disconnect. `--session-id` picks the id up front, so
-  nothing parses the first turn's output; take a UUID from `/proc/sys/kernel/random/uuid` where
-  `uuidgen` is missing. `--resume` ids belong to the lane that made them: resume against the same
-  row.
-- **Background sessions** need a trusted working directory; anywhere else the start fails with a
+  stays open. Per-turn `--resume` survives a disconnect. `--session-id` picks the id up front, so
+  nothing parses the first turn's output; use a UUID from `/proc/sys/kernel/random/uuid` where
+  `uuidgen` is missing.
+- **Background sessions** need a trusted working directory. Anywhere else the start fails with a
   workspace-not-trusted error and exit 1 (for its wording and fix, fetch
   [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)
-  live; as of 2026-10-11; recheck when that entry's message or fix changes). Address `claude logs`
-  and `claude attach` by the `id` from `claude agents --json --all` (bare `--json` lists only
-  active sessions), so a lane on an older CLI behaves like a current one; pass a name only after
-  checking the lane's version against the CLI reference. `logs` prints raw TUI output, so read a
-  reply from the transcript (`--resume <id>`), not from `logs`.
+  live; as of 2026-10-11; recheck when that entry's message or fix changes).
+  Address `claude logs` and `claude attach` by the `id` from `claude agents --json --all` (bare
+  `--json` lists only active sessions), so a lane on an older CLI behaves like a current one;
+  pass a name only after checking the lane's version
+  against the CLI reference. `logs` prints raw TUI output, so read a reply from the transcript
+  (`--resume <id>`), not from `logs`.
   - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
     [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
     **As of**: 2026-10-10. **Recheck trigger**: the `claude logs` or `claude attach` row changes.
-- A `-p` receiver needs `crossSessionInbound: accept`; delivery rules and the pointer are in
-  [reference/relay.md § A named receiver](reference/relay.md#a-named-receiver).
+- A `-p` receiver needs `crossSessionInbound: accept`. Delivery rules and the pointer are in
+  [reference/relay.md](reference/relay.md#a-named-receiver).
 - `--bare` cuts the per-turn cost but binds no inbox socket, so a bare session cannot receive
   messages or be listed. Use it for prompts, never for a receiver.
 - Remote Control is interactive only: `-p --remote-control` does not connect. Keep it out of
   headless recipes.
 - Session names belong to the target lane. List first, then message a name from that list.
-- **Pointer**: the receiver, `--bare` and Remote Control bullets rest on our probes and the flag
-  behavior in [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior); when
-  one stops holding, fetch
+- `--resume` ids belong to the lane that made them. Resume against the same row. `--session-id`
+  picks the id up front, so nothing has to parse the first turn's output.
+- **Pointer**: the receiver, `--bare` and Remote Control bullets above rest on our probes and the
+  flag behavior recorded in
+  [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior); when one stops
+  holding, fetch
   [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages),
   [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
   and [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) live. **As of**:
-  2026-10-18 for the two cross-session sections; 2026-10-11 for the CLI flags. **Recheck
-  trigger**: a release note names `crossSessionInbound`, `--bare`, `--bg`, `--session-id` or
-  Remote Control, or a route fails its hop check.
+  2026-10-18 for the two cross-session sections; 2026-10-11 for the CLI flags. **Recheck trigger**: a release note names `crossSessionInbound`, `--bare`, `--bg`,
+  `--session-id` or Remote Control, or a route fails its hop check.
+
+The receiver's nested quoting, background sessions, and the mechanisms not used here (Remote
+Control, cloud sessions, Channels) are in [reference/relay.md](reference/relay.md).
 
 ## Accounts are per lane
 
 Each lane signs into its own claude.ai account, deliberately, so one lane's usage never draws down
-another's. On melo-desk-001 the WSL and Windows lanes use different accounts; the laptop's WSL lane
-uses a third. So:
+another's. On melo-desk-001 the WSL lane and the Windows lane use different accounts; the laptop's
+WSL lane uses a third. Three facts follow:
 
 - **Same lane.** Sessions find each other through files and sockets; the peer tools work.
 - **Other lane, same machine.** WSL and Windows register under different homes and socket types.
@@ -147,7 +152,7 @@ uses a third. So:
 - **Other machine.** Remote Control lists only the signed-in account's sessions. Across accounts
   `ListAgents` shows nothing remote, even with Remote Control connected.
 
-The peer tools are same-lane only, and no setting widens them. Every other route starts a turn
+So the peer tools are same-lane only, and no setting widens them. Every other route starts a turn
 inside the target lane, where the peer tools are local. Do not propose sharing an account: the
 split is the decision, not an oversight.
 
@@ -179,8 +184,8 @@ on-demand tasks FLEET.md lists.
 - There is no `Bash(ssh ...)` allow rule anywhere in this fleet, and adding one is not the fix for a
   prompt. If asked to stop the prompting, say what the rule would cost and decline.
 - Neither side runs `bypassPermissions`.
-- Never `wsl --shutdown` on a target, and never run `wsl -d` on a target's drift-convergence path:
-  both take the distro out from under whatever else is using it.
+- Never `wsl --shutdown` on a target, and never run `wsl -d` on a target's drift-convergence path.
+  Both take the distro out from under whatever else is using it.
 - The prompt travels in the command line, visible to the target's process table and shell history.
   No secret belongs in one.
 
