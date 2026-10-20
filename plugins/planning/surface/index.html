@@ -2026,6 +2026,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       if (lsGet("actSeen", null) === null) markSeen(); // a new browser starts with everything seen
       const saved = lsGet("sel", null), hid = hashId();
       if (hid && !passes(Q[hid])) { S.filter = "all"; lsSet("filter", "all"); } // a link opens its question even when Show hides it
+      const hsec = hid && S.view !== "tree" ? sections().secs.find(x => x.items.some(q => q.id === hid)) : null;
+      if (hsec) lsSet("col:" + hsec.key, {c: false, d: hsec.done}); // open the group that holds the linked question
       const pick = hid || (saved === SUMMARY || (saved && Q[saved]) ? saved : allDone() ? SUMMARY : firstNeeding());
       if (pick) select(pick); else { renderRail(); renderDetail(); }
       if (document.hidden) S.hiddenBase = arrivalKeys(); // a tab opened in the background fires no visibilitychange
