@@ -31,6 +31,21 @@ async function main() {
     await owner.locator(".vf-seg .vf-seg-btn", { hasText: "Host" }).click();
     ok("the owner's people list shows Admin 2 and Bo", await until(owner, ([a, b]) => [a, b].every(p => document.querySelector(`.vf-hperson:has([data-pid="${p}"])`)), [twinPid, boPid]));
 
+    // ---------- the owner renames a guest from that guest's card ----------
+    const boEl = `.vf-hperson:has([data-pid="${boPid}"]) [data-pid="${boPid}"]`;
+    await owner.click(boEl);
+    await owner.click('.vf-pcard [data-k="pa-rename"]');
+    ok("the card's Rename opens the name form", await until(owner, () => !!document.querySelector('.vf-pcard [data-k="rnp"]')));
+    await owner.click('.vf-pcard [data-k="rpc"]');
+    ok("  and Cancel closes it", await until(owner, () => !document.querySelector('.vf-pcard [data-k="rnp"]')));
+    await owner.click('.vf-pcard [data-k="pa-rename"]');
+    await owner.fill('.vf-pcard [data-k="rnp"]', "Bobby");
+    await owner.click('.vf-pcard [data-k="rps"]');
+    ok("  and Save renames the guest and closes the form", await until(owner, p => document.querySelector(".vf-toast")?.textContent === "Renamed to Bobby."
+      && !document.querySelector('.vf-pcard [data-k="rnp"]') && window.Core.snapshot().people.some(x => x.pid === p && x.name === "Bobby"), boPid));
+    await owner.click(boEl);
+    await until(owner, () => document.querySelector(".vf-pcard")?.hidden);
+
     // ---------- the picker offers the owner ----------
     await owner.locator(`.vf-hperson:has([data-pid="${twinPid}"]) .vf-hp-acts button`, { hasText: "Merge…" }).click();
     ok("the merge picker lists the owner first, as \"You\"", await until(owner, () => {
