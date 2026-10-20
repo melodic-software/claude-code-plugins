@@ -15,6 +15,8 @@ user-invocable: true
 Based on [Thariq's March 17, 2026 post](https://x.com/trq212/status/2033949937936085378).
 Anthropic runs hundreds of skills in production. These are the lessons learned.
 
+> upstream self-update instructions removed; we vendor a reviewed snapshot
+
 ---
 
 ## 9 Types of Skills

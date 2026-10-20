@@ -42,8 +42,8 @@
 #     Bash every fork is a Win32 process creation, so eight command-substitution
 #     subshells were eight processes per tool call. A sourced guard ends by
 #     calling `exit`, which here is a shell function: it records the guard's
-#     status and runs the NEXT guard from inside that call, so the chain never
-#     returns into a guard that has exited. A guard that falls off its end
+#     status and unwinds the guard, so the chain never returns into a guard
+#     that has exited. A guard that falls off its end
 #     returns from `source` and is recorded the same way. Inside a real subshell
 #     (`$(...)`, `( )`, a pipeline, `&`) the function sees a different BASHPID
 #     and exits that subshell as the builtin would. Its `source hook-utils.sh`
@@ -66,13 +66,19 @@
 #     second hard error in a dying shell would end the process with no result.
 #     That subshell reports its documents and status back on its stdout; a
 #     further hard error there costs one more subshell, never the result.
-#   * Running the next guard from inside `exit` keeps the exiting guard's
-#     frames on the stack. Past RUN_GUARDS_MAX_DEPTH frames the rest of the
-#     chain runs in a fresh dispatcher process instead, which reports back the
-#     same way. A rest that reports no status denies the call.
+#   * `exit` does not run the next guard from inside its own call: that would
+#     keep the exiting guard's frames on the stack under every later guard, and
+#     a guard that exits deep (the alias walk's budget deny is about 140 frames
+#     down) leaves too little stack for the rest of the chain on a small one,
+#     where the crash loses the guard's exit 2 (Git Bash reads it as exit 0).
+#     `exit` records the status and unwinds the guard back to the dispatcher's
+#     loop instead. A guard that exited past RUN_GUARDS_MAX_DEPTH frames, and a
+#     guard that dies of a hard error (the rest runs from its EXIT trap), hand
+#     the rest of the chain to a forked process, which reports back the same
+#     way, so a later guard that runs out of stack cannot take the verdict so
+#     far with it. A rest that reports no status denies the call.
 #   * Guards share one process, so a guard's functions and globals remain
-#     defined while the later guards run, and a guard that exits from inside a
-#     function leaves that function's locals visible to them. Every guard
+#     defined while the later guards run. Every guard
 #     assigns what it reads before it reads it; a guard must not read a global
 #     it did not set expecting it unset.
 #
@@ -811,8 +817,8 @@ OUTS=()
 # dispatcher's own abort.
 RUN_GUARDS_CUR=-1
 # The process the chain runs in. `exit` below compares BASHPID against it: a
-# guard's `exit` inside a real subshell must end that subshell, not run the
-# next guard there.
+# guard's `exit` inside a real subshell must end that subshell, not unwind to
+# the dispatcher's loop there.
 RUN_GUARDS_PID=$BASHPID
 RUN_GUARDS_T0=""
 
@@ -832,17 +838,35 @@ hook::require_jq_blocking() {
   exit 2
 }
 
-# `exit` for the sourced guards. The status a guard exits with is recorded
-# and the chain continues from inside this call, so control never returns to
-# the guard. No argument means the status of the guard's last command, as the
-# builtin does.
+# `exit` for the sourced guards. The status a guard exits with is recorded and
+# the guard is unwound, so control never returns to the code after the call:
+# every frame of the guard returns at once, `source` returns to
+# run_guards::run_from, and the next guard starts on that frame's stack, not on
+# top of the exiting guard's. No argument means the status of the guard's last
+# command, as the builtin does.
+#
+# The unwind is a DEBUG trap under extdebug: a trap that returns 2 makes bash
+# simulate a `return` from the function or sourced script the next command
+# belongs to, and the trap fires again for the command after that return, until
+# run_from itself holds the next command; the trap then removes itself.
 # shellcheck disable=SC2329  # invoked by every guard sourced below
 exit() {
   local __rg_rc="${1:-$?}"
   [[ "$BASHPID" == "$RUN_GUARDS_PID" ]] || builtin exit "$__rg_rc"
   ((RUN_GUARDS_CUR >= 0)) || builtin exit "$__rg_rc"
-  run_guards::guard_done "$__rg_rc"
+  RUN_GUARDS_EXIT_RC=$__rg_rc
+  RUN_GUARDS_EXIT_DEPTH=${#FUNCNAME[@]}
+  set -T
+  shopt -s extdebug
+  # Inline, not a function: the first firing is at the guard's deepest frame,
+  # and a call there costs stack the guard may not have left.
+  trap '[[ ${FUNCNAME[0]-} == run_guards::run_from ]] && { trap - DEBUG; shopt -u extdebug; set +T; RUN_GUARDS_UNWOUND=1; } || return 2' DEBUG
+  return 0
 }
+
+RUN_GUARDS_EXIT_RC=0
+RUN_GUARDS_EXIT_DEPTH=0
+RUN_GUARDS_UNWOUND=0
 
 # A guard died of a hard error: the shell is exiting, and the EXIT trap the
 # guard installed through guard::abort_boundary handed the status here (the
@@ -851,10 +875,8 @@ exit() {
 # this way; that is the function above. Never returns.
 # shellcheck disable=SC2329  # invoked through _GAB_CONTINUE by the trap handler
 run_guards::guard_died() {
-  RUN_GUARDS_DYING=1
   run_guards::guard_done "$1"
 }
-RUN_GUARDS_DYING=0
 
 # run_guards::record <rc>: the guard at RUN_GUARDS_CUR ended with <rc>. Applies
 # its abort boundary (when it installed one: a stub that never called
@@ -881,35 +903,32 @@ run_guards::record() {
 }
 
 # The call depth past which the rest of the chain does not run on this stack.
-# A guard's `exit` runs the next guard from inside its own call, so the frames
-# below a guard that exits deep (the alias walk exits about 140 frames down)
-# stay under every guard after it. Git Bash's main thread has a 2 MB stack, and
-# a second alias walk on top of the first overflowed it: bash died of an access
-# violation that its parent read as exit 0 with no output, an allow. A normal
-# chain of eleven guards reaches about 45 frames; past this bound the rest runs
-# in a fresh process, whose stack starts empty, as each guard's did when it ran
-# alone.
+# `exit` unwinds its guard, so only a guard that dies of a hard error (its EXIT
+# trap runs the rest) leaves its frames under whatever runs next. Git Bash's
+# main thread has a 2 MB stack, and a second alias walk on top of the first
+# overflowed it: bash died of an access violation that its parent read as exit
+# 0 with no output, an allow. A guard that exited past this depth, and a hard
+# error past it, hand the rest to another process: a fork after the deep
+# `exit`, a fresh dispatcher from the dying shell's trap.
 RUN_GUARDS_MAX_DEPTH=64
 
-# run_guards::guard_done <rc>: record the guard that just ended and run the
-# rest. Never returns.
+# run_guards::guard_done <rc>: record the guard that died of a hard error and
+# run the rest. Never returns.
+# shellcheck disable=SC2329  # invoked by run_guards::guard_died, itself invoked through _GAB_CONTINUE
 run_guards::guard_done() {
   run_guards::record "$1"
   ((RUN_GUARDS_OVERLONG && RC == 2)) && run_guards::finish
   local __rg_next=$((RUN_GUARDS_CUR + 1))
   ((__rg_next < ${#GUARDS[@]})) || run_guards::finish
-  if ((RUN_GUARDS_DYING || ${#FUNCNAME[@]} > RUN_GUARDS_MAX_DEPTH)); then
-    run_guards::run_rest "$__rg_next"
-    run_guards::finish
-  fi
-  run_guards::run_from "$__rg_next"
+  run_guards::run_rest "$__rg_next"
+  run_guards::finish
 }
 
 # run_guards::run_from <index>: run the guards from <index> on, then finish.
-# Never returns: a guard's `exit` continues the chain from inside the call,
-# and a guard that falls off its end is recorded right here.
+# Never returns. A guard that ends through `exit` has been unwound back to the
+# `source` below (see `exit`), so every guard starts on this frame's stack.
 run_guards::run_from() {
-  local __rg_i
+  local __rg_i __rg_rc
   for ((__rg_i = $1; __rg_i < ${#GUARDS[@]}; __rg_i++)); do
     RUN_GUARDS_CUR=$__rg_i
     local __rg_path
@@ -932,18 +951,34 @@ run_guards::run_from() {
     RUN_GUARDS_T0=${EPOCHREALTIME:-}
     # shellcheck disable=SC1090
     source "$__rg_path" </dev/null
-    run_guards::guard_done "$?"
+    __rg_rc=$?
+    if ((RUN_GUARDS_UNWOUND)); then
+      RUN_GUARDS_UNWOUND=0
+      __rg_rc=$RUN_GUARDS_EXIT_RC
+    fi
+    run_guards::record "$__rg_rc"
+    ((RUN_GUARDS_OVERLONG && RC == 2)) && break
+    # A guard that exited this deep may have come close to the stack limit,
+    # and the next guard's own walk can run out of it where the first did not.
+    # In a forked child that crash cannot take this process, and the verdict
+    # already recorded, with it: a rest that reports nothing denies the call.
+    if ((RUN_GUARDS_EXIT_DEPTH > RUN_GUARDS_MAX_DEPTH && __rg_i + 1 < ${#GUARDS[@]})); then
+      RUN_GUARDS_EXIT_DEPTH=0
+      run_guards::run_rest $((__rg_i + 1))
+      break
+    fi
+    RUN_GUARDS_EXIT_DEPTH=0
   done
   run_guards::finish
 }
 
 # run_guards::run_rest <index>: the guards from <index> on, run in another
-# process, from inside a dying shell's EXIT trap or past RUN_GUARDS_MAX_DEPTH.
-# Its collected documents and status come back on its stdout as
+# process, after a guard exited past RUN_GUARDS_MAX_DEPTH or from inside a dying
+# shell's EXIT trap. Its collected documents and status come back on its stdout as
 # <doc>RS ... RS<doc>RS RC=<n>. RS (0x1e) cannot occur inside a document (JSON
 # escapes every control byte).
 #
-# Past the depth bound it is a fresh dispatcher fed the same payload, so the
+# A dying shell past the depth bound gets a fresh dispatcher fed the same payload, so the
 # guards run on an empty stack. That needs a payload the fresh process reads
 # back the same: read whole (stdin rc 0), and primed, so it carried no NUL that
 # the shell variable dropped. Any other payload past the bound is denied:
@@ -964,7 +999,6 @@ run_guards::run_rest() {
     # shellcheck disable=SC2030  # the subshell's own OUTS and RC come back on its stdout
     __rg_rest=$(
       RUN_GUARDS_PID=$BASHPID
-      RUN_GUARDS_DYING=0
       RUN_GUARDS_REPORT=1
       OUTS=()
       RC=0

@@ -9,7 +9,7 @@
 # Expected values are markdownlint's documented rules: a file must end with a single
 # newline (MD047) and an extra blank line goes (MD012), both fixable; inline HTML
 # is MD033/no-inline-html and has no fix.
-# test-scope: plugins/markdown-format/git-hooks/entries.json plugins/markdown-format/git-hooks/markdown-gates.sh plugins/markdown-format/lib/git-hooks/check-lib.sh plugins/markdown-format/lib/git-hooks/install.mjs
+# test-scope: plugins/markdown-format/git-hooks/entries.json plugins/markdown-format/git-hooks/markdown-gates.sh plugins/markdown-format/lib/git-hooks/check-lib.sh plugins/markdown-format/lib/git-hooks/install.mjs plugins/markdown-format/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT CLAUDE_PLUGIN_DATA
 
