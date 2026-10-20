@@ -28,6 +28,7 @@ condition 1 and the actor and author parts of condition 2).
 | `require-pr` | `true` | `false` checks only the actors and reads no PR |
 | `require-kind` | empty | `human` narrows the actor-only checks to actors listed as `kind: human` |
 | `app-label` | empty | With `require-kind: human`, the one label the lanes App may apply to an issue to start the lane |
+| `reconciler-workflow` | empty | The lost-run reconciler's workflow path: a `github-actions[bot]` re-run proceeds only as its recorded re-run; empty stops every such re-run |
 
 ## Rules
 
@@ -91,7 +92,7 @@ condition 1 and the actor and author parts of condition 2).
   a first `completed` seen after the 24th wait refuses at once. Each wait logs
   `dispatcher record: absent, re-read N` with the two run ids.
 
-  A failed read, a missing or unparseable field, or any failed condition stops with
+  A failed read, a missing or unparsable field, or any failed condition stops with
   `untrusted-actor`. The re-runner of a dispatched run is read by id from this run's
   `triggering_actor`: `github-actions[bot]` on attempt 1, otherwise a listed id that is not
   denied, or the lane stops with `untrusted-rerunner`. The PR author check still applies.
@@ -132,6 +133,36 @@ condition 1 and the actor and author parts of condition 2).
   unlisted or denied re-runner stops with `untrusted-rerunner`, which `report-check-run` maps to
   no skip reason, so the check posts failure: a re-run cannot turn an earlier red check on the same
   SHA neutral.
+- **Reconciler re-run (`reconciler-workflow`).** On the `pull_request` and `workflow_run` paths,
+  when `triggering-actor` is `github-actions[bot]` and `reconciler-workflow` is set, the re-runner
+  check is replaced by a check of the lost-run reconciler's record; the event's actors and the PR
+  author are still checked as above. It proceeds only when every one of these holds, and any
+  failed read or condition stops with `untrusted-rerunner`:
+  - `github-actions[bot]` (41898282) is not in `denied-actor-ids`, `GITHUB_RUN_ATTEMPT` is `2`,
+    and the payload names the repository's default branch;
+  - this run's attempt 2, read through `GET /actions/runs/{github.run_id}/attempts/2`, has that
+    `id` and `run_attempt`, `triggering_actor.id` 41898282, this repository, a 40-hex `head_sha`
+    and a `run_started_at`;
+  - `GET /actions/artifacts?name=reconcile-rerun-<run id>-2-<head_sha>&per_page=100`, up to ten
+    pages, lists an
+    artifact with exactly that name, `expired` `false`, and a `created_at` no later than the
+    attempt's `run_started_at`, whose `workflow_run.id` names a run that has that `id`, this
+    repository, `path` equal to `reconciler-workflow`, `head_branch` the default branch, `event`
+    `schedule` or `workflow_dispatch` by an `actor` listed as `kind: human`, any re-run of it by a
+    `triggering_actor` listed as `kind: human`, and a `run_started_at` no later than the attempt's
+    and at most ten minutes before it;
+  - that run's `head_sha` passes the same tag and ancestry checks as a dispatcher run.
+
+  Any run can upload an artifact with that name, so every listed artifact's run is read and
+  judged, and one that passes is enough; one whose run cannot be read does not vouch. The run id and the attempt bind the record to one run
+  attempt, which starts once, so a record cannot vouch for another run or a later attempt. The
+  reconciler uploads the record before it calls the re-run, so an absent record is read once more
+  after 5 s and then refused.
+
+  Residuals: whether one run can write another run's artifacts is unverified, as for the
+  dispatcher record. A re-run that waits in a queue past the ten-minute window is refused, red;
+  a person re-runs it. More than 1,000 forged artifacts of one name would push the real record
+  past the pages read, which refuses the re-run: a denial, never a pass.
 - **Denied ids.** When `sender` or a `workflow_run` actor has an id in `denied-actor-ids`, the
   lane stops with `bot-actor`, even though that actor is listed. `pr-run-activity-write.yml`
   denies the lanes App bot, so the bot's own pushes and dispatches never chain a write activity.
@@ -151,7 +182,9 @@ any App token exists, so the job token is the only one available, and it needs
 read-only, so no write token reaches the model. A token that cannot read the PR stops the lane
 with `no-pr`. A dispatcher-sent run also reads two run records, a comparison and the dispatcher
 run's artifact list; on this public repository the job token reads them without `actions: read`,
-and a token that cannot stops the lane with `untrusted-actor`.
+and a token that cannot stops the lane with `untrusted-actor`. A reconciler re-run reads its own
+attempt, the artifact list by name, the recording run and a comparison the same way, and a token
+that cannot stops it with `untrusted-rerunner`.
 
 ## Outputs
 
