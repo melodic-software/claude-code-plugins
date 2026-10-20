@@ -94,24 +94,6 @@ index_mode() {
   printf '%s' "${entry%% *}"
 }
 
-# file_text <path>: what the commit would hold, on stdout.
-file_text() {
-  if [[ "$CHECKS_MODE" == worktree ]]; then
-    cat -- "$1"
-  else
-    git show ":$1" 2>/dev/null
-  fi
-}
-
-# is_binary <path>: a NUL byte in the first 8000 bytes of what the commit would
-# hold, the test git itself applies. The bytes decide, never a `-diff`
-# attribute, which makes numstat call any text file binary.
-is_binary() {
-  local probe="$CHECKS_TMP/probe"
-  file_text "$1" | head -c 8000 >"$probe" 2>/dev/null
-  (($(wc -c <"$probe") != $(LC_ALL=C tr -d '\000' <"$probe" | wc -c)))
-}
-
 file_size() {
   if [[ "$CHECKS_MODE" == worktree ]]; then
     wc -c <"$1" | tr -d ' '
@@ -143,16 +125,16 @@ while IFS= read -r -d '' f; do
     *) continue ;;
     esac
   fi
-  is_binary "$f" && continue
+  checks_has_nul "$f" && continue
   (($(file_size "$f") <= MAX_BYTES)) || continue
   sink="$out"
   if [[ "$f" == *[\"\\[:cntrl:]]* ]]; then
     # Git quotes such a name whatever core.quotePath says, so the range table
     # holds no entry for it: the file is judged whole, past the range filter.
-    text="$(file_text "$f"; printf x)"
+    text="$(checks_file_text "$f"; printf x)"
     sink="$whole"
   else
-    text="$(file_text "$f" | added_only "$f"; printf x)"
+    text="$(checks_file_text "$f" | added_only "$f"; printf x)"
   fi
   text="${text%x}"
   [[ -n "${text//[[:space:]]/}" ]] || continue
