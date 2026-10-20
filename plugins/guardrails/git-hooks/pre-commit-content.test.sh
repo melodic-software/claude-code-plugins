@@ -97,6 +97,28 @@ printf 'brand new token=%s\n' "$FAKE_GHP" >"$REPO/new.txt"
 git -C "$REPO" add new.txt
 expect "a new file is judged whole" 1 "$(rc_of "$REPO")"
 
+# A tracked `-diff` attribute makes numstat call a text file binary and the diff
+# print no hunks; the bytes decide, so the token is still found.
+new_repo
+printf '*.yml -diff\n' >"$REPO/.gitattributes"
+printf 'key: value\ntoken: %s\n' "$FAKE_GHP" >"$REPO/ci.yml"
+git -C "$REPO" add .gitattributes ci.yml
+expect "a token in a .yml file under a -diff attribute blocks, naming that line" "1|ci.yml:2: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+new_repo
+printf '*.yml -diff\n' >"$REPO/.gitattributes"
+printf 'key: value\n' >"$REPO/ci.yml"
+git -C "$REPO" add .gitattributes ci.yml
+git -C "$REPO" commit -q -m attrs --no-verify
+printf 'key: value\nother: %s\n' "$FAKE_GHP" >"$REPO/ci.yml"
+git -C "$REPO" add ci.yml
+expect "a token added to a changed -diff file blocks, naming that line" "1|ci.yml:2: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+new_repo
+printf 'MZ\0token=%s\n' "$FAKE_GHP" >"$REPO/blob.bin"
+git -C "$REPO" add blob.bin
+expect "a file holding a NUL byte is still skipped" 0 "$(rc_of "$REPO")"
+
 # Git quotes a name holding `"` whatever core.quotePath says. Windows refuses
 # the name, so the case runs where the file system takes it.
 new_repo
