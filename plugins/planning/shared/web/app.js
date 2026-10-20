@@ -6655,9 +6655,25 @@
         mid.append(nameRow, meta);
         const acts = E("div", "vf-hp-acts");
         const pa = personActs(() => li._p.pid);
-        acts.append(pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
+        // The owner renames anyone here, with the same form as their own name in the person card.
+        const rename = btn("vf-btn vf-btn-ghost vf-btn-sm vf-pa-rename", "Rename");
+        const rform = E("form", "vf-rename vf-hp-rename"); rform.hidden = true;
+        const rin = E("input", "vf-input"); rin.maxLength = 40;
+        const rrow = E("div", "vf-crow"), rcancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
+        const rsave = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Save name"); rsave.type = "submit";
+        rrow.append(rcancel, rsave); rform.append(rin, rrow); mid.append(rform);
+        rename.onclick = () => { rform.hidden = false; rin.value = li._p.name; rin.focus(); rin.select(); };
+        rcancel.onclick = () => { rform.hidden = true; rename.focus(); };
+        rform.onsubmit = e => {
+          e.preventDefault();
+          const v = rin.value.trim(); if (!v) return rin.focus();
+          rsave.disabled = true;
+          Core.renamePerson(li._p.pid, v).then(j => { rform.hidden = true; flash(j.name !== v ? `Someone already uses that name, so they are ${j.name}.` : `Renamed to ${j.name}.`); rename.focus(); })
+            .catch(fail).finally(() => { rsave.disabled = false; });
+        };
+        acts.append(rename, pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
         li.append(avBox, mid, acts);
-        li._k = { avBox, nm, meta, role, ctxB, ...pa, acts, avKey: "" };
+        li._k = { avBox, nm, meta, role, ctxB, ...pa, rename, rform, rin, acts, avKey: "" };
         return li;
       }, (li, p) => {
         const k = li._k, h = here.get(p.pid), rl = roleOf(p.pid), isGone = gone.has(p.pid), me2 = isMe(p.pid);
@@ -6681,6 +6697,9 @@
         const can = owner && !me2 && rl !== "Host";
         k.acts.hidden = !can;
         paintPersonActs(k, p.pid, "row");
+        k.rename.hidden = isGone; k.rename.setAttribute("aria-label", `Rename ${disp(p.name)}`);
+        k.rin.setAttribute("aria-label", `New name for ${disp(p.name)}`);
+        if (!can || isGone) k.rform.hidden = true;
       });
       if (ui.pop === personPop) fillPersonView();
       const nAway = S.presence.filter(p => p.away).length;
