@@ -418,7 +418,8 @@ else
   [[ "$_bupm_lc" == *merge* || "$_bupm_lc" == *enqueue* ]] || exit 0
   # A backtick in merge-shaped text is refused below without parsing; in
   # PowerShell a backtick is the escape character, not a substitution.
-  _bupm_shape_re='(^|[^a-z0-9_-])pr[[:space:]]+((-r|--repo)[=[:space:]]*[^[:space:]]+[[:space:]]+)*merge|pulls/.*merge|mergepullrequest|enqueuepullrequest|enablepullrequestautomerge'
+  # shellcheck disable=SC2016  # the backticks are literal regex text
+  _bupm_shape_re='(^|[^a-z0-9_-])pr[[:space:]]+((-r|--repo)[=[:space:]]*[^[:space:]]+[[:space:]]+)*merge|pulls/([^/[:space:]`]|`[^`]*`)+/(ccr/auto_)?merge|mergepullrequest|enqueuepullrequest|enablepullrequestautomerge'
   if [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *'`'* && "$_bupm_lc" =~ $_bupm_shape_re ]]; then
     BUPM_BT=1
     BUPM_FORM=backtick

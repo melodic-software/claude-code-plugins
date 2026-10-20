@@ -574,6 +574,7 @@ multi "gh pr merge, then a REST merge" 'gh pr merge 1 -R acme/widgets && gh api 
 quiet "backtick in git merge-base" 'git merge-base HEAD `git rev-parse origin/main`'
 quiet "heredoc commit mentioning merge in backticks" $'git commit -F - <<\'EOF\'\nfix(guardrails): tighten the `merge` path\n\nThe `merge` guard reads `pulls/`.\nEOF'
 quiet "commit -m mentioning merge in backticks" 'git commit -m "fix the merge path in `foo.sh`"'
+quiet "commit -m with pulls/ before merge, no merge route" 'git commit -m "fix `pulls/` parsing, then merge"'
 quiet "--disable-auto, then gh pr view" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr view 42'
 scenario none none green green
 run "--disable-auto, then one merge" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr merge 42 -R acme/widgets --squash' 0
