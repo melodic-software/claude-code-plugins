@@ -2560,6 +2560,7 @@ class WholeReviewRequest(Unattended):
         self.lanes = CARRIED
         self.limit: str | None = None
         self.toggles: list[str] = []
+        self.lane_toggles: int | None = 0
 
     def _toggle(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
         self.log.append("toggle")
@@ -2573,6 +2574,9 @@ class WholeReviewRequest(Unattended):
             mock.patch.object(merge, "_now", return_value=self.now),
             mock.patch.object(merge.whole_review, "limits", return_value=self.limit),
             mock.patch.object(merge.whole_review, "toggle", side_effect=self._toggle),
+            mock.patch.object(
+                merge.whole_review, "lane_toggles", return_value=self.lane_toggles
+            ),
         ):
             return super().run_main(*flags, merge_flag=merge_flag)
 
@@ -2648,6 +2652,28 @@ class WholeReviewRequest(Unattended):
         posted = self.posted()
         for head in ("d" * 40, "e" * 40):
             self.assertTrue(merge.whole_review.recorded(posted, head), head)
+
+    def test_deleted_records_do_not_reset_the_timeline_cap(self) -> None:
+        # The lane deleted the record lines from the reasons comment; its two
+        # conversions to draft stay on the timeline.
+        self.earlier_sweep(merge.whole_review.RECORD_RE.sub("", self.two_toggles()))
+        self.lane_toggles = 2
+        _, out = self.run_main()
+        self.assertNotIn("toggle", self.log)
+        self.assertEqual(
+            out["unattended"]["writes"]["wholeReview"],
+            {"toggled": False, "skipped": "toggle-cap:2"},
+        )
+        self.assertFalse(merge.whole_review.recorded(self.posted(), HEAD))
+
+    def test_an_unread_timeline_requests_nothing(self) -> None:
+        self.lane_toggles = None
+        _, out = self.run_main()
+        self.assertNotIn("toggle", self.log)
+        self.assertEqual(
+            out["unattended"]["writes"]["wholeReview"],
+            {"toggled": False, "skipped": "toggle-cap:unread"},
+        )
 
     def test_every_record_is_kept_when_the_score_clears(self) -> None:
         self.earlier_sweep(

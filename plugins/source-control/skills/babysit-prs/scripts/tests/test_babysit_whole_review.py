@@ -205,6 +205,33 @@ class Toggle(unittest.TestCase):
         self.assertEqual(seen.count("ready"), wr.READY_TRIES)
 
 
+class LaneToggles(unittest.TestCase):
+    def count(self, stdout: Any, code: int = 0) -> int | None:
+        with mock.patch.object(wr, "gh_capture", return_value=done(stdout, code)):
+            return wr.lane_toggles("PR_7", "lanes[bot]")
+
+    def timeline(self, *logins: str | None) -> dict[str, Any]:
+        nodes = [
+            {
+                "actor": None if login is None else {"login": login},
+                "createdAt": "2026-10-20T11:00:00Z",
+            }
+            for login in logins
+        ]
+        return {"data": {"node": {"timelineItems": {"nodes": nodes}}}}
+
+    def test_counts_only_the_lane_identitys_conversions(self) -> None:
+        got = self.count(self.timeline("lanes", "maintainer", None, "Lanes"))
+        self.assertEqual(got, 2)
+
+    def test_no_conversion_is_zero(self) -> None:
+        self.assertEqual(self.count(self.timeline()), 0)
+
+    def test_an_unread_timeline_is_none(self) -> None:
+        self.assertIsNone(self.count(None, code=1))
+        self.assertIsNone(self.count({"data": {"node": None}}))
+
+
 class Recover(unittest.TestCase):
     NOW = datetime(2026, 10, 20, 12, tzinfo=UTC)
     LANE = "lanes[bot]"
