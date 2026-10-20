@@ -92,7 +92,8 @@ async function main() {
     const uid = await pasted(ann, 1);
     ok("the pasted picture's tile shows the thumbnail made in her browser while it waits for the host", await until(ann, () => [...document.querySelectorAll(".vf-composer .vf-attdraft .vf-ref")]
       .some(r => /Waiting for the host/.test(r.textContent) && r.querySelector(".vf-uppic-wait img:not([hidden])")?.getAttribute("src")?.startsWith("data:image/")), null, 10000));
-    ok("  and shows once: no file row repeats it under the answer (sweep S17)", await ann.evaluate(() => ![...document.querySelectorAll(".vf-upstrip .vf-uprow")].some(r => /Waiting for the host/.test(r.textContent))));
+    ok("  and shows once: no file row repeats it under the answer (sweep S17)", await ann.evaluate(() => ![...document.querySelectorAll(".vf-upstrip .vf-uprow")].some(r => /Waiting for the host/.test(r.textContent))),
+      await ann.evaluate(() => JSON.stringify({ rows: [...document.querySelectorAll(".vf-upstrip .vf-uprow")].map(r => r.textContent), draft: window.Core.snapshot().myUploads?.map(u => [u.id, u.status?.kind, u.file]) })));
     await owner.evaluate(id => window.Core.uploadAct(id, "accept"), uid);
     ok("accepted, it arrives", await until(ann, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), uid, 20000));
 

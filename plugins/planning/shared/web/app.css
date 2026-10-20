@@ -2216,11 +2216,12 @@
   .app[data-kb] .vf-apmodes .vf-seg-btn { flex: 0 1 auto; min-inline-size: 0; padding-inline: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .app[data-kb] .vf-apscroll { grid-area: 2 / 1 / 3 / 3; padding-block-start: 4px; }
   .app[data-kb] .vf-apq:not(:focus-within) { display: none; }
+  .app[data-kb] .vf-apform .vf-webchip:not(:focus) { display: none; } /* Use the web beside the label steps aside too */
   .app[data-kb] .vf-ap-pointer { display: none; }
   /* the Propose sheet keeps its label, field and buttons above the keyboard: its title and note step aside */
   .app[data-kb] :is(.vf-proposepop, .vf-reportpop) { max-block-size: calc(100% - 8px); padding-block-end: 8px; }
   .app[data-kb] :is(.vf-proposepop, .vf-reportpop) > :is(.vf-pop-title, .vf-pop-note) { display: none; }
-  .app[data-kb] .vf-reportpop:not(.vf-myreps) > :is(.vf-pop-sub, .vf-rep-sent) { display: none; } /* Send stays above the keyboard */
+  .app[data-kb] .vf-reportpop:not(.vf-myreps) > :is(.vf-pop-sub, .vf-rep-sent, .vf-rep-shotrow) { display: none; } /* Send stays above the keyboard */
 }
 
 /* Dialogs: confirmations and the attach picker. Native modal dialogs, so they sit above every panel and sheet. */

@@ -255,7 +255,8 @@ async function main() {
       await seed.locator("#vf-answer").fill(answer);
       await seed.press("#vf-answer", "Control+Enter");
     }
-    await until(seed, () => Object.keys(window.Core.snapshot()?.cards || {}).length >= 2);
+    // both answers in before the seed leaves: Q1's option cards alone already make two keys
+    await until(seed, () => ["Q2", "Q3"].every(id => (window.Core.snapshot()?.cards?.[id] || []).some(c => c.kind === "person")), null, 10000);
     await seed.context().close();
 
     let n = 0;
@@ -523,7 +524,8 @@ async function main() {
         return { text: c.textContent, start: b.textContent, inView: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
       });
       ok(`${label}: a new guest's first view shows the goal, the host's ask and "Start here: question 1" without scrolling`,
-        card && facts.text.includes(`Goal: ${GOAL}`) && /asks you to answer 3 questions/.test(facts.text) && facts.start === "Start here: question 1" && facts.inView, JSON.stringify(facts));
+        // sweep S2: the count is what this guest owes; Seed answered Q2 and Q3, which leaves them optional (triage row 42)
+        card && facts.text.includes(`Goal: ${GOAL}`) && /asks you to answer 1 question\./.test(facts.text) && facts.start === "Start here: question 1" && facts.inView, JSON.stringify(facts));
       await g.locator(".vf-orient-start").click();
       ok(`${label}: Start here focuses question 1's first option, the primary control`, await until(g, t => document.querySelector(".vf-qtext")?.textContent === t
         && document.activeElement?.matches(".vf-optchoose") && /Card/.test(document.activeElement.closest(".vf-opt").textContent), CHOICE));

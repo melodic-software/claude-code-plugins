@@ -1896,6 +1896,10 @@
     const msgMenu = E("div", "vf-pop vf-menu vf-msgmenu"); msgMenu.setAttribute("role", "menu"); msgMenu.setAttribute("aria-label", "Message actions"); msgMenu.hidden = true;
     msgMenu.dataset.kind = "pop"; // beside the ⋯ (or the long-pressed message) that opened it
     msgMenu.dataset.phone = "sheet"; // a bottom sheet on a phone (O114)
+    // the finger that held a message open lifts over the sheet: that release is no tap on a menu row; a tap that starts
+    // on the sheet is
+    for (const ev of ["pointerdown", "keydown"]) msgMenu.addEventListener(ev, () => { ui.menuHeld = false; }, true);
+    msgMenu.addEventListener("click", e => { if (ui.menuHeld) { ui.menuHeld = false; e.preventDefault(); e.stopPropagation(); } }, true);
     const mmPropose = lbtn("vf-menu-item vf-menu-plain", "forward", "Propose as question");
     const mmAsk = lbtn("vf-menu-item vf-menu-plain", "sparkle", "Ask Claude about this");
     const mmCopy = lbtn("vf-menu-item vf-menu-plain", "copy", "Copy");
@@ -2826,7 +2830,7 @@
     function msgMenuOpeners(bubble, more, get) {
       more.onclick = () => openMsgMenu(...get());
       let pressT = 0;
-      bubble.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") return; clearTimeout(pressT); pressT = setTimeout(() => { pressT = -1; openMsgMenu(...get()); }, 500); });
+      bubble.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") return; clearTimeout(pressT); pressT = setTimeout(() => { pressT = -1; ui.menuHeld = true; openMsgMenu(...get()); }, 500); });
       for (const ev of ["pointerup", "pointercancel", "pointerleave"]) bubble.addEventListener(ev, () => { if (pressT !== -1) clearTimeout(pressT); });
       bubble.addEventListener("contextmenu", e => { if (pressT === -1) { e.preventDefault(); pressT = 0; } });
     }
@@ -3757,7 +3761,7 @@
       const chips = E("ul", "vf-reflist vf-attlist vf-attdraft"); chips.setAttribute("aria-label", "Attached, not sent yet"); chips.hidden = true;
       let own = [];
       const slot = { btn: b, chips, qid: getQid, get: store?.get || (() => own), set: store?.set || (l => { own = l; }) };
-      slot.put = l => { slot.set(l); paintSlot(slot); };
+      slot.put = l => { slot.set(l); paintSlot(slot); render(); }; // render: the answer's file rows drop a picture its tile now shows (S17)
       /** After a send: only the files it carried leave the form, on the question it was sent from. */
       slot.sent = ex => {
         const ids = ex?.attachments || [], q = ex?.from?.qid, mine = store?.getFor ? store.getFor(q) : slot.get();
@@ -3768,7 +3772,7 @@
       /** The draft list of the question in view now, kept for a paste that finishes after the reader moved on. */
       slot.here = () => {
         const q = ui.cur;
-        return store?.getFor ? { get: () => store.getFor(q), put: l => { store.setFor(q, l); paintSlot(slot); } } : { get: slot.get, put: slot.put };
+        return store?.getFor ? { get: () => store.getFor(q), put: l => { store.setFor(q, l); paintSlot(slot); render(); } } : { get: slot.get, put: slot.put };
       };
       b.onclick = () => {
         if (slot.get().length >= 4) return flash("Four files at most go with one post.");
