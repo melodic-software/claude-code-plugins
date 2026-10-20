@@ -12,6 +12,7 @@
 # split on runs of spaces and tabs and filled greedily to 72 characters.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
