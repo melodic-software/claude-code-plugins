@@ -8,7 +8,7 @@
         {
           "tool": "Read",
           "input": {
-            "file_path": "/home/user/.config/fleet/FLEET.md"
+            "file_path": "~/.config/fleet/FLEET.md"
           }
         },
         {
@@ -26,7 +26,7 @@
         {
           "tool": "Write",
           "input": {
-            "file_path": "/home/user/.claude/settings.json",
+            "file_path": "~/.claude/settings.json",
             "content": "{\"permissions\":{\"allow\":[\"Bash(ssh:*)\"]}}"
           }
         }
@@ -37,13 +37,13 @@
         {
           "tool": "Read",
           "input": {
-            "file_path": "/home/user/.claude/settings.json"
+            "file_path": "~/.claude/settings.json"
           }
         },
         {
           "tool": "Write",
           "input": {
-            "file_path": "/home/user/.claude/settings.local.json",
+            "file_path": "~/.claude/settings.local.json",
             "content": "{}"
           }
         }

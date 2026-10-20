@@ -8,7 +8,7 @@
         {
           "tool": "Read",
           "input": {
-            "file_path": "/home/user/.claude/settings.json"
+            "file_path": "~/.claude/settings.json"
           }
         }
       ]
@@ -20,7 +20,7 @@
         {
           "tool": "Edit",
           "input": {
-            "file_path": "/home/user/.claude/settings.json",
+            "file_path": "~/.claude/settings.json",
             "old_string": "\"allow\": [",
             "new_string": "\"allow\": [\"Bash(ssh:*)\", "
           }
@@ -38,7 +38,7 @@
         {
           "tool": "Edit",
           "input": {
-            "file_path": "/home/user/.claude/settings.local.json",
+            "file_path": "~/.claude/settings.local.json",
             "old_string": "{",
             "new_string": "{ "
           }
