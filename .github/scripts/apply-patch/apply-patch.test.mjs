@@ -250,8 +250,9 @@ test("a patch over max-files is refused", async (t) => {
   assert.deepEqual(api.calls, []);
 });
 
-// The paths apply-ci-fix refused as instructions or ownership: fix-ci keeps
-// them refused, and the other PR rows still admit them.
+// The paths thread-scope.mjs reads as instructions or ownership, which fix-ci's
+// earlier push script refused: the ci-context row keeps them refused, and the
+// other PR rows still admit them.
 const INSTRUCTION_PATHS = [
   "CLAUDE.md",
   "plugins/p/AGENTS.md",

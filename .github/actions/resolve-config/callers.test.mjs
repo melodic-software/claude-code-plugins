@@ -1048,7 +1048,7 @@ test("pr-unblock.yml: apply-patch takes the patch from whichever fix-ci call ran
   assert.equal(runs("", "empty"), true, "an empty patch hands the PR to a person");
   assert.equal(runs("", ""), false, "a handoff whose fallback call left no patch");
   assert.ok(jobs["report-escalation"].needs.includes("apply-patch"));
-  assert.ok(!jobs["report-escalation"].needs.includes("apply-ci-fix"));
+  for (const need of jobs["report-escalation"].needs) assert.ok(Object.hasOwn(jobs, need), `report-escalation needs ${need}, a job of the file`);
 });
 
 test("pr-run-activity-read.yml: with output-mode gone, issue mode still refuses an activity that hands on no patch", () => {
