@@ -148,7 +148,14 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
   await source("pr-merge sweep", async () => {
     const artifacts = (await get(`/repos/${repo}/actions/artifacts?name=pr-merge-summary&per_page=100`)).artifacts;
     const candidates = artifacts
-      .filter((a) => !a.expired && Date.parse(a.created_at) <= now.getTime() && a.workflow_run?.head_branch === "main")
+      // A fork's branch can also be named main; its artifacts must not fill the cap before the trust check.
+      .filter(
+        (a) =>
+          !a.expired &&
+          Date.parse(a.created_at) <= now.getTime() &&
+          a.workflow_run?.head_branch === "main" &&
+          a.workflow_run?.head_repository_id === a.workflow_run?.repository_id,
+      )
       .slice(0, LIMITS.sweepArtifacts);
     data.sweep = null;
     let newest = null;

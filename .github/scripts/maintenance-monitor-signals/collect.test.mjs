@@ -201,6 +201,22 @@ test("the sweep ignores a newer pr-merge-summary artifact from a fork, PR or bra
   assert.equal(data.sweep.url, "https://github.com/o/r/actions/runs/901");
 });
 
+test("fork artifacts on a branch named main cannot push main's summary out of the read cap", async () => {
+  const fork = (id, at) =>
+    artifact(id, at, 900 + id, { workflow_run: { id: 900 + id, head_branch: "main", repository_id: 1, head_repository_id: 2 } });
+  const artifacts = [
+    fork(9, "2026-10-19T16:45:00Z"),
+    fork(8, "2026-10-19T16:44:00Z"),
+    fork(7, "2026-10-19T16:43:00Z"),
+    fork(6, "2026-10-19T16:42:00Z"),
+    fork(5, "2026-10-19T16:41:00Z"),
+    artifact(1, "2026-10-19T16:31:00Z", 901, { workflow_run: { id: 901, head_branch: "main", repository_id: 1, head_repository_id: 1 } }),
+  ];
+  const runs = { 901: prMergeRun(901) };
+  const data = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact: async () => ({ run_id: 901, live: true, candidates: 1, results: [] }) }));
+  assert.equal(data.sweep?.runId, 901);
+});
+
 test("the sweep rejects a summary whose run_id is not its run's digits", async () => {
   for (const runId of ["901 @someone", "[x](https://evil.example)", "901\n", 902, null]) {
     const api = fakeApi(sweepRoutes([artifact(1, "2026-10-19T16:31:00Z", 901)], { 901: prMergeRun(901) }));
