@@ -3,6 +3,7 @@
 # Each case builds its own repository root in a temp directory; expected values
 # come from the schema's allowed values (path, live, strict) and the script's stated
 # exit codes, not from the script's output.
+# test-scope: plugins/verification/lib/parse-concern-value.sh
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
