@@ -209,8 +209,8 @@ skill in [patch output mode](pr-run-activity.md#patch-output-mode)) runs
 `source-control:pull-request ci --ci`, which reruns, fixes and reruns the checks; and
 `apply-ci-fix` (a `mutate-branch` script, no model, no head code) pushes the patch as one commit
 without force, refusing the whole patch on any change to `.github/**`, an agent instruction path
-(`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a plugin's `hooks/`, `.mcp.json`,
-`.gitmodules`, `CODEOWNERS`), a symbolic link or a gitlink
+(`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a plugin's `hooks/`, `monitors/` or
+`bin/`, `.mcp.json`, `.lsp.json`, `.gitmodules`, `CODEOWNERS`), a symbolic link or a gitlink
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
 unappliable patch, or a check the model escalated, goes to `report-escalation`. The same
