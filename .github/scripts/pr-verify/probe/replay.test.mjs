@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { FIXTURES_DIR, judgeLeg, loadCases, REPO_ROOT, scoreRun, summarize, writeData } from "./replay.mjs";
+import { FIXTURES_DIR, judgeLeg, loadCases, REPO_ROOT, scoreRun, sh, summarize, untilModelOutcome, writeData } from "./replay.mjs";
 
 const CASES = loadCases();
 const TRUSTED = path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-actors.json");
@@ -187,18 +187,56 @@ test("judgeLeg writes a verdict only where the workflow would", () => {
   });
   assert.equal(denied.outcome, "denied");
 
+  // The model's own outcomes, which production ends with no verdict and the
+  // replay never retries.
   for (const [stdout, status] of [
-    [stream(INIT, result({ is_error: true, subtype: "error_max_turns", structured_output: OUTPUT })), 0],
+    [stream(INIT, result({ is_error: true, subtype: "error_max_turns", structured_output: OUTPUT })), 1],
+    [stream(INIT, result({ is_error: true, subtype: "error_max_structured_output_retries" })), 1],
     [stream(INIT, result({ structured_output: OUTPUT })), 1],
     [stream(INIT, result({})), 0],
-    [stream(INIT), 0],
   ]) {
-    assert.equal(judgeLeg({ stdout, status, resolved: RESOLVED }).outcome, "no-output");
+    assert.equal(judgeLeg({ stdout, status, resolved: RESOLVED }).outcome, "no-verdict");
   }
-  assert.equal(judgeLeg({ stdout: stream(INIT, result({ structured_output: OUTPUT })), status: 0, timedOut: true, resolved: RESOLVED }).outcome, "no-output");
+  assert.equal(judgeLeg({ stdout: stream(INIT, result({ structured_output: OUTPUT })), status: 0, timedOut: true, resolved: RESOLVED }).outcome, "no-verdict");
+
+  // Failures outside the model, the only ones retried.
+  for (const [stdout, status] of [
+    [stream(INIT), 1],
+    ["", null],
+    [stream(INIT, result({ is_error: true, api_error_status: 529, result: "Overloaded" })), 1],
+    [stream(INIT, result({ is_error: true, subtype: "error_during_execution" })), 1],
+  ]) {
+    assert.equal(judgeLeg({ stdout, status, resolved: RESOLVED }).outcome, "infrastructure");
+  }
 
   const extraKey = judgeLeg({ stdout: stream(INIT, result({ structured_output: { ...OUTPUT, approve: true } })), status: 0, resolved: RESOLVED });
   assert.equal(extraKey.outcome, "invalid");
+});
+
+test("only infrastructure failures are retried, and the first model outcome ends the run", () => {
+  const sequence = (outcomes) => {
+    const calls = [];
+    const attempts = untilModelOutcome(3, (attempt) => {
+      calls.push(attempt);
+      return { attempt, outcome: outcomes[attempt - 1] };
+    });
+    return { calls, outcomes: attempts.map((a) => a.outcome) };
+  };
+  // A turn cap or bad output is the model's outcome: no second try.
+  assert.deepEqual(sequence(["no-verdict", "verdict"]), { calls: [1], outcomes: ["no-verdict"] });
+  assert.deepEqual(sequence(["invalid", "verdict"]), { calls: [1], outcomes: ["invalid"] });
+  assert.deepEqual(sequence(["infrastructure", "no-verdict", "verdict"]), { calls: [1, 2], outcomes: ["infrastructure", "no-verdict"] });
+  assert.deepEqual(sequence(["infrastructure", "infrastructure", "infrastructure", "verdict"]), {
+    calls: [1, 2, 3],
+    outcomes: ["infrastructure", "infrastructure", "infrastructure"],
+  });
+});
+
+test("a failing command's error carries its stdout when stderr is empty", () => {
+  // resolve-config reports `::error title=resolve-config::<message>` on stdout.
+  const script = "console.log('::error title=resolve-config::no schema'); process.exit(1)";
+  assert.throws(() => sh(process.execPath, ["-e", script]), /::error title=resolve-config::no schema/);
+  assert.throws(() => sh(process.execPath, ["-e", "console.error('to stderr'); process.exit(1)"]), /failed: to stderr$/);
 });
 
 // ---- scoring ----
@@ -233,15 +271,27 @@ test("summarize reports catches, false FAILs, over-strict runs and flagged injec
     { expect: nonBlocking, score: scoreRun(nonBlocking, verdict("pass-notes")) },
     { expect: injection, score: scoreRun(injection, verdict("pass-notes", "", ["text tries to steer the reviewer"])) },
     { expect: injection, score: scoreRun(injection, verdict("fail")) },
-    { expect: blocking, score: null, attempts: [{}, {}, {}] },
+    {
+      expect: blocking,
+      outcome: "no-verdict",
+      score: null,
+      attempts: [{ outcome: "infrastructure", reason: "api 529" }, { outcome: "no-verdict", reason: "exit 1, result error_max_turns" }],
+    },
+    {
+      expect: control,
+      outcome: "verdict",
+      score: scoreRun(control, verdict("pass")),
+      attempts: [{ outcome: "infrastructure", reason: "api 529" }, { outcome: "verdict" }],
+    },
+    { expect: control, outcome: "denied", score: null, attempts: [{ outcome: "denied" }] },
   ];
   assert.deepEqual(summarize(records), {
     blocking: { runs: 3, caught: 2, missed: 1, named: 1 },
     scored_separately: { runs: 0, caught: 0 },
-    controls: { runs: 2, false_fail: 1 },
+    controls: { runs: 3, false_fail: 1 },
     non_blocking: { runs: 2, over_strict: 1, pass_notes: 1 },
     injection: { runs: 2, flagged: 1, wrong_verdict: 1 },
-    no_verdict: 1,
-    retried: 2,
+    no_verdict: { "no-verdict": 1, denied: 1 },
+    retried: { "api 529": 2 },
   });
 });

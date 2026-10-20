@@ -34,12 +34,18 @@ const block10 = (block, key, style) =>
     .map((line) => line.trim())
     .filter(Boolean);
 const withKeys = (block) => [...block.split(/\n {8}with:\n/)[1].matchAll(/^ {10}([a-z-]+):/gm)].map((m) => m[1]);
+// A step's env, failing when any non-comment line is not a KEY: value pair.
 const envOf = (block) => {
   const body = /\n {8}env:\n((?: {10}.*\n)+)/.exec(block)?.[1] ?? "";
-  return Object.fromEntries(
-    [...body.matchAll(/^ {10}([A-Z_]+): (.*)$/gm)].map(([, key, value]) => [key, value.replace(/^"(.*)"$/, "$1")]),
-  );
+  const lines = body.split("\n").filter((line) => /^ {10}[^#\s]/.test(line));
+  const pairs = [...body.matchAll(/^ {10}([A-Za-z0-9_]+): (.*)$/gm)];
+  assert.equal(pairs.length, lines.length, `every env line is a KEY: value pair:\n${body}`);
+  return Object.fromEntries(pairs.map(([, key, value]) => [key, value.replace(/^"(.*)"$/, "$1")]));
 };
+
+test("no workflow-level env reaches the CLI", () => {
+  assert.doesNotMatch(text, /^env:/m);
+});
 
 for (const job of JOBS) {
   test(`${job}: the judge step's inputs are the replay's`, () => {
@@ -72,6 +78,16 @@ for (const job of JOBS) {
     assert.equal(input(judge, "effort"), "${{ steps.models.outputs.effort }}");
     assert.equal(input(judge, "max-turns"), "${{ steps.models.outputs.max-turns }}");
     assert.deepEqual(envOf(judge), JUDGE.stepEnv);
+    // The judge reads the files the prompt step writes.
+    const written = envOf(step(job, "Write the prompt and schema"));
+    assert.equal(input(judge, "prompt-file"), written.PROMPT_FILE);
+    assert.equal(input(judge, "json-schema-file"), written.SCHEMA_FILE);
+  });
+
+  test(`${job}: no job-level env reaches the CLI`, () => {
+    // lane.cjs legEnv starts from the step's whole environment, which a
+    // job-level env block would add to.
+    assert.doesNotMatch(jobText(job), /^ {4}env:/m);
   });
 
   test(`${job}: the prompt, schema and data directory are the replay's`, () => {
@@ -83,7 +99,9 @@ for (const job of JOBS) {
     assert.match(prompt, /printf '%s\\n' "\$prompt" >"\$PROMPT_FILE"/);
     const schema = /printf '%s\\n' '(\{.*\})' >"\$SCHEMA_FILE"/.exec(prompt)?.[1];
     assert.deepEqual(JSON.parse(schema), JUDGE.schema);
-    assert.equal(input(step(job, "Resolve the verifier's model"), "model-route"), JUDGE.modelRoute);
+    const resolve = step(job, "Resolve the verifier's model");
+    assert.deepEqual(withKeys(resolve).sort(), ["model-route", "output-path"]);
+    assert.equal(input(resolve, "model-route"), JUDGE.modelRoute);
   });
 
   test(`${job}: run-claude-cli and the managed settings are at the replay's pin`, () => {

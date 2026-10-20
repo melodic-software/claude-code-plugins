@@ -17,7 +17,12 @@
 // - Settings: an empty CLAUDE_CONFIG_DIR and HOME per run. --restricted
 //   ignores user, project and local settings, so the runner's one settings
 //   file, the managed settings apply-claude-managed-settings writes, goes in
-//   with --settings, the one flag lane.cjs does not pass.
+//   with --settings, the one flag lane.cjs does not pass. Of its keys,
+//   allowManagedHooksOnly takes effect only in managed settings, so it does
+//   nothing here; the empty config directory is what keeps the caller's hooks
+//   out. Pointer: the allowManagedHooksOnly row of
+//   https://code.claude.com/docs/en/settings-reference (scope Managed), as of
+//   2026-10-20; recheck when that row's scope changes.
 // - CLI version: CLI_VERSION, the cli-version default of run-claude-cli at
 //   RUN_CLAUDE_CLI_PIN; a live run refuses any other.
 // - Environment: built from an allowlist, then lane.cjs legEnv's additions
@@ -392,10 +397,16 @@ export function linesToMessages(text) {
   return messages;
 }
 
-// One leg's outcome: `verdict` when the workflow would write one, else why
-// not. The workflow writes a verdict only after a clean exit with a
-// non-error result (lane.cjs judgeLeg), through structuredOutput and
-// buildVerdict.
+// One leg's outcome. `verdict` when the workflow would write one. `denied`,
+// `invalid` and `no-verdict` are the model's own outcomes, which production
+// also ends with no verdict: a permission denial, output that fails
+// buildVerdict, or a run that ended without a structured output (the turn
+// cap, the structured-output retries, the leg timeout). `infrastructure` is a
+// run the model never finished for reasons outside it: no result message
+// (the CLI did not start or crashed) or an API error the result reports.
+// Only `infrastructure` is retried. The workflow writes a verdict only after
+// a clean exit with a non-error result (lane.cjs judgeLeg), through
+// structuredOutput and buildVerdict.
 export function judgeLeg({ stdout, status, timedOut = false, resolved }) {
   const messages = linesToMessages(stdout);
   const init = messages.find((m) => m?.type === "system" && m?.subtype === "init");
@@ -406,15 +417,23 @@ export function judgeLeg({ stdout, status, timedOut = false, resolved }) {
     models_used: Object.keys(result?.modelUsage ?? {}),
     turns: result?.num_turns ?? null,
   };
-  if (timedOut || status !== 0 || !result || result.is_error !== false) {
-    const reason = timedOut ? "timeout" : `exit ${status}, result ${result ? (result.subtype ?? "error") : "missing"}`;
-    return { outcome: "no-output", reason, ...facts };
+  if (timedOut) {
+    return { outcome: "no-verdict", reason: "leg timeout", ...facts };
+  }
+  if (!result) {
+    return { outcome: "infrastructure", reason: `exit ${status}, no result message`, ...facts };
+  }
+  if (result.is_error !== false && (Number.isInteger(result.api_error_status) || result.subtype === "error_during_execution")) {
+    return { outcome: "infrastructure", reason: `api ${result.api_error_status ?? result.subtype}`, ...facts };
+  }
+  if (status !== 0 || result.is_error !== false) {
+    return { outcome: "no-verdict", reason: `exit ${status}, result ${result.subtype ?? "error"}`, ...facts };
   }
   let output;
   try {
     output = structuredOutput(messages);
   } catch (error) {
-    return { outcome: /denial/.test(error.message) ? "denied" : "no-output", reason: error.message, ...facts };
+    return { outcome: /denial/.test(error.message) ? "denied" : "no-verdict", reason: error.message, ...facts };
   }
   try {
     const verdict = buildVerdict({
@@ -475,19 +494,25 @@ export function summarize(records) {
       flagged: injection.filter((r) => r.score.injection_flagged).length,
       wrong_verdict: injection.filter((r) => (r.expect.expected === "fail" ? !r.score.caught : r.score.false_fail)).length,
     },
-    no_verdict: records.filter((r) => !r.score).length,
-    retried: records.reduce((sum, r) => sum + (r.attempts?.length ?? 1) - 1, 0),
+    // Runs that ended with no verdict, by outcome, and the infrastructure
+    // attempts retried before a run's model outcome, by reason.
+    no_verdict: countBy(records.filter((r) => !r.score).map((r) => r.outcome)),
+    retried: countBy(records.flatMap((r) => (r.attempts ?? []).filter((a) => a.outcome === "infrastructure").map((a) => a.reason))),
   };
 }
+
+const countBy = (keys) => keys.reduce((counts, key) => ({ ...counts, [key]: (counts[key] ?? 0) + 1 }), {});
 
 // ---- running ----
 
 const quote = (word) => (/^[\w@%+=:,./-]+$/.test(word) ? word : `'${String(word).replaceAll("'", "'\\''")}'`);
 
-function sh(command, args, options = {}) {
+export function sh(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: "utf8", ...options });
   if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(" ")} failed: ${(result.stderr || result.error?.message || "").trim()}`);
+    // resolve-config writes its ::error line to stdout.
+    const detail = result.stderr?.trim() || result.stdout?.trim() || result.error?.message || `exit ${result.status}`;
+    throw new Error(`${command} ${args.join(" ")} failed: ${detail}`);
   }
   return result.stdout.trim();
 }
@@ -536,10 +561,25 @@ function checkAncestors(dir) {
   }
 }
 
-const MANAGED_PATHS = ["/etc/claude-code/managed-settings.json", "/Library/Application Support/ClaudeCode/managed-settings.json"];
+// Production runs one attempt and has no retry. The replay retries only an
+// infrastructure failure, up to maxAttempts, and stops at the first model
+// outcome, which is the one the run is scored on.
+export function untilModelOutcome(maxAttempts, attemptOnce) {
+  const attempts = [];
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    attempts.push(attemptOnce(attempt));
+    if (attempts.at(-1).outcome !== "infrastructure") {
+      break;
+    }
+  }
+  return attempts;
+}
+
+const MANAGED_PATHS =["/etc/claude-code/managed-settings.json", "/Library/Application Support/ClaudeCode/managed-settings.json"];
 
 async function runCase({ testCase, index, run, opts, facts }) {
-  const root = mkdtempSync(path.join(tmpdir(), "pr-verify-probe-"));
+  const root = path.join(opts.workRoot, `${testCase.id}-run${run}`);
+  mkdirSync(root);
   const ws = path.join(root, "ws");
   const home = path.join(root, "home");
   const configDir = path.join(root, "config");
@@ -562,9 +602,9 @@ async function runCase({ testCase, index, run, opts, facts }) {
     console.log(`cd ${quote(ws)} && env -i ${assignments.join(" ")} ${quote(opts.claude)} ${args.map(quote).join(" ")} <${quote(promptFile)}`);
     return null;
   }
-  const attempts = [];
+  let attempts;
   try {
-    for (let attempt = 1; attempt <= opts.maxAttempts; attempt += 1) {
+    attempts = untilModelOutcome(opts.maxAttempts, (attempt) => {
       const started = Date.now();
       const child = spawnSync(opts.claude, args, {
         cwd: ws,
@@ -578,11 +618,8 @@ async function runCase({ testCase, index, run, opts, facts }) {
       const stdout = child.stdout?.toString("utf8") ?? "";
       writeFileSync(path.join(opts.out, `${testCase.id}-run${run}-attempt${attempt}.jsonl`), stdout);
       const leg = judgeLeg({ stdout, status: child.status, timedOut: child.error?.code === "ETIMEDOUT", resolved });
-      attempts.push({ attempt, ms: Date.now() - started, ...leg });
-      if (leg.outcome === "verdict" || leg.outcome === "denied") {
-        break;
-      }
-    }
+      return { attempt, ms: Date.now() - started, ...leg };
+    });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -629,7 +666,8 @@ export async function main(argv = process.argv.slice(2)) {
     laneIdentity: sh("yq", ['.merge."agent-identity" // ""', pipelineFile]),
   };
   const models = resolveModels();
-  const version = /^(\d+\.\d+\.\d+)/.exec(sh(values.claude, ["--version"], { env: { PATH: process.env.PATH } }))?.[1];
+  // A dry run never starts the CLI, so it needs none installed.
+  const version = values.live ? /^(\d+\.\d+\.\d+)/.exec(sh(values.claude, ["--version"], { env: { PATH: process.env.PATH } }))?.[1] : "not checked";
   const commit = sh("git", ["-C", REPO_ROOT, "rev-parse", "HEAD"]);
   console.log(
     `pr-verify replay: commit ${commit}; run-claude-cli ${RUN_CLAUDE_CLI_PIN}; claude ${version} (runner ${CLI_VERSION}); ` +
@@ -654,13 +692,26 @@ export async function main(argv = process.argv.slice(2)) {
   const facts = { pipeline, models, prompt: readFileSync(path.join(HERE, "../prompt.md"), "utf8") };
   const all = loadCases();
   const records = [];
-  for (const testCase of cases) {
-    for (let run = 1; run <= runs; run += 1) {
-      const record = await runCase({ testCase, index: all.findIndex((c) => c.id === testCase.id), run, opts, facts });
-      if (record) {
-        records.push(record);
+  // Every run's workspace sits under one temporary directory. A live run
+  // removes each workspace after its run and the directory at the end; a dry
+  // run keeps them, since the printed commands read them.
+  opts.workRoot = mkdtempSync(path.join(tmpdir(), "pr-verify-probe-"));
+  try {
+    for (const testCase of cases) {
+      for (let run = 1; run <= runs; run += 1) {
+        const record = await runCase({ testCase, index: all.findIndex((c) => c.id === testCase.id), run, opts, facts });
+        if (record) {
+          records.push(record);
+        }
       }
     }
+  } finally {
+    if (values.live) {
+      rmSync(opts.workRoot, { recursive: true, force: true });
+    }
+  }
+  if (!values.live) {
+    console.log(`\n# The commands read ${opts.workRoot}; remove it when done: rm -rf ${quote(opts.workRoot)}`);
   }
   if (values.live) {
     const summary = { commit, cli_version: version, models, runs, summary: summarize(records) };
