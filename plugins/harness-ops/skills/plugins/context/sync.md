@@ -822,6 +822,27 @@ resolved, the line leads with this repo's count and then gives the same machine-
 of it, not a separate remainder. When a snapshot was missed the split cannot be computed, and the
 line says `not computed` rather than assigning the whole delta to one step.
 
+**Split the same count by what can be done about each row.** `converge` can act only on a pin whose
+path is present, and removing a worktree is the right fix for a pin inside one, so a single
+`run converge` pointer over the whole count sends the operator at rows converge marks BLOCKED. The
+digest's `divergences` therefore also carries `actionable_here`, `actionable_elsewhere`,
+`in_worktrees` and `blocked`, which sum to `post`. The script classes each version-skewed row by its
+project/local pins that differ from the row's highest version (a pin already at it is not the skew):
+any such pin that is present and not in a linked worktree makes the row actionable (a row with no
+such pin is actionable too); otherwise any in a linked worktree makes it a worktree row; otherwise
+every such pin is in a path that is not present and the row is blocked. An actionable row is
+`here` when its id has a record for the repo the run stands in. A linked worktree is a present path
+whose `.git` is a file whose `gitdir:` line names a `<repo>.git/worktrees/<name>` entry of another
+repository: a repository's own `.git` is a directory, a submodule's names `/modules/`, and a
+`--separate-git-dir` checkout names a git directory that is not under a `.git/worktrees/`, so none
+of them matches.
+
+The render names each non-zero part. Only the actionable parts point at `converge`; the worktree part
+points at `/source-control:worktree audit` (if installed); the blocked part points at the stale
+project records note below it, which says why a path can be absent. `divergences[]` is not filtered
+(`projectPathPresent` stays advisory), and a digest written before the split carries none of the four
+counts and renders the row as it did.
+
 **Say when `harness-ops` itself moved during the run.** Step 3 sweeps every user-scope candidate,
 which can include the plugin providing this skill, and a concurrent update can move it too; the
 digest's `self_updated` is true when this plugin's install moved either way, whichever step or
