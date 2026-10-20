@@ -16,6 +16,7 @@
 .github/scripts/apply-patch
 .github/scripts/intake-reenter
 .github/scripts/maintenance-audit-lane-runs
+.github/scripts/maintenance-monitor-signals
 .github/scripts/maintenance-reconcile-lost-runs
 .github/scripts/pr-merge
 .github/scripts/pr-unblock
