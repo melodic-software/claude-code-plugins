@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "## Fixed\n\n- Key-claim fences stay exact substrings of the page they quote.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "## Fixed\n- Key-claim fences stay exact substrings of the page they quote.\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "<!-- markdownlint-disable MD022 -->\n## Fixed\n- Key-claim fences stay exact substrings of the page they quote.\n",
+      "why": "suppressed"
+    }
+  ]
+}

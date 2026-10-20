@@ -21,6 +21,23 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
 
+    // #7749: the Source text quote shows open and above the recommendation; a question without one renders as before
+    for (const [w, h] of [[1440, 900], [390, 844]]) {
+      await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(250);
+      await pick("Q1");
+      const src = await page.evaluate(() => { const s = document.querySelector("#dscroll details.src"), r = document.querySelector("#dscroll .recbox"), m = document.querySelector("#dscroll details.more");
+        return {open: !!s && s.open, text: s ? s.textContent.replace(/\s+/g, " ").trim() : "", above: !!s && !!r && !!(s.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING), moreHasQuote: !!m && /weekday/.test(m.textContent), moreKeepsRest: !!m && /bars weekend/.test(m.textContent)}; });
+      ok("Q1's Source text quote is open and above the recommendation at " + w + " px, with the rest of facts under Details", src.open && src.above && /^Source text ?Releases ship on a weekday\.$/.test(src.text) && !src.moreHasQuote && src.moreKeepsRest, JSON.stringify(src));
+      await pick("Q2");
+      const none = await page.evaluate(() => ({src: document.querySelectorAll("#dscroll details.src").length, more: document.querySelectorAll("#dscroll details.more").length}));
+      ok("Q2, with no source text, renders no Source text block at " + w + " px", none.src === 0 && none.more === 1, JSON.stringify(none));
+      await pick("Q10");
+      const two = await page.evaluate(() => { const s = document.querySelector("#dscroll details.src"), m = document.querySelector("#dscroll details.more");
+        return {src: s ? s.textContent.replace(/\s+/g, " ").trim() : "", more: m ? m.textContent.replace(/\s+/g, " ").trim() : ""}; });
+      ok("Q10's two-paragraph Source quote stays whole, with only the rest under Details at " + w + " px", /^Source text ?First paragraph\. ?Second paragraph\.$/.test(two.src) && /Rest\./.test(two.more) && !/paragraph/.test(two.more), JSON.stringify(two));
+    }
+    await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
+
     // #5815: the Rec choice carries the whole recommendation, not its first sentence
     await pick("Q1");
     const wide = await recRow();
@@ -48,7 +65,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
     await page.click('[data-acceptall="g1"]'); await page.waitForSelector("#dlg[open]");
     const listed = await text("#dlgBody li");
-    ok("the Accept all list still shows the recommendation's first sentence only", /Ship it on Monday\./.test(listed) && !/Watch the error logs/.test(listed), listed);
+    ok("the group Accept all list shows every sentence of the recommendation", /Ship it on Monday\..*Watch the error logs.*Roll back on the first new error/.test(listed), listed);
     await page.click("#dlgCancel"); await page.waitForTimeout(150);
 
     // #5917: five prerequisites share one wrapped row, and a met one is marked by more than color
@@ -87,7 +104,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     await pick("Q7");
     const b7 = await text("#dscroll .banner");
     ok("#5908: prerequisites first decided after this answer read 'was decided after you answered this'", /Stale: Q3Image was decided after you answered this; Q4Cache was decided after you answered this/.test(b7) && !/changed/.test(b7), b7);
-    ok("#5908: the meter shows 1 to review and leaves the stale question out of answered", (await text("#revBtn")) === "1 to review" && (await text("#meterText")) === "5 of 8 answered", await text("#meterText") + " / " + await text("#revBtn"));
+    ok("#5908: the meter shows 1 to review and leaves the stale question out of answered", (await text("#revBtn")) === "1 to review" && (await text("#meterText")) === "5 of 9 answered", await text("#meterText") + " / " + await text("#revBtn"));
     await pick("Q2"); await page.selectOption("#filter", "open"); await page.waitForTimeout(150);
     await page.click('#choices .choice:has-text("A self-hosted machine")'); await page.click("[data-save]"); await page.waitForTimeout(1200);
     const toastT = await text("#toast");
@@ -95,7 +112,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("#5909: the toast names the newly stale questions and counts what waits on them", /^Saved Q2\. Q3 and Q5 need review; 2 more wait on them\. Now Q3\./.test(toastT), toastT);
     const b3 = await text("#dscroll .banner");
     ok("#5908: a prerequisite whose earlier decision was replaced reads 'changed'", /Stale: Q2Runner changed\. Your decision is kept/.test(b3), b3);
-    ok("#5908: the meter now shows 3 to review and 3 of 8 answered", (await text("#revBtn")) === "3 to review" && (await text("#meterText")) === "3 of 8 answered", await text("#meterText") + " / " + await text("#revBtn"));
+    ok("#5908: the meter now shows 3 to review and 3 of 9 answered", (await text("#revBtn")) === "3 to review" && (await text("#meterText")) === "3 of 9 answered", await text("#meterText") + " / " + await text("#revBtn"));
     await page.click("#qhead"); await page.keyboard.press("n"); await page.waitForTimeout(250);
     ok("#5909: n goes to the other newly stale dependent next", await sel() === "Q5", await sel());
     ok("#5910: a kept accept whose recommendation is unchanged still offers Reconfirm first", /^Reconfirm/.test((await first()).trim()), await first());

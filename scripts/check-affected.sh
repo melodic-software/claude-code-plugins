@@ -8,6 +8,14 @@
 #   scripts/check-affected.sh --base <ref>    diff against <ref> (default: origin/main)
 #   scripts/check-affected.sh --no-fetch      skip refreshing <ref> before the
 #                                             stale-base check
+#   scripts/check-affected.sh --uncommitted   check the work tree as the commit
+#                                             it would make (default base: HEAD)
+#
+# --uncommitted is for a run that commits through an API from the files on
+# disk rather than in the checkout, such as the issue lane: it commits the work
+# tree, untracked files and file modes included, through a temporary index (the
+# checkout's HEAD and index stay as they are), checks that commit out in a
+# temporary worktree, and runs the checks there.
 #
 # Each check calls the script or tool CI calls; none restates a check's logic.
 # The changed set is <merge-base of HEAD and the base>..HEAD, committed work
@@ -24,18 +32,32 @@
 #   - stale-base-overlap:  scripts/check-stale-base-overlap.sh --check <base>
 #   - validate-plugins:    scripts/validate-plugins.sh --only <touched plugins>
 #   - ruff:                scripts/run-ruff.sh check on changed .py
+#   - typos:               typos --config _typos.toml on the changed files
+#   - spoke-plugin-root:   scripts/check-spoke-plugin-root.sh --check
+#   - plugin-options-docs: python3 scripts/sync-plugin-options-docs.py --check
+#   - changelog-parity:    scripts/check-changelog-parity.sh in the --check,
+#                          --check-bump, --check-preserved and --check-order
+#                          modes the pull_request run uses
+#   - changed-skills:      scripts/check-changed-skills.sh <base>, when a skill
+#                          file changed
 #   - tests (--tests):     scripts/affected-tests.sh --run --base <base>
+#
+# Every hygiene gate the CI jobs run that this does not is printed as
+# `CI only: <gate>`. scripts/check-affected-gates.txt lists each gate with how it
+# is covered, and scripts/check-affected-gates.test.sh fails when a gate in
+# the workflow's hygiene jobs is in neither column.
 #
 # Code runs from the tree holding this script; the files checked are those of
 # the current directory's repository. The pre-push hook runs a merge-base copy
 # of this script against a branch, so the two differ: then every check script
 # runs from the copy with CHECK_DATA_ROOT naming the branch tree, markdownlint
 # reads only the copy's configs (a branch config can load a custom rule, which
-# is code), and checks that run the branch's own code skip: --tests, and the
+# is code), and checks that run the branch's own code skip: --tests, changed-skills, and the
 # validate-plugins steps that report `SKIP` themselves.
 #
-# CI is still the gate that decides: this covers the diff-scoped LINT tier, not
-# CI's whole-repo scanners, and it does not widen shellcheck to the files that
+# CI is still the gate that decides: this covers the diff-scoped LINT tier and
+# the plugin and skill contract checks above, not CI's whole-repo scanners, and
+# it does not widen shellcheck to the files that
 # source a changed library the way CI's lint-shell job does.
 #
 # A missing tool, a failed fetch, or a check that exits 2 (could not run) is a
@@ -46,17 +68,19 @@
 set -uo pipefail
 
 usage() {
-  echo "usage: $(basename "$0") [--tests] [--base <ref>] [--no-fetch]" >&2
+  echo "usage: $(basename "$0") [--tests] [--base <ref>] [--no-fetch] [--uncommitted]" >&2
   exit 2
 }
 
 run_tests=0
 fetch=1
-base=origin/main
+uncommitted=0
+base=
 while (($#)); do
   case "$1" in
   --tests) run_tests=1 ;;
   --no-fetch) fetch=0 ;;
+  --uncommitted) uncommitted=1 ;;
   --base)
     [[ $# -ge 2 && -n "$2" ]] || usage
     base="$2"
@@ -74,6 +98,38 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 2
 fi
 cd "$(git rev-parse --show-toplevel)" || exit 2
+
+if ((uncommitted)); then
+  if [[ -z "$base" ]]; then
+    base="$(git rev-parse HEAD)" || exit 2
+  fi
+  snap="$(mktemp -d)" || exit 2
+  trap 'git worktree remove --force "$snap/tree" >/dev/null 2>&1; rm -rf "$snap"' EXIT
+  index="$(git rev-parse --git-path index)" || exit 2
+  [[ ! -f "$index" ]] || cp "$index" "$snap/index" || exit 2
+  # The lane's sandbox masks dotfiles with /dev/null, a device git will not
+  # add, so only files, symlinks, repositories and deletions are staged.
+  # An empty pathspec would make add -A stage everything, so none means no add.
+  paths=()
+  while IFS= read -r -d '' f; do
+    if [[ -f "$f" || -L "$f" || -d "$f" || ! -e "$f" ]]; then paths+=("$f"); fi
+  done < <(git ls-files -z --modified --others --exclude-standard)
+  if ((${#paths[@]})); then
+    printf '%s\0' "${paths[@]}" |
+      GIT_INDEX_FILE="$snap/index" git add -A --pathspec-from-file=- --pathspec-file-nul || exit 2
+  fi
+  tree="$(GIT_INDEX_FILE="$snap/index" git write-tree)" || exit 2
+  commit="$(git -c user.name=check-affected -c user.email=check-affected@localhost \
+    commit-tree "$tree" -p HEAD -m 'check-affected: uncommitted work')" || exit 2
+  git -c core.hooksPath=/dev/null worktree add --quiet --detach "$snap/tree" "$commit" || exit 2
+  args=(--base "$base")
+  ((run_tests)) && args+=(--tests)
+  ((fetch)) || args+=(--no-fetch)
+  rc=0
+  (cd "$snap/tree" && bash "$tools/scripts/check-affected.sh" "${args[@]}") || rc=$?
+  exit "$rc"
+fi
+base="${base:-origin/main}"
 foreign=0
 if [[ "$(pwd -P)" != "$tools" ]]; then
   foreign=1
@@ -82,6 +138,7 @@ if [[ "$(pwd -P)" != "$tools" ]]; then
   export UV_NO_CONFIG=1
 fi
 
+gates_file="$tools/scripts/check-affected-gates.txt"
 declare -a passed=() skipped=() failed=()
 out="$(mktemp)" || exit 2
 trap 'rm -f "$out" "$out.failures"' EXIT
@@ -139,6 +196,7 @@ if ((${#changed[@]})) && ! git diff --quiet HEAD -- "${changed[@]}"; then
 fi
 
 declare -a md=() sh=() py=() shebang=() plugins=()
+skill_touched=0
 for f in ${changed[@]+"${changed[@]}"}; do
   case "$f" in
   *.md) md+=("$f") ;;
@@ -154,6 +212,7 @@ while IFS= read -r f; do
     p="${f#plugins/}"
     p="${p%%/*}"
     [[ -d "plugins/$p" && " ${plugins[*]-} " != *" $p "* ]] && plugins+=("$p")
+    [[ "$f" == plugins/*/skills/* ]] && skill_touched=1
     ;;
   *) ;;
   esac
@@ -237,6 +296,58 @@ else
   run_check ruff "scripts/run-ruff.sh check ${py[*]}" "$tools/scripts/run-ruff.sh" check "${py[@]}"
 fi
 
+# typos: the exclusions mirror the `exclude:` input of the workflow's typos step
+# (scripts/check-affected-gates.test.sh holds them to it). Any non-zero exit is
+# a finding, never run_check's "could not run" 2; a missing binary was skipped
+# above. The config is the copy's, else the checked tree's (a copy made by the
+# pre-push hook carries none).
+typos_check() {
+  typos --config "$1" --force-exclude \
+    --exclude 'plugins/*/skills/*/vendor/**' \
+    --exclude 'plugins/testing/skills/audit/evals/judge-calibration/cases/**' \
+    -- "${changed[@]}" || return 1
+}
+typos_config="$tools/_typos.toml"
+[[ -f "$typos_config" ]] || typos_config="$PWD/_typos.toml"
+if ((${#changed[@]} == 0)); then
+  skip typos "no changed files"
+elif ! command -v typos >/dev/null 2>&1; then
+  skip typos "typos not installed"
+elif [[ ! -f "$typos_config" ]]; then
+  skip typos "no _typos.toml"
+else
+  run_check typos "typos --config _typos.toml ${changed[*]}" typos_check "$typos_config"
+fi
+
+run_check spoke-plugin-root "scripts/check-spoke-plugin-root.sh --check" \
+  "$tools/scripts/check-spoke-plugin-root.sh" --check
+
+run_check plugin-options-docs "python3 scripts/sync-plugin-options-docs.py --check" \
+  python3 "$tools/scripts/sync-plugin-options-docs.py" --check
+
+# The modes the pull_request run of the changelog-parity gates uses. The bump
+# check's collision findings are advisory there too: a branch only behind its
+# base trips them, and the merge queue enforces them.
+parity() {
+  local p="$tools/scripts/check-changelog-parity.sh"
+  "$p" --check &&
+    CHANGELOG_PARITY_COLLISIONS=advisory "$p" --check-bump "$base" &&
+    "$p" --check-preserved "$base" &&
+    "$p" --check-order
+}
+run_check changelog-parity \
+  "scripts/check-changelog-parity.sh --check; CHANGELOG_PARITY_COLLISIONS=advisory scripts/check-changelog-parity.sh --check-bump $base; scripts/check-changelog-parity.sh --check-preserved $base; scripts/check-changelog-parity.sh --check-order" \
+  parity
+
+if ((!skill_touched)); then
+  skip changed-skills "no changed skill file"
+elif ((foreign)); then
+  skip changed-skills "runs the checked tree's own skill-quality code"
+else
+  run_check changed-skills "scripts/check-changed-skills.sh $base" \
+    "$tools/scripts/check-changed-skills.sh" "$base"
+fi
+
 if ((run_tests && foreign)); then
   skip tests "runs the checked tree's own test code"
 elif ((run_tests)); then
@@ -252,6 +363,16 @@ elif ((run_tests)); then
 fi
 
 for s in ${skipped[@]+"${skipped[@]}"}; do echo "check-affected: SKIP $s" >&2; done
+# Every hygiene gate CI runs that this runner does not, so none is left out
+# silently. The same file is what check-affected-gates.test.sh holds to the
+# workflow.
+if [[ -f "$gates_file" ]]; then
+  while read -r gate kind reason; do
+    [[ "$kind" == ci-only ]] && echo "check-affected: CI only: $gate ($reason)" >&2
+  done < <(grep -v '^[[:space:]]*\(#\|$\)' "$gates_file")
+else
+  echo "check-affected: SKIP the CI-only list ($gates_file is missing)" >&2
+fi
 if ((${#failed[@]})); then
   cat "$out.failures" >&2
   printf '\ncheck-affected: %d failed (%s), %d passed, %d skipped. Diff: %s..HEAD\n' \

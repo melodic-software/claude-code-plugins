@@ -22,7 +22,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Passing `--brief` to the Step 3 gate run:** Step 4 writes PLAN.md, so at Step 3 the file does not exist and a named-but-missing `--brief` exits 2; a first-time interview deadlocks before it can persist anything. Ledger-only at Step 3, `--brief` on the Step 4 re-run.
 
-- **Assuming `lock` never needs a register:** a clean lock synthesis writes none, but its STOP-on-gap and the unattended ladder both produce unresolved questions, and a question outside the register is a question outside the gate.
+- **Assuming `lock` never needs a register:** `lock` always writes its problem row, and its STOP-on-gap and the unattended ladder both produce unresolved questions, and a question outside the register is a question outside the gate.
 
 - **Treating the register gate's exit 2 as a pass:** ungradeable means the check could not see the state (missing register, gapped `Q<N>`, a deferred row absent from the Brief), which is when a silent hole is most likely, not least.
 

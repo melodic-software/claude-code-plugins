@@ -10,7 +10,8 @@
 
 Reads only the `session-record/v1` files `collect.py` wrote; it never opens a transcript. Each
 rule in `reference/sweep-rules.json` names one metric: per-session metrics report their median and
-raise one finding listing every session above the threshold; a null threshold reports only.
+raise one finding listing every session above the threshold (the markdown report names the worst
+few); a null threshold reports only.
 Metrics and findings cover interactive sessions: a session whose stored entrypoints are all
 headless or Agent SDK ones (`census.session_class`) is set aside and counted, one with no known
 entrypoint is kept and counted, and the drift check reads every record. A
@@ -28,7 +29,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import statistics
 import sys
@@ -44,6 +44,8 @@ RULES_SCHEMA = "audit-sessions.sweep-rules/v1"
 PLACEHOLDERS = {"<suppressed>", "<too-long>"}
 BUNDLED_RULES = Path(__file__).resolve().parents[1] / "reference" / "sweep-rules.json"
 KEEP_REPORTS = 20
+# Sessions (or PRs) the markdown report names per finding; the JSON keeps every one.
+MAX_LISTED = 5
 STATE_KEY_RE = re.compile(r"[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)+")
 
 
@@ -82,6 +84,11 @@ def _write_5m_share(records: list[dict]) -> float | None:
 
 
 MACHINE_WIDE = {"cache.write_5m_share": _write_5m_share}
+# Metrics whose value is not a median over sessions; the report names the statistic.
+STATISTIC = {
+    "cache.write_5m_share": "machine-wide ratio",
+    "hooks.stop_ms": "median of per-session p90",
+}
 
 
 def _churn(records: list[dict]) -> list[tuple[int, dict]]:
@@ -283,6 +290,15 @@ def evidence_md(e: dict) -> str:
     return f"{markdown_code(e['repo'])}#{e['number']} {markdown_code(e['path'])} ({e['edits']} edits: {', '.join(e['sessions'])})"
 
 
+def evidence_list_md(evidence: list[dict]) -> str:
+    """The worst MAX_LISTED entries, then how many more the JSON report holds."""
+    text = ", ".join(evidence_md(e) for e in evidence[:MAX_LISTED])
+    more = len(evidence) - MAX_LISTED
+    if more > 0:
+        text += f", and {more} more (the JSON report lists all {len(evidence)})"
+    return text
+
+
 def render_md(data: dict) -> str:
     window = data["window"]
     span = f"{window['since'] or 'start'} to {window['until'] or 'now'}"
@@ -295,10 +311,10 @@ def render_md(data: dict) -> str:
         n = window["unclassified"]
         sessions += f"; {n} session{'s' * (n != 1)} without an entrypoint kept"
     lines = [f"# Session audit ({data['scope']})", "", sessions, ""]
-    lines += ["## Metrics", "", "| Metric | Value (median) | Unit | n |", "|---|---|---|---|"]
+    lines += ["## Metrics", "", "| Metric | Value | Statistic | Unit | n |", "|---|---|---|---|---|"]
     for metric, row in data["metrics"].items():
         value = "unavailable (canary lost)" if row.get("degraded") else _fmt(row["value"])
-        lines.append(f"| `{metric}` | {value} | {row['unit']} | {row['n']} |")
+        lines.append(f"| `{metric}` | {value} | {STATISTIC.get(metric, 'median')} | {row['unit']} | {row['n']} |")
     lines += ["", "## Findings", ""]
     if data["findings"]:
         lines += ["| Lens | Metric | Worst | Threshold | Over | Route | Suggested |", "|---|---|---|---|---|---|---|"]
@@ -307,8 +323,8 @@ def render_md(data: dict) -> str:
                 f"| {f['lens']} | `{f['metric']}` | {_fmt(f['value'])} {f['unit']} | {_fmt(f['threshold'])} | "
                 f"{len(f['evidence'])} | {f['route']} | {f['suggested_skill']} |"
             )
-        lines += ["", "Sessions, or linked PRs, over each threshold, worst first:", ""]
-        lines += [f"- `{f['metric']}`: " + ", ".join(evidence_md(e) for e in f["evidence"]) for f in data["findings"]]
+        lines += ["", f"Sessions, or linked PRs, over each threshold, worst {MAX_LISTED} first:", ""]
+        lines += [f"- `{f['metric']}`: " + evidence_list_md(f["evidence"]) for f in data["findings"]]
     else:
         lines.append("No session is over a threshold.")
     drift = data["drift"]
@@ -336,13 +352,6 @@ def write_report(data_dir: Path, key: str, envelope: dict) -> None:
     if not (census.write_atomic(reports / f"{stamp}.json", envelope) and census.write_atomic(reports / f"{stamp}.md", render_md(data))):
         print(f"sweep.py: report {stamp} not written: the target stayed locked", file=sys.stderr)
         return
-    line = {"stamp": stamp, "scope": data["scope"], "sessions": data["window"]["sessions"]}
-    line["metrics"] = {m: row["value"] for m, row in data["metrics"].items()}
-    fd = os.open(reports / "history.jsonl", os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
-    try:
-        os.write(fd, (json.dumps(line, sort_keys=True) + "\n").encode("utf-8"))
-    finally:
-        os.close(fd)
     for old in sorted(reports.glob("*.json"))[:-KEEP_REPORTS]:
         for path in (old, old.with_suffix(".md")):
             path.unlink(missing_ok=True)

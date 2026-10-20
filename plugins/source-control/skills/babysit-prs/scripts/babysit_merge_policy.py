@@ -32,7 +32,7 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -53,8 +53,16 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     is_owner_repo_pair,
+    pull_request_commits_once,
+    record_pull_request_total,
 )
-from babysit_risk import ChangedFile, glob_match
+from babysit_risk import (
+    DECLARATION_FILES,
+    ChangedFile,
+    declaration_pointers,
+    glob_match,
+    is_capability_path,
+)
 from babysit_util import (
     is_json_array,
     is_json_object,
@@ -121,6 +129,11 @@ ISSUES_PAGE_LIMIT = 10
 
 class PolicyReadError(RuntimeError):
     """A policy input could not be read; callers fail closed."""
+
+
+class _SymlinkAt(PolicyReadError):
+    """A clone holds a symlink where a file was asked for. The contents API
+    follows an in-repository symlink, so the caller reads it there instead."""
 
 
 @dataclass(frozen=True)
@@ -393,6 +406,11 @@ def _rest_actor(actor: Any) -> dict[str, Any] | None:
 
 # --- Config at the base SHA -----------------------------------------------------
 
+# The default `merge.risk-escalation-minutes`: longer than a review lane's
+# run, so a review still running at the head (scored MED, evidence unbound)
+# finishes before its refusal is labeled (judgment).
+RISK_ESCALATION_MINUTES = 60
+
 
 @dataclass(frozen=True)
 class PipelineConfig:
@@ -421,22 +439,60 @@ class PipelineConfig:
     # `report` reports it and writes nothing, and `enforce` merges it
     # whatever `merge.report-only` says.
     dependabot_mode: str = "off"
+    # `merge.dependabot.majors`: `hold` (absent, or any other value) refuses a
+    # Dependabot pull request with a major update, or one whose version cannot
+    # be read, whatever the review verdict says, so a human merges it;
+    # `review` lets the verdict merge it.
+    dependabot_majors: str = "hold"
     # The pr-merge lane's risk switches under `merge.diff-check` (owner
     # decision Q624): absent, the HIGH path floor and the C2 contradictions
     # are off and there is no file cap (`max_changed_lines` None: no line
     # cap); a value other than true or false turns a switch on. The local
-    # babysit lane ignores them and keeps every check.
+    # babysit lane ignores them, except that `high_path_floor` gates the floor
+    # additions there too (`babysit_risk.RiskInput.floor_extensions`).
     high_path_floor: bool = False
+    # `merge.diff-check.floor-paths`: globs joined to the floor (owner
+    # decision Q641); they hold a pull request for a human, unlike
+    # denied-paths, which makes it ineligible.
+    floor_paths: tuple[str, ...] = ()
+    # `merge.diff-check.floor-script-scopes`: globs inside which a `.ps1` or
+    # `.cjs` file, or a file with git mode 100755, holds the same way (owner
+    # decision Q646).
+    floor_script_scopes: tuple[str, ...] = ()
     c2_contradictions: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
-    # Absent, or anything but a whole number of at least 1, is 1.
+    # Absent, or anything but a whole number of at least 1, is 1. The gate
+    # reads it at the default branch head instead (`_run_max_in_flight`).
     max_in_flight: int = 1
+    # `merge.max-queue-ejections`: failed-check merge-queue removals since
+    # the head last changed at which the gate stops enqueuing that head.
+    # Absent, or anything but a whole number from 1 to
+    # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
+    max_queue_ejections: int = 2
+    # `merge.risk-escalation-minutes`: how long a MED or HIGH reasons comment
+    # must have stood unchanged at the head before the gate adds the
+    # human-gated label; 0 is no minimum. Absent, or anything but a whole
+    # number, is `RISK_ESCALATION_MINUTES`.
+    risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
+    # `merge.check-inputs`: git pathspecs of what the pull request checks
+    # read. When the base changed one since a pull request's merge base, the
+    # pr-merge lane updates its branch from the base instead of enqueuing it
+    # (`babysit_check_inputs`). Absent or empty, nothing is updated.
+    check_inputs: tuple[str, ...] = ()
 
+
+# The most `merge.max-queue-ejections` may be, and the timeline items the
+# enqueue reads back. A full read with no head change in it may have missed
+# older removals, so it counts as unreadable and refuses.
+MAX_QUEUE_EJECTIONS_LIMIT = 20
 
 LOCAL_BABYSIT = "local-babysit"
 PR_MERGE = "pr-merge"
 DEPENDABOT_MODES = ("off", "report", "enforce")
+DEPENDABOT_MAJORS = ("hold", "review")
+# The refusal for a major update under `merge.dependabot.majors: hold`.
+MAJOR_HELD = "dependabot-major-held"
 
 
 def enabled_authority(config: PipelineConfig) -> str | None:
@@ -509,17 +565,24 @@ def read_config_at(
 ) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
     from `.claude/source-control.md`, both read at `base_sha` through
-    `file_at(path, sha)` (text, or None when absent), by default the contents
-    API. A pipeline file the shared reader rejects is off; an absent one has
-    no merge block (rung off, authority unset). Raises `PolicyReadError` when
-    the pipeline file cannot be read.
+    `file_at(path, sha)` (text, or None when absent), by default a local clone
+    holding `base_sha` (`_clones_holding`), else the contents API. A pipeline
+    file the shared reader rejects is off; an absent one has no merge block
+    (rung off, authority unset). Raises `PolicyReadError` when the pipeline
+    file cannot be read.
     """
     owner, name = _split_repo(repo)
     if not SHA_RE.fullmatch(base_sha or ""):
         raise PolicyReadError(f"base SHA is not a 40-hex commit id: {base_sha!r}")
     if file_at is None:
+        root = next(_clones_holding(base_sha), None)
 
         def file_at(path: str, sha: str) -> str | None:
+            if root is not None:
+                try:
+                    return _git_file_at(root, path, sha)
+                except _SymlinkAt:
+                    pass
             return _file_at(owner, name, path, sha)
 
     notes: list[str] = []
@@ -545,10 +608,16 @@ def read_config_at(
             ("merge.diff-check.high-path-floor", False),
             ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
+            ("merge.diff-check.floor-paths", True),
+            ("merge.diff-check.floor-script-scopes", True),
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
             ("merge.dependabot.mode", False),
+            ("merge.dependabot.majors", False),
             ("merge.max-in-flight", False),
+            ("merge.max-queue-ejections", False),
+            ("merge.risk-escalation-minutes", False),
+            ("merge.check-inputs", True),
         ],
     )
     if values is None:
@@ -594,12 +663,37 @@ def read_config_at(
             f"merge.dependabot.mode {dependabot_mode!r} is not off, report or enforce"
         )
         dependabot_mode = "off"
+    dependabot_majors = scalar("merge.dependabot.majors") or "hold"
+    if dependabot_majors not in DEPENDABOT_MAJORS:
+        notes.append(
+            f"merge.dependabot.majors {dependabot_majors!r} is not hold or review"
+        )
+        dependabot_majors = "hold"
     in_flight_cap = scalar("merge.max-in-flight")
     if in_flight_cap is not None and not re.fullmatch(r"[1-9][0-9]*", in_flight_cap):
         notes.append(
             f"merge.max-in-flight {in_flight_cap!r} is not a count of 1 or more"
         )
         in_flight_cap = None
+    ejections = scalar("merge.max-queue-ejections")
+    if ejections is not None and not (
+        re.fullmatch(r"[1-9][0-9]?", ejections)
+        and int(ejections) <= MAX_QUEUE_EJECTIONS_LIMIT
+    ):
+        notes.append(
+            f"merge.max-queue-ejections {ejections!r} is not a count from 1 to "
+            f"{MAX_QUEUE_EJECTIONS_LIMIT}"
+        )
+        ejections = None
+    escalation_minutes = scalar("merge.risk-escalation-minutes")
+    if escalation_minutes is not None and not re.fullmatch(
+        r"0|[1-9][0-9]*", escalation_minutes
+    ):
+        notes.append(
+            f"merge.risk-escalation-minutes {escalation_minutes!r} is not a whole "
+            "number of minutes"
+        )
+        escalation_minutes = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -612,10 +706,18 @@ def read_config_at(
         report_only=report_only not in (None, "false"),
         require_verifier_verdict=verdict not in (None, "false"),
         dependabot_mode=dependabot_mode,
+        dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
+        floor_paths=tuple(values["merge.diff-check.floor-paths"]),
+        floor_script_scopes=tuple(values["merge.diff-check.floor-script-scopes"]),
         c2_contradictions=c2_contradictions,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
+        max_queue_ejections=int(ejections) if ejections else 2,
+        risk_escalation_minutes=int(escalation_minutes)
+        if escalation_minutes is not None
+        else RISK_ESCALATION_MINUTES,
+        check_inputs=tuple(values["merge.check-inputs"]),
     )
 
 
@@ -1621,11 +1723,13 @@ def dependabot_eligibility(
     *,
     pr: Mapping[str, Any],
     agent_identity: str | None,
+    hold_majors: bool = True,
 ) -> Eligibility:
     """Whether the pr-merge lane may merge a Dependabot pull request: not a
     fork, opened by Dependabot's App; tier `auto` (`babysit_dependabot.classify`),
     or tier `review` with the lanes App's `verdict=merge` round marker at the
-    current head (`merge_verdict`), where a diff beyond the manifests, lock
+    current head (`merge_verdict`) and, under `hold_majors`
+    (`merge.dependabot.majors: hold`), no major or unreadable update, where a diff beyond the manifests, lock
     files and `uses:` repins Dependabot manages also makes the tier `review`;
     every commit Dependabot's (plus, after a review, the lanes App's
     `[dependabot skip]` fixes) and every push Dependabot's (or that commit's
@@ -1653,9 +1757,14 @@ def dependabot_eligibility(
             author.get("login")
         ):
             return Eligibility(False, "not-dependabot-authored")
-        commits = _paginated(
-            f"repos/{owner}/{name}/pulls/{number}/commits?per_page=100",
-            f"#{number} commits",
+        commits = pull_request_commits_once(
+            f"{owner}/{name}",
+            number,
+            json_object(pr.get("head")).get("sha"),
+            lambda: _paginated(
+                f"repos/{owner}/{name}/pulls/{number}/commits?per_page=100",
+                f"#{number} commits",
+            ),
         )
         total = pr.get("commits")
         if (
@@ -1711,6 +1820,27 @@ def dependabot_eligibility(
         # A tier `review` pull request merges only on the review activity's
         # `verdict=merge` at this head, and may then carry its fix commits.
         lane_commits = None
+        # Fail closed: an update whose version cannot be read (a SHA pin), or
+        # no readable update at all, is held like a major, marked
+        # `(unreadable)`; so is every update when the title and the commit
+        # metadata disagree, marked `(disagree)`.
+        disagree = "sources-disagree" in tier.reasons
+        majors = [
+            u.name
+            if u.major
+            else f"{u.name}(unreadable)"
+            if u.major is None
+            else f"{u.name}(disagree)"
+            for u in tier.updates
+            if u.major is not False or disagree
+        ] or ([] if tier.updates else ["updates(unreadable)"])
+        if hold_majors and majors:
+            return Eligibility(
+                False,
+                f"{MAJOR_HELD}:{','.join(majors)}",
+                "C2",
+                dependabot=tier,
+            )
         if tier.tier != dependabot.AUTO:
             comments = _paginated(
                 f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
@@ -2188,6 +2318,56 @@ def _default_branch_head(repo: str) -> tuple[str, str]:
     return branch, sha
 
 
+MAX_IN_FLIGHT_SECTION = "max-in-flight"
+
+
+def _run_max_in_flight(
+    repo: str,
+    branch: str,
+    head: str | None,
+    base: PipelineConfig,
+    *,
+    shared: bool = True,
+) -> tuple[int, str]:
+    """`merge.max-in-flight` and where it was read. It caps the one merge
+    queue, so every candidate reads it at the head of `branch` (the default
+    branch; `head` when already read), not at its own base. `shared` reads
+    and saves it once per cache window (`run_cache.MAX_AGE`) for the run's
+    gate processes, never saving a failed read; a failed read falls back to
+    `base`'s value."""
+    cached = (
+        run_cache.get(MAX_IN_FLIGHT_SECTION, repo, run_cache.MAX_AGE)
+        if shared
+        else None
+    )
+    if type(cached) is int and cached >= 1:
+        return cached, "default-branch"
+    owner, name = _split_repo(repo)
+    if head is None:
+        status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
+        head = payload.get("sha") if status == 200 and is_json_object(payload) else None
+    if not isinstance(head, str):
+        return base.max_in_flight, "base"
+    if head == base.base_sha:
+        config = base
+    else:
+        try:
+            config = read_config_at(
+                repo,
+                head,
+                lambda path, sha: (
+                    _file_at(owner, name, path, sha) if path == CONFIG_PATH else None
+                ),
+            )
+        except PolicyReadError:
+            return base.max_in_flight, "base"
+    if config.error:
+        return base.max_in_flight, "base"
+    if shared:
+        run_cache.put(MAX_IN_FLIGHT_SECTION, repo, config.max_in_flight)
+    return config.max_in_flight, "default-branch"
+
+
 def pull_request(repo: str, number: int) -> dict[str, Any]:
     """The pull request's REST record, with a base and head SHA that are full
     commit ids."""
@@ -2202,6 +2382,7 @@ def pull_request(repo: str, number: int) -> dict[str, Any]:
         and isinstance(head.get("ref"), str)
     ):
         raise PolicyReadError(f"#{number} could not be read (status {status})")
+    record_pull_request_total(repo, number, head.get("sha"), pr.get("commits"))
     return pr
 
 
@@ -2250,7 +2431,9 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
     if not entry:
         return None
     mode, kind = entry.split(" ", 2)[:2]
-    if kind != "blob" or mode == "120000":
+    if mode == "120000":
+        raise _SymlinkAt(f"{path} at {sha} is a symlink")
+    if kind != "blob":
         raise PolicyReadError(f"{path} at {sha} is not a file")
     text = _git(root, "cat-file", "blob", f"{sha}:{path}")
     if text is None:
@@ -2258,13 +2441,10 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
     return text
 
 
-def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
-    """The pipeline file's commits from `base_sha`, newest first, as (SHA,
-    committer date), from the first clone in `_history_checkouts` that holds
-    `base_sha` with its whole history (not shallow or partial); None when
-    none does.
-    A commit id names its whole ancestry, so any clone holding it answers
-    for the repository."""
+def _clones_holding(sha: str) -> Iterator[Path]:
+    """The top of each clone in `_history_checkouts` that holds `sha` with its
+    whole history (not shallow or partial). A commit id names its whole
+    ancestry and tree, so any clone holding it answers for the repository."""
     for checkout in _history_checkouts():
         # Pathspecs resolve against the working directory, so run at the top.
         top = _git(checkout, "rev-parse", "--show-toplevel")
@@ -2277,8 +2457,16 @@ def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
         promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
         if _git(root, "config", "--get-regexp", promisor) is not None:
             continue
-        if _git(root, "cat-file", "-e", f"{base_sha}^{{commit}}") is None:
+        if _git(root, "cat-file", "-e", f"{sha}^{{commit}}") is None:
             continue
+        yield root
+
+
+def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
+    """The pipeline file's commits from `base_sha`, newest first, as (SHA,
+    committer date), from the first clone holding `base_sha`
+    (`_clones_holding`); None when none does."""
+    for root in _clones_holding(base_sha):
         log = _git(
             root,
             "-c",
@@ -2380,7 +2568,18 @@ def merged_since_floor(
 
 
 def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
-    """Each path's git mode at `sha`, or None when the listing is truncated."""
+    """Each path's git mode at `sha`, or None when the listing is truncated:
+    from a local clone holding `sha` (`_clones_holding`), else the trees API."""
+    for root in _clones_holding(sha):
+        listing = _git(root, "ls-tree", "-r", "-t", "-z", "--full-tree", sha)
+        if listing is not None:
+            # Each entry is `<mode> <type> <id>\t<path>`.
+            return {
+                path: meta.split(" ", 1)[0]
+                for meta, _, path in (
+                    entry.partition("\t") for entry in listing.split("\0") if entry
+                )
+            }
     status, payload = _get(f"repos/{owner}/{name}/git/trees/{sha}?recursive=1")
     if status != 200 or not is_json_object(payload):
         raise PolicyReadError(f"the tree at {sha} could not be read (status {status})")
@@ -2395,7 +2594,7 @@ def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
 def _changed_files(
     owner: str, name: str, pr: dict[str, Any], base_sha: str
 ) -> tuple[tuple[ChangedFile, ...], bool]:
-    """The pull request's files with git modes from the trees API (the files
+    """The pull request's files with git modes from `_tree_modes` (the files
     API carries none): the head side at its head, the previous side at
     `base_sha`. Complete only when every listing reads to its end."""
     number, head = pr.get("number"), pr.get("headRefOid")
@@ -2424,6 +2623,7 @@ def _changed_files(
                 additions=entry.get("additions"),
                 deletions=entry.get("deletions"),
                 has_patch="patch" in entry,
+                patch=entry.get("patch"),
                 mode=(side or {}).get(path),
                 previous_mode=None
                 if status in ("added", "removed")
@@ -2447,6 +2647,120 @@ def changed_files(
     return _changed_files(
         owner, name, shaped, str(json_object(pr.get("base")).get("sha"))
     )
+
+
+# Capability file text by (owner, name, path, sha): a SHA pins the text, so a
+# run reads each side of each file once.
+_TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
+
+
+def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
+    key = (owner, name, path, sha)
+    if key not in _TEXT_AT:
+        # Quoted, so a `?` or `#` in a changed path cannot pick another ref.
+        _TEXT_AT[key] = _file_at(owner, name, quote(path, safe="/"), sha)
+    return _TEXT_AT[key]
+
+
+def with_capability_contents(
+    repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
+) -> tuple[ChangedFile, ...]:
+    """Each changed capability file (not removed) with its base text at the
+    base SHA, from its previous path on a rename or copy, and its head text
+    at the head SHA, or the reason either could not be read."""
+    owner, name = _split_repo(repo)
+    base = json_object(pr.get("base")).get("sha")
+    head = json_object(pr.get("head")).get("sha")
+    read = []
+    for changed in files:
+        if changed.status == "removed" or not is_capability_path(changed.path):
+            read.append(changed)
+            continue
+        try:
+            if not (isinstance(base, str) and base and isinstance(head, str) and head):
+                raise PolicyReadError(
+                    "the pull request record names no base or head SHA"
+                )
+            before = (
+                None
+                if changed.status == "added"
+                else _text_at(owner, name, changed.previous_path or changed.path, base)
+            )
+            after = _text_at(owner, name, changed.path, head)
+            read.append(replace(changed, contents=(before, after)))
+        except Exception as exc:  # noqa: BLE001 - any failure reads as unreadable (HIGH)
+            reason = f"{type(exc).__name__}: {exc}"
+            # repr escapes a newline in the author-controlled path, so the line
+            # cannot start a workflow command.
+            print(
+                f"capability contents of {changed.path!r}: {reason!r}", file=sys.stderr
+            )
+            read.append(replace(changed, contents_error=reason))
+    return tuple(read)
+
+
+_TREE_MODE = "040000"
+
+
+def declarations_at(
+    repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
+) -> tuple[tuple[str, str | None], ...] | None:
+    """`babysit_risk.RiskInput.declarations`: `DECLARATION_FILES` files and
+    the config files their plugin.json points at, at the base SHA as (path,
+    text), with None for a file that could not be read. From a clone holding
+    the base, every plugin's, which costs no API call; else, through the
+    contents API, only those of a plugin directory a changed path sits in: a
+    declared path outside its own plugin is unsafe, so only another plugin's
+    escaping declaration could floor a changed file, and a change outside
+    every plugin reads none. None when the base tree cannot be listed; the
+    scorer holds the floor either way."""
+    plugins = {
+        "/".join(parts[:2]).casefold()
+        for path in changed
+        if isinstance(path, str)
+        and len(parts := path.split("/")) >= 3
+        and parts[0].casefold() == "plugins"
+    }
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        root = next(_clones_holding(base), None)
+        if root is None and not plugins:
+            return ()
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"declarations at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return None
+    if modes is None:
+        return None
+
+    def read(path: str) -> str | None:
+        if modes.get(path) in (None, _TREE_MODE):
+            return None
+        try:
+            if root is not None:
+                return _git_file_at(root, path, base)
+            return _text_at(owner, name, path, base)
+        except (PolicyReadError, ValueError) as exc:
+            print(f"declaration {path!r}: {type(exc).__name__}", file=sys.stderr)
+            return None
+
+    found = [
+        (path, read(path))
+        for path in sorted(modes)
+        if (root is not None or "/".join(path.split("/")[:2]).casefold() in plugins)
+        and any(glob_match(g, path) for g in DECLARATION_FILES)
+    ]
+    named = {path for path, _ in found}
+    pointers = (
+        q for path, text in list(found) for q in declaration_pointers(path, text)
+    )
+    for pointer in dict.fromkeys(pointers):
+        if pointer not in named:
+            found.append((pointer, read(pointer)))
+    return tuple(found)
 
 
 # --- Promotion evidence -----------------------------------------------------------------------
@@ -2846,7 +3160,8 @@ def assess(
     merges in flight. The
     config at the base must enable that authority (`enabled_authority`).
 
-    Config at the pull request's base SHA, then authority, identity, the
+    Config at the pull request's base SHA (`merge.max-in-flight` alone at
+    the default branch head, `_run_max_in_flight`), then authority, identity, the
     credential chokepoint, the kill switch, a base that is the default
     branch, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
@@ -3034,6 +3349,11 @@ def assess(
         cap=cap.value,
         demoted=demotion.active,
     )
+    # The one setting not bound to the base; the post-enqueue room check
+    # reads it again, uncached.
+    flight_cap, cap_source = _run_max_in_flight(
+        repo, default, head if isinstance(head, str) else None, config
+    )
     flight = in_flight(
         repo,
         **readers,
@@ -3041,15 +3361,20 @@ def assess(
         branch=base_ref,
         merged_since=floor,
         lane_merges_only=lane,
-        max_in_flight=config.max_in_flight,
+        max_in_flight=flight_cap,
     )
     details.update(
         rung=rung.rung,
         rungInputs=dict(rung.inputs),
         rungCap={"value": cap.value, "reason": cap.reason},
-        inFlight={"clear": flight.clear, "reason": flight.reason},
+        inFlight={
+            "clear": flight.clear,
+            "reason": flight.reason,
+            "cap": flight_cap,
+            "capSource": cap_source,
+        },
     )
-    inputs.update(rung=rung.rung, flight=flight)
+    inputs.update(rung=rung.rung, flight=flight, flight_cap=flight_cap)
     # Past an on rung, the in-flight refusal outranks every read below. With
     # no queue entry of its own, nothing below writes for this pull request
     # either (its risk comment and verifier escalation wait for a run below
@@ -3073,13 +3398,20 @@ def assess(
     if dependabot_pr:
         promo = Promotion(None, "not-read-in-pr-merge-lane")
         eligible = (
-            dependabot_eligibility(repo, number, pr=pr, agent_identity=identity)
+            dependabot_eligibility(
+                repo,
+                number,
+                pr=pr,
+                agent_identity=identity,
+                hold_majors=config.dependabot_majors == "hold",
+            )
             if config.dependabot_mode != "off"
             else Eligibility(False, "dependabot-merge-off")
         )
         promoted = True
         details["dependabot"] = {
             "mode": config.dependabot_mode,
+            "majors": config.dependabot_majors,
             **(eligible.dependabot.report() if eligible.dependabot else {}),
         }
     elif lane:

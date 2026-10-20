@@ -17,6 +17,12 @@ after(() => rmSync(scratch, { recursive: true, force: true }));
 const HOME = join(scratch, "home");
 mkdirSync(join(HOME, ".claude/skills/vercel-react-view-transitions"), { recursive: true });
 
+/** The convention-home resolver applies only inside a git work tree, so a scratch project that binds a home is one. */
+function gitInit(dir) {
+  const r = spawnSync("git", ["init", "-q", dir], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+}
+
 /** Runs detect.mjs as a CLI; `env` replaces the child's environment when given. */
 function detect(args, env, cwd) {
   const r = spawnSync(process.execPath, [DETECT, ...args], { encoding: "utf8", env, cwd });
@@ -150,7 +156,7 @@ describe("--config", () => {
     assert.deepEqual(config.values, {
       version: 1,
       css: {
-        browser_target: "> 1%",
+        browser_target: "last 2 versions",
         techniques: { disable: [] },
         rules: { disable: ["hover", "motion"] },
         important: "utilities-only",
@@ -170,10 +176,11 @@ describe("--config", () => {
     });
   });
 
-  test("provenance names the layer of every key across all five layers", () => {
+  test("provenance names the layer of every key across all four layers; the user-home file is not read", () => {
+    assert.deepEqual(config.layers.map((l) => l.name), ["defaults", "userConfig", "team", "local"]);
     assert.deepEqual(config.provenance, {
       version: "team",
-      "css.browser_target": "user",
+      "css.browser_target": "userConfig",
       "css.techniques.disable": ["defaults"],
       "css.rules.disable": ["defaults", "team", "local"],
       "css.important": "team",
@@ -198,7 +205,7 @@ describe("--config", () => {
   });
 
   test("routing is rejected in every layer but the team layer", () => {
-    for (const name of ["userConfig", "user", "local"]) {
+    for (const name of ["userConfig", "local"]) {
       assert.ok(layer(name).errors.some((e) => /"routing": accepted only in the team layer/.test(e)), `${name}: ${JSON.stringify(layer(name).errors)}`);
     }
     assert.deepEqual(layer("team").errors, []);
@@ -332,6 +339,7 @@ describe("--config", () => {
   test("--team reads a convention home whose name merely starts with two dots", () => {
     const dir = join(scratch, "dotdot-home");
     mkdirSync(join(dir, "..conf"), { recursive: true });
+    gitInit(dir);
     writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome is `..conf`.\n<!-- END GENERATED: convention-home -->\n");
     writeFileSync(join(dir, "..conf/user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
     const team = join(scratch, "team-dotdot.yaml");
@@ -352,6 +360,7 @@ describe("--config", () => {
   test("a broken pointer line reads neither the team nor the local layer", () => {
     const dir = join(scratch, "broken-pointer");
     mkdirSync(join(dir, "docs/conventions"), { recursive: true });
+    gitInit(dir);
     writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome is `missing-dir`.\n<!-- END GENERATED: convention-home -->\n");
     writeFileSync(join(dir, "docs/conventions/user-interface.yaml"), "css:\n  important: allow\nrouting:\n  version: 1\n  deny:\n    - figma\n");
     writeFileSync(join(dir, "docs/conventions/user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
@@ -364,12 +373,37 @@ describe("--config", () => {
     for (const name of ["team", "local"]) assert.equal(broken.layers.find((l) => l.name === name).state, "absent", name);
   });
 
+  for (const [label, bind, reason] of [
+    ["a declined region", (dir) => {
+      gitInit(dir);
+      writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\ndeclined\n<!-- END GENERATED: convention-home -->\n");
+    }, /declined/],
+    ["a project outside any git work tree", () => {}, /not applicable/],
+  ]) {
+    test(`${label} reads neither the team nor the local layer: bundled defaults apply`, () => {
+      const dir = join(scratch, `no-home-${label.replace(/\W+/g, "-")}`);
+      mkdirSync(join(dir, "docs/conventions"), { recursive: true });
+      bind(dir);
+      writeFileSync(join(dir, "docs/conventions/user-interface.yaml"), "css:\n  important: allow\n");
+      writeFileSync(join(dir, "docs/conventions/user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
+      const { config: c } = detect(["--project", dir, ...seams, "--config"]);
+      assert.equal(c.home, null);
+      assert.match(c.home_skipped, reason);
+      assert.ok(!("home_error" in c));
+      assert.equal(c.values.css.important, "avoid");
+      assert.equal(c.provenance["css.important"], "defaults");
+      assert.equal(c.values.css.token_fallback, "ask");
+      for (const name of ["team", "local"]) assert.equal(c.layers.find((l) => l.name === name).state, "absent", name);
+    });
+  }
+
   test("--team refuses a local layer whose convention home leaves the project", () => {
     const outside = join(scratch, "outside-home");
     mkdirSync(outside, { recursive: true });
     writeFileSync(join(outside, "user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
     const dir = join(scratch, "linked-home");
     mkdirSync(join(dir, "docs"), { recursive: true });
+    gitInit(dir);
     symlinkSync(outside, join(dir, "docs/conventions"), "junction");
     const team = join(scratch, "team-linked.yaml");
     writeFileSync(team, "css:\n  important: allow\n");
@@ -493,6 +527,7 @@ describe("--config team routing applied to routes", () => {
   test("a broken pointer line applies no team routing and says so", () => {
     const dir = join(scratch, "route-broken-pointer");
     mkdirSync(join(dir, "docs/conventions"), { recursive: true });
+    gitInit(dir);
     writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome is `missing-dir`.\n<!-- END GENERATED: convention-home -->\n");
     writeFileSync(join(dir, "docs/conventions/user-interface.yaml"), "routing:\n  version: 1\n  deny:\n    - figma\n");
     const out = detect(["--project", dir, ...seams, "--config"]);

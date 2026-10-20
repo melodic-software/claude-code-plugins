@@ -41,6 +41,17 @@ describe("buildRepairLexicon", () => {
     expect(lexicon).toContain("claude-code");
   });
 
+  it("includes a term that appears only in the title", () => {
+    const lexicon = buildRepairLexicon("nothing notable here", [], "Building with Pstack and Claude Code");
+    expect(lexicon).toContain("Pstack");
+    expect(lexicon).toContain("Claude Code");
+  });
+
+  it("does not join a capitalized run across the title and the description", () => {
+    const lexicon = buildRepairLexicon("Code review notes", [], "Intro to Claude");
+    expect(lexicon).not.toContain("Claude Code");
+  });
+
   it("prefers the author's casing over a link slug on a key collision", () => {
     const lexicon = buildRepairLexicon("GitHub is where it lives", [
       { url: "https://github.com/x", source: "description" },

@@ -10,7 +10,7 @@ a file or a choice the user owns.
 | `lefthook-install` | Run `lefthook install` so the manager's hooks exist in this clone. |
 | `husky-install` | Tell the user to run the project's install (husky sets `core.hooksPath` on `npm install`). |
 | `husky-shared-only` | Say husky has no per-clone hooks and offer `scope=shared`. |
-| `hooks-path` | Plain shared hooks: run `command` (`git config core.hooksPath .githooks`) in this clone, and tell the user every clone runs it once. `block-no-verify` allows that exact value and refuses any other. |
+| `hooks-path` | Plain shared hooks: run `command` (`git config core.hooksPath .githooks`) in this clone, and tell the user every clone runs it once. `block-no-verify` allows that exact value only at local scope (not `--global`, `--system`, `--worktree` or `--file`) and only while `.githooks/` holds the dispatcher setup wrote, and refuses any other. |
 | `foreign-hook` | Read the existing hook. If it should keep running, move it to `chainAs` (the dispatcher runs it first, and its rejection stands) and rerun `copy`; otherwise ask. A hook the earlier `install-commit-msg` or `install-pre-commit-content` actions wrote (its second line names `guardrails-commit-msg-convention` or `guardrails-pre-commit-content-invariants`) is replaced, not chained: remove it, its `guardrails-resolve-convention.sh` or `guardrails-content-lib/` beside it, and restore a `<event>.pre-guardrails` hook to `<event>` first. `check` reports these files as the retirement records `guardrails-r001` to `guardrails-r004`. |
 | `exclude` | Append `line` to `file` (the clone's `info/exclude`). |
 | `gitattributes` | Add `line` to `.gitattributes`, so the shared copies keep LF endings. |

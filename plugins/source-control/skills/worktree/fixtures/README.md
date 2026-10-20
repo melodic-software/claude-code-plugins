@@ -254,11 +254,10 @@ bite the same way: `jq` on Git Bash terminates lines with CRLF, and `@tsv` escap
 
 ### What this settles in the plugin
 
-- `scripts/reap-project-plugin-records.sh` requires `--worktree-path` to name the directory it is
-  already standing in, and refuses otherwise. That is arm 3 rendered in code: the CLI cannot reach
-  another path's record, so a helper that could only ever be a no-op or a mistake there declines to
-  run at all.
-- The reap runs **before** `git worktree remove`, from inside the worktree: arm 4, the shortest
+- `scripts/reap-project-plugin-records.sh` enters `--worktree-path` itself and refuses a main
+  working tree (its `.git` is a directory). That is arm 3 rendered in code: the CLI cannot reach
+  another path's record, so the helper acts on the one directory it entered and nothing else.
+- The reap runs **before** `git worktree remove`, inside the worktree: arm 4, the shortest
   route, needing no directory to be recreated.
 - Arm 5 is what makes pre-existing orphans reachable at all, and it is also the arm most capable of
   harm, because it works on any path a user can recreate. `audit` therefore **reports** such records

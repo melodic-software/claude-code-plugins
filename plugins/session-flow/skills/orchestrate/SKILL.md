@@ -62,7 +62,9 @@ told:
    correlate with <https://www.anthropic.com/engineering/multi-agent-research-system> for the
    brief elements, which no docs page covers as of 2026-10-01. Recheck trigger: a docs page
    starts covering brief contents. Absent a consumer-level subagent-model override,
-   an unspecified model silently inherits the parent session's, often its most expensive, model.
+   an unspecified model silently inherits the parent session's, often its most expensive, model
+   (pointer: <https://code.claude.com/docs/en/sub-agents#choose-a-model>, as of 2026-10-18; recheck
+   when that section changes the resolution order or what an omitted `model` resolves to).
    Holding only an objective, a worker resolves each ambiguity toward the sentence you wrote rather
    than the outcome you wanted, and returns something well-formed and wrong.
    A worker that measures is told which exact commits to compare and how to sample (how many
@@ -133,7 +135,11 @@ told:
    (<https://code.claude.com/docs/en/model-config#choose-an-effort-level>, as of 2026-10-02;
    recheck when that section is renamed or moved or its table columns change), never below
    medium. A premium fan-out outside the hard stages is a per-stage decision to justify
-   explicitly, never a default to inherit.
+   explicitly, never a default to inherit. Pointer for both cost judgments (delegating bulk work,
+   tuning effort per subtask):
+   <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work>
+   and <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort>.
+   Both judgments are ours. As of: 2026-10-18. Recheck trigger: either section changes its advice.
 
 Discipline: trigger-evaluation is mandatory; the ACTION stays calibrated (delegate on value +
 parallelism, not convenience). Treat every worker's return as unverified synthesis: check its
@@ -199,7 +205,7 @@ because a pasted worker sits inside a tree rather than authoring one.
 
 **A rough anchor for small/medium/large.** Not thresholds to enforce, the judgment still runs on context
 boundaries, not head-count, but our anchor follows the platform's workflow size settings: fewer
-than 5 agents is small, 5 to 9 medium, 10 or more large, and a run large enough to trip the
+than 5 agents is small, 5 to 9 medium, and 10 or more large. A run large enough to trip the
 platform's large-workflow warning is a size to justify out loud. An order-of-magnitude
 disagreement with this anchor is one to name, not skip. Before a workflow run, read the size
 guideline in force for this session: the platform's default differs by plan, and the guideline
@@ -208,7 +214,7 @@ the session sets is the one Claude receives, whatever this anchor says.
 - **Pointer**: for the workflow size guideline and its defaults, see
   <https://code.claude.com/docs/en/workflows#set-a-size-guideline>; for the large-workflow
   warning, see <https://code.claude.com/docs/en/workflows#cost>.
-- **As of**: 2026-10-01
+- **As of**: 2026-10-18
 - **Recheck trigger**: that page changes a size-guideline agent count, a default guideline, or the
   threshold its large-workflow warning fires at.
 
@@ -311,9 +317,12 @@ Discipline: [the Discipline line above, verbatim]
 - `handoff`, the opening line above already fits a fresh session; emit as-is.
 - `worker`, insert as the FIRST line between the rails: `You are a spawned worker and did NOT
   inherit the parent session's context or the repo's conditional rules, these instructions are
-  your only copy.`
+  your only copy.` Then insert this waiting line directly after it, before the `ORCHESTRATION BRIEF` line,
+  in full and `compact` exports alike: `Waiting: poll in the foreground with a bounded loop, or
+  return what you have; never end your turn to wait on your own background job.`
 - `compact`. Emit only the seven numbered HEADLINES (`1. DELEGATE / FAN OUT`, `2. SPEC EVERY
-  SPAWN`, …) plus the closing Discipline line; drop every sub-clause.
+  SPAWN`, …) plus the closing Discipline line; drop every sub-clause. `worker compact` also keeps the
+  `worker` did-not-inherit and waiting lines; compact drops neither.
 
 ## What this skill does NOT do
 
