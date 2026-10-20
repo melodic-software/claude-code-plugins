@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: interview-intent-asked-recorded
+context:
+  scaffold_script: scaffold.sh

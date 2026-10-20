@@ -382,7 +382,7 @@ export function installInterceptors(page, subtitleLang) {
  * @param {string} subtitleLang — e.g. "eng"
  * @param {number} _manifestTimeoutMs
  * @param {string} [videoPlayerSelector] defaults to {@link DEFAULT_VIDEO_PLAYER_SELECTOR}
- * @returns {Promise<{ hasVideo: boolean, hotmartFrame?: object, hlsMasterUrl?: string, subtitleSegments?: number, warning?: string }>}
+ * @returns {Promise<{ hasVideo: boolean, hotmartFrame?: import('playwright').Frame | null, hlsMasterUrl?: string, subtitleSegments?: number, warning?: string }>}
  */
 export async function preparePage(
   page,
@@ -478,6 +478,7 @@ export async function getTranscript(page) {
   const firstSeg = segmentUrls[0];
   const segmentsAreAbsolute = firstSeg.startsWith("http");
 
+  /** @type {string | null} */
   let hlsBase = null;
   if (!segmentsAreAbsolute) {
     if (captured.hlsMasterUrl) {

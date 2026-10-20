@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": "Identity check first: \"window\" stresses WIN, so a rhyme needs a different consonant before that short-i vowel. \"Widow\" is close in sound but a different word; \"window/window\" would be identity, not rhyme.\n\nHere is a labeled menu across the stability tiers. Pick by what you want line 4 to feel like; I won't pick one for you.\n\n| Tier | Candidate | Note |\n| --- | --- | --- |\n| Family | *in though* | voiced/unvoiced swap, soft landing |\n| Family | *thin glow* | keeps the porch-light world |\n| Additive | *winds blow* | extra consonant, still resolves |\n| Subtractive | *win, though* | drops the d, conversational |\n| Assonance | *sin, oh* | vowel-only, unresolved |\n| Assonance | *gimme so* | loose, spoken |\n| Consonance | *wander* | consonant frame, unstable |\n| Mosaic | *been so slow* | multi-word, lands the waiting |\n| Mosaic | *in the snow* | multi-word, season shift |\n| Mosaic | *spin and go* | motion, leaving |\n\nThe menu leans unstable on purpose: he hasn't called, so a perfect rhyme may close the verse too neatly. The choice is yours by emotional intent."
+    },
+    {
+      "answer": "Response filter §1: identity check pass (no window/window), tier walk pass, mosaic present, cliche scan pass.\n\n**Perfect / near-perfect**\n- \"Lindo\" (proper noun, risky)\n- \"in, though\"\n\n**Family rhymes**\n- \"skin glow\"\n- \"thin flow\"\n\n**Additive / subtractive**\n- \"wind blows\" (additive)\n- \"win so\" (subtractive)\n\n**Assonance / consonance**\n- \"listen\" (assonance on the stressed i)\n- \"wonder\" (consonance)\n\n**Mosaic (multi-word)**\n- \"been so low\"\n- \"kitchen glow\"\n- \"in the cold\"\n\nWhich one fits depends on whether you want the verse to resolve or stay open. I'm leaving the pick to you."
+    },
+    {
+      "answer": "I won't name a winner: choose the one that matches what line 4 should feel like."
+    },
+    {
+      "answer": "**Filter run**\n- **Tiers:** pass, five covered.\n- **Winner:** skipped on purpose, per the method.\n\n| Tier | Candidates |\n| --- | --- |\n| Family | limbo, pinto |\n| Assonance | kitchen, listen |\n\nSing a few against line 2 and keep the one that lands.",
+      "why": "a 'Winner:' line that declines a winner"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Identity check first: \"window\" stresses WIN, so a rhyme needs a different consonant before that short-i vowel. \"Widow\" is close in sound but a different word; \"window/window\" would be identity, not rhyme.\n\nHere is a labeled menu across the stability tiers. Pick by what you want line 4 to feel like; I won't pick one for you.\n\n| Tier | Candidate | Note |\n| --- | --- | --- |\n| Family | *in though* | voiced/unvoiced swap, soft landing |\n| Family | *thin glow* | keeps the porch-light world |\n| Additive | *winds blow* | extra consonant, still resolves |\n| Subtractive | *win, though* | drops the d, conversational |\n| Assonance | *sin, oh* | vowel-only, unresolved |\n| Assonance | *gimme so* | loose, spoken |\n| Consonance | *wander* | consonant frame, unstable |\n| Mosaic | *been so slow* | multi-word, lands the waiting |\n| Mosaic | *in the snow* | multi-word, season shift |\n| Mosaic | *spin and go* | motion, leaving |\n\nThe menu leans unstable on purpose: he hasn't called, so a perfect rhyme may close the verse too neatly. The choice is yours by emotional intent.\n\nIf you want one, my pick is *been so slow*."
+    },
+    {
+      "answer": "The best rhyme here is \"been so slow\"."
+    },
+    {
+      "answer": "Menu below. I'd go with the mosaic one."
+    },
+    {
+      "answer": "Lots of options, but go with \"in the snow\".",
+      "why": "winner phrased as an instruction"
+    },
+    {
+      "answer": "My one pick:\n\n## The house settled crooked toward her side.\n\nIt works because the image carries the absence without naming it."
+    },
+    {
+      "answer": "| Tier | Candidates |\n| --- | --- |\n| Family | limbo, pinto |\n\n**Winner:** limbo",
+      "why": "a 'Winner:' line that names one"
+    }
+  ]
+}

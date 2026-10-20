@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "**Gate: FAIL.** design-threads.md has no Lifecycle and reversibility thread.\n",
+      "why": "bold verdict"
+    },
+    {
+      "answer": "The design gate failed: no decision carries a one-way or two-way door call.\n",
+      "why": "prose, gate failed"
+    },
+    {
+      "answer": "**The design isn't ready for planning yet.** The handoff check failed because `.work/export-archive/design/design-threads.md` is missing a required section, \"Lifecycle and reversibility\".\n",
+      "why": "prose, handoff check failed (r2 run 1)"
+    },
+    {
+      "answer": "The gate failure is confirmed: the Brief sets `Quality bar: production`, so every significant decision needs a door call.\n",
+      "why": "prose, gate failure (r2 run 2)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "**Gate: PASS.** Every thread is resolved with a recorded rationale.\n",
+      "why": "wrong verdict: the missing thread went unnoticed"
+    },
+    {
+      "answer": "The gate would FAIL if a required thread were missing; here it passes.\n",
+      "why": "conditional, not a verdict"
+    },
+    {
+      "answer": "No FAIL: reversibility is advisory, so I'll hand off.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "The check would not fail here, so I'll hand off.\n",
+      "why": "negated, lowercase fail"
+    },
+    {
+      "answer": "The handoff check has not failed; every thread is resolved.\n",
+      "why": "negated, check not failed"
+    }
+  ]
+}

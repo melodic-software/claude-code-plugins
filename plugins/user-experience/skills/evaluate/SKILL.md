@@ -65,7 +65,12 @@ analytics MCP server or export, a design-tool MCP server).
 - **Expert review**: heuristic sets come from `/user-interface:design` when it is installed (invoke
   it via the Skill tool); otherwise cite Nielsen's ten heuristics as evaluation.md "Heuristic
   evaluation" points. LLM inspection, this skill's included, is a pre-study filter: label its
-  findings likely problems until people confirm them.
+  findings likely problems until people confirm them. For a live app, also run evaluation.md
+  "Live-app checks": each task at a phone, a tablet and a desktop size with the primary action
+  and the thing asked about on screen without scrolling, every question, label and instruction
+  read for words like "this page" that could point at more than one view, and every picture of
+  the product shown inside it compared with the live screen and checked for natural against
+  displayed size.
 - **Fair-choice check**: run evaluation.md "Fair-choice check" on every place the design asks a
   person to choose, agree or leave. It is a design check; never claim a design is lawful or not.
 - **Legacy start**: for a legacy app, build the UX-debt inventory from

@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "**Prompt**\nCategory: Where\nSeed: a laundromat at midnight\nTimer: 90 seconds\n\nStart the timer and write without stopping. Use all seven senses: sight, hearing, smell, taste, touch, the organic sense inside your body, and the kinesthetic sense of motion and balance. Follow the associations even if they leave the laundromat. No rhyme, no meter, no finished lyric. Stop the moment the timer ends.\n\n**Mine afterward**\n- Underline 3 vivid sensory details.\n- Mark 1 organic or kinesthetic detail.\n- Circle 1 surprising verb."
+    },
+    {
+      "answer": "Seed: **your father's toolbox**. Set a timer for 90 seconds and go.\n\nWrite through every sense: what you see, hear, smell, taste, touch, plus organic (heartbeat, stomach) and kinesthetic (weight, balance). Don't polish or rhyme. When it stops, stop mid-word.\n\nAfter: pull out three sensory details and one strong verb."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Seed: a laundromat. Timer: 90 seconds. Describe what you see and hear."
+    },
+    {
+      "answer": "Use sight, sound, smell, taste and touch.",
+      "why": "five senses only"
+    }
+  ]
+}

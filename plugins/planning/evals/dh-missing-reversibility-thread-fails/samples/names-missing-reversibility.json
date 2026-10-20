@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "- **Lifecycle and reversibility**: missing. No thread records a door call.\n",
+      "why": "list item naming the missing thread"
+    },
+    {
+      "answer": "| Lifecycle and reversibility | required thread absent |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "FAIL: design-threads.md has no reversibility thread and no door calls.\n",
+      "why": "no reversibility thread"
+    },
+    {
+      "answer": "Missing required thread: Lifecycle and reversibility (no `Door:` calls on T2-T4).\n",
+      "why": "label first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Lifecycle and reversibility: RESOLVED, every decision carries a door call.\n",
+      "why": "claims the thread is present"
+    },
+    {
+      "answer": "No required thread is missing; reversibility is recorded.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "The reversibility thread isn't missing.\n",
+      "why": "negated with n't"
+    },
+    {
+      "answer": "The T2 thread is missing a rationale; reversibility is fine.\n",
+      "why": "the missing finding is about another thread"
+    },
+    {
+      "answer": "No issue with reversibility: the door calls are recorded.\n",
+      "why": "no issue, not no thread"
+    }
+  ]
+}

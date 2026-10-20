@@ -28,7 +28,7 @@
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "nodejs"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/knowledge:check"
     },
     {
       "id": "python",
@@ -58,7 +58,7 @@
         "winget": "Python.Python.3.13",
         "apt": "python3"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/knowledge:check"
     },
     {
       "id": "curl",
@@ -79,7 +79,7 @@
         "winget": "cURL.cURL",
         "apt": "curl"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/knowledge:check"
     },
     {
       "id": "jq",
@@ -100,7 +100,7 @@
         "winget": "jqlang.jq",
         "apt": "jq"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/knowledge:check"
     },
     {
       "id": "npm",
@@ -123,7 +123,7 @@
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "npm"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/knowledge:check"
     },
     {
       "id": "npx",
@@ -146,7 +146,7 @@
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "npm"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/knowledge:check"
     },
     {
       "id": "ffmpeg",
@@ -176,7 +176,7 @@
         "apt": "ffmpeg",
         "conda": "conda-forge ffmpeg (when the distro package is below 7.1; prefer a release build, since a nightly reports no version)"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/knowledge:check"
     },
     {
       "id": "ffprobe",
@@ -198,7 +198,7 @@
         "winget": "Gyan.FFmpeg",
         "apt": "ffmpeg"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/knowledge:check"
     },
     {
       "id": "magick",
@@ -227,7 +227,7 @@
         "winget": "ImageMagick.ImageMagick",
         "conda": "conda-forge imagemagick (ImageMagick 7, for distros whose package is still ImageMagick 6)"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/knowledge:check"
     },
     {
       "id": "yt-dlp",
@@ -255,7 +255,7 @@
         "winget": "yt-dlp.yt-dlp",
         "pip": "yt-dlp[default,curl-cffi]"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/knowledge:check"
     },
     {
       "id": "gh",
@@ -276,7 +276,7 @@
         "winget": "GitHub.cli",
         "apt": "gh"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/knowledge:check"
     }
   ]
 }

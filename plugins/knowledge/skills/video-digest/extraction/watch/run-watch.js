@@ -49,6 +49,7 @@ import {
 import { orchestrateWatching } from "../watching/orchestrate-watching.js";
 import { writeWatchingManifest } from "../watching/write-watching-manifest.js";
 import { detectRecoverableBootstrap } from "./detect-recoverable-bootstrap.js";
+import { recordDurationMismatch } from "./duration-mismatch.js";
 import { postBootstrapSlice } from "./post-bootstrap-slice.js";
 import { recoverWatchBootstrapCli } from "./recover-watch-bootstrap.js";
 import {
@@ -220,6 +221,13 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     entryCount: entries.length,
     videoDownloaded: Boolean(primary?.mediaPath),
     captionRung: primary?.caption?.rung ?? null,
+    primaryMedia: primary
+      ? {
+          video: primary.mediaPath ? path.basename(primary.mediaPath) : null,
+          infoJson: primary.metadataPath ? path.basename(primary.metadataPath) : null,
+          caption: primary.caption?.path ? path.basename(primary.caption.path) : null,
+        }
+      : null,
     ...(envelope.acquireMetrics ?? {}),
   });
 
@@ -279,6 +287,7 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     temp.recorded = true;
     const continuationPrompt = await writeContinuationPrompt(sliceDir, next);
 
+    /** @type {ReturnType<typeof postBootstrapSlice> | null} */
     let postBootstrap = null;
     try {
       postBootstrap = postBootstrapSlice(sliceDir);
@@ -329,12 +338,22 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     return 0;
   }
 
-  const vttText = primary.caption ? await fs.readFile(primary.caption.path, "utf8") : "";
-  const cues = (vttText ? parseVttSegment(vttText) : []).map((cue) => ({
-    startSec: cue.startSec,
-    endSec: cue.endSec,
-    text: cue.text,
-  }));
+  // The cues the primary transcript was built from: caption cues, or the ASR
+  // cues when no caption exists.
+  // An explicit asr override that fails on a captioned entry writes no
+  // transcript, so the caption still supplies the cues, as it always did.
+  const primaryCues = written.transcripts.find(
+    (entry) => entry.entryIndex === written.primaryEntryIndex,
+  )?.cues;
+  const cues =
+    primaryCues ??
+    (primary.caption
+      ? parseVttSegment(await fs.readFile(primary.caption.path, "utf8")).map((cue) => ({
+          startSec: cue.startSec,
+          endSec: cue.endSec,
+          text: cue.text,
+        }))
+      : []);
 
   // Persist state + tempSession before the long extraction phase so an
   // interrupt during ffmpeg/contact-sheet work leaves a watch.json that
@@ -360,6 +379,11 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     overCap: false,
     candidateCount: watching.candidateCount,
   };
+
+  state = await recordDurationMismatch(state, sliceDir, {
+    metadataDurationSec: metadata.durationSec,
+    probedDurationSec: watching.probedDurationSec,
+  });
 
   const manifest = await writeWatchingManifest(sliceDir, watching, tempSession);
   state.artifactPaths = {
