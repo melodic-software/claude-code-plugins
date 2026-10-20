@@ -887,6 +887,9 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/typos@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
         with:
           config: _typos.toml
+          # typos skips hidden directories; naming .changes checks the
+          # changelog fragments without pulling in .github and .claude.
+          paths: . .changes
           # A pack's vendored baseline is replaced verbatim from upstream by its
           # own update script, which reports drift by hashing the committed file
           # against the fetched one, so any spelling correction here would read
