@@ -34,7 +34,9 @@ rather than a value is unset: treat it as the default.
 | `asr_python` | `${user_config.asr_python}` | empty |
 
 How each value becomes a `run.mjs` flag: `context/output-contract.md` (`library_dir`) and
-`reference/sources/youtube.md` (the yt-dlp options).
+`reference/sources/youtube.md` (the yt-dlp options). `asr_python` applies to every source: when it
+holds a non-empty value that is not a literal `user_config` token, pass `--asr-python "<value>"` as
+a leading flag on every `run.mjs` invocation; otherwise omit it.
 
 # Video digest. YouTube and X
 
@@ -347,11 +349,11 @@ uv pip install --python <dir> faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu1
 
 The `nvidia-*` wheels supply the CUDA libraries for GPU runs; skip them for CPU-only. On Windows the
 runner script adds each `site-packages/nvidia/*/bin` directory as a DLL directory, so no PATH edit is
-needed. The `av` pin in the recipe holds PyAV below a release that a producing run found
-incompatible with faster-whisper 1.2.1; this skill has not reproduced that finding and links no upstream
-issue for it, as of 2026-10-18. To settle whether the pin is still needed, install without it and
-run the runner's asr rung: if it transcribes, drop the pin. Recheck when a faster-whisper release
-after 1.2.1 ships.
+needed. The recipe pins `av` for faster-whisper's audio decoding; the live state is
+[SYSTRAN/faster-whisper#1589](https://github.com/SYSTRAN/faster-whisper/issues/1589) and its fix,
+[SYSTRAN/faster-whisper#1495](https://github.com/SYSTRAN/faster-whisper/pull/1495), merged but in
+no release as of 2026-10-20. Recheck when a faster-whisper release ships that includes #1495, then
+drop the pin.
 
 ## Eval fixtures
 
