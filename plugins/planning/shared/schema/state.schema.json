@@ -12,7 +12,7 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": {"enum": [6]},
+    "schemaVersion": {"enum": [7]},
     "pluginVersion": {"type": "string"},
     "writtenBy": {"type": "string"},
     "rev": {"type": "integer", "minimum": 0},

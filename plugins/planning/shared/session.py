@@ -5345,10 +5345,11 @@ class Session:
         # every upload what everyone reads carries, older chat included: who may read a picture back (upload_image)
         self._public_uploads = {uid for r in [*_answers(cards), *chat, *_flat(discussions), *_flat(suggestions)] for uid in r.get("attachments", [])}
         # Follow-up 32: received pictures offered on a question that no record ever carried (from before attachments) show
-        # under that question; a form's draft or one a record carried, even one since cleared or deleted, never does.
+        # under that question; a form's draft or one a record carried, even one since cleared or deleted, never does
+        # (both marks are server-set: at offer, on the first carrying write, and by migrate.py's 6 -> 7 for older files).
         # Everyone sees the approved ones, the owner and each uploader also those waiting for approval (snapshot).
-        self._carried = {uid for _, r in _attaching(st) for uid in r.get("attachments", ())} | {u["id"] for u in st["uploads"] if u.get("carried")}
-        self._loose_pics = [u for u in st["uploads"] if u.get("qid") and _shows_as_image(u) and not u.get("draft") and u["id"] not in self._carried and self._active(u["pid"])]
+        self._carried = {u["id"] for u in st["uploads"] if u.get("carried")}
+        self._loose_pics = [u for u in st["uploads"] if u.get("qid") and _shows_as_image(u) and not u.get("draft") and not u.get("carried") and self._active(u["pid"])]
         approved = [u for u in self._loose_pics if _approved(u)]
         if approved:
             base["questionPics"] = _pics_by_q(approved)

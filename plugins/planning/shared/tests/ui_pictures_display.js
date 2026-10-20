@@ -54,7 +54,7 @@ async function main() {
     const annPid = await joinAs(ann, "Ann");
     await until(ann, () => window.Core.state.settings.uploads === true);
 
-    // ---------- a picture from before attachments: received on Q1, never a draft or carried ----------
+    // ---------- a picture from before attachments: received on Q1 under main, nothing carries it ----------
     await paste(ann, "#vf-answer");
     const old = await pasted(ann, 0);
     await owner.evaluate(id => window.Core.uploadAct(id, "accept"), old);
@@ -62,7 +62,9 @@ async function main() {
     const port = new URL(A.localUrl).port;
     s.share(A.dir, "stop");
     const file = path.join(A.dir, "state.json"), st = JSON.parse(fs.readFileSync(file, "utf8"));
-    for (const u of st.uploads) if (u.id === old) { delete u.draft; delete u.carried; }
+    // as main wrote it (schemaVersion 6, no marks), offered before #8420 (5026be8b, 2026-10-19T14:48:06Z): the upgrade keeps it loose
+    st.schemaVersion = 6;
+    for (const u of st.uploads) { delete u.draft; delete u.carried; if (u.id === old) u.at = Date.parse("2026-10-19T14:48:06Z") / 1000 - 3600; }
     fs.writeFileSync(file, JSON.stringify(st));
     s.share(A.dir, "ensure-running", "--guest-port", port);
     const reopen = async (page, url) => { const p = await rec.openIn(page.context(), url); await until(p, () => !!window.Core.snapshot()?.me); await page.close(); return p; };

@@ -20,5 +20,7 @@ bump: patch
   its uploader (with Remove). Snapshots carry it in a new optional `questionPics` field. A form's unsent picture and
   one a post carried, even one since cleared, deleted or hidden, never show there or read back to anyone else; new
   uploads record this in optional `draft` and `carried` marks, and taking a pasted picture off a form removes it.
+  State files move to schemaVersion 7: the upgrade marks every older upload carried except an offer made before forms
+  attached pictures that nothing carries.
 - Shared session: times no longer read "now ago", and "You marked this round ready" goes by person, so someone else
   with the same name no longer reads it.

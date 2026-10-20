@@ -3208,7 +3208,7 @@ class TestSnapshots(SessionCase):
         return next(c for c in snap["cards"]["Q1"] if c["ref"] == ref)
 
     def test_the_anonymous_view_has_exactly_four_keys(self):
-        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 6})
+        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 7})
         self.act("rotate_guest_link", HOST, {})
         self.assertTrue(self.s.anonymous_view()["joinNeedsKey"])
 
@@ -3281,7 +3281,7 @@ class TestSnapshots(SessionCase):
 
     def test_a_snapshot_carries_schema_version_and_rev(self):
         snap = self.s.snapshot(self.cy)
-        self.assertEqual((snap["schemaVersion"], snap["rev"]), (6, self.s.state["rev"]))
+        self.assertEqual((snap["schemaVersion"], snap["rev"]), (7, self.s.state["rev"]))
 
     def test_the_shared_part_is_built_once_per_rev(self):
         first = self.s._base()
@@ -5224,19 +5224,25 @@ class TestAttachmentsEverywhere(UploadCase):
         self.send_all(pid, uid, PIC)
         return uid
 
-    def legacy(self, uid):
-        """The upload as a build before drafts wrote it: neither draft nor carried."""
-        u = next(u for u in self.s.state["uploads"] if u["id"] == uid)
-        u.pop("draft", None)
-        u.pop("carried", None)
-        self.s._base_cache = None
-        return uid
+    def resumed_from_main(self, at=None):
+        """The session as main wrote it (schemaVersion 6, no draft or carried marks), loaded again by this build. at:
+        upload id -> its `at`; the rest keep theirs, this clock's, from before #8420 (migrate.ATTACH_PASTE_AT)."""
+        doc = json.loads(self.path.read_text(encoding="utf-8"))
+        doc["schemaVersion"] = 6
+        for u in doc["uploads"]:
+            u.pop("draft", None)
+            u.pop("carried", None)
+            u["at"] = (at or {}).get(u["id"], u["at"])
+        self.assertLess(max((u["at"] for u in doc["uploads"] if u["id"] not in (at or {})), default=0), session.migrate.ATTACH_PASTE_AT)
+        self.path.write_text(json.dumps(doc), encoding="utf-8")
+        self.s = session.Session.load(self.path, clock=self.clock, ids=self.ids, validate_writes=True)
 
     def test_a_picture_on_a_question_that_no_record_carries_shows_under_it(self):
-        def loose(pid, name):
-            return self.legacy(self.received_on_q1(pid, name))
-        pic, own, sent = loose(self.ann, "a.png"), loose(HOST, "h.png"), loose(self.ann, "c.png")
+        # (b) offers from before #8420 that nothing carries, upgraded from main: the strip's pictures
+        pic, own, sent = (self.received_on_q1(p, n) for p, n in ((self.ann, "a.png"), (HOST, "h.png"), (self.ann, "c.png")))
         self.act("chat", self.ann, {"text": "Carried", "attachments": [sent]})
+        self.resumed_from_main()
+        self.assertEqual(self.s.state["schemaVersion"], 7)
         def pics(pid):
             return self.s.snapshot(pid).get("questionPics")
         # Waiting for approval: the owner and the uploader see it, with the owner's own; Bo only the owner's.
@@ -5302,12 +5308,52 @@ class TestAttachmentsEverywhere(UploadCase):
         self.assertTrue(a)
 
     def test_a_removed_uploaders_loose_picture_is_hidden(self):
-        pic = self.legacy(self.received_on_q1(self.ann, "a.png"))
+        pic = self.received_on_q1(self.ann, "a.png")
+        self.resumed_from_main()
         self.act("act_on_upload", HOST, {"id": pic, "action": "approve"})
         self.assertEqual(self.s.snapshot(self.bo)["questionPics"], {"Q1": [pic]})
         self.act("set_removed", HOST, {"pid": self.ann, "on": True})
         self.assertNotIn("questionPics", self.s.snapshot(self.bo))
         self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": pic}).http, 404)
+
+    def test_a_picture_pasted_on_main_and_never_sent_stays_private_after_the_upgrade(self):
+        # (a) main recorded the qid of a form's paste, but no draft mark: from #8420 on it is carried, never loose
+        own, pic = self.received_on_q1(HOST, "pasted-20261019150000.png"), self.received_on_q1(self.ann, "pasted-20261019150100.png")
+        late = session.migrate.ATTACH_PASTE_AT + 60
+        self.resumed_from_main({own: late, pic: late})
+        for viewer in (HOST, self.ann, self.bo):
+            self.assertNotIn("questionPics", self.s.snapshot(viewer))
+        self.assertNotIn(own, self.s.snapshot(self.bo)["files"])
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": own}).http, 404)
+        self.assertEqual(self.s.upload_image(HOST, {"id": own})["id"], own)
+        self.assertEqual(next(u for u in self.s.snapshot(self.ann)["myUploads"] if u["id"] == pic).get("carried"), True)
+
+    def test_a_main_picture_whose_hidden_record_goes_away_stays_hidden(self):
+        # (c) one from before #8420 on a hidden answer at the upgrade, cleared after it; and one from after #8420 whose
+        # hidden comment was deleted before it, so no record names it any more
+        early, late = self.received_on_q1(self.ann, "a.png"), self.received_on_q1(self.ann, "b.png")
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Ann's", "view": "focus", "attachments": [early]})
+        c = self.act("comment", self.ann, {"qid": "Q1", "text": "Mine", "attachments": [late]})["id"]
+        for uid in (early, late):
+            self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
+        self.act("hide_card", HOST, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.act("hide_comment", HOST, {"qid": "Q1", "id": c, "on": True})
+        self.act("delete_comment", self.ann, {"qid": "Q1", "id": c})
+        self.resumed_from_main({late: session.migrate.ATTACH_PASTE_AT + 60})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus"})
+        self.assertFalse([r for _, r in session._attaching(self.s.state) if {early, late} & set(r.get("attachments", ()))])
+        for viewer in (HOST, self.ann, self.bo):
+            self.assertNotIn("questionPics", self.s.snapshot(viewer))
+        for uid in (early, late):
+            self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
+
+    def test_an_upgraded_upload_with_no_usable_time_is_carried(self):
+        # fail safe: an `at` no server could have written before #8420 makes the upload private
+        uid = self.received_on_q1(HOST, "h.png")
+        self.resumed_from_main({uid: -1.0})
+        self.assertEqual(next(u for u in self.s.state["uploads"] if u["id"] == uid).get("carried"), True)
+        self.assertNotIn("questionPics", self.s.snapshot(self.bo))
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
 
     def test_each_form_keeps_its_attachments(self):
         uid = self.offered_and_accepted(self.ann)
