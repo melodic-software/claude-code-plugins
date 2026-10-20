@@ -1175,7 +1175,7 @@ set, the incident status, the last merge, or the day for a ceiling. The newest i
 decides: open with the same fingerprint, nothing is written; open with a new one, a comment carries
 the evidence and the marker records it; closed as not planned, the key is muted; closed as completed,
 a new issue is filed only on new evidence, or for `main-red` on a failed run that started after the
-close, naming the old one. Issues of every age are read, so a quiet key stays open or muted. It files at most 8 issues a run,
+close, naming the old one. Issues of every age are read, page by page until a short page, so a quiet key stays open or muted; a run that spends its call budget there stops before writing. It files at most 8 issues a run,
 labeled `needs-triage` and `source: factory-monitor` where those labels exist, writes 1 s apart,
 and stops at 250 REST calls. A source it cannot read is listed in the step summary and the other
 signals still run.

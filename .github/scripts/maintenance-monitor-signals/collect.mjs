@@ -12,7 +12,6 @@ export const LIMITS = {
   mainFailedJobs: 5,
   mergeGroupRuns: 10,
   sweepArtifacts: 5,
-  issuePages: 5,
 };
 export const AUDIT_WORKFLOWS = ["maintenance-audit-test-selection", "maintenance-check-upstream-drift"];
 // Pull-request and merge-group runs hold no lane token, and a merge-group
@@ -242,11 +241,12 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
 
 // Issues the lane filed: github-actions[bot]'s, any state and any age, newest
 // first. The lane writes nothing while evidence is unchanged, so an update-time
-// cutoff would drop a quiet open or muted key. The caller keeps those carrying
-// the marker.
+// cutoff would drop a quiet open or muted key, and a page cap would drop the
+// oldest. Paging stops at a short page; the call budget bounds it, and spending
+// it throws before any write. The caller keeps those carrying the marker.
 export async function listFiled({ get, repo }) {
   const out = [];
-  for (let page = 1; page <= LIMITS.issuePages; page += 1) {
+  for (let page = 1; ; page += 1) {
     const batch = await get(
       `/repos/${repo}/issues?creator=${encodeURIComponent("github-actions[bot]")}&state=all&sort=created&direction=desc&per_page=100&page=${page}`,
     );

@@ -297,3 +297,17 @@ test("listFiled keeps an issue the lane has not touched for over 30 days", async
   ]);
   assert.deepEqual((await listFiled({ get: api.get, repo, now })).map((i) => i.number), [7]);
 });
+
+test("listFiled reads past 500 newer bot issues to an older muted one", async () => {
+  const muted = { number: 1, state: "closed", state_reason: "not_planned", body: "<!-- factory-monitor key=k fp=f -->" };
+  const issues = [...Array.from({ length: 500 }, (_, i) => ({ number: 1000 + i, body: "unrelated" })), muted];
+  const api = fakeApi([
+    [/\/issues\?/, (path) => {
+      const page = Number(/[?&]page=(\d+)/.exec(path)[1]);
+      return issues.slice((page - 1) * 100, page * 100);
+    }],
+  ]);
+  const filed = await listFiled({ get: api.get, repo });
+  assert.equal(filed.length, 501);
+  assert.ok(filed.some((i) => i.number === 1));
+});
