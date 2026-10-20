@@ -34,9 +34,21 @@
 #        editing another author's comment is neither possible via the API nor
 #        intended, and a single writer identity owns a given marker.
 #
+# WRITE IDENTITY (fallback tier only). "My comments" is the lanes' write identity,
+# resolved in the order restart-consumer.sh and the babysit-loop upsert use:
+#   1. `gh api user` reports a User: that login (a personal or machine-user token).
+#   2. that call fails or reports a Bot: SLUG[bot] from --app-slug SLUG.
+#   3. a Bot report with no --app-slug: the reported login, plus `[bot]` when
+#      missing.
+# Anything else, or a login outside [A-Za-z0-9_-] plus an optional [bot], exits 4
+# before anything is written: creating a comment because the existing one could
+# not be recognised is the duplicate this script exists to prevent. A primary-tier
+# sentinel hit needs no identity and never resolves one.
+#
 # Usage:
 #   telemetry-upsert.sh --issue N --marker STR --body-file PATH
-#                       [--body-dir DIR] [--repo owner/name] [--dry-run]
+#                       [--body-dir DIR] [--repo owner/name] [--app-slug SLUG]
+#                       [--dry-run]
 #
 #   --issue N        Tracking issue number (required).
 #   --marker STR     Marker id, [A-Za-z0-9:@._-]+ (required).
@@ -56,7 +68,10 @@
 #   --repo owner/name  Target repo (default: `gh repo view` for the cwd's repo).
 #                    Validated as owner/repo before URL interpolation so a
 #                    traversal value can't redirect the API to another repo.
-#   --dry-run        Resolve + report the action (create/update + target id) but
+#   --app-slug SLUG  The GitHub App whose installation token gh runs under; the
+#                    fallback then reads comments written by SLUG[bot]. Must be
+#                    a GitHub App slug ([a-z0-9][a-z0-9-]*), else exit 3.
+#   --dry-run       Resolve + report the action (create/update + target id) but
 #                    perform no write.
 #   --help
 #
@@ -125,7 +140,8 @@
 #   3  invalid argument (bad issue/marker/repo, body-file outside the safe dir),
 #      or a body that failed the pre-write gate (over the size cap, under the
 #      size floor, or starting with a literal `@`) — NOTHING was written
-#   4  prerequisite missing (gh or jq), or the repo / safe body dir unresolved
+#   4  prerequisite missing (gh or jq), or the repo / safe body dir / write
+#      identity unresolved (nothing was written)
 #   5  a gh API call (list / create / update) failed
 #   6  the write went through but its read-back did not verify (or could not be
 #      performed) — the comment on the issue is NOT confirmed telemetry
@@ -158,6 +174,7 @@ MARKER=""
 BODY_FILE=""
 BODY_DIR=""
 REPO=""
+APP_SLUG=""
 DRY_RUN=0
 while (($#)); do
   case "$1" in
@@ -206,6 +223,15 @@ while (($#)); do
     REPO="${1#*=}"
     shift
     ;;
+  --app-slug)
+    require_value "$@"
+    APP_SLUG="$2"
+    shift 2
+    ;;
+  --app-slug=*)
+    APP_SLUG="${1#*=}"
+    shift
+    ;;
   --dry-run)
     DRY_RUN=1
     shift
@@ -241,6 +267,10 @@ done
   err "--body-file is required"
   exit 3
 }
+if [[ -n "$APP_SLUG" && ! "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  err "--app-slug must be a GitHub App slug, got: $APP_SLUG"
+  exit 3
+fi
 
 # Read the body. `-` reads stdin (a body generated in memory — no arbitrary-file
 # read, so it is exempt from the containment check below). A real path must
@@ -344,6 +374,24 @@ fi
   exit 3
 }
 
+# The login whose comments count as mine (WRITE IDENTITY in the header). Returns 1
+# when none resolves; the caller writes nothing.
+WRITE_IDENTITY=""
+resolve_write_identity() {
+  local who=""
+  if who="$(gh api user --jq '.login + " " + .type' 2>/dev/null | tr -d '\r')" && [[ "$who" == *" User" ]]; then
+    WRITE_IDENTITY="${who% User}"
+  elif [[ -n "$APP_SLUG" ]]; then
+    WRITE_IDENTITY="${APP_SLUG}[bot]"
+  elif [[ "$who" == *" Bot" ]]; then
+    WRITE_IDENTITY="${who% Bot}"
+    [[ "$WRITE_IDENTITY" == *"[bot]" ]] || WRITE_IDENTITY+="[bot]"
+  else
+    return 1
+  fi
+  [[ "$WRITE_IDENTITY" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*(\[bot\])?$ ]]
+}
+
 # --- List existing comments (paginated, raw) ---------------------------------
 # Fetch raw JSON and select in-script rather than via `gh --jq`, so the whole
 # two-tier detection is one auditable jq program. With no `--jq`, `gh` merges
@@ -376,17 +424,18 @@ detect="sentinel"
 # play, `lane:triage` must not adopt `lane:triage@laptop-a`'s comment, and
 # `lane:work@a` must not adopt `lane:work@a@b`'s.
 if [[ -z "$target_id" ]]; then
-  me="$(gh api user --jq '.login' 2>/dev/null | tr -d '\r')"
-  if [[ -n "$me" ]]; then
-    target_id="$(jq -r --arg m "$MARKER" --arg me "$me" '
-      ($m | gsub("[.]"; "\\.")) as $mre
-      | [ .[]
-          | select((.user.login // "") == $me
-              and ((.body // "") | test("(?<![A-Za-z0-9:@._-])" + $mre + "(?![A-Za-z0-9:@._-])"))) ]
-      | sort_by(.created_at) | last | .id // empty
-    ' <<<"$comments")"
-    [[ -n "$target_id" ]] && detect="marker-fallback"
-  fi
+  resolve_write_identity || {
+    err "cannot resolve the lanes' write identity (gh api user failed or reported no User); pass --app-slug under an App token. Nothing was written."
+    exit 4
+  }
+  target_id="$(jq -r --arg m "$MARKER" --arg me "$WRITE_IDENTITY" '
+    ($m | gsub("[.]"; "\\.")) as $mre
+    | [ .[]
+        | select((.user.login // "") == $me
+            and ((.body // "") | test("(?<![A-Za-z0-9:@._-])" + $mre + "(?![A-Za-z0-9:@._-])"))) ]
+    | sort_by(.created_at) | last | .id // empty
+  ' <<<"$comments")"
+  [[ -n "$target_id" ]] && detect="marker-fallback"
 fi
 
 # --- Act ---------------------------------------------------------------------
