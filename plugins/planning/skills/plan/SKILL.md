@@ -40,7 +40,7 @@ For multi-step planning (almost always steps 1-5), copy `templates/checklist.md`
 
 **Skip when:** the one-sentence skip (Purpose) applied, so no plan is written. On a mid-flight `review` replan, append a dated scope-change note and revise the PLAN phases instead; do not spawn a second checklist file.
 
-For **non-trivial / multi-layer** plans, Step 2 walks its design-default checklist **against the plan**: confirm the plan carries the resolved threads in PLAN.md's `## Design` section (and the design artifacts behind it) rather than re-deriving the axes. Configurability, extension points, observability, and testability are design threads owned by `/planning:design`'s "Design defaults"; type-collaboration shape is its type modeling. Audit that the plan carries their resolutions, don't re-open them. Magic-literal hygiene stays plan's own review check against the consuming project's review conventions when it declares them.
+For **non-trivial / multi-layer** plans, Step 2 walks its design-default checklist **against the plan**: confirm the plan carries the resolved threads in PLAN.md's `## Design` section (and the design artifacts behind it) rather than re-deriving the axes. Configurability, extension points, observability, and testability are design threads owned by `/planning:design`'s "Design defaults"; type-collaboration shape is its type modeling. The principle and lifecycle-and-reversibility threads `/planning:design-handoff` requires are audited the same way: resolved, directional or tagged-deferred (at quality bar `prototype`, named as deferred); a missing one routes back through `/planning:design-handoff`, except under an early-exit `design-resolution.md`, which carries neither. Audit that the plan carries their resolutions, don't re-open them. When a phase is tagged for a phase-boundary review, confirm the Brief carries a `Quality bar:` line: that review rates at it ([context/plan-template.md](context/plan-template.md) "Phase Review tags"). Magic-literal hygiene stays plan's own review check against the consuming project's review conventions when it declares them.
 
 ## Action Router
 
@@ -80,7 +80,7 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" <PLAN.md>` and r
 
 Checked by reading, or by their own script:
 
-- **Every brief scope-item maps to a phase**. No scope-item silently dropped, no in-scope phase missing.
+- **Every brief acceptance criterion maps to a phase, and no phase does Out-of-scope work**. Walk the Brief's Acceptance criteria and Out-of-scope sections: each criterion lands in at least one phase, and no phase does work the Brief lists as Out-of-scope.
 - **Each tag has its own row**. Every tagged decision appears in that table with its what-it-changes column filled; below-bar decisions were interviewed, not decided. The script maps only tags that carry an id; a bare tag passes with a `warning=bare-tag` line, so map those by reading.
 - **Displaced answers are listed at Step 5**. When an interview ledger exists, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>`. It passes when the verdict reports `open=0` and `superseded=N` (exit 1 is expected when N > 0) and every id on the ledger's `| superseded-by-plan |` rows (the verdict prints only the count) appears in the Step 5 "Displaced answers and new external effects" block.
 
@@ -126,6 +126,7 @@ Step 5, the approval gate, is placed with the gates above so a compaction re-att
 Prefer the simplest plan that works and keep each step's changes surgical. Before planning, verify:
 
 - **Is the effort coherent enough to plan?** If the work is too big to hold at once AND still too foggy to phrase as sharp decisions (questions you can't yet state, not just unanswered ones), `/planning:plan` is premature. Guide the user to `/planning:wayfind` when an interview of the effort already outgrew one session, else to `/planning:interview` first; recommend, never auto-switch. Skip when the effort is scoped and the open items are answerable questions
+- **Is the problem established?** A Brief with a `### Problem` is read, and the plan's Goal must serve it. Absent, establish it before Step 2, or recommend `/planning:interview` (never forced): [`${CLAUDE_PLUGIN_ROOT}/context/problem-framing.md`](../../context/problem-framing.md). Its `time_units` user layer is `${user_config.time_units}` (unexpanded means unset)
 - **Is product intent clear?** For product-driven feature work (new user-facing surface, business-driven change, cross-team initiative), check that `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`) exists OR that problem/users/success-metrics are crisp in conversation. If fuzzy, suggest `/planning:prd` first. Skip for engineering-internal work (refactors, infra, hooks, conventions, bug fixes)
 - **Has exploration been done?** If the conversation holds no exploration findings for the area, suggest the exploration capability first (`/discovery:explore` if enabled)
 - **Has research been done?** If technical claims the plan relies on lack external research, suggest the research capability first (`/discovery:research` if enabled)

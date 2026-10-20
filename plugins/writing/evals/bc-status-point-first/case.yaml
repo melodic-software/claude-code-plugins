@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: bc-status-point-first
+graders:
+  - name: point-first
+    type: regex
+    pattern: '^(?:(?!\bstandup\b|\bSeptember\b|\bkicked (?:things )?off\b|\bpilot stores\b)[\s\S])*?\bpaus(?:e|ed|es|ing)\b'
+    flags: i
+    target: last_message
+  - name: counts-reported
+    type: regex
+    pattern: '^(?=[\s\S]*\bwords?\b)[\s\S]*?(?:\bbefore\b[^\n]{0,40}?\b\d{2,4}\b[\s\S]{0,160}?\bafter\b[^\n]{0,40}?\b\d{2,4}\b|\b\d{2,4}\s*(?:words?\s*)?\(?before\b[\s\S]{0,120}?\b\d{2,4}\s*(?:words?\s*)?\(?after\b|\b\d{2,4}\s*words?\s*(?:->|→|to)\s*\d{2,4}\s*words?|\bbefore\b[^\n]*\n[^\n]*\n[^\n]*\b\d{2,4}\b[^\n]*\n[^\n]*\bafter\b[^\n]*\b\d{2,4}\b|\bbefore\b[^\n]*\b\d{2,4}\b[^\n]*\n[^\n]*\bafter\b[^\n]*\b\d{2,4}\b|\b(?:original|draft)\b[^\n]{0,40}?\b\d{2,4}\b[\s\S]{0,120}?\b(?:rewrite|rewritten|reshaped|revised|new)\b[^\n]{0,40}?\b\d{2,4}\b)'
+    flags: i
+    target: last_message
+  - name: no-percentage
+    type: regex
+    pattern: '\d\s?%|\d\s?per ?cent\b'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: floor-kept
+    type: regex
+    pattern: '^(?=[\s\S]*\b18\b)(?=[\s\S]*\bduplicate\b)(?=[\s\S]*(?:\bNov(?:ember)?\.? 3\b|\b11/3\b|2026-11-03))(?=[\s\S]*(?:\bOct(?:ober)?\.? 28\b|\b10/28\b|2026-10-28))(?=[\s\S]*\b(?:6|six)\s+(?:test\s+)?stores?\b)(?=[\s\S]*\bstore ops\b)'
+    flags: i
+    target: last_message

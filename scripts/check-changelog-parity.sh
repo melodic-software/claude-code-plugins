@@ -107,7 +107,8 @@
 #     alone, and check-changelog-fragments.sh --check-required asks it for a
 #     fragment instead. This repository lists every plugin, so the per-PR rules
 #     run only on the release pull request; an unlisted plugin falls back to
-#     them.
+#     them. A listed convention (docs/conventions/<name>/) gets the same
+#     added-heading check.
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
 # scripts/changelog-parity-baseline.txt (same stale-guarded idiom as
@@ -130,7 +131,9 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 # CHANGELOG_PARITY_ROOT checks another tree with this copy's code: the
 # Dependabot bump runs main's scripts against the pull request's checkout.
-cd "${CHANGELOG_PARITY_ROOT:-$SCRIPT_DIR/..}" || exit 2
+# Failing that, CHECK_DATA_ROOT names the tree to check, as it does for the rest
+# of the family (the pre-push hook runs a merge-base copy against the branch).
+cd "${CHANGELOG_PARITY_ROOT:-${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}}" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 # shellcheck source=lib/changed-files.sh
@@ -751,6 +754,23 @@ for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
   if [[ -n "$added_versions" && "$changelog" == plugins/* ]]; then
     rest="${changelog#plugins/}"
     added_headings["${rest%%/*}"]="$added_versions"
+  fi
+  # A listed convention has no manifest, so its heading is its version: only
+  # the release pull request may add one.
+  if [[ -n "$added_versions" && -z "$release_pr" && "$changelog" == docs/conventions/* ]]; then
+    rest="${changelog#docs/conventions/}"
+    name="${rest%%/*}"
+    changelog_fragments::in_mode "$name"
+    case $? in
+    0)
+      if [[ "$(changelog_fragments::root_of "$name")" == "docs/conventions/$name" ]]; then
+        echo "FRAGMENT-MODE RELEASE: $name is in fragment mode ($CF_LIST) but this change set adds the version heading(s) ${added_versions% } to $changelog." >&2
+        fragment_release=$((fragment_release + 1))
+      fi
+      ;;
+    1) ;;
+    *) exit 2 ;;
+    esac
   fi
   if [[ -n "$added_versions" ]]; then
     while read -r added copied; do

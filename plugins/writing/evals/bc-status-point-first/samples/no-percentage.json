@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Self-checkout rollout is paused at the 18 live stores.** Wave 3, planned for November 3, will not start until the receipt printer fix is in.\n\n- **Why:** a printer firmware bug prints duplicate receipts when a card payment times out.\n- **Next:** the vendor expects a patched build by October 28.\n- **Ask:** store ops, confirm which 6 stores can host a test install before we resume.\n\nBefore: 186 words. After: 72 words."
+    },
+    {
+      "answer": "Paused: no new self-checkout stores past today's 18; Nov 3 wave 3 is on hold.\n\nCause is a receipt-printer firmware fault (duplicate receipts on timed-out card payments). Vendor patch due Oct 28. Store ops: please name six stores that can take a test install before we restart.\n\n| Version | Words |\n|---|---|\n| Original | 186 |\n| Reshaped | 58 |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Self-checkout rollout is paused at the 18 live stores.** Wave 3, planned for November 3, will not start until the receipt printer fix is in.\n\n- **Why:** a printer firmware bug prints duplicate receipts when a card payment times out.\n- **Next:** the vendor expects a patched build by October 28.\n- **Ask:** store ops, confirm which 6 stores can host a test install before we resume.\n\nBefore: 186 words. After: 72 words, about 61% shorter."
+    },
+    {
+      "answer": "**Self-checkout rollout is paused at the 18 live stores.** Wave 3, planned for November 3, will not start until the receipt printer fix is in.\n\n- **Why:** a printer firmware bug prints duplicate receipts when a card payment times out.\n- **Next:** the vendor expects a patched build by October 28.\n- **Ask:** store ops, confirm which 6 stores can host a test install before we resume.\n\nWord count fell 61 percent."
+    }
+  ]
+}

@@ -1,11 +1,13 @@
 ---
-description: "Scan lines and make structure serve meaning with Pat Pattison's methods. Meter (scansion, Paradigms I/II/III, Pentad, Goldilocks, the 'into' rule, In Memoriam quatrain, pitch-stress), prosody (motion-emotion, greedy spots, tone-of-voice, three phrasing types), section stability (stable/unstable scan), and lyric-melody alignment. Use when: 'scan this line', 'can this be common meter', 'is this verse stable or unstable', 'my words don't fit the music', 'greedy spot in line 2', 'set lyrics to this tune', 'does my song feel right'. For song sections/form use /songwriting:song-form; for rhyme use /songwriting:rhyme."
+description: "Make structure serve meaning with Pat Pattison's methods: meter (scansion, Paradigms I/II/III, Pentad, Goldilocks, the 'into' rule, In Memoriam, pitch-stress), prosody (motion-emotion, greedy spots, tone-of-voice, three phrasing types), section stability and lyric-melody fit. Use when: 'scan this line', 'can this be common meter', 'is this verse stable or unstable', 'my words don't fit the music', 'greedy spot in line 2', 'set lyrics to this tune', 'does my song feel right'. For song sections/form use /songwriting:song-form; for rhyme use /songwriting:rhyme."
 argument-hint: "[meter|prosody|phrasing|stability|align-melody] [args]"
 user-invocable: true
 disable-model-invocation: false
 ---
 
-**Arguments.** `[meter|prosody|phrasing|stability|align-melody] [args]`. e.g., /songwriting:meter-prosody meter "...", /songwriting:meter-prosody stability chorus Full actions in body
+**Arguments.** `[meter|prosody|phrasing|stability|align-melody] [args]`. e.g.,
+/songwriting:meter-prosody meter "...", /songwriting:meter-prosody stability chorus. Full actions in
+body.
 
 ## Mandatory pre-flight. Response Filter
 
@@ -14,15 +16,14 @@ Before emitting a scansion verdict, stability call, phrasing judgment, or any re
 (add **§2 Line-writing** when producing lines). NAME each box's pass / fail / skip-with-reason
 (aloud or in reasoning); correct before emission. Skips are valid; silent skips are not.
 
-§3 is the filter for findings delivered on a draft, which is what this skill emits. §6 Form is
-NOT the gate here: its boxes decide song shape. Chorus versus refrain, whether a bridge is
-needed, and this skill's own boundary forbids it from making that call.
+§3 is the filter for findings delivered on a draft, which is what this skill emits. §6 Form is NOT
+the gate here: its boxes decide song shape (chorus versus refrain, whether a bridge is needed), and
+this skill's own boundary forbids it from making that call.
 
 ## Purpose
 
-The sound-and-motion layer: whether the number, placement, and stress of syllables, and the
-stability of each section, support the meaning and emotion. Covers scansion, prosody, phrasing,
-stable/unstable analysis, and fitting lyric to melody.
+Scope: whether the number, placement and stress of syllables, and the stability of each section,
+support the meaning and emotion.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
 author's method plugs in at `context/<author>/` without changing this skill, the author seam per
@@ -30,8 +31,10 @@ the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
 
-`/songwriting:meter-prosody <action> [args]`. Parse `$ARGUMENTS`: first token = action when it matches a listed action, remainder = args; otherwise treat all of `$ARGUMENTS` as payload for the default.
-No action → route on context (a pasted line → `meter`; a "does this feel right" → `stability`).
+`/songwriting:meter-prosody <action> [args]`. Parse `$ARGUMENTS`: first token = action when it
+matches a listed action, remainder = args; otherwise treat all of `$ARGUMENTS` as payload for the
+default. No action → route on context (a pasted line → `meter`; a "does this feel right" →
+`stability`).
 
 | Action | Use when the user asks for | Load |
 | --- | --- | --- |
@@ -43,23 +46,24 @@ No action → route on context (a pasted line → `meter`; a "does this feel rig
 
 ## Handlers
 
-- **Pre-flight:** run response-filter §3 (+ §2 when producing lines) before output.
-- Scan concretely: mark stresses, name the paradigm, and say what the meter does FOR the meaning, not scansion for its own sake.
+- Scan concretely: mark stresses, name the paradigm, and say what the meter does FOR the meaning,
+  not scansion for its own sake.
 - Stability is a tool, not a verdict: name whether a section reads stable or unstable and whether
   that serves the section's job; the writer chooses.
 - Stress-alignment failures route through `align-melody` + `prosody`. Name the frame, because the
   scope differs:
-  - **Lyric against a model lyric** (matching verse 2 to verse 1): "greed" is one-directional: a stressed syllable forced into a position the model leaves unstressed. The chapter's other
-    failure, "too cold," is **not** a mirror-image stress error and is not a stress error at all:
-    the stresses land correctly and the strong positions carry filler. Do not scan for it; no
-    stress check finds it. Read what stands on each strong position instead.
+  - **Lyric against a model lyric** (matching verse 2 to verse 1): "greed" is one-directional: a
+    stressed syllable forced into a position the model leaves unstressed. The chapter's other
+    failure, "too cold," is **not** a mirror-image stress error and not a stress error at all: the
+    stresses land correctly and the strong positions carry filler. No stress check finds it, so do
+    not scan for it; read what stands on each strong position instead.
   - **Lyric against a melody**: a mismatch in *either* direction is a greedy spot, a stressed
-    syllable on a weak beat, or an unstressed syllable riding a strong one. Both distort the
-    natural shape of the language.
+    syllable on a weak beat or an unstressed syllable riding a strong one. Both distort the natural
+    shape of the language.
 - Replacement lines over an already-sung melody (demo, cover, AI-generated track) get a
   **positional template** first: the sung line's syllables numbered with its stressed slots
   bracketed, per [meter](../../context/pat-pattison/research/meter.md) "fitting a replacement line
-  to an already-sung melody". Matching the stress COUNT is not fitting, the positions are the
+  to an already-sung melody". Matching the stress COUNT is not fitting: the positions are the
   template, and the singer's actual phrasing outranks the inferred grid. This skill emits the
   template, never the fitted line; the line goes to `/songwriting:co-write` per the boundary table
   below.
@@ -67,11 +71,11 @@ No action → route on context (a pasted line → `meter`; a "does this feel rig
 ## Persistence and template overrides
 
 Write generated files to the paths in
-[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)
-"Where generated work persists", and honor a consuming project's own songwriting layout when it
-defines one. Before loading any bundled `templates/<name>.md`, check
+[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md) "Where
+generated work persists", and honor a consuming project's own songwriting layout when it defines
+one. Before loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
-override wins over the bundled skill default, first match, per that file's "Template override".
+override wins over the bundled default, first match, per that file's "Template override".
 
 ## Boundary. What this skill must NOT emit
 
@@ -85,10 +89,9 @@ fix a bad scan.
 | A judgment that a section is the wrong length or shape | `/songwriting:song-form` |
 
 **Measure in stressed syllables, never raw syllables.** Line length in this method is the count of
-stressed syllables; a raw-syllable count is a different measurement that answers a different
-question. Reporting one as the other invents symmetry that is not there. A chorus that reads 8/9/9/8
-by raw syllables can be 3/4/3/3 by stress, and the symmetry the raw count showed does not exist.
-If the stress map has not been marked, the length claim has not been made: mark it, or say the box
+stressed syllables; a raw-syllable count answers a different question, and reporting one as the
+other invents symmetry. A chorus that reads 8/9/9/8 by raw syllables can be 3/4/3/3 by stress. If
+the stress map has not been marked, the length claim has not been made: mark it, or say the box
 was skipped.
 
 ## Related skills

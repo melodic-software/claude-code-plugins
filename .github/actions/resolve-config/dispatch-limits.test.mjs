@@ -35,7 +35,29 @@ function baseWith(text) {
   return base;
 }
 
-const api = (dispatched) => ({
+// The lanes App bot's user id (.github/standards/trusted-actors/trusted-actors.json).
+const LANES_APP = 337595936;
+// Lanes App PRs whose head's ci-status failed, as fix-ci-dispatch.mjs lists them.
+const ciFixPull = (number) => {
+  const head = String(number).padStart(40, "c");
+  const ciStatus = { __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } };
+  return {
+    number,
+    isDraft: false,
+    isCrossRepository: false,
+    baseRefName: "main",
+    headRefOid: head,
+    author: { databaseId: LANES_APP },
+    labels: { nodes: [] },
+    commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [ciStatus] } } } }] },
+  };
+};
+
+const api = (dispatched, ciFixPulls = []) => ({
+  listCiFixCandidates: async () => ({
+    rateLimit: { cost: 1, remaining: 4999 },
+    pullRequests: { nodes: ciFixPulls, pageInfo: { hasNextPage: false, endCursor: null } },
+  }),
   listOpenPulls: async () => ({
     nodes: [{ number: 40, isDraft: false, isCrossRepository: false, mergeable: "CONFLICTING", baseRefName: "main", headRefOid: HEAD }],
     pageInfo: { hasNextPage: false, endCursor: null },
@@ -49,15 +71,15 @@ const api = (dispatched) => ({
   },
 });
 
-async function run(text) {
+async function run(text, ciFixPulls = []) {
   const base = baseWith(text);
   const output = join(base, "output");
   writeFileSync(output, "");
   const dispatched = [];
   try {
     const code = await main(
-      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: output, BASE_PATH: base },
-      { api: api(dispatched), sleep: async () => {}, log: () => {}, now: Date.parse("2026-10-17T12:00:00Z") },
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: output, BASE_PATH: base, APP_SENDER_ID: String(LANES_APP) },
+      { api: api(dispatched, ciFixPulls), sleep: async () => {}, log: () => {}, now: Date.parse("2026-10-17T12:00:00Z") },
     );
     return { code, dispatched };
   } finally {
@@ -76,13 +98,21 @@ test("the base config's limits.limit-stops-per-head decides whether a reset limi
   assert.deepEqual(await run(withLimit("limit-stops-per-head: 1")), { code: 0, dispatched: [] });
 });
 
+test("the base config's limits.fix-ci-per-run caps the fix-ci dispatches", async () => {
+  const pulls = [ciFixPull(51), ciFixPull(52), ciFixPull(53)];
+  assert.match(LIVE, /^ {2}fix-ci-per-run: 2$/m, "the live config sets the per-run cap");
+  assert.deepEqual(await run(LIVE, pulls), { code: 0, dispatched: ["40", "51", "52"] });
+  const one = LIVE.replace(/^ {2}fix-ci-per-run: 2$/m, "  fix-ci-per-run: 1");
+  assert.deepEqual(await run(one, pulls), { code: 0, dispatched: ["40", "51"] });
+});
+
 test("a base config the resolver refuses fails the run before any dispatch", async () => {
   const dispatched = [];
   const base = baseWith(withLimit("limit-stops-per-head: 0"));
   try {
     await assert.rejects(
       main(
-        { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: join(base, "output"), BASE_PATH: base },
+        { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: join(base, "output"), BASE_PATH: base, APP_SENDER_ID: String(LANES_APP) },
         { api: api(dispatched), sleep: async () => {}, log: () => {} },
       ),
       /fails the schema/,

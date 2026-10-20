@@ -14,7 +14,9 @@ The placement rules above, the 1 s and 60 s lines among them, are this marketpla
 - **As of**: 2026-10-15
 - **Recheck trigger**: that section adds a matcher or `if` support, or stops firing once per batch of parallel tool calls.
 
-**Claim:** which needs only a mod meets. **Basis:** the "Compare mods, settings hooks, skills, and MCP servers" table in the [mods overview](https://code.claude.com/docs/en/plugins/mods/overview), fetched as raw markdown, and the `plugin-authoring` skill's "From the ask to the shape" table for status entries, toasts and tools. **As of:** 2026-10-03, Claude Code 2.1.288. **Recheck:** either "Pick it when" cell for mods or settings hooks changes, or a release lets a settings hook draw in the interface.
+- **Pointer**: when deciding whether a need calls for a mod rather than a settings hook, a skill or an MCP server, fetch [mods overview: compare mods, settings hooks, skills, and MCP servers](https://code.claude.com/docs/en/plugins/mods/overview#compare-mods-settings-hooks-skills-and-mcp-servers) live; for status entries, toasts and tools, read the built-in `plugin-authoring` skill's "From the ask to the shape" table.
+- **As of**: 2026-10-18
+- **Recheck trigger**: either "Pick it when" cell for mods or settings hooks changes, or a release lets a settings hook draw in the interface.
 
 **MCP Servers**: For each external service the repo interacts with:
 

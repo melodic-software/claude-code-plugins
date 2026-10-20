@@ -15,7 +15,7 @@ import re
 import secrets
 import time
 
-CURRENT = 3
+CURRENT = 6
 MIGRATIONS = {}
 
 PROTOTYPE_KEYS = frozenset({"questions", "answers", "ideas", "people", "secrets", "round"})
@@ -34,6 +34,7 @@ MIN_OWNER_TOKEN = 16  # the prototype's owner token is token_urlsafe(12): 16 cha
 MAX_URL = 2000
 URL = re.compile(r"https?://\S+", re.IGNORECASE)  # a link, as every v1 write route takes one
 IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")  # an image asset's file name
+NOT_SHARED = "The owner did not share the result."  # session.py: a discarded result's request fails with this reason
 OTHER_OPTION = {"id": "other", "label": "Something else…", "other": True}  # the server adds it to every choice question
 
 
@@ -793,6 +794,7 @@ def mention_texts(doc):
         out += [(s, "text"), (s, "note")]
     out += [(q, "text") for q in _list(doc.get("questions")) if _dict(_dict(q).get("origin")).get("kind") == "host"]
     out += [(r, "text") for key in ("proposals", "chat", "annotations", "requests") for r in _list(doc.get(key))]
+    out += [(c, "text") for lst in _dict(doc.get("discussions")).values() for c in _list(lst)]
     out += [(m["replyTo"], "excerpt") for m in _list(doc.get("chat")) if isinstance(_dict(m).get("replyTo"), dict)]
     out += [(n, "body") for lst in _dict(doc.get("notifications")).values() for n in _list(lst) if _dict(n).get("kind") in ("mention", "reply")]
     return [(h, k) for h, k in out if isinstance(h, dict) and isinstance(h.get(k), str)]
@@ -833,3 +835,81 @@ def _v2_to_v3(doc, ctx):
 
 
 MIGRATIONS[2] = _v2_to_v3
+
+
+# -- 3 -> 4: the Inbox remembers what each person opened --------------------------------------
+
+
+def _v3_to_v4(doc, ctx):
+    """inboxSeen, with each person's own requests read at the status they have now, so the upgrade itself makes
+    nothing unread; what waits on the owner starts unread."""
+    results = {x.get("id"): x for lst in _dict(doc.get("results")).values() for x in _list(lst) if isinstance(x, dict)}
+    people = _dict(doc.get("people"))
+    seen = collections.defaultdict(dict)
+    for r in _list(doc.get("requests")):
+        status = _dict(_dict(r).get("status"))
+        kind, pid = status.get("kind"), r.get("pid")
+        if not isinstance(pid, str) or not isinstance(r.get("id"), str):
+            continue
+        if kind == "done":
+            res = _dict(results.get(status.get("result")))
+            by = _dict(res.get("by"))
+            # session.py's rule: a removed guest's own-Claude result leaves every view
+            gone = by.get("kind") == "guest-claude" and _dict(_dict(people.get(by.get("pid"))).get("status")).get("kind") != "active"
+            visible = bool(res) and not gone and (res.get("published") or pid == HOST or by.get("pid") == pid)
+            mark = "unshared" if not visible else "answered" if pid == HOST or not res.get("published") else "shared"
+        else:
+            mark = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}.get(kind)
+        if mark:
+            seen[pid][r["id"]] = mark
+    if seen:
+        ctx.note(f"inbox: {sum(map(len, seen.values()))} requests of {len(seen)} people start read")
+    return {**doc, "inboxSeen": dict(seen)}
+
+
+MIGRATIONS[3] = _v3_to_v4
+
+
+# -- 4 -> 5: a Discussion under each question ----------------------------------------------------
+
+
+def _v4_to_v5(doc, ctx):
+    """discussions (qid -> comments) and discussionSeen (pid -> qid -> when they last opened it), both empty."""
+    return {**doc, "discussions": {}, "discussionSeen": {}}
+
+
+MIGRATIONS[4] = _v4_to_v5
+
+
+# -- 5 -> 6: the owner's Inbox waits on requests Claude failed -------------------------------------
+
+
+def _v5_to_v6(doc, ctx):
+    """A request failed with the discard sentence is one the owner discarded: mark it cancelled, so the reason (text
+    Claude also writes) never decides it again. A guest's request Claude failed before this version starts read
+    (inboxSeen host fail:<id>), so the upgrade itself adds nothing to the owner's Needs you."""
+    people, n_cancelled, seen = _dict(doc.get("people")), 0, {}
+    requests = []
+    for r in _list(doc.get("requests")):
+        st = _dict(_dict(r).get("status"))
+        if st.get("kind") == "failed" and st.get("reason") == NOT_SHARED and not st.get("cancelled"):
+            r = {**r, "status": {**st, "cancelled": True}}
+            n_cancelled += 1
+        elif (st.get("kind") == "failed" and not st.get("cancelled") and r.get("runner") == "host" and r.get("pid") != HOST
+              and _dict(_dict(people.get(r.get("pid"))).get("status")).get("kind") == "active" and isinstance(r.get("id"), str)):
+            seen["fail:" + r["id"]] = "open"
+        requests.append(r)
+    out = {**doc}
+    if "requests" in doc:
+        out["requests"] = requests
+    if seen:
+        inbox = {**_dict(doc.get("inboxSeen"))}
+        inbox[HOST] = {**_dict(inbox.get(HOST)), **seen}
+        out["inboxSeen"] = inbox
+        ctx.note(f"inbox: {len(seen)} requests Claude failed start read for the owner")
+    if n_cancelled:
+        ctx.note(f"requests: {n_cancelled} discarded ones marked cancelled")
+    return out
+
+
+MIGRATIONS[5] = _v5_to_v6

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubApi, main, maxRoundsFrom, select, trustedHumansFrom } from "./address-feedback.mjs";
+import { createGitHubApi, currentThreads, main, maxRoundsFrom, select, trustedHumansFrom } from "./address-feedback.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -248,6 +248,107 @@ test("without needs-human nothing changes and no permission is read", async () =
   assert.deepEqual(api.permissionReads, []);
 });
 
+// The thread on #8031: the reviewer bot's finding, then the owner's fix
+// request, with no reply from the lanes App.
+function asked(replies, edits = {}) {
+  const rows = [[100, REVIEWER, "finding 100"], ...replies];
+  return {
+    reviewComments: rows.map(([id, user, body], i) => comment(id, user, { body, created_at: at(i) })),
+    threads: [
+      {
+        id: "PRRT_1",
+        isResolved: false,
+        comments: {
+          totalCount: rows.length,
+          nodes: rows.map(([id]) => ({ databaseId: id, lastEditedAt: edits[id] ? at(30) : null, editor: edits[id] ? { databaseId: edits[id] } : null })),
+        },
+      },
+    ],
+  };
+}
+
+test("with no escalation, a write-access trusted person's fix request is kept as direction", async () => {
+  const api = fakeApi(asked([[101, HUMAN, REQUEST]]));
+  const result = await run(api);
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.fixRequested, false);
+  assert.deepEqual(result.file.threads[0].comments, [
+    { id: 100, author: "reviewer", body: "finding 100" },
+    { id: 101, author: "trusted-human", direction: true, body: REQUEST },
+  ]);
+  assert.deepEqual(api.permissionReads, ["kyle-sexton"]);
+});
+
+test("with no escalation, a trusted comment before the fix request is context, not direction", async () => {
+  const result = await run(fakeApi(asked([[101, HUMAN, DECISION], [102, REVIEWER, "finding 102"], [103, HUMAN, REQUEST]])));
+  assert.deepEqual(
+    result.file.threads[0].comments.map((row) => [row.id, row.author, row.direction ?? false]),
+    [[100, "reviewer", false], [101, "trusted-human", false], [102, "reviewer", false], [103, "trusted-human", true]],
+  );
+});
+
+test("with no escalation, on a needs-human PR, a write-access trusted person's fix request is kept", async () => {
+  const result = await run(fakeApi({ ...asked([[101, HUMAN, REQUEST]]), labels: ["needs-human"] }));
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.fixRequested, true);
+});
+
+for (const [label, overrides] of [
+  ["an untrusted person's fix request", { ...asked([[101, STRANGER, REQUEST]]), permissions: { stranger: "admin" } }],
+  ["a trusted person's fix request without write access", { ...asked([[101, HUMAN, REQUEST]]), permissions: { "kyle-sexton": "read" } }],
+  ["a trusted person's reply that asks no fix", asked([[101, HUMAN, DECISION]])],
+  ["a fix request last edited by a stranger", asked([[101, HUMAN, REQUEST]], { 101: STRANGER })],
+  ["a stranger's comment beside a trusted fix request", asked([[101, HUMAN, REQUEST], [102, STRANGER, INJECTION]])],
+]) {
+  test(`with no escalation, ${label} is not kept`, async () => {
+    const result = await run(fakeApi(overrides));
+    assert.equal(result.decision, "skip");
+    assert.equal(result.skipReason, "not-applicable");
+  });
+}
+
+// #8031: the thread's review is on an earlier head than the one the markers name.
+const OLD_REVIEW = { reviews: [{ id: 10, user: { id: REVIEWER }, commit_id: OLD_HEAD }] };
+
+test("a fix request works a thread whose review is on an earlier head, in the select step and the re-read", async () => {
+  const api = fakeApi({ ...asked([[101, HUMAN, REQUEST]]), ...OLD_REVIEW });
+  const result = await run(api);
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.file.threads[0].review_commit, OLD_HEAD);
+  const { kept } = await currentThreads({ api, pr: 42, reviewerId: REVIEWER, appId: APP, trustedHumans: new Set([HUMAN]) });
+  assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
+});
+
+// #8233: the reviewer bot's finding, the lanes App's UNCERTAIN reply, then the
+// owner's fix request, all on a review of an earlier head.
+for (const [label, overrides] of [
+  ["a trusted reply to the lane's escalation", escalated()],
+  ["a trusted fix request after the lane's escalation", escalated({ replies: [[102, HUMAN, REQUEST]] })],
+]) {
+  test(`on an earlier head, ${label} is kept, in the select step and the re-read`, async () => {
+    const api = fakeApi({ ...overrides, ...OLD_REVIEW });
+    const result = await run(api);
+    assert.equal(result.decision, "proceed");
+    assert.equal(result.file.threads[0].review_commit, OLD_HEAD);
+    assert.equal(result.file.threads[0].comments.at(-1).direction, true);
+    const { kept } = await currentThreads({ api, pr: 42, reviewerId: REVIEWER, appId: APP, trustedHumans: new Set([HUMAN]) });
+    assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
+  });
+}
+
+for (const [label, overrides] of [
+  ["a reviewer-bot-only thread", {}],
+  ["an escalation answered by an untrusted person", escalated({ replies: [[102, STRANGER, REQUEST]] })],
+  ["an untrusted person's fix request", { ...asked([[101, STRANGER, REQUEST]]), permissions: { stranger: "admin" } }],
+  ["a fix request by a review another account submitted", { ...asked([[101, HUMAN, REQUEST]]), reviews: [{ id: 10, user: { id: HUMAN }, commit_id: OLD_HEAD }] }],
+]) {
+  test(`on an earlier head, ${label} is not kept`, async () => {
+    const result = await run(fakeApi({ ...OLD_REVIEW, ...overrides }));
+    assert.equal(result.decision, "skip");
+    assert.equal(result.skipReason, "not-applicable");
+  });
+}
+
 test("trustedHumansFrom reads only the people on the list", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "address-feedback-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -371,6 +472,55 @@ test("model-job check runs count rounds the reply job never recorded", async () 
     assert.equal(result.rounds, 1);
   }
 });
+
+// At the cap of 3, round markers posted at minute 10, a reviewer-bot thread
+// (PRRT_2) and a thread (PRRT_1) where `user` asked for a fix at `minute`.
+function pastCap({ user = HUMAN, minute = 20, body = REQUEST, rounds = 3, roundAt = at(10), checks, permissions } = {}) {
+  const reviewComments = [
+    comment(100, REVIEWER, { created_at: at(0) }),
+    comment(101, user, { body, created_at: at(minute) }),
+    comment(200, REVIEWER, { created_at: at(0) }),
+  ];
+  const issueComments = [
+    { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
+    ...Array.from({ length: rounds }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}`, created_at: roundAt })),
+  ];
+  const api = fakeApi({ reviewComments, issueComments, threads: [thread("PRRT_1", [100, 101]), thread("PRRT_2", [200])], checks, permissions });
+  return select({ api, pr: 42, headSha: HEAD, laneBranch: "lane-commits/x", repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), maxRounds: 3 });
+}
+
+test("at the cap, a write-access fix request newer than the last round runs one more round on its thread only", async () => {
+  const result = await pastCap();
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.rounds, 3);
+  assert.deepEqual(result.threads.map((row) => row.id), ["PRRT_1"]);
+  assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1"]);
+});
+
+test("below the cap, a fix request changes nothing: every kept thread runs", async () => {
+  const result = await pastCap({ rounds: 2, minute: 5 });
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1", "PRRT_2"]);
+});
+
+const check = (completedAt, conclusion = "success") => ({ name: "pr-unblock / address-feedback", conclusion, app: { slug: "github-actions" }, completed_at: completedAt });
+for (const [label, overrides] of [
+  ["a fix request older than the last round marker", { minute: 5 }],
+  ["a fix request older than the last round's model check run", { checks: { [HEAD]: [check(at(25))] } }],
+  ["a fix request older than a cancelled model run", { checks: { [HEAD]: [check(at(25), "cancelled")] } }],
+  ["a fix request older than a timed-out model run", { checks: { [HEAD]: [check(at(25), "timed_out")] } }],
+  ["a round with no readable time", { roundAt: null }],
+  ["an untrusted person's fix request", { user: STRANGER, permissions: { stranger: "admin" } }],
+  ["a trusted person's fix request without write access", { permissions: { "kyle-sexton": "read" } }],
+  ["a trusted person's newer reply that asks no fix", { body: DECISION }],
+]) {
+  test(`at the cap, ${label} escalates feedback-round-cap`, async () => {
+    const result = await pastCap(overrides);
+    assert.equal(result.decision, "escalate");
+    assert.equal(result.escalationReason, "feedback-round-cap");
+    assert.equal(result.file, undefined);
+  });
+}
 
 test("round markers count only when the lanes App posted them as the first line", async () => {
   const comments = [

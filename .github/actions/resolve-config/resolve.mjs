@@ -7,6 +7,7 @@ import { posix } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseDocument } from "yaml";
 
+import { checkDimensions, dimensionBudget, issueDimensions, parsePin } from "./dimensions.mjs";
 import { MissingFact, appliesAll, factsFor } from "./predicate.mjs";
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
@@ -234,6 +235,107 @@ function checkLeaves(activities, activityRules) {
   }
 }
 
+// The prepare mode an applied-by target must set, per key.
+const APPLIER_PREPARE = Object.freeze({ patch: "apply-patch" });
+
+// What the schema cannot check about `applied-by`: each target is a script
+// activity (a patch target one with prepare: apply-patch), and every lane that
+// holds the producer holds the target in a slot that needs the producer.
+function checkAppliedBy(doc) {
+  const reject = (message) => {
+    throw new Rejection("invalid-applied-by", message);
+  };
+  const handsOn = (activity) => !isComposite(activity) && isObject(activity["applied-by"]);
+  for (const [name, activity] of Object.entries(doc.activities)) {
+    for (const [key, target] of Object.entries(handsOn(activity) ? activity["applied-by"] : {})) {
+      const applier = Object.hasOwn(doc.activities, target) ? doc.activities[target] : undefined;
+      if (typeof applier?.script !== "string") {
+        reject(`activity \`${name}\` applied-by.${key} names \`${target}\`, which is not a script activity`);
+      }
+      const prepare = APPLIER_PREPARE[key];
+      if (prepare !== undefined && applier.prepare !== prepare) {
+        reject(`activity \`${name}\` applied-by.${key} names \`${target}\`, which does not set prepare: ${prepare}`);
+      }
+    }
+  }
+  for (const lane of Object.keys(doc.lanes)) {
+    const leaves = laneSlots(doc, lane);
+    for (const producer of leaves.filter((entry) => handsOn(entry.activity))) {
+      for (const [key, target] of Object.entries(producer.activity["applied-by"])) {
+        const applier = leaves.find((entry) => entry.name === target);
+        if (applier === undefined) {
+          reject(`lane \`${lane}\` holds \`${producer.name}\`, whose applied-by.${key} \`${target}\` is not in the lane`);
+        }
+        if (!applier.needs.includes(producer.name)) {
+          reject(`lane \`${lane}\` slot \`${target}\` applies \`${producer.name}\`'s ${key} and does not need it`);
+        }
+      }
+    }
+  }
+}
+
+// Every patch-rules.json row refuses these, so no row can admit them.
+const UNIVERSAL_REFUSE = Object.freeze([
+  "github",
+  "claude",
+  "mcp-config",
+  "gitmodules",
+  "settings",
+  "symlink",
+  "gitlink",
+  "new-executable",
+  "rename-into-refused",
+]);
+
+// patch-rules.json against its schema, which names every refusal and allow
+// rule apply-patch knows; then what the schema cannot check: each row refuses
+// the universal set, a two-parent commit allows exactly merge-result, and
+// each prepare mode a patch-producing activity uses has a row.
+export function checkPatchRules(patchRules, schema, activities = {}) {
+  const fail = (message) => {
+    throw new Rejection("patch-rules", message);
+  };
+  if (!isObject(patchRules) || !isObject(schema)) {
+    fail("patch-rules.json and patch-rules.schema.json must be present");
+  }
+  const validate = new Ajv2020({ allErrors: true, strict: false, validateFormats: false }).compile(schema);
+  if (!validate(patchRules)) {
+    fail(
+      `patch-rules.json fails its schema: ${validate.errors.map((error) => `${error.instancePath || "/"} ${error.message}`).join("; ")}`,
+    );
+  }
+  for (const [row, rules] of Object.entries(patchRules)) {
+    const missing = UNIVERSAL_REFUSE.filter((name) => !rules.refuse.includes(name));
+    if (missing.length > 0) {
+      fail(`patch-rules.json row \`${row}\` does not refuse ${missing.join(", ")}`);
+    }
+    if (rules.commit.parents.includes("base") && (rules.allow.length !== 1 || rules.allow[0] !== "merge-result")) {
+      fail(`patch-rules.json row \`${row}\` commits with the base as a parent, so its allow must be exactly [merge-result]`);
+    }
+  }
+  for (const [name, activity] of Object.entries(activities)) {
+    const row = activity?.prepare ?? "default";
+    if (activity?.["applied-by"]?.patch !== undefined && !Object.hasOwn(patchRules, row)) {
+      fail(`activity \`${name}\` hands on a patch with prepare: ${row}, and patch-rules.json has no \`${row}\` row`);
+    }
+  }
+  return patchRules;
+}
+
+// A runner names the applied-by keys it hands on (applied-by-supported, a
+// comma- or space-separated list); an applying leaf with any other key would
+// hand nothing on, so it fails before the head checkout.
+export function checkAppliedBySupported(selected, supported = "") {
+  const kinds = new Set(String(supported).split(/[\s,]+/).filter(Boolean));
+  const missing = Object.keys(selected?.["applied-by"] ?? {}).filter((key) => !kinds.has(key));
+  if (selected?.applies && missing.length > 0) {
+    throw new Rejection(
+      "applied-by-unsupported",
+      `activity \`${selected.name}\` sets applied-by ${missing.join(", ")}, and this runner does not pass applied-by-supported: ${missing.join(", ")}`,
+    );
+  }
+}
+
 // What the schema cannot check about `models`: every profile a route or
 // default-profile names exists, and every route names a skill activity or a
 // run route, so a mistyped route cannot silently take the default.
@@ -262,7 +364,16 @@ function checkModels(models, activities) {
       );
     }
   }
+  if (models["issue-dimensions"] !== undefined) {
+    checkDimensions(models["issue-dimensions"]);
+  }
 }
+
+// Whether a skill activity takes its budget from its issue's dimensions.
+const dimensionedBy = (activity, models) =>
+  models?.["issue-dimensions"] !== undefined &&
+  typeof activity.skill === "string" &&
+  (activity.inputs ?? []).includes("issue");
 
 // Rejections 1, 2, 4-9 and 3 over the whole file, whichever lane the run asked for.
 export function loadConfig(files, { configPath }) {
@@ -369,6 +480,7 @@ export function loadConfig(files, { configPath }) {
       }
     }
   }
+  checkAppliedBy(doc);
   return doc;
 }
 
@@ -452,7 +564,7 @@ const decides = (index, selected) => selected < 0 || index === selected;
 
 // The facts the decided enabled slots read. Rejects the same files and request
 // resolve() would, before any fact is fetched.
-export function neededFacts(files, { lane, activity, configPath }) {
+export function neededFacts(files, { lane, activity, configPath, pinnedDimensions }) {
   const doc = loadConfig(files, { configPath });
   const entries = laneSlots(doc, lane);
   const selected = selectedIndex(entries, lane, activity);
@@ -464,6 +576,11 @@ export function neededFacts(files, { lane, activity, configPath }) {
       }
       if ((definition.inputs ?? []).includes("changed-paths")) {
         needed.add("changedPaths");
+      }
+      // The fields are read now, unless an earlier resolve pinned them.
+      if (dimensionedBy(definition, doc.models) && !pinnedDimensions) {
+        needed.add("fieldValues");
+        needed.add("fieldSetters");
       }
     }
   });
@@ -513,18 +630,18 @@ function codeownersGlobs(text) {
 
 // The changed-paths input: the PR's changed files that still exist, that match
 // the slot's `paths` predicate when it has one, and that have a safe name. For
-// any effect but `read`, instruction surfaces and every path CODEOWNERS lists
-// are left out of what the activity is asked to fix. Sorted, without
-// duplicates.
+// an activity that edits (an effect other than `read`, or a patch it hands
+// on), instruction surfaces and every path CODEOWNERS lists are left out of
+// what it is asked to fix. Sorted, without duplicates.
 export function changedPathTargets({
   paths,
   predicatePaths,
-  effect,
+  edits,
   codeowners,
 }) {
   const owned = codeownersGlobs(codeowners);
   const notTargeted = (path) =>
-    effect !== "read" &&
+    edits &&
     (INSTRUCTION_SURFACES.some((glob) =>
       posix.matchesGlob(path.toLowerCase(), glob),
     ) ||
@@ -614,10 +731,11 @@ export function resolveRoute(files, { route, configPath }) {
 
 function resolveSlot(
   { name, activity, predicate, predicates, enabled, needs },
-  { effectGrants, codeowners },
+  { effectGrants, codeowners, trustedActors },
   facts,
   decided,
   models,
+  pinnedDimensions,
 ) {
   const grant = grantFor(effectGrants, activity.effect);
   let outcome = { applies: null, skipReason: null };
@@ -643,7 +761,7 @@ function resolveSlot(
         ),
       ),
       predicatePaths: predicate?.paths,
-      effect: activity.effect,
+      edits: activity.effect !== "read" || activity["applied-by"]?.patch !== undefined,
       codeowners,
     });
     if (targets.length === 0) {
@@ -651,6 +769,34 @@ function resolveSlot(
     }
   }
   const kind = activity.skill === undefined ? "script" : "skill";
+  let runModels = kind === "skill" ? routeModels(models, name) : null;
+  let sizing = {};
+  if (dimensionedBy(activity, models)) {
+    const config = models["issue-dimensions"];
+    let dims;
+    if (pinnedDimensions) {
+      // What an earlier resolve read for this run, whose job timeout is
+      // already fixed: the fields are not read again.
+      dims = parsePin(pinnedDimensions, config);
+    } else if (decided) {
+      for (const fact of ["fieldValues", "fieldSetters"]) {
+        if (facts[fact] === undefined) {
+          throw new MissingFact(fact);
+        }
+      }
+      dims = issueDimensions(facts, config, trustedActors);
+    } else {
+      dims = parsePin("not-assessed", config);
+    }
+    const budget = dimensionBudget(dims, config);
+    if (budget.skip !== null && outcome.applies) {
+      outcome = { applies: false, skipReason: budget.skip };
+    }
+    if (budget.skip === null) {
+      runModels = { ...runModels, "max-turns": budget["max-turns"] };
+    }
+    sizing = { "issue-dimensions": budget.pin, "timeout-minutes": budget["timeout-minutes"] };
+  }
   return {
     name,
     kind,
@@ -658,8 +804,10 @@ function resolveSlot(
     ...(activity.args === undefined ? {} : { args: activity.args }),
     ...(activity.prepare === undefined ? {} : { prepare: activity.prepare }),
     ...(activity.checks === undefined ? {} : { checks: activity.checks }),
+    ...(activity["self-checks"] === undefined ? {} : { "self-checks": activity["self-checks"] }),
     ...(activity["verify-scripts"] === undefined ? {} : { "verify-scripts": activity["verify-scripts"] }),
     ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
+    ...(activity["applied-by"] === undefined ? {} : { "applied-by": activity["applied-by"] }),
     effect: activity.effect,
     gating: activity.gating,
     "reads-untrusted": activity["reads-untrusted"],
@@ -668,7 +816,8 @@ function resolveSlot(
     needs,
     ...(predicate === undefined ? {} : { "applies-when": predicate }),
     enabled,
-    models: kind === "skill" ? routeModels(models, name) : null,
+    models: runModels,
+    ...sizing,
     grant,
     applies: outcome.applies,
     "skip-reason": outcome.skipReason,
@@ -728,8 +877,11 @@ const limitsOf = (limits = {}) => ({
   "limit-stops-per-head": limits["limit-stops-per-head"] ?? 3,
   "limit-stops-per-issue": limits["limit-stops-per-issue"] ?? 3,
   "wip-cap": limits["wip-cap"] ?? 60,
+  "turn-cap-restarts": limits["turn-cap-restarts"] ?? 0,
   "fix-ci-per-run": limits["fix-ci-per-run"] ?? 2,
   "fix-ci-restarts": limits["fix-ci-restarts"] ?? 1,
+  "admission-window-hours": limits["admission-window-hours"] ?? 24,
+  "admission-factor": limits["admission-factor"] ?? 0.8,
 });
 
 const loopOf = (loop = {}) => ({
@@ -751,16 +903,24 @@ export function resolveLimits(files, { configPath }) {
   return limitsOf(loadConfig(files, { configPath }).limits);
 }
 
+// The wip leaf as set, after the same file checks as resolve(), for the WIP
+// cap check. Its defaults have one copy, WIP_DEFAULTS in
+// .github/scripts/work-resolve-issue/limits.mjs, which its readers apply;
+// this module imports nothing outside this action's sparse checkout.
+export function resolveWipLeaf(files, { configPath }) {
+  return loadConfig(files, { configPath }).wip ?? {};
+}
+
 export function resolve(
   files,
-  { lane, activity, configPath, basePath, facts },
+  { lane, activity, configPath, basePath, facts, pinnedDimensions },
 ) {
   const doc = loadConfig(files, { configPath });
   const section = laneSection(doc, lane);
   const entries = laneSlots(doc, lane);
   const index = selectedIndex(entries, lane, activity);
   const slots = entries.map((entry, i) =>
-    resolveSlot(entry, files, facts, decides(i, index), doc.models),
+    resolveSlot(entry, files, facts, decides(i, index), doc.models, pinnedDimensions),
   );
   return {
     version: 1,
@@ -774,6 +934,7 @@ export function resolve(
     selected: index < 0 ? null : slots[index],
     loop: loopOf(doc.loop),
     limits: limitsOf(doc.limits),
+    wip: doc.wip ?? {},
     merge: resolveMerge(doc.merge, configPath),
   };
 }

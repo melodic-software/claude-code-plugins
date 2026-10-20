@@ -944,6 +944,59 @@ class TestStaticValues(unittest.TestCase):
         self.assertIsNone(_cmd(src, "c")["argument_hint"])
         self.assertEqual(_cmd(src, "c")["argument_hint_source"], "absent")
 
+    TABLE = (
+        'var Kt="Pick a type";'
+        'var vs={types:{description:()=>"Choose a type",menu:()=>"Types"},'
+        'hub:{description:()=>"Open the hub",menu:Kt},'
+        'consent:{description:()=>"Review consent",menu:()=>"Consent"}};'
+        'var s=()=>vs[n()??"consent"];'
+    )
+
+    def test_a_description_read_through_a_mode_table_resolves(self) -> None:
+        rec = _cmd(
+            self.TABLE
+            + 'x={type:"local",name:"d",description:()=>s().description(),'
+            + "menuDescription:()=>s().menu()};",
+            "d",
+        )
+        self.assertEqual(rec["description"], "Review consent")
+        self.assertEqual(rec["description_source"], "arrow")
+        self.assertEqual(
+            rec["description_variants"],
+            ["Choose a type", "Open the hub", "Review consent"],
+        )
+
+    def test_a_menu_description_read_through_a_mode_table_resolves(self) -> None:
+        # A built-in command record carries no menu field; a bundled skill does.
+        src = (
+            "function eo(){}export{eo as registerBundledSkill};"
+            + self.TABLE
+            + 'eo({name:"design",description:()=>s().description(),'
+            + "menuDescription:()=>s().menu()});"
+        )
+        skills, _ = inv.extract_bundled_skills(src, inv.build_brace_map(src))
+        self.assertEqual(skills["design"]["menu_description"], "Consent")
+
+    def test_a_table_row_that_is_not_a_string_is_dropped(self) -> None:
+        src = self.TABLE.replace('()=>"Open the hub"', "()=>void 0")
+        rec = _cmd(
+            src + 'x={type:"local",name:"d",description:()=>s().description()};', "d"
+        )
+        self.assertEqual(rec["description"], "Review consent")
+        self.assertEqual(
+            rec["description_variants"], ["Choose a type", "Review consent"]
+        )
+
+    def test_a_table_with_no_string_member_stays_unresolved(self) -> None:
+        src = (
+            "var vs={a:{description:()=>void 0},consent:{description:()=>null}};"
+            'var s=()=>vs[n()??"consent"];'
+            'x={type:"local",name:"d",description:()=>s().description()};'
+        )
+        rec = _cmd(src, "d")
+        self.assertEqual(rec["description"], "")
+        self.assertEqual(rec["description_source"], "unresolved")
+
     def test_an_unresolvable_description_is_empty_and_labeled(self) -> None:
         rec = _cmd('x={type:"local",name:"d",description:()=>n().description()};', "d")
         self.assertEqual(rec["description"], "")
@@ -1332,6 +1385,37 @@ class TestBuiltinTools(unittest.TestCase):
         self.assertIs(tools["Write"]["always_load"], True)
         self.assertIs(tools["Bash"]["gated"], True)
         self.assertIs(tools["Read"]["gated"], False)
+
+    def test_complete_aliases_carry_a_literal_or_absent_source(self) -> None:
+        tools = self._extract()[0]
+        self.assertEqual(tools["Read"]["aliases"], ["ReadFile"])
+        self.assertEqual(tools["Bash"]["aliases"], [])
+        self.assertEqual(tools["Read"]["aliases_source"], "literal")
+        self.assertEqual(tools["Bash"]["aliases_source"], "absent")
+
+    def test_an_unresolved_alias_spread_is_partial_not_empty(self) -> None:
+        for aliases, names in (
+            ("[...zz]", []),
+            ('["ReadFile",...zz]', ["ReadFile"]),
+            ('["ReadFile",yy]', ["ReadFile"]),
+        ):
+            with self.subTest(aliases=aliases):
+                src = (
+                    'var Qz="Probe";'
+                    f"$t({{name:Qz,maxResultSizeChars:1,aliases:{aliases}}});"
+                )
+                rec = _tool(src, "Probe")
+                self.assertEqual(rec["aliases"], names)
+                self.assertEqual(rec["aliases_source"], "partial")
+
+    def test_aliases_that_are_not_an_array_literal_are_unresolved(self) -> None:
+        for aliases in ("zz", "get aliases(){return zz}"):
+            with self.subTest(aliases=aliases):
+                field = aliases if aliases.startswith("get ") else f"aliases:{aliases}"
+                src = f'var Qz="Probe";$t({{name:Qz,maxResultSizeChars:1,{field}}});'
+                rec = _tool(src, "Probe")
+                self.assertEqual(rec["aliases"], [])
+                self.assertEqual(rec["aliases_source"], "unresolved")
 
     def test_tools_are_model_only(self) -> None:
         rec = self._extract()[0]["Bash"]
