@@ -10,6 +10,9 @@
 #
 # test-scope: plugins/planning/tests/repin.sh
 set -uo pipefail
+# The stand-in lives in a temporary git repository; an inherited GIT_DIR, GIT_WORK_TREE or
+# GIT_CONFIG would point its git commands at the caller's repository instead.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPIN="$HERE/repin.sh"
