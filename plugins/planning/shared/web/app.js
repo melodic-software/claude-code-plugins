@@ -1478,10 +1478,10 @@
     const queueMore = showMore("queue", 20);
     hQueue.append(qFilters, queueList, queueMore.foot, queueEmpty);
     // people
-    // Filter chips by presence (and Removed, the owner's), a name search once the list passes 12, then 25 at a time.
+    // Filter chips by presence, one chip per state so each person is under exactly one (and Removed, the owner's), a name search once the list passes 12, then 25 at a time.
     const pFilters = E("div", "vf-chips vf-pfilters"); pFilters.setAttribute("role", "group"); pFilters.setAttribute("aria-label", "Show people");
     const pfBtns = {};
-    for (const [k, label] of [["all", "All"], ["here", "Here"], ["away", "Away"], ["offline", "Offline"], ["behind", "Behind"], ["removed", "Removed"]]) {
+    for (const [k, label] of [["all", "All"], ["active", "Active"], ["away", "Away"], ["offline", "Offline"], ["behind", "Behind"], ["removed", "Removed"]]) {
       const b = btn("vf-fchip"); b.append(E("span", null, label), E("span", "vf-fchip-n")); b.onclick = () => { ui.peopleFilter = k; render(); }; pFilters.append(b); pfBtns[k] = b;
     }
     const pFind = E("input", "vf-input vf-pfind"); pFind.type = "search"; pFind.placeholder = "Find a person"; pFind.setAttribute("aria-label", "Find a person by name");
@@ -6629,7 +6629,7 @@
       const pres = p => (gone.has(p.pid) ? "removed" : presState(here.get(p.pid)));
       // #7852: how many of the open round's questions each guest still owes (the server's count, moderators only)
       const behind = S.behind || {}, owes = p => (gone.has(p.pid) ? 0 : behind[p.pid] || 0);
-      const inFilter = { all: () => true, here: p => ["active", "away"].includes(pres(p)), away: p => pres(p) === "away", offline: p => pres(p) === "offline",
+      const inFilter = { all: () => true, active: p => pres(p) === "active", away: p => pres(p) === "away", offline: p => pres(p) === "offline",
         behind: p => owes(p) > 0, removed: p => pres(p) === "removed" };
       const noRemoved = !owner || !ppl.some(inFilter.removed), noBehind = !ppl.some(inFilter.behind);
       if ((noRemoved && ui.peopleFilter === "removed") || (noBehind && ui.peopleFilter === "behind")) ui.peopleFilter = "all";

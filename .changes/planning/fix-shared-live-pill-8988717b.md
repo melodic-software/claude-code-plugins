@@ -9,3 +9,4 @@ bump: minor
 ### Fixed
 
 - The shared interview page shows the Live indicator right after the session title, on the title's own line, instead of past the end of a long goal line.
+- The Host view's people chips match the three presence states: "Here" becomes "Active" and counts only active people, so someone Away no longer shows under it too.
