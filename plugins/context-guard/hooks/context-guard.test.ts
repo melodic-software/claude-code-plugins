@@ -605,16 +605,41 @@ test('switch: context_guard_hooks_enabled false sends no line',{ options: { cont
 const restated = (zone: Verdict, tail = '') => `context-guard: ${VERDICT[zone]}.${tail}`
 const compact = ($: any, trigger: string, extra: object = {}) => $.session.compact({ trigger, messages: MESSAGES, ...extra } as any)
 
-test('compaction: the verdict is restated once as the evidence-degraded dumb zone', async ($, on) => {
+const UNAVAILABLE = 'context-guard: the context reading is unavailable after the compaction, until the next API response.'
+
+test('compaction: with no figures the line says the reading is unavailable, once, and names no zone', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30, 60])
   await compact($, 'manual')
   w.percent = undefined
-  expect(own((await prompt($)).context)).toEqual([restated('degraded')])
+  const first = (await prompt($)).context
+  expect(own(first)).toEqual([UNAVAILABLE])
+  expect(options(first)).toEqual([])
   expect(own((await prompt($)).context)).toEqual([])
   expect(own((await bash($)).context)).toEqual([])
   await compact($, 'auto')
-  expect(own((await bash($)).context)).toEqual([restated('degraded')])
+  expect(own((await bash($)).context)).toEqual([UNAVAILABLE])
+})
+
+test('compaction: once figures arrive the compacted dumb zone line is sent', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30, 60])
+  await compact($, 'manual')
+  w.percent = undefined
+  expect(own((await prompt($)).context)).toEqual([UNAVAILABLE])
+  w.percent = 20
+  const after = (await bash($)).context
+  expect(own(after)).toEqual([restated('degraded')])
+  expect(options(after)).toEqual([OPTIONS])
+  expect(own((await bash($)).context)).toEqual([])
+})
+
+test('compaction: figures at the first reading restate the compacted dumb zone', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30, 60])
+  await compact($, 'manual')
+  w.percent = 20
+  expect(own((await prompt($)).context)).toEqual([restated('degraded')])
 })
 
 test('compaction: a precompute dispatch restates nothing and degrades nothing', async ($, on) => {
@@ -1070,7 +1095,7 @@ test('compaction: an approach line recorded before a pending restatement merges 
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   await compact($, 'manual')
   w.percent = undefined
-  expect(own((await prompt($)).context)).toEqual([restated('degraded')])
+  expect(own((await prompt($)).context)).toEqual([UNAVAILABLE])
 })
 
 test('compaction: a threshold before a pending restatement merges into it and keeps its action sentence', async ($, on) => {
@@ -1082,7 +1107,7 @@ test('compaction: a threshold before a pending restatement merges into it and ke
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   await compact($, 'manual')
   w.percent = undefined
-  expect(own((await prompt($)).context)).toEqual(['context-guard (operator setting for a threshold): handoff.', restated('degraded')])
+  expect(own((await prompt($)).context)).toEqual(['context-guard (operator setting for a threshold): handoff.', UNAVAILABLE])
 })
 
 test('operator mode: a crossing held at the end of a turn is not offered beside the restatement a compaction adds', OPERATOR, async ($, on) => {
@@ -1095,7 +1120,7 @@ test('operator mode: a crossing held at the end of a turn is not offered beside 
   w.percent = undefined
   await measure($, 0)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(w.suggested).toEqual([offer(restated('degraded'))])
+  expect(w.suggested).toEqual([`FYI, ${UNAVAILABLE}`])
 })
 
 for (const [via, read] of [
