@@ -1,0 +1,55 @@
+schema_version: "1.1"
+name: bs-no-task-tools-fallback
+description: 'a session without the task tools still completes the batch-simplify run: the skill falls back to a per-group list instead of TaskCreate, TaskUpdate or TaskList, and never stops for want of them'
+tags: [task-tools, fallback, window]
+expected_outcome: 'The Skill tool is called for code-tidying:batch-simplify and no TaskCreate, TaskUpdate or TaskList call is made. src/greet.sh and repo/tool.sh are simplified; lib/old.sh (outside the window) is unchanged. The final reply reports per-group outcomes and does not say the run stopped or failed for lack of task tools.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:batch-simplify unattended 72h src ./repo'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
+  max_turns: 150
+  timeout_seconds: 2400
+graders:
+  - name: skill-invoked
+    type: tool_used
+    tool: Skill
+    input_match: 'batch-simplify'
+  - name: no-task-create
+    type: tool_used
+    tool: TaskCreate
+    min: 0
+    max: 0
+  - name: no-task-update
+    type: tool_used
+    tool: TaskUpdate
+    min: 0
+    max: 0
+  - name: no-task-list
+    type: tool_used
+    tool: TaskList
+    min: 0
+    max: 0
+  - name: greet-simplified
+    type: regex
+    pattern: 'Hello, %s!'
+    match: "count:1"
+    target: { source: file, path: src/greet.sh }
+  - name: tool-simplified
+    type: regex
+    pattern: 'tool: processed'
+    match: "count:1"
+    target: { source: file, path: repo/tool.sh }
+  - name: old-untouched
+    type: regex
+    pattern: 'old: level is'
+    match: "count:2"
+    target: { source: file, path: lib/old.sh }
+  - name: fallback-group-list
+    type: llm
+    focus: last_message
+    criteria: 'PASS only if the final reply shows a per-group list with a separate entry and a status or outcome for each of at least two groups (the src group holding src/greet.sh and the repo group holding repo/tool.sh), as the skill''s fallback for missing task tools. FAIL if the reply covers one merged group, gives only a file list with no per-group entries, or shows no per-group tracking.'
+  - name: fallback-completed-run
+    type: llm
+    focus: last_message
+    criteria: 'PASS only if the final reply reports the run as completed with per-group or per-file outcomes for the simplified files (src/greet.sh and repo/tool.sh). FAIL if the reply says the run was stopped, failed, blocked or could not proceed because the task tools (TaskCreate, TaskUpdate, TaskList) are unavailable, if it asks the user to enable them, or if it reports no outcomes.'

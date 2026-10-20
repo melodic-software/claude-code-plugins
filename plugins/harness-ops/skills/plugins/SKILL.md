@@ -71,8 +71,9 @@ marketplace catalog reads lower than what is installed. `audit` ignores the flag
 report: a read-only run issues no update either way, and its prediction already names the withheld
 downgrades. See [context/sync.md](context/sync.md)'s "Downgrade guard".
 
-This table is an index, not a substitute: read the linked detail file before executing any action.
-Each Description names the territory an action covers, never its algorithm, the steps, their
+This table is an index, not a substitute: read the linked detail file before executing any action,
+except `sync` and `audit`, which one script runs and which load their file on the triggers under
+"Running `sync` and `audit`". Each Description names the territory an action covers, never its algorithm, the steps, their
 ordering, and their failure handling live only in the linked file.
 
 One block below is a deliberate exception to that index-only rule and has to live in the hub
@@ -124,8 +125,8 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    journal, and the fields the `ask` re-entry needs.
 
 3. **Resolve an `ask` install gap.** When a block has a non-empty `install_gap` and
-   `stopped_before_install: true` (the report says so under `Action needed`), run the batched
-   "install and enable" multi-select from
+   `stopped_before_install: true` (the report says so under `Action needed`), run the chunked
+   "install and enable" offer from
    [context/sync-install-enable.md](context/sync-install-enable.md), then re-enter for Steps 4 and
    5 against the same run. The re-entry installs each pick and enables any the CLI installed
    disabled by default:
@@ -136,7 +137,7 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    ```
 
    An empty id list is legal and means "install nothing, still complete Step 5". A dismissed or
-   unanswered multi-select is that case: re-enter with `--only-install ""`, and the report lists
+   unanswered chunk declines only its own ids: leave them out of the list and keep the picks from answered chunks. When nothing was answered, the list is empty: re-enter with `--only-install ""`, and the report lists
    the declined gap under `Action needed`. The report that
    call prints supersedes the first one and covers the whole run. When the first pass stopped
    before install it skipped the cache-content check, and this re-entry runs that check after the
@@ -146,8 +147,10 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    section below.
 
 Load [context/sync.md](context/sync.md) when a digest carries errors, a non-empty gap, a catalog
-regression, or a cache-content finding, and when the user asks why a step behaved the way it did.
-A run with none of those has nothing in the file that changes the report.
+regression, a cache-content finding, or a nonzero `moved_during_run` or `noop_unverified` count
+(plugins that moved during the run under an update call that reported them current, or
+already-current answers the snapshots could not confirm), and when the user asks why a step behaved
+the way it did.
 
 ## Marketplace resolution
 
@@ -224,9 +227,12 @@ it for a `directory` source (branch, upstream, ahead/behind as of the checkout's
 tracked files, or why freshness was not checked; the run never fetches or pulls the checkout); the fixed `In-repo:` row in its three variants (`skipped` naming
 the cwd when no project root resolved, `0` naming a root with no project/local installs, and the
 counted variant, forward moves only); `Updated:` (forward moves and pairs flagged
-`(direction unknown)`) and `Downgraded:`; `Catalog regression:`; `Installed:` with the policy-`all`
+`(direction unknown)`) and `Downgraded:` (a backward move that happened during the run says so); `Moved during this run:` (ids
+whose update call the CLI answered "already at the latest version" while the run's snapshots show
+their version changed, which the run did not do and does not attribute; with a `Not verified:` row
+for already-current answers the snapshots could not confirm); `Catalog regression:`; `Installed:` with the policy-`all`
 recurrence clause; `Normalized:`; `Enabled:`; the `Divergences:` split, led by this project's count
-when a root resolved; the self-update note when the sweep moved this plugin; the stale project
+when a root resolved; the self-update note when this plugin's install record moved during the run; the stale project
 records and user-scope cache content sections; the `Timing:` row (the marketplace total, its slowest step,
 and the seconds outside the named steps, with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
 `git -C <path> pull --ff-only` to run and the marketplace to resync, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
@@ -241,7 +247,12 @@ found; `--allow-downgrade` is named as ignored. Each shape is pinned to a golden
 `scripts/sync-run.test.sh`.
 
 Paste the render as printed. Do not restate a number, an id, a scope, or a count it already
-carries, and do not add rows: a row the render omitted is a row whose digest field was empty. Per
+carries, and do not add rows: a row the render omitted is a row whose digest field was empty, which
+is not proof that nothing happened. The render lists only what the run's snapshots establish, so the
+initial report may add one caveat line when something in the run suggests more than it shows (a
+`Not verified:` row, or `Moved during this run:` ids with a cause the user may ask about): state
+what the report cannot establish, never a cause. Follow-up answers from the run directory stay
+allowed. Per
 marketplace in `all` mode the whole block repeats, because Steps 2 through 5 run once per
 marketplace; the trailing `Run journal:` and `Timing:` lines cover the invocation.
 
@@ -282,8 +293,15 @@ record; for option types and fixed options, see
 [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration) and
 [Limit a field to fixed options](https://code.claude.com/docs/en/plugins/manifest-reference#limit-a-field-to-fixed-options)):
 
-- `ask` (default). Offer every not-yet-installed catalog plugin in one batched multi-select prompt,
-  then install and enable each pick, including one the CLI installs disabled by default
+- `ask` (default). Offer every not-yet-installed catalog plugin in `AskUserQuestion` chunks of at
+  most 4 options per question and at most 4 questions per call, with a further call past 16, each
+  chunk's question text distinct (answers are keyed by it). A chunk of 1, whether a gap of 1 or
+  the one left over from a gap of 5, 9, 13 and so on, is a single-select Install/Skip question
+  with no hand-added Other option. The limits are the tool's, per
+  [Handle approvals and user input](https://code.claude.com/docs/en/agent-sdk/user-input.md)
+  (as of 2026-10-18; recheck if that page changes them). Then install and enable each pick,
+  including one the CLI installs disabled by default. An unanswered or dismissed chunk counts as
+  declined
 - `all`. Install every not-yet-installed catalog plugin automatically; one the CLI installs
   disabled by default stays off and is reported
 - `none`. Report them in "Action needed" only, never install
@@ -353,7 +371,7 @@ through the Read tool, or on the Bash tool's environment carrying `CLAUDE_SKILL_
 
 | File | Load when |
 |---|---|
-| [context/sync.md](context/sync.md) | Running `sync` or `audit`; it is the step sequence both actions execute. |
+| [context/sync.md](context/sync.md) | A `sync` or `audit` digest meets a trigger under "Running `sync` and `audit`", or the user asks why a step behaved as it did; it is the step sequence both actions execute, and the script is bound to it. |
 | [context/sync-install-enable.md](context/sync-install-enable.md) | A digest block has a non-empty `install_gap` or `enable_gap`, or `install_enable_deferred: true`. Both gaps are empty on a current fleet. |
 | [context/converge.md](context/converge.md) | Running `converge`, the only action that may rewrite a committed settings file. |
 | [context/stale-records-cache-content.md](context/stale-records-cache-content.md) | The digest's `stale_project_records.total` or `cache_content.stale_content` is above 0, or the user asks why either section reads as it does. |

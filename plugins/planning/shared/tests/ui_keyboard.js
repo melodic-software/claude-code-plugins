@@ -190,7 +190,7 @@ async function main() {
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     await surface(owner, "settings panel", ".vf-settings", { opener: owner.locator(".vf-gear") });
     await surface(owner, "share panel", ".vf-share", { opener: owner.locator(".vf-sharebtn") });
-    await surface(owner, "notifications", ".vf-bellpop", { opener: owner.locator(".vf-bell") });
+    await surface(owner, "Inbox page", ".vf-inboxpage", { opener: owner.locator(".vf-bell") });
     // "?" from a question in the list: focus goes back to that question, where it was.
     await surface(owner, "keyboard shortcuts (?)", ".vf-keys", { opener: owner.locator(".vf-q").first(), key: "?" });
 
@@ -204,9 +204,9 @@ async function main() {
     await until(phoneOwner, () => window.Core.snapshot()?.me?.role === "owner");
     const more = phoneOwner.locator(".vf-tab", { hasText: "More" });
     await surface(phoneOwner, "phone More sheet", ".vf-moresheet", { opener: more });
-    await surface(phoneOwner, "phone notifications sheet (from More)", ".vf-bellpop", {
+    await surface(phoneOwner, "phone Inbox page (from More)", ".vf-inboxpage", {
       before: async () => { await more.focus(); await more.evaluate(el => el.setAttribute("data-kb-opener", "")); await phoneOwner.keyboard.press("Enter"); await until(phoneOwner, shownSel, ".vf-moresheet", 3000); },
-      opener: phoneOwner.locator(".vf-msitem", { hasText: "Notifications" }), expectBack: ".vf-tab[data-kb-opener]",
+      opener: phoneOwner.locator(".vf-msitem", { hasText: "Inbox" }), expectBack: ".vf-tab[data-kb-opener]",
     });
     const pia = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(pia, "Pia");
@@ -302,7 +302,7 @@ async function main() {
     await viewSeg(owner, "Focus")();
     await swept(owner, "settings panel (desktop)", { scope: ".vf-settings", open: () => owner.locator(".vf-gear").click(), close: esc(owner) });
     await swept(owner, "share panel (desktop)", { scope: ".vf-share", open: () => owner.locator(".vf-sharebtn").click(), close: esc(owner) });
-    await swept(owner, "notifications (desktop)", { scope: ".vf-bellpop", open: () => owner.locator(".vf-bell").click(), close: esc(owner) });
+    await swept(owner, "Inbox page (desktop)", { scope: ".vf-inboxpage", open: () => owner.locator(".vf-bell").click(), close: esc(owner) });
     await swept(owner, "keyboard shortcuts (desktop)", { scope: ".vf-keys", open: () => owner.locator(".vf-keysbtn").click(), close: esc(owner) });
     const tab = (page, label) => () => page.locator(".vf-tab", { hasText: label }).click({ timeout: 5000 });
     await swept(pia, "guest Questions tab (phone)", { open: tab(pia, "Questions") });
@@ -323,7 +323,7 @@ async function main() {
     ok("the tour ring transitions translate only, never a layout property", await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty) === "translate",
       await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty));
     await tia.click(".vf-tour-row .vf-btn-primary");
-    await tia.waitForTimeout(400);
+    await tia.evaluate(() => Promise.all(document.querySelector(".vf-tour-ring").getAnimations().map(a => a.finished.catch(() => null)))); // the ring's move ends
     const ringFit = await tia.evaluate(() => {
       const ring = document.querySelector(".vf-tour-ring").getBoundingClientRect(), R = document.querySelector(".app").getBoundingClientRect();
       // The target is the element the ring was drawn round: the largest one whose box, grown by 4 px and kept 4 px

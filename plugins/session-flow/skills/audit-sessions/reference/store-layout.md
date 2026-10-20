@@ -7,9 +7,7 @@ directory (`${CLAUDE_PLUGIN_DATA}`). Nothing is written into a repository.
 D/audit-sessions/
   store/v1/sessions/p-<12 hex>/<session-id>.json   one record per main session
   reports/machine/<stamp>.json, <stamp>.md          --scope machine (the default)
-  reports/machine/history.jsonl
   reports/<state-key>/<stamp>.json, <stamp>.md      --scope project
-  reports/<state-key>/history.jsonl
 ```
 
 ## Store
@@ -67,9 +65,8 @@ D/audit-sessions/
   - **Recheck trigger**: that row adds an SDK entrypoint, or a drift run reports
     `key_path:user:entrypoint` as a lost canary.
 - `sweep.py --write-report` writes one JSON and one markdown report per run, named by a UTC stamp
-  with microseconds, and appends one line to that scope's `history.jsonl`: the stamp, scope, session
-  count and each metric's value. The newest 20 report pairs per scope are kept; `history.jsonl` is
-  never trimmed, so trends survive pruning.
+  with microseconds. The newest 20 report pairs per scope are kept. No trend file is written: the
+  markdown report names the worst 5 sessions (or linked PRs) per finding, and the JSON report holds every one.
 - Project-scope reports are keyed by `lib/state-key.sh`, the marketplace's report-keying rule, so
   two checkouts of one repository never share a report.
 

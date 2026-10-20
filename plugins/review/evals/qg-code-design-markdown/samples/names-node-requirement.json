@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | SUGGESTION | high | Duplicated Code | docs/setup.md:3 and docs/deploy.md:3 restate README.md's Node.js 20 requirement; a version bump would leave one stale | docs/setup.md:3 | Point at the README |",
+      "why": "fact, copies, SUGGESTION, pointer fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No code-design issues found.",
+      "why": "misses the repetition"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | Duplicated Code | Node.js 20 is restated in two guides | docs/setup.md:3 | Link to the README |",
+      "why": "rated CRITICAL"
+    }
+  ]
+}

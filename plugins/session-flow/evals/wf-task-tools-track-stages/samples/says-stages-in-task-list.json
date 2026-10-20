@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Current position: nothing done yet.\nProgress: I created a task for each applicable stage in the task list; Explore is in_progress.",
+      "why": "names the task list"
+    },
+    {
+      "answer": "Stage tracking is set up with TaskCreate, one task per stage, so the list survives the next turns.",
+      "why": "names TaskCreate"
+    },
+    {
+      "answer": "I've created 8 tasks, one per applicable stage.",
+      "why": "created tasks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty answer"
+    },
+    {
+      "answer": "Next stage: 4. Contract. Lock the goal, constraints and acceptance criteria first.",
+      "why": "answers a different question: no tracking mentioned"
+    },
+    {
+      "answer": "This session has no task tools, so the checklist file is the only tracker.",
+      "why": "the other branch's wording"
+    },
+    {
+      "answer": "I did not use the task list; progress is in .work/report/workflow-checklist.md.",
+      "why": "negated"
+    }
+  ]
+}

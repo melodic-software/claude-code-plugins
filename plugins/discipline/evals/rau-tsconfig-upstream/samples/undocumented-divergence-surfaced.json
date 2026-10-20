@@ -8,6 +8,14 @@
     },
     {
       "answer": "useDefineForClassFields has no recorded rationale; I left it for you to decide."
+    },
+    {
+      "answer": "`useDefineForClassFields: false` is an override with no written reason. Adopt the default or record why in a new ADR.",
+      "why": "'no written reason' and 'adopt the default or record why'"
+    },
+    {
+      "answer": "useDefineForClassFields is set to false without a documented reason.",
+      "why": "'reason' for 'rationale'"
     }
   ],
   "fail": [
@@ -30,6 +38,14 @@
     {
       "answer": "useDefineForClassFields is not undocumented; the ADR covers it.",
       "why": "negation"
+    },
+    {
+      "answer": "useDefineForClassFields: false is covered by ADR 0003, so there is no reason to change it.",
+      "why": "'no reason' without 'written'"
+    },
+    {
+      "answer": "useDefineForClassFields: gap, set to true.\nstrict: no written reason; adopt the default or record why.",
+      "why": "the reason belongs to another setting"
     }
   ]
 }

@@ -1,7 +1,8 @@
 # Release plugins from changelog fragments through a bot-maintained release PR
 
-- Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild, see
-  the amendment below)
+- Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild) and
+  2026-10-20 (a push run never rebuilds, and a release may merge past newer fragments), see the
+  amendments below
 - Date: 2026-10-03
 
 ## Context
@@ -284,7 +285,9 @@ proven.
    (33), `rate-limit-guard` (27) and `animation` (22). The carrier fragments
    (`new-changelog-fragment.sh --carriers-of`), the ADR 0019 amendment, `docs/migration-playbook.md`
    and `AGENTS.md` already key on the list, so they needed no change; phase 5 rewords them for
-   "all plugins".
+   "all plugins". On 2026-10-18 `developer-experience`, `display-redaction` and `user-experience`
+   joined, because they were added after the bulk move (all three carry synced shared-lib
+   copies), so a shared-lib change still bumped their `plugin.json` and `CHANGELOG.md` directly.
 5. **Retire the per-PR path in this repository.** Replace the opt-in list with "all plugins", drop
    the version-moved branch of the shared predicate, and reword the resolver references. Rollback:
    revert this phase's commit, which restores phase 4. On 2026-10-18 the three plugins added
@@ -325,3 +328,33 @@ only warns.
 The statement under Trigger and cadence that rebuilds happen only as often as fragments for the
 plugins in the open release land no longer holds: while main keeps moving, a failing release pull
 request, from a flake or from its own content, is rebuilt on every run.
+
+## Amendment (2026-10-20): a push run never rebuilds, and newer fragments ride the next release
+
+A run started by a push of a fragment to main only queues the open release pull request when it is
+current and green, and builds one when none is open; it never rebuilds an open one. Every rebuild
+that Trigger and cadence and the 2026-10-17 amendment call for happens on the scheduled and
+`workflow_dispatch` runs instead, and a fragment that lands between scheduled runs rides the next
+one. A push run also no longer cancels a running one, so it cannot cancel a scheduled rebuild it
+would not redo.
+
+Each rebuild pushes a new head to `release/plugins`, which cancels the release pull request's
+running checks. On 2026-10-20, with fragments landing on main faster than those checks finish,
+push-triggered rebuilds cancelled them run after run (`pr-require-checks` runs
+[39375083134](https://github.com/melodic-software/claude-code-plugins/actions/runs/39375083134) and
+[39375176650](https://github.com/melodic-software/claude-code-plugins/actions/runs/39375176650)), so the release pull request never reached a green `ci-status` and never merged.
+
+"Current" also changes. A release pull request is current when no file it changes, meaning a
+fragment it consumed, a `CHANGELOG.md` or a `plugin.json`, has changed on main since its build base,
+the main commit the release was cut from (its merge base with main, since the build job cuts it as
+one commit on main's tip). `check-changelog-fragments.sh --check-release` compares each such path's
+blob on main with its blob at the build base, so a consumed fragment edited or removed on main, or a
+plugin's `CHANGELOG.md` or version changed there, still starts a rebuild on the next scheduled run.
+A fragment main added after the build no longer does, for any plugin: the merge leaves it untouched
+and it rides the next release. The release bullets under The release pull request that rebuild or
+eject a release for an unconsumed fragment no longer hold. In the merge queue the check compares
+`merge_group.base_sha` with the queued pull request's head (`CHANGELOG_PR_HEAD`), and refuses when
+either is missing. While fragments keep landing, the
+previous rule made every release stale before its checks finished, so each scheduled run would
+rebuild it and cancel them as the push rebuilds did in the 2026-10-20 runs above. The release and
+pull-request-merge owner decided this rule in an owner-session committee decision on 2026-10-20.

@@ -1223,11 +1223,13 @@ assert_contains "no CLI reads unknown" "$out" "mods: unknown (no claude CLI to p
 # A hung probe is bounded: start and status --dry-run finish, and the lane reads
 # unknown with the bound. Run through GNU timeout when present and through the
 # pure-Bash watchdog (the macOS path) either way.
-hang_run() { # <action> <force-bash 0|1> <hang var>
+# Each case shortens only the bound of the probe it hangs (<bound var>), so the
+# other probe keeps its production bound and a slow runner cannot time it out.
+hang_run() { # <action> <force-bash 0|1> <hang var> <bound var>
   local start_s end_s
   start_s=$SECONDS
   out="$(
-    export LANES_PROBE_TIMEOUT_S=1 LANES_FORCE_BASH_TIMEOUT="$2" "$3=1" STUB_CLAUDE_VERSION=2.1.296
+    export "$4=1" LANES_FORCE_BASH_TIMEOUT="$2" "$3=1" STUB_CLAUDE_VERSION=2.1.296
     mods_run "$1"
   )"
   end_s=$SECONDS
@@ -1235,12 +1237,12 @@ hang_run() { # <action> <force-bash 0|1> <hang var>
 }
 for force in 0 1; do
   for action in start status; do
-    hang_run "$action" "$force" STUB_CLAUDE_PLUGIN_TEST_HANG
+    hang_run "$action" "$force" STUB_CLAUDE_PLUGIN_TEST_HANG LANES_PLUGIN_TEST_TIMEOUT_S
     assert_contains "a hung plugin test reads unknown ($action, force-bash=$force)" "$out" "mods: unknown (claude plugin test did not finish in 1 s)"
     assert_not_contains "a hung plugin test reads no lane as can load ($action, force-bash=$force)" "$out" "mods: can load"
     assert_eq "a hung plugin test is bounded ($action, force-bash=$force)" 1 "$((elapsed < 15))"
   done
-  hang_run status "$force" STUB_CLAUDE_VERSION_HANG
+  hang_run status "$force" STUB_CLAUDE_VERSION_HANG LANES_PROBE_TIMEOUT_S
   assert_contains "a hung claude --version reads unknown (force-bash=$force)" "$out" "mods: unknown (claude --version gave no version within 1 s)"
   assert_eq "a hung claude --version is bounded (force-bash=$force)" 1 "$((elapsed < 15))"
 done

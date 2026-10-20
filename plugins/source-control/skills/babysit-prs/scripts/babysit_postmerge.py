@@ -17,7 +17,9 @@ run on such a SHA, and a matching read-back all exist, and no red full run or
 canary run counted against it first. Only an enqueue by the identity has a
 pinned SHA to read back; any other enqueue verifies on the dispatch and canary
 runs alone. A red full run is attributed after one `rerun-failed-jobs` the
-wrapper triggers: red again is a failure, green is a flake. It counts only
+wrapper triggers: red again is a failure, green is a flake. A red full run the
+pr-merge lane dispatched gets that one re-run from pr-merge.yml's own
+`post-merge-dispatch` job, which records it (`_Context.lane_rerun`). It counts only
 for checks that were not already failing on the newest completed run of the
 same event before the merge (`_Context.regressions`); with none left it is
 reported as unattributed and passes like a green run.
@@ -79,6 +81,16 @@ CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml"
 LANE_DISPATCH_WORKFLOW = ".github/workflows/pr-merge.yml"
 LANE_DISPATCH_ARTIFACT = "pr-merge-dispatched-"
 LANE_DISPATCH_ACTOR = "github-actions[bot]"
+# Its post-merge-dispatch job starts the one re-run of a red lane-dispatched
+# full run, also under GITHUB_TOKEN, and records it in an artifact named
+# `<prefix><run id>-attempt-2`; `_Context.lane_rerun` reads it.
+LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
+# The events of the pr-merge.yml jobs that upload each record: dispatch-full-run
+# (push, and after the merge job) and post-merge-dispatch (schedule and
+# workflow_dispatch) write the dispatch record; only post-merge-dispatch writes
+# the re-run record.
+LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
+LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
 DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
 DEFAULT_ROLE_LABEL = "needs-human"
@@ -152,6 +164,9 @@ class Rerun:
     run_id: int
     url: str
     signal: str
+    # The pr-merge lane dispatched it, so its post-merge-dispatch job starts
+    # the re-run: the lanes App and so the lane's `--remediate` cannot.
+    lane: bool = False
 
 
 @dataclass(frozen=True)
@@ -225,7 +240,12 @@ class PostMergeVerdict:
                 for f in self.failures
             ],
             "reruns": [
-                {"runId": r.run_id, "url": r.url, "signal": r.signal}
+                {
+                    "runId": r.run_id,
+                    "url": r.url,
+                    "signal": r.signal,
+                    "laneDispatched": r.lane,
+                }
                 for r in self.reruns
             ],
             "flakes": list(self.flakes),
@@ -514,7 +534,8 @@ class _Context:
     # Full runs whose red verdict came from the wrapper's re-run (attempt 2).
     red_on_rerun: set[int] = field(default_factory=set)
     branch: str = ""
-    lane_cache: dict[int, bool] = field(default_factory=dict)
+    branch_tip: str | None = None
+    lane_cache: dict[str, bool] = field(default_factory=dict)
     checks_cache: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
     # Full-history clones `contains` asks first; None until first resolved.
     local_clones: list[Path] | None = None
@@ -631,43 +652,96 @@ class _Context:
     def lane_dispatched(self, run: Run) -> bool:
         """Whether the pr-merge lane sent this github-actions[bot] dispatch:
         its `pr-merge-dispatched-<id>` artifact was uploaded by a run of
-        pr-merge.yml in this repository on the branch. Only steps of a run can
-        upload its artifacts, and a pull_request_target run is not counted, as
-        it runs the PR base branch's copy of the file."""
-        if run.actor != LANE_DISPATCH_ACTOR:
-            return False
-        if run.id not in self.lane_cache:
+        pr-merge.yml in this repository on the branch."""
+        return run.actor == LANE_DISPATCH_ACTOR and self._lane_record(
+            f"{LANE_DISPATCH_ARTIFACT}{run.id}", LANE_DISPATCH_EVENTS
+        )
+
+    def lane_rerun(self, run: Run) -> bool:
+        """Whether pr-merge.yml started attempt 2 of this lane-dispatched run:
+        its post-merge-dispatch job uploads `pr-merge-rerun-<id>-attempt-2`
+        only after its own `rerun-failed-jobs` call made that attempt."""
+        return self.lane_dispatched(run) and self._lane_record(
+            f"{LANE_RERUN_ARTIFACT}{run.id}-attempt-2", LANE_RERUN_EVENTS
+        )
+
+    def _lane_record(self, artifact: str, events: frozenset[str]) -> bool:
+        """Whether a run of the branch's own pr-merge.yml (`_lane_sender`)
+        uploaded an artifact named `artifact`. Only steps of a run can upload
+        its artifacts. A failed read raises, so the verdict is unreadable
+        rather than the record taken as present."""
+        if artifact not in self.lane_cache:
             repo = f"{self.owner}/{self.name}"
             listing = _read(
                 [
                     "api",
-                    f"repos/{repo}/actions/artifacts?name="
-                    f"{LANE_DISPATCH_ARTIFACT}{run.id}&per_page=100",
+                    f"repos/{repo}/actions/artifacts?name={artifact}&per_page=100",
                 ],
-                f"dispatch record of run {run.id}",
+                f"record {artifact}",
             )
             senders = {
                 json_object(a.get("workflow_run")).get("id")
                 for a in map(
                     json_object, json_array(json_object(listing).get("artifacts"))
                 )
-                if a.get("name") == f"{LANE_DISPATCH_ARTIFACT}{run.id}"
+                if a.get("name") == artifact
             }
-            self.lane_cache[run.id] = any(
+            self.lane_cache[artifact] = any(
                 isinstance(sender, int)
-                and _lane_run(
+                and self._lane_sender(
                     json_object(
                         _read(
                             ["api", f"repos/{repo}/actions/runs/{sender}"],
                             f"run {sender}",
                         )
                     ),
-                    repo,
-                    self.branch,
+                    events,
                 )
                 for sender in senders
             )
-        return self.lane_cache[run.id]
+        return self.lane_cache[artifact]
+
+    def _lane_sender(self, record: dict[str, Any], events: frozenset[str]) -> bool:
+        """Whether workflow run `record` ran this repository's own pr-merge.yml
+        from the branch, on an event of the job that writes the record. A fork's
+        `pull_request` run carries the base repository as `repository` and its
+        own branch name, which can be the branch's, as `head_branch`, so the
+        head repository is checked and `head_sha`, the commit whose copy of
+        the file ran, must be on the branch's tip as `refs/heads/` names it:
+        that also refuses a tag named like the branch, which a bare name
+        would resolve to first."""
+        repo = f"{self.owner}/{self.name}"
+        head_sha = record.get("head_sha")
+        return (
+            record.get("path") == LANE_DISPATCH_WORKFLOW
+            and record.get("event") in events
+            and record.get("head_branch") == self.branch
+            and json_object(record.get("repository")).get("full_name") == repo
+            and json_object(record.get("head_repository")).get("full_name") == repo
+            and isinstance(head_sha, str)
+            and _FULL_SHA.fullmatch(head_sha) is not None
+            and self.contains(head_sha, self._branch_tip())
+        )
+
+    def _branch_tip(self) -> str:
+        """The branch's tip commit, read from `refs/heads/<branch>` once. A
+        failed or malformed read raises, so the verdict is unreadable."""
+        if self.branch_tip is None:
+            ref = json_object(
+                _read(
+                    [
+                        "api",
+                        f"repos/{self.owner}/{self.name}/git/ref/heads/"
+                        f"{quote(self.branch, safe='/')}",
+                    ],
+                    f"branch {self.branch}",
+                )
+            )
+            sha = json_object(ref.get("object")).get("sha")
+            if not isinstance(sha, str) or _FULL_SHA.fullmatch(sha) is None:
+                raise PostMergeReadError(f"branch {self.branch}: no tip commit")
+            self.branch_tip = sha
+        return self.branch_tip
 
     def contains(self, ancestor: str, sha: str) -> bool:
         """Whether `sha` is `ancestor` or has it in its history: from a local
@@ -721,10 +795,7 @@ class _Context:
                     ],
                     allowed_executables=("git",),
                     check=False,
-                    env_overrides={
-                        "GIT_GRAFT_FILE": os.devnull,
-                        "GIT_NO_LAZY_FETCH": "1",
-                    },
+                    env_overrides=policy.HISTORY_GIT_ENV,
                 )
             except (RuntimeError, ValueError, OSError):
                 return None
@@ -758,12 +829,22 @@ class _Context:
         if second is None:
             return RERUN, f"attempt 1 {first.conclusion}; awaiting the wrapper's re-run"
         # A re-run by anyone else (a person re-running until green) cannot
-        # clear a red attempt 1. The one other re-run that can is
-        # post-merge-demotion-alert.yml's single re-run under GITHUB_TOKEN,
-        # and that workflow re-runs no run the bot started.
+        # clear a red attempt 1. Two github-actions[bot] re-runs can:
+        # post-merge-demotion-alert.yml's single re-run, which re-runs no run
+        # the bot started, and for a run the pr-merge lane dispatched, the one
+        # its post-merge-dispatch job recorded. That job uploads the record
+        # just after its re-run starts, so a bot attempt 2 of a lane-dispatched
+        # run still in progress waits for its record instead of reading red.
+        if (
+            second.status != "completed"
+            and second.triggering_actor == LANE_DISPATCH_ACTOR
+            and first.triggering_actor == LANE_DISPATCH_ACTOR
+            and self.lane_dispatched(run)
+        ):
+            return PENDING, "re-run-in-progress"
         if second.triggering_actor != self.identity and not (
             second.triggering_actor == LANE_DISPATCH_ACTOR
-            and first.triggering_actor != LANE_DISPATCH_ACTOR
+            and (first.triggering_actor != LANE_DISPATCH_ACTOR or self.lane_rerun(run))
         ):
             return (
                 RED,
@@ -780,15 +861,6 @@ class _Context:
         """The failing attempt's URL, in the demotion workflow's form: a run's
         URL names no attempt, and a later failing attempt is a new sighting."""
         return f"{run.url}/attempts/{2 if run.id in self.red_on_rerun else 1}"
-
-
-def _lane_run(record: dict[str, Any], repo: str, branch: str) -> bool:
-    return (
-        record.get("path") == LANE_DISPATCH_WORKFLOW
-        and record.get("event") != "pull_request_target"
-        and record.get("head_branch") == branch
-        and json_object(record.get("repository")).get("full_name") == repo
-    )
 
 
 @dataclass
@@ -899,7 +971,12 @@ def _judge(
             else:
                 tally.unattributed[ctx.sighting(run)] = None
         elif state == RERUN:
-            tally.reruns[run.id] = Rerun(run.id, run.url, signal)
+            tally.reruns[run.id] = Rerun(
+                run.id,
+                run.url,
+                signal,
+                lane=signal == SIGNAL_DISPATCH and ctx.lane_dispatched(run),
+            )
             pending.append(f"attribution-pending:{run.id}")
         elif state == FLAKE:
             tally.flakes[run.url] = None
@@ -1261,26 +1338,39 @@ def _first_line(text: Any) -> str:
     return str(text or "").lstrip().split("\n", 1)[0].strip()
 
 
-def _issue_body(failure: Failure) -> str:
+def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
     merge = failure.merge
+    others = ", ".join(f"#{m.number} (`{m.merge_commit}`)" for m in also)
     return "\n".join(
         [
             failure.marker,
             "",
             f"The post-merge check found a `{failure.signal}` failure after an unattended merge. The",
-            "unattended merge path stays at rung off until a human closes this issue directly (not",
-            "through a pull request's closing keyword).",
+            "unattended merge path stays at rung off while any demotion record is open. Fix main",
+            "first, then close every open demotion record directly (not through a pull request's",
+            "closing keyword); a new sighting of the same failure reopens its record.",
             "",
             f"- Pull request: {merge.url or f'#{merge.number}'}",
             f"- Merge commit: `{merge.merge_commit}`",
             f"- Failing run: {failure.run_url or 'none'}",
             f"- Detail: {failure.detail}",
-            "",
-            "To revert the merge, a human runs:",
-            "",
-            "```sh",
-            f"git revert {merge.merge_commit}",
-            "```",
+            *(
+                [
+                    f"- Also charged by this run: {others}",
+                    "",
+                    "A human reads the failing suites in the run above, picks the merge responsible,",
+                    "and reverts that one.",
+                ]
+                if others
+                else [
+                    "",
+                    "To revert the merge, a human runs:",
+                    "",
+                    "```sh",
+                    f"git revert {merge.merge_commit}",
+                    "```",
+                ]
+            ),
         ]
     )
 
@@ -1310,6 +1400,20 @@ def _recorded(failure: Failure, record: dict[str, Any], notes: Iterable[Any]) ->
     return any(note in _lines(body) for body in notes)
 
 
+def _same_run(failure: Failure, body: Any) -> bool:
+    """Whether a demotion record names the same failing run, any attempt. The
+    alert workflow keys its marker on the run's head SHA and this check on the
+    merge commit, so one red run would otherwise get a record from each filer.
+    The alert's post-merge-failure record never holds the gate, so it is not
+    this failure's record."""
+    if not failure.run_url or "/attempts/" not in failure.run_url:
+        return False
+    if not _first_line(body).startswith(policy.DEMOTION_MARKER):
+        return False
+    prefix = f"- Failing run: {failure.run_url.rsplit('/attempts/', 1)[0]}/attempts/"
+    return any(line.startswith(prefix) for line in _lines(body))
+
+
 def remediate(
     repo: str,
     verdict: PostMergeVerdict,
@@ -1321,7 +1425,7 @@ def remediate(
 ) -> dict[str, Any]:
     """Act on the verdict's failures: dequeue every merge-queue entry the agent
     identity enqueued, then file one demotion issue per (signal, merge SHA) or
-    comment on the existing one (reopening it first when closed and the sighting
+    failing run, or comment on the existing one, also found by its failing run (reopening it first when closed and the sighting
     is new; only the filers' own comments count as a prior sighting), then
     record the number of new issues as
     `demotion_events`. Each step runs even when an earlier one failed; errors are
@@ -1368,10 +1472,25 @@ def remediate(
                 continue
             seen.add((failure.marker, _sighting(failure)))
             match = records.get(failure.marker) or next(
-                (i for i in existing if _first_line(i.get("body")) == failure.marker),
+                (
+                    i
+                    for i in existing
+                    if _first_line(i.get("body")) == failure.marker
+                    or _same_run(failure, i.get("body"))
+                ),
                 None,
             )
             if match is None:
+                # The record names every merge this run charges; those merges
+                # then find it by run below.
+                also = [
+                    f.merge
+                    for f in verdict.failures
+                    if f.run_url
+                    and f.run_url == failure.run_url
+                    and f.merge.number != failure.merge.number
+                ]
+                body = _issue_body(failure, {m.number: m for m in also}.values())
                 issue = _write(
                     [
                         "api",
@@ -1381,7 +1500,7 @@ def remediate(
                         "-f",
                         f"title=Post-merge {failure.signal} failure after #{failure.merge.number}: unattended merging demoted",
                         "-f",
-                        f"body={_issue_body(failure)}",
+                        f"body={body}",
                         "-f",
                         f"labels[]={role_label}",
                     ],
@@ -1395,8 +1514,11 @@ def remediate(
                 records[failure.marker] = {
                     "number": filed,
                     "state": "open",
-                    "body": _issue_body(failure),
+                    "body": body,
                 }
+                # A later merge charged by the same run finds it by run, as a
+                # later pass would.
+                existing.append(records[failure.marker])
                 notes_by_issue[filed] = []
                 continue
             records[failure.marker] = match

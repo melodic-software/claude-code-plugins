@@ -14,17 +14,20 @@
 #       writes it after the merge (changelog_fragments::dependabot_only in
 #       scripts/lib/changelog-fragments.sh)
 #   scripts/check-changelog-fragments.sh --check-release <base-ref>
-#       for the release pull request: <base-ref> holds no fragment this release
-#       left unconsumed for a plugin whose version it bumps, and no fragment it
-#       consumed has changed on <base-ref> since the release was cut. In the
-#       merge queue <base-ref> is HEAD^1, the tree the queued commit lands on
-#       (main plus every entry ahead of it); a change set that bumps no plugin
-#       with pending fragments passes, so the step runs on every queued commit
+#       for the release pull request: no file the release changes (a consumed
+#       fragment, a CHANGELOG.md, a plugin.json) has changed on <base-ref> since
+#       the release was cut, its build base being the merge base with
+#       <base-ref>. A fragment <base-ref> added since then rides the next
+#       release. In the merge queue (GITHUB_EVENT_NAME=merge_group) <base-ref>
+#       is the group's base commit and the release is CHANGELOG_PR_HEAD, the
+#       queued pull request's head; without a readable one it refuses
 #
-# Shipped files are everything under plugins/<name>/. On the release pull
-# request (changelog_fragments::is_release_pr) the root CHANGELOG.md and a
-# plugin.json edit to `version` alone are left out: those are what a release
-# writes, so it needs no fragment of its own. Any other pull request that edits
+# Shipped files are everything under plugins/<name>/, or docs/conventions/<name>/
+# for a listed convention. On the release pull request
+# (changelog_fragments::is_release_pr) the root CHANGELOG.md and a plugin.json
+# edit to `version` alone are left out: those are what a release writes, so it
+# needs no fragment of its own. A convention's release is a new newest
+# CHANGELOG heading, so that is what --check-release counts as its bump. Any other pull request that edits
 # them needs a fragment like any other change, and check-changelog-parity.sh
 # --check-bump fails one that bumps the version or adds a CHANGELOG heading.
 #
@@ -84,7 +87,17 @@ if ! jq --version >/dev/null 2>&1; then
 fi
 
 head_commit=HEAD
-if git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1 && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
+if [[ "$mode" == --check-release && "${GITHUB_EVENT_NAME:-}" == merge_group ]]; then
+  # The queue checks out the group's squash commit, which has one parent and
+  # carries nothing of the release branch, so the release is read from the
+  # queued pull request's own head commit.
+  # shellcheck disable=SC2310  # the non-zero return IS the handled case
+  if [[ -z "${CHANGELOG_PR_HEAD:-}" ]] || ! changed_files::verify_base "$CHANGELOG_PR_HEAD"; then
+    echo "$self: in the merge queue --check-release reads the release from CHANGELOG_PR_HEAD, the queued pull request's head commit, which is unset or unreadable; refusing to pass without it." >&2
+    exit 2
+  fi
+  head_commit="$CHANGELOG_PR_HEAD"
+elif git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1 && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
   head_commit='HEAD^2'
 fi
 if ! merge_base="$(git merge-base "$base" "$head_commit")"; then
@@ -106,7 +119,7 @@ release_pr=""
 if changelog_fragments::is_release_pr; then
   release_pr=1
 fi
-declare -A shipped=() covered=() bumped=() consumed=()
+declare -A shipped=() covered=() bumped=()
 added_fragments=()
 while IFS= read -r -d '' status && IFS= read -r -d '' path; do
   case "$path" in
@@ -118,7 +131,6 @@ while IFS= read -r -d '' status && IFS= read -r -d '' path; do
       added_fragments+=("$path")
       ;;
     M) covered["${rest%%/*}"]=1 ;;
-    D) consumed["$path"]=1 ;;
     *) ;;
     esac
     ;;
@@ -142,6 +154,20 @@ while IFS= read -r -d '' status && IFS= read -r -d '' path; do
     rest="${path#plugins/}"
     name="${rest%%/*}"
     [[ -n "$release_pr" && "$rest" == "$name/CHANGELOG.md" ]] || shipped["$name"]=1
+    ;;
+  docs/conventions/*/*)
+    rest="${path#docs/conventions/}"
+    name="${rest%%/*}"
+    # Only a convention no plugin of the same name owns; in_mode below drops
+    # an unlisted one.
+    [[ "$(changelog_fragments::root_of "$name")" == "docs/conventions/$name" ]] || continue
+    if [[ "$rest" == "$name/CHANGELOG.md" ]]; then
+      if [[ "$(git show "$merge_base:$path" 2>/dev/null | changelog_fragments::newest_version -)" != "$(git show "$head_commit:$path" 2>/dev/null | changelog_fragments::newest_version -)" ]]; then
+        bumped["$name"]=1
+      fi
+      [[ -z "$release_pr" ]] || continue
+    fi
+    shipped["$name"]=1
     ;;
   *) ;;
   esac
@@ -170,11 +196,12 @@ if [[ "$mode" == --check-required ]]; then
     esac
     checked=$((checked + 1))
     [[ -z "${covered[$name]:-}" ]] || continue
+    root="$(changelog_fragments::root_of "$name")" || root="plugins/$name"
     if [[ -n "$dependabot" ]]; then
-      echo "Dependabot-only change to plugins/$name/: scripts/dependabot-fragments.sh writes its fragment after the merge."
+      echo "Dependabot-only change to $root/: scripts/dependabot-fragments.sh writes its fragment after the merge."
       continue
     fi
-    echo "MISSING FRAGMENT: this change set changes files under plugins/$name/ but adds or edits no fragment under .changes/$name/." >&2
+    echo "MISSING FRAGMENT: this change set changes files under $root/ but adds or edits no fragment under .changes/$name/." >&2
     echo "  Run scripts/new-changelog-fragment.sh $name <major|minor|patch|none> and describe the change; use none, with a reason, when it needs no release." >&2
     findings=$((findings + 1))
   done
@@ -186,31 +213,31 @@ if [[ "$mode" == --check-required ]]; then
 fi
 
 # --check-release
+# The release may merge past fragments the base added after it was cut: they
+# ride the next release. It may not merge over a file it changes (a consumed
+# fragment, a CHANGELOG.md, a plugin.json) that the base changed since the cut,
+# since the release never read that change.
 findings=0
-for name in "${!bumped[@]}"; do
-  if ! pending="$(git ls-tree -r --name-only "$base" -- ".changes/$name/")"; then
-    echo "$self: 'git ls-tree $base -- .changes/$name/' failed; refusing to pass without checking." >&2
+while IFS= read -r -d '' status && IFS= read -r -d '' path; do
+  if ! base_blob="$(git ls-tree "$base" -- "$path")" || ! cut_blob="$(git ls-tree "$merge_base" -- "$path")"; then
+    echo "$self: 'git ls-tree' failed reading $path; refusing to pass without checking." >&2
     exit 2
   fi
-  while IFS= read -r path; do
-    [[ -n "$path" ]] || continue
-    if [[ -n "${consumed[$path]:-}" ]]; then
-      # Consumed, but only the content the release was cut from: an edit on the
-      # base since then is a change the release never aggregated.
-      if ! base_blob="$(git ls-tree "$base" -- "$path")" || ! cut_blob="$(git ls-tree "$merge_base" -- "$path")"; then
-        echo "$self: 'git ls-tree' failed reading $path; refusing to pass without checking." >&2
-        exit 2
-      fi
-      [[ "$base_blob" != "$cut_blob" ]] || continue
+  [[ "$base_blob" != "$cut_blob" ]] || continue
+  case "$path" in
+  .changes/*/*)
+    if [[ -n "$base_blob" ]]; then
       echo "EDITED FRAGMENT: $path changed on $base after this release consumed it; rebuild the release from $base." >&2
     else
-      echo "UNCONSUMED FRAGMENT: $path is on $base but this release bumps $name without it; rebuild the release from $base." >&2
+      echo "REMOVED FRAGMENT: $path was removed on $base after this release consumed it; rebuild the release from $base." >&2
     fi
-    findings=$((findings + 1))
-  done <<<"$pending"
-done
+    ;;
+  *) echo "CHANGED ON BASE: $path changed on $base after this release was cut; rebuild the release from $base." >&2 ;;
+  esac
+  findings=$((findings + 1))
+done <"$status_file"
 if ((findings > 0)); then
   gate_entry::finish 1
 fi
-echo "This release leaves no fragment on $base unconsumed for the ${#bumped[@]} plugin(s) it bumps."
+echo "No file this release changes for the ${#bumped[@]} plugin(s) it bumps has changed on $base since it was cut ($merge_base)."
 gate_entry::finish 0

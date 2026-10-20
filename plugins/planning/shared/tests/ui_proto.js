@@ -17,7 +17,7 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, snap, joinAs, png } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, snap, joinAs, png, openClaude } = require("./browser_harness");
 
 // The html variant. Its button's path, from its markup: html > body(1st) > main(1st) > section(1st) > div(1st) > button(1st).
 const BUTTON_PATH = "html > body:nth-of-type(1) > main:nth-of-type(1) > section:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)";
@@ -239,6 +239,7 @@ async function main() {
     const th = await owner.evaluate(() => [...document.querySelectorAll(".vf-thnote")].map(li => ({ text: li.querySelector(".vf-thnote-text").textContent, href: li.querySelector(".vf-thnote-go").getAttribute("href") })));
     ok("the thread shows each note's text", th.map(x => x.text).join("|") === "Make the total sit next to Pay now.|This band hides the address.|Too long for a phone.", JSON.stringify(th));
     ok("each note links to its variant and pin on the prototype page, with no owner token", th[0].href === "/proto/Q1#v=v-1&n=A1", th[0].href);
+    ok("the Claude section opens to show them", await openClaude(owner));
     const [notePage] = await Promise.all([owner.context().waitForEvent("page"), owner.locator(".vf-thnote-go").first().click()]);
     await notePage.waitForLoadState();
     ok("the owner following a note opens its variant and pin as the owner, the token out of the address",

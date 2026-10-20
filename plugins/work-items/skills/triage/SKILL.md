@@ -124,8 +124,9 @@ this session through `session-bridge` so the reader's moves and notes arrive as 
 show on the page. The table is the record; the page is a view of it. Item text is tracker text (K2), so only
 `scripts/build-board.mjs` writes the page, from its checked-in template (`templates/board.html`) and the items as escaped
 JSON data. Never hand-write the page or add script to it. A lane run, CI, or `medium: terminal`
-prints the table only. `context/board.md` writes the plugin's root directory as `<plugin-root>`,
-which is `${CLAUDE_PLUGIN_ROOT}`; put that path in place of the placeholder before running a command.
+prints the table only. `context/board.md` and `context/apply-outcome.md` write the plugin's root
+directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`; put that path in place of the
+placeholder before running a command.
 
 ## Triage settings
 
@@ -244,8 +245,9 @@ Only after verification (or for enhancements, where the open question is scope, 
 Read [context/apply-outcome.md](context/apply-outcome.md) once the category and state are settled,
 before writing anything to the tracker: it owns the per-outcome mutation, the raw-intake marker
 rules that keep an item reachable, the comment bodies including the needs-info comment, and what
-each outcome does to the item's labels. Every outcome is a transition off raw intake, never a layer
-on top of it.
+each outcome does to the item's labels and issue dimensions, including the human-gated route for
+an item too large for one run or not ready to run. Every outcome is a transition off raw intake,
+never a layer on top of it.
 
 **Objection window.** When `triage_objection_window_hours` resolved above 0, every outcome that
 applies the autonomous-eligible role label also posts an "Objection window until <UTC>" comment
@@ -258,7 +260,7 @@ admission gate enforces the window.
 
 - An autonomous-eligible item: `/work-items:work`.
 - A verified bug whose root cause is unknown: `/debugging:debug`.
-- A briefed item too large for one vertical slice: `/work-items:decompose`.
+- A briefed item too large for one vertical slice, or sized `split`: `/work-items:decompose`.
 - Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## AI disclaimer
