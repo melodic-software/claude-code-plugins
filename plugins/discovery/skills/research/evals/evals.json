@@ -637,6 +637,58 @@
         "Output cites the local probe claim by naming the artifact file RESEARCH-probes.md that holds its command, and invents no URL for it",
         "Output does not cite any source by name alone: a source name without its URL fails the citation requirement"
       ]
+    },
+    {
+      "id": 45,
+      "name": "verify-and-rework-stops-after-one-round-at-medium",
+      "prompt": "/discovery:research which Node.js release line is the current LTS [Budget: medium. The dispatched discovery:researcher returned a well-formed artifact and all gates exit 0. The sibling verifier fails row 7 on the first pass. The researcher is resumed once and reworks the claim. The verifier is dispatched again and fails row 7 on the same claim a second time, because the fixture keeps failing verification.]",
+      "files": [],
+      "expected_output": "Allows exactly one rework round: the first FAIL returns row 7 to its phase and the researcher reworks it, then the verifier re-verifies. When row 7 still fails, the run does not rework a second time or run a third verifier pass. It records the claim as a Gap or Conflicts entry and lowers accepted: to match, or leaves the failing row as the named verification: fail rows value, and presents the result with that caveat.",
+      "expectations": [
+        "Output returns the first row 7 FAIL to its phase for rework and re-dispatches the verifier once afterwards",
+        "Output does NOT run a second rework round or a third verifier pass after the re-verify fails",
+        "Output records the still-failing claim as a Gap or Conflicts entry with accepted: lowered to match, or leaves it as the named verification: fail rows value",
+        "Output presents the result with the remaining FAIL named as a caveat rather than presenting it as passed or looping until it passes"
+      ]
+    },
+    {
+      "id": 46,
+      "name": "deep-tier-sweep-artifact-fails-source-applicability-gate",
+      "prompt": "/discovery:research deep whether SQLite WAL mode is safe on network file systems [The Workflow tool is in this session's toolset. The discovery:research-sweep workflow returned findings and this session wrote the artifact from them. The acceptance gate then runs check-source-applicability.py on the slice, which exits 1 because a source header is missing its published: field.]",
+      "files": [],
+      "expected_output": "Treats the non-zero exit as a FAIL that halts: it does not surface the sweep artifact or dispatch the verifier on it. It follows the deep tier's stated fallback for a failed gate and routes the topic to one discovery:researcher with the full envelope, then closes the post-dispatch boundary on that researcher's artifact before surfacing anything.",
+      "expectations": [
+        "Output cites the check-source-applicability.py exit status 1 as a FAIL and halts rather than presenting the sweep artifact",
+        "Output does not hand-patch the missing published: field or guess a value for it",
+        "Output routes the topic to one discovery:researcher with the full envelope as the fallback for the failed gate",
+        "Output closes the post-dispatch boundary (acceptance gate, sibling verifier, project fit, write-back) on the fallback researcher's artifact before surfacing the result"
+      ]
+    },
+    {
+      "id": 47,
+      "name": "standard-dispatch-researcher-writes-research-md",
+      "prompt": "/discovery:research what is the default timeout of the fetch API in Node.js 22 [The standard dispatch runs: one topic, no deep token, no adversarial-verification need. Plan the dispatch and say who writes which file.]",
+      "files": [],
+      "expected_output": "Dispatches one discovery:researcher with the envelope, and the researcher subagent writes RESEARCH.md and its sidecars into the assigned memory slice. The parent session does not author RESEARCH.md itself; beyond creating the slice and baseline before dispatch, it grades the artifact off disk, dispatches the sibling verifier, applies project fit and writes the verification: result back into the index.",
+      "expectations": [
+        "Output states that the discovery:researcher subagent writes RESEARCH.md into the assigned slice",
+        "Output does not have the parent session author RESEARCH.md from the researcher's return payload, except on the by-value rung where it only persists what the researcher returned",
+        "Output has the parent write only the pre-dispatch slice and baseline and, after the researcher returns, the verification: write-back and project fit into the researcher's index",
+        "Output dispatches exactly one researcher and launches no research-sweep workflow"
+      ]
+    },
+    {
+      "id": 48,
+      "name": "deep-tier-wide-fan-out-spawns-rest-when-usage-has-room",
+      "prompt": "Research six separate things for me: (1) Postgres logical replication limits, (2) whether Redis 8 changed its license again, (3) the current state of WebGPU in Safari, (4) Rust async traits stabilization, (5) Kafka KRaft migration steps, and (6) how Terraform state locking works on S3 without DynamoDB. [The pilot researcher for topic 1 has returned. Its return carries no usage-limit error, and the session's usage reading shows ample room for the rest.]",
+      "files": [],
+      "expected_output": "Having piloted one researcher and confirmed usage remains, spawns the other five discovery:researcher agents, each with its own assigned sub-slice and full envelope, then closes the post-dispatch boundary per topic and synthesizes the slice-root RESEARCH.md.",
+      "expectations": [
+        "Output checks the pilot's return for a usage-limit error and the session's usage reading, and finds room",
+        "Output spawns the remaining five discovery:researcher agents, one per remaining topic, and does not stop at the pilot",
+        "Output assigns each remaining researcher its own sub-slice and a full envelope",
+        "Output closes the post-dispatch boundary for each topic, including the pilot's, before synthesizing the slice-root RESEARCH.md"
+      ]
     }
   ]
 }

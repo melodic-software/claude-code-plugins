@@ -314,7 +314,27 @@ def test_md_names_each_findings_sessions_worst_first(data_dir):
     assert line.index("s-high") < line.index("s-low") and "s-none" not in line
 
 
-def test_write_report_writes_a_pair_appends_history_and_keeps_20(data_dir):
+def test_md_caps_each_findings_sessions_and_names_the_remainder(data_dir):
+    write_store(data_dir, *[record(f"s{n}", **{"tools.interrupts": 10 + n}) for n in range(8)])
+    result = sweep(data_dir, "--format", "md")
+    findings = result.stdout.split("## Findings", 1)[1].split("## Drift", 1)[0]
+    line = next(row for row in findings.splitlines() if row.startswith("- `tools.interrupts`"))
+    assert [f"s{n}" in line for n in range(7, -1, -1)] == [True] * 5 + [False] * 3
+    assert "and 3 more (the JSON report lists all 8)" in line
+    kept = envelope(sweep(data_dir))["data"]["findings"]
+    assert len(next(f for f in kept if f["metric"] == "tools.interrupts")["evidence"]) == 8
+
+
+def test_md_names_the_statistic_of_the_two_metrics_that_are_not_medians(data_dir):
+    write_store(data_dir, record("s1"))
+    table = sweep(data_dir, "--format", "md").stdout.split("## Metrics", 1)[1].split("## Findings", 1)[0]
+    rows = {row.split("|")[1].strip(" `"): row for row in table.splitlines() if row.startswith("| `")}
+    assert "machine-wide ratio" in rows["cache.write_5m_share"]
+    assert "median of per-session p90" in rows["hooks.stop_ms"]
+    assert "median" not in rows["cache.write_5m_share"] and "(median)" not in table.splitlines()[2]
+
+
+def test_write_report_writes_a_pair_and_keeps_20(data_dir):
     write_store(data_dir, record("s1"))
     reports = data_dir / "audit-sessions" / "reports" / "machine"
     reports.mkdir(parents=True)
@@ -329,11 +349,7 @@ def test_write_report_writes_a_pair_appends_history_and_keeps_20(data_dir):
     assert sorted(p.stem for p in reports.glob("*.md")) == [Path(k).stem for k in kept]
     written = json.loads((reports / kept[-1]).read_text(encoding="utf-8"))
     assert written["schema"] == "audit-sessions.sweep/v1" and written["data"]["window"]["sessions"] == 1
-    lines = (reports / "history.jsonl").read_text(encoding="utf-8").splitlines()
-    assert len(lines) == 1
-    entry = json.loads(lines[0])
-    assert entry["stamp"] == Path(kept[-1]).stem and entry["scope"] == "machine" and entry["sessions"] == 1
-    assert entry["metrics"]["tokens.main"] == 0
+    assert not (reports / "history.jsonl").exists()
 
 
 def test_scope_project_filters_on_identity_and_keys_reports(data_dir):
@@ -350,18 +366,17 @@ def test_scope_project_filters_on_identity_and_keys_reports(data_dir):
     assert finding["evidence"] == [{"session_id": "mine"}] and finding["scope"] == "repo:github.com/o/r"
     keyed = data_dir / "audit-sessions" / "reports" / "github.com" / "o" / "r" / "abcd1234"
     assert len(list(keyed.glob("*.json"))) == 1
-    assert (keyed / "history.jsonl").is_file()
+    assert not (keyed / "history.jsonl").exists()
 
 
-def test_two_report_runs_keep_two_pairs_and_two_history_lines(data_dir):
+def test_two_report_runs_keep_two_pairs_and_write_no_history(data_dir):
     write_store(data_dir, record("s1"))
     assert sweep(data_dir, "--write-report").returncode == 0
     assert sweep(data_dir, "--write-report").returncode == 0
     reports = data_dir / "audit-sessions" / "reports" / "machine"
     stamps = sorted(p.stem for p in reports.glob("*.json"))
     assert len(stamps) == 2
-    history = [json.loads(line)["stamp"] for line in (reports / "history.jsonl").read_text(encoding="utf-8").splitlines()]
-    assert history == stamps
+    assert not (reports / "history.jsonl").exists()
 
 
 @pytest.mark.parametrize("key", [None, "../../evil/x", "github.com/o/r/../x", "/abs/x", "noworktree"])

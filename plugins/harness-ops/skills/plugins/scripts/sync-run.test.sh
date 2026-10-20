@@ -1309,10 +1309,10 @@ setup_case "$case_dir"
 EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
 report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
 stale_run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
-stale_section=$(printf '%s\n' "$REPORT_TEXT" | sed -n '/^Stale project records:/,/^[^ ]/p' | sed '$d')
+stale_section=$(printf '%s\n' "$REPORT_TEXT" | sed -n '/^Stale project records (market1):/,/^[^ ]/p' | sed '$d')
 assert_exit "stale many: exit 0" 0 "$REPORT_RC"
-assert_contains "stale many: the header counts every record and every path" "$REPORT_TEXT" \
-  "Stale project records: 18 record(s) across 14 path(s) not present on this machine"
+assert_contains "stale many: the header names the marketplace and counts every record and path" "$REPORT_TEXT" \
+  "Stale project records (market1): 18 record(s) across 14 path(s) not present on this machine"
 assert_contains "stale many: the largest parent leads, with its record and path counts" "$stale_section" \
   $'  - <case>/g01/: 6 record(s) across 3 path(s)\n  - <case>/g02/: 2 record(s) across 1 path(s)\n  - <case>/g03/: 1 record(s) across 1 path(s)'
 assert_eq "stale many: ten parent rows are printed" "10" "$(grep -c '^  - ' <<<"$stale_section")"
@@ -1333,7 +1333,7 @@ assert_eq "stale many: the printed digest carries no per-path array" "false" \
 # Audit's scratch directory is removed on exit, so the render names no file there.
 report_of "$case_dir" --marketplace market1 --audit --install-new none
 assert_contains "stale many audit: the header still counts every record" "$REPORT_TEXT" \
-  "Stale project records: 18 record(s) across 14 path(s) not present on this machine"
+  "Stale project records (market1): 18 record(s) across 14 path(s) not present on this machine"
 assert_contains "stale many audit: the render says the full list is not kept" "$REPORT_TEXT" \
   "  Full per-path list: not kept, the audit scratch directory is removed on exit"
 
@@ -1454,11 +1454,14 @@ assert_contains "stale render: a sync run with no list file says it was not writ
 stale_legacy='{"stale_project_records":{"total":3,"by_path":[{"path":"/g/a","count":2},{"path":"/h/b","count":1}]}}'
 assert_contains "stale render: a pre-3.8.1 digest still renders its per-path rows" \
   "$(needs_digest sync "$stale_legacy" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
-  $'Stale project records: 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'
+  $'Stale project records (m): 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'
 # Every absent record local-scope: the worktree audit has nothing to classify, so no pointer.
-stale_local_only='{"stale_project_records":{"total":2,"paths":1,"project":0,"by_parent":[{"parent":"/g/","count":2,"paths":1}],"more_parents":0,"list_file":null}}'
+stale_local_only='{"stale_project_records":{"total":2,"paths":1,"project":0,"local":2,"by_parent":[{"parent":"/g/","count":2,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_not_contains "stale render: local-scope records only name no worktree audit" \
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "/source-control:worktree audit"
+assert_contains "stale render: local-scope records are counted and named as unreaped" \
+  "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" \
+  "  Of these, 2 local-scope record(s); nothing reaps them yet."
 needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 # A digest written before `self_update` existed: the note names no plugin rather
 # than the first moved row.
@@ -2080,6 +2083,57 @@ assert_contains "audit remedies: the git pull remedy is unprefixed" "$remedy_tex
   "and the catalog is read from it as it is: run \`git -C '/src' pull --ff-only\`"
 assert_contains "audit remedies: the project-scope enable remedy is unprefixed" "$remedy_text" \
   "  - project-scope enable gap: (cd \"/w/repo\" && claude plugin enable p@m -s project)"
+
+# ============================================================================
+# Case: audit, in-repo record of a marketplace whose directory source is the
+# repo the run stands in: read live, so no update is predicted. A git-sourced
+# marketplace with the same record still predicts one.
+# ============================================================================
+for self_source in directory github; do
+  CASE_NUM=$((CASE_NUM + 1))
+  case_dir=$(new_case_dir)
+  catalog_plugin "$case_dir" market1 alpha 0.2.0
+  proj=$(norm_path "$case_dir")
+  src_path="$case_dir"
+  command -v cygpath >/dev/null 2>&1 && src_path=$(cygpath -w "$src_path")
+  write "$case_dir/installed_plugins.json" "{
+    \"version\": 1,
+    \"plugins\": {\"alpha@market1\": [{\"scope\": \"project\", \"projectPath\": \"$proj\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"}]}
+  }"
+  if [[ "$self_source" == directory ]]; then
+    write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"directory\", \"path\": \"${src_path//\\/\\\\}\"}, \"installLocation\": \"${src_path//\\/\\\\}\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+  else
+    write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+  fi
+  write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+  write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+  setup_case "$case_dir"
+  EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1)
+  report_of "$case_dir" --marketplace market1 --audit --install-new none
+  assert_exit "self-sourced audit ($self_source): exit 0" 0 "$REPORT_RC"
+  assert_eq "self-sourced audit ($self_source): no update is issued" "0" \
+    "$(grep -c 'plugin update' "$case_dir/claude.log" || true)"
+  if [[ "$self_source" == directory ]]; then
+    assert_eq "self-sourced audit (directory): nothing in would_update" "0" \
+      "$(jq -r '.marketplaces[0].in_repo.would_update | length' <<<"$REPORT_DIGEST")"
+    assert_eq "self-sourced audit (directory): the record is reported as read live" \
+      '[{"id":"alpha@market1","scope":"project","installed":"0.1.0"}]' \
+      "$(jq -c '[.marketplaces[0].in_repo.live_read[] | del(.path)]' <<<"$REPORT_DIGEST")"
+    assert_contains "self-sourced audit (directory): the report names the live read and the pin" "$REPORT_TEXT" \
+      "alpha@market1 (project): read live from"
+    assert_contains "self-sourced audit (directory): and the pinned version" "$REPORT_TEXT" \
+      "project record pinned at 0.1.0; the CLI will not update it"
+    assert_eq "self-sourced audit (directory): the report predicts no in-repo update" "0" \
+      "$(grep -c 'would run: claude plugin update alpha@market1 -s project' <<<"$REPORT_TEXT" || true)"
+  else
+    assert_eq "self-sourced audit (github): the update is still predicted" "1" \
+      "$(jq -r '.marketplaces[0].in_repo.would_update | length' <<<"$REPORT_DIGEST")"
+    assert_contains "self-sourced audit (github): the report says would run" "$REPORT_TEXT" \
+      "would run: claude plugin update alpha@market1 -s project (installed 0.1.0)"
+    assert_eq "self-sourced audit (github): no live read" "0" \
+      "$(jq -r '.marketplaces[0].in_repo.live_read | length' <<<"$REPORT_DIGEST")"
+  fi
+done
 
 # ============================================================================
 if ((FAILED > 0)); then

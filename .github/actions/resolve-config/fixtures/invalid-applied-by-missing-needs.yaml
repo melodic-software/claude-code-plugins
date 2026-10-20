@@ -1,0 +1,25 @@
+version: 2
+activities:
+  fix-ci:
+    skill: source-control:pull-request
+    args: ci --ci
+    prepare: ci-context
+    effect: read
+    applied-by:
+      patch: apply-patch
+    gating: advisory
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+  apply-patch:
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+lanes:
+  pr-unblock:
+    stage: unblock
+    slots:
+      - activity: fix-ci
+      - activity: apply-patch

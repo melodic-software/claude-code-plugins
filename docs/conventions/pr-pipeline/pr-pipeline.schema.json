@@ -113,7 +113,14 @@
           "minimum": 1,
           "maximum": 500,
           "default": 60,
-          "description": "Open pull requests by the lanes App at or above which work-resolve-issue starts no run and work-unblock re-fires none."
+          "description": "The issue lane's WIP cap when the lane merge rate cannot be read; otherwise wip.target-lead-time-hours sets it."
+        },
+        "turn-cap-restarts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 0,
+          "description": "Times work-unblock restarts an issue whose run reached its turn cap, since a listed human last added agent-ready; past it the issue goes to a person. 0 never restarts."
         },
         "fix-ci-per-run": {
           "type": "integer",
@@ -128,6 +135,75 @@
           "maximum": 5,
           "default": 1,
           "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
+        },
+        "admission-window-hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 24,
+          "description": "Hours of issue-lane admissions the admitted backlog (open issues labeled agent-ready) may hold before new agent-ready labels pause. Admissions are open while that backlog is under the admission factor times lane merges per hour times this window."
+        },
+        "admission-factor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.8,
+          "description": "Share of the issue lane's hourly merge rate (lanes App PRs merged in the last 24 hours, divided by 24) admitted per hour. The release point is this factor times hourly merges times admission-window-hours."
+        }
+      }
+    },
+    "wip": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The issue lane's WIP cap from the lane merge rate, and the buffer for held lane PRs. Contract: README.md, WIP cap.",
+      "properties": {
+        "target-lead-time-hours": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 720,
+          "default": 2,
+          "description": "Target open-to-merge hours. The WIP cap is the lane merge rate per hour times this, rounded up, at least min-cap."
+        },
+        "min-cap": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 1,
+          "description": "Floor under the computed WIP cap, so a day with few merges cannot shrink the cap until the lane stalls."
+        },
+        "merge-rate-window-hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 24,
+          "description": "Rolling window over which merged and opened lane PRs are counted."
+        },
+        "opened-to-merged-ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.8,
+          "description": "Lane PRs opened in the window may reach at most this share of lane PRs merged in it."
+        },
+        "held-cap": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 60,
+          "description": "Open held lane PRs at or above which the held buffer is over its cap."
+        },
+        "held-alarm-hours": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 720,
+          "default": 24,
+          "description": "Age in hours past which a held lane PR raises the alarm."
+        },
+        "pause-from": {
+          "type": "string",
+          "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?Z)?$",
+          "default": "",
+          "description": "UTC date (or date-time) from which the issue lane pauses while over the WIP cap (the held cap only alerts). Empty: it never pauses, it only alerts."
         }
       }
     },
@@ -245,7 +321,12 @@
         "awaiting-human",
         "superseded-sha",
         "disabled-by-config",
-        "untrusted-trigger"
+        "untrusted-trigger",
+        "not-assessed",
+        "split-required",
+        "research-first",
+        "probe-first",
+        "workflow-modified"
       ],
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
     },
@@ -271,6 +352,19 @@
         }
       }
     },
+    "edit-runner": {
+      "anyOf": [
+        { "properties": { "effect": { "not": { "const": "read" } } } },
+        {
+          "required": ["applied-by"],
+          "properties": {
+            "applied-by": { "required": ["patch"] },
+            "prepare": { "not": { "const": "ci-context" } }
+          }
+        }
+      ],
+      "description": "Only the runner that stages a skill's edit tools grants checks, self-checks, verify-scripts and web-access: the write runner, or the read runner for a skill with applied-by.patch and no prepare: ci-context. Anywhere else they would do nothing, so they are refused."
+    },
     "leaf": {
       "type": "object",
       "additionalProperties": false,
@@ -278,11 +372,18 @@
       "oneOf": [{ "required": ["skill"] }, { "required": ["script"] }],
       "dependentRequired": {
         "checks": ["skill"],
+        "self-checks": ["skill"],
         "verify-scripts": ["skill"],
-        "web-access": ["skill"]
+        "web-access": ["skill"],
+        "applied-by": ["skill"]
       },
       "dependentSchemas": {
-        "verify-scripts": { "properties": { "effect": { "not": { "const": "read" } } } },
+        "applied-by": {
+          "properties": { "effect": { "const": "read" }, "gating": { "const": "advisory" } }
+        },
+        "checks": { "$ref": "#/$defs/edit-runner" },
+        "self-checks": { "$ref": "#/$defs/edit-runner" },
+        "verify-scripts": { "$ref": "#/$defs/edit-runner" },
         "prepare": {
           "oneOf": [
             {
@@ -298,13 +399,21 @@
         "properties": { "web-access": { "properties": { "enabled": { "const": true } } } }
       },
       "then": {
-        "properties": { "reads-untrusted": { "const": true }, "effect": { "not": { "const": "read" } } }
+        "properties": { "reads-untrusted": { "const": true } },
+        "$ref": "#/$defs/edit-runner"
       },
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
           "enum": ["merge-base", "review-threads", "dependency-review", "ci-context", "apply-patch"],
-          "description": "What the runner does around the activity. ci-context is the one mode for a read skill, apply-patch the one mode for a script (a mutate-branch one); the others need a skill with an effect other than read. ci-context: the read runner downloads the failing-check context file a base job wrote, checks its SHA-256 and head, makes it read-only and names it to the skill, which also gets Bash, Edit and Write; the run must use output-mode: patch. apply-patch: before the mint, check the patch artifact a ci-context run left (one patch.diff with its SHA-256, on the head it worked on) and read its report; the script applies it to the gated head, refuses the whole patch on any change to .github/**, an agent instruction path (CLAUDE.md, AGENTS.md, .claude/ or .claude-plugin/, a plugin's hooks/, .mcp.json, .gitmodules, CODEOWNERS), a symbolic link or a gitlink, and pushes it as one commit without force. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; move the PR branch only to commits that touch nothing under .github/ and carry [dependabot skip]; after it, upload the verdict, which a dependency-verdict script job validates and acts on."
+          "description": "What the runner does around the activity (README.md, Activities; pr-run-activity.md, the prepare sections). apply-patch is the one mode for a script, a mutate-branch one; the others run around a skill. ci-context needs effect read and hands its change on as a patch; merge-base, review-threads and dependency-review need an effect other than read until their activity hands its change on as a patch. ci-context: download the failing-check context file a base job wrote, check its SHA-256 and head, make it read-only and name it to the skill, which also gets Bash, Edit and Write. apply-patch: check the patch artifact a producer left (one patch.diff with its SHA-256, on the head it worked on), apply it to the gated head, and push it as one commit without force; patch-rules.json registers the rules each producer's patch is to be held to (README.md, Patch rules). merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded for a script job to validate and post. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; after it, upload the verdict for a script job to validate and act on."
+        },
+        "applied-by": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "enum": ["patch", "feedback-replies", "dependency-verdict", "work-outcome"] },
+          "additionalProperties": { "$ref": "#/$defs/name" },
+          "description": "What this read skill hands on, keyed by artifact, and the script activity that applies each: patch (its change to the tree, applied by a prepare: apply-patch script), feedback-replies, dependency-verdict, work-outcome. Only a skill with effect read and gating advisory sets it. The config reader rejects a target that is not a script, is not in every lane that holds the producer, or whose slot does not need the producer (README.md, Activities)."
         },
         "args": {
           "type": "string",
@@ -319,7 +428,17 @@
             "type": "string",
             "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
           },
-          "description": "Repository check scripts a skill with an effect other than read may run, each with its fixed flags. The write runner runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
+          "description": "Repository check scripts the skill may run, each with its fixed flags. The runner that stages the skill's edit tools (the write runner, or the read runner for a skill with applied-by.patch) runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
+        },
+        "self-checks": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
+          },
+          "description": "Advisory repository check scripts the skill runs and fixes before it hands its change on, each with its fixed flags, through the same wrapper as checks. Unlike checks, the runner never runs them again, so a failure the skill cannot fix still opens the PR and is named in its report."
         },
         "verify-scripts": {
           "type": "array",
@@ -329,7 +448,7 @@
             "type": "string",
             "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
           },
-          "description": "Exact repository-relative paths of scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. Needs an effect other than read. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does."
+          "description": "Exact repository-relative paths of scripts the skill may run with any arguments. The runner that stages the skill's edit tools copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does."
         },
         "web-access": {
           "type": "object",
@@ -355,7 +474,7 @@
           },
           "if": { "properties": { "enabled": { "const": true } } },
           "then": { "required": ["domains"] },
-          "description": "Whether a skill with an effect other than read may read the web, off when absent. On, the write runner allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true and an effect other than read."
+          "description": "Whether the skill may read the web, off when absent. On, the runner that stages the skill's edit tools allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true."
         },
         "script": {
           "type": "string",
@@ -370,7 +489,7 @@
             "publish-artifact",
             "merge"
           ],
-          "description": "What the activity may change. The runner derives ordering and the token grant from it and checks that a read activity left the tree clean."
+          "description": "What the activity may change. The runner derives ordering and the token grant from it and checks that a read activity left the tree clean, unless the activity hands its change on as a patch."
         },
         "gating": {
           "enum": ["gate", "advisory"],
@@ -452,6 +571,78 @@
           "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": { "$ref": "#/$defs/name" },
           "description": "Run -> profile. A key is a skill activity or a run route (verify-pr, review-code, review-security, triage-issue, summarize-reuse); a value is a key of profiles. The config reader rejects any other key or value."
+        },
+        "issue-dimensions": { "$ref": "#/$defs/issue-dimensions" }
+      }
+    },
+    "issue-dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields", "sizes", "complexity", "uncertainty"],
+      "description": "The budget of a skill activity with input issue, from the issue's Size, Complexity and Uncertainty org issue fields, read by field and option id. A field with no value, or whose latest setter is neither a listed human nor the lanes App, is not assessed and skips the activity with not-assessed; an option no entry maps fails the resolve. The turn cap is the size's base-turns times the complexity factor, rounded up, and replaces the profile's max-turns (README.md, Models).",
+      "properties": {
+        "fields": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["size", "complexity", "uncertainty"],
+          "properties": {
+            "size": { "$ref": "#/$defs/issue-field" },
+            "complexity": { "$ref": "#/$defs/issue-field" },
+            "uncertainty": { "$ref": "#/$defs/issue-field" }
+          }
+        },
+        "sizes": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": {
+            "oneOf": [
+              { "const": "split", "description": "Too big for one run: skips with split-required." },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["base-turns", "timeout-minutes"],
+                "properties": {
+                  "base-turns": { "type": "integer", "minimum": 1, "description": "Turns at complexity factor 1." },
+                  "timeout-minutes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 360,
+                    "description": "The run job's timeout-minutes, whatever the complexity."
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "complexity": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "type": "number", "exclusiveMinimum": 0, "maximum": 4 },
+          "description": "Complexity -> the factor base-turns is multiplied by."
+        },
+        "uncertainty": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "enum": ["run", "research-first", "probe-first"] },
+          "description": "Uncertainty -> run, or the skip reason that sends the issue to research or a probe first."
+        }
+      }
+    },
+    "issue-field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field-id", "options"],
+      "properties": {
+        "field-id": { "type": "integer", "minimum": 1, "description": "The org issue field's id (REST issue_field_id)." },
+        "options": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[1-9][0-9]{0,15}$" },
+          "additionalProperties": { "$ref": "#/$defs/name" },
+          "description": "Single-select option id -> the key of its table. A rename keeps the id."
         }
       }
     },
@@ -551,6 +742,43 @@
           "default": 1,
           "description": "Lane merges allowed in flight at once: the agent identity's merge-queue entries plus its merged pull requests the post-merge check has not verified. The gate reads it at the default branch head, not the pull request's base, and refuses `in-flight:` at this count. A post-merge failure charges every unverified lane merge whose commit the red run contains, and any charge demotes the rung."
         },
+        "gate-budget-minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minutes the pr-merge workflow's gate loop runs before it starts no further candidate. The candidate in progress finishes, so no gate stops between its check and its enqueue; the next run starts after the last candidate reached. Keep it below the merge job's timeout-minutes less the longest single candidate. Absent: no budget."
+        },
+        "skip-unchanged": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The pr-merge workflow reports a candidate the last run refused on unchanged inputs with that refusal, marked carried, instead of gating it again; a skip only repeats a refusal (README.md, Merge authority). 0 in either key: no skips.",
+          "properties": {
+            "max-minutes": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 60,
+              "description": "Minutes after a refusal was judged at which the candidate is gated again, unchanged or not."
+            },
+            "max-skips": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 3,
+              "description": "Runs in a row that may skip a candidate before one gates it again, unchanged or not."
+            }
+          }
+        },
+        "max-queue-ejections": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 2,
+          "description": "Merge-queue removals for failed checks since the pull request's head last changed (a pushed commit or a force push) at which the unattended merge gate stops enqueuing that head: the queue would eject it again on the same commits. A push resets the count."
+        },
+        "check-inputs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": [],
+          "description": "Git pathspecs of files the pull request checks read but a pull request rarely changes (a registry, an allowlist). When the base changed one since a pull request's merge base, the unattended merge gate updates its branch from the base (a merge, never a rebase) instead of enqueuing it, and enqueues the new head once its checks pass. `scripts/shared-copies.txt` counts only for a pull request whose own changes touch a path it registers. Empty or absent: nothing is updated."
+        },
         "verify-authors": {
           "enum": ["lane", "any"],
           "default": "lane",
@@ -586,7 +814,17 @@
             "high-path-floor": {
               "type": "boolean",
               "default": false,
-              "description": "pr-merge lane only: true scores a diff touching the risk scorer's fixed HIGH path floor HIGH. Absent or false: only denied-paths count. The local babysit lane always applies the floor."
+              "description": "true scores a diff touching the risk scorer's fixed HIGH path floor or floor-paths HIGH, as it does a SKILL.md, agents/**/*.md or commands/**/*.md file whose head text, compared with its base text, gains or changes hooks, allowed-tools, tools, permissionMode, mcpServers, memory or another capability key babysit_risk.py lists in its frontmatter, adds or changes a ! backtick command, gains a ```! block, changes a line inside a ```! block, or cannot be read, and a script file in floor-script-scopes HIGH. Absent or false: only denied-paths count. The local babysit lane keeps the rest of the fixed floor, but false also leaves out floor-paths, floor-script-scopes, the capability check and the plugin monitors and workflows floor entries there."
+            },
+            "floor-paths": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Globs joined to the risk scorer's HIGH path floor while it applies: a diff touching one scores HIGH and waits for a human, where a denied path makes the pull request ineligible. They add to the fixed floor, never replace it."
+            },
+            "floor-script-scopes": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Globs inside which, as at the repository top level, a .ps1 or .cjs file, or a file with git mode 100755, scores HIGH while the floor applies and waits for a human."
             },
             "c2-contradictions": {
               "type": "boolean",
@@ -608,6 +846,11 @@
               "enum": ["off", "report", "enforce"],
               "default": "off",
               "description": "enforce: merge Dependabot pull requests whatever merge.report-only says. report: report each decision and write nothing. off: refuse every Dependabot pull request and leave them unlisted."
+            },
+            "majors": {
+              "enum": ["hold", "review"],
+              "default": "hold",
+              "description": "hold: refuse a pull request with a major update, one whose version cannot be read, or one whose title and commit metadata disagree, whatever the review verdict says, and escalate it to a human with the tracker's human-gated role label. review: a major update is tier review and merges on the lanes App's verdict=merge marker."
             }
           }
         }

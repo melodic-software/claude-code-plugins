@@ -32,6 +32,7 @@ import ctypes
 import http.client
 import json
 import os
+import plistlib
 import re
 import secrets
 import shlex
@@ -604,13 +605,28 @@ def serve(handler, make_hub, port, nonce="", banner=None):
         pass
 
 
+class ControlServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer that no other local process can share the port with.
+
+    On Windows SO_REUSEADDR lets a second process bind the same loopback port and receive
+    requests that carry the token, so reuse is off there and the bind is exclusive.
+    """
+
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def start(handler, make_hub, port, nonce=""):
     """Bind 127.0.0.1:port (0 picks a free one), build the hub, write the session files.
 
     make_hub(port) returns the LoopbackWatcher; the session files go to its data dir, mode 0600,
     because they hold the token. Returns (httpd, hub); the caller runs httpd.serve_forever().
     """
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    httpd = ControlServer(("127.0.0.1", port), handler)
     httpd.daemon_threads = True
     port = httpd.server_address[1]
     hub = make_hub(port)
@@ -825,7 +841,7 @@ def release_lease(s, name):
 # https://code.claude.com/docs/en/channels#enterprise-controls (the policy keys and the plans that
 # block channels until enabled), and
 # https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy (where
-# managed settings are read from). Recheck when the research-preview section changes a flag, the
+# managed settings are read from; managed_policy cites the ranking and merge sections). Recheck when the research-preview section changes a flag, the
 # server-options section changes the channel capability, the notification-format section changes
 # the notification method or its params, the enterprise-controls section changes a policy key or
 # a plan default, or the where-each-mechanism section moves the managed-settings file or its
@@ -950,21 +966,150 @@ def managed_dir():
     return Path("/etc/claude-code")
 
 
-def managed_policy(config_dir=None, system_dir=None):
+UNREADABLE = object()  # an MDM source that exists but cannot be read: present, content unknown
+PLIST_PATH = Path("/Library/Managed Preferences/com.anthropic.claudecode.plist")
+REGISTRY_KEY = r"SOFTWARE\Policies\ClaudeCode"
+# Merge rules inside the file tier (managed-settings.json, then managed-settings.d/*.json), from
+# managed-settings#split-a-file-based-policy-across-teams: single values are replaced, lists
+# combine without duplicates, nested blocks merge key by key. These keys are replaced whole, or
+# per entry name.
+WHOLE_KEYS = ("fallbackModel", "modelPicker")
+BY_NAME_KEYS = ("extraKnownMarketplaces", "managedMcpServers")
+
+
+def on_wsl(env=None):
+    return "WSL_DISTRO_NAME" in (os.environ if env is None else env)
+
+
+def read_plist():
+    """The macOS managed-preferences policy: None when absent, UNREADABLE when present and not a
+    readable dict, else the dict."""
+    if sys.platform != "darwin" or not PLIST_PATH.exists():
+        return None
+    try:
+        with PLIST_PATH.open("rb") as f:
+            d = plistlib.load(f)
+    except Exception:  # noqa: BLE001  # a malformed plist raises expat and plistlib errors alike
+        return UNREADABLE
+    return d if isinstance(d, dict) else UNREADABLE
+
+
+def read_registry(hive):
+    """The `Settings` value under <hive>\\SOFTWARE\\Policies\\ClaudeCode, read only for HKLM
+    (managed_policy never asks for another hive), on Windows through winreg and on WSL through
+    reg.exe: None when absent, UNREADABLE when present and not a JSON object, else the dict."""
+    if os.name == "nt":
+        import winreg  # noqa: PLC0415
+
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, REGISTRY_KEY)
+        except FileNotFoundError:
+            return None
+        except OSError:
+            return UNREADABLE
+        try:
+            with key:
+                raw, kind = winreg.QueryValueEx(key, "Settings")
+        except FileNotFoundError:
+            return None
+        except OSError:
+            return UNREADABLE
+        if kind == winreg.REG_EXPAND_SZ:
+            raw = os.path.expandvars(raw)
+    elif on_wsl():
+        try:
+            r = subprocess.run(
+                ["reg.exe", "query", f"{hive}\\{REGISTRY_KEY}", "/v", "Settings"],
+                capture_output=True,
+                text=True,
+                errors="replace",  # reg.exe prints in the Windows code page, not UTF-8
+                timeout=15,
+                stdin=subprocess.DEVNULL,
+            )
+        except OSError:
+            return None  # no reg.exe to run: no Windows policy is shown to exist
+        except subprocess.SubprocessError:
+            return UNREADABLE  # a hung or failed reg.exe may hide a policy
+        if r.returncode != 0:
+            # Only reg.exe's English not-found message shows the policy is absent; any other
+            # failure, a localized not-found included, may hide one, so it fails closed.
+            return None if "unable to find" in (r.stdout + r.stderr).lower() else UNREADABLE
+        m = re.search(r"^\s*Settings\s+REG_(?:EXPAND_)?SZ\s+(.*)$", r.stdout, re.M)
+        if not m:
+            return UNREADABLE
+        raw = m.group(1).strip()
+    else:
+        return None
+    try:
+        d = json.loads(raw)
+    except (TypeError, ValueError):
+        return UNREADABLE
+    return d if isinstance(d, dict) else UNREADABLE
+
+
+def merge_files(base, over):
+    """`over` merged onto `base` by the file-tier rules above."""
+    for key, value in over.items():
+        have = base.get(key)
+        if key in WHOLE_KEYS or key not in base:
+            base[key] = value
+        elif key in BY_NAME_KEYS and isinstance(have, dict) and isinstance(value, dict):
+            base[key] = {**have, **value}
+        elif isinstance(have, dict) and isinstance(value, dict):
+            base[key] = merge_files(dict(have), value)
+        elif isinstance(have, list) and isinstance(value, list):
+            base[key] = have + [v for v in value if v not in have]
+        else:
+            base[key] = value
+    return base
+
+
+def mdm_policy(plist, registry, env):
+    """(source, settings) of the MDM tier, or (None, None). A source that exists but cannot be
+    read is present, with settings None. The user-writable HKCU registry is never read; HKLM
+    counts on WSL only when its value sets wslInheritsWindowsSettings; cloud sessions skip MDM."""
+    if env.get("CLAUDE_CODE_REMOTE") == "true":
+        return None, None
+    found = [("macOS managed preferences", plist())]
+    hklm = registry("HKLM")
+    if on_wsl(env) and isinstance(hklm, dict) and hklm.get("wslInheritsWindowsSettings") is not True:
+        hklm = None
+    found.append(("Windows HKLM registry", hklm))
+    for name, d in found:
+        if d is UNREADABLE:
+            return f"{name} (unreadable)", None
+        if has_policy(d):
+            return name, d
+    return None, None
+
+
+def managed_policy(config_dir=None, system_dir=None, plist=read_plist, registry=read_registry, env=None):
     """(source, settings): the first managed source that sets a policy key and that this process
-    can read, the server-managed cache and then the managed settings files (drop-ins merged over
-    the base file), or (None, None). MDM policies (a macOS plist, the Windows registry) are not
-    read, so a policy that arrives only by MDM reads as none."""
-    config = Path(
-        config_dir or os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"
-    )
+    can read, ranked as Claude Code ranks them: the server-managed cache, MDM policy (macOS
+    managed preferences, then the HKLM registry), then the managed settings files, or (None,
+    None). A source that cannot be read counts as present: (name, None). `plist` and `registry`
+    stand in for the MDM readers in tests; `registry` is only ever called with "HKLM".
+
+    Basis, as of 2026-10-18: https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources
+    (the ranking and the default first-wins, which takes a restriction allowlist such as
+    allowedChannelPlugins whole from the selected source),
+    #where-each-mechanism-stores-the-policy (the plist domain and registry value),
+    #present-admin-documents (an unreadable HKLM value is present) and
+    #split-a-file-based-policy-across-teams (the file-tier merge). Recheck when the ranking, a
+    storage location, the present rule or the file-tier merge rules change. managedSourcesBehavior
+    "merge" is not supported."""
+    env = os.environ if env is None else env
+    config = Path(config_dir or env.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
     remote = read_json(config / "remote-settings.json")
     if has_policy(remote):
         return "server-managed settings", remote
+    source, settings = mdm_policy(plist, registry, env)
+    if source is not None:
+        return source, settings
     base = Path(system_dir) if system_dir else managed_dir()
     merged = dict(read_json(base / "managed-settings.json") or {})
     for drop_in in sorted((base / "managed-settings.d").glob("*.json")):
-        merged.update(read_json(drop_in) or {})
+        merged = merge_files(merged, read_json(drop_in) or {})
     return ("managed settings files", merged) if has_policy(merged) else (None, None)
 
 
@@ -1020,6 +1165,8 @@ def select_transport(entries, flags=READ, auth=READ, policy=READ, env=None):
             f"{auth.get('apiProvider')}, logged in {auth.get('loggedIn')}"
         )
     source, settings = managed_policy() if policy is READ else policy
+    if source is not None and settings is None:
+        return loopback(f"the {source} policy exists but cannot be read, so channels stay off")
     plan = auth.get("subscriptionType")
     if source is None and plan in ORG_PLANS:
         return loopback(

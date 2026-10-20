@@ -250,7 +250,7 @@ reported.
   - **Bot comments classified CORRECT** (Codex, claude-review, etc., after evidence-based verification against actual code): **auto-fix + test + react 👍 + D5 reply in the same turn, then push with the round's other fixes and post the D7 reply** ([monitor.md](reference/monitor.md) §3.3.2). No user-approval pause. The safety gate is the CORRECT/INCORRECT classification, not a separate confirmation. Applies when the fix is small and scoped (<~50 LOC, single concern); pause for cross-cutting refactors even when CORRECT
   - **Bot comments classified INCORRECT**: autonomous 👎 reaction + reply with research-backed counter-evidence. Never silently ignore
   - **Human reviewer comments**: always pause for user approval before reacting or fixing, regardless of classification
-- **Docs-only changes skip the review/simplify work**, no code review needed for markdown/config-only PRs; the verify gate reduces to lint. Any extra project-specific prep-evidence requirements come from the consuming project's own hooks
+- **Prep skips the review/simplify work when no `code` class is detected**, and the verify gate reduces to lint. `ready` still reviews a diff that touches an instruction surface ([definition](reference/ready-for-review.md#docs-only-and-instruction-surfaces)). Any extra project-specific prep-evidence requirements come from the consuming project's own hooks
 
 ---
 

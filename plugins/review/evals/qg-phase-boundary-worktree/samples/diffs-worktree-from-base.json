@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git -C .worktrees/phase-2 diff 3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345" } }],
+      "why": "relative worktree path, full SHA"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git -C /tmp/eval-run/.worktrees/phase-2 diff --stat 3f9c2a1..HEAD" } }],
+      "why": "absolute path, short SHA range"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git -C \"./.worktrees/phase-2\" --no-pager diff 3f9c2a1b7d" } }],
+      "why": "quoted path and --no-pager"
+    }
+  ],
+  "fail": [
+    { "answer": [], "why": "no tool call" },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git diff 3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345" } }],
+      "why": "diffs the orchestrator's own checkout"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git -C .worktrees/phase-2 diff main" } }],
+      "why": "diffs from main, not the base SHA"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git -C .worktrees/phase-2 log --oneline 3f9c2a1b7d" } }],
+      "why": "log, not diff"
+    }
+  ]
+}
