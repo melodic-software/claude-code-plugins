@@ -1318,6 +1318,58 @@ fi
 git -C "$TMP" mv -f "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.md" "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
 printf 'v2 - hand edited\n' >"$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
 
+# 20c. Upstream can change bytes without bumping its version: a vendor/ diff
+#      paired with an upstream-sha bump that equals the recomputed content
+#      hash (dotfiles left out) passes; one whose sha does not match the
+#      content fails, naming both hashes.
+vendor_sha_fixture() {
+  make_skill vendor-skill-sha '---
+name: vendor-skill-sha
+description: "Vendor sha fixture. Use when: '"'"'vendor sha sync'"'"'."
+metadata:
+  upstream-version: 1.0.0
+  upstream-sha: '"$1"'
+  synced: 2026-01-01
+---
+
+## Purpose
+
+Vendor-backed fixture for the sha-paired sync exception.
+
+## Gotchas
+
+None known.
+'
+}
+mkdir -p "$SKILLS/vendor-skill-sha/vendor"
+printf 'v1\n' >"$SKILLS/vendor-skill-sha/vendor/UPSTREAM.txt"
+printf '{}\n' >"$SKILLS/vendor-skill-sha/vendor/.markdownlint-cli2.jsonc" # dotfile: left out of the hash
+vendor_sha_fixture "$(printf 'v1\n' | sha256sum | awk '{print $1}')"
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add vendor-skill-sha'
+printf 'v1 republished\n' >"$SKILLS/vendor-skill-sha/vendor/UPSTREAM.txt"
+good_sha="$(printf 'v1 republished\n' | sha256sum | awk '{print $1}')"
+vendor_sha_fixture "$good_sha"
+out="$(run vendor-skill-sha 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'upstream-sha bump matching' <<<"$out" && ! grep -q 'byte-identical guarantee' <<<"$out"; then
+  pass "vendor/ diff paired with a matching upstream-sha bump passes"
+else
+  fail "sha-paired vendor/ diff should pass (rc=$rc): $out"
+fi
+bad_sha="$(printf 'something else\n' | sha256sum | awk '{print $1}')"
+vendor_sha_fixture "$bad_sha"
+out="$(run vendor-skill-sha 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "$bad_sha" <<<"$out" && grep -q "$good_sha" <<<"$out"; then
+  pass "vendor/ diff with a non-matching upstream-sha bump fails, naming both hashes"
+elif [[ $rc -eq 1 ]] && grep -q 'byte-identical guarantee' <<<"$out"; then
+  pass "vendor/ diff with a non-matching upstream-sha bump fails"
+else
+  fail "a non-matching upstream-sha bump should fail check 8 (rc=$rc): $out"
+fi
+git -C "$TMP" checkout -q -- "$SKILLS/vendor-skill-sha"
+
 # 21. A `!` injection with a `shell:` declaration is silent — the author has
 #     taken explicit responsibility for the shell (check 19).
 make_skill inj-shell-ok '---

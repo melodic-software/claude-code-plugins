@@ -1335,6 +1335,32 @@ fi
 
 # --- Check 8: vendor/ byte-identical vs HEAD (vendor-backed only) ----------
 
+VENDOR_SHA_DEFINITION="SHA-256 of the one non-dotfile under vendor/ with CR bytes removed; with several, SHA-256 of their '<sha>  <path under vendor/>' lines sorted bytewise"
+
+# Prints the vendor/ content hash VENDOR_SHA_DEFINITION states, or nothing
+# when no SHA-256 tool is on PATH. Dotfiles (such as a lint config beside the
+# upstream copy) are repository tooling, not upstream content, so they are left
+# out.
+vendor_content_sha() {
+  local dir="$1" hasher f
+  if command -v sha256sum >/dev/null 2>&1; then
+    hasher=(sha256sum)
+  elif command -v shasum >/dev/null 2>&1; then
+    hasher=(shasum -a 256)
+  else
+    return 0
+  fi
+  local -a files=()
+  while IFS= read -r -d '' f; do files+=("${f#"$dir"/}"); done < <(find "$dir" -name '.*' ! -path "$dir" -prune -o -type f -print0)
+  if ((${#files[@]} == 1)); then
+    tr -d '\r' <"$dir/${files[0]}" | "${hasher[@]}" | awk '{print $1}'
+    return 0
+  fi
+  for f in "${files[@]}"; do
+    printf '%s  %s\n' "$(tr -d '\r' <"$dir/$f" | "${hasher[@]}" | awk '{print $1}')" "$f"
+  done | LC_ALL=C sort | "${hasher[@]}" | awk '{print $1}'
+}
+
 # Only meaningful when the skill has a HEAD baseline: a brand-new vendored skill
 # staged before a pre-commit run has no prior vendor/ to preserve, so its staged
 # files must not read as "changed vs HEAD". Outside a git repo there is no
@@ -1357,10 +1383,24 @@ elif [[ -d "$SKILL_DIR/vendor" && "$HAVE_BASE_FM" == 1 ]]; then
     # byte-identical guarantee forbids.
     BASE_UPSTREAM_VERSION="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-version <<<"$BASE_FM")")"
     CUR_UPSTREAM_VERSION="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-version <<<"$FRONTMATTER")")"
+    BASE_UPSTREAM_SHA="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-sha <<<"$BASE_FM")")"
+    CUR_UPSTREAM_SHA="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-sha <<<"$FRONTMATTER")")"
     if [[ -n "$CUR_UPSTREAM_VERSION" && "$CUR_UPSTREAM_VERSION" != "$BASE_UPSTREAM_VERSION" ]]; then
       note "vendor/ changed vs $BASE_REF, paired with an upstream-version bump ($BASE_UPSTREAM_VERSION -> $CUR_UPSTREAM_VERSION) — legitimate sync"
+    elif [[ -n "$CUR_UPSTREAM_SHA" && "$CUR_UPSTREAM_SHA" != "$BASE_UPSTREAM_SHA" ]]; then
+      # Upstream can change bytes without bumping its version. A changed
+      # metadata.upstream-sha pairs the sync only when it equals the content
+      # hash recomputed here, so a hand edit cannot ride a made-up sha.
+      VENDOR_SHA="$(vendor_content_sha "$SKILL_DIR/vendor")"
+      if [[ -z "$VENDOR_SHA" ]]; then
+        err "vendor/ changed vs $BASE_REF with an upstream-sha bump, but neither sha256sum nor shasum is on PATH to verify it"
+      elif [[ "$CUR_UPSTREAM_SHA" == "$VENDOR_SHA" ]]; then
+        note "vendor/ changed vs $BASE_REF, paired with an upstream-sha bump matching the vendored content ($VENDOR_SHA) — legitimate sync"
+      else
+        err "vendor/ changed vs $BASE_REF with metadata.upstream-sha $CUR_UPSTREAM_SHA, but the vendored content hashes to $VENDOR_SHA ($VENDOR_SHA_DEFINITION)"
+      fi
     else
-      err "vendor/ changed vs $BASE_REF — vendored content carries a byte-identical guarantee; rewrites must not touch vendor/ (no accompanying metadata.upstream-version bump)"
+      err "vendor/ changed vs $BASE_REF — vendored content carries a byte-identical guarantee; rewrites must not touch vendor/ (no accompanying metadata.upstream-version bump, nor a metadata.upstream-sha bump matching the content: $VENDOR_SHA_DEFINITION)"
     fi
   fi
 fi
