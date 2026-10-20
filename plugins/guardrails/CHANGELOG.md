@@ -3,6 +3,26 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.54.0] - 2026-10-20
+
+### Added
+
+- **`block-fix-request-post`: an agent can no longer post the PR-fix lane fix request (#8438).** The address-feedback lane acts, with push credentials, on a comment line starting `PR-fix lane: please fix this finding` from someone with write access, and a local session posts with the owner's token. The guard blocks that line in `gh pr|issue comment|review|create|edit`, a writing `gh api` (GraphQL only for a mutation), `curl` with a body to a GitHub API route, and the GitHub MCP server's comment, review, issue and pull-request write tools. It reads the body inline, from heredocs, and from body files (`--body-file`, `-F k=@file`, `--input`, `-d @file`, `cat`, `<`). A line after `>`, inside a fence, or a mention later in a line passes, as does a command that only reads or greps the phrase. On by default; `block_fix_request_post_enabled` turns it off.
+
+### Changed
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- `block-convention-violation` and the `commit-msg-convention` git hook no longer read a failing convention resolver as "no convention tracked". Exit 1 with empty stderr stays quiet; exit 1 with a diagnostic (a non-ERE pattern, a broken `convention_source`) or exit 2 now fails open for that key alone with a notice naming the check that did not run, carrying the resolver's diagnostic: once per session on both channels from the guard, on stderr from the git hook. A key that resolved still enforces, and a failed resolution is not cached.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.53.0] - 2026-10-18
 
 ### Added
