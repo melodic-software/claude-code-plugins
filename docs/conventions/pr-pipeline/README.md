@@ -722,11 +722,13 @@ later refusal at the head starts its time afresh. The merge gate never removes t
 
 Finding closure (owner decision, #8450): a clean newer review on the current head closes a review
 finding whoever resolved its thread, and a HIGH security finding also needs the security review lane
-clean on that head. The gate does not apply that rule yet
-([#8478](https://github.com/melodic-software/claude-code-plugins/issues/8478)): today a resolved
-thread closes only when a human resolved it, the whole review chain covering the head reports no
-finding, or it is outdated with none of its flagged lines left at the head (`_open_findings` in
-`babysit_review_evidence.py`).
+clean on that head. The gate applies it per lane (`_open_findings` in
+`babysit_review_evidence.py`): a resolved thread closes when it was opened before the lane's review
+at the head completed and no review of that head reports a finding (a re-run of one head never
+clears another's finding), or when the whole review chain covering the head reports no finding.
+A security-lane finding is the HIGH one, so it closes only on the security lane's own clean review.
+A resolved thread also closes when a human resolved it, or when it is outdated with none of its
+flagged lines left at the head; an unresolved thread stays open.
 
 While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
 no full CI run either; its summary says whether it would have.
