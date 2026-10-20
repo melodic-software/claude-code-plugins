@@ -721,6 +721,23 @@ test("names inside fenced code or quoted lines, and in the thread's other commen
   assert.equal(result.file.threads[0].named_paths, undefined);
 });
 
+test("words that are not files ahead of a real name do not push it out of the cap", async () => {
+  const words = Array.from({ length: 12 }, (_, i) => `obj.f${i}`).join(" ");
+  const body = `PR-fix lane: please fix this finding. Per ${words}, edit run-transcript.js.`;
+  const { api, reads } = named([[101, HUMAN, body]]);
+  assert.deepEqual((await run(api)).file.threads[0].named_paths, [`${T}/run-transcript.js`]);
+  assert.deepEqual(reads, [`${HEAD}:${T}`]);
+});
+
+test("at most NAMED_CAP existing files are added", async () => {
+  const { NAMED_CAP } = await import("./address-feedback.mjs");
+  const files = Array.from({ length: NAMED_CAP + 2 }, (_, i) => `f${i}.js`);
+  const body = `PR-fix lane: please fix this finding. Edit ${files.join(" ")}.`;
+  const trees = { ...TREES, [T]: [...TREES[T], ...files.map((name) => ({ name, ...FILE }))] };
+  const result = await run(named([[101, HUMAN, body]], { trees }).api);
+  assert.deepEqual(result.file.threads[0].named_paths, files.slice(0, NAMED_CAP).map((name) => `${T}/${name}`));
+});
+
 test("a leading or trailing _ that belongs to the name is kept; only a matched _ pair is emphasis", async () => {
   const body =
     "PR-fix lane: please fix this finding. Edit _utils.js, `__init__.py` and _run-transcript.test.js_.";
