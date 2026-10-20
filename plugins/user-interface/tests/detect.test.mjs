@@ -465,7 +465,7 @@ describe("--config team routing applied to routes", () => {
   });
 
   test("deny and disable together are unions", () => {
-    const team = teamFile("route-union.yaml", "routing:\n  version: 1\n  disable:\n    - concern: typography-color\n      id: /playgrounds:use\n  deny:\n    - canva\n");
+    const team = teamFile("route-union.yaml", "routing:\n  version: 1\n  disable:\n    - concern: typography-color\n      id: /playgrounds:use\n  deny:\n    - canva\n"); // spellchecker:disable-line
     const out = detect([...args, "--team", team]);
     assert.deepEqual(out.skipped.map((s) => s.by).sort(), ["deny", "disable"]);
   });
@@ -484,9 +484,9 @@ describe("--config team routing applied to routes", () => {
     const dropped = detect([...args, "--team", v2]);
     assert.deepEqual(dropped.skipped, []);
     assert.match(dropped.routing_notes.join("\n"), /has \d+ problems?/);
-    const partial = teamFile("route-partial.yaml", "routing:\n  version: 1\n  deny:\n    - 5\n    - canva\n");
+    const partial = teamFile("route-partial.yaml", "routing:\n  version: 1\n  deny:\n    - 5\n    - canva\n"); // spellchecker:disable-line
     const out = detect([...args, "--team", partial]);
-    assert.ok(out.skipped.some((s) => s.by === "deny" && s.name === "canva"));
+    assert.ok(out.skipped.some((s) => s.by === "deny" && s.name === "canva")); // spellchecker:disable-line
     assert.match(out.routing_notes.join("\n"), /has \d+ problems?/);
   });
 
