@@ -21,8 +21,8 @@ name: pr-verify
 # not fail, so one job per run judges. The second job repeats every step from
 # a fresh checkout. From check-intent it reads only three outputs, each
 # compared to a fixed string in its `if` (and lane-class once more to pick
-# its lane record's name between two literals), never written into a run:
-# script; it takes no artifact or cache. run-claude-cli sets
+# its lane record's name between two literals); none of them is written into
+# a `run:` script, and it takes no artifact or cache. run-claude-cli sets
 # lane-class after it restores the step files, so the model cannot set it.
 # The job tokens can only read. Every script and local action comes from the
 # main checkout in .base; the Claude actions are ci-workflows', pinned by SHA.
