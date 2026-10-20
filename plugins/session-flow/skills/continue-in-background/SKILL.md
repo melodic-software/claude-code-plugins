@@ -73,7 +73,8 @@ completion condition, armed as its `/goal`. Settle it while producing the save-p
 
 1. **A goal applies** under the engine doc's goal-region rule (the user asked for a fresh goal, or
    a `/goal` is active in this session) → the save-point's goal region holds the condition the
-   launch arms. When the goal is active here, the report tells the user to run `/goal clear` in
+   launch arms. A checkable done condition the user states in this invocation ("done when …")
+   is a fresh-goal request: it lands here, with no draft and no confirmation round. When the goal is active here, the report tells the user to run `/goal clear` in
    this session, which otherwise keeps starting turns after the STOP.
 2. **No goal applies** → draft one from the remaining work with `/planning:draft-goal-condition`
    and write the save-point with it as a fresh goal; its on-screen goal region is the display.
@@ -91,18 +92,20 @@ The launch payload is `/goal`, a space, then text taken from the emitted prompt,
   instruction) of `save_point.py emit <file>`. It ends with the resume region's `Read @`
   directive, so the agent reads the handoff file in the turn the goal arms.
 - **Prompt-only**: the goal region's between-rails text, a blank line, then the resume region's,
-  so the remaining-work bullets travel too. The payload after `/goal` and its space stays within the
-  goal-region limit the engine doc states, counted with `wc -m <prompt-file>` less those 6 characters, never estimated;
-  over it, do not launch, and fall back with the full path (`file`) named as the fix.
+  so the remaining-work bullets travel too. The payload after `/goal` and its space stays within
+  the goal-region limit the engine doc states, counted with `wc -m <prompt-file>` less those 6
+  characters, never estimated; over it, do not launch, and fall back with the full path (`file`)
+  named as the fix.
 
-- **Probe**: from a prompt file, `claude --bg --permission-mode auto "$(cat <file>)"` with
-  `/goal <condition>` on the first line and a `Read @` directive on the second armed the whole
-  two-line text as the condition: the session transcript shows `Goal set:` and, after the work, an
-  achieved goal entry (Claude Code 2.1.304, Linux). The `/goal` page names non-interactive mode
-  but not background sessions: <https://code.claude.com/docs/en/goal#run-non-interactively>.
+We rely on a background launch arming the whole multi-line payload as its goal, which our probe
+observed.
+
+- **Pointer**: the `--bg` probe in the Verification section of
+  [#8742](https://github.com/melodic-software/claude-code-plugins/pull/8742); the docs section for
+  non-interactive goals, <https://code.claude.com/docs/en/goal#run-non-interactively>.
 - **As of**: 2026-10-20
-- **Recheck trigger**: a release changes how a `--bg` prompt argument runs a slash command, or that
-  section starts or stops naming background sessions.
+- **Recheck trigger**: a Claude Code release note changes how a background session's first prompt
+  runs a slash command, or that section starts or stops naming background sessions.
 
 ## Delivery: background-agent launch
 

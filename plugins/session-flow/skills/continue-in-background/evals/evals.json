@@ -5,12 +5,12 @@
       "id": 1,
       "name": "explicit-request-launches",
       "prompt": "/continue-in-background — I'm heading out for the evening; pick the work up in a background agent. The working tree is clean apart from the handoff save-points. Done when the test suite passes and the work is committed.",
-      "expected_output": "The skill produces the save-point via the shared engine, emits the rails resume prompt, passes the dirty-tree gate (only save-point files under the handoff location), launches a fresh background agent seeded with the rails prompt (claude --bg --name continue-<topic>), reports the launch result with the claude agents management hint and any non-inherited configuration worth flagging, and STOPS — it does not monitor the launched agent.",
+      "expected_output": "The skill produces the save-point via the shared engine, emits the rails resume prompt, passes the dirty-tree gate (only save-point files under the handoff location), launches a fresh background agent seeded with the `/goal` payload (claude --bg --name continue-<topic>), reports the launch result with the claude agents management hint and any non-inherited configuration worth flagging, and STOPS — it does not monitor the launched agent.",
       "files": [],
       "expectations": [
         "A save-point is produced per the shared engine doc and the rails resume prompt is emitted first (transparency + manual fallback)",
         "The dirty-tree gate runs git status --porcelain -uall and exempts only save-point files under the handoff location",
-        "A background agent is launched with the rails prompt via claude --bg and the launch result is reported, replacing the /clear-then-paste instruction",
+        "A background agent is launched with the `/goal` payload (the stated done condition as its goal) via claude --bg and the launch result is reported, replacing the /clear-then-paste instruction",
         "The claude --bg launch command carries --permission-mode auto, and the report states that auto mode may deny an action and that where a denied action is reported is unverified; a report that says nothing about denied actions fails, and so does one that promises they appear in the launched session's final hand-off",
         "The report surfaces launched-session behavior: the agent is a NEW session that inherits neither the current session's CLI flags nor its model/effort choices",
         "The skill STOPS after the launch report — no monitoring, polling, or new work items"
@@ -107,26 +107,27 @@
       "id": 9,
       "name": "position-panel-emitted-but-never-sent-to-the-agent",
       "prompt": "/continue-in-background — phase 2 of 4 is wired and green, phase 3 is next. Clean tree. I'm heading out, keep it moving. Done when the test suite passes and the work is committed.",
-      "expected_output": "The response leads with the 'You are here' position panel (vertical rail, current phase marked, completeness line, three one-line blocks), then the rails resume prompt, then the launch report. The text handed to the launched agent is exactly what sits between the rails — no panel text travels with it.",
+      "expected_output": "The response leads with the 'You are here' position panel (vertical rail, current phase marked, completeness line, three one-line blocks), then the rails prompt, then the launch report. The text handed to the launched agent is exactly the `/goal` payload: `/goal`, a space, and the goal region's between-rails text. No panel text travels with it.",
       "files": [],
       "expectations": [
-        "A 'You are here' position panel is emitted, and it leads the response — ahead of the rails resume prompt",
+        "A 'You are here' position panel is emitted, and it leads the response, ahead of the rails prompt",
         "The rail is vertical with one phase per line and the current phase marked in the gutter",
-        "The prompt passed to the launched agent is exactly the text between the dashed rails — no panel line is included in it",
+        "The prompt passed to the launched agent is exactly `/goal`, a space, and the goal region's between-rails text; no panel line is included in it",
         "The rails prompt is still emitted on screen before the launch, so a refused or failed launch leaves a usable manual fallback",
-        "The reasoning treats the panel as being for the departing operator, not for the agent — the agent's payload is unchanged from a manual /clear-and-paste"
+        "The reasoning treats the panel as being for the departing operator, not for the agent; the agent's payload is the same goal-region paste a person would make"
       ]
     },
     {
       "id": 10,
       "name": "full-path-payload-is-the-emit-output",
       "prompt": "/continue-in-background file phase-4 — clean tree apart from the save-points, take it from here while I'm out. Done when the test suite passes and the work is committed.",
-      "expected_output": "The full path produces a shape-2 file through `save_point.py new`, fills the slots, and runs `save_point.py validate` to exit 0 before anything launches. The text written to the temporary prompt file for `claude --bg` is the between-rails portion of the resume region of the `save_point.py emit <file>` output (the `Read @` directive through the last `Next:` headline), taken from that output rather than retyped, so the agent receives exactly the bytes the file's `## Resume prompt` section stores. The rails are still shown on screen first, the launch is reported, and the skill stops.",
+      "expected_output": "The done condition stated in the request is a fresh goal, so the full path produces a shape-2 file through `save_point.py new` with a goal region, fills the slots, and runs `save_point.py validate` to exit 0 before anything launches, with no draft and no confirmation round. The text written to the temporary prompt file for `claude --bg` is `/goal`, a space, then the between-rails text of the goal region of the `save_point.py emit <file>` output (the condition, ending with the `Read @` directive), taken from that output rather than retyped. The rails are still shown on screen first, the launch is reported, and the skill stops.",
       "files": [],
       "expectations": [
         "`save_point.py validate` is run and exits 0 before the background launch; a file that fails validation (including an unfinished skeleton with `<!-- FILL` slots) is never launched from",
-        "The prompt handed to `claude --bg` is the between-rails text of the `save_point.py emit` output, written to a temporary file with the Write tool, not a retyped or paraphrased version of it",
-        "The launched payload contains the directive with its invoke-the-skill sentence, the `Prior session:` and `Handoff origin:` lines, and the `Next:` headlines, and contains no panel text, no copy instruction, and no below-rail line",
+        "The done condition stated in the request is used as the goal, with no drafted condition and no confirmation question before the launch",
+        "The prompt handed to `claude --bg` is `/goal`, a space, and the goal region's between-rails text from the `save_point.py emit` output, written to a temporary file with the Write tool, not a retyped or paraphrased version of it",
+        "The launched payload ends with the `Read @` directive line and contains no panel text, no copy instruction, no rails, no below-rail line, and none of the resume region's `Prior session:`, `Handoff origin:` or `Next:` lines",
         "The rails block is still emitted on screen before the launch, the launch result is reported, and the skill STOPS"
       ]
     },
