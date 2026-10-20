@@ -448,26 +448,24 @@ def _open_findings(
     (`chain`, from `_resolve`), plus inline threads still open, plus inline
     findings of the chain whose thread is gone. A summary or thread-less
     inline finding from a review of an earlier head outside that chain is
-    closed: the covering review no longer reports it. Reviews of one head (a
-    reopen or a draft toggle re-runs a whole one) never supersede each other:
-    a whole-review link counts the most findings any completed whole review
-    of its head reported, and every link counts the most inline findings
-    left without a thread by any review of its kind (whole or incremental)
-    at its head. A link counts only reviews of its own kind at its head, so
-    the other kind's thread-less inline findings at that head drop.
+    closed: the covering review no longer reports it. Reviews of one head
+    never supersede each other, whatever their kind: each link counts the
+    most summary findings, and the most inline findings left without a
+    thread, that any completed review of its head (whole or incremental)
+    reported. So a finding any review of a head reported clears only by a
+    new head (a fix) or a human resolution; re-running the review of the
+    same head until it comes back clean never clears it.
 
     A resolved thread is closed when:
     - a human resolved it;
-    - the covering chain reports no finding at all, no other completed review
-      of a chain link's head (whole or incremental) reported one, and the
-      thread was opened before the covering review's job completed, so that
-      review read past it. A whole review of the head is a chain of one, so a
-      clean whole review closes a thread whoever resolved it, unless another
-      review of that head reported a finding: re-running the review of a head
-      until it comes back clean never clears one, only a new head or a human
-      does. An incremental review reads only what changed and never closes an
-      unchanged thread this way. Closure is per lane: a security-lane (HIGH)
-      thread needs the security lane's own clean whole review;
+    - no completed review of a chain link's head (whole or incremental)
+      reported a finding, and the thread was opened before the covering
+      review's job completed, so that review read past it. A whole review of
+      the head is a chain of one, so a clean whole review closes a thread
+      whoever resolved it, unless another review of that head reported a
+      finding. An incremental review reads only what changed and never closes
+      an unchanged thread this way. Closure is per lane: a security-lane
+      (HIGH) thread needs the security lane's own clean whole review;
     - or GitHub marks it outdated, it was opened before the first review at
       `reviewed` (the head whose review covers the pinned head) started, and
       no line of its flagged range is left at the pinned head
@@ -486,16 +484,15 @@ def _open_findings(
         raise Unbound("threads-unread")
     # (job started, job completed, inline findings) per recorded attempt.
     windows: list[tuple[datetime | None, datetime | None, int]] = []
-    # (head, whole review) per window, to count missing ones on the chain.
-    kinds: list[tuple[str, bool]] = []
+    # The head per window, to count missing ones on the chain.
+    heads: list[str] = []
     # When the first review at `reviewed` started; unknown keeps every
     # thread's human test.
     first: datetime | None = None
-    # Per head, the most (findings, summary findings) any completed whole
-    # review of it reported.
-    whole_max: dict[str, tuple[int, int]] = {}
-    # Per head, the most findings any completed review of it reported.
+    # Per head, the most findings and the most summary findings any completed
+    # review of it, whole or incremental, reported.
     head_max: dict[str, int] = {}
+    summary_max: dict[str, int] = {}
     # Whether any review of `reviewed` was whole or reported a finding.
     head_spent = False
     for item in lane_runs:
@@ -513,12 +510,10 @@ def _open_findings(
             if rec.findings < rec.inline:  # type: ignore[operator]
                 raise Unbound("count-inconsistent")
             head_max[rec.sha] = max(head_max.get(rec.sha, 0), rec.findings)
-            if rec.whole:
-                n, m = whole_max.get(rec.sha, (0, 0))
-                whole_max[rec.sha] = (
-                    max(n, rec.findings),
-                    max(m, rec.findings - rec.inline),  # type: ignore[operator]
-                )
+            summary_max[rec.sha] = max(
+                summary_max.get(rec.sha, 0),
+                rec.findings - rec.inline,  # type: ignore[operator]
+            )
             started = _time(job.get("started_at"))
             windows.append(
                 (
@@ -527,7 +522,7 @@ def _open_findings(
                     rec.inline,  # type: ignore[arg-type]
                 )
             )
-            kinds.append((rec.sha, rec.whole))
+            heads.append(rec.sha)
             if rec.sha == reviewed and (rec.whole or rec.findings > 0):
                 head_spent = True
             if (
@@ -536,16 +531,8 @@ def _open_findings(
                 and (first is None or started < first)
             ):
                 first = started
-    counts = [
-        whole_max.get(rec.sha, (0, 0))
-        if rec.whole
-        else (rec.findings, rec.findings - rec.inline)  # type: ignore[operator]
-        for rec in chain
-    ]
-    summary = sum(m for _, m in counts)
-    cleared = all(n == 0 for n, _ in counts) and not any(
-        head_max.get(rec.sha) for rec in chain
-    )
+    summary = sum(summary_max.get(rec.sha, 0) for rec in chain)
+    cleared = not any(head_max.get(rec.sha) for rec in chain)
     # The covering review read only threads opened before its job completed.
     read_through = chain[0].completed
     if not isinstance(threads, list | tuple):
@@ -579,13 +566,10 @@ def _open_findings(
         ) and not is_human(thread.get("resolvedBy")):
             held += 1
     # Inline findings with no thread left, counted like summary findings:
-    # per chain link, the most any review of its kind at its head left.
+    # per chain link, the most any review at its head left.
     gone = [max(k - n, 0) for (_, _, k), n in zip(windows, covered)]
     missing = sum(
-        max(
-            (g for g, kind in zip(gone, kinds) if kind == (rec.sha, rec.whole)),
-            default=0,
-        )
+        max((g for g, sha in zip(gone, heads) if sha == rec.sha), default=0)
         for rec in chain
     )
     count = summary + unresolved + held + missing

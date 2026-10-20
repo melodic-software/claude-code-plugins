@@ -1081,11 +1081,12 @@ class CoveringReviewTests(Base):
         )
         self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 1)
 
-    def test_threadless_inline_finding_of_the_other_kind_at_the_head_drops(
+    def test_threadless_inline_finding_of_the_other_kind_at_the_head_counts(
         self,
     ) -> None:
         # At S: a whole review left a thread-less inline finding, then the
-        # newest run, an incremental review back to the whole one at S0.
+        # newest run, a clean incremental review back to the whole one at S0.
+        # A later review of the same head never clears it.
         runs = [
             whole("claude-review", S0),
             run(
@@ -1101,7 +1102,7 @@ class CoveringReviewTests(Base):
                 created="2026-01-01T02:00:00Z",
             ),
         ]
-        self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 0)
+        self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 1)
 
     def test_threadless_inline_finding_of_a_same_head_whole_rerun_counts(
         self,
@@ -1136,17 +1137,19 @@ class CoveringReviewTests(Base):
         result = self.bind(runs, threads=self.agent_resolved())
         self.assertEqual(result["claude-review"].open_findings, 1)
 
-    def incremental_then_whole(self, incremental_sha: str) -> list[dict[str, Any]]:
+    def incremental_then_whole(
+        self, incremental_sha: str, counts: str = "findings=1 inline=1"
+    ) -> list[dict[str, Any]]:
         # A clean whole review at S0 (00:00-01:00); an incremental review at
-        # `incremental_sha` raised one inline finding (02:00-03:00); then a
-        # clean whole review of the pinned head S (04:00-05:00).
+        # `incremental_sha` raised one finding (02:00-03:00), inline by
+        # default; then a clean whole review of the pinned head S (04:00-05:00).
         return [
             whole("claude-review", S0),
             windowed(
                 run(
                     "claude-review",
                     incremental_sha,
-                    f"findings=1 inline=1 scope=incremental since={S0}",
+                    f"{counts} scope=incremental since={S0}",
                     created="2026-01-01T02:00:00Z",
                 ),
                 "2026-01-01T02:00:00Z",
@@ -1187,6 +1190,30 @@ class CoveringReviewTests(Base):
     ) -> None:
         runs = self.incremental_then_whole(S1)
         result = self.bind(runs, threads=self.incremental_thread())
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_a_clean_whole_rerun_keeps_an_incremental_summary_finding_at_the_head(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S, "findings=1 inline=0")
+        result = self.bind(runs, threads=[])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_a_clean_whole_rerun_keeps_an_incremental_threadless_finding_at_the_head(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S)
+        result = self.bind(runs, threads=[])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_a_clean_whole_review_of_a_new_head_clears_an_incremental_summary_finding(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S1, "findings=1 inline=0")
+        result = self.bind(runs, threads=[])
         self.assertTrue(result["claude-review"].bound)
         self.assertEqual(result["claude-review"].open_findings, 0)
 

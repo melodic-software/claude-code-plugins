@@ -735,9 +735,10 @@ needs the security review lane's own clean whole review of that head. The gate a
 before that review's job completed and the review chain covering the head, here the whole review
 alone, reports no finding. A finding any review of a head reported, whole or incremental, clears
 only by a new head (a fix) or a human resolution (owner decision, #8554): a later clean review of
-the same head never clears it, so the gate also requires that no completed review of a head on the
-covering chain reported a finding, and re-running a review until it comes back clean closes
-nothing. An incremental review reads only what changed since the last review, so it never closes an
+the same head never clears it. So for each head on the covering chain the gate counts the most
+summary findings, and the most inline findings left without a thread, that any review of that head
+reported, closes a resolved thread only when no completed review of such a head reported a finding,
+and re-running a review until it comes back clean closes nothing. An incremental review reads only what changed since the last review, so it never closes an
 unchanged thread: a lane that resolved an unfixed finding and pushed an unrelated commit leaves it
 open. A resolved thread also closes when a human resolved it, or when it is
 outdated with none of its flagged lines left at the head; an unresolved thread stays open.
