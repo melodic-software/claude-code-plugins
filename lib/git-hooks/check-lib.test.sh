@@ -241,6 +241,56 @@ else
   echo "skip: this git cannot create a SHA-256 repository"
 fi
 
+# --- pre-push content reader -----------------------------------------------------
+new_repo; Q="$REPO"
+printf 'one\ntwo\n' >"$Q/f.txt"
+printf 'gone\n' >"$Q/del.txt"
+git -C "$Q" add f.txt del.txt
+git -C "$Q" commit -q -m base
+qbase="$(git -C "$Q" rev-parse HEAD)"
+git -C "$Q" switch -q -c one
+printf 'one\ncommitted\n' >"$Q/f.txt"
+printf 'only one\n' >"$Q/g.txt"
+git -C "$Q" rm -q del.txt
+ln -s f.txt "$Q/link"
+git -C "$Q" add f.txt g.txt link
+git -C "$Q" commit -q -m one
+qone="$(git -C "$Q" rev-parse HEAD)"
+git -C "$Q" switch -q -c two "$qbase"
+printf 'one\nother ref\n' >"$Q/f.txt"
+printf 'only two\n' >"$Q/h.txt"
+git -C "$Q" add h.txt
+git -C "$Q" commit -q -am two
+qtwo="$(git -C "$Q" rev-parse HEAD)"
+git -C "$Q" checkout -q one
+printf 'worktree edit\nthat shifts lines\n' >"$Q/f.txt"
+push_one="$(printf 'refs/heads/one %s refs/heads/one %s\n' "$qone" "$qbase")"
+push_two="$push_one"$'\n'"$(printf 'refs/heads/two %s refs/heads/two %s\n' "$qtwo" "$qbase")"
+expect "pre-push reader: the committed content, not the edited worktree" $'one\ncommitted' \
+  "$(printf '%s\n' "$push_one" | in_repo "$Q" pre-push 'checks_file_text f.txt' origin url)"
+expect "pre-push reader: with two refs, each path comes from its own tip" "only one|only two" \
+  "$(printf '%s\n' "$push_two" | in_repo "$Q" pre-push 'printf "%s|%s" "$(checks_file_text g.txt)" "$(checks_file_text h.txt)"' origin url)"
+expect "pre-push reader: --tip picks the tip when two refs change one path" $'one\ncommitted|one\nother ref' \
+  "$(printf '%s\n' "$push_two" | in_repo "$Q" pre-push 'printf "%s|%s" "$(checks_file_text --tip "$3" f.txt)" "$(checks_file_text --tip "$4" f.txt)"' origin url "$qone" "$qtwo")"
+expect "pre-push reader: a path deleted at the tip is not a regular file" no \
+  "$(printf '%s\n' "$push_one" | in_repo "$Q" pre-push 'checks_regular_file del.txt && echo yes || echo no' origin url)"
+expect "pre-push reader: a path deleted at the tip returns non-zero and no content" "|1" \
+  "$(printf '%s\n' "$push_one" | in_repo "$Q" pre-push 'checks_file_text del.txt; echo "|$?"' origin url)"
+expect "pre-push reader: a symlink at the tip is not a regular file" no \
+  "$(printf '%s\n' "$push_one" | in_repo "$Q" pre-push 'checks_regular_file link && echo yes || echo no' origin url)"
+expect "pre-push reader: a path no pushed range touches is not readable" "|1" \
+  "$(printf '%s\n' "$push_one" | in_repo "$Q" pre-push 'checks_file_text h.txt; echo "|$?"' origin url)"
+expect "pre-push reader: a <rev> argument reads that commit, as --tip does" $'one\nother ref' \
+  "$(printf '%s\n' "$push_two" | in_repo "$Q" pre-push 'checks_file_text f.txt "$3"' origin url "$qtwo")"
+expect "worktree reader: reads the file on disk" $'worktree edit\nthat shifts lines' \
+  "$(in_repo "$Q" pre-commit 'checks_file_text f.txt' --worktree)"
+expect "worktree reader: a symlink is not a regular file" no \
+  "$(in_repo "$Q" pre-commit 'checks_regular_file link && echo yes || echo no' --worktree)"
+expect "pre-commit reader: reads the index, not the unstaged edit" $'one\ncommitted' \
+  "$(in_repo "$Q" pre-commit 'checks_file_text f.txt')"
+expect "pre-commit reader: a symlink in the index is not a regular file" no \
+  "$(in_repo "$Q" pre-commit 'checks_regular_file link && echo yes || echo no')"
+
 # --- bash 3.2 syntax lint ---------------------------------------------------------
 # Constructs newer than bash 3.2 (macOS /bin/bash). Comments are skipped.
 lint_32() {
