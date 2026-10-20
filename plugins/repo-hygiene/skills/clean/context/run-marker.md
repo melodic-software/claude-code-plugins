@@ -29,8 +29,10 @@ PowerShell call in the session.
 
 ## Idle timeout
 
-The guard refreshes a live marker on each acknowledged or destructive call; ordinary shell calls
-leave it alone. A marker idle for an hour is deleted by the
-guard's next call, which then allows the command. This covers a run that ended without the clear step.
+The guard refreshes the marker on each call that names one of the skill's mutating scripts (a
+dry-run included, and even when the marker is idle past the hour, so a long confirmation gate
+still reaches its apply gated) and on each acknowledged or destructive call. Ordinary shell calls
+leave it alone. A marker idle for an hour is deleted by the next ordinary call, which then allows
+the command. This covers a run that ended without the clear step.
 The guard stays armed, ignoring the marker, when `CLAUDE_PLUGIN_DATA` is empty in the hook process or
 the hook input carries no usable `session_id`.

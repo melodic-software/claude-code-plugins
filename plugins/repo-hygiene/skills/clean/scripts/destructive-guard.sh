@@ -18,8 +18,10 @@
 # Exit codes: 0 = allow, 2 = block (stderr reason returned to Claude)
 
 # Threat model: this is a best-effort NET, not a security boundary. It matches
-# command words, so obfuscation (eval, $(), base64, a `bash -c` stacked behind
-# sudo, aliases) bypasses it by design — the goal is to catch the common
+# command words, so obfuscation (eval, $(), base64, aliases) bypasses it by
+# design, and so does any wrapper in front of a `bash -c` or `sh -c` (sudo,
+# timeout, env, nohup, ssh, docker exec): only a shell at the command position
+# has its operand re-parsed (see hook::shell_c_operand in hook-utils.sh) — the goal is to catch the common
 # destructive spellings an agent might fumble and route them through the clean
 # skill's confirmation gate. The durable destructive-op boundary is the consumer's own
 # settings.json permissions.deny plus their git hooks, which apply independent
@@ -33,15 +35,15 @@
 # scan-batch) and removes when the run reaches its final outcome. With no marker
 # for the hook input's session_id the guard allows the command. A marker idle for
 # RUN_MARKER_IDLE_SECONDS (lib/run-marker.sh) is deleted and the command allowed;
-# an acknowledged or destructive call refreshes a live marker, and ordinary calls
-# do not. An unresolved CLAUDE_PLUGIN_DATA or a
+# a call naming one of the skill's mutating scripts (dry-run included) refreshes
+# the marker, even a stale one, as does an acknowledged or destructive call;
+# ordinary calls do not. An unresolved CLAUDE_PLUGIN_DATA or a
 # missing or unusable session_id keeps the guard armed (fail closed), and so does
 # the no-jq mode, which cannot read the session_id. The marker cases are in
 # destructive-guard.test.sh.
 # Upstream hook lifetime and environment for skill-frontmatter hooks: read them
 # live at https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents
-# (section anchor unverified: this lane cannot fetch the page; confirm it at
-# the next recheck). As of 2026-10-18.
+# As of 2026-10-20.
 # Recheck: the hooks page changes how skill hooks end, or the first live run
 # shows the guard armed with no marker.
 #
@@ -100,6 +102,9 @@ fi
 # as --no-pager) between `git` and the subcommand. git clean keys on the force flag (-f/--force) only: -x/-X/-d
 # without force are git no-ops, so blocking them (including dry-run -nx) is a
 # false positive.
+# The clean skill's mutating scripts by basename, anywhere in the raw text.
+CLEAN_SCRIPT_RE='(^|[[:space:][:punct:]])(clean-caches|clean-build|git-prune|git-tree-reset-batch|git-tree-reset|remove-path|clean-batch)\.sh([^[:alnum:]_.-]|$)'
+
 is_destructive() {
   local cmd="$1"
   local gopt='((-C|-c)[[:space:]]+[^[:space:]]+[[:space:]]+|--[a-zA-Z-]+=[^[:space:]]+[[:space:]]+|(-[pP]|--[a-zA-Z-]+)[[:space:]]+)*'
@@ -116,7 +121,7 @@ is_destructive() {
   # Basename plus --apply, so a path prefix and a dry-run do not both fire.
   # git-tree-reset-batch is its own alternative: git-tree-reset.sh does not
   # match the batch script, because `.sh` has to follow the name.
-  if grep -qE '(^|[[:space:][:punct:]])(clean-caches|clean-build|git-prune|git-tree-reset-batch|git-tree-reset|remove-path|clean-batch)\.sh([^[:alnum:]_.-]|$)' <<<"$cmd" &&
+  if grep -qE "$CLEAN_SCRIPT_RE" <<<"$cmd" &&
     grep -qE '(^|[^[:alnum:]_-])--apply([^[:alnum:]_-]|$)' <<<"$cmd"; then
     return 0
   fi
@@ -277,9 +282,22 @@ SESSION="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)"
 # Run-open marker (see Lifetime above). No live marker for this session means no
 # clean run is open, so the guard stays out of the way. When the marker path
 # cannot be resolved, the guard stays armed.
+# refresh_marker: restart the idle clock. Called only on run activity (a call to
+# one of the skill's mutating scripts, dry-run included, or an acknowledged or
+# destructive command), never on ordinary shell calls.
+refresh_marker() {
+  [[ -z "$MARKER_FILE" ]] || run_marker_write "$MARKER_FILE"
+}
+
+# A call to one of the skill's scripts is the run's own step, so it keeps even a
+# stale marker: an hour-long confirmation gate still reaches its apply gated.
 MARKER_FILE="" MARKER_STATE=""
 if run_marker_path_to MARKER_FILE "${CLAUDE_PLUGIN_DATA:-}" "$SESSION"; then
   run_marker_state_to MARKER_STATE "$MARKER_FILE"
+  if [[ "$MARKER_STATE" != absent ]] && grep -qE "$CLEAN_SCRIPT_RE" <<<"$CMD"; then
+    MARKER_STATE=live
+    refresh_marker
+  fi
   case "$MARKER_STATE" in
   absent) exit 0 ;;
   stale)
@@ -289,12 +307,6 @@ if run_marker_path_to MARKER_FILE "${CLAUDE_PLUGIN_DATA:-}" "$SESSION"; then
   *) ;;
   esac
 fi
-
-# refresh_marker: restart the idle clock. Called only on run activity (an
-# acknowledged or a destructive command), never on ordinary shell calls.
-refresh_marker() {
-  [[ -z "$MARKER_FILE" ]] || run_marker_write "$MARKER_FILE"
-}
 
 # shellcheck source=hook-utils.sh
 source "$SCRIPT_DIR/hook-utils.sh"

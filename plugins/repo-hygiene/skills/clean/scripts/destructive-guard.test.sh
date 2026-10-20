@@ -155,6 +155,25 @@ else
   fail "an ordinary call does not refresh the marker" "$nearly_idle" "$refreshed"
 fi
 
+# A call to one of the skill's own scripts is run activity: a dry-run refreshes
+# the stamp, so a long dry-run and confirmation phase keeps the run open.
+printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
+assert_exit "nearly idle marker: skill-script dry-run is allowed" 0 \
+  "$(guard_exit "bash /p/skills/clean/scripts/clean-caches.sh --dry-run --repo /r")"
+read -r refreshed <"$LIVE_MARKER"
+if ((refreshed >= $(printf '%(%s)T' -1) - 5)); then
+  pass "a skill-script dry-run refreshes the marker"
+else
+  fail "a skill-script dry-run refreshes the marker" "within 5s of now" "$refreshed"
+fi
+
+# A stale marker meeting a skill-script call means the run is still going (an
+# hour-long confirmation gate), so the apply stays gated instead of ageing out.
+printf '1\n' >"$LIVE_MARKER"
+assert_exit "stale marker: skill-script apply is still blocked" 2 \
+  "$(guard_exit "bash scripts/clean-caches.sh --apply --manifest /m")"
+assert_file_exists "stale marker: a skill-script call keeps the marker" "$LIVE_MARKER"
+
 # An unreadable stamp keeps the guard armed.
 printf 'garbage\n' >"$LIVE_MARKER"
 assert_exit "unreadable marker: still blocks" 2 "$(guard_exit "git branch -D x")"
