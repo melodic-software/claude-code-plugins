@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "### Captured assumptions\n- Quality bar: production\n- Intent: second variant = speculative; existing structure: payments sit behind a gateway port; upstream: none\n- Overrides bundled default Reuse first per docs/standards/integrations.md\n",
+      "why": "the exact line"
+    },
+    {
+      "answer": "### Captured assumptions\n- `Overrides bundled default YAGNI cheap-now test per docs/standards/integrations.md`\n",
+      "why": "code-span formatting and another principle name"
+    },
+    {
+      "answer": "### Captured assumptions\n- Overrides bundled default \"contain now, abstract later\" (variation-points, for a speculative second variant) per docs/standards/integrations.md: every external service gets a port from its first implementation\n",
+      "why": "a long principle, from a real run"
+    },
+    {
+      "answer": "### Captured assumptions\n- Overrides bundled default \"contain now, abstract later\" (planning plugin `reference/variation-points.md`) per `docs/standards/integrations.md`: a port from the first implementation\n",
+      "why": "a long principle and a code-span path, from a real run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no Brief written"
+    },
+    {
+      "answer": "### Constraints\n- Address validation sits behind an interface per docs/standards/integrations.md\n",
+      "why": "applies the standard without the override line"
+    },
+    {
+      "answer": "### Captured assumptions\n- Overrides bundled default Reuse first per docs/standards/README.md\n",
+      "why": "names the index, not the standards file"
+    },
+    {
+      "answer": "### Captured assumptions\n- No line here overrides bundled default Reuse first per docs/standards/integrations.md\n",
+      "why": "a negated mention, not the line"
+    }
+  ]
+}

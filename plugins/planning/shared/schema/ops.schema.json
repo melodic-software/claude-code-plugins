@@ -26,6 +26,9 @@
           {"$ref": "#/$defs/set-for"},
           {"$ref": "#/$defs/add-asset"},
           {"$ref": "#/$defs/make-question-from"},
+          {"$ref": "#/$defs/resolve-report"},
+          {"$ref": "#/$defs/share-result"},
+          {"$ref": "#/$defs/take-down-result"},
           {"$ref": "#/$defs/handle"}
         ]
       }
@@ -80,7 +83,8 @@
     },
     "result": {
       "type": "object",
-      "required": ["op", "qid", "kind", "used", "why", "summary", "sources", "report"],
+      "required": ["op", "kind", "used", "why", "summary", "sources", "report"],
+      "description": "No qid: the answer to `request`, a request about the whole session (scope: session).",
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["result"]},
@@ -159,6 +163,27 @@
         "proposal": {"type": "string"},
         "question": {"$ref": "#/$defs/questionInput"}
       }
+    },
+    "resolve-report": {
+      "description": "Marks a problem report seen or resolved under the same rules as the owner's report route, which tells the reporter.",
+      "type": "object",
+      "required": ["op", "id", "action"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["resolve-report"]}, "id": {"type": "string"}, "action": {"enum": ["seen", "resolved"]}}
+    },
+    "share-result": {
+      "description": "Shares an unshared result with everyone under the same rules as the result-share route, acting as the owner.",
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["share-result"]}, "id": {"type": "string"}}
+    },
+    "take-down-result": {
+      "description": "Takes a shared result down under the same rules as the owner's takedown action.",
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["take-down-result"]}, "id": {"type": "string"}}
     },
     "handle": {
       "type": "object",

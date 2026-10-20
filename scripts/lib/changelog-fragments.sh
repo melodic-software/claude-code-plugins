@@ -10,9 +10,17 @@
 #
 # Only plugins named in scripts/fragment-plugins.txt are in fragment mode. A
 # missing list is an empty one: every plugin then keeps the per-PR bump, which is
-# the stricter of the two paths.
+# the stricter of the two paths. A listed name with no plugin and a
+# docs/conventions/<name>/CHANGELOG.md is a convention, versioned by that
+# CHANGELOG's newest heading alone; everything here that says plugin covers it.
 #
 #   changelog_fragments::in_mode <plugin>         0 when <plugin> is listed
+#   changelog_fragments::root_of <plugin>         print plugins/<plugin>, or
+#                                                 docs/conventions/<plugin> for a
+#                                                 convention; 1 when neither
+#   changelog_fragments::newest_version <file>    print the newest version
+#                                                 heading of a CHANGELOG (`-`
+#                                                 reads stdin); empty when none
 #   changelog_fragments::is_release_pr            0 when CHANGELOG_HEAD_REF is
 #                                                 $CF_RELEASE_BRANCH. CI sets it to
 #                                                 the head branch of a pull request
@@ -75,11 +83,25 @@ changelog_fragments::in_mode() {
   [[ -n "${_CF_MODE[$1]:-}" ]]
 }
 
-# 0 when plugins/<plugin>/CHANGELOG.md matches an entry of $CF_EM_DASH_LIST, read
+changelog_fragments::root_of() {
+  if [[ -f "plugins/$1/.claude-plugin/plugin.json" ]]; then
+    printf 'plugins/%s\n' "$1"
+  elif [[ -f "docs/conventions/$1/CHANGELOG.md" ]]; then
+    printf 'docs/conventions/%s\n' "$1"
+  else
+    return 1
+  fi
+}
+
+changelog_fragments::newest_version() {
+  awk '{ sub(/\r$/, "") } match($0, /^##[ \t]+\[?[0-9]+(\.[0-9]+)+/) { v = substr($0, 1, RLENGTH); sub(/^##[ \t]+\[?/, "", v); print v; exit }' "$1"
+}
+
+# 0 when <root>/CHANGELOG.md matches an entry of $CF_EM_DASH_LIST, read
 # as scripts/check-purged-em-dashes.sh reads it (`*` stays inside one path
 # component); 1 when not; 2 when the list cannot be read.
 changelog_fragments::em_dash_purged() {
-  local changelog="plugins/$1/CHANGELOG.md" glob
+  local changelog="$1/CHANGELOG.md" glob
   if [[ -z "$_CF_PURGED_LOADED" ]]; then
     _CF_PURGED_LOADED=1
     if [[ -f "$CF_EM_DASH_LIST" ]]; then
@@ -134,7 +156,7 @@ changelog_fragments::body() {
 }
 
 changelog_fragments::validate() {
-  local path="$1" plugin rest bump problems line
+  local path="$1" plugin rest bump problems line root
   rest="${path#.changes/}"
   plugin="${rest%%/*}"
   if [[ "$path" != .changes/* || "$rest" != "$plugin/"* || "${rest#*/}" == */* ]]; then
@@ -145,8 +167,8 @@ changelog_fragments::validate() {
     echo "FRAGMENT NAME: $path is not named <branch-slug>-<8 hex>.md; create fragments with scripts/new-changelog-fragment.sh." >&2
     return 1
   fi
-  if [[ ! -f "plugins/$plugin/.claude-plugin/plugin.json" ]]; then
-    echo "UNKNOWN PLUGIN: $path names '$plugin', which has no plugins/$plugin/.claude-plugin/plugin.json." >&2
+  if ! root="$(changelog_fragments::root_of "$plugin")"; then
+    echo "UNKNOWN PLUGIN: $path names '$plugin', which has no plugins/$plugin/.claude-plugin/plugin.json and no docs/conventions/$plugin/CHANGELOG.md." >&2
     return 1
   fi
   changelog_fragments::in_mode "$plugin"
@@ -191,7 +213,7 @@ changelog_fragments::validate() {
     done <<<"$problems"
     return 1
   fi
-  changelog_fragments::em_dash_purged "$plugin"
+  changelog_fragments::em_dash_purged "$root"
   case $? in
   0) ;;
   1) return 0 ;;
@@ -202,7 +224,7 @@ changelog_fragments::validate() {
     while IFS= read -r line; do
       echo "FRAGMENT EM DASH: $path: $line" >&2
     done <<<"$problems"
-    echo "  plugins/$plugin/CHANGELOG.md is listed in $CF_EM_DASH_LIST and the release copies this text into it; replace each em dash, in code too, with a comma, colon, parentheses or a new sentence." >&2
+    echo "  $root/CHANGELOG.md is listed in $CF_EM_DASH_LIST and the release copies this text into it; replace each em dash, in code too, with a comma, colon, parentheses or a new sentence." >&2
     return 1
   fi
   return 0

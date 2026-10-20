@@ -14,8 +14,11 @@ import {
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { pipelineEvent } from "./predicate.mjs";
 import {
+  checkAppliedBySupported,
   checkConfigPath,
+  checkPatchRules,
   laneHasActivity,
+  loadConfig,
   modelArgs,
   modelSettings,
   neededFacts,
@@ -23,6 +26,7 @@ import {
   resolveLimits,
   resolveLoop,
   resolveRoute,
+  resolveWipLeaf,
 } from "./resolve.mjs";
 
 const DEFAULT_BASE_PATH = ".base";
@@ -31,6 +35,7 @@ const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
 const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
+const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -65,6 +70,43 @@ function readUnderBase(basePath, relative) {
 function readJsonUnderBase(basePath, relative) {
   const text = readUnderBase(basePath, relative);
   return text === undefined ? undefined : JSON.parse(text);
+}
+
+// The REST version that documents issue-field-values.
+const FIELD_API_VERSION = "2026-03-10";
+// The newest field events; the REST timeline names the actor but not the field.
+const FIELD_EVENTS = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) {
+    timelineItems(last: 100, itemTypes: [ISSUE_FIELD_ADDED_EVENT, ISSUE_FIELD_CHANGED_EVENT, ISSUE_FIELD_REMOVED_EVENT]) {
+      nodes {
+        __typename
+        ... on IssueFieldAddedEvent { actor { ...who } issueField { ...field } }
+        ... on IssueFieldChangedEvent { actor { ...who } issueField { ...field } }
+        ... on IssueFieldRemovedEvent { actor { ...who } issueField { ...field } }
+      }
+    }
+  } }
+}
+fragment who on Actor { ... on User { databaseId } ... on Bot { databaseId } }
+fragment field on IssueFields { ... on IssueFieldSingleSelect { fullDatabaseId } }`;
+
+// Field id -> the account id that last set it (null after a removal or for an
+// actor with no id), from the issue's newest 100 field events, oldest first.
+export async function fieldSetters(github, repository, number) {
+  const [owner, name] = repository.split("/");
+  const answer = await github("POST", "/graphql", { query: FIELD_EVENTS, variables: { owner, name, number } });
+  if (Array.isArray(answer?.errors) && answer.errors.length > 0) {
+    throw new Error(`the issue's field events could not be read: ${answer.errors.map((e) => e?.message).join("; ")}`);
+  }
+  const setters = Object.create(null);
+  for (const node of answer?.data?.repository?.issue?.timelineItems?.nodes ?? []) {
+    const field = node?.issueField?.fullDatabaseId;
+    if (typeof field === "string" && /^[1-9][0-9]*$/.test(field)) {
+      const id = node.actor?.databaseId;
+      setters[field] = node.__typename === "IssueFieldRemovedEvent" || !Number.isInteger(id) ? null : id;
+    }
+  }
+  return setters;
 }
 
 async function gatherFacts(
@@ -115,6 +157,20 @@ async function gatherFacts(
     if (needed.includes("labeledAt") && typeof issue.updated_at === "string") {
       facts.labeledAt = issue.updated_at;
     }
+    if (needed.includes("fieldValues")) {
+      // The issue's org field values: REST answers the integer field and
+      // option ids the config maps (GraphQL answers only node ids).
+      const rows = await github("GET", `/repos/${repository}/issues/${Number(issue.number)}/issue-field-values`, undefined, {
+        "X-GitHub-Api-Version": FIELD_API_VERSION,
+      });
+      facts.fieldValues = (Array.isArray(rows) ? rows : []).map((row) => ({
+        field: row?.issue_field_id,
+        option: row?.single_select_option?.id ?? null,
+      }));
+    }
+    if (needed.includes("fieldSetters")) {
+      facts.fieldSetters = await fieldSetters(github, repository, Number(issue.number));
+    }
     if (needed.includes("labels")) {
       const labels = needed.includes("freshLabels")
         ? (await github("GET", `/repos/${repository}/issues/${Number(issue.number)}`)).labels
@@ -158,7 +214,7 @@ async function gatherFacts(
 const MODEL_ARGS = /^(?:--model [a-z]+ )?--max-turns [1-9][0-9]*(?: --effort [a-z]+)?$/;
 function modelOutputs(models) {
   if (models === null) {
-    return { profile: "", "claude-args": "", "settings-json": "", "max-turns": "" };
+    return { profile: "", "claude-args": "", "settings-json": "", "max-turns": "", model: "", effort: "" };
   }
   const args = modelArgs(models);
   if (!MODEL_ARGS.test(args)) {
@@ -169,6 +225,10 @@ function modelOutputs(models) {
     "claude-args": args,
     "settings-json": modelSettings(models),
     "max-turns": String(models["max-turns"]),
+    // run-claude-cli inputs: `default` has no --model to pass, so it is empty
+    // and the caller fails on it.
+    model: models.model === "default" ? "" : models.model,
+    effort: models.effort ?? "",
   };
 }
 
@@ -197,6 +257,9 @@ function outputsFor({ lane, selected }) {
     // Only a read grant cannot commit; any other value keeps the signed-commit check.
     "can-commit": String(selected.grant.contents !== "read"),
     ...(selected.prepare === undefined ? {} : { prepare: selected.prepare }),
+    ...(selected["issue-dimensions"] === undefined
+      ? {}
+      : { "issue-dimensions": selected["issue-dimensions"], "timeout-minutes": String(selected["timeout-minutes"]) }),
   };
 }
 
@@ -209,7 +272,8 @@ const escapeCommand = (text) =>
 
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
-function filesUnderBase(basePath, configPath) {
+// `readRules` reads a rule file beside this module; tests replace it.
+function filesUnderBase(basePath, configPath, readRules = readOwn) {
   checkConfigPath(configPath);
   const schema = readJsonUnderBase(basePath, SCHEMA_PATH);
   if (schema === undefined) {
@@ -220,9 +284,12 @@ function filesUnderBase(basePath, configPath) {
     schema,
     vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
     codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
-    laneRules: readOwn("./lane-rules.json"),
-    effectGrants: readOwn("./effect-grants.json"),
-    activityRules: readOwn("./activity-rules.json"),
+    trustedActors: readJsonUnderBase(basePath, TRUSTED_ACTORS_PATH),
+    laneRules: readRules("./lane-rules.json"),
+    effectGrants: readRules("./effect-grants.json"),
+    activityRules: readRules("./activity-rules.json"),
+    patchRules: readRules("./patch-rules.json"),
+    patchRulesSchema: readRules("./patch-rules.schema.json"),
   };
 }
 
@@ -230,15 +297,19 @@ function filesUnderBase(basePath, configPath) {
 // (with its code) for a config or request the resolver refuses. `event` is the
 // payload; by default it is read from EVENT_PATH. With `absentAsNull`, a valid
 // config whose lane holds no slot for the activity resolves to null.
-export async function resolveFromBase({ env, github, sleep = wait, event, absentAsNull = false }) {
+export async function resolveFromBase({ env, github, sleep = wait, event, absentAsNull = false, readRules }) {
   const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
   const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
-  const files = filesUnderBase(basePath, configPath);
+  const files = filesUnderBase(basePath, configPath, readRules);
+  // A lane run checks the patch rules before anything else; the token
+  // broker, which calls loadConfig and resolveGrant itself, never reads them.
+  checkPatchRules(files.patchRules, files.patchRulesSchema, loadConfig(files, { configPath }).activities);
   const request = {
     lane: env.LANE,
     activity: env.ACTIVITY || undefined,
     configPath,
     basePath,
+    pinnedDimensions: env.ISSUE_DIMENSIONS || undefined,
   };
   if (absentAsNull && !laneHasActivity(files, request)) {
     return null;
@@ -263,6 +334,7 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
       `activity \`${chosen.name}\` sets prepare: ${chosen.prepare}, and this runner does not pass prepare-supported: true`,
     );
   }
+  checkAppliedBySupported(chosen, env.APPLIED_BY_SUPPORTED);
   return resolved;
 }
 
@@ -272,6 +344,15 @@ export function limitsFromBase(env) {
   const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
   const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
   return resolveLimits(filesUnderBase(basePath, configPath), { configPath });
+}
+
+// The base config's resolved limits and its wip leaf as set, read once, for
+// the WIP cap check.
+export function wipFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  const files = filesUnderBase(basePath, configPath);
+  return { limits: resolveLimits(files, { configPath }), wip: resolveWipLeaf(files, { configPath }) };
 }
 
 // The base config's resolved `loop` caps, likewise.

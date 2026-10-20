@@ -31,6 +31,7 @@ value.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import stat
@@ -54,8 +55,13 @@ def managed_settings_path() -> Path | None:
     The guard reads managed settings so an organization can enforce audit-only
     mode there. The file lives at a fixed system path per platform, never one a
     repo's files or environment can redirect. Whether a process running as the
-    user can write that path differs by platform (pointer below), so the file
-    is not an admin-only channel everywhere. The paths
+    user can write that path differs by platform (pointer below): on WSL the
+    ``/etc/claude-code`` directory is user-writable, so the file is not an
+    admin-only channel everywhere and its presence alone proves nothing about
+    who wrote it. On Linux and WSL the guard therefore honors a value that
+    enables execution from a managed file only when that file is root-owned and
+    not writable by the current user (see ``_is_trusted_managed_file``); a value
+    that restricts is honored whoever owns the file. The paths
     below are the ones the guard reads:
 
     - macOS:      ``/Library/Application Support/ClaudeCode/managed-settings.json``
@@ -201,15 +207,30 @@ def probe(settings_path: Path, plugin_id: str | None = None) -> dict[str, object
             f"{settings_path} exists but is not a regular file", settings_path, []
         )
     try:
-        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        text = settings_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return _unreadable(settings_path, exc)
+    return _report_from_text(text, settings_path, plugin_id)
+
+
+def _unreadable(settings_path: Path, exc: Exception) -> dict[str, object]:
+    return _indeterminate(
+        f"Could not read the configured toggle from {settings_path} ({exc})",
+        settings_path,
+        [],
+    )
+
+
+def _report_from_text(
+    text: str, settings_path: Path, plugin_id: str | None
+) -> dict[str, object]:
+    """Interpret already-read settings text as ``probe`` does."""
+    try:
+        settings = json.loads(text)
         if not isinstance(settings, dict):
             raise ValueError("settings root is not a JSON object")
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        return _indeterminate(
-            f"Could not read the configured toggle from {settings_path} ({exc})",
-            settings_path,
-            [],
-        )
+    except ValueError as exc:
+        return _unreadable(settings_path, exc)
 
     plugin_configs = settings.get("pluginConfigs")
     entries: list[dict[str, object]] = []
@@ -291,6 +312,70 @@ def _managed_settings_files(managed_settings_path: Path) -> list[Path]:
     return files
 
 
+def _is_trusted_managed_file(path: Path, file_stat: os.stat_result) -> bool:
+    """Whether a managed file may carry a value that enables execution.
+
+    ``file_stat`` is the ``fstat`` of the descriptor the settings were read from,
+    so the file judged is the file read. On Linux and WSL the managed directory
+    can be user-writable (WSL), so a process running as the user could stand in
+    for organization policy. A file is trusted there only when it is a regular
+    file owned by uid 0 with no group or other write bit; ``os.access`` then
+    rejects a file an ACL lets the current user write. The check is per file, so
+    each ``managed-settings.d/`` drop-in is judged on its own. Other platforms
+    keep their documented admin-only paths and are trusted as before.
+    """
+    if not sys.platform.startswith("linux"):
+        return True
+    if not stat.S_ISREG(file_stat.st_mode):
+        return False
+    if file_stat.st_uid != 0:
+        return False
+    if file_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return False
+    effective_ids = os.access in os.supports_effective_ids
+    if os.geteuid() != 0 and os.access(path, os.W_OK, effective_ids=effective_ids):
+        return False
+    return True
+
+
+def _read_managed_file(
+    path: Path, plugin_id: str | None
+) -> tuple[dict[str, object], bool]:
+    """``probe`` one managed file and judge its trust from the same descriptor.
+
+    Reading by path and then checking ownership by path again would let a
+    user-writable directory swap the file in between. On Linux the open refuses
+    to follow a symlink, so a symlinked file is read through a second open and
+    is never trusted to enable; a restriction from it still counts.
+    ``O_NONBLOCK`` keeps a FIFO swapped in after listing from hanging the open.
+    """
+    linux = sys.platform.startswith("linux")
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
+    symlinked = False
+    try:
+        fd = os.open(path, flags | (getattr(os, "O_NOFOLLOW", 0) if linux else 0))
+    except OSError as exc:
+        if not linux or exc.errno != errno.ELOOP:
+            return _unreadable(path, exc), False
+        symlinked = True
+        try:
+            fd = os.open(path, flags)
+        except OSError as exc2:
+            return _unreadable(path, exc2), False
+    with os.fdopen(fd, "rb") as handle:
+        file_stat = os.fstat(handle.fileno())
+        if not stat.S_ISREG(file_stat.st_mode):
+            return _indeterminate(
+                f"{path} exists but is not a regular file", path, []
+            ), False
+        try:
+            text = handle.read().decode("utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            return _unreadable(path, exc), False
+    trusted = not symlinked and _is_trusted_managed_file(path, file_stat)
+    return _report_from_text(text, path, plugin_id), trusted
+
+
 def _managed_effective(
     managed_settings_path: Path, plugin_id: str | None
 ) -> bool | None:
@@ -300,13 +385,20 @@ def _managed_effective(
     precedence order; the last file that *configures* ``disk_hygiene_enabled``
     wins (drop-ins override the primary, later drop-ins override earlier), mirroring
     Claude Code's merge. A file that is absent, carries no entry, or is
-    unreadable/ambiguous contributes no verdict.
+    unreadable/ambiguous contributes no verdict. A file that configures the
+    switch to enabled but fails ``_is_trusted_managed_file`` contributes no
+    verdict either, so it cannot force-enable over the user's setting; a
+    configured restriction counts from any file.
     """
     verdict: bool | None = None
     for path in _managed_settings_files(managed_settings_path):
-        report = probe(path, plugin_id)
-        if report["source"] == "configured":
-            verdict = bool(report["effective"])
+        report, trusted = _read_managed_file(path, plugin_id)
+        if report["source"] != "configured":
+            continue
+        effective = bool(report["effective"])
+        if effective and not trusted:
+            continue
+        verdict = effective
     return verdict
 
 
@@ -320,9 +412,10 @@ def resolve_effective(
     Managed settings are the highest-precedence, non-overridable scope, so an
     explicitly *configured* value there — in ``managed-settings.json`` or a
     ``managed-settings.d/`` drop-in — wins over the user settings, which is how an
-    organization enforces audit-only mode. When managed configures no value (all
-    managed sources absent, entry-less, or unreadable/ambiguous) the user settings
-    decide.
+    organization enforces audit-only mode. A value that enables execution counts
+    only from a trusted file (``_is_trusted_managed_file``). When managed
+    configures no value (all managed sources absent, entry-less, untrusted
+    enabling, or unreadable/ambiguous) the user settings decide.
 
     ``settings_path`` is ``None`` when the caller has no *trusted* user-settings
     location (e.g. a ``--plugin-dir`` install whose root carries no ``plugins/cache``

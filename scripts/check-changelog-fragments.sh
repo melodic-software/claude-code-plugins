@@ -21,10 +21,12 @@
 #       (main plus every entry ahead of it); a change set that bumps no plugin
 #       with pending fragments passes, so the step runs on every queued commit
 #
-# Shipped files are everything under plugins/<name>/. On the release pull
-# request (changelog_fragments::is_release_pr) the root CHANGELOG.md and a
-# plugin.json edit to `version` alone are left out: those are what a release
-# writes, so it needs no fragment of its own. Any other pull request that edits
+# Shipped files are everything under plugins/<name>/, or docs/conventions/<name>/
+# for a listed convention. On the release pull request
+# (changelog_fragments::is_release_pr) the root CHANGELOG.md and a plugin.json
+# edit to `version` alone are left out: those are what a release writes, so it
+# needs no fragment of its own. A convention's release is a new newest
+# CHANGELOG heading, so that is what --check-release counts as its bump. Any other pull request that edits
 # them needs a fragment like any other change, and check-changelog-parity.sh
 # --check-bump fails one that bumps the version or adds a CHANGELOG heading.
 #
@@ -143,6 +145,20 @@ while IFS= read -r -d '' status && IFS= read -r -d '' path; do
     name="${rest%%/*}"
     [[ -n "$release_pr" && "$rest" == "$name/CHANGELOG.md" ]] || shipped["$name"]=1
     ;;
+  docs/conventions/*/*)
+    rest="${path#docs/conventions/}"
+    name="${rest%%/*}"
+    # Only a convention no plugin of the same name owns; in_mode below drops
+    # an unlisted one.
+    [[ "$(changelog_fragments::root_of "$name")" == "docs/conventions/$name" ]] || continue
+    if [[ "$rest" == "$name/CHANGELOG.md" ]]; then
+      if [[ "$(git show "$merge_base:$path" 2>/dev/null | changelog_fragments::newest_version -)" != "$(git show "$head_commit:$path" 2>/dev/null | changelog_fragments::newest_version -)" ]]; then
+        bumped["$name"]=1
+      fi
+      [[ -z "$release_pr" ]] || continue
+    fi
+    shipped["$name"]=1
+    ;;
   *) ;;
   esac
 done <"$status_file"
@@ -170,11 +186,12 @@ if [[ "$mode" == --check-required ]]; then
     esac
     checked=$((checked + 1))
     [[ -z "${covered[$name]:-}" ]] || continue
+    root="$(changelog_fragments::root_of "$name")" || root="plugins/$name"
     if [[ -n "$dependabot" ]]; then
-      echo "Dependabot-only change to plugins/$name/: scripts/dependabot-fragments.sh writes its fragment after the merge."
+      echo "Dependabot-only change to $root/: scripts/dependabot-fragments.sh writes its fragment after the merge."
       continue
     fi
-    echo "MISSING FRAGMENT: this change set changes files under plugins/$name/ but adds or edits no fragment under .changes/$name/." >&2
+    echo "MISSING FRAGMENT: this change set changes files under $root/ but adds or edits no fragment under .changes/$name/." >&2
     echo "  Run scripts/new-changelog-fragment.sh $name <major|minor|patch|none> and describe the change; use none, with a reason, when it needs no release." >&2
     findings=$((findings + 1))
   done

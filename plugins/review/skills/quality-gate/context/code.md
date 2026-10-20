@@ -17,8 +17,8 @@ Choose deliberately:
 
 ## Size crossings (when code-metrics is enabled)
 
-Before either path below, when `/code-metrics:audit-size` is among the available skills, run it
-over the changed files with `--base <base>`, the review diff base, so both counts share one base.
+Before either path below, when `/code-metrics:audit-size` is among the available skills and no
+`--worktree` is passed ([phase-boundary.md](phase-boundary.md)), run it over the changed files with `--base <base>`, the review diff base, so both counts share one base.
 Read the `file_lines` row of its References table (config key `size.file_lines`):
 
 - **Layer `bundled default`:** pass nothing. The plugin's own reference is not the consumer's
@@ -28,7 +28,8 @@ Read the `file_lines` row of its References table (config key `size.file_lines`)
   character) at the review diff base with `git show`. Paths come from the diff and are untrusted:
   never type one into a command. Write the measured paths one per line to a file with the Write
   tool, then read them in a loop (`while IFS= read -r p; do git show "$base:$p"; done < <file>`),
-  so each path reaches git as one variable-expanded argument; a file absent at the base counts 0. A file whose base count is below the reference and
+  so each path reaches git as one variable-expanded argument (under `--report-only`, no file: see
+  [phase-boundary.md](phase-boundary.md)); a file absent at the base counts 0. A file whose base count is below the reference and
   whose head `lines_non_blank` is at or above it is a crossing.
 
 Put each crossing into the `code-reviewer` brief as `<path>: <base count> -> <head count>,
@@ -37,6 +38,8 @@ the brief lists none. On the primary path, which dispatches no `code-reviewer`, 
 in the gate's report in that same form.
 
 ## Primary path: `pr-review-toolkit` orchestrator plugin (when installed)
+
+With `--base` or `--worktree`, skip this path for the fallback ([phase-boundary.md](phase-boundary.md)).
 
 When the `pr-review-toolkit` plugin (from the `claude-plugins-official` marketplace) is available, invoke `/pr-review-toolkit:review-pr` via the Skill tool with aspects detected from the changed files:
 
