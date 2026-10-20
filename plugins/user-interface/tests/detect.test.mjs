@@ -524,6 +524,25 @@ describe("--config team routing applied to routes", () => {
     assert.match(out.routing_notes.join("\n"), /has \d+ problems?/);
   });
 
+  test("a bad non-routing key is not disclosed as a routing problem, and team routing applies", () => {
+    const team = teamFile("route-css-bogus.yaml", "css:\n  bogus: 1\nrouting:\n  version: 1\n  deny:\n    - canva\n"); // spellchecker:disable-line
+    const out = detect([...args, "--team", team]);
+    assert.ok(!("routing_notes" in out));
+    assert.ok(out.skipped.some((s) => s.by === "deny" && s.name === "canva")); // spellchecker:disable-line
+  });
+
+  test("a bad non-routing key with no team routing gives no routing note", () => {
+    const team = teamFile("route-css-only.yaml", "css:\n  bogus: 1\n");
+    const out = detect([...args, "--team", team]);
+    assert.ok(!("routing_notes" in out));
+  });
+
+  test("a routing key that is not a mapping is disclosed as one problem beside a bad non-routing key", () => {
+    const team = teamFile("route-not-mapping.yaml", "css:\n  bogus: 1\nrouting: 5\n");
+    const out = detect([...args, "--team", team]);
+    assert.match(out.routing_notes.join("\n"), / has 1 problem \(/);
+  });
+
   test("a broken pointer line applies no team routing and says so", () => {
     const dir = join(scratch, "route-broken-pointer");
     mkdirSync(join(dir, "docs/conventions"), { recursive: true });

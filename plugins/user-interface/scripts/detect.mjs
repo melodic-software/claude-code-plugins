@@ -366,9 +366,12 @@ function applyRouting(bundled, cfg) {
   const team = cfg.layers.find((l) => l.name === "team");
   const notes = [];
   if (cfg.home_error) notes.push(`${cfg.home_error}; built-in routes used, with no team overrides or deny floor`);
-  // A surviving routing mapping means only checkRouting's problems touch routing; with none, the
-  // team layer's errors are what dropped it.
-  const n = isMapping(cfg.values.routing) ? routingProblems : team?.errors.length ?? 0;
+  // team.errors also holds problems with other keys, so count only those that cost routing:
+  // checkRouting's, else a bad `routing` key or a team .yaml file that could not be read at all
+  // (key-level messages open with the quoted key, file-level ones do not).
+  const at = `team (${team?.path}): `;
+  const costsRouting = (e) => e.startsWith(`${at}"routing"`) || (e.startsWith(at) && !e.startsWith(`${at}"`));
+  const n = isMapping(cfg.values.routing) || routingProblems > 0 ? routingProblems : team?.errors.filter(costsRouting).length ?? 0;
   if (n > 0) {
     notes.push(`${team.path} has ${n} problem${n === 1 ? "" : "s"} (see config.layers); built-in routes are used for any team routing it could not supply, so those overrides and deny entries were not applied. Run /user-interface:setup check`);
   }
