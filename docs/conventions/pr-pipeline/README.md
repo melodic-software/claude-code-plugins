@@ -1258,11 +1258,13 @@ is `split`, and Uncertainty Known, Knowable and Unknown map to `run`, `research-
 Each Claude lane's runs are paid by one funding role: `reviews`, `automations` or `issue-lane`. A
 lane on ci-workflows' `run-claude-cli` action passes its role with the role's two secrets,
 `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` (role upper-snake, so `issue-lane`
-gives `ISSUE_LANE_`); the action tries the key first and the subscription token only after a
-credit stop. Each lane's workflow names its role as a literal, and the runner policy admits it; no
-config key records it. `intake`, `pr-unblock`, `fix-ci`, `pr-verify` and `pr-refine` take
-`automations`; `claude-review` and `claude-security-review` take `reviews`; `work-resolve-issue`
-takes `issue-lane`.
+gives `ISSUE_LANE_`); the key runs first and the subscription token only after a credit stop.
+`pr-verify` holds one credential per job: `check-intent` runs on the key, and
+`check-intent-subscription` runs on the token, on a new runner, only after `check-intent`'s credit
+stop with no permission denial or when the key is empty. Each lane's workflow names its role as a
+literal, and the runner policy admits it; no config key records it. `intake`, `pr-unblock`,
+`fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
+`claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
 
 `intake` and `pr-verify` run on `run-claude-cli` today. Every other lane runs claude-code-action
 with its role's OAuth token alone until it moves there, and it never gets an API key, since
