@@ -471,7 +471,7 @@ test("pr-run-activity-write.yml: an issue run on stale workflow files fails befo
       writeFileSync(join(base, path), text);
     }
     git("add", "-A");
-    git("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "c");
+    git("-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "c");
     return git("rev-parse", "HEAD");
   };
   spawnSync("git", ["init", "-q", "-b", "main", base]);

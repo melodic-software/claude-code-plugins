@@ -546,6 +546,41 @@ test("the budget comes from the pipeline config, rotation runs before the gate, 
   assert.match(upload, /\n {10}name: pr-merge-gate-cursor\n/);
 });
 
+// The main ruleset requires `ci-status` from the GitHub Actions app, the app
+// every GITHUB_TOKEN posts as, so a token with checks: write could pass it.
+// Only a job of its own, running nothing but the check writer, holds it.
+test("each candidate's check run is written by its own job, the only one holding checks: write", () => {
+  assert.match(job, /\n {6}checks: read\n/);
+  assert.equal(text.match(/\n {6}checks: write\n/g)?.length, 1);
+  const upload = step("Hand the gate's rows to the check writer");
+  assert.ok(steps.findIndex((s) => s.name === "Run the merge gate on each candidate") < steps.findIndex((s) => s.name === "Hand the gate's rows to the check writer"));
+  assert.match(upload, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped' && steps\.mode\.outputs\.report-only == 'false'\n/);
+  assert.match(upload, /\n {10}name: pr-merge-gate-rows\n {10}path: \$\{\{ runner\.temp \}\}\/pr-merge-summary\.json\n/);
+  assert.match(job, /\n {6}gate-rows: \$\{\{ steps\.rows\.outcome == 'success' \}\}\n/);
+
+  const writer = jobBlock("gate-check");
+  assert.match(writer, /^ {4}needs: \[merge\]\n/);
+  assert.match(writer, /\n {4}if: always\(\) && needs\.merge\.outputs\.gate-rows == 'true'\n/);
+  assert.match(writer, /\n {4}permissions:\n {6}contents: read[^\n]*\n(?: {6}#[^\n]*\n)* {6}checks: write\n {4}[a-z]/);
+  // Runs wait in line like the merge job's: never two writers at once, and a
+  // cancelled job would sit on PR heads as a CANCELLED check.
+  assert.match(writer, /\n {4}concurrency:\n {6}group: pr-merge-gate-check\n {6}queue: max\n/);
+  const writerSteps = stepsOf(writer);
+  assert.deepEqual(
+    writerSteps.map((s) => s.name),
+    ["Check out the default branch tip", "Set up Node", "Read the gate's rows", "Show each candidate's refusal as a check run"],
+  );
+  assert.match(writerSteps[0].block, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
+  for (const { name, block } of writerSteps.slice(2)) {
+    assert.match(block, /\n {8}continue-on-error: true\n/, name);
+  }
+  const show = writerSteps[3].block;
+  assert.match(show, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+  assert.match(show, /\n {10}SUMMARY_PATH: \$\{\{ runner\.temp \}\}\/rows\/pr-merge-summary\.json\n/);
+  assert.match(show, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/gate-check\.mjs\n/);
+  assert.equal(steps.find((s) => s.name === "Show each candidate's refusal as a check run"), undefined);
+});
+
 // #8399 (option B): a red attempt 1 of a full run the lane dispatched gets its
 // one re-run from the early job, under its own token, and a record the
 // post-merge check requires before it credits that github-actions[bot] attempt.

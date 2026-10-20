@@ -106,30 +106,32 @@ the directory it names (`-s project` has no path flag, measured; `-s local` is u
 exists is to recreate it. That is a deliberate act, not something an audit performs:
 
 ```bash
-# For a path the user has individually confirmed is a dead worktree — not another
+# Only paths the user has individually confirmed are dead worktrees — not another
 # repository's live worktree, not an unmounted share, not a detached volume.
-# Plain `mkdir`, never `mkdir -p`: it FAILS if the directory already exists, which
-# is the one mechanical stop left if the classification above was wrong. `-p` would
-# no-op on a live directory and carry straight on into the reap.
-mkdir "<path>" &&
-  cd "<path>" &&
-  bash "<helper>" --worktree-path "<path>" --dry-run &&
-  bash "<helper>" --worktree-path "<path>" &&
-  rm -rf "<path>/.claude" && cd .. && rmdir "<path>"
+bash "<remedy>" "<path>" ["<path>" ...]
 ```
 
-**Substitute `<helper>` with the resolved absolute path** to
-`scripts/reap-project-plugin-records.sh` before presenting this. Do not emit
+**Substitute `<remedy>` with the resolved absolute path** to
+`scripts/reap-orphaned-plugin-records.sh` before presenting this, and pass only the confirmed
+paths, in the order to reap them. Do not emit
 `${CLAUDE_PLUGIN_ROOT}` here. That variable is set for the tooling that runs this skill, not in the
 user's own shell, so a pasted command carrying it expands to `/scripts/…` and exits 127. Pointer:
 [plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves);
-as of 2026-10-11; recheck when that section starts resolving the variable in the user's shell. The `&&`
-chain fails safe, but the remedy would simply never run while appearing to.
+as of 2026-10-11; recheck when that section starts resolving the variable in the user's shell.
 
-Every step is chained with `&&` deliberately. If the reap exits non-zero, whether some record survived
-(exit 1) or the CLI was unavailable (exit 3), the directory is **left in place**, because deleting
-it would put the surviving records back out of reach. The `--dry-run` pass runs first and prints
-what the second call will remove.
+For each path, in order, the script runs: plain `mkdir`,
+`cd` into it, `scripts/reap-project-plugin-records.sh --worktree-path <path> --dry-run`, the same
+call without `--dry-run`, removal of the path's `.claude`, back out, and `rmdir`. It prints a result
+per path and stops at the first failure, naming the path and the step. Its guards:
+
+- Plain `mkdir`, never `mkdir -p`: it **fails** if the directory already exists, which is the one
+  mechanical stop left if the classification above was wrong. `-p` would no-op on a live directory
+  and carry straight on into the reap. A path whose parent is missing fails here too, with a message
+  pointing at #7461.
+- If the reap exits non-zero, whether some record survived (exit 1) or the CLI was unavailable
+  (exit 3), the directory is **left in place**, because deleting it would put the surviving records
+  back out of reach. The `--dry-run` pass runs first and prints what the second call will remove.
+- It removes only the directory it created.
 
 The helper refuses unless the directory it is standing in is the one named, and it never touches
 `installed_plugins.json` directly.

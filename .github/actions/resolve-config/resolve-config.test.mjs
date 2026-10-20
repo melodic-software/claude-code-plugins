@@ -15,7 +15,7 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { main } from "./resolve-config.mjs";
+import { main, resolveFromBase } from "./resolve-config.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, "resolve-config.mjs");
@@ -960,4 +960,70 @@ test("on a pull_request event, draft comes from the payload without an API call"
   assert.equal(await main({ env, github, sleep: noSleep }), 0);
   assert.equal(readOutputs(env.GITHUB_OUTPUT)["skip-reason"], "not-applicable");
   assert.deepEqual(calls, []);
+});
+
+// applied-by and the patch rules (README.md, Activities and Patch rules). The
+// producer is fix-ci in pr-unblock, whose apply-patch slot needs it; the live
+// vocabulary, since the fixture lacks the verb "apply".
+const LIVE_VOCABULARY = join(HERE, "../../standards/github-actions-conventions/vocabulary.json");
+function withAppliedBy(env) {
+  writeFileSync(
+    join(env.BASE_PATH, CONFIG_PATH),
+    readFileSync(join(FIXTURES, "invalid-applied-by-missing-needs.yaml"), "utf8").replace(
+      "      - activity: apply-patch\n",
+      "      - activity: apply-patch\n        needs: [fix-ci]\n",
+    ),
+  );
+  copyFileSync(LIVE_VOCABULARY, join(env.BASE_PATH, VOCABULARY_PATH));
+  env.LANE = "pr-unblock";
+  env.ACTIVITY = "fix-ci";
+  env.PREPARE_SUPPORTED = "true";
+}
+
+test("an applying leaf with applied-by resolves on a runner that names its keys, and the file carries the map", async () => {
+  const { env } = workspace();
+  withAppliedBy(env);
+  env.APPLIED_BY_SUPPORTED = "patch";
+  assert.equal(await main({ env, github: noApi }), 0);
+  assert.deepEqual(JSON.parse(readFileSync(env.OUTPUT_PATH, "utf8")).selected["applied-by"], { patch: "apply-patch" });
+});
+
+test("an applying leaf with applied-by fails red unless the runner names every key it sets", async (t) => {
+  for (const supported of [undefined, "", "feedback-replies", "PATCH"]) {
+    const { env } = workspace();
+    withAppliedBy(env);
+    if (supported !== undefined) {
+      env.APPLIED_BY_SUPPORTED = supported;
+    }
+    await assertFailsRed(t, env, /applied-by-supported/);
+  }
+});
+
+test("a leaf without applied-by resolves whatever applied-by-supported says", async () => {
+  const { env } = workspace();
+  env.APPLIED_BY_SUPPORTED = "";
+  assert.equal(await main({ env, github: noApi }), 0);
+});
+
+// The rule files the run reads beside resolve-config.mjs, with one replaced.
+const rulesWith = (name, value) => (relative) =>
+  relative === name ? value : JSON.parse(readFileSync(join(HERE, relative), "utf8"));
+
+test("a lane run fails closed without the patch rules or their schema, even for a leaf that hands on nothing", async () => {
+  for (const name of ["./patch-rules.json", "./patch-rules.schema.json"]) {
+    const { env } = workspace();
+    await assert.rejects(
+      resolveFromBase({ env, github: noApi, readRules: rulesWith(name, undefined) }),
+      (error) => error.code === "patch-rules" && /must be present/.test(error.message),
+    );
+  }
+});
+
+test("a lane run fails closed on patch rules a row of which does not refuse the universal set", async () => {
+  const { env } = workspace();
+  const broken = JSON.parse(readFileSync(join(FIXTURES, "patch-rules-missing-universal.json"), "utf8"));
+  await assert.rejects(
+    resolveFromBase({ env, github: noApi, readRules: rulesWith("./patch-rules.json", broken) }),
+    (error) => error.code === "patch-rules" && /does not refuse claude/.test(error.message),
+  );
 });

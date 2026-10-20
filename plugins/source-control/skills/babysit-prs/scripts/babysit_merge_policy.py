@@ -32,7 +32,7 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Iterator, Mapping
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -56,7 +56,13 @@ from babysit_gh import (
     pull_request_commits_once,
     record_pull_request_total,
 )
-from babysit_risk import ChangedFile, glob_match, is_capability_path
+from babysit_risk import (
+    DECLARATION_FILES,
+    ChangedFile,
+    declaration_pointers,
+    glob_match,
+    is_capability_path,
+)
 from babysit_util import (
     is_json_array,
     is_json_object,
@@ -400,6 +406,11 @@ def _rest_actor(actor: Any) -> dict[str, Any] | None:
 
 # --- Config at the base SHA -----------------------------------------------------
 
+# The default `merge.risk-escalation-minutes`: longer than a review lane's
+# run, so a review still running at the head (scored MED, evidence unbound)
+# finishes before its refusal is labeled (judgment).
+RISK_ESCALATION_MINUTES = 60
+
 
 @dataclass(frozen=True)
 class PipelineConfig:
@@ -459,6 +470,16 @@ class PipelineConfig:
     # Absent, or anything but a whole number from 1 to
     # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
     max_queue_ejections: int = 2
+    # `merge.risk-escalation-minutes`: how long a MED or HIGH reasons comment
+    # must have stood unchanged at the head before the gate adds the
+    # human-gated label; 0 is no minimum. Absent, or anything but a whole
+    # number, is `RISK_ESCALATION_MINUTES`.
+    risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
+    # `merge.check-inputs`: git pathspecs of what the pull request checks
+    # read. When the base changed one since a pull request's merge base, the
+    # pr-merge lane updates its branch from the base instead of enqueuing it
+    # (`babysit_check_inputs`). Absent or empty, nothing is updated.
+    check_inputs: tuple[str, ...] = ()
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -595,6 +616,8 @@ def read_config_at(
             ("merge.dependabot.majors", False),
             ("merge.max-in-flight", False),
             ("merge.max-queue-ejections", False),
+            ("merge.risk-escalation-minutes", False),
+            ("merge.check-inputs", True),
         ],
     )
     if values is None:
@@ -662,6 +685,15 @@ def read_config_at(
             f"{MAX_QUEUE_EJECTIONS_LIMIT}"
         )
         ejections = None
+    escalation_minutes = scalar("merge.risk-escalation-minutes")
+    if escalation_minutes is not None and not re.fullmatch(
+        r"0|[1-9][0-9]*", escalation_minutes
+    ):
+        notes.append(
+            f"merge.risk-escalation-minutes {escalation_minutes!r} is not a whole "
+            "number of minutes"
+        )
+        escalation_minutes = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -682,6 +714,10 @@ def read_config_at(
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
         max_queue_ejections=int(ejections) if ejections else 2,
+        risk_escalation_minutes=int(escalation_minutes)
+        if escalation_minutes is not None
+        else RISK_ESCALATION_MINUTES,
+        check_inputs=tuple(values["merge.check-inputs"]),
     )
 
 
@@ -2661,6 +2697,70 @@ def with_capability_contents(
             )
             read.append(replace(changed, contents_error=reason))
     return tuple(read)
+
+
+_TREE_MODE = "040000"
+
+
+def declarations_at(
+    repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
+) -> tuple[tuple[str, str | None], ...] | None:
+    """`babysit_risk.RiskInput.declarations`: `DECLARATION_FILES` files and
+    the config files their plugin.json points at, at the base SHA as (path,
+    text), with None for a file that could not be read. From a clone holding
+    the base, every plugin's, which costs no API call; else, through the
+    contents API, only those of a plugin directory a changed path sits in: a
+    declared path outside its own plugin is unsafe, so only another plugin's
+    escaping declaration could floor a changed file, and a change outside
+    every plugin reads none. None when the base tree cannot be listed; the
+    scorer holds the floor either way."""
+    plugins = {
+        "/".join(parts[:2]).casefold()
+        for path in changed
+        if isinstance(path, str)
+        and len(parts := path.split("/")) >= 3
+        and parts[0].casefold() == "plugins"
+    }
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        root = next(_clones_holding(base), None)
+        if root is None and not plugins:
+            return ()
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"declarations at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return None
+    if modes is None:
+        return None
+
+    def read(path: str) -> str | None:
+        if modes.get(path) in (None, _TREE_MODE):
+            return None
+        try:
+            if root is not None:
+                return _git_file_at(root, path, base)
+            return _text_at(owner, name, path, base)
+        except (PolicyReadError, ValueError) as exc:
+            print(f"declaration {path!r}: {type(exc).__name__}", file=sys.stderr)
+            return None
+
+    found = [
+        (path, read(path))
+        for path in sorted(modes)
+        if (root is not None or "/".join(path.split("/")[:2]).casefold() in plugins)
+        and any(glob_match(g, path) for g in DECLARATION_FILES)
+    ]
+    named = {path for path, _ in found}
+    pointers = (
+        q for path, text in list(found) for q in declaration_pointers(path, text)
+    )
+    for pointer in dict.fromkeys(pointers):
+        if pointer not in named:
+            found.append((pointer, read(pointer)))
+    return tuple(found)
 
 
 # --- Promotion evidence -----------------------------------------------------------------------

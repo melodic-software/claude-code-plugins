@@ -120,11 +120,16 @@ function repairDestName(row, oldDest, reserved, renamePairs) {
 }
 
 /**
- * @param {object} doc
- * @returns {{ destName: string, sourceFile: string, gapNote?: string, session?: string }[]}
+ * @typedef {{ verdict: string, destName: string, sourceFile: string, gapNote?: string, session?: string }} PromotionDecisionRow
+ * @typedef {{ decisions: PromotionDecisionRow[] }} PromotionDecisionsDoc
+ */
+
+/**
+ * @param {PromotionDecisionsDoc} doc
+ * @returns {PromotionDecisionRow[]}
  */
 function promotedDecisions(doc) {
-  return doc.decisions.filter((/** @type {{ verdict: string }} */ d) => d.verdict === "promote");
+  return doc.decisions.filter((d) => d.verdict === "promote");
 }
 
 /**
@@ -143,7 +148,7 @@ function applyFileRenames(synthesisDir, renamePairs) {
 
 /**
  * @param {string} synthesisDir
- * @param {object} doc
+ * @param {PromotionDecisionsDoc} doc
  */
 function pruneUnpromotedSynthesisFiles(synthesisDir, doc) {
   const promotedNames = new Set(
@@ -162,7 +167,7 @@ function pruneUnpromotedSynthesisFiles(synthesisDir, doc) {
 
 /**
  * @param {string} absSlice
- * @param {object} doc
+ * @param {PromotionDecisionsDoc} doc
  */
 function writePromotionArtifacts(absSlice, doc) {
   const promotes = promotedDecisions(doc);
@@ -206,7 +211,7 @@ function writePromotionArtifacts(absSlice, doc) {
 }
 
 /**
- * @param {object} doc
+ * @param {PromotionDecisionsDoc} doc
  * @param {Set<string>} reserved
  * @param {string} absSlice
  * @returns {{ renamed: number, rejected: number, sessionsFixed: number, renamePairs: [string, string][] }}

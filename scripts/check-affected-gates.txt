@@ -1,0 +1,93 @@
+# Every hygiene gate the CI jobs lint-repo, lint-shell, check-plugins and
+# check-skills feed to the aggregator, and how scripts/check-affected.sh covers it.
+#
+#   <gate> run <runner check>     the runner runs it, under that check name
+#   <gate> ci-only <reason>       the runner prints `CI only: <gate>` with the reason
+#
+# scripts/check-affected-gates.test.sh fails when a gate in those jobs has no row
+# here, or a row names a gate the jobs no longer feed.
+
+# Run by scripts/check-affected.sh. A gate that runs one script in several modes
+# shares one runner check.
+markdown run markdown
+typos run typos
+exec-bit run exec-bit
+shellcheck run shellcheck
+shell-portability-lint run shell-portability
+stale-base-overlap run stale-base-overlap
+changelog-fragments run changelog-fragments
+changelog-fragments-required run changelog-fragments
+changelog-parity run changelog-parity
+changelog-parity-bump run changelog-parity
+changelog-parity-preserved run changelog-parity
+changelog-parity-order run changelog-parity
+plugin-options-docs run plugin-options-docs
+spoke-plugin-root run spoke-plugin-root
+changed-skills run changed-skills
+
+# Not run by scripts/check-affected.sh. The reason names where the gate comes from
+# or the command that runs it by hand.
+machine-specific-paths ci-only ci-workflows composite, run its entry script by hand: README.md "Running machine-specific-paths locally"
+actionlint ci-only ci-workflows composite
+comment-hygiene ci-only ci-workflows composite
+dependabot-schema ci-only ci-workflows composite: check-jsonschema
+editorconfig ci-only ci-workflows composite
+eol-renormalize ci-only ci-workflows composite
+evals-schema ci-only ci-workflows composite: check-jsonschema
+gitleaks ci-only ci-workflows composite
+lychee-offline ci-only ci-workflows composite
+marketplace-schema ci-only ci-workflows composite: check-jsonschema
+plugin-schema ci-only ci-workflows composite: check-jsonschema
+workflow-schema ci-only ci-workflows composite: check-jsonschema
+zizmor ci-only pinned third-party scanner
+runner-policy ci-only node check over the workflows, see its step in the workflow
+queued-pr ci-only merge queue only
+changelog-fragments-release ci-only release pull request only, scripts/check-changelog-fragments.sh --check-release <base>
+vendor-version-bump ci-only scripts/check-vendor-version-bump.sh --check-bump <base>
+portability-lint ci-only scripts/check-skill-portability.sh <base>
+evals-quality ci-only bash plugins/skill-quality/scripts/check-evals-quality.sh <eval sets>
+listing-budget ci-only whole-repo scanner, bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
+listing-budget-configured ci-only whole-repo scanner, bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
+precompute-compose ci-only whole-repo scanner, scripts/check-skill-precompute-compose.sh --all
+adr-numbers ci-only whole-repo scanner, scripts/check-adr-numbers.sh --check
+app-key-references ci-only whole-repo scanner, scripts/check-app-key-references.sh --check
+code-metrics-config-reference ci-only whole-repo scanner, python3 scripts/check-code-metrics-config-reference.py
+code-metrics-skill-prose ci-only whole-repo scanner, python3 scripts/check-code-metrics-skill-prose.py
+config-cascade-semantics ci-only whole-repo scanner, python3 scripts/sync-config-cascade-semantics.py --check
+conformance-registry ci-only whole-repo scanner, scripts/check-conformance-registry.sh --check
+contract-clause-coverage ci-only whole-repo scanner, python3 scripts/check-contract-clause-coverage.py
+convention-yaml-schema ci-only whole-repo scanner, scripts/check-convention-yaml.sh --check
+detector-eval-coverage ci-only whole-repo scanner, scripts/check-detector-eval-coverage.sh --check
+detector-findings-crosswalk ci-only whole-repo scanner, scripts/check-detector-findings-crosswalk.sh --check
+discriminating-test-skips ci-only whole-repo scanner, scripts/check-discriminating-test-skips.sh
+docs-naming ci-only whole-repo scanner, scripts/check-docs-naming.sh --check
+docs-only-contract ci-only whole-repo scanner, scripts/check-docs-only-gate.sh --check
+drive-root-scan-noop ci-only whole-repo scanner, scripts/check-drive-root-litter.sh
+exec-form-windows-probe ci-only whole-repo scanner, scripts/check-exec-form-windows-probe.sh
+fixture-git-isolation ci-only whole-repo scanner, scripts/check-fixture-git-isolation.sh --check
+fleet-audit-doc-grammar ci-only whole-repo scanner, scripts/check-fleet-audit-doc-grammar.sh --check
+fleet-finding-test-coverage ci-only whole-repo scanner, scripts/check-fleet-finding-test-coverage.sh --check
+hook-exec-form ci-only whole-repo scanner, scripts/check-hook-exec-form.sh
+hook-slow-shapes ci-only whole-repo scanner, scripts/check-hook-slow-shapes.sh
+hook-wiring-liveness ci-only whole-repo scanner, scripts/check-hook-wiring-liveness.sh
+hooks-description ci-only whole-repo scanner, scripts/check-hooks-description.sh
+killswitch-hoist ci-only whole-repo scanner, scripts/check-killswitch-hoist.sh
+lane-coverage ci-only whole-repo scanner, scripts/check-lane-coverage.sh --check
+line-citations ci-only whole-repo scanner, python3 scripts/check-line-citations.py
+loop-lane-floor-drift ci-only whole-repo scanner, scripts/check-loop-lane-floor-drift.sh --check
+manifest-duplicate-keys ci-only whole-repo scanner, python3 scripts/check-manifest-duplicate-keys.py
+next-graph ci-only whole-repo scanner, python3 scripts/check-next-graph.py
+orphaned-fixtures ci-only whole-repo scanner, scripts/check-orphaned-fixtures.sh --check
+pipefail-grep-q ci-only whole-repo scanner, scripts/check-pipefail-grep-q.sh
+plugin-catalog-enablement ci-only whole-repo scanner, scripts/check-plugin-catalog-enablement.sh
+plugin-manifest-presence ci-only whole-repo scanner, scripts/check-plugin-manifest-presence.sh
+purged-em-dashes ci-only whole-repo scanner, scripts/check-purged-em-dashes.sh
+read-caller-keys ci-only whole-repo scanner, scripts/check-read-caller-keys.sh --check
+selector-live ci-only whole-repo scanner, bash scripts/affected-tests-live.sh
+silent-skips ci-only whole-repo scanner, scripts/check-silent-skips.sh
+skill-count-claims ci-only whole-repo scanner, scripts/check-skill-count-claims.sh --check
+skill-leaf-names ci-only whole-repo scanner, scripts/check-skill-leaf-names.sh --check
+summary-reader-parity ci-only whole-repo scanner, bash scripts/check-summary-reader-parity.test.sh
+test-plan-corpus ci-only whole-repo scanner, the inline plan check in its workflow step
+test-tmp-cleanup ci-only whole-repo scanner, scripts/check-test-tmp-cleanup.sh --check
+userconfig-argv ci-only whole-repo scanner, scripts/check-hook-userconfig-argv.sh
