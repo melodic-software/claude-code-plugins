@@ -17,8 +17,8 @@
 # whole content, a changed file on the lines the commit adds, read from the
 # index (the work tree with --worktree). Every staged path is judged, a
 # force-added gitignored one included; --worktree leaves out untracked
-# gitignored files. Skipped: symbolic links, submodules, files git calls
-# binary, and files over 1 MiB. The two
+# gitignored files. Skipped: symbolic links, submodules and files over 1 MiB.
+# A file git calls binary is judged whole for secrets only. The two
 # guards' path exemptions apply (tests/fixtures for secrets only).
 #
 # Findings print as "<path>:<line>: <message>" on stderr and exit 1. The
@@ -134,6 +134,16 @@ added_only() {
     { keep = 0; for (i = 1; i <= n; i++) if (NR >= s[i] && NR <= e[i]) { keep = 1; break } print (keep ? $0 : "") }'
 }
 
+# secret_findings <path>: secrets::scan_text output on stdin, as findings.
+secret_findings() {
+  sed -n 's/^\(.*\) (line \([0-9,]*\))$/\2 \1/p' |
+    while read -r nums label; do
+      for n in ${nums//,/ }; do
+        printf '%s:%s: secret or credential pattern: %s\n' "$1" "$n" "$label"
+      done
+    done
+}
+
 out="$CHECKS_TMP/findings"
 whole="$CHECKS_TMP/findings-whole"
 : >"$out"
@@ -147,8 +157,16 @@ while IFS= read -r -d '' f; do
     *) continue ;;
     esac
   fi
-  is_binary "$f" && continue
   (($(file_size "$f") <= MAX_BYTES)) || continue
+  if is_binary "$f"; then
+    # A NUL byte must not hide a secret: scan the whole raw content for the
+    # secret patterns, each NUL read as a space so line numbers hold. Path
+    # patterns are not judged here, so an ordinary binary still commits.
+    secret_exempt "$f" && continue
+    text="$(file_text "$f" | tr '\0' ' '; printf x)"
+    secrets::scan_text "${text%x}" | secret_findings "$f" >>"$whole"
+    continue
+  fi
   sink="$out"
   if [[ "$f" == *[\"\\[:cntrl:]]* ]]; then
     # Git quotes such a name whatever core.quotePath says, so the range table
@@ -162,13 +180,7 @@ while IFS= read -r -d '' f; do
   [[ -n "${text//[[:space:]]/}" ]] || continue
 
   if ! secret_exempt "$f"; then
-    secrets::scan_text "$text" |
-      sed -n 's/^\(.*\) (line \([0-9,]*\))$/\2 \1/p' |
-      while read -r nums label; do
-        for n in ${nums//,/ }; do
-          printf '%s:%s: secret or credential pattern: %s\n' "$f" "$n" "$label"
-        done
-      done >>"$sink"
+    secrets::scan_text "$text" | secret_findings "$f" >>"$sink"
   fi
   if ! path_exempt "$f"; then
     hpp::scan_text "$text" "$scan_root" "$PWD/$f" |

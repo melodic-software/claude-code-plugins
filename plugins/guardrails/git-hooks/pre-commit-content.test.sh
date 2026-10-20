@@ -2,7 +2,8 @@
 # Contract tests for the guardrails pre-commit entry (git-hooks/pre-commit-content.sh):
 # a secret or machine-specific path on a line the commit adds blocks with
 # "<path>:<line>: <message>"; one on an unchanged line, in an unstaged change,
-# in a symlinked or binary file, or under an exempt path does not; a staged
+# in a symlinked file, an ordinary binary, or under an exempt path does not;
+# a token in a file holding a NUL byte blocks; a staged
 # gitignored file is judged and an untracked one is not; --worktree covers uncommitted and untracked files; and the plugin's vendored
 # installer wires the entry, pattern libraries included, so `git commit` runs it.
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
@@ -155,7 +156,15 @@ expect "a symbolic link is not judged" "0|" "$(check "$REPO")"
 new_repo
 printf 'token=%s\0binary\n' "$FAKE_GHP" >"$REPO/blob.bin"
 git -C "$REPO" add blob.bin
-expect "a file git calls binary is not judged" "0|" "$(check "$REPO")"
+expect "a token in a file holding a NUL byte blocks" "1|blob.bin:1: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+expect "--worktree: a token in an untracked file holding a NUL byte blocks" 1 \
+  "$(git -C "$REPO" rm -q --cached blob.bin && rc_of "$REPO" --worktree)"
+
+new_repo
+printf '\211PNG\r\n\032\n\0\0\0\rIHDR\0\0\0\001' >"$REPO/image.png"
+git -C "$REPO" add image.png
+expect "an ordinary binary with no secret still passes" "0|" "$(check "$REPO")"
 
 new_repo
 printf 'line one\nline two\ntoken=%s\n' "$FAKE_GHP" >"$REPO/notes.md"
