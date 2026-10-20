@@ -143,6 +143,9 @@ runs:
         fi
         mkdir -p "$MARKETPLACE"
         cp -R "$BASE_PATH/plugins" "$BASE_PATH/.claude-plugin" "$MARKETPLACE/"
+        # The plugin loads in place from this copy, so its hooks run from
+        # here: no process the skill starts may rewrite them.
+        chmod -R a-w "$MARKETPLACE"
         marketplace=$(jq -r '.name' "$MARKETPLACE/.claude-plugin/marketplace.json")
         name='^[a-z0-9][a-z0-9-]*$'
         [[ $marketplace =~ $name ]] || fail "the base marketplace name is malformed"
@@ -442,6 +445,11 @@ runs:
               disallowed="${disallowed:+$disallowed,}Edit(/$DEPENDENCY_DIR/**),Write(/$DEPENDENCY_DIR/**)"
               system_prompt="$system_prompt The dependency context file is $DEPENDENCY_DIR/dependency.json. Your verdict is your structured output; a later job acts on it, and you post nothing."
             fi
+            # The skill's bare Edit and Write must not reach the plugin copy.
+            # An Edit rule covers every built-in file tool and the Bash file
+            # writes Claude Code recognizes; a Write path rule is never
+            # consulted (https://code.claude.com/docs/en/permissions#read-and-edit).
+            disallowed="${disallowed:+$disallowed,}Edit(/$MARKETPLACE/**)"
             # Read-only commands such as cat, echo and diff run with no allow
             # rule in every mode, until a deny rule names them
             # (https://code.claude.com/docs/en/permissions#read-only-commands).
