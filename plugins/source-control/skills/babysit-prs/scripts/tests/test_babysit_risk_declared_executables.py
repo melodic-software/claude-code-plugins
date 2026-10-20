@@ -69,7 +69,7 @@ HOOKS = json.dumps(
                         {
                             "type": "command",
                             "command": 'python3 "${CLAUDE_PLUGIN_ROOT}'
-                            '/skills/clean/scripts/guard.py" --strict',
+                            '/skills/clean/tools/guard.py" --strict',
                         }
                     ],
                 }
@@ -171,7 +171,8 @@ class DeclaredExecutableTests(unittest.TestCase):
         self.assertIs(result.score, Risk.HIGH)
 
     def test_declared_executable_hook_command_script_scores_high(self):
-        result = _risk("plugins/example-hooks/skills/clean/scripts/guard.py")
+        # Outside every floor glob, so only the hooks.json declaration floors it.
+        result = _risk("plugins/example-hooks/skills/clean/tools/guard.py")
         self.assertIs(result.score, Risk.HIGH)
 
     def test_declared_executable_inline_plugin_json_server_scores_high(self):
