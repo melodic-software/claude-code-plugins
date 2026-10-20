@@ -161,8 +161,10 @@ activities:
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
   resolve-issue:
-    # Works one issue labeled agent-ready: either commits the change to a new
-    # branch, or stops and says why. The runner adds `--issue <number>`.
+    # Works one issue labeled agent-ready: either leaves the change in the
+    # working tree, or stops and says why. The runner adds `--issue <number>`.
+    # It holds no write token: the read runner turns its uncommitted change
+    # into a patch that apply-issue-patch commits to a new branch.
     skill: work-items:work
     args: --ci
     # Validates the format of every changelog fragment before the skill
@@ -186,8 +188,8 @@ activities:
     # read-only copy of the base. A script that changes files, runs code from
     # the checkout or reaches the network hands the run that power, so list
     # one only when it limits that itself. Each script starts with GH_TOKEN
-    # and GITHUB_TOKEN unset, but code it runs can still read the lane's
-    # push-capable token from any same-user process's /proc/<pid>/environ,
+    # and GITHUB_TOKEN unset, but code it runs can still read the job's
+    # read-only token from any same-user process's /proc/<pid>/environ,
     # so no script here runs checkout code: run-test-file.sh and
     # check-skill.sh are left out, and the PR's own CI runs the tests.
     # git-mv-rm.sh renames and removes paths inside the checkout.
@@ -219,7 +221,12 @@ activities:
     web-access:
       enabled: true
       domains: [code.claude.com, platform.claude.com, docs.anthropic.com, docs.github.com, nodejs.org, docs.python.org]
-    effect: mutate-branch
+    # Runs model-chosen commands, so no write token: the change leaves as a
+    # patch, and the run's outcome file goes to report-outcome.
+    effect: read
+    applied-by:
+      patch: apply-issue-patch
+      work-outcome: report-outcome
     gating: advisory
     # Reads the issue's title and body, which anyone can write, and its
     # comments by listed authors.
@@ -237,6 +244,30 @@ activities:
       # Only issues labeled agent-ready after this time start a run; an issue
       # labeled earlier starts nothing.
       labeled-after: "2026-10-14T19:21:59Z"
+  apply-issue-patch:
+    # Commits resolve-issue's patch to a new branch,
+    # work-resolve-issue/issue-<n>-<run id>-<attempt>, made at the commit the
+    # run started from (the default branch tip it checked out, or a resumed
+    # branch's tip), as one commit. A script, no model, and it runs nothing
+    # from the patch; patch-rules.json's `issue` row holds what it admits.
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    # Makes the lane branch, nothing else; it never moves an existing one.
+    effect: mutate-branch
+    gating: advisory
+    # Reads the patch and the report the model wrote.
+    reads-untrusted: true
+    inputs:
+      - issue
+    applies-when:
+      # Read again right before the commit: a hold added, or agent-ready
+      # removed, while the model worked drops the patch.
+      labels-absent:
+        - needs-human
+        - needs-owner-decision
+        - "status: needs-decision"
+      labels:
+        - agent-ready
   report-outcome:
     # Opens a ready pull request from the branch, or comments on the issue
     # and labels it needs-human. A Refs pull request also labels the issue
@@ -293,8 +324,14 @@ lanes:
     stage: work
     slots:
       - activity: resolve-issue
+      # Runs after resolve-issue, in its own job with its own token.
+      - activity: apply-issue-patch
+        needs:
+          - resolve-issue
       - activity: report-outcome
-        needs: [resolve-issue]
+        needs:
+          - resolve-issue
+          - apply-issue-patch
   pr-refine:
     stage: refine
     slots:

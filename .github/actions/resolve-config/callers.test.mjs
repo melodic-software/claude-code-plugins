@@ -9,7 +9,7 @@
 // work-resolve-issue.yml caps its concurrent runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -425,31 +425,32 @@ test("work-resolve-issue.yml: resolve-issue's timeout is the resolved issue dime
   // The run takes the dimensions whose timeout it got, not fields set while it waited.
   assert.equal(jobs["pick-slot"].outputs["issue-dimensions"], "${{ steps.dimensions.outputs.issue-dimensions }}");
   assert.equal(jobs["resolve-issue"].with["issue-dimensions"], "${{ needs.pick-slot.outputs.issue-dimensions }}");
-  const write = workflow("pr-run-activity-write.yml");
-  const config = write.jobs.run.steps.find((s) => s.id === "config");
+  const read = workflow("pr-run-activity-read.yml");
+  const config = read.jobs.run.steps.find((s) => s.id === "config");
   assert.equal(config.with["issue-dimensions"], "${{ inputs.issue-dimensions }}");
 });
 
-// A queued resolve-issue run starts on the workflow files of its label event.
-// The broker refuses its mint as workflow-modified when either file's blob at
-// the run's commit differs from main's tip (azure-iac binding.mjs), so the
-// run job checks the same rule first and fails red with no token request;
-// work-unblock's sweep re-fires a failed run that left no outcome marker.
-test("pr-run-activity-write.yml: an issue run on stale workflow files fails before the token request", () => {
-  const { jobs } = workflow("pr-run-activity-write.yml");
+// A queued resolve-issue run starts on the workflow files of its label event,
+// and its apply job mints from them. The broker refuses that mint as
+// workflow-modified when the caller's or the write runner's blob at the run's
+// commit differs from main's tip (azure-iac binding.mjs), so the read runner's run job checks the same
+// rule before any model turn and fails red; work-unblock's sweep re-fires a
+// failed run that left no outcome marker.
+test("pr-run-activity-read.yml: an issue run on stale workflow files fails before any model turn", () => {
+  const { jobs } = workflow("pr-run-activity-read.yml");
   const steps = jobs.run.steps;
   const index = (id) => steps.findIndex((step) => step.id === id);
   const check = steps[index("workflow-current")];
   assert.ok(check, "the run job has a workflow-current step");
   assert.ok(index("base") < index("workflow-current"), "it reads the default branch checkout");
   assert.ok(index("workflow-current") < index("issue-prior"));
-  assert.ok(index("workflow-current") < index("lane-token"));
-  // Every step from the check to the mint runs only while no step failed.
-  for (const step of steps.slice(index("workflow-current") + 1, index("lane-token") + 1)) {
+  assert.ok(index("workflow-current") < index("go"), "it runs before the run decides to start");
+  assert.ok(index("go") < index("act-skill"));
+  // Every step from the check to the decision runs only while no step failed.
+  for (const step of steps.slice(index("workflow-current") + 1, index("go") + 1)) {
     assert.doesNotMatch(String(step.if ?? ""), /always\(\)|failure\(\)|!cancelled\(\)/, step.name);
   }
-  // A skill run in issue mode only: report-outcome is a script, and the
-  // broker lets a report job's file differ.
+  // A skill run in issue mode only.
   for (const [issue, kind, runs] of [["7", "skill", true], ["7", "script", false], ["", "skill", false]]) {
     const context = {
       "inputs.issue-number": issue,
@@ -500,8 +501,97 @@ test("pr-run-activity-write.yml: an issue run on stale workflow files fails befo
   const reusableStale = runCheck(fresh);
   assert.equal(reusableStale.status, 1, "the write runner changed on main");
   assert.match(reusableStale.stdout, /::error::workflow-stale: \.github\/workflows\/pr-run-activity-write\.yml /);
+
   // A commit or caller this checkout cannot read is left to the broker.
   assert.equal(runCheck("0".repeat(40)).status, 0);
   assert.equal(runCheck("").status, 0);
   assert.equal(runCheck(run, "").status, 0);
+});
+
+// GHSA-cqxm: the issue lane's model job holds no write token. resolve-issue
+// runs on the read runner, whose run job (the one that runs the model) gets
+// only the job's read-only GITHUB_TOKEN; the App token is minted only by the
+// apply job that commits the patch.
+test("work-resolve-issue.yml: the resolve-issue model job receives no App token and no write permission", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const resolve = jobs["resolve-issue"];
+  assert.equal(resolve.uses, "./.github/workflows/pr-run-activity-read.yml");
+  assert.equal(resolve.with.activity, "resolve-issue");
+  assert.equal(resolve.with["output-mode"], "patch");
+  assert.deepEqual(Object.keys(resolve.secrets), ["claude-code-oauth-token"], "only the issue lane's Claude credential");
+  assert.equal(resolve.secrets["claude-code-oauth-token"], "${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}");
+
+  const read = workflow("pr-run-activity-read.yml");
+  const run = read.jobs.run;
+  assert.deepEqual(run.permissions, { contents: "read", "pull-requests": "read" }, "read-only, no id-token");
+  const text = JSON.stringify(run);
+  assert.doesNotMatch(text, /request-lane-token|lane-token|id-token|private-key/i, "no App token is minted in the model job");
+  assert.doesNotMatch(text, /gh auth|hosts\.yml/, "no cached gh login");
+  for (const step of run.steps.filter((s) => String(s.uses ?? "").startsWith("actions/checkout@"))) {
+    assert.equal(step.with["persist-credentials"], false, `${step.name} leaves no git credential`);
+    assert.equal(step.with.token, undefined, `${step.name} takes no token`);
+  }
+  const secrets = [...text.matchAll(/secrets\.([\w-]+)/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(secrets)], ["claude-code-oauth-token"]);
+  const skill = run.steps.find((s) => s.id === "act-skill");
+  assert.equal(skill.with.github_token, "${{ github.token }}", "the action gets the job's read-only token only");
+  // No job of the read runner holds a write permission but the report job's
+  // checks and the broker-check job's id-token, neither of which runs the model.
+  for (const [name, job] of Object.entries(read.jobs)) {
+    for (const [scope, level] of Object.entries(job.permissions ?? {})) {
+      if (level === "write") {
+        assert.ok((name === "report" && scope === "checks") || (name === "broker-check" && scope === "id-token"), `${name} ${scope}`);
+      }
+    }
+  }
+});
+
+test("work-resolve-issue.yml: apply-issue-patch commits the written patch from the write runner, one per issue at a time", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const apply = jobs["apply-issue-patch"];
+  assert.equal(apply.uses, "./.github/workflows/pr-run-activity-write.yml");
+  assert.equal(apply.needs, "resolve-issue");
+  assert.equal(apply.with.activity, "apply-issue-patch");
+  assert.equal(apply.with["patch-activity"], "resolve-issue");
+  assert.equal(apply.secrets, undefined, "the apply job gets no Claude credential");
+  for (const [input, output] of [
+    ["patch-state", "patch-state"],
+    ["patch-sha256", "patch-sha256"],
+    ["patch-attempt", "patch-attempt"],
+    ["patch-base-sha", "base-sha"],
+    ["patch-resume-tip", "resume-tip"],
+  ]) {
+    assert.equal(apply.with[input], `\${{ needs.resolve-issue.outputs.${output} }}`, input);
+  }
+  assert.equal(apply.concurrency.group, "work-resolve-issue-write-${{ github.event.issue.number }}");
+  assert.equal(apply.concurrency.queue, "max");
+  const runs = (started, state) =>
+    evaluate(apply.if, { "needs.resolve-issue.outputs.issue-run-started": started, "needs.resolve-issue.outputs.patch-state": state });
+  assert.equal(runs("true", "written"), true);
+  assert.equal(runs("true", "empty"), false, "an empty patch makes no branch");
+  assert.equal(runs("true", ""), false);
+  assert.equal(runs("false", "written"), false);
+  for (const job of ["run-checks", "report-outcome"]) {
+    assert.ok(jobs[job].needs.includes("apply-issue-patch"), `${job} waits for the branch`);
+  }
+});
+
+test("no job using pr-run-activity-write.yml runs the resolve-issue model step, and the write runner refuses an issue skill", () => {
+  const dir = new URL("../../workflows/", import.meta.url);
+  for (const name of readdirSync(dir).filter((file) => /\.ya?ml$/.test(file))) {
+    const { jobs = {} } = parse(readFileSync(new URL(name, dir), "utf8")) ?? {};
+    for (const [id, job] of Object.entries(jobs)) {
+      if (String(job?.uses ?? "").endsWith("pr-run-activity-write.yml")) {
+        assert.notEqual(job.with?.activity, "resolve-issue", `${name} ${id}`);
+      }
+    }
+  }
+  const { jobs } = workflow("pr-run-activity-write.yml");
+  const refuse = jobs.run.steps.find((s) => s.name === "Assert an issue skill runs in the read runner");
+  assert.ok(refuse);
+  const context = (issue, kind) => ({ "inputs.issue-number": issue, "steps.config.outcome": "success", "steps.config.outputs.kind": kind });
+  assert.equal(evaluate(refuse.if, context("7", "skill")), true);
+  assert.equal(evaluate(refuse.if, context("7", "script")), false);
+  assert.equal(evaluate(refuse.if, context("", "skill")), false);
+  assert.equal(spawnSync("bash", ["-c", refuse.run]).status, 1);
 });

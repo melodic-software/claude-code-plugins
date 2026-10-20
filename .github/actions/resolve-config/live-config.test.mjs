@@ -326,10 +326,16 @@ test("live config: resolve-issue reads official docs hosts only; review-dependen
   assert.deepEqual(others, []);
 });
 
-test("live config: resolve-issue may only write its branch; report-outcome may only write PRs and issues", () => {
+// GHSA-cqxm: the model run holds no write token; only the script that
+// commits its patch may write a branch.
+test("live config: resolve-issue holds no write token; apply-issue-patch may only write its branch; report-outcome may only write PRs and issues", () => {
   const grant = (activity) =>
     resolveGrant(FILES, { lane: "work-resolve-issue", activity, configPath: CONFIG_PATH });
   assert.deepEqual(grant("resolve-issue"), {
+    effect: "read",
+    grant: { contents: "read", "pull-requests": "read", issues: "read" },
+  });
+  assert.deepEqual(grant("apply-issue-patch"), {
     effect: "mutate-branch",
     grant: { contents: "write", "pull-requests": "read", issues: "read" },
   });
@@ -337,6 +343,50 @@ test("live config: resolve-issue may only write its branch; report-outcome may o
     effect: "publish-artifact",
     grant: { contents: "read", "pull-requests": "write", issues: "write" },
   });
+});
+
+// activity-rules.json is trust-root data: a config that gives resolve-issue a
+// write effect again is refused.
+test("live config: resolve-issue with a write effect is refused", () => {
+  const writes = FILES.config.replace(
+    "effect: read\n    applied-by:\n      patch: apply-issue-patch\n      work-outcome: report-outcome\n",
+    "effect: mutate-branch\n",
+  );
+  assert.notEqual(writes, FILES.config);
+  assert.throws(
+    () => resolve({ ...FILES, config: writes }, { lane: "work-resolve-issue", activity: "resolve-issue", configPath: CONFIG_PATH, basePath: ".base", facts: { ...FACTS, ...ISSUE } }),
+    (error) => error.code === "forbidden-by-activity",
+  );
+});
+
+test("live config: work-resolve-issue runs resolve-issue, then apply-issue-patch, then report-outcome", () => {
+  const { lane } = resolve(FILES, {
+    lane: "work-resolve-issue",
+    activity: "resolve-issue",
+    configPath: CONFIG_PATH,
+    basePath: ".base",
+    facts: { ...FACTS, ...ISSUE },
+  });
+  assert.deepEqual(
+    lane.slots.map((slot) => [slot.activity ?? slot.name, slot.needs ?? []]),
+    [
+      ["resolve-issue", []],
+      ["apply-issue-patch", ["resolve-issue"]],
+      ["report-outcome", ["resolve-issue", "apply-issue-patch"]],
+    ],
+  );
+});
+
+test("live config: apply-issue-patch runs apply-patch.mjs and holds on the issue's holds and a missing agent-ready", () => {
+  const slot = selected("work-resolve-issue", "apply-issue-patch", ISSUE);
+  assert.equal(slot.applies, true);
+  assert.equal(slot.script, ".github/scripts/apply-patch/apply-patch.mjs");
+  assert.equal(slot.prepare, "apply-patch");
+  assert.deepEqual(slot.needs, ["resolve-issue"]);
+  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
+    assert.equal(skipReason("work-resolve-issue", "apply-issue-patch", { ...ISSUE, labels: ["agent-ready", hold] }), "awaiting-human", hold);
+  }
+  assert.equal(skipReason("work-resolve-issue", "apply-issue-patch", { ...ISSUE, labels: [] }), "not-applicable");
 });
 
 test("live config: label-unblocked may only write issues", () => {
@@ -359,14 +409,17 @@ test("live config: fix-docs does not apply to a draft PR", () => {
 });
 
 // Each activity's applied-by lands with the phase that moves it to the read
-// runner, after the broker serves a reader that knows the field; until then
-// no live activity sets it.
-test("live config: no activity sets applied-by yet", () => {
+// runner, after the broker serves a reader that knows the field; resolve-issue
+// is the first.
+test("live config: only resolve-issue sets applied-by, its patch to apply-issue-patch and its outcome to report-outcome", () => {
   const { activities } = parse(FILES.config);
   assert.deepEqual(
-    Object.keys(activities).filter((name) => Object.hasOwn(activities[name], "applied-by")),
-    [],
+    Object.entries(activities)
+      .filter(([, activity]) => Object.hasOwn(activity, "applied-by"))
+      .map(([name, activity]) => [name, activity["applied-by"]]),
+    [["resolve-issue", { patch: "apply-issue-patch", "work-outcome": "report-outcome" }]],
   );
+  assert.equal(selected("work-resolve-issue", "resolve-issue", ISSUE).effect, "read");
 });
 
 test("live config: the shipped patch rules pass against the live activities", () => {
