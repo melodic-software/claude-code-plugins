@@ -17,7 +17,8 @@
 //              number.
 //
 // Subcommands:
-//   snapshot          one measured snapshot (optionally under --deny)
+//   snapshot          one measured snapshot (optionally under --deny);
+//                     --measure-only: sdk mode only, stdout only, no file written
 //   attribute         baseline + one deny run per tool -> ranked per-tool deltas
 //   compare           offline: two snapshot files -> one ledger row
 //   ledger            append a row / list rows under a caller-derived data dir
@@ -26,7 +27,8 @@
 //
 // Exit codes: 0 success; 2 usage error; 3 measurement unavailable or
 // unparsable (the degradation path — stdout carries a context-budget.error/1
-// record with a remediation).
+// record with a remediation); 4 `snapshot --measure-only` found the Agent SDK
+// absent (no cli-parse fallback, no install offer).
 //
 // Comparability rules the engine enforces (measured, see the plugin's
 // reference/engine.md):
@@ -107,10 +109,14 @@ function usageError(msg) {
   process.exit(2);
 }
 
-function degrade(error, detail, remediation) {
+function degrade(error, detail, remediation, code = 3) {
   process.stdout.write(`${JSON.stringify({ schema: ERROR_SCHEMA, error, detail, remediation }, null, 2)}\n`);
-  process.exit(3);
+  process.exit(code);
 }
+
+// Exit code of `snapshot --measure-only` when the Agent SDK is absent; distinct
+// from 3 (measurement unavailable) so a read-only caller can tell the two apart.
+const EXIT_SDK_ABSENT = 4;
 
 function nowUtc() {
   return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -125,7 +131,7 @@ function sha12(text) {
 // ---------------------------------------------------------------------------
 
 // Flags that take no value; everything else consumes the next argv element.
-const FLAG_ONLY = ['help', 'verify-additivity', 'list', 'find-unstored'];
+const FLAG_ONLY = ['help', 'verify-additivity', 'list', 'find-unstored', 'measure-only'];
 
 function parseArgs(argv) {
   const args = { _: [] };
@@ -151,6 +157,8 @@ const HELP = `context-budget measurement engine
 Usage:
   measure.mjs snapshot [--deny <T1,T2>] [--binary <path>] [--sdk-dir <dir>]
                        [--label <text>] [--out <file>]
+  measure.mjs snapshot --measure-only [--binary <path>] [--sdk-dir <dir>]
+                       (sdk mode only; stdout only, no file; takes no --out/--deny/--label)
   measure.mjs attribute --tools <T1,T2,...|from-baseline> [--binary <path>]
                        [--sdk-dir <dir>] [--verify-additivity]
                        [--operator-deny <T1,T2>] [--out <file>]
@@ -162,7 +170,8 @@ Usage:
                        [--find-unstored] [--out <file>]
 
 Exit: 0 success; 2 usage error; 3 measurement unavailable/unparsable
-      (stdout then carries a ${ERROR_SCHEMA} record with a remediation).
+      (stdout then carries a ${ERROR_SCHEMA} record with a remediation);
+      4 --measure-only and the Agent SDK is absent (same record, no fallback).
 `;
 
 // ---------------------------------------------------------------------------
@@ -561,6 +570,27 @@ async function takeSnapshot(args) {
 
   const sdkCandidates = [args['sdk-dir'], process.cwd()];
   const found = findSdkEntry(sdkCandidates);
+  if (args['measure-only']) {
+    // Read-only consumer mode: exact SDK measurement or nothing. No cli-parse
+    // rung, no install offer; main() rejects --out, so no file is written.
+    if (!found) {
+      process.stderr.write('measure-only: @anthropic-ai/claude-agent-sdk is not installed; nothing was measured or installed.\n');
+      degrade('sdk-absent',
+        `@anthropic-ai/claude-agent-sdk is not resolvable (tried: ${sdkCandidates.filter(Boolean).join(', ')})`,
+        'Measure-only never installs the Agent SDK. Run /context-budget:audit once to set it up, or pass --sdk-dir '
+        + 'naming a directory where it is installed.',
+        EXIT_SDK_ABSENT);
+    }
+    try {
+      const sdk = await import(pathToFileURL(found.entry).href);
+      return await sdkSnapshot({
+        sdk, sdkVersion: sdkVersionFromEntry(found.entry), sdkEntry: found.entry, bin, deny, label: args.label,
+      });
+    } catch (e) {
+      degrade('measurement-failed', `sdk mode failed: ${String(e).slice(0, 300)}`,
+        'Verify the binary runs (`claude --version`); measure-only does not fall back to cli-parse.');
+    }
+  }
   if (found) {
     try {
       const sdk = await import(pathToFileURL(found.entry).href);
@@ -1140,6 +1170,11 @@ async function main() {
 
   switch (cmd) {
     case 'snapshot': {
+      if (args['measure-only']) {
+        for (const flag of ['out', 'deny', 'label']) {
+          if (args[flag] !== undefined) usageError(`snapshot --measure-only takes no --${flag} (it measures once and writes no file)`);
+        }
+      }
       emit(await takeSnapshot(args), args.out);
       break;
     }

@@ -46,6 +46,8 @@ POSTMERGE_CLI = "skills/babysit-prs/scripts/babysit_postmerge.py"
 REVIEW_CLI = "skills/babysit-prs/scripts/request_review.py"
 SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
+PREFILTER_CLI = "skills/babysit-prs/scripts/babysit_merge_prefilter.py"
+SKIP_CLI = "skills/babysit-prs/scripts/babysit_merge_skip.py"
 THREADS_CLI = "skills/babysit-prs/scripts/pr_review_threads.py"
 READINESS_GATE = "scripts/babysit-readiness-gate.sh"
 MERGE_WRAPPER = "scripts/source-control-babysit-merge"
@@ -1505,6 +1507,33 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutates_what="nothing",
         gate="n/a",
         claim="Pure classification over supplied input; no write of any kind.",
+        backed_by=(),
+    ),
+    EntryPoint(
+        path=PREFILTER_CLI,
+        wrapper=None,
+        mutation=READ_ONLY,
+        mutates_what="nothing",
+        gate="n/a",
+        claim=(
+            "Pure classification of the candidate list on stdin into kept and "
+            "held, printed on stdout; no write of any kind and no GitHub call."
+        ),
+        backed_by=(),
+    ),
+    EntryPoint(
+        path=SKIP_CLI,
+        wrapper=None,
+        mutation=READ_ONLY,
+        mutates_what="nothing on GitHub",
+        gate="n/a",
+        claim=(
+            "Reads GitHub (one GraphQL query per 20 candidates, the artifact "
+            "listing) and writes only the local files its arguments name: the "
+            "kept candidates, the skipped rows, the keys and the refusal store, "
+            "plus the artifact listing `BABYSIT_VERIFY_LISTING` names. "
+            "No GitHub write on any path."
+        ),
         backed_by=(),
     ),
     EntryPoint(

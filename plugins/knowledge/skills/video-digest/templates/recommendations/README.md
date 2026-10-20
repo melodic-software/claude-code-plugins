@@ -14,7 +14,7 @@ Human-facing synthesis hub. Machine/verify artifacts stay in the `key-frames/` l
 ## Research
 
 - Slice summary: `RESEARCH.md` (repo root of slice)
-- Shards: `research/findings/*.md`
+- Shards: `research/findings/`
 
 ## Next step
 

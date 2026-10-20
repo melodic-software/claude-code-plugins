@@ -22,7 +22,9 @@
  * Vision absorption, research, and synthesis run in the skill session (not this script).
  */
 
+import childProcess from "node:child_process";
 import fs from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import os from "node:os";
 import path from "node:path";
 
@@ -49,6 +51,7 @@ import {
 import { orchestrateWatching } from "../watching/orchestrate-watching.js";
 import { writeWatchingManifest } from "../watching/write-watching-manifest.js";
 import { detectRecoverableBootstrap } from "./detect-recoverable-bootstrap.js";
+import { recordDurationMismatch } from "./duration-mismatch.js";
 import { postBootstrapSlice } from "./post-bootstrap-slice.js";
 import { recoverWatchBootstrapCli } from "./recover-watch-bootstrap.js";
 import {
@@ -138,18 +141,118 @@ export async function runWatchCli(argv) {
   // Until watch.json records the temp dirs, nothing else points at them, so a
   // failure removes the ones this run made. Once recorded, --recover needs them.
   /** @type {TempDirs} */
-  const temp = { dirs: {}, recorded: false };
+  const temp = { dirs: {}, recorded: false, interrupted: false };
+  const children = trackChildren(temp);
+  // The signal handlers and the finally block share one cleanup, so it runs once.
+  /** @type {Promise<void> | null} */
+  let cleanup = null;
+  const cleanUpOnce = () => {
+    cleanup ??= temp.recorded
+      ? Promise.resolve()
+      : removeRecordedTempSessionDirs(temp.dirs, "watch");
+    return cleanup;
+  };
+  /** @type {Promise<number> | null} */
+  let running = null;
+  const signalHandlers = Object.entries(SIGNAL_EXIT_CODES).map(([signal, code]) => {
+    const handler = () => {
+      // Stop the work first: end the yt-dlp/ffmpeg children and flag the run so
+      // watchUrl creates and records nothing more. The dirs go only once watchUrl
+      // has settled, so nothing is still writing into them or creating them.
+      children.interrupt();
+      const settled = Promise.race([
+        Promise.resolve(running).catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, INTERRUPT_SETTLE_MS).unref()),
+      ]);
+      settled.then(cleanUpOnce).finally(() => process.exit(code));
+    };
+    process.on(signal, handler);
+    return /** @type {const} */ ([signal, handler]);
+  });
   try {
-    return await watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFrameGapSec, temp });
+    running = watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFrameGapSec, temp });
+    return await running;
+  } catch (error) {
+    if (error instanceof InterruptedError) return 1;
+    throw error;
   } finally {
-    if (!temp.recorded) await removeRecordedTempSessionDirs(temp.dirs, "watch");
+    for (const [signal, handler] of signalHandlers) process.off(signal, handler);
+    children.stop();
+    await cleanUpOnce();
   }
+}
+
+/** Conventional exit code (128 + signal number) for each signal the watch cleans up on. */
+const SIGNAL_EXIT_CODES = { SIGHUP: 129, SIGINT: 130, SIGTERM: 143 };
+
+/** Longest the signal handler waits for watchUrl to wind down before removing the dirs anyway. */
+const INTERRUPT_SETTLE_MS = 10_000;
+
+class InterruptedError extends Error {
+  constructor() {
+    super("watch interrupted");
+    this.name = "InterruptedError";
+  }
+}
+
+/**
+ * Track every child the run spawns (yt-dlp, ffmpeg, ...) so a signal can end them.
+ * The shared spawn helper keeps no handle on its children, so `spawn` is wrapped
+ * for the life of the run; once interrupted, a child spawned late is ended at once.
+ * On POSIX each child leads its own process group and the whole group is killed,
+ * so yt-dlp's ffmpeg goes with it. On Windows only the direct child is killed, and
+ * a grandchild can outlive the interrupt.
+ *
+ * @param {TempDirs} temp
+ */
+function trackChildren(temp) {
+  const originalSpawn = childProcess.spawn;
+  const groups = process.platform !== "win32";
+  /** @type {Set<import('node:child_process').ChildProcess>} */
+  const live = new Set();
+  /** @param {import('node:child_process').ChildProcess} child */
+  const kill = (child) => {
+    if (groups && child.pid) {
+      try {
+        process.kill(-child.pid, "SIGKILL");
+        return;
+      } catch {
+        // The group is already gone; fall through to the direct kill.
+      }
+    }
+    child.kill("SIGKILL");
+  };
+  childProcess.spawn = /** @type {typeof childProcess.spawn} */ (
+    function trackedSpawn(command, ...rest) {
+      if (groups) {
+        const at = rest[0] == null || Array.isArray(rest[0]) ? 1 : 0;
+        rest[at] = { ...rest[at], detached: true };
+      }
+      const child = originalSpawn.call(this, command, ...rest);
+      live.add(child);
+      child.once("close", () => live.delete(child));
+      if (temp.interrupted) kill(child);
+      return child;
+    }
+  );
+  syncBuiltinESMExports();
+  return {
+    interrupt() {
+      temp.interrupted = true;
+      for (const child of live) kill(child);
+    },
+    stop() {
+      childProcess.spawn = originalSpawn;
+      syncBuiltinESMExports();
+    },
+  };
 }
 
 /**
  * @typedef {Object} TempDirs
  * @property {{ workDir?: string, framesDir?: string, contactSheetsDir?: string }} dirs - created by this run
  * @property {boolean} recorded - true once watch.json holds them as tempSession
+ * @property {boolean} interrupted - set by a signal; watchUrl then creates and records nothing more
  */
 
 /**
@@ -164,13 +267,20 @@ export async function runWatchCli(argv) {
  * }} options
  */
 async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFrameGapSec, temp }) {
+  const throwIfInterrupted = () => {
+    if (temp.interrupted) throw new InterruptedError();
+  };
+  throwIfInterrupted();
   // Temp dirs retained for vision reads in the same session; regen via run-watch when missing.
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-extraction-"));
   temp.dirs.workDir = workDir;
+  throwIfInterrupted();
   const framesDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-frames-"));
   temp.dirs.framesDir = framesDir;
+  throwIfInterrupted();
   const sheetsDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-sheets-"));
   temp.dirs.contactSheetsDir = sheetsDir;
+  throwIfInterrupted();
 
   /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */
   let acquisition;
@@ -184,6 +294,7 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     }
     throw error;
   }
+  throwIfInterrupted();
   if (!acquisition.success || !acquisition.data) {
     writeStderr(acquisition.error ?? "Acquisition failed");
     return 1;
@@ -220,6 +331,13 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     entryCount: entries.length,
     videoDownloaded: Boolean(primary?.mediaPath),
     captionRung: primary?.caption?.rung ?? null,
+    primaryMedia: primary
+      ? {
+          video: primary.mediaPath ? path.basename(primary.mediaPath) : null,
+          infoJson: primary.metadataPath ? path.basename(primary.metadataPath) : null,
+          caption: primary.caption?.path ? path.basename(primary.caption.path) : null,
+        }
+      : null,
     ...(envelope.acquireMetrics ?? {}),
   });
 
@@ -275,10 +393,12 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
       next = markPhaseComplete(next, "research", { skipped: true });
     }
 
+    throwIfInterrupted();
     await writeWatchState(sliceDir, next);
     temp.recorded = true;
     const continuationPrompt = await writeContinuationPrompt(sliceDir, next);
 
+    /** @type {ReturnType<typeof postBootstrapSlice> | null} */
     let postBootstrap = null;
     try {
       postBootstrap = postBootstrapSlice(sliceDir);
@@ -329,20 +449,32 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     return 0;
   }
 
-  const vttText = primary.caption ? await fs.readFile(primary.caption.path, "utf8") : "";
-  const cues = (vttText ? parseVttSegment(vttText) : []).map((cue) => ({
-    startSec: cue.startSec,
-    endSec: cue.endSec,
-    text: cue.text,
-  }));
+  // The cues the primary transcript was built from: caption cues, or the ASR
+  // cues when no caption exists.
+  // An explicit asr override that fails on a captioned entry writes no
+  // transcript, so the caption still supplies the cues, as it always did.
+  const primaryCues = written.transcripts.find(
+    (entry) => entry.entryIndex === written.primaryEntryIndex,
+  )?.cues;
+  const cues =
+    primaryCues ??
+    (primary.caption
+      ? parseVttSegment(await fs.readFile(primary.caption.path, "utf8")).map((cue) => ({
+          startSec: cue.startSec,
+          endSec: cue.endSec,
+          text: cue.text,
+        }))
+      : []);
 
   // Persist state + tempSession before the long extraction phase so an
   // interrupt during ffmpeg/contact-sheet work leaves a watch.json that
   // detectRecoverableBootstrap can discover (it requires the file to exist).
   state.status = "watching";
   writeStderr("watch: watching start");
+  throwIfInterrupted();
   await writeWatchState(sliceDir, state);
   temp.recorded = true;
+  throwIfInterrupted();
 
   const watching = await orchestrateWatching({
     videoPath: primary.mediaPath,
@@ -351,6 +483,8 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     cues,
     maxFrameGapSec,
   });
+  // A killed ffmpeg yields a degraded result, not a rejection: write nothing from it.
+  throwIfInterrupted();
 
   state.status = "vision";
   state.frameSelection = {
@@ -360,6 +494,11 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     overCap: false,
     candidateCount: watching.candidateCount,
   };
+
+  state = await recordDurationMismatch(state, sliceDir, {
+    metadataDurationSec: metadata.durationSec,
+    probedDurationSec: watching.probedDurationSec,
+  });
 
   const manifest = await writeWatchingManifest(sliceDir, watching, tempSession);
   state.artifactPaths = {

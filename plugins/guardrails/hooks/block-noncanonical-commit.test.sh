@@ -202,6 +202,22 @@ run "#964 shell-alias body re-invoking the outer chain name (blocked)" \
 run "#964 shell-alias re-invocation, canonical -F - twin (allowed)" \
   "git -c alias.a='!git -c alias.a=\"commit -F -\" a' a" 0
 
+# --- the alias walk's nesting-depth cap (guard::alias_depth_max) ---------------
+# The chains end in an allowed commit, so only the depth cap can deny them.
+run "depth cap: a 3-hop chain to an allowed commit nested past the cap denies" \
+  "git -c alias.a1=a2 -c alias.a2=a3 -c alias.a3='commit -m ok' a1" 2 GUARDRAILS_ALIAS_DEPTH_MAX=2
+assert_contains "depth cap: the deny names the alias chain" "$GUARD_ERR" "alias chain"
+run "depth cap: the same chain inside the cap is allowed" \
+  "git -c alias.a1=a2 -c alias.a2=a3 -c alias.a3='commit -m ok' a1" 0 GUARDRAILS_ALIAS_DEPTH_MAX=8
+NC_HOPS30=""
+for ((nc_i = 1; nc_i < 30; nc_i++)); do NC_HOPS30+=" -c alias.a$nc_i=a$((nc_i + 1))"; done
+NC_HOPS30+=" -c alias.a30='commit -m ok'"
+run "depth cap: a 30-hop chain to an allowed commit is allowed under the real stack" \
+  "git$NC_HOPS30 a1" 0
+run "depth cap: no limits file falls back to 25, so the 30-hop chain denies" \
+  "git$NC_HOPS30 a1" 2 GUARDRAILS_PROC_LIMITS="$TEST_TMPDIR/no-such-limits"
+assert_contains "depth cap: the no-/proc deny names the alias chain" "$GUARD_ERR" "alias chain"
+
 # --- alias-chain traversal stays proportional to the chain's LENGTH ------------
 # Each hop re-checks BOTH alias spellings, so re-expansion branches 2x per hop
 # unless equivalent states collapse: before the traversal bounds an 8-hop chain

@@ -233,6 +233,29 @@ def test_invariant_canary_lost_when_streamed_usage_disagrees_at_min_count(splits
     assert result["degraded_metrics"] == (["tokens.main"] if lost else [])
 
 
+@pytest.mark.parametrize(
+    ("invariant", "population", "metric"),
+    [
+        ("invariant:active_over_wall", "record_type:assistant", "time.active_s"),
+        ("invariant:stop_wait_over_sum", "system_subtype:stop_hook_summary", "hooks.stop_ms"),
+    ],
+)
+def test_bundled_time_invariant_canaries_fire_on_a_violating_record(invariant, population, metric):
+    canaries = [c for c in census.load_canaries(census.BUNDLED_CANARIES)["canaries"] if c["key"] == invariant]
+    assert canaries
+    held = [rec("a", {"1.0.2|*": {"record_type:assistant": 30, "record_type:system": 30, population: 30}})]
+    violating = [rec("a", {"1.0.2|*": {"record_type:assistant": 30, "record_type:system": 30, population: 30, invariant: 1}})]
+    assert classes(drift(held, canaries, min_count=1), "canary-lost") == []
+    result = drift(violating, canaries, min_count=1)
+    assert classes(result, "canary-lost") == [invariant]
+    assert metric in result["degraded_metrics"]
+
+
+def test_no_canary_feeds_active_time_from_the_turn_duration_record():
+    canaries = census.load_canaries(census.BUNDLED_CANARIES)["canaries"]
+    assert not [c for c in canaries if "time.active_s" in c["feeds"] and "turn_duration" in json.dumps(c)]
+
+
 def test_unknown_record_types_surface_with_counts():
     records = [
         rec("a", {"1.0.1|*": {"record_type:mode": 3}}, unknown={"mode": 3}),

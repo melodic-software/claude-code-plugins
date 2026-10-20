@@ -62,13 +62,23 @@ async page => { // the user journey in order on one page, no reload after phase 
     await pick("Q3"); await page.fill("#note", "Keep the cache small");
     await pick("Q4"); await page.fill("#note", "Challenge: Fails a build that runs past ten minutes on a slow machine?");
     const aa = await page.$('[data-acceptall="g2"]');
-    ok("Accept all offered on the group for the two opened questions", !!aa && /Accept all \(2\)/.test(aa ? await aa.textContent() : ""));
+    ok("Accept all on the group counts every open question, opened or not", !!aa && /Accept all \(3\)/.test(aa ? await aa.textContent() : ""), aa ? await aa.textContent() : "");
     await aa.click(); await page.waitForTimeout(200);
+    const dlgAll = await page.evaluate(() => document.getElementById("dlgBody").innerText);
+    ok("the all-questions dialog lists the unopened Q5 beside Q3 and names no unopened exclusion", /Q3/.test(dlgAll) && /Q5/.test(dlgAll) && !/you have not opened/.test(dlgAll) && /challenges a commitment: Q4/.test(dlgAll), dlgAll.replace(/\s+/g, " ").slice(0, 300));
+    ok("the all-questions dialog shows Q3's commitment as unconfirmed and Q3's full recommendation", /Commits you to, stays unconfirmed: Rebuilds the cache when the lock file changes/.test(dlgAll) && /Entries expire after fourteen days\./.test(dlgAll), dlgAll.replace(/\s+/g, " ").slice(0, 400));
+    await tap("#dlgCancel", 200);
+    // select Q3 and Q4 with the rail checkboxes: Accept selected takes just those
+    await page.check('[data-pick="Q3"]'); await page.check('[data-pick="Q4"]'); await page.waitForTimeout(150);
+    const sb = await page.$('[data-acceptsel="g2"]');
+    ok("two selected questions turn Accept all into Accept selected (2)", !!sb && /Accept selected \(2\)/.test(sb ? await sb.textContent() : "") && !(await page.$('[data-acceptall="g2"]')));
+    await sb.click(); await page.waitForTimeout(200);
     const dlg = await page.evaluate(() => document.getElementById("dlgBody").innerText);
-    ok("the dialog lists Q3 with its carried note", /Q3/.test(dlg) && /Note: Keep the cache small/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 200));
-    ok("the dialog leaves out the Challenge note and the unopened question, and says there is no batch undo", /challenges a commitment: Q4/.test(dlg) && /1 open question you have not opened/.test(dlg) && /cannot be undone as one step/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 300));
+    ok("the dialog lists Q3 with its carried note", /Q3/.test(dlg) && /Note: Keep the cache small/.test(dlg) && !/Q5/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 200));
+    ok("the dialog leaves out the Challenge note and says there is no batch undo", /challenges a commitment: Q4/.test(dlg) && /cannot be undone as one step/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 300));
     await tap("#dlgOk", 900);
     const acc = (await events()).filter(e => e.kind === "accept" && ["Q3", "Q4", "Q5"].includes(e.id));
+    ok("no commitment on Q3 is confirmed by the accept", !(await events()).some(e => e.kind === "confirm" && e.id === "Q3"));
     const drafts = await page.evaluate(() => Object.keys(localStorage).filter(k => /:draft:Q[34]$/.test(k)).map(k => k.slice(-2)).sort().join(","));
     ok("one accept for Q3 carrying its note, none for Q4; only Q3's draft is cleared", acc.length === 1 && acc[0].id === "Q3" && acc[0].text === "Keep the cache small" && drafts === "Q4", JSON.stringify(acc) + " drafts " + drafts);
 
@@ -195,6 +205,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     const aside = await page.$eval('.qbtn[data-q="Q5"] .chip.aside', el => { const s = getComputedStyle(el); return {t: el.textContent, b: s.borderTopWidth, bg: s.backgroundColor, c: s.cursor}; }).catch(() => null);
     ok("the rail's Set aside chip reads as a status, not a button", !!aside && aside.t === "Set aside" && aside.b === "0px" && aside.bg === "rgba(0, 0, 0, 0)" && aside.c === "default", JSON.stringify(aside));
     await tap("#cur [data-again]", 150);
+    await until(() => document.activeElement.matches('#choices input[type="radio"]'), 5000);
     ok("Answer again moves focus to the first choice", await page.evaluate(() => document.activeElement.matches('#choices input[type="radio"]')));
 
     // set up the notice checks: a note for Claude to answer, then the summary with a hiding filter and a hidden rail
@@ -213,14 +224,27 @@ async page => { // the user journey in order on one page, no reload after phase 
     await tap("#notice [data-go]", 300);
     ok("Open shows Claude's reply in Notes", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && /Yes, on track/.test(document.getElementById("fbody").innerText)));
     ok("the notice moves on to Round 2 added, and Go names the question it opens", /Round 2 added: Q6, Q7/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go to Q6", await text("#notice"));
+    // #7755: the timestamp and separator dot on Claude's blue note reach 4.5:1 in the light theme
+    await page.emulateMedia({colorScheme: "light"}); await page.waitForTimeout(100);
+    const noteRatios = await page.$$eval(".nmsg.claude .hl time, .nmsg.claude .hl .dot", els => els.map(el => {
+      const rgb = s => s.match(/[\d.]+/g).map(Number), lum = c => { const v = c.slice(0, 3).map(x => { x /= 255; return x <= .03928 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return .2126 * v[0] + .7152 * v[1] + .0722 * v[2]; };
+      let b = el, bg = null;
+      while (b && !bg) { const c = rgb(getComputedStyle(b).backgroundColor); if (c.length < 4 || c[3] > 0) bg = c; else b = b.parentElement; }
+      const l1 = lum(rgb(getComputedStyle(el).color)), l2 = lum(bg);
+      return +((Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05)).toFixed(2);
+    }));
+    ok("Notes timestamps and separator dots on Claude's note have at least 4.5:1 contrast in the light theme", noteRatios.length >= 2 && noteRatios.every(r => r >= 4.5), JSON.stringify(noteRatios));
     await page.click("#flyClose");
     await page.click("#railBtn"); await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
     ok("the new round's group is expanded and highlighted", await page.$eval('.sec[data-key="g:g3"]', el => el.dataset.collapsed === "false" && el.classList.contains("fresh")) && await dot("Q6"));
     const chip = await page.$$eval(".qbtn .chip.hot", els => els.filter(el => !/after your answer/.test(el.textContent)).map(el => ({t: el.textContent, title: el.title}))).catch(() => []);
-    ok("a carried question's chip reads 'carried N round(s)', never 'open open', and explains itself", chip.length > 0 && chip.every(c => /^carried \d+ rounds?$/.test(c.t) && !/open open/.test(c.t) && c.title.length > 0), JSON.stringify(chip));
+    ok("a carried question's chip reads 'asked N round(s) ago, unanswered' without its tooltip, never 'open open', and still explains itself", chip.length > 0 && chip.every(c => /^asked \d+ rounds? ago, unanswered$/.test(c.t) && !/open open/.test(c.t) && c.title.length > 0), JSON.stringify(chip));
     ok("Q3's heads-up reply after its answer puts the after-answer chip on its card", /Replied after your answer/.test(await text('.qbtn[data-q="Q3"]')), await text('.qbtn[data-q="Q3"]'));
     ok("an entry whose text says added highlights no section unless it added questions", await dot("Q1") && !(await page.$eval('.sec[data-key="g:g1"]', el => el.classList.contains("fresh"))));
-    await page.selectOption("#filter", "answered"); await tap("#railBtn", 200);
+    await page.selectOption("#filter", "answered"); await page.waitForTimeout(200);
+    const ansSecs = await page.$$eval(".rail-list .sec", els => els.map(el => ({c: el.dataset.collapsed, n: [...el.querySelectorAll(".qbtn")].filter(b => b.offsetParent).length})));
+    ok("the Answered filter expands every group that holds a match and shows its questions", ansSecs.length > 0 && ansSecs.every(s => s.c === "false" && s.n > 0), JSON.stringify(ansSecs));
+    await tap("#railBtn", 200);
     await tap("#notice [data-go]", 400);
     ok("Go resets the filter, shows the rail and says so", await page.$eval("#filter", el => el.value) === "all" && !(await page.$eval("#layout", el => el.classList.contains("norail"))) && /Showing all to reveal Q6/.test(await text("#toast")), await text("#toast"));
     ok("Go selects Q6 and moves focus to its heading", await sel() === "Q6" && await focused() === "qhead", await sel() + " " + await focused());
@@ -230,7 +254,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the header counts commitments on accepted questions only", (await text("#assumeCount")) === "5 to confirm", await text("#assumeCount"));
     const inView = s => page.$eval(s, el => { const r = el.getBoundingClientRect(), v = document.getElementById("dscroll").getBoundingClientRect(); return r.top >= v.top - 2 && r.top < v.bottom; }).catch(() => false);
     await pick("Q6");
-    ok("an accepted card with unconfirmed commitments links to its To confirm entries", (await text('[data-toconfirm="Q6"]')) === "Open in To confirm");
+    ok("an accepted card with unconfirmed commitments links to its To confirm entries", (await text('[data-toconfirm="Q6"]')) === "Review commitments to confirm");
     await tap('[data-toconfirm="Q6"]', 400);
     ok("the card link opens the summary scrolled to Q6's entries", await sel() === "summary" && await inView("#tc-Q6"));
     await tap("#assumeCount", 400);
@@ -576,8 +600,9 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("hiding the tab with the Activity panel open adds no badge", await page.title() === base && await page.$eval("#fly", el => el.classList.contains("open")), await page.title());
   }
   if (PHASE === 11) { // the shell added activity while the tab was hidden and the panel open
-    await page.waitForTimeout(4000);
     const base = await text("#title");
+    await page.waitForFunction(b => document.title === "(1) " + b, base, {timeout: 15000}).catch(() => {});
+    await page.waitForTimeout(1500); // keep the period in which mark-seen would run, so a late reset still fails
     ok("an open Activity panel marking entries seen does not hide the title count", await page.title() === "(1) " + base, await page.title());
     await setHidden(false); await page.waitForTimeout(200);
   }
@@ -587,13 +612,13 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("a page loaded hidden shows no badge for activity already waiting", await page.title() === await text("#title"), await page.title());
   }
   if (PHASE === 13) { // the shell added one activity entry after the page loaded hidden
-    await page.waitForTimeout(4000);
     const base = await text("#title");
+    await page.waitForFunction(b => document.title === "(1) " + b, base, {timeout: 15000}).catch(() => {});
     ok("activity landing on a page loaded hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
     await setHidden(false); await page.waitForTimeout(200);
     const sent = await post({kind: "note", text: "first note"});
     await page.request.get((await page.evaluate(() => location.origin)) + "/api/wait?after=0&timeout=1", {headers: {"X-Interview-Token": await token()}}); // delivers it: a wake is in flight
-    await page.waitForTimeout(300);
+    await until(() => /^Claude is working on /.test(document.getElementById("workLine").textContent), 5000); // the page has seen the delivery, the state queued() reads
     ok("the first note posted", sent.ok(), sent.status());
     await page.click("#title"); await page.keyboard.press("l"); await page.click("#flyClose").catch(() => {});
     await page.evaluate(() => document.querySelector('[data-panel="notes"]').click()); await page.waitForTimeout(300);

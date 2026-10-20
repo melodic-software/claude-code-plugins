@@ -3,6 +3,28 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.18] - 2026-10-20
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- **The engine gate no longer denies a simple reader command that only quotes the engine file name.** `gh issue create --title '... hygiene.py ...'` and the other commands on a closed reader allowlist (`cat`, `head`, `tail`, `wc`, `grep`, `rg` without `--pre`, `git show`/`log`/`diff`/`grep` without `-c` or `-O`, `gh issue`/`pr`) now treat single-quoted and `$`/backtick-free double-quoted literals as data. A pipeline, `awk`, `sed`, any unquoted operator, and a word that resolves to the engine still gate. On Bash and PowerShell alike, a quoted word that is a link to the engine under any name now gates too. Refs #6242.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+### Security
+
+- The kill switch no longer lets a user-writable managed-settings file force-enable the execution tiers. On Linux and WSL, where `/etc/claude-code` can be user-writable, a managed value that enables execution counts only from a file that is root-owned and not writable by the current user, checked per file including each `managed-settings.d` drop-in, on the same descriptor the value is read from so the file cannot be swapped between the read and the check, and never from a symlink; an untrusted enabling value is skipped and the user setting decides. A managed value that restricts (audit-only) is still honored from any file.
+
+## [0.43.17] - 2026-10-18
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.43.16] - 2026-10-16
 
 ### Fixed

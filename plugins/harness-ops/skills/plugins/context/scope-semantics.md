@@ -179,6 +179,17 @@ checkout that has a linked worktree holding a record of the same id, showing `up
 updating the record keyed to the literal cwd. On a confirmed fix, drop the read-back in `converge.md`
 Step 4 and `sync.md` Step 2 and the `currentProject` filter in `sync-run.sh`.
 
+**A lagging record in a linked worktree is labeled, counted, and cleared by `uninstall`, never
+trusted to `update`.** `fleet-state.sh` marks each project/local record `linkedWorktree` and labels a
+lagging one `update ineffective; uninstall clears it`; the row stays a divergence, and any update the
+run does make is verified by re-reading the record ([converge.md](converge.md) Step 4). `uninstall`
+clears it and edits that worktree's tracked settings file ([converge.md](converge.md) Step 5).
+**Record**: pointer, the update-strategy results of the 2026-10-12 converge run in
+[#6713 (comment)](https://github.com/melodic-software/claude-code-plugins/issues/6713#issuecomment-6125445322);
+as-of 2026-10-12. **Recheck trigger**: a Claude Code release note that changes how `update -s project`
+treats a record keyed to a linked worktree, or a re-run of that probe (the converge update strategy
+against lagging records in linked worktrees, then a re-read) showing the records move.
+
 When reading a record out of a `fleet-state.sh` report, a `project`/`local` record belongs to the run
 only when its `currentProject` flag is `true`; matching on id and scope alone returns whichever
 sibling's record comes first.
@@ -208,6 +219,18 @@ applicable. Read it precisely:
 because `converge`'s `(cd "<projectPath>" && …)` form cannot execute against an absent path. Naming
 the condition is this skill's whole role here; reaping the record is not something it can or should
 do.
+
+### A projectPath that is a user home directory
+
+`fleet-state.sh` also annotates the same records and entries with `projectPathIsHome: true|false|null`.
+`true` means the `projectPath` is a user home: the current `$HOME`, `/home/<name>`, `/Users/<name>`,
+`C:\Users\<name>`, or the WSL view of a Windows home, `/mnt/<drive>/Users/<name>` (`Users` and the
+drive letter match case-insensitively). A project-scope install run from a home directory records
+that home as its `projectPath`, and the home's `.claude/settings.json` is the user-scope file, so a
+`-s project` command there would change user scope. Under a home (`/home/<name>/repos/app`) is an
+ordinary project and reads `false`. `converge` blocks such a row and runs nothing for it. `sync` drops
+the record's scope before comparing versions, so a divergence that exists only because of it is not
+counted as actionable, and lists the records in a `User-home project records` row.
 
 ## Where project-scope records come from, and why the skill cannot reap them
 
@@ -497,15 +520,18 @@ against the recorded commit in the marketplace clone, which is the only check th
 state from a healthy one. It reports and never repairs; see
 [stale-records-cache-content.md](stale-records-cache-content.md).
 
-**A marketplace clone is shallow, so most installs are unverifiable most of the time.** The clone
-under `installLocation` carried a `.git/shallow` file and a three-commit history when this was
-measured, so an install record naming any commit older than that window has no object to compare
-against. Verified 2026-09-05 on **Claude Code 2.1.261**: 11 of 74 user-scope installs on the
-authoring machine reported `sha-not-local` for exactly this reason, on a fleet with nothing wrong
-with it. That is the steady state, not an edge case, and it caps how much any single run of the
-check can establish. The check never fetches the missing commit: a fetch is a network mutation, and
-it would repair the condition being reported. **Recheck trigger:** any change to how Claude Code
-clones a marketplace, which would move the depth this number rests on.
+**A marketplace clone has been observed shallow, so most installs are unverifiable most of the time.** The clone
+under `installLocation` carried a `.git/shallow` file when this was measured, and Claude Code
+re-clones the marketplace on update (see
+[Host and maintain a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace.md); read
+2026-10-18; the page states the re-clone and says nothing about shallowness or clone depth, so the
+shallow shape is our observation, not the page's). Only an install recorded at a
+commit inside the clone can be compared; any other record has no object to compare against, so most
+installs read `sha-not-local` (unverifiable) right after a refresh, on a fleet with nothing wrong
+with it. Observed 2026-10-04 (#5941): 84 of 86 installs unverifiable right after a refresh. That is the steady state, not an edge case, and it caps how much any single
+run of the check can establish. The check never fetches the missing commit: a fetch is a network
+mutation, and it would repair the condition being reported. **Recheck trigger:** a change to the
+host-marketplace page's update or clone description, or to how Claude Code clones a marketplace.
 
 ## `marketplace remove` leaves the cache tree, marked for the orphan sweep
 
@@ -527,18 +553,22 @@ about marketplace removal itself; the marker is our observation that connects th
 does visit a removed marketplace's cache folders: the Claude Code 2.1.270 debug log (2026-09-14,
 recorded on [#3835](https://github.com/melodic-software/claude-code-plugins/issues/3835)) shows its
 folder-retention pass keeping two removed marketplaces' folders because each still held content.
-That the sweep removes a marked version directory under a removed marketplace at 14 days is
-inferred from the documented rule, not yet observed; both probes that would show it were lost
-before a reading.
+**Observed 2026-10-17 on Claude Code 2.1.302** (melo-desk-001, WSL, probe
+[#3835](https://github.com/melodic-software/claude-code-plugins/issues/3835)): the probe's marked
+version directory, and its marketplace folder, were gone at least 14 days after the
+`.orphaned_at` marker (`1790887278455`, 2026-10-01T20:41Z) while other plugins stayed installed.
+That is consistent with the sweep removing a marked version directory under a removed marketplace
+by 14 days (seen gone at 16). The removal was observed by absence only: the debug log of the
+deletion was not captured, so a different cleanup cannot be fully excluded.
 
 - **Pointer**: for the orphan sweep, see
   [Cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions);
   the marker and the debug log are our probes.
-- **As of**: 2026-09-06
+- **As of**: 2026-10-17
 - **Recheck trigger**: any Claude Code release note or docs change touching marketplace removal,
   the orphan sweep, or the cache layout.
 
-**That observation was taken after an `uninstall`, with no install record left for the removal to
+**The 2026-09-06 verification was taken after an `uninstall`, with no install record left for the removal to
 find.** With plugins from the marketplace still installed, the same command deletes their records at
 every scope, their persistent data directories and their settings entries, and writes the
 `.orphaned_at` marker itself rather than inheriting one from an earlier `uninstall`; see

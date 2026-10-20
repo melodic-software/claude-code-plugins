@@ -4,6 +4,12 @@
 # runs the gate against it.
 set -uo pipefail
 
+# The gate reads its mode and inputs from the environment, and a CI run exports
+# them (GITHUB_EVENT_NAME=merge_group in the queue). Start every case from none
+# set; a case that needs one sets it itself.
+unset GITHUB_EVENT_NAME MERGE_GROUP_BASE_SHA CHANGELOG_PR_HEAD CHANGELOG_HEAD_REF \
+  CHANGELOG_PR_AUTHOR GITHUB_REPOSITORY
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-changelog-fragments.sh"
 . "$SELF_DIR/test-git-helpers.sh"
@@ -275,13 +281,7 @@ fragment "$f" alpha late-z-fedcba98 patch
 fragment "$f" beta late-z-fedcba98 patch
 commit "$f" late
 git_test_config "$f" checkout -q release/plugins
-expect "--check-release fails on a fragment that landed on the base after the release was cut" 1 "UNCONSUMED FRAGMENT: .changes/alpha/late-z-fedcba98.md" "$f" --check-release main
-out="$(run_gate "$f" --check-release main 2>&1)"
-if [[ "$out" != *".changes/beta/"* ]]; then
-  ok "--check-release ignores a pending fragment for a plugin the release does not bump"
-else
-  fail "--check-release should not name beta: $out"
-fi
+expect "--check-release passes when the base only added fragments after the release was cut" 0 "for the 1 plugin(s) it bumps" "$f" --check-release main
 rm -rf "$f"
 
 base_fixture f alpha
@@ -293,6 +293,35 @@ fragment "$f" alpha feat-x-0123abcd minor "### Added
 commit "$f" edit-consumed
 git_test_config "$f" checkout -q release/plugins
 expect "--check-release fails when a consumed fragment was edited on the base after the cut" 1 "EDITED FRAGMENT: .changes/alpha/feat-x-0123abcd.md" "$f" --check-release main
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+git_test_config "$f" checkout -q main
+git_test_config "$f" rm -q .changes/alpha/feat-x-0123abcd.md
+commit "$f" remove-consumed
+git_test_config "$f" checkout -q release/plugins
+expect "--check-release fails when a consumed fragment was removed on the base after the cut" 1 "REMOVED FRAGMENT: .changes/alpha/feat-x-0123abcd.md" "$f" --check-release main
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+printf '# Changelog\n\n## [1.1.0] - 2026-10-02\n\n### Fixed\n\n- A fix.\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First.\n' >"$f/plugins/alpha/CHANGELOG.md"
+commit "$f" "release changelog"
+git_test_config "$f" checkout -q main
+printf '# Changelog\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First, reworded.\n' >"$f/plugins/alpha/CHANGELOG.md"
+commit "$f" changelog-on-main
+git_test_config "$f" checkout -q release/plugins
+expect "--check-release fails when a released CHANGELOG.md changed on the base after the cut" 1 "CHANGED ON BASE: plugins/alpha/CHANGELOG.md" "$f" --check-release main
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+git_test_config "$f" checkout -q main
+printf '{\n  "name": "alpha",\n  "version": "1.0.1"\n}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
+commit "$f" version-on-main
+git_test_config "$f" checkout -q release/plugins
+expect "--check-release fails when a released plugin.json version changed on the base after the cut" 1 "CHANGED ON BASE: plugins/alpha/.claude-plugin/plugin.json" "$f" --check-release main
 rm -rf "$f"
 
 base_fixture f alpha beta
@@ -313,24 +342,130 @@ else
 fi
 rm -rf "$f"
 
-# The merge queue: each queued pull request is one squash commit on top of main
-# and the entries ahead of it, and the gate reads HEAD^1 as the landing base.
+# The merge queue checks out the group's squash commit, whose one parent holds
+# main and the entries ahead of it, so the release is read from the queued pull
+# request's head (CHANGELOG_PR_HEAD) and judged against the group's base.
+# queue_on <fixture>: a queue branch whose commit stands in for the squash.
+queue_on() {
+  git_test_config "$1" checkout -qb "queue-$2" main
+  git_test_config "$1" commit -q --allow-empty -m "queued squash"
+}
+# expect_queue <label> <rc> <needle> <release-head> <base>
+expect_queue() {
+  local out rc
+  out="$(cd "$f" && GITHUB_EVENT_NAME=merge_group CHANGELOG_HEAD_REF=release/plugins CHANGELOG_PR_HEAD="$4" \
+    bash scripts/check-changelog-fragments.sh --check-release "$5" 2>&1)"
+  rc=$?
+  if ((rc == $2)) && [[ "$out" == *"$3"* ]]; then ok "$1"; else fail "$1: want rc=$2 and '$3', got rc=$rc: $out"; fi
+}
+
+base_fixture f alpha beta
+release_branch "$f"
+release_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q main
+fragment "$f" alpha late-z-fedcba98 patch
+fragment "$f" beta late-z-fedcba98 patch
+commit "$f" late
+queue_on "$f" newer
+expect_queue "--check-release in the queue passes when the group's base only added newer fragments" 0 "for the 1 plugin(s) it bumps" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
+expect_queue "--check-release in the queue refuses an absent group base" 2 "base ref '' is not a resolvable commit" "$release_head" ""
+expect_queue "--check-release in the queue refuses an unreadable group base" 2 "not a resolvable commit" "$release_head" 0000000000000000000000000000000000000000
+expect_queue "--check-release in the queue refuses without the queued release's head" 2 "CHANGELOG_PR_HEAD" "" "$(git -C "$f" rev-parse HEAD^1)"
+rm -rf "$f"
+
 base_fixture f alpha
 release_branch "$f"
-release_commit="$(git -C "$f" rev-parse HEAD)"
-git_test_config "$f" checkout -qb queue-alone main
-git_test_config "$f" cherry-pick "$release_commit" >/dev/null
-expect "--check-release HEAD^1 passes a queued release that lands on the base it was cut from" 0 "for the 1 plugin(s) it bumps" "$f" --check-release 'HEAD^1'
-git_test_config "$f" checkout -qb queue-behind main
-fragment "$f" alpha queued-a-0badc0de patch
-commit "$f" "fragment pull request ahead in the queue"
-git_test_config "$f" cherry-pick "$release_commit" >/dev/null
-expect "--check-release HEAD^1 ejects a queued release behind a fragment for a plugin it bumps" 1 "UNCONSUMED FRAGMENT: .changes/alpha/queued-a-0badc0de.md" "$f" --check-release 'HEAD^1'
-git_test_config "$f" checkout -qb queue-other main
-printf 'v2\n' >"$f/plugins/beta/skills/a.md"
-printf '{\n  "name": "beta",\n  "version": "1.0.1"\n}\n' >"$f/plugins/beta/.claude-plugin/plugin.json"
-commit "$f" "legacy pull request"
-expect "--check-release HEAD^1 passes a queued pull request that bumps a plugin with no fragments" 0 "for the 1 plugin(s) it bumps" "$f" --check-release 'HEAD^1'
+release_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q main
+fragment "$f" alpha feat-x-0123abcd minor "### Added
+
+- Reworded after the release was cut."
+commit "$f" edit-consumed
+queue_on "$f" edited
+expect_queue "--check-release in the queue fails when the group's base edited a consumed fragment" 1 "EDITED FRAGMENT: .changes/alpha/feat-x-0123abcd.md" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+printf '# Changelog\n\n## [1.1.0] - 2026-10-02\n\n### Fixed\n\n- A fix.\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First.\n' >"$f/plugins/alpha/CHANGELOG.md"
+commit "$f" "release changelog"
+release_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q main
+printf '# Changelog\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First, reworded.\n' >"$f/plugins/alpha/CHANGELOG.md"
+commit "$f" changelog-on-main
+queue_on "$f" changelog
+expect_queue "--check-release in the queue fails when the group's base changed a released CHANGELOG.md" 1 "CHANGED ON BASE: plugins/alpha/CHANGELOG.md" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+release_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q main
+git_test_config "$f" rm -q .changes/alpha/feat-x-0123abcd.md
+commit "$f" remove-consumed
+queue_on "$f" removed
+expect_queue "--check-release in the queue fails when the group's base removed a consumed fragment" 1 "REMOVED FRAGMENT: .changes/alpha/feat-x-0123abcd.md" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+release_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q main
+printf '{\n  "name": "alpha",\n  "version": "1.0.1"\n}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
+commit "$f" version-on-main
+queue_on "$f" version
+expect_queue "--check-release in the queue fails when the group's base changed a released plugin.json version" 1 "CHANGED ON BASE: plugins/alpha/.claude-plugin/plugin.json" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
+rm -rf "$f"
+
+# --- a listed convention under docs/conventions/<name>/ ---------------------------
+# convention_fixture <out-var>: alpha and the convention demo (2.0.0) listed.
+convention_fixture() {
+  base_fixture "$1" alpha demo || return 1
+  mkdir -p "${!1}/docs/conventions/demo"
+  printf '# Changelog for demo\n\n## 2.0.0 - 2026-10-01\n\nFirst.\n' >"${!1}/docs/conventions/demo/CHANGELOG.md"
+  printf 'v1\n' >"${!1}/docs/conventions/demo/README.md"
+  commit "${!1}" convention
+}
+
+convention_fixture f
+fragment "$f" demo feat-x-0123abcd minor
+expect "--check accepts a fragment for a listed convention" 0 "All 1 changelog fragment(s)" "$f" --check
+rm -rf "$f"
+
+convention_fixture f
+git_test_config "$f" checkout -qb feat/x
+printf 'v2\n' >"$f/docs/conventions/demo/README.md"
+commit "$f" change
+expect "--check-required fails a listed convention change with no fragment" 1 "MISSING FRAGMENT: this change set changes files under docs/conventions/demo/" "$f" --check-required main
+fragment "$f" demo feat-x-0123abcd patch
+commit "$f" fragment
+expect "--check-required passes a listed convention change once a fragment is added" 0 "has a fragment" "$f" --check-required main
+rm -rf "$f"
+
+convention_fixture f
+git_test_config "$f" checkout -qb feat/x
+printf 'v2\n' >"$f/docs/conventions/demo/README.md"
+printf '%s\n' '# fragment mode' alpha >"$f/scripts/fragment-plugins.txt"
+commit "$f" change
+expect "--check-required leaves an unlisted convention alone" 0 "has a fragment" "$f" --check-required main
+rm -rf "$f"
+
+convention_fixture f
+fragment "$f" demo feat-x-0123abcd minor
+commit "$f" pending
+git_test_config "$f" checkout -qb release/plugins
+git_test_config "$f" rm -q .changes/demo/feat-x-0123abcd.md
+printf '# Changelog for demo\n\n## [2.1.0] - 2026-10-02\n\n### Fixed\n\n- A fix.\n\n## 2.0.0 - 2026-10-01\n\nFirst.\n' >"$f/docs/conventions/demo/CHANGELOG.md"
+commit "$f" release
+HEAD_REF=release/plugins
+expect "--check-required exempts the release pull request's convention CHANGELOG.md" 0 "has a fragment" "$f" --check-required main
+HEAD_REF=""
+expect "--check-release counts a new convention heading as a bump" 0 "for the 1 plugin(s) it bumps" "$f" --check-release main
+git_test_config "$f" checkout -q main
+fragment "$f" demo late-z-fedcba98 patch
+commit "$f" late
+git_test_config "$f" checkout -q release/plugins
+expect "--check-release passes a convention fragment that landed after the cut" 0 "for the 1 plugin(s) it bumps" "$f" --check-release main
 rm -rf "$f"
 
 # --- usage ------------------------------------------------------------------------
@@ -402,12 +537,8 @@ commit "$f" "a commit pushed onto the Dependabot branch"
 run_dependabot "--check-required does not exempt a Dependabot pull request carrying another author's commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
 rm -rf "$f"
 
-# pr-bump-plugin-version.yml's bump commit for a legacy plugin, beside a
-# fragment-mode one in the same update.
-actions_commit() {
-  GIT_AUTHOR_NAME='github-actions[bot]' GIT_AUTHOR_EMAIL='41898282+github-actions[bot]@users.noreply.github.com' \
-    GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com commit "$1" "$2"
-}
+# A verified github-actions[bot] commit, even one touching only a plugin outside
+# fragment mode, makes the change set more than Dependabot's.
 base_fixture f alpha
 mkdir -p "$f/.git/stub"
 # shellcheck disable=SC2016  # the stub expands these when it runs
@@ -415,19 +546,11 @@ printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$GH_ANSWER"\nexit "${GH_RC:-0}"\n'
 chmod +x "$f/.git/stub/gh"
 git_test_config "$f" checkout -qb dependabot/npm
 printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
-printf 'v2\n' >"$f/plugins/beta/skills/a.md"
 dependabot_commit "$f" "build(deps): bump zod"
-printf '{\n  "name": "beta",\n  "version": "1.0.1"\n}\n' >"$f/plugins/beta/.claude-plugin/plugin.json"
 printf '\n## [1.0.1] - 2026-10-09\n' >>"$f/plugins/beta/CHANGELOG.md"
-actions_commit "$f" "chore(plugins): release bump for Dependabot update [dependabot skip]"
-run_dependabot "--check-required exempts a Dependabot pull request carrying the workflow's legacy bump commit" 0 "Dependabot-only change to plugins/alpha/" 'dependabot[bot]' true 0
-printf '{\n  "name": "alpha",\n  "version": "1.0.1"\n}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
-actions_commit "$f" "a workflow commit that versions a fragment-mode plugin"
-run_dependabot "--check-required does not exempt a workflow commit that touches a fragment-mode plugin" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
-git_test_config "$f" reset -q --hard HEAD~1
-printf 'v3\n' >"$f/plugins/beta/skills/a.md"
-actions_commit "$f" "a workflow commit that changes shipped files"
-run_dependabot "--check-required does not exempt a workflow commit beyond plugin.json and CHANGELOG.md" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
+GIT_AUTHOR_NAME='github-actions[bot]' GIT_AUTHOR_EMAIL='41898282+github-actions[bot]@users.noreply.github.com' \
+  GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com commit "$f" "chore(plugins): release bump for Dependabot update [dependabot skip]"
+run_dependabot "--check-required does not exempt a Dependabot pull request carrying a github-actions[bot] commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
 rm -rf "$f"
 
 base_fixture f alpha

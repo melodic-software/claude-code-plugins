@@ -38,7 +38,7 @@
           "python"
         ]
       },
-      "degrade": "Without Python 3, the interview surface (the browser round page and watcher) is unavailable and /planning:interview asks its questions inline; the plan and brainstorm views cannot reach the session and close the loop with a copied reply. A docs page that serves only HTML cannot be converted and is recorded unread with reason no-python.",
+      "degrade": "Without Python 3, the interview surface (the browser round page and watcher) and the shared interview session are unavailable and /planning:interview asks its questions inline; the plan and brainstorm views cannot reach the session and close the loop with a copied reply. A docs page that serves only HTML cannot be converted and is recorded unread with reason no-python.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",
@@ -59,12 +59,34 @@
           "curl"
         ]
       },
-      "degrade": "Without curl, the planning surface and the plan and brainstorm view watchers do not start; the questions are answered in chat and the views close the loop with a copied reply. fetch-docs.sh records a docs page unread with reason curl-missing, so /planning:draft-goal-condition reads the /goal page with WebFetch instead.",
+      "degrade": "Without curl, the planning surface, the shared interview session's watcher and the plan and brainstorm view watchers do not start; the questions are answered in chat and the views close the loop with a copied reply. fetch-docs.sh records a docs page unread with reason curl-missing, so /planning:draft-goal-condition reads the /goal page with WebFetch instead.",
       "install": {
         "docs": "https://curl.se/download.html",
         "brew": "curl",
         "winget": "cURL.cURL",
         "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "cloudflared",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:interview"
+      ],
+      "detect": {
+        "any": [
+          "cloudflared"
+        ]
+      },
+      "degrade": "Without cloudflared the shared interview session cannot start (share.sh exits 2 naming it); the terminal and page lanes are unaffected.",
+      "install": {
+        "docs": "https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/ (as of 2026-10-16; recheck when that page changes its package names or repositories)",
+        "brew": "cloudflared",
+        "winget": "Cloudflare.cloudflared",
+        "apt": "cloudflared, from Cloudflare's package repository at https://pkg.cloudflare.com/ (not the distribution's own)",
+        "dnf": "cloudflared, from Cloudflare's package repository at https://pkg.cloudflare.com/ (not the distribution's own)"
       },
       "check": "/harness-ops:prerequisites"
     },

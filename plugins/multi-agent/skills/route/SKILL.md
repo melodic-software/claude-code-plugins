@@ -1,6 +1,6 @@
 ---
 description: "Model and effort per agent role (orchestrator, worker, verifier, retrieval) for a multi-agent run, resolved through the bundled defaults and the user, team and overlay config layers into fenced JSON with single-agent and fan-out variants and the layer behind each value; fan-out stays off frontier models unless config opts in. Use when asked 'which model for the subagents', 'route the roles', 'what effort should the workers use', 'roles for the workflow args', 'model routing' or 'is fan-out on Fable', or before a skill launches a workflow that takes args.roles."
-argument-hint: "<role|all> [code|research|mechanical] [session=<alias>]"
+argument-hint: "<role|all> [workload] [session=<alias>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -18,8 +18,9 @@ read it when a note or a user question concerns a key, a layer or the guard.
 
 - `<role|all>`: one of `orchestrator`, `worker`, `verifier`, `retrieval`, or
   `all` for the whole map.
-- `code|research|mechanical`: optional workload; applies the role's
-  `workloads.<w>` keys.
+- `[workload]`: optional, the second bare argument; applies the role's
+  `workloads.<w>` keys. The bundled layer declares `code`, `research` and
+  `mechanical`; a config layer may declare more (`workloads.<w>: true`).
 - `session=<alias>`: the session model's alias. When the caller did not pass
   one, fill it from your own model ID: the family name in it (`opus`,
   `sonnet`, `haiku`, `fable`) is the alias. When you cannot tell, omit it; the
@@ -60,8 +61,8 @@ Then list every entry of `notes` (a skipped layer, a rejected value, an ignored
 key, a role that resolves to haiku) as written. A haiku note means the role
 runs on a model no role here has passed the routing eval on; the rule is in
 [`${CLAUDE_PLUGIN_ROOT}/reference/routing-rubric.md`](${CLAUDE_PLUGIN_ROOT}/reference/routing-rubric.md).
-Exit 2 means an unknown role or argument: relay the valid roles from the error
-and stop.
+Exit 2 means an unknown role, workload or argument: relay the valid roles or
+declared workloads from the error and stop.
 
 A caller launching a workflow passes the JSON's `roles` object as
 `args.roles`, unchanged. A caller spawning a subagent through the Agent tool

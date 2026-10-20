@@ -59,7 +59,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/lookup/scripts/update.sh"        # report onl
 bash "${CLAUDE_PLUGIN_ROOT}/skills/lookup/scripts/update.sh" --fix  # also upgrade the CLI
 ```
 
-The script reports installed vs latest `ctx7` and diffs upstream `find-docs` and `context7-cli` against the `vendor/` baselines. It never rewrites this skill: the update is advisory, the user approves every port, and this skill's own additions (Windows prefix, CLI-vs-MCP guidance, action dispatch) are kept. Read `vendor/` only during `update`, never for a lookup. Protocol: [context/update.md](context/update.md).
+The script reports installed vs latest `ctx7` and diffs upstream `find-docs` and `context7-cli` against the `vendor/` baselines. It exits 0 for no drift, 1 for drift and 2 when a check could not run; a `ctx7` that is not installed is reported, not counted as drift. It never rewrites this skill: the update is advisory, the user approves every port, and this skill's own additions (Windows prefix, CLI-vs-MCP guidance, action dispatch) are kept. Read `vendor/` only during `update`, never for a lookup. Protocol: [context/update.md](context/update.md).
 
 ## Spoke paths
 

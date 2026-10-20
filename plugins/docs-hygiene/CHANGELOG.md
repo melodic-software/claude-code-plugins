@@ -1,5 +1,31 @@
 # Changelog: docs-hygiene plugin
 
+## [1.2.0] - 2026-10-20
+
+### Added
+
+- **`audit-encapsulation detect` flags every cross-plugin skill cite.** In a marketplace monorepo it now reports a skill-root cite, a bare `SKILL.md` cite and a `scripts/` cite from a file under another plugin, as a path, a `../` path or a github.com tree/blob or raw.githubusercontent.com URL; a cite inside the same plugin stays legal. It also flags the repository's own marketplace id (`<plugin>@<id>`) outside install-recipe lines, and reads an allowlist of `path<TAB>reason` rows (`--allowlist <file>`) for fixtures, evals and tests that exercise a detector.
+
+### Changed
+
+- **`audit-encapsulation detect` reads every text file type**, not only md, sh, json, yml and yaml. The `scripts/` entry-surface carve-out now holds only for callers outside `plugins/` and for a plugin's own files.
+
+### Fixed
+
+- `/docs-hygiene:audit-derivability` sweeps no longer cap concurrency at 3-4 for rate-limit headroom; the runtime's cap applies, and the skill backs off only on an actual rate-limit error.
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- The shared settings checker behind `/docs-hygiene:setup` validates string and object settings, and reports a setting whose schema shape it does not check instead of stopping with a JavaScript error.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [1.1.2] - 2026-10-18
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [1.1.1] - 2026-10-16
 
 ### Changed

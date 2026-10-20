@@ -3,6 +3,37 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1] - 2026-10-20
+
+### Changed
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [0.6.0] - 2026-10-18
+
+### Added
+
+- **`render.py --shots shots.json`** compares the film with the shot list (fps, size, duration and frame count) and exits 1 on a mismatch, so a short render no longer exits 0. `produce.py review` runs the same comparison, which now includes the frame count.
+- **A fresh-context review before delivery.** `/animation:produce` hands the rendered film to a reviewer that did not build it (`reference/independent-review.md`) and delivers only on its SHIP; it also says what to do after a failed pack check and never to add marks only to pass a row.
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
+- **Capture waits for the scene to finish loading.** `render.html` exposes the scene import as `window.sceneReady` and `capture.mjs` waits on it, so a `DURATION` set after a top-level `await` is the one read.
+- The skill documents `--root` for sharing modules and the shot-module contract (`drawShot(ctx, t)`).
+- The `offstep` description in `inkstats.py` and the learn-style statistics reference now say what the code counts: a 2 then a 4 on 3s counts as one on-step pair, and a lone 2 or 4 counts in both its pairs.
+
+- **The render tests fail under `ANIMATION_REQUIRE_DEPS=1` when Chromium is missing.** `test_render.py` skipped without node, playwright-core or Chromium whatever the flag said, so CI passed without running it. It now fails under the flag, and CI's animation legs install the locked playwright's headless Chromium.
+
 ## [0.5.2] - 2026-10-16
 
 ### Changed

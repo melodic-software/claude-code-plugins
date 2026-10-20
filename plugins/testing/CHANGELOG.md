@@ -3,6 +3,43 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0] - 2026-10-20
+
+### Added
+
+- `/testing:audit` findings carry `[project: ...; ci: yes|no|unknown; kind: ...]`: the owning C# project (nearest `.csproj`), whether a `.github/workflows` `dotnet test` or `dotnet build` targets it, and its kind (`unit`, `integration`, `functional`, `architecture`, `live`, `operational`) from name tokens and package references, or `unknown`. A finding in a `live` or `operational` project (`*.Provisioning.*`, `*.Smoke.*`) warns not to run its tests, and findings in CI-run unit projects rank first. A new `project_kinds` config key (`<glob>=<kind>`) overrides the kind. Nothing is built or run, and a workflow that does not parse gives `ci: unknown`.
+
+### Changed
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+- **build: Bump @axe-core/playwright from 4.13.0 to 4.14.0 in /plugins/testing/evals/ui-defects/harness in the npm-minor-patch group** (#8350).
+  - `@axe-core/playwright` 4.13.0→4.14.0
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [0.27.3] - 2026-10-18
+
+### Added
+
+- `/testing:audit` flags two more C# constant oracles as `rule-inert-assertion`: MSTest `Assert.IsNotNull(typeof(X))` and `Assert.IsNotNull(nameof(X))`, and `Assert.Equal`, `NotEqual` and `Same` (`AreEqual`, `AreNotEqual` and `AreSame` in MSTest and NUnit) when both operands are `typeof(...)`. A runtime operand such as `obj.GetType()` stays unflagged.
+
+### Changed
+
+- `/testing:cleanup` now records why its subagent briefs keep the rendered plugin root, with a pointer to the Claude Code docs section on cleanup of previous plugin versions, an as-of date and a recheck trigger.
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.27.2] - 2026-10-16
 
 ### Changed

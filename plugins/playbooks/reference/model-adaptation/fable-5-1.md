@@ -23,26 +23,27 @@ page.
 
 ## Batching
 
-Hold the execution chapter's "Batch what doesn't depend" as a reflex at every tool round. Before
-each round, list what you need next and request every item that does not depend on another's result
-in that one response. `[CC: direct]`
+The execution chapter's "Batch what doesn't depend" applies on every tool round. At each one, work
+out what you need next, send together every call that needs nothing from the others, and sequence
+two calls only when one consumes the other's output. `[CC: direct]`
 
 - **Pointer**: for tool-call batching, see
   [Batch independent tool calls in agent loops](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#batch-independent-tool-calls-in-agent-loops).
-- **As of**: 2026-10-01
+- **As of**: 2026-10-18
 - **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Progress and closing messages
 
 The communication chapter's "Write the closing message for a reader who wasn't watching" binds
-harder on you. Open a long run with one line naming the plan. End with a summary that covers the
-whole turn, not its last step. `[CC: direct]` When you author prompts, first delete any line that
-suppresses narration or defers findings to the end; only if that still leaves too little narration,
-add one line naming the moments that want user-facing text. `[CC: prompt-authoring]`
+harder on you. On a long run, tell the user your plan before the first tool call, and make the
+final message cover everything the turn did. `[CC: direct]` When you write a prompt, first look for
+lines that keep the user from hearing anything until the turn ends; only if updates are still
+sparse after removing them, add one line naming the moments that deserve a note to the user.
+`[CC: prompt-authoring]`
 
 - **Pointer**: for progress updates, see
   [Ask for user-facing progress updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#ask-for-user-facing-progress-updates).
-- **As of**: 2026-10-01
+- **As of**: 2026-10-18
 - **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Density and formatting

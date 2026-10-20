@@ -22,11 +22,32 @@ mkdir -p "$repo/scripts"
 git_init_test_repo "$repo" || exit 2
 cp "$SELF_DIR/check-affected.sh" "$repo/scripts/"
 # Each stub exits with STUB_<NAME> (default 0), so a case picks which check fails.
-for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests; do
+for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
+  check-spoke-plugin-root check-changelog-parity check-changed-skills; do
   var="STUB_$(printf '%s' "$s" | tr 'a-z-' 'A-Z_')"
   printf '#!/usr/bin/env bash\necho "%s ran" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
 done
+printf 'import os, sys\nsys.stderr.write("sync-plugin-options-docs ran\\n")\nsys.exit(int(os.environ.get("STUB_SYNC_PLUGIN_OPTIONS_DOCS", "0")))\n' \
+  >"$repo/scripts/sync-plugin-options-docs.py"
+cp "$SELF_DIR/check-affected-gates.txt" "$repo/scripts/"
+: >"$repo/_typos.toml"
 chmod +x "$repo"/scripts/*.sh
+# A typos stand-in on every run's PATH, so a typos on the machine never sees the
+# fixture's missing config. It echoes its arguments and exits STUB_TYPOS.
+mkdir -p "$tmp/bin"
+printf '#!/usr/bin/env bash\necho "typos ran: $*" >&2\nexit "${STUB_TYPOS:-0}"\n' >"$tmp/bin/typos"
+chmod +x "$tmp/bin/typos"
+export PATH="$tmp/bin:$PATH"
+
+# path_without <command>: PATH minus every directory holding that command.
+path_without() {
+  local d out='' dirs
+  IFS=: read -ra dirs <<<"$PATH"
+  for d in "${dirs[@]}"; do
+    [[ -x "$d/$1" ]] || out+="${out:+:}$d"
+  done
+  printf '%s' "$out"
+}
 git_test_config "$repo" add -A
 git_test_config "$repo" commit -q -m base
 git_test_config "$repo" branch -q base
@@ -55,6 +76,30 @@ check() {
 run -- --base base
 check "every check passing exits 0 with the statement on stdout" \
   '[[ $RC == 0 && $OUT == *"passed"* ]]'
+
+check "a diff with no skill file skips changed-skills" \
+  '[[ $ERR == *"SKIP changed-skills (no changed skill file)"* && $ERR != *"check-changed-skills ran"* ]]'
+check "every hygiene gate the runner does not run is named CI only" \
+  '[[ $ERR == *"CI only: zizmor ("* && $ERR == *"CI only: machine-specific-paths ("* && $ERR == *"CI only: gitleaks ("* ]]'
+check "a gate the runner runs is not named CI only" \
+  '[[ $ERR != *"CI only: markdown "* && $ERR != *"CI only: spoke-plugin-root "* && $ERR != *"CI only: typos "* ]]'
+
+run STUB_TYPOS=2 -- --base base
+check "a typos exit of 2 is a finding, not a check that could not run" \
+  '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR != *"SKIP typos"* ]]'
+run STUB_TYPOS=1 -- --base base
+check "a typos finding fails the typos check" '[[ $RC == 1 && $ERR == *"FAIL typos"* ]]'
+check "typos gets the config, the exclusions and the changed files" \
+  '[[ $ERR == *"typos ran: --config "*"/_typos.toml --force-exclude --exclude plugins/*/skills/*/vendor/**"*"-- notes.txt"* ]]'
+run PATH="$(path_without typos)" -- --base base
+check "a missing typos is a skip, not a failure" \
+  '[[ $RC == 0 && $ERR == *"SKIP typos (typos not installed)"* ]]'
+run STUB_CHECK_SPOKE_PLUGIN_ROOT=1 -- --base base
+check "a failing spoke-plugin-root fails the check" '[[ $RC == 1 && $ERR == *"FAIL spoke-plugin-root"* ]]'
+run STUB_SYNC_PLUGIN_OPTIONS_DOCS=1 -- --base base
+check "a failing plugin-options-docs fails the check" '[[ $RC == 1 && $ERR == *"FAIL plugin-options-docs"* ]]'
+run STUB_CHECK_CHANGELOG_PARITY=1 -- --base base
+check "a failing changelog-parity fails the check" '[[ $RC == 1 && $ERR == *"FAIL changelog-parity"* ]]'
 
 run STUB_CHECK_CHANGELOG_FRAGMENTS=1 -- --base base
 check "a failing check exits 1" '[[ $RC == 1 ]]'
@@ -108,6 +153,13 @@ git_test_config "$repo" commit -q -m delete
 run PATH="$tmp/bin:$PATH" STUB_VALIDATE_PLUGINS=1 -- --base plugin-base
 check "a branch that only deletes a plugin file still validates that plugin" \
   '[[ $RC == 1 && $ERR == *"FAIL validate-plugins"* && $ERR == *"validate-plugins ran: --only demo"* ]]'
+mkdir -p "$repo/plugins/demo/skills/s"
+printf 'x\n' >"$repo/plugins/demo/skills/s/notes.txt"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m skill
+run STUB_CHECK_CHANGED_SKILLS=1 -- --base plugin-base
+check "a changed skill file runs changed-skills against the base" \
+  '[[ $RC == 1 && $ERR == *"FAIL changed-skills"* && $ERR == *"Reproduce: scripts/check-changed-skills.sh plugin-base"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_plugin"
 
 git_test_config "$repo" remote add origin "$tmp/missing-remote"
@@ -122,16 +174,32 @@ check "a failed fetch skips the stale-base check only" \
 tools="$tmp/tools"
 mkdir -p "$tools/scripts"
 cp "$SELF_DIR/check-affected.sh" "$tools/scripts/"
-for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests; do
+for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
+  check-spoke-plugin-root check-changelog-parity check-changed-skills; do
   printf '#!/usr/bin/env bash\necho "copy of %s read $CHECK_DATA_ROOT" >&2\nexit 1\n' "$s" >"$tools/scripts/$s.sh"
 done
+printf 'import os, sys\nsys.stderr.write("copy of sync-plugin-options-docs read " + os.environ["CHECK_DATA_ROOT"] + "\\n")\nsys.exit(1)\n' \
+  >"$tools/scripts/sync-plugin-options-docs.py"
+cp "$SELF_DIR/check-affected-gates.txt" "$tools/scripts/"
 chmod +x "$tools"/scripts/*.sh
 RC=0
 ERR="$(cd "$repo" && bash "$tools/scripts/check-affected.sh" --base base --tests 2>&1)" || RC=$?
 check "a copy run elsewhere runs its own check scripts against the checked tree" \
   '[[ $RC == 1 && $ERR == *"copy of check-shell-portability read $repo"* ]]'
+check "a copy run elsewhere points the spoke, options-docs and changelog-parity checks at the checked tree" \
+  '[[ $ERR == *"copy of check-spoke-plugin-root read $repo"* && $ERR == *"copy of sync-plugin-options-docs read $repo"* && $ERR == *"copy of check-changelog-parity read $repo"* ]]'
 check "a copy run elsewhere skips the checked tree's tests" \
-  '[[ $ERR == *"SKIP tests"* && $ERR != *"affected-tests"* ]]'
+  '[[ $ERR == *"SKIP tests"* && $ERR != *"copy of affected-tests"* ]]'
+
+mkdir -p "$repo/plugins/demo/skills/s"
+printf 'x\n' >"$repo/plugins/demo/skills/s/notes.txt"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m skill
+RC=0
+ERR="$(cd "$repo" && bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+check "a copy run elsewhere skips changed-skills, which runs the checked tree's skill-quality code" \
+  '[[ $ERR == *"SKIP changed-skills (runs the checked tree"* && $ERR != *"copy of check-changed-skills"* ]]'
+git_test_config "$repo" reset -q --hard HEAD~1
 
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   printf '{ "config": { "MD013": false } }\n' >"$tools/.markdownlint-cli2.jsonc"
@@ -154,6 +222,57 @@ if command -v markdownlint-cli2 >/dev/null 2>&1; then
 else
   ok "SKIP markdown copy cases (markdownlint-cli2 not installed)"
 fi
+
+# --uncommitted: the issue lane commits the files on disk through an API, with
+# each file's mode taken from disk, so the checks judge the work tree as that
+# commit, and the checkout itself is left untouched.
+state() {
+  git_test_config "$repo" rev-parse HEAD
+  git_test_config "$repo" status --porcelain --untracked-files=all
+  git_test_config "$repo" worktree list --porcelain
+}
+# shellcheck disable=SC2034  # read inside check's eval
+before="$(state)"
+printf '#!/usr/bin/env bash\necho hi\n' >"$repo/new-tool"
+run -- --uncommitted
+check "--uncommitted checks an untracked #! file's mode on disk" \
+  '[[ $RC == 1 && $ERR == *"FAIL exec-bit"* && $ERR == *"new-tool starts with #!"* ]]'
+chmod +x "$repo/new-tool"
+run -- --uncommitted
+check "--uncommitted passes once the file is executable on disk" \
+  '[[ $RC == 0 && $OUT == *"over 1 changed files"* ]]'
+mkdir -p "$repo/plugins/demo"
+printf 'x\n' >"$repo/plugins/demo/new.md"
+printf '#!/usr/bin/env bash\necho "validate-plugins ran: $*" >&2\nexit 1\n' >"$repo/scripts/validate-plugins.sh"
+chmod +x "$repo/scripts/validate-plugins.sh"
+run PATH="$tmp/bin:$PATH" -- --uncommitted
+check "--uncommitted validates a plugin that only untracked files touch" \
+  '[[ $RC == 1 && $ERR == *"FAIL validate-plugins"* && $ERR == *"validate-plugins ran: --only demo"* ]]'
+rm -rf "$repo/plugins" "$repo/scripts/validate-plugins.sh"
+# The lane's sandbox masks dotfiles in the checkout with /dev/null, a device git
+# refuses to add; it is skipped and the regular untracked file still checked.
+if bwrap --bind / / --dev /dev true 2>/dev/null; then
+  chmod -x "$repo/new-tool"
+  : >"$repo/.bash_profile"
+  RC=0
+  OUT="$(cd "$repo" && bwrap --bind / / --dev /dev --ro-bind /dev/null "$repo/.bash_profile" --ro-bind /dev/null "$repo/notes.txt" \
+    bash scripts/check-affected.sh --uncommitted 2>"$tmp/err")" || RC=$?
+  ERR="$(cat "$tmp/err")"
+  check "--uncommitted skips untracked and tracked device nodes and still checks the regular file beside it" \
+    '[[ $RC == 1 && $ERR == *"new-tool starts with #!"* && $ERR != *"can only add regular files"* ]]'
+  rm -f "$repo/.bash_profile"
+  # The lane's sandbox can leave .git read-only; the snapshot must not write there.
+  RC=0
+  OUT="$(cd "$repo" && bwrap --bind / / --dev /dev --ro-bind "$repo/.git" "$repo/.git" \
+    bash scripts/check-affected.sh --uncommitted --base base 2>"$tmp/err")" || RC=$?
+  ERR="$(cat "$tmp/err")"
+  check "--uncommitted runs the checks with a read-only .git" \
+    '[[ $RC == 1 && $ERR == *"new-tool starts with #!"* && $ERR != *"Read-only file system"* ]]'
+else
+  ok "SKIP device-node and read-only .git cases (bwrap cannot start here)"
+fi
+rm -rf "$repo/new-tool"
+check "--uncommitted leaves HEAD, the index and the worktree list as they were" '[[ $(state) == "$before" ]]'
 
 run -- --bogus
 check "an unknown flag is a usage error" '[[ $RC == 2 ]]'

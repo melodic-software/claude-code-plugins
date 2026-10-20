@@ -3,6 +3,204 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.78.0] - 2026-10-20
+
+### Added
+
+- Shared interview page: "Use as my answer" on Claude's answer to your own ask on a choice, pick-many or ranking question makes it your own option, editable before you save it, and asks first when you had already picked.
+- Shared interview page: on a poll or pick-many question you can write your comment, and attach files, before picking, and they go in with your pick in one step.
+
+### Changed
+
+- Shared interview page: every text field follows one composer kit: Enter sends chat and Ctrl or Cmd + Enter sends or saves elsewhere (with the hint shown), one near-the-limit counter, Escape cancels an inline edit, and the @ picker works in the Discussion, comment and request edits, the own-option box and the host's answer edit, listing Claude first in chat and the Discussion.
+- Shared interview page: unsent chat, Discussion, Ask Claude, Suggest and Pass text survives a reload for whoever wrote it (never after switching to another personal link), and Ask Claude, Suggest and Pass text stays with the question it was typed on.
+- Shared interview page: nobody can join or rename themselves as "Claude", which `@Claude` reserves for asking Claude.
+- Shared interview page: a text field no longer scrolls the page back to itself on a repaint while you scroll away to read; it follows you only while you type.
+
+## [0.77.1] - 2026-10-20
+
+### Fixed
+
+- The interview page names only fonts it can load under its same-origin CSP, so the declared IBM Plex and Newsreader faces no longer silently fall through. The side-panel tabs follow the WAI-ARIA tabs pattern: Left, Right, Home and End move between tabs and only the selected tab is in the tab order. The summary omits the Decisions table when no question is answered. The status pill shows a neutral Connecting state until the first connection attempt fails instead of flashing red.
+
+## [0.77.0] - 2026-10-20
+
+### Added
+
+- `check-plan-outcome.sh` maps each decision tag to its table row by id: a tag written `[EXEC-SHAPE D4]` or `[FALLBACK D7]` and a row starting its Decision column with the same id. The `decisions` criterion fails a tag id with no row and a row id no tag cites, naming each id, and prints `mapped=<n>` on pass. A bare tag with no id still passes, with a `warning=bare-tag` line. The plan template and `tag-decisions.md` show the id form.
+
+- `/planning:interview share [<topic>]` runs an interview as a shared session: one page, served from the owner's machine through a Cloudflare quick tunnel, that several people answer at once, live or across a day. Guests join with only a name and no account; several sessions can run at once, one per audience, each with its own link and data folder, and a session survives closing Claude or a reboot.
+- On the page, each question arrives with Claude's recommendation and two or three alternatives. People answer, vote, lock an answer, suggest a change to a locked one, react, chat, propose questions and ask for research. Questions can be free text, a visual choice, a "Did you mean this?" screenshot or a prototype that opens on its own page, where people switch between variants and pin notes to any part of one (the notes reach the question's Claude thread and the round Claude reads), and each one names the view or screen it is about. Focus, Compare, Tree and Host views work on phones and desktops, keyboard-complete and in light and dark themes.
+- The owner (and leaders the owner names) moderates: people, roles, links and settings. Only the owner sends a round to Claude, runs a guest's request, publishes its result and accepts an uploaded file; the round Claude reads holds what the group settled, without names unless the owner turns them on. Claude records each outcome in the interview ledger, places every proposed question, and files the session's Later list as tracker items on the owner's yes.
+- A "Why you're here" intro greets guests before question 1. The owner can hide an answer until they show it again, or edit it with the earlier versions kept for the owner alone, can hold new joins for approval (at most 20 waiting, listed in join order with a device hint), and sees a locked answer they edited marked as edited, in the page and in the round Claude reads. People react to chat messages with emoji.
+- The owner can merge a second identity of their own (another device's join) into the owner: its answers, votes, reactions, chat and requests become the owner's and its link stops working. The owner is never merged into anyone, and a refused merge shows the session's reason.
+- A proposal made into a question gathers answers (people react, nobody locks or disagrees). A session imported from the prototype infers each question's purpose from its format: a "Did you mean this?" confirm is a poll, a choice decides, and a free-text question gathers unless it was locked, voted on or carried Claude's recommendation. Claude can correct a question's purpose with a `set-purpose` op, under the same rules as the owner's purpose control.
+- Anyone on a shared session can report a problem with the page, with an optional screenshot that only the owner sees. A report reaches Claude only when the owner picks Ask Claude about this report; Claude then reads it as data, reads its picture only through the `upload-reader` agent, and proposes a fix to the owner. Presence dots show who is here, away or offline, a person can give one answer several reactions at once (👍 or 👎, plus ❤️ and 💡), and Propose sits in the question list.
+- A vote, any reaction, a Disagree or a Pass now counts as taking part: the question list marks each question Answered, Took part or Open, only Open counts as not answered, and the Host view's behind count and the round Claude reads use the same rule. Once one other person has answered, a question not asked of you by name goes optional ("Levi answered. 👍 if you agree, or Pass"). Pass works on every purpose, with an optional reason and undo, and a Pass on a poll shows no results. A question can be asked of named people, set by Claude from "@name" or by the owner; it stays open for them, and their Pass needs a reason. The round Claude reads adds who endorsed each gathered answer, who passed and why, how many stayed silent, and who a targeted question is still missing.
+- When Claude stops responding while it prepares the next round, the owner can reset the round from the Host view, behind a confirm step: the round reopens for answers, guests see it open again, and a still-running Claude learns of the reset from a `round-reset` event and has its late round refused.
+- A late joiner sees which closed round still takes answers, with a link to its first open question, in the welcome card and above the current round; votes and reactions given on a closed round reach the next round Claude reads as late, like answers.
+- An @-mention points at the person, not the name it was typed with: a rename or a merge shows everywhere the person was mentioned, history included, and the names setting now masks mentions too. Existing sessions are converted on load, with a backup of the earlier file.
+- Long sessions stay light: chat loads the newest 50 messages and older ones as you scroll up (or with "Load earlier messages"), older messages still pick up other people's reactions and forwards, long lists show a sensible count with "Show more", the Host view's people list filters by presence and searches by name, and a poll where only presence changed gets a small presence-only answer instead of the whole page state.
+- The `upload-reader` agent reads a file a guest uploaded, holding only Read, and returns a short summary framed as the uploader's data, listing any instruction inside the file as a finding.
+- The interview skill now loads one lane at a time: the terminal lane stays in `SKILL.md`, the page lane moves to `context/lane-page.md`, the shared lane is `context/lane-shared.md`, and `context/question-shape.md` holds the one question shape all three use.
+- Settings: `shared_session.*` keys in `docs/conventions/planning.yaml` (uploads, names, digest names, when Claude's take shows, voting, sign-off, chat, follow, accent) and the `shared_session_open_browser` option. `cloudflared` is a new optional prerequisite, needed only for the shared session.
+- Shared session logs: `server.log` records every refusal with its error code, field and message, every server error with its traceback, and the acting person's id; pages report their script errors and refused actions through `POST /api/client-log`; `share.sh logs [--errors] [--since MINUTES]` prints the log's tail. A refusal the page used to word as "Reload and try again" (bad-field and the other malformed-request codes) now shows the server's own message.
+- Passive telemetry, kept on the host's computer: the page records script errors, failed or unanswered actions, tap-to-answer times and undone changes, reconnect delays, layout problems (too wide, a field under the keyboard, the header off screen) and INP and LCP from a bundled copy of web-vitals, never typed text, answers, chat, names or page text. Timings carry no person id and reach the log only in a batch written every 10 minutes and when the server stops, so no time ties them to a person; a refusal is logged once, by the server. Recording runs once a guest joins; Help and the phone More sheet say so in one line with a "What this page records" list. `share.sh logs --summary [--json]` adds the log up.
+- A person can have at most 10 proposals waiting and a session holds at most 200; the round Claude reads lists up to 30 new proposals and counts the rest, which a later round lists.
+- A personal link opened in a browser where someone else is already signed in asks before switching to that person, with Keep the default, so a link someone hands over never signs a device in as them silently.
+
+- `reference/design-principles.md`: one directive line per foundational design principle (SOLID, composition over inheritance, DRY of knowledge, coupling and cohesion, information hiding, deep modules, YAGNI's cheap-now test, reuse first), each cited to its defining source with an as-of date and a recheck trigger. It applies to code, Markdown, skills and agent instructions, and a consumer's own standards override it.
+
+- Four outcome eval cases for `/planning:interview`: the ship-it exit keeps the Step 3 confirmation gate and the Step 4 `--brief` cross-check, the wayfind recommendation needs two rounds running with more branches opened than closed, a declined recommendation is not repeated until the trigger escalates, and the interview never switches to wayfind on its own.
+
+- Shared interview: an Inbox replaces the bell in the top bar. It lists your own requests to Claude, newest first, each with its question, what you asked, and its status (Waiting, Running, Answered, Shared, Declined or Failed with the reason), and opens the answer in that question's Claude section. Its badge counts what changed since you last opened each item; only opening an item marks it read, on every device. For the host it adds "Waiting on you": requests to run, results to share, problem reports, merge requests and join requests, each opening where it is handled. Every notification kind is still listed under Notifications in the Inbox. A toast "Claude answered your request on Q<N>" with Open appears when one of your requests is answered.
+
+- Shared interview: a Discussion under each question, below its Claude section and folded by default. Its head counts the comments and the ones new to you since you last opened it, on every device. Anyone who can write adds a comment; its author edits or deletes it (a comment sent to Claude can only be deleted); the host hides any, which leaves it only to the host and its author, marked Hidden. Comments take mentions and the chat's emoji reactions. "@Claude" in a comment also sends it to Claude as a request on the question, which waits for the host's Run like any guest request (the host's own runs at once), and hiding the comment declines it; Claude's answer shows in the Claude section with a "from Discussion" link back to the comment. People already in a Discussion get a notification of new comments. The round's digest gives Claude each question's Discussion, without hidden comments, with names only when names go to Claude.
+- Shared interview: the session file moves to schemaVersion 5, which holds the Discussions and when each person last opened each one. An older file is upgraded on load with no comments.
+
+- `/planning:interview`: in an engineering session the interview reads the consumer's standards before any bundled default, asks the intent question (is a second variant known, a category, or speculative; what the existing structure does; what upstream context says), and prompts quality requirements (NFRs) from a new prompt list, each scaled by the quality bar. The Brief records `Quality bar:` and `Intent:` lines under Captured assumptions, each quality requirement as a `Quality requirement:` line under Constraints, and `Overrides bundled default <principle> per <standards file>` when a consumer standard wins. Unattended, only the user's own words settle the intent question; otherwise it is recorded `blocked`, arbiter USER-RESERVED, and the Brief is still written. Upstream context is recorded as a short summary, with private titles and URLs left out of public or unknown-visibility repositories.
+
+- Shared interview: "@Claude" in a chat message, or Ask Claude's new "About the whole session", asks Claude about the whole session. It waits for the host's Run like any guest request (the host's own runs at once), the Inbox lists it under General, and once shared Claude's answer replies in chat. The `result` op takes no `qid` for such a request; old session files load unchanged.
+
+- Shared interview sessions: a per-person "Go to the next question after I answer" switch, off by default, moves on 2 s after a single pick, confirm or scale value with the comment box empty, with Stay to cancel; never after pick-many, rank or a written answer.
+- Shared interview sessions: "Your reports" in More and Help lists a person's problem reports with Sent, Seen by the host or Fixed, and takes an added line or screenshot while a report is not fixed (`POST /api/report/add`).
+- Shared interview sessions: the first view's welcome card opens with "Enter your name to join, then answer this round's questions.", shows once per person per device, has a visible Skip that also skips the tour, and comes back with "Show the tour again" in the person's settings.
+
+- Shared interview sessions: Ask Claude offers Everyone or Just me, Everyone on a question and Just me about the whole session. An ask or research answer asked for everyone is shared when Claude writes it (explore, design and prototype answers, and answers to a removed guest, still wait for the host); a Just me answer shows only to its asker and the host until one of them shares it. The host can Take down any shared answer. "@Claude" in chat or a Discussion always asks for everyone, and a guest's request still runs only on the host's Run.
+- Shared interview sessions: a host setting, "Review Claude's answers before they are shared", holds every answer for the host's Share. It is off in new sessions and on in sessions started before this release, so they keep working as they did.
+
+- `/planning:design`: the design defaults name the principles in `reference/design-principles.md` (SRP, OCP, LSP, ISP, DIP, composition over inheritance, reuse and DRY of knowledge, coupling and cohesion, information hiding, deep modules, YAGNI) and apply a new `reference/design-defaults.md` first: the Brief's quality bar, the consumer's standards through the standards-contract ladder, the Brief's quality requirements as settled (the interview's prompt list when none are recorded), generalize-now-or-wait under the interview's unattended rule, and a per-tenant configurability line labeled as vendor guidance.
+- `/planning:design`: a new "Lifecycle and reversibility" section with `reference/reversibility.md`: each significant decision is called a one-way or two-way door, a one-way door gets deliberate design and an ADR prompt, the consumer's existing style is the baseline with a greenfield vertical slice as an overridable default, design investment scales by core, supporting or generic subdomain, and the depth scales with the quality bar (a prototype skips it and records a TAGGED-DEFERRED thread that `/planning:design-handoff` accepts); early-exit, `status` and trivial work skip the section.
+- `/planning:design`: the design defaults write a `Principles` thread naming the principles and consumer overrides that shaped the design and how generalize-now-or-wait was settled, citing the Brief's `Intent:` line counts; a prototype records it as `deferred (prototype)`.
+
+- `/planning:design-handoff`: the gate requires a principles thread and a lifecycle-and-reversibility thread, each resolved, directional or tagged-deferred (a prototype names both as deferred); a design missing either fails.
+- `/planning:plan`: Step 2's design-default checklist audits the same two threads and confirms the Brief carries the `Quality bar:` line a phase-boundary review rates at; the plan template says to tag `Review: code-design` on any phase that adds or changes a contract, type, module, or a fact or rule several files read, Markdown included, and maps each tag to its `/review:quality-gate` mode (`concurrency` to `slice concurrency`).
+- `planning:plan-reviewer`: Design alignment flags a plan that places one fact or rule in several files or rebuilds what existing code already does, and a missing principle or reversibility thread.
+
+- Shared session: every place people write (the answer box, Ask Claude, chat, the Discussion and Propose) has an
+  Attach button while Uploads is on, and a picture pasted into any of them is shrunk in the browser, offered to the
+  host and shown as a thumbnail chip that reads "Waiting for the host" until it is accepted. Chat messages, requests,
+  suggestions, proposals and comments carry accepted uploads, and a request's files reach Claude in `request-run`.
+- Shared session: every picked or pasted picture is redrawn in the browser (at most 1600 px and 512 KB, no EXIF or
+  GPS) before it is offered. Once received and, for a guest's, approved by the host (Approve picture in the Host
+  queue), it shows as a tile, which opens the viewer, to everyone who can see what carries it, read back through
+  `GET /api/upload/image` as a data: URL; a Just me request's, a proposal's or a hidden comment's files never reach
+  another guest. The host or the uploader can remove a received file from everything that carries it.
+
+- Planning skills establish the problem, its size and its evidence before a solution: a shared problem-framing contract the interview, brainstorm, plan, design and devils-advocate skills read.
+- The interview Brief records the problem (gap, who, frequency, trend, cost, evidence) and the work size (appetite, size, uncertainty, split signals), and the interview confirms the problem in every action, `lock` included.
+- A prescribed solution gets rethink-or-accept with an evidence rating before planning continues.
+- No estimate or budget of work is stated in hours, days or weeks unless `time_units` is on; the `work_size` levels are used instead.
+- /planning:brainstorm, /planning:plan and /planning:design read the Brief's Problem, or establish it first; /planning:devils-advocate plan review checks that the plan solves it.
+- Four eval cases cover the problem restatement under lock, rethink-or-accept for a prescribed solution, no rethink-or-accept for a stated problem, and the unattended blocked problem row.
+- The interview's Step 4 heading check (`check-open-questions.sh --procedure --brief`) requires all nine Brief headings, `### Problem` and `### Work size` among them.
+- The shared-session page's Brief export writes `### Problem` and `### Work size` from new `problem` and `workSize` restatement sections, reading `unknown` and `not assessed` when they are absent.
+- Three settings: `time_units` (user config and repository file), `pre_confirmed_label` and `work_size` (repository file only).
+
+- Shared interviews: Claude's `share.sh apply` takes `resolve-report` (mark a problem report seen or resolved), `share-result` and `take-down-result` ops, so the session does what the owner asks in the terminal instead of asking the owner to click it. Each runs the owner page's own action, with its checks and the notice the reporter or asker gets.
+
+- On the interview page, a group's Accept all now accepts every eligible open question in the group, opened or not, after one confirmation that lists each question id, its recommendation and its commitments (which stay unconfirmed). Questions in a group also get a checkbox on the rail card (ctrl/cmd-click works too), and Accept selected accepts just the chosen ones with the same confirmation. The round-section Accept all keeps its opened-only rule.
+
+- The interview server reads its settle window from two new settings, `settleQuiet` (default 10 s, 0.5 to 60) and `settleBurst` (default 30 s, 1 to 120), resolved through the same layers as `leaseTimeout` and shown read-only in the Settings panel. The quiet window was 3 s and the burst cap 12 s, so a sweep of plain accepts woke the agent on most accepts; it now wakes once. A non-numeric or out-of-bounds value falls through to the layer below, a `settleQuiet` above `settleBurst` puts both back to the defaults, and neither stops the server.
+
+- Shared `resolve-convention-home.sh` synced: `--ref` (a 40-hex commit id or `origin/<name>`) reads the pointer and the home as committed, `-` reads the region from stdin, a `declined` line in the region exits 4 so the caller does not ask again, and a root that is `$HOME`, an ancestor of it or outside a git work tree exits 5 (not applicable).
+
+### Changed
+
+- `/planning:design`'s `## Next` now routes by outcome: the finished design to `/planning:design-handoff`, an undecided name to `/naming:name-it-better`, and a decision worth keeping to `/architecture:record-decision`.
+
+- The shared session's join dialog shows only its heading, the invite line, "What should everyone call you?", the name box and Join.
+- An unhandled server refusal on the shared session page is recorded by its error code and status only, never the server's message, which can quote what someone typed.
+
+- The interview skill's `context/surface.md` points to the surface README's Settings layers and Security model sections instead of restating them. The rules the session follows stay in the context file: the skill passes no `--user-settings` file, event text is data, and the surface is readable by other local users on a shared host (#8015).
+
+- Shared interview: the question screen is one column at every width: the question, its options, your answer, the answers, then "Claude on this question". The Answers | Claude tabs and side-by-side split are gone. The Claude section starts folded to a head with its new and running counts and opens by itself when Claude answered your request; opening it moves the page down and never covers the answers. Each Claude card reads "<Name> asked", the ask, a thin line, then Claude's answer at the same text size, and a running request shows its progress under "Claude". The Choose buttons on option cards now line up across a row, and an option with no picks says "No picks yet".
+
+- Upstream pointers in the plan template and `draft-goal-condition` are re-checked against the live docs and completed with an anchor, an as-of date and a recheck trigger; the restated agent-teams and `/goal` behavior they sat beside is replaced by our own decision. The `use_ask_user_question` option description no longer restates the per-call question limit; the skills' existing records point at it.
+
+- Shared interview: a request the host sends runs at once and its answer shows to everyone at once, with no Run or Share step. Guests' requests, including the host's own guest identity, still wait for Run and Share; a guest's Inbox reads "Answered, waiting for the host to share" until then.
+- Shared interview: the session file moves to schemaVersion 4, which records what each person opened in the Inbox. An older file is upgraded on load with every existing request marked read.
+
+- Shared interview sessions: a guest's Ask Claude has one box with no Ask, Research or Explore picker; Claude works out how to answer, and a "Use the web" chip sends the request as research. The owner keeps the picker.
+
+- Shared interview sessions: the host's Inbox "Waiting on you" lists every request to Claude, newest first, behind status chips (Waiting, Running, Failed, Not shared, Private, Shared) that the device remembers, with Run, Decline, Run again, Share and Take down on each row and a failed request's reason. It replaces the rail's Requests panel.
+
+- A Brief written before this release fails the interview's Step 4 heading check until it gains `### Problem` and `### Work size`.
+
+- The shared interview page's Inbox is now a full-screen page for everyone, with Needs you, My requests, Notifications and History tabs behind filter chips; every row opens where it happened and closes the page. Needs you shows what each role can act on now: a person's unread answers and the questions they are asked, a leader's proposals and suggestions to place, and everything that waits on the owner.
+- The owner's pop-ups are only for a join, a request waiting for Run and a problem report by default, with Pop-ups switches at the top of the owner's Notifications tab to change which kinds pop up; pop-ups arriving together collapse into one with a count and Open Inbox, and drop items that stopped waiting; such a pop-up stays until it is closed or opened.
+
+- With no `--root`, `resolve-convention-home.sh` reads the git toplevel of `CLAUDE_PROJECT_DIR` (else of the current directory): one home per git root.
+
+### Fixed
+
+- The interview, plan, PRD and design skills state each settings token once with an inline fallback ("unexpanded or empty means off") and refer to the setting afterwards, so an unexpanded token is no longer read as a true condition.
+
+- The `/planning:interview` page now meets its contrast and touch-target targets in the light theme (#7755): Notes timestamps and separator dots on Claude's note, and the "Rec" label in the selected Decide row, reach 4.5:1; at phone width Save, Ask Claude, Rephrase, Research this, Clear and each Decide row are at least 44 px tall. The "Open in To confirm" button now reads "Review commitments to confirm" and the carry chip reads "asked N rounds ago, unanswered". A Show filter opens an untouched group that holds a match, and the Pending filter's empty state says what Pending means.
+
+- Interview page header now shows the live and archived question counts as visible text beside the ids (#7758), so a session that reached Q128 with 49 live questions no longer reads as 128 questions.
+
+- A superseding interview question that reuses its predecessor's short title is refused, the "Recommendation revised" banner labels the reason as Claude's, and a duplicate-id refusal says nothing was written (#7754).
+
+- Shared interview on a phone: the avatars of who else is on the question sit in the question's top row, before the arrows, in a slot kept whether anyone is there or not, so presence arriving after the first render no longer pushes the question and the answer box down by a row; wider screens keep the row under the question.
+
+- The interview page's note placeholder, input and choice borders, section labels and header controls are easier to read and hit: the placeholder uses the muted text color, input and choice borders meet 3:1 in both themes, legends, panel titles and table headers drop the small uppercase mono style, header buttons are at least 24px tall, and Pin is hidden at phone width. (#8016)
+
+- The interview page now escapes every interpolated value in its HTML builders: the decision and state class names on the status chips, the revision number in the changed-since-confirmed line, and the source layer on the Settings rows no longer reach the markup raw. Audited all 31 `innerHTML` sites; the rest already passed through `esc()` or were constant markup.
+
+- The shared session page's layout check waits for a running animation to end, so the chat button's bump on a phone no longer logs a false overflow, and the browser and alignment tests wait for the state they check instead of fixed pauses, post their list setup in order and retry a spare port another process took first.
+
+- `/planning:design-handoff` now tests each resolved decision against the three ADR criteria (costly to undo, not obvious from the code, chosen over a live alternative) with pass or fail and one line of evidence each. It lists only decisions that pass all three, accepts "None", and names each decision that fails on a separate "Not candidates" line with the criterion it fails. Two evals cover one ADR-worthy decision among routine ones, and none.
+
+- The plan outcome gate and the plan reviewer check the Brief's real sections: every Acceptance criterion maps to at least one phase, and no phase does work the Brief lists as Out-of-scope. They no longer ask for a "scope-item" mapping the Brief has no list for.
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- Shared interview: pressing Run or Run all shown on the request queue shows the started requests as running at once and hides Run all while nothing waits; a refused run puts them back and says why. A single Run works again: it was sent without the ids the session needs.
+
+- A recommendation that asks the user something ("Also tell me which rung you intend") now draws a warning from `round.py` `add`, `add-round`, `apply` and `revise --rec`, and the interview surface rules forbid it: Accept settles only the headline, so a second question belongs in its own question. The write is never refused.
+
+- The session bridge's channel policy reader now reads the macOS managed preferences and the Windows HKLM registry policy, falls back to the loopback transport when one exists but cannot be read, and combines lists and merges nested blocks across managed-settings drop-ins.
+
+- `/planning:setup --check` and `apply` no longer stop with "Cannot read properties of undefined" on a repository file that sets `shared_session`; they check its nested keys against the schema, and validate string settings by their `minLength`, `maxLength` and `pattern`.
+
+- Shared interview: on phones the Claude section's expand arrow stays on the title's line when its counts wrap.
+
+- `/planning:design-handoff`: a failed gate opens its reply with the `Gate: FAIL` verdict and the coverage table before routing back to `/planning:design`, so the design round no longer replaces the verdict.
+
+- The interview `round.sh` CLI: `--dir` is accepted after every subcommand, as the help says; `status`, `lease`, `doctor` and `validate` take `--json` (the text output is unchanged); `round.sh` skips an interpreter below Python 3 and exits 2 with its missing-prerequisite message when none is left; `ensure-running --open` prints one stderr line when no browser opens; help carries examples and `apply --help` lists the op names.
+
+- `/planning:interview` page surface (#7749): a question whose `facts` open with a Source quote shows it open under a "Source text" heading above the recommendation, not collapsed under Details. A stored toggle choice still holds; a question without a leading quote renders as before.
+
+- Shared `watch.sh` synced: the control token reaches curl on stdin (`-H @-`), so it is in no process's argv.
+- Shared `session_bridge.py` synced: on Windows the control server refuses address reuse and binds with `SO_EXCLUSIVEADDRUSE`.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+- The owner's Inbox no longer lists requests the owner discarded or cancelled, or problem reports already asked about, as waiting; a request Claude failed waits only until the owner opens it, and again if it fails again. Session files move to schema version 6, which marks earlier discards cancelled and starts earlier failures read.
+
+- Plan close-out's spec-container label fallback now accepts only an item whose body carries the `**Execution shape:**` line decompose appends to every container, so a wayfind map sharing the `work-map` label is skipped and named in the report instead of adopted (#7993).
+
+- A `CLAUDE.md` symlinked to `AGENTS.md`, or the reverse, no longer prints a `duplicate:` notice.
+
+## [0.76.0] - 2026-10-18
+
+### Added
+
+- `round.sh export-ledger --recap --out F` writes the interview confirmation gate's compact recap: one `Q<N> <status>: <question> (<answer>)` line per live question, every withdrawn row collapsed into one `Withdrawn (N): ...` line, and long answers cut until the recap fits the 20,000-character restate cap, so a long interview's recap no longer needs hand-trimming before `restate`. `context/surface.md` Confirmation gate names this form.
+
+- `round.sh lease --takeover` hands an interview over after `/clear`: one command releases the old session's lease and arms `watch.sh` for the new one. `surface.md` documents it for the after-`/clear` case.
+
+### Changed
+
+- A watcher whose lease was released while it waited exits 3 with a message starting `handed over, not a failure`, so a displaced watcher reads as a handover.
+
+### Fixed
+
+- The interview page's header keeps "Claude is working on Q99, Q1" visible while a `set-status` text is set. The working text is its own polite live region beside the status and lists every pending id instead of "(+N)". A status set before the newest unhandled user event shows dimmed, with its age still visible.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.75.1] - 2026-10-16
 
 ### Changed

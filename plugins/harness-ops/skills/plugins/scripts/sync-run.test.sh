@@ -125,6 +125,22 @@ case "$verb" in
     echo "${id%@*} is already at the latest version ($cur)."
     exit 0
   fi
+  # CLAUDE_STUB_CONCURRENT_IDS: something else already moved these ids since the
+  # run's last read, so the CLI says they are current at the version that move
+  # wrote, CLAUDE_STUB_CONCURRENT_VERSION (a different version from the installed
+  # one), and this call writes nothing.
+  case " ${CLAUDE_STUB_CONCURRENT_IDS:-} " in
+  *" $id "*)
+    moved_to="${CLAUDE_STUB_CONCURRENT_VERSION:-9.9.9}"
+    jq --arg id "$id" --arg sc "$scope" --arg v "$moved_to" \
+      '.plugins[$id] = [.plugins[$id][] | if .scope == $sc then .version = $v else . end]' \
+      "$CLAUDE_STUB_INSTALLED_JSON" >"$CLAUDE_STUB_INSTALLED_JSON.next" &&
+      mv "$CLAUDE_STUB_INSTALLED_JSON.next" "$CLAUDE_STUB_INSTALLED_JSON"
+    echo "${id%@*} is already at the latest version ($moved_to)."
+    exit 0
+    ;;
+  *) ;;
+  esac
   new="${CLAUDE_STUB_NEW_VERSION:-9.9.9}"
   # CLAUDE_STUB_MISFIRE_PATH: the CLI moves only the record keyed to that path,
   # as it did to a sibling worktree's record, whatever the cwd.
@@ -814,6 +830,49 @@ assert_contains "misfire: the reason names the sibling worktree's path" \
   "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "updated \"$sibling\" instead"
 
 # ============================================================================
+# Case: the CLI says "already at the latest version" for a project record that
+# is still below the catalog (a linked worktree, #6713). That is a failure, not
+# a quiet no-op; a record already at the catalog stays a no-op.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+catalog_plugin "$case_dir" market1 beta 0.2.0
+ppath=$(norm_path "$case_dir")
+printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/.git"
+mkdir -p "$case_dir/main/.git/worktrees/wt"
+printf '../..\n' >"$case_dir/main/.git/worktrees/wt/commondir"
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"project\", \"projectPath\": \"$ppath\", \"installPath\": \"a\", \"version\": \"0.1.0\"}
+    ],
+    \"beta@market1\": [
+      {\"scope\": \"project\", \"projectPath\": \"$ppath\", \"installPath\": \"b\", \"version\": \"0.2.0\"}
+    ]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID="alpha@market1")
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "no-op update: a lagging record is a failed row" "alpha@market1" \
+  "$(jq -r '.marketplaces[0].in_repo.failed[0].id' <<<"$out")"
+assert_eq "no-op update: it is not an Updated row" "0" \
+  "$(jq -r '[.marketplaces[0].in_repo.updated[] | select(.id == "alpha@market1")] | length' <<<"$out")"
+assert_contains "no-op update: the reason names the record's version and the catalog's" \
+  "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "still at 0.1.0 and the catalog reads 0.2.0"
+assert_contains "no-op update: a linked worktree carries the uninstall label" \
+  "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "update ineffective; uninstall clears it"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID="beta@market1")
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal2")
+assert_eq "no-op update: a record already at the catalog is not a failure" "0" \
+  "$(jq -r '[.marketplaces[0].in_repo.failed[] | select(.id == "beta@market1")] | length' <<<"$out")"
+
+# ============================================================================
 # Case: an in-repo record for the plugin providing this skill is a self-update
 # too, and the stale-project-record rows carry a count PER PATH
 # ============================================================================
@@ -864,6 +923,39 @@ assert_eq "stale project records: and the single-record path reads 1" "1" \
 # An absent path is not "here": those records must not inflate the In-repo row.
 assert_eq "stale project records: they are not counted as in-repo records" "1" \
   "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
+
+# ============================================================================
+# Case: a project record keyed to a user home is not a divergence. The user-scope
+# sweep moves alpha to 0.2.0 and leaves the home-keyed record at 0.1.0, which
+# would be one actionable divergence were that record a project. It is reported
+# in its own digest field instead.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1": [
+      {"scope": "user", "installPath": "a", "version": "0.1.0"},
+      {"scope": "project", "projectPath": "/mnt/c/Users/someone", "installPath": "a", "version": "0.1.0"}
+    ]
+  }
+}'
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.2.0)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "user-home record: the sweep moved the user-scope record" "alpha@market1" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated[0].id // empty' <<<"$out")"
+assert_eq "user-home record: the skew it leaves is not an actionable divergence" "0" \
+  "$(jq -r '.marketplaces[0].divergences.post' <<<"$out")"
+assert_eq "user-home record: the digest counts the record" "1" \
+  "$(jq -r '.marketplaces[0].user_home_records.total' <<<"$out")"
+assert_eq "user-home record: and names its path" "/mnt/c/Users/someone" \
+  "$(jq -r '.marketplaces[0].user_home_records.paths[0]' <<<"$out")"
 
 # ============================================================================
 # Case: the digest carries per-step timings from a clock ladder. The same
@@ -1129,6 +1221,115 @@ assert_eq "render self-update: the digest names this plugin's own row" \
   "$(jq -c '.marketplaces[0].self_update' <<<"$REPORT_DIGEST")"
 assert_golden "render self-update: the note names this plugin" self-update-not-first.txt "$REPORT_TEXT"
 
+# --- an id the CLI calls current while the snapshots show it moved -------------
+# The stub prints "already at the latest version (X)" for alpha after something
+# else moved it. X differs from the mid snapshot's version, so the id is a
+# moved-during-run row, not a noop; the same line with X equal to the installed
+# version is a true noop.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.2.0 0.1.0 true
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_CONCURRENT_IDS=alpha@market1 CLAUDE_STUB_CONCURRENT_VERSION=0.2.0 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_exit "moved during run: exit 0" 0 $?
+assert_eq "moved during run: the id is a moved row with old to new" \
+  '[{"id":"alpha@market1","scope":"user","kind":"user_sweep","old":"0.1.0","new":"0.2.0","direction":"forward"}]' \
+  "$(jq -c '.marketplaces[0].moved_during_run' <<<"$out")"
+assert_eq "moved during run: it is not an Updated row" "0" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated | length' <<<"$out")"
+assert_eq "moved during run: it is not counted as unverified" "0" \
+  "$(jq -r '.marketplaces[0].noop_unverified' <<<"$out")"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.2.0 0.1.0 true
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_exit "true noop: exit 0" 0 $?
+assert_eq "true noop: a printed version equal to the old one makes no row" "0" \
+  "$(jq -r '.marketplaces[0].moved_during_run | length' <<<"$out")"
+assert_eq "true noop: and nothing is unverified" "0" \
+  "$(jq -r '.marketplaces[0].noop_unverified' <<<"$out")"
+assert_eq "true noop: and nothing is updated" "0" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated | length' <<<"$out")"
+
+# A concurrent move to a LOWER version lands under Downgraded, flagged.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.3.0 0.2.0 true
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_CONCURRENT_IDS=alpha@market1 CLAUDE_STUB_CONCURRENT_VERSION=0.1.0 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+assert_exit "moved backward: exit 0" 0 "$REPORT_RC"
+assert_eq "moved backward: the downgraded row carries the concurrent flag" \
+  '[{"id":"alpha@market1","scope":"user","old":"0.2.0","new":"0.1.0","concurrent":true}]' \
+  "$(jq -c '.marketplaces[0].downgraded' <<<"$REPORT_DIGEST")"
+assert_contains "moved backward: the report qualifies the downgrade" "$REPORT_TEXT" \
+  "  - alpha@market1 (user): 0.2.0 → 0.1.0 (moved during this run)"
+
+# A snapshot version that cannot be read leaves the id a noop and counts it.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.2.0 0.1.0 true
+# shellcheck disable=SC2016  # the stub body is literal script text, expanded when the stub runs
+write "$case_dir/stubs/claude-unreadable" '#!/usr/bin/env bash
+if [[ "${1:-} ${2:-}" == "plugin update" ]]; then
+  echo "alpha is already at the latest version (0.2.0)."
+  # The id leaves the install records after the call, so the post read has no version.
+  printf %s "{\"version\":1,\"plugins\":{}}" >"$CLAUDE_STUB_INSTALLED_JSON"
+  exit 0
+fi
+exec "$(dirname "$0")/claude" "$@"
+'
+chmod +x "$case_dir/stubs/claude-unreadable"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" SYNC_RUN_CLAUDE_BIN="$case_dir/stubs/claude-unreadable" CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_exit "unverified noop: exit 0" 0 $?
+assert_eq "unverified noop: no moved row is invented" "0" \
+  "$(jq -r '.marketplaces[0].moved_during_run | length' <<<"$out")"
+assert_eq "unverified noop: the id is counted as unverified" "1" \
+  "$(jq -r '.marketplaces[0].noop_unverified' <<<"$out")"
+
+# --- this plugin's own install moved during the run -----------------------------
+# zeta is the plugin running the sync. The CLI calls it current, but its install
+# moved on disk: the flag is set and the note names zeta, not the first moved row.
+# beta is updated by the sweep and alpha moved during the run, each with a project
+# record elsewhere, so each creates a new divergence: the split credits the sweep
+# for beta and the concurrent move for alpha.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+catalog_plugin "$case_dir" market1 beta 0.2.0
+catalog_plugin "$case_dir" market1 zeta 0.2.0
+mkdir -p "$case_dir/self/.claude-plugin" "$case_dir/other"
+write "$case_dir/self/.claude-plugin/plugin.json" '{"name":"zeta","version":"0.1.0"}'
+other=$(norm_path "$case_dir/other")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$other\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"}],
+    \"beta@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/beta\", \"version\": \"0.1.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$other\", \"installPath\": \"$case_dir/cache/beta\", \"version\": \"0.1.0\"}],
+    \"zeta@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/zeta\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}, {"name": "zeta", "source": "zeta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true, "zeta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_PLUGIN_ROOT="$case_dir/self" CLAUDE_STUB_NEW_VERSION=0.2.0
+  CLAUDE_STUB_CONCURRENT_IDS="alpha@market1 zeta@market1" CLAUDE_STUB_CONCURRENT_VERSION=0.2.0 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+assert_exit "moved self: exit 0" 0 "$REPORT_RC"
+assert_eq "moved self: the flag is set" "true" "$(jq -r '.marketplaces[0].self_updated' <<<"$REPORT_DIGEST")"
+assert_eq "moved self: the digest names this plugin's own row" \
+  '{"id":"zeta@market1","scope":"user","old":"0.1.0","new":"0.2.0"}' \
+  "$(jq -c '.marketplaces[0].self_update' <<<"$REPORT_DIGEST")"
+assert_eq "moved self: the divergence split credits concurrent and sweep separately" \
+  '{"in_repo":0,"user_sweep":1,"concurrent":1}' \
+  "$(jq -c '.marketplaces[0].divergences.new_by_interval' <<<"$REPORT_DIGEST")"
+assert_golden "render moved during run: moved rows, self-update note and the split's own cause" moved-during-run.txt "$REPORT_TEXT"
+
 # --- stale project records plus a cache-content finding ----------------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1184,10 +1385,10 @@ setup_case "$case_dir"
 EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
 report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
 stale_run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
-stale_section=$(printf '%s\n' "$REPORT_TEXT" | sed -n '/^Stale project records:/,/^[^ ]/p' | sed '$d')
+stale_section=$(printf '%s\n' "$REPORT_TEXT" | sed -n '/^Stale project records (market1):/,/^[^ ]/p' | sed '$d')
 assert_exit "stale many: exit 0" 0 "$REPORT_RC"
-assert_contains "stale many: the header counts every record and every path" "$REPORT_TEXT" \
-  "Stale project records: 18 record(s) across 14 path(s) not present on this machine"
+assert_contains "stale many: the header names the marketplace and counts every record and path" "$REPORT_TEXT" \
+  "Stale project records (market1): 18 record(s) across 14 path(s) not present on this machine"
 assert_contains "stale many: the largest parent leads, with its record and path counts" "$stale_section" \
   $'  - <case>/g01/: 6 record(s) across 3 path(s)\n  - <case>/g02/: 2 record(s) across 1 path(s)\n  - <case>/g03/: 1 record(s) across 1 path(s)'
 assert_eq "stale many: ten parent rows are printed" "10" "$(grep -c '^  - ' <<<"$stale_section")"
@@ -1208,7 +1409,7 @@ assert_eq "stale many: the printed digest carries no per-path array" "false" \
 # Audit's scratch directory is removed on exit, so the render names no file there.
 report_of "$case_dir" --marketplace market1 --audit --install-new none
 assert_contains "stale many audit: the header still counts every record" "$REPORT_TEXT" \
-  "Stale project records: 18 record(s) across 14 path(s) not present on this machine"
+  "Stale project records (market1): 18 record(s) across 14 path(s) not present on this machine"
 assert_contains "stale many audit: the render says the full list is not kept" "$REPORT_TEXT" \
   "  Full per-path list: not kept, the audit scratch directory is removed on exit"
 
@@ -1329,17 +1530,195 @@ assert_contains "stale render: a sync run with no list file says it was not writ
 stale_legacy='{"stale_project_records":{"total":3,"by_path":[{"path":"/g/a","count":2},{"path":"/h/b","count":1}]}}'
 assert_contains "stale render: a pre-3.8.1 digest still renders its per-path rows" \
   "$(needs_digest sync "$stale_legacy" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
-  $'Stale project records: 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'
+  $'Stale project records (m): 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'
 # Every absent record local-scope: the worktree audit has nothing to classify, so no pointer.
-stale_local_only='{"stale_project_records":{"total":2,"paths":1,"project":0,"by_parent":[{"parent":"/g/","count":2,"paths":1}],"more_parents":0,"list_file":null}}'
+stale_local_only='{"stale_project_records":{"total":2,"paths":1,"project":0,"local":2,"by_parent":[{"parent":"/g/","count":2,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_not_contains "stale render: local-scope records only name no worktree audit" \
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "/source-control:worktree audit"
+assert_contains "stale render: local-scope records are counted and named as unreaped" \
+  "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" \
+  "  Of these, 2 local-scope record(s); nothing reaps them yet."
+# Records keyed to a user home get their own row, and a digest with none omits it.
+assert_contains "user-home render: the records get a row of their own" \
+  "$(needs_digest sync '{"user_home_records":{"total":1,"paths":["/mnt/c/Users/someone"]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
+  $'User-home project records: 1 record(s) keyed to a user home directory\n  - /mnt/c/Users/someone'
+assert_not_contains "user-home render: no records, no row" \
+  "$(needs_digest sync '{"user_home_records":{"total":0,"paths":[]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")" "User-home project records"
 needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 # A digest written before `self_update` existed: the note names no plugin rather
 # than the first moved row.
 assert_contains "self-update render: a digest without the row names no plugin" \
   "$(needs_digest sync '{"self_updated":true,"user_sweep":{"updated":[{"id":"a@m","scope":"user","old":"1","new":"2"}]}}' |
-    jq -r -f "$SCRIPT_DIR/render-report.jq")" "Note: this run updated this plugin. The algorithm"
+    jq -r -f "$SCRIPT_DIR/render-report.jq")" "Note: this plugin moved during this run. The algorithm"
+
+# --- the Divergences row splits its count by what can be done about each part --
+# Rendered straight from a digest. Each fixture carries the attribution fields the
+# row has always read, so only the split decides the text.
+div_row_of() {
+  needs_digest sync "$1" | jq -r -f "$SCRIPT_DIR/render-report.jq" | grep '^Divergences:' || true
+}
+div_attr='"pre_existing":4,"new_total":1,"new_by_interval":{"in_repo":1,"user_sweep":0}'
+# All actionable, a project resolved: converge is the only pointer.
+div_row=$(div_row_of "{\"project_root\":\"/w\",\"divergences\":{\"post\":5,$div_attr,\"actionable_here\":2,\"actionable_elsewhere\":3,\"in_worktrees\":0,\"blocked\":0}}")
+# shellcheck disable=SC2016  # the backticks are literal report text
+assert_eq "divergences split: all actionable points at converge only" \
+  'Divergences: 2 actionable here, 3 actionable elsewhere on this machine → run `/harness-ops:plugins converge` (of 5 in all: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep))' \
+  "$div_row"
+assert_not_contains "divergences split: all actionable has no worktree pointer" "$div_row" "/source-control:worktree"
+assert_not_contains "divergences split: all actionable has no blocked part" "$div_row" "blocked"
+# Mixed: three parts, and converge is named once, on the actionable part.
+div_row=$(div_row_of "{\"divergences\":{\"post\":10,$div_attr,\"actionable_here\":0,\"actionable_elsewhere\":2,\"in_worktrees\":3,\"blocked\":5}}")
+# shellcheck disable=SC2016  # the backticks are literal report text
+assert_eq "divergences split: mixed names each non-zero part" \
+  'Divergences: 2 actionable elsewhere on this machine → run `/harness-ops:plugins converge`; 3 in linked worktrees → remove the worktree; /source-control:worktree audit (if installed) classifies them; 5 blocked, path not present → see Stale project records below (of 10 in all: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep))' \
+  "$div_row"
+assert_eq "divergences split: mixed points at converge exactly once" "1" "$(grep -o 'plugins converge' <<<"$div_row" | wc -l | tr -d ' ')"
+# Only blocked: no converge pointer at all.
+div_row=$(div_row_of "{\"divergences\":{\"post\":7,$div_attr,\"actionable_here\":0,\"actionable_elsewhere\":0,\"in_worktrees\":0,\"blocked\":7}}")
+assert_eq "divergences split: only blocked names the stale-records note" \
+  'Divergences: 7 blocked, path not present → see Stale project records below (of 7 in all: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep))' \
+  "$div_row"
+assert_not_contains "divergences split: only blocked has no converge pointer" "$div_row" "converge"
+# A digest written before the split: the text it always rendered.
+div_old="\"post\":5,$div_attr"
+# shellcheck disable=SC2016  # the backticks are literal report text
+assert_eq "divergences split: an old digest without split fields renders as before" \
+  'Divergences: 5 actionable: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep) → run `/harness-ops:plugins converge`' \
+  "$(div_row_of "{\"divergences\":{$div_old}}")"
+# shellcheck disable=SC2016  # the backticks are literal report text
+assert_eq "divergences split: an old digest with a project leads with the here count" \
+  'Divergences: 2 behind here → run `/harness-ops:plugins converge`; on this whole machine 5 actionable: 4 pre-existing, 1 newly created by this run (1 by the in-repo update, 0 by the user-scope sweep)' \
+  "$(div_row_of "{\"project_root\":\"/w\",\"divergences_here\":2,\"divergences\":{$div_old}}")"
+assert_eq "divergences split: zero stays zero" 'Divergences: 0 actionable' \
+  "$(div_row_of '{"divergences":{"post":0,"actionable_here":0,"actionable_elsewhere":0,"in_worktrees":0,"blocked":0}}')"
+
+# --- the split computed from a real fleet ---------------------------------------
+# alpha carries one pin per class beside its user record, all behind the user
+# version: a plain directory (actionable), a linked worktree (.git is a file naming
+# a /worktrees/ entry), and a path that is not present (blocked). beta is pinned
+# only in the worktree, gamma only in the missing path, and delta's pin is a
+# directory holding a submodule-style .git file, which is not a worktree.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+for name in alpha beta gamma delta epsilon zeta; do catalog_plugin "$case_dir" market1 "$name" 0.2.0; done
+mkdir -p "$case_dir/plain/.git" "$case_dir/wt" "$case_dir/sub" "$case_dir/sep" "$case_dir/current"
+printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/wt/.git"
+printf 'gitdir: ../.git/modules/sub\n' >"$case_dir/sub/.git"
+printf 'gitdir: %s/worktrees/sep.git\n' "$case_dir" >"$case_dir/sep/.git"
+p_plain=$(norm_path "$case_dir/plain")
+p_wt=$(norm_path "$case_dir/wt")
+p_sub=$(norm_path "$case_dir/sub")
+p_gone=$(norm_path "$case_dir/gone")
+p_sep=$(norm_path "$case_dir/sep")
+p_current=$(norm_path "$case_dir/current")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_plain\", \"installPath\": \"a\", \"version\": \"0.1.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_wt\", \"installPath\": \"a\", \"version\": \"0.1.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_gone\", \"installPath\": \"a\", \"version\": \"0.1.0\"}],
+    \"beta@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"b\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_wt\", \"installPath\": \"b\", \"version\": \"0.1.0\"}],
+    \"gamma@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"g\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_gone\", \"installPath\": \"g\", \"version\": \"0.1.0\"}],
+    \"delta@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"d\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_sub\", \"installPath\": \"d\", \"version\": \"0.1.0\"}],
+    \"epsilon@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"e\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_sep\", \"installPath\": \"e\", \"version\": \"0.1.0\"}],
+    \"zeta@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"z\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_current\", \"installPath\": \"z\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_gone\", \"installPath\": \"z\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}, {"name": "gamma", "source": "gamma"}, {"name": "delta", "source": "delta"}, {"name": "epsilon", "source": "epsilon"}, {"name": "zeta", "source": "zeta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true, "gamma@market1": true, "delta@market1": true, "epsilon@market1": true, "zeta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir/plain" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --audit --install-new none
+assert_exit "divergences real: exit 0" 0 "$REPORT_RC"
+assert_eq "divergences real: the digest splits the four rows by class" \
+  '{"post":6,"actionable_here":1,"actionable_elsewhere":2,"in_worktrees":1,"blocked":2}' \
+  "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
+assert_contains "divergences real: the row names the worktree part" "$REPORT_TEXT" \
+  "1 in linked worktrees → remove the worktree; /source-control:worktree audit (if installed) classifies them"
+assert_contains "divergences real: the row names the blocked part" "$REPORT_TEXT" \
+  "2 blocked, path not present → see Stale project records below"
+# delta (a submodule .git file), epsilon (a separate git dir under a directory
+# named worktrees) are plain checkouts; zeta's present pin already sits at the
+# highest version, so only its absent pin is the skew and the row is blocked.
+
+# The run stands in a linked worktree whose own pin is skewed: that pin is
+# converge-actionable here, never classed `worktree`, while a sibling worktree's
+# skewed pin in the same fleet stays `worktree`.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+for name in alpha beta; do catalog_plugin "$case_dir" market1 "$name" 0.2.0; done
+mkdir -p "$case_dir/wt" "$case_dir/wt2"
+printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/wt/.git"
+printf 'gitdir: %s/main/.git/worktrees/wt2\n' "$case_dir" >"$case_dir/wt2/.git"
+p_wt=$(norm_path "$case_dir/wt")
+p_wt2=$(norm_path "$case_dir/wt2")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_wt\", \"installPath\": \"a\", \"version\": \"0.1.0\"}],
+    \"beta@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"b\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_wt2\", \"installPath\": \"b\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir/wt" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --audit --install-new none
+assert_exit "divergences current worktree: exit 0" 0 "$REPORT_RC"
+assert_eq "divergences current worktree: its own pin is actionable here, the sibling's stays a worktree" \
+  '{"post":2,"actionable_here":1,"actionable_elsewhere":0,"in_worktrees":1,"blocked":0}' \
+  "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
+
+# A pin keyed to a user home is in no class. beta's skew exists only because of
+# its home pin, so the row is not counted; alpha's home pin is present and not a
+# worktree, yet only its absent pin classes the row, so it is blocked.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+for name in alpha beta; do catalog_plugin "$case_dir" market1 "$name" 0.2.0; done
+mkdir -p "$case_dir/home"
+p_home=$(norm_path "$case_dir/home")
+p_gone=$(norm_path "$case_dir/gone")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_home\", \"installPath\": \"a\", \"version\": \"0.1.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_gone\", \"installPath\": \"a\", \"version\": \"0.1.0\"}],
+    \"beta@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"b\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_home\", \"installPath\": \"b\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(HOME="$p_home" CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --audit --install-new none
+assert_exit "divergences user home: exit 0" 0 "$REPORT_RC"
+assert_eq "divergences user home: a home pin neither counts a row nor makes one actionable" \
+  '{"post":1,"actionable_here":0,"actionable_elsewhere":0,"in_worktrees":0,"blocked":1}' \
+  "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
 
 # --- an install that left userConfig options unset ---------------------------
 CASE_NUM=$((CASE_NUM + 1))
@@ -1593,19 +1972,23 @@ case_dir=$(new_case_dir)
 nojq_bin="$case_dir/nojq-bin"
 mkdir -p "$nojq_bin"
 for tool in bash cat dirname date; do
-  ln -s "$(command -v "$tool")" "$nojq_bin/$tool"
+  ln -s "$(command -v "$tool")" "$nojq_bin/$tool" 2>/dev/null
 done
-out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --help 2>&1)
-rc=$?
-assert_exit "--help without jq: exit 0" 0 "$rc"
-assert_contains "--help lists the exit codes" "$out" "Exit: 0 the run completed"
-out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --nonsense 2>&1)
-rc=$?
-assert_exit "usage error without jq: exit 2" 2 "$rc"
-out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --marketplace market1 --journal-root "$case_dir/j" 2>&1)
-rc=$?
-assert_exit "run without jq: exit 2" 2 "$rc"
-assert_contains "run without jq: actionable notice" "$out" "jq required"
+if [[ -L "$nojq_bin/bash" ]] && [[ "$(env PATH="$nojq_bin" "$nojq_bin/bash" -c 'echo ok' 2>/dev/null)" == "ok" ]]; then
+  out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --help 2>&1)
+  rc=$?
+  assert_exit "--help without jq: exit 0" 0 "$rc"
+  assert_contains "--help lists the exit codes" "$out" "Exit: 0 the run completed"
+  out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --nonsense 2>&1)
+  rc=$?
+  assert_exit "usage error without jq: exit 2" 2 "$rc"
+  out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --marketplace market1 --journal-root "$case_dir/j" 2>&1)
+  rc=$?
+  assert_exit "run without jq: exit 2" 2 "$rc"
+  assert_contains "run without jq: actionable notice" "$out" "jq required"
+else
+  printf 'SKIP: no-jq cases — ln -s cannot make a runnable link on this host (Windows without the symlink privilege)\n' >&2
+fi
 
 # ============================================================================
 # Case: version_direction reads every segment in base 10
@@ -1951,6 +2334,57 @@ assert_contains "audit remedies: the git pull remedy is unprefixed" "$remedy_tex
   "and the catalog is read from it as it is: run \`git -C '/src' pull --ff-only\`"
 assert_contains "audit remedies: the project-scope enable remedy is unprefixed" "$remedy_text" \
   "  - project-scope enable gap: (cd \"/w/repo\" && claude plugin enable p@m -s project)"
+
+# ============================================================================
+# Case: audit, in-repo record of a marketplace whose directory source is the
+# repo the run stands in: read live, so no update is predicted. A git-sourced
+# marketplace with the same record still predicts one.
+# ============================================================================
+for self_source in directory github; do
+  CASE_NUM=$((CASE_NUM + 1))
+  case_dir=$(new_case_dir)
+  catalog_plugin "$case_dir" market1 alpha 0.2.0
+  proj=$(norm_path "$case_dir")
+  src_path="$case_dir"
+  command -v cygpath >/dev/null 2>&1 && src_path=$(cygpath -w "$src_path")
+  write "$case_dir/installed_plugins.json" "{
+    \"version\": 1,
+    \"plugins\": {\"alpha@market1\": [{\"scope\": \"project\", \"projectPath\": \"$proj\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"}]}
+  }"
+  if [[ "$self_source" == directory ]]; then
+    write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"directory\", \"path\": \"${src_path//\\/\\\\}\"}, \"installLocation\": \"${src_path//\\/\\\\}\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+  else
+    write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+  fi
+  write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+  write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+  setup_case "$case_dir"
+  EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CC_STUB_CLEAN=1)
+  report_of "$case_dir" --marketplace market1 --audit --install-new none
+  assert_exit "self-sourced audit ($self_source): exit 0" 0 "$REPORT_RC"
+  assert_eq "self-sourced audit ($self_source): no update is issued" "0" \
+    "$(grep -c 'plugin update' "$case_dir/claude.log" || true)"
+  if [[ "$self_source" == directory ]]; then
+    assert_eq "self-sourced audit (directory): nothing in would_update" "0" \
+      "$(jq -r '.marketplaces[0].in_repo.would_update | length' <<<"$REPORT_DIGEST")"
+    assert_eq "self-sourced audit (directory): the record is reported as read live" \
+      '[{"id":"alpha@market1","scope":"project","installed":"0.1.0"}]' \
+      "$(jq -c '[.marketplaces[0].in_repo.live_read[] | del(.path)]' <<<"$REPORT_DIGEST")"
+    assert_contains "self-sourced audit (directory): the report names the live read and the pin" "$REPORT_TEXT" \
+      "alpha@market1 (project): read live from"
+    assert_contains "self-sourced audit (directory): and the pinned version" "$REPORT_TEXT" \
+      "project record pinned at 0.1.0; the CLI will not update it"
+    assert_eq "self-sourced audit (directory): the report predicts no in-repo update" "0" \
+      "$(grep -c 'would run: claude plugin update alpha@market1 -s project' <<<"$REPORT_TEXT" || true)"
+  else
+    assert_eq "self-sourced audit (github): the update is still predicted" "1" \
+      "$(jq -r '.marketplaces[0].in_repo.would_update | length' <<<"$REPORT_DIGEST")"
+    assert_contains "self-sourced audit (github): the report says would run" "$REPORT_TEXT" \
+      "would run: claude plugin update alpha@market1 -s project (installed 0.1.0)"
+    assert_eq "self-sourced audit (github): no live read" "0" \
+      "$(jq -r '.marketplaces[0].in_repo.live_read | length' <<<"$REPORT_DIGEST")"
+  fi
+done
 
 # ============================================================================
 if ((FAILED > 0)); then

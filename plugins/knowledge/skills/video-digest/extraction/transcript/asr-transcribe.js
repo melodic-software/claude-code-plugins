@@ -19,7 +19,10 @@ import { spawnAsync } from "@melodic/video-digestion/shared/process";
 export const ASR_MODEL = "large-v3";
 export const ASR_BATCH_SIZE = 8;
 
-/** Interpreter candidates probed in order; first importable wins. */
+/** Child env var carrying the `asr_python` option (set by `run.mjs --asr-python`). */
+const ASR_PYTHON_ENV = "VIDEO_DIGEST_ASR_PYTHON";
+
+/** PATH interpreter candidates probed in order after any configured one; first importable wins. */
 const PYTHON_CANDIDATES = Object.freeze(["python", "python3", "py"]);
 
 const DETECT_ARGS = Object.freeze([
@@ -53,19 +56,23 @@ export function resetAsrDetectionCache() {
  */
 
 /**
- * Detect the optional ASR toolchain: the first Python interpreter on PATH that
- * imports `faster_whisper`. Cached per process (detection spawns interpreters).
+ * Detect the optional ASR toolchain: the first Python interpreter that imports
+ * `faster_whisper`. The interpreter named by `VIDEO_DIGEST_ASR_PYTHON` (the
+ * `asr_python` option) is probed before the PATH candidates. Cached per process
+ * (detection spawns interpreters).
  *
- * @param {{ spawn?: SpawnFn }} [deps]
+ * @param {{ spawn?: SpawnFn, env?: NodeJS.ProcessEnv }} [deps]
  * @returns {Promise<AsrDetection>}
  */
-export async function detectAsrCapability({ spawn = spawnAsync } = {}) {
+export async function detectAsrCapability({ spawn = spawnAsync, env = process.env } = {}) {
   if (cachedDetection) {
     return cachedDetection;
   }
+  const configured = env[ASR_PYTHON_ENV]?.trim();
+  const candidates = configured ? [configured, ...PYTHON_CANDIDATES] : PYTHON_CANDIDATES;
   /** @type {string[]} */
   const attempts = [];
-  for (const candidate of PYTHON_CANDIDATES) {
+  for (const candidate of candidates) {
     // spawnAsync never rejects — a spawn failure resolves success:false + error.
     const result = await spawn(candidate, [...DETECT_ARGS], { timeout: 30_000 });
     if (result.success) {

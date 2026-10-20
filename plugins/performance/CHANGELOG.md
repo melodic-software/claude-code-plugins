@@ -3,6 +3,29 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-10-20
+
+### Added
+
+- `/performance:go-faster`'s `how-you-work` area now reads `/session-flow:audit-sessions sweep-only`, invoked through the Skill tool, and records a candidate for each finding in the `audit-sessions.sweep/v1` envelope. Exit 3 (no store yet) reports `not-checked` and names `/session-flow:audit-sessions` as the step that creates the store, and a disabled session-flow reports `owner-unavailable`. The envelope's strings are read as data.
+- Two eval cases for the area: one reported from a sweep envelope, one for exit 3.
+
+### Changed
+
+- `go-faster-sweeper` agent points to the `/source-control:worktree` accepted-shapes heading instead of its own upstream pointer ([#5673](https://github.com/melodic-software/claude-code-plugins/issues/5673)).
+
+- The `how-you-work` eval expectation in the every-area case now expects the no-store reason instead of the old "cannot read yet" one.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [0.10.2] - 2026-10-18
+
+### Changed
+
+- The synced `lib/transcript_reader.py` copy gains `decode_line(line, stats)`, the one-line decode `iter_records` is now built on; `iter_records` behaves as before.
+
 ## [0.10.1] - 2026-10-16
 
 ### Changed

@@ -14,7 +14,20 @@
 #                              and cd to the top level; returns 1 outside a repo
 #   checks_files               NUL-separated paths to check, repo-relative
 #   checks_changed_lines       write "<path><TAB><start><TAB><end>" ranges of
-#                              added lines to $CHECKS_TMP/ranges
+#                              added lines to $CHECKS_TMP/ranges, none for a
+#                              file whose content is binary
+#   checks_file_text [--tip <sha>] <p> [<rev>]
+#                              <p> as the change holds it, on stdout: the
+#                              tip's blob (in pre-push with no tip, the tip of
+#                              the range <p> changed in), else the work tree in
+#                              worktree mode, else the index; returns 1,
+#                              printing nothing, when <p> is not a regular
+#                              file there (deleted, symlink, submodule)
+#   checks_regular_file [--tip <sha>] <p> [<rev>]
+#                              0 when <p> is a regular file in that place;
+#                              --tip names the tip when two pushed ranges
+#                              change the same path
+#   checks_has_nul <p> [<rev>] 0 when that content's first 8000 bytes hold a NUL
 #   checks_filter_findings     stdin "<path>:<line>: <message>" lines; prints
 #                              those inside a changed range
 #   checks_partly_staged <p>   0 when <p> has unstaged changes too
@@ -168,6 +181,74 @@ checks_diff() {
   esac
 }
 
+# checks_range_tip <path>: pre-push; prints the tip of the first pushed range
+# whose base-to-tip diff touches <path>, so a path is read from its own ref.
+checks_range_tip() {
+  local b l
+  while read -r b l; do
+    git diff --quiet "$b" "$l" -- ":(literal)$1" 2>/dev/null && continue
+    printf '%s' "$l"
+    return 0
+  done <"$CHECKS_TMP/push-ranges"
+  return 1
+}
+
+# checks_tip_arg: the shared "[--tip <sha>] <path> [<rev>]" parse; sets tip
+# and path. <rev> is the older spelling of --tip.
+checks_tip_arg() {
+  tip=""
+  if [[ "${1:-}" == --tip ]]; then
+    tip="$2"
+    shift 2
+  fi
+  path="$1"
+  [[ -n "$tip" ]] || tip="${2:-}"
+}
+
+# checks_regular_file [--tip <sha>] <path> [<rev>]: a regular file, not a
+# symlink or a submodule entry, where checks_file_text reads it: the tip's
+# tree, else the work tree in worktree mode, else the index. In pre-push with
+# no tip, the tip of the range that changed <path>, never the work tree.
+checks_regular_file() {
+  local tip path entry
+  checks_tip_arg "$@"
+  if [[ -z "$tip" ]]; then
+    case "$CHECKS_MODE" in
+    worktree)
+      [[ -f "$path" && ! -L "$path" ]]
+      return
+      ;;
+    pre-push) tip="$(checks_range_tip "$path")" || return 1 ;;
+    *)
+      entry="$(git ls-files -s -z -- ":(literal)$path" 2>/dev/null | tr -d '\0')"
+      [[ "$entry" == 100* && "${entry#*$'\t'}" == "$path" ]]
+      return
+      ;;
+    esac
+  fi
+  entry="$(git ls-tree -z "$tip" -- "$path" 2>/dev/null | tr -d '\0')"
+  [[ "$entry" == 100* && "${entry#*$'\t'}" == "$path" ]]
+}
+
+# checks_file_text [--tip <sha>] <path> [<rev>]: the content a check judges,
+# from the place checks_regular_file looks. A path that is not a regular file
+# there returns 1 with no output, so it is never judged as an empty file.
+checks_file_text() {
+  local tip path
+  checks_tip_arg "$@"
+  if [[ -z "$tip" && "$CHECKS_MODE" == pre-push ]]; then
+    tip="$(checks_range_tip "$path")" || return 1
+  fi
+  checks_regular_file --tip "$tip" "$path" || return 1
+  if [[ -n "$tip" ]]; then
+    git show "$tip:$path" 2>/dev/null
+  elif [[ "$CHECKS_MODE" == worktree ]]; then
+    cat -- "$path"
+  else
+    git show ":$path" 2>/dev/null
+  fi
+}
+
 checks_files() {
   checks_diff --name-only --diff-filter=ACMR -z
   if [[ "$CHECKS_MODE" == worktree ]]; then
@@ -178,10 +259,14 @@ checks_files() {
 # Hunk headers read "@@ -a[,b] +c[,d] @@"; d defaults to 1 and d=0 adds
 # nothing. Paths come from "+++ b/<path>", where git appends a tab to a name
 # holding a space; a name git still quotes is skipped.
+#
+# --text keeps a `-diff` attribute from hiding a text file's hunks, so a file
+# is dropped here instead when the content the change holds is binary
+# (checks_has_nul): no caller then sees ranges for it.
 checks_changed_lines() {
-  local out="$CHECKS_TMP/ranges"
-  : >"$out"
-  checks_diff -U0 --diff-filter=ACMR --src-prefix=a/ --dst-prefix=b/ 2>/dev/null |
+  local out="$CHECKS_TMP/ranges" raw="$CHECKS_TMP/ranges.raw"
+  : >"$raw"
+  checks_diff -U0 --text --diff-filter=ACMR --src-prefix=a/ --dst-prefix=b/ 2>/dev/null |
     awk '
       /^\+\+\+ / { path = substr($0, 5); sub(/\t$/, "", path); if (path ~ /^b\//) path = substr(path, 3); else path = ""; next }
       /^@@ / && path != "" {
@@ -189,13 +274,47 @@ checks_changed_lines() {
         start = substr(n[1], 2) + 0
         count = (n[2] == "") ? 1 : n[2] + 0
         if (count > 0) printf "%s\t%d\t%d\n", path, start, start + count - 1
-      }' >>"$out"
+      }' >>"$raw"
   if [[ "$CHECKS_MODE" == worktree ]]; then
     local f
     while IFS= read -r -d '' f; do
-      printf '%s\t1\t2147483647\n' "$f" >>"$out"
+      printf '%s\t1\t2147483647\n' "$f" >>"$raw"
     done < <(git ls-files --others --exclude-standard -z)
   fi
+  local p s e prev="" bin=0
+  : >"$out"
+  while IFS=$'\t' read -r p s e; do
+    if [[ "$p" != "$prev" ]]; then
+      prev="$p"
+      bin=0
+      checks_change_has_nul "$p" && bin=1
+    fi
+    ((bin)) || printf '%s\t%s\t%s\n' "$p" "$s" "$e" >>"$out"
+  done <"$raw"
+}
+
+# checks_has_nul <path> [<rev>]: 0 when the first 8000 bytes of
+# checks_file_text hold a NUL, the binary test git itself applies. The bytes
+# decide, never a `-diff` attribute. Builtins only: a check may run with a
+# PATH that holds little beyond git. read stops at the first NUL, so fewer
+# than 8000 bytes read without reaching the end means one was found.
+checks_has_nul() {
+  local LC_ALL=C chunk
+  IFS= read -r -d '' -n 8000 chunk < <(checks_file_text "$1" "${2:-}") && ((${#chunk} < 8000))
+}
+
+# checks_change_has_nul <path>: checks_has_nul against what is checked; on
+# pre-push, each pushed commit that holds <path>.
+checks_change_has_nul() {
+  [[ "$CHECKS_MODE" == pre-push ]] || {
+    checks_has_nul "$1"
+    return
+  }
+  local b l
+  while read -r b l; do
+    checks_has_nul "$1" "$l" && return 0
+  done <"$CHECKS_TMP/push-ranges"
+  return 1
 }
 
 checks_filter_findings() {

@@ -120,6 +120,9 @@ def block($d):
          "In-repo: \(.in_repo.updated | length) project/local install(s) updated in \(.project_root)"
        end),
 
+      ((.in_repo.live_read // [])[] |
+         "  \(.id) (\(.scope)): read live from \(.path); project record pinned at \(.installed); the CLI will not update it (remove and re-add the project record if the pin matters)"),
+
       (if $audit then
          "Would update: \($would | length) plugin(s)",
          ($would[] | "  would run: claude plugin update \(.id) -s \(.scope) (installed \(.installed))"),
@@ -135,7 +138,21 @@ def block($d):
 
       (if (.downgraded | length) > 0 then
          "Downgraded: \(.downgraded | length) plugin(s)",
-         (.downgraded[] | "  - \(scoped): \(.old) → \(.new)")
+         (.downgraded[] | "  - \(scoped): \(.old) → \(.new)"
+           + (if .concurrent == true then " (moved during this run)" else "" end))
+       else empty end),
+
+      # An id whose update call the CLI answered "already at the latest version" while
+      # the run's snapshots show its version differing from the pre-mutation one. Nothing
+      # here says what moved it. A backward one is listed under Downgraded: too.
+      ((.moved_during_run // []) as $moved
+       | if ($moved | length) > 0 then
+           "Moved during this run: \($moved | length) plugin(s), by something other than this run's update calls",
+           ($moved[] | "  - \(scoped): \(pair)"
+             + (if .direction == "backward" then " (backward; also under Downgraded)" else "" end))
+         else empty end),
+      (if (.noop_unverified // 0) > 0 then
+         "Not verified: \(.noop_unverified) plugin(s) the CLI called already current could not be checked against a snapshot version"
        else empty end),
 
       (if .catalog_regression != null then
@@ -174,19 +191,37 @@ def block($d):
          "Enabled: \($enabled_ok | length) plugin(s): \($enabled_ok | map(scoped) | join(", "))"
        else empty end),
 
-      # Divergences: actionable only (versionsMatch false), split by interval.
-      # The split is machine-wide, so it follows the machine-wide count it sums to.
+      # Divergences: version-skewed rows only (versionsMatch false), split by interval.
+      # The interval split is machine-wide, so it follows the machine-wide count it sums to.
+      # A digest from this version also splits the count by what can be done about each
+      # row: only the actionable parts point at converge. A digest written before that
+      # split carries no `blocked` field and renders as it always did.
       (.divergences as $v
+       | ("\($v.pre_existing) pre-existing, \($v.new_total) newly created by this run (\($v.new_by_interval.in_repo) by the in-repo update, \($v.new_by_interval.user_sweep) by the user-scope sweep"
+          + (if ($v.new_by_interval.concurrent // 0) > 0
+             then ", \($v.new_by_interval.concurrent) moved during this run, cause unattributed" else "" end)
+          + ")") as $intervals
        | if $v.post == null then
            "Divergences: not computed (\($v.note // "a snapshot was missing"))"
-         else
-           ("\($v.post) actionable: \($v.pre_existing) pre-existing, \($v.new_total) newly created by this run (\($v.new_by_interval.in_repo) by the in-repo update, \($v.new_by_interval.user_sweep) by the user-scope sweep)") as $split
-           | if $v.post == 0 then "Divergences: 0 actionable"
-             elif .project_root != null and .divergences_here != null then
+         elif $v.post == 0 then "Divergences: 0 actionable"
+         elif $v.blocked == null then
+           "\($v.post) actionable: \($intervals)" as $split
+           | if .project_root != null and .divergences_here != null then
                "Divergences: \(.divergences_here) behind here → run `/harness-ops:plugins converge`; on this whole machine \($split)"
              else
                "Divergences: \($split) → run `/harness-ops:plugins converge`"
              end
+         else
+           ([(if ($v.actionable_here // 0) > 0 then "\($v.actionable_here) actionable here" else empty end),
+             (if ($v.actionable_elsewhere // 0) > 0 then "\($v.actionable_elsewhere) actionable elsewhere on this machine" else empty end)]) as $act
+           | ([(if ($act | length) > 0 then ($act | join(", ")) + " → run `/harness-ops:plugins converge`" else empty end),
+               (if ($v.in_worktrees // 0) > 0 then
+                  "\($v.in_worktrees) in linked worktrees → remove the worktree; /source-control:worktree audit (if installed) classifies them"
+                else empty end),
+               (if ($v.blocked // 0) > 0 then
+                  "\($v.blocked) blocked, path not present → see Stale project records below"
+                else empty end)] | join("; ")) as $parts
+           | "Divergences: \($parts) (of \($v.post) in all: \($intervals))"
          end),
 
       # The digest names this plugin's own row; a digest written before it did
@@ -194,19 +229,20 @@ def block($d):
       (if .self_updated == true then
          (if .self_update == null then "this plugin"
           else "\(.self_update.id | split("@")[0]) (\(.self_update.old // "?") → \(.self_update.new // "?"))" end) as $what
-         | "Note: this run updated \($what). The algorithm that ran is the pre-update one:",
+         | "Note: \($what) moved during this run. The algorithm that ran is the pre-update one:",
            "  ${CLAUDE_PLUGIN_ROOT} still resolves to the version loaded at session start. /reload-plugins",
            "  before relying on the new version."
        else empty end),
 
       (if (.stale_project_records.total // 0) > 0 then
-         .stale_project_records as $s
+         # The records come from this marketplace's install records only, so the label names it.
+         .name as $name | .stale_project_records as $s
          # A digest written before 3.8.1 carries only `by_path`; render it the way it was rendered then.
          | if $s.by_parent == null then
-             "Stale project records: \($s.total) record(s) across \($s.by_path | length) path(s) not present on this machine",
+             "Stale project records (\($name)): \($s.total) record(s) across \($s.by_path | length) path(s) not present on this machine",
              ($s.by_path[] | "  - \(.path): \(.count) record(s)")
            else
-             "Stale project records: \($s.total) record(s) across \($s.paths) path(s) not present on this machine",
+             "Stale project records (\($name)): \($s.total) record(s) across \($s.paths) path(s) not present on this machine",
              ($s.by_parent[] | "  - \(.parent): \(.count) record(s) across \(.paths) path(s)"),
              (if ($s.more_parents // 0) > 0 then "  +\($s.more_parents) more parent director(ies)" else empty end),
              (if $audit then "  Full per-path list: not kept, the audit scratch directory is removed on exit"
@@ -222,7 +258,18 @@ def block($d):
             "  \($s.project) of these are project-scope. For those left by worktrees removed under the",
             "  source-control worktree root, /source-control:worktree audit (if installed) classifies them",
             "  and gives the gated reap; local-scope records and other paths are not that audit's to reap."
+          else empty end),
+         (if ($s["local"] // 0) > 0 then
+            "  Of these, \($s["local"]) local-scope record(s); nothing reaps them yet."
           else empty end)
+       else empty end),
+
+      (if (.user_home_records.total // 0) > 0 then
+         .user_home_records as $h
+         | "User-home project records: \($h.total) record(s) keyed to a user home directory",
+           ($h.paths[] | "  - \(.)"),
+           "  (not counted as divergences: that directory's .claude/settings.json is user settings, not project",
+           "   settings, so converge blocks these rows and never runs a command for them.)"
        else empty end),
 
       (.cache_content as $c

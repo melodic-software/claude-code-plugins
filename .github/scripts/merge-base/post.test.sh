@@ -242,13 +242,65 @@ put a.txt 'resolved\n'
 tg add a.txt keep.txt
 run_post
 check 'unresolved-marker: markers copied over another path are unresolved' unresolved-conflict "$(reason)"
+
+echo '# unexpected-path-staged'
+# Only a path the snapshot held unmerged may change; every stage-0 snapshot
+# entry must stay as it was, and no other entry may appear.
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 prepare
 put a.txt 'resolved\n'
 put b.txt 'new\n'
 tg add a.txt b.txt
 run_post
-check 'unresolved-marker: a new path without markers passes' 0/ "$RC/$(reason)"
+check 'unexpected-path-staged: a new path outside the conflict set escalates' 0/unexpected-path-staged "$RC/$(reason)"
+check 'unexpected-path-staged: and prints no tree' '' "$(tree)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+put keep.txt 'edited\n'
+tg add a.txt keep.txt
+run_post
+check 'unexpected-path-staged: an edit to a merged path escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+put stray.log 'build output\n'
+tg add -A
+run_post
+check 'unexpected-path-staged: git add -A over an untracked file escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+put stray.log 'build output\n'
+tg add a.txt
+run_post
+check 'unexpected-path-staged: an untracked file left unstaged passes' 0/ "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+tg add a.txt
+tg rm -q keep.txt
+run_post
+check 'unexpected-path-staged: removing a merged path escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+rm "$R/keep.txt"
+tg add -A
+run_post
+check 'unexpected-path-staged: git add -A over a deleted file escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+tg add a.txt
+tg mv a.txt c.txt
+run_post
+check 'unexpected-path-staged: moving the resolution to a new path escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+tg rm -q a.txt
+run_post
+check 'unexpected-path-staged: resolving a conflict by deleting its path passes' 0/ "$RC/$(reason)"
 
 echo '# workflow-staged'
 WF=.github/workflows/ci.yml
@@ -274,26 +326,86 @@ for change in edit add remove mode; do
   run_post
   check "workflow-staged: a model $change of a workflow escalates" 0/workflow-staged "$RC/$(reason)"
 done
-# A workflow change merged in from the base differs from the PR head, which
-# the lane token cannot push: it escalates on a conflicted and a clean merge.
+# A workflow change merged in from the base passes when the staged workflows
+# are exactly main's and the PR's own diff touches none, on a conflicted and a
+# clean merge.
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 side main "$WF" 'on: push\n'
 prepare
 put a.txt 'resolved\n'
 tg add a.txt
 run_post
-check 'workflow-staged: a base-side workflow change in a conflicted merge escalates' 0/workflow-staged "$RC/$(reason)"
-check 'workflow-staged: and prints no tree' '' "$(tree)"
+check "workflow-staged: main's own workflow in a conflicted merge passes" 0/ "$RC/$(reason)"
+T=$(tree)
+check "workflow-staged: the tree holds main's workflow blob" "$(tg rev-parse main:"$WF")" "$(tg rev-parse -q --verify "${T:-missing}:$WF" 2>/dev/null || true)"
 new_repo
 put "$WF" 'on: push\n'
-commit 'add workflow'
+put .github/workflows/other.yml 'on: push\n'
+commit 'add workflows'
 tg checkout -q -b pr
 side pr a.txt 'pr\n'
 side main "$WF" 'on: pull_request\n'
 prepare
 check 'workflow-staged: prepared clean' clean "$STATE"
 run_post
-check 'workflow-staged: a base-side workflow change in a clean merge escalates' 0/workflow-staged "$RC/$(reason)"
+check "workflow-staged: main's own workflows in a clean merge pass" 0/ "$RC/$(reason)"
+# A staged workflow that is not main's escalates: the PR changed another
+# workflow, so one staged blob differs from main's.
+new_repo
+put "$WF" 'on: push\n'
+put .github/workflows/other.yml 'on: push\n'
+commit 'add workflows'
+tg checkout -q -b pr
+side pr .github/workflows/other.yml 'on: pull_request_target\n'
+side main "$WF" 'on: pull_request\n'
+prepare
+run_post
+check 'workflow-staged: one staged workflow differing from main escalates' 0/workflow-staged "$RC/$(reason)"
+check 'workflow-staged: and prints no tree' '' "$(tree)"
+# The PR's own diff touches a workflow, even when every staged workflow
+# equals main's: main made the same edit to other.yml and also edited ci.yml.
+new_repo
+put "$WF" 'on: push\n'
+put .github/workflows/other.yml 'on: push\n'
+commit 'add workflows'
+tg checkout -q -b pr
+side pr .github/workflows/other.yml 'on: pull_request\n'
+tg checkout -q main
+put .github/workflows/other.yml 'on: pull_request\n'
+put "$WF" 'on: pull_request\n'
+commit 'main makes the same edit and edits ci.yml'
+prepare
+run_post
+check "workflow-staged: a PR diff touching a workflow escalates though the result is main's" 0/workflow-staged "$RC/$(reason)"
+# Main renames x.yml into .github/workflows/ and the PR edits x.yml: rename
+# detection carries the PR's edit into the workflow, though the PR's own diff
+# touches no workflow path.
+new_repo
+put x.yml 'on: push\njobs: {}\nname: probe\n'
+commit 'add x.yml'
+tg checkout -q -b pr
+side pr x.yml 'on: pull_request_target\njobs: {}\nname: probe\n'
+tg checkout -q main
+mkdir -p "$R/.github/workflows"
+tg mv x.yml .github/workflows/x.yml
+commit 'main moves x.yml into workflows'
+prepare
+check 'workflow-staged: rename fixture merged clean' clean "$STATE"
+run_post
+check "workflow-staged: a PR edit carried into a workflow by a rename escalates" 0/workflow-staged "$RC/$(reason)"
+# Main deletes a workflow the head still has: the merge drops a head workflow.
+new_repo
+put "$WF" 'on: push\n'
+put .github/workflows/other.yml 'on: push\n'
+commit 'add workflows'
+tg checkout -q -b pr
+side pr a.txt 'pr\n'
+tg checkout -q main
+tg rm -q .github/workflows/other.yml
+commit 'main deletes other.yml'
+prepare
+run_post
+check 'workflow-staged: a workflow deleted on main but kept on head escalates' 0/workflow-staged "$RC/$(reason)"
 # A workflow the merge leaves as the PR head has it passes, unstaged edits aside.
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 side pr "$WF" 'on: push\n'
@@ -322,7 +434,7 @@ for name in ci.yml é.yml; do
       mode)
         chmod +x "$R/.github/workflows/$name"
         tg update-index --chmod=+x ".github/workflows/$name"
-        want=0/workflow-staged
+        want=0/
         ;;
       *) exit 2 ;;
     esac
@@ -378,7 +490,7 @@ cp "$R/.git/config" "$TMP/config.before"
 prepare
 put a.txt 'resolved\n'
 tg add a.txt
-tg config remote.origin.url 'https://x-access-token:ghs_example@github.com/o/r'
+tg config remote.origin.url 'https://example.invalid/rewritten/r'
 tg config core.fsmonitor "$TMP/fsmonitor.sh"
 printf '#!/usr/bin/env bash\ntouch "%s/fsmonitor-ran"\n' "$TMP" >"$TMP/fsmonitor.sh"
 chmod +x "$TMP/fsmonitor.sh"
@@ -408,7 +520,7 @@ for target in config index-snapshot attributes; do
   prepare
   put a.txt 'resolved\n'
   tg add a.txt
-  tg config remote.origin.url 'https://x-access-token:ghs_example@github.com/o/r'
+  tg config remote.origin.url 'https://example.invalid/rewritten/r'
   cp "$R/.git/config" "$TMP/config.rewritten"
   printf 'x' >>"$DIR/$target"
   run_post

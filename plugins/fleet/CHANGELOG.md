@@ -3,6 +3,25 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.8] - 2026-10-20
+
+### Added
+
+- Three outcome eval cases under `evals/` and a frozen trigger-probe set under `probes/` for `reach`.
+
+## [0.2.7] - 2026-10-20
+
+### Fixed
+
+- `/fleet:reach` no longer says an interactive session simply accepts inbound messages: it holds one from a sender that bypasses permission prompts, and a `-p` receiver without `crossSessionInbound: accept` drops a held message after `dialogExpiry`.
+- The relay reference's agent view note now names the `#limitations` anchor, an as-of date and a recheck trigger.
+
+## [0.2.6] - 2026-10-18
+
+### Changed
+
+- `/fleet:reach` relay reference marks the `logs` accepts-only-the-id probe row as observed on Claude Code 2.1.284, so it no longer reads as current behavior.
+
 ## [0.2.5] - 2026-10-13
 
 ### Changed
