@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 // Pictures on a question and the shared display parts, against `share.sh ensure-running` with the fake cloudflared:
-// a picture pasted into the answer box shows in its uploader's file row as the thumbnail her browser made; received but
-// carried by nothing, it shows under its question to the owner (with Approve picture) and its uploader (with Remove),
-// and to another guest only once approved; the round-ready note names "You" by person, not by name, so a second
+// a picture pasted into the answer box shows in its uploader's file row as the thumbnail her browser made; a draft's
+// picture shows under no question and reads back to nobody else, and the x on its chip removes it for good; a picture
+// from before attachments that nothing carried shows under its question to the owner (with Approve picture) and its
+// uploader (with Remove), and to another guest only once approved; the round-ready note names "You" by person, not by name, so a second
 // person of the same name reads the first one's initial; an avatar on a proposal's who line is focusable and opens the
-// person card; and the unread dot, inline link button and counter each use their one class.
+// person card; and the unread dot, inline link button and counter each use their one class, at the sizes they had.
 //   node plugins/planning/shared/tests/ui_pictures_display.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the follow-ups (32, B5, B7, F14, F15) and the texts this suite writes, never from the page.
 "use strict";
+const fs = require("fs"), path = require("path");
 const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
 
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "gather", format: { kind: "text" } });
@@ -30,6 +32,11 @@ const strip = page => page.evaluate(() => {
     img: (li.querySelector(".vf-uppic img")?.getAttribute("src") || "").slice(0, 11),
     approve: !!li.querySelector(".vf-upapprove"), remove: !!li.querySelector(".vf-upremove") })) };
 });
+/** The HTTP status reading a picture back gives this page: 200, or the refusal's (404). */
+const readBack = (page, id) => page.evaluate(x => window.Core.uploadImage(x).then(() => 200, e => e.status || 0), id);
+/** The id of the newest upload this page offered, once the host has it whole. */
+const pasted = async (page, before) => (await until(page, n => (window.Core.snapshot().myUploads || []).length > n, before, 10000))
+  && (await snap(page)).myUploads.at(-1).id;
 
 async function main() {
   const pw = loadPlaywright();
@@ -40,39 +47,78 @@ async function main() {
   try {
     const A = await s.start("pictures-display");
     s.apply(A.dir, [{ op: "set-title", title: "Checkout" }, { op: "open-round", questions: [q("Q1", "Where should the order summary sit?"), q("Q2", "What should the cart remember?")] }]);
-    const owner = await rec.open(A.ownerUrl, DESK);
+    let owner = await rec.open(A.ownerUrl, DESK);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     await owner.evaluate(() => window.Core.saveSettings({ uploads: true, names: "initials" }));
-    const ann = await rec.open(A.localUrl, DESK);
+    let ann = await rec.open(A.localUrl, DESK);
     const annPid = await joinAs(ann, "Ann");
+    await until(ann, () => window.Core.state.settings.uploads === true);
+
+    // ---------- a picture from before attachments: received on Q1, never a draft or carried ----------
+    await paste(ann, "#vf-answer");
+    const old = await pasted(ann, 0);
+    await owner.evaluate(id => window.Core.uploadAct(id, "accept"), old);
+    await until(ann, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), old, 20000);
+    const port = new URL(A.localUrl).port;
+    s.share(A.dir, "stop");
+    const file = path.join(A.dir, "state.json"), st = JSON.parse(fs.readFileSync(file, "utf8"));
+    for (const u of st.uploads) if (u.id === old) { delete u.draft; delete u.carried; }
+    fs.writeFileSync(file, JSON.stringify(st));
+    s.share(A.dir, "ensure-running", "--guest-port", port);
+    const reopen = async (page, url) => { const p = await rec.openIn(page.context(), url); await until(p, () => !!window.Core.snapshot()?.me); await page.close(); return p; };
+    owner = await reopen(owner, A.ownerUrl);
+    ann = await reopen(ann, A.localUrl);
     const ann2 = await rec.open(A.localUrl, DESK);
     const ann2Pid = await joinAs(ann2, "Ann");
     const bo = await rec.open(A.localUrl, DESK);
     await joinAs(bo, "Bo");
-    await until(ann, () => window.Core.state.settings.uploads === true);
 
-    // ---------- F15: one class each ----------
+    // ---------- F15: one class each, the dots at the sizes they had ----------
     ok("the rail's new dot, the counters and inline link buttons use one class each", await bo.evaluate(() => !document.querySelector(".vf-newdot, .vf-linkbtn, .vf-catchup-go, .vf-rep-count")
       && !!document.querySelector(".vf-qside .vf-ndot") && !!document.querySelector(".vf-reportpop .vf-count-txt")));
+    const dot = (page, cls) => page.evaluate(c => {
+      const host = document.createElement(c.split(" ")[0]); host.className = c.split(" ").slice(1).join(" ");
+      const d = document.createElement("span"); d.className = "vf-ndot"; host.append(d); document.querySelector(".app").append(host);
+      const cs = getComputedStyle(d), out = `${cs.width} ${cs.marginBlockStart}`; host.remove(); return out;
+    }, cls);
+    const dots = { card: await dot(bo, "div vf-card-head"), rail: await dot(bo, "span vf-qside"), note: await dot(bo, "button vf-nitem"), inbox: await dot(bo, "button vf-ixitem") };
+    ok("an answer card's dot is 7 px, a question row's 7 px 2 px down, a notification's 8 px 6 px down, an Inbox row's 8 px",
+      dots.card === "7px 0px" && dots.rail === "7px 2px" && dots.note === "8px 6px" && dots.inbox === "8px 0px", JSON.stringify(dots));
 
     // ---------- B5: the uploader's row shows the thumbnail her browser made ----------
     await paste(ann, "#vf-answer");
-    const uid = await until(ann, () => (window.Core.snapshot().myUploads || []).length === 1, null, 10000) && (await snap(ann)).myUploads[0].id;
+    const uid = await pasted(ann, 1);
     ok("the pasted picture's row shows the thumbnail made in her browser while it waits for the host", await until(ann, () => [...document.querySelectorAll(".vf-upstrip .vf-uprow")]
       .some(r => /Waiting for the host/.test(r.textContent) && r.querySelector(".vf-upthumb:not([hidden]) img")?.getAttribute("src")?.startsWith("data:image/")), null, 10000));
     await owner.evaluate(id => window.Core.uploadAct(id, "accept"), uid);
     ok("accepted, it arrives", await until(ann, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), uid, 20000));
 
+    // ---------- a draft's picture is no question's: the owner's own reads back to nobody else ----------
+    await paste(owner, "#vf-answer");
+    const own = await pasted(owner, 0);
+    await until(owner, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), own, 20000);
+    await bo.waitForTimeout(2500); // a few polls past its arrival
+    ok("the owner's unsent picture shows under no question for another guest", !((await snap(bo)).questionPics?.Q1 || []).includes(own) && !(own in ((await snap(bo)).files || {})),
+      JSON.stringify((await snap(bo)).questionPics));
+    ok("  nor reads back for him", (await readBack(bo, own)) === 404);
+    ok("  nor does Ann's draft show to the owner under the question", !((await snap(owner)).questionPics?.Q1 || []).includes(uid), JSON.stringify((await snap(owner)).questionPics));
+    await ann.locator(".vf-composer .vf-attdraft .vf-ref-x").last().click(); // her newest chip
+    ok("x on her draft chip removes the picture", await until(ann, id => window.Core.snapshot().myUploads.find(u => u.id === id)?.status.kind === "removed", uid, 10000),
+      JSON.stringify((await snap(ann)).myUploads.map(u => [u.id, u.status.kind])));
+    ok("  so it reads back to nobody, the owner included", (await readBack(owner, uid)) === 404 && (await readBack(ann, uid)) === 404);
+    ok("  and no strip under the question holds it for the owner", !((await snap(owner)).questionPics?.Q1 || []).includes(uid));
+
     // ---------- 32: received, carried by nothing, it shows under Q1 by the approval rule ----------
-    ok("the owner sees it under the question, with Approve picture and Remove", await until(owner, () => {
+    ok("the owner sees the old picture under the question, with Approve picture and Remove", await until(owner, () => {
       const box = document.querySelector(".vf-qpics");
       return !!box && !box.hidden && [...box.querySelectorAll(".vf-ref")].some(li => li.querySelector(".vf-uppic img")?.getAttribute("src")?.startsWith("data:image/")
         && !!li.querySelector(".vf-upapprove") && !!li.querySelector(".vf-upremove"));
     }, null, 10000), JSON.stringify(await strip(owner)));
+    ok("  and only that one", (await snap(owner)).questionPics?.Q1?.join() === old, JSON.stringify((await snap(owner)).questionPics));
     ok("its uploader sees it there with Remove and no Approve", await until(ann, () => [...document.querySelectorAll(".vf-qpics .vf-ref")]
       .some(li => li.querySelector(".vf-uppic img")?.getAttribute("src")?.startsWith("data:image/") && !!li.querySelector(".vf-upremove") && !li.querySelector(".vf-upapprove")), null, 10000),
       JSON.stringify(await strip(ann)));
-    ok("another guest sees nothing of it before the owner approves", (await strip(bo)).hidden && !(uid in ((await snap(bo)).files || {})));
+    ok("another guest sees nothing of it before the owner approves", (await strip(bo)).hidden && !(old in ((await snap(bo)).files || {})) && (await readBack(bo, old)) === 404);
     await owner.locator(".vf-qpics .vf-upapprove").click();
     ok("approved, the other guest sees it under the question", await until(bo, () => [...document.querySelectorAll(".vf-qpics:not([hidden]) .vf-ref")]
       .some(li => li.querySelector(".vf-uppic img")?.getAttribute("src")?.startsWith("data:image/") && !li.querySelector(".vf-upremove")), null, 10000), JSON.stringify(await strip(bo)));

@@ -2599,6 +2599,10 @@ class Session:
                 raise DomainError(404, "no-such-upload", f"No upload {uid[:40]}.")
             if u["status"]["kind"] not in UPLOAD_ACCEPTED:
                 raise DomainError(409, "wrong-status", "Attach a file once the host has accepted it.", status=u["status"]["kind"])
+        for uid in ids:  # carried from now on: never a loose picture again (a refused write restores the state)
+            u = self._upload(uid)
+            u.pop("draft", None)
+            u["carried"] = True
         return list(ids)
 
     def _attachments(self, pid, body):
@@ -3939,7 +3943,8 @@ class Session:
                 raise DomainError(413, "upload-too-large", "This session holds no more files.", max=SESSION_UPLOAD_MAX, left=max(0, SESSION_UPLOAD_MAX - total))
             uid = f"{self._next('U')}-{self.ids.hex(4)}"
             mime = UPLOAD_KINDS[ext][0] if ext in UPLOAD_KINDS else "application/octet-stream"
-            rec = {"id": uid, "pid": pid, "at": self.now(), "qid": qid, "file": name, "ext": ext, "mime": mime, "size": size, "chunks": -(-size // CHUNK_SIZE)}
+            # a draft until something carries it: a form offers it before its post is sent
+            rec = {"id": uid, "pid": pid, "at": self.now(), "qid": qid, "file": name, "ext": ext, "mime": mime, "size": size, "chunks": -(-size // CHUNK_SIZE), "draft": True}
             shown = [(u["pid"], len(u["thumb"])) for u in st["uploads"] if "thumb" in u]
             if thumb and sum(n for p, n in shown if p == pid) + len(thumb) <= PERSON_THUMB_MAX and sum(n for _, n in shown) + len(thumb) <= SESSION_THUMB_MAX:
                 rec["thumb"] = thumb  # past either bound the offer keeps no preview; the owner sees its icon
@@ -5339,10 +5344,11 @@ class Session:
         }
         # every upload what everyone reads carries, older chat included: who may read a picture back (upload_image)
         self._public_uploads = {uid for r in [*_answers(cards), *chat, *_flat(discussions), *_flat(suggestions)] for uid in r.get("attachments", [])}
-        # Follow-up 32: received pictures offered on a question that no record carries show under that question;
-        # everyone sees the approved ones, the owner and each uploader also those waiting for approval (snapshot).
-        carried = {uid for _, r in _attaching(st) for uid in r.get("attachments", ())}
-        self._loose_pics = [u for u in st["uploads"] if u.get("qid") and _shows_as_image(u) and u["id"] not in carried and self._active(u["pid"])]
+        # Follow-up 32: received pictures offered on a question that no record ever carried (from before attachments) show
+        # under that question; a form's draft or one a record carried, even one since cleared or deleted, never does.
+        # Everyone sees the approved ones, the owner and each uploader also those waiting for approval (snapshot).
+        self._carried = {uid for _, r in _attaching(st) for uid in r.get("attachments", ())} | {u["id"] for u in st["uploads"] if u.get("carried")}
+        self._loose_pics = [u for u in st["uploads"] if u.get("qid") and _shows_as_image(u) and not u.get("draft") and u["id"] not in self._carried and self._active(u["pid"])]
         approved = [u for u in self._loose_pics if _approved(u)]
         if approved:
             base["questionPics"] = _pics_by_q(approved)
@@ -5554,7 +5560,8 @@ class Session:
                 if held and not owner:
                     snap["results"] = {**snap["results"], qid: copy.deepcopy([r for r in lst if self._result_shown(r) or r["id"] in held])}
             snap["myMergeRequests"] = copy.deepcopy([m for m in st["mergeRequests"] if m["from"] == pid])
-            snap["myUploads"] = [self._upload_view(u, owner=owner) for u in st["uploads"] if u["pid"] == pid]
+            # carried: something sent carries it (or did), so taking it off a form leaves the upload alone
+            snap["myUploads"] = [{**self._upload_view(u, owner=owner), **({"carried": True} if u["id"] in self._carried else {})} for u in st["uploads"] if u["pid"] == pid]
             seen = [*(_answers(own) if own else []), *(_flat(snap["discussions"]) if snap["discussions"] is not base["discussions"] else []),
                     *visible, *snap["myRequests"], *(st["requests"] if owner else [])]
             if any("attachments" in r for r in seen):  # what only this viewer reads: hidden answers and comments, proposals, requests

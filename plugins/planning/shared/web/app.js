@@ -3629,9 +3629,10 @@
         const x = ibtn("vf-tbtn vf-icon-btn vf-ref-x", "x", "Remove this attachment");
         x.onclick = () => {
           const l = slot.get().slice(); l.splice(i, 1); slot.put(l); (slot.chips.querySelector(".vf-ref-x") || slot.btn).focus();
-          // A pasted picture belongs to this draft alone: taking it off withdraws it, unless something sent carries it.
-          const st2 = fileOf(a)?.status;
-          if (a.pasted && !(a.upload in (Core.state.files || {})) && ["offered", "accepted", "uploading", "done"].includes(st2)) {
+          // A pasted picture belongs to this draft alone: taking it off withdraws it, unless something sent carries it
+          // (the server says so on my own uploads).
+          const mine = (Core.state.myUploads || []).find(u => u.id === a.upload), st2 = mine?.status;
+          if (a.pasted && mine && !mine.carried && ["offered", "accepted", "uploading", "done"].includes(st2)) {
             Core.uploadAct(a.upload, st2 === "done" ? "remove" : "withdraw").then(() => forget(a.upload)).catch(fail);
           }
         };
@@ -4324,7 +4325,7 @@
       const input = E("input", "vf-rep-file"); input.type = "file"; input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true;
       const b = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-rep-attach", "clip", "Add a screenshot");
       const chips = E("ul", "vf-reflist vf-attlist vf-attdraft"); chips.setAttribute("aria-label", "Screenshot, not sent yet"); chips.hidden = true;
-      const sl = { btn: b, chips, input, image: "", size: null };
+      const sl = { btn: b, chips, input, image: "", size: null, gen: 0 };
       const paint = () => {
         chips.hidden = !sl.image; b.hidden = !!sl.image; // one screenshot: its chip's x takes it off
         if (!sl.image) return chips.replaceChildren();
@@ -4338,13 +4339,18 @@
         x.onclick = () => { sl.clear(); changed(); b.focus(); };
         li.append(v, x); chips.replaceChildren(li);
       };
-      sl.clear = () => { sl.image = ""; sl.size = null; input.value = ""; paint(); };
+      // gen: a clear (the form sent or the chip's x) or a newer pick makes a screenshot still shrinking stale
+      sl.clear = () => { sl.gen++; sl.image = ""; sl.size = null; input.value = ""; paint(); };
       const take = async f => {
+        const gen = ++sl.gen;
         try {
           if (!["image/png", "image/jpeg", "image/webp"].includes(f.type)) throw new Error("type");
           const s = await shrinkShot(f);
+          if (gen !== sl.gen) return;
+          const moved = document.activeElement === b; // the button hides once its chip shows: focus goes to the chip
           Object.assign(sl, { image: s.url, size: { w: s.w, h: s.h } }); paint(); changed();
-        } catch { sl.clear(); changed("That picture could not be added. Use a PNG, JPEG or WebP screenshot."); }
+          if (moved) chips.querySelector(".vf-ref-img")?.focus();
+        } catch { if (gen === sl.gen) { sl.clear(); changed("That picture could not be added. Use a PNG, JPEG or WebP screenshot."); } }
       };
       b.onclick = () => input.click();
       on(input, "change", () => { if (input.files?.[0]) take(input.files[0]); });

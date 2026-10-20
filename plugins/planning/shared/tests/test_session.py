@@ -5216,13 +5216,25 @@ class TestAttachmentsEverywhere(UploadCase):
         self.refused("wrong-status", "act_on_upload", HOST, {"id": self.offered_and_accepted(self.ann, name="c.png"), "action": "approve"})
         self.assertIsNone(session.document_error(self.disk()))
 
+    def received_on_q1(self, pid, name):
+        """A received picture offered on Q1 from a form: a draft until something carries it."""
+        uid = self.offer(pid, name, PIC, qid="Q1")["id"]
+        if pid != HOST:
+            self.act("act_on_upload", HOST, {"id": uid, "action": "accept"})
+        self.send_all(pid, uid, PIC)
+        return uid
+
+    def legacy(self, uid):
+        """The upload as a build before drafts wrote it: neither draft nor carried."""
+        u = next(u for u in self.s.state["uploads"] if u["id"] == uid)
+        u.pop("draft", None)
+        u.pop("carried", None)
+        self.s._base_cache = None
+        return uid
+
     def test_a_picture_on_a_question_that_no_record_carries_shows_under_it(self):
         def loose(pid, name):
-            uid = self.offer(pid, name, PIC, qid="Q1")["id"]
-            if pid != HOST:
-                self.act("act_on_upload", HOST, {"id": uid, "action": "accept"})
-            self.send_all(pid, uid, PIC)
-            return uid
+            return self.legacy(self.received_on_q1(pid, name))
         pic, own, sent = loose(self.ann, "a.png"), loose(HOST, "h.png"), loose(self.ann, "c.png")
         self.act("chat", self.ann, {"text": "Carried", "attachments": [sent]})
         def pics(pid):
@@ -5237,6 +5249,65 @@ class TestAttachmentsEverywhere(UploadCase):
         self.assertEqual(self.s.upload_image(self.bo, {"id": pic})["id"], pic)
         self.act("act_on_upload", self.ann, {"id": pic, "action": "remove"})  # the uploader's Remove
         self.assertEqual(pics(self.bo), {"Q1": [own]})
+
+    def test_a_draft_picture_never_shows_under_its_question(self):
+        own, pic = self.received_on_q1(HOST, "secret.png"), self.received_on_q1(self.ann, "a.png")
+        self.assertEqual([u.get("draft") for u in self.s.state["uploads"]], [True, True])
+        for viewer in (HOST, self.ann, self.bo):
+            self.assertNotIn("questionPics", self.s.snapshot(viewer))
+        self.assertNotIn(own, self.s.snapshot(self.bo)["files"])
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": own}).http, 404)  # the owner's, approved at once
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": pic}).http, 404)
+        self.assertEqual(self.s.upload_image(HOST, {"id": own})["id"], own)  # its uploader still reads it back
+        mine = {u["id"]: u for u in self.s.snapshot(HOST)["myUploads"]}
+        self.assertNotIn("carried", mine[own])
+        self.act("act_on_upload", HOST, {"id": own, "action": "remove"})  # the chip's x on a received draft
+        self.assertEqual(self.refused("not-found", "upload_image", HOST, {"id": own}).http, 404)
+
+    def test_a_hidden_record_that_goes_away_leaves_its_picture_hidden(self):
+        pic, said = self.received_on_q1(self.ann, "a.png"), self.received_on_q1(self.ann, "b.png")
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Ann's", "view": "focus", "attachments": [pic]})
+        c = self.act("comment", self.ann, {"qid": "Q1", "text": "Mine", "attachments": [said]})["id"]
+        for uid in (pic, said):
+            self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
+        self.act("hide_card", HOST, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.act("hide_comment", HOST, {"qid": "Q1", "id": c, "on": True})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus"})  # Ann clears her hidden answer
+        self.act("delete_comment", self.ann, {"qid": "Q1", "id": c})
+        self.assertFalse([r for _, r in session._attaching(self.s.state) if {pic, said} & set(r.get("attachments", ()))])
+        for viewer in (HOST, self.ann, self.bo):
+            self.assertNotIn("questionPics", self.s.snapshot(viewer))
+        for uid in (pic, said):
+            self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
+        mine = {u["id"]: u for u in self.s.snapshot(self.ann)["myUploads"]}
+        self.assertEqual((mine[pic].get("carried"), mine[said].get("carried")), (True, True))
+
+    def test_a_guest_write_cannot_set_the_draft_or_carried_marks(self):
+        uid = self.received_on_q1(self.ann, "a.png")
+        forged = {"draft": False, "carried": False, "hidden": False, "shown": True}
+        self.act("chat", self.ann, {"text": "Look", "attachments": [uid], **forged})
+        u = next(u for u in self.s.state["uploads"] if u["id"] == uid)
+        self.assertEqual((u.get("draft"), u.get("carried"), u.get("shown")), (None, True, None))
+        fresh = self.received_on_q1(self.ann, "b.png")
+        offered = self.act("offer_upload", self.ann, {"file": "x.png", "size": len(PIC), "qid": "Q1", "draft": False, "carried": True})["id"]
+        self.assertEqual({k: v for k, v in next(u for u in self.s.state["uploads"] if u["id"] == offered).items() if k in ("draft", "carried")}, {"draft": True})
+        self.act("comment", self.ann, {"qid": "Q1", "text": "No file", "draft": False, "carried": True, "attachments": []})
+        self.assertEqual(next(u for u in self.s.state["uploads"] if u["id"] == fresh).get("draft"), True)
+        self.assertNotIn("carried", next(u for u in self.s.state["uploads"] if u["id"] == fresh))
+        a = self.act("answer", self.ann, {"qid": "Q1", "text": "Mine", "view": "focus", "attachments": [fresh]})
+        self.act("hide_card", HOST, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "Mine, edited", "view": "focus", "hidden": False, **forged})
+        self.assertNotIn(self.ann, [c.get("pid") for c in self.s.snapshot(self.bo)["cards"].get("Q1", [])])
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": fresh}).http, 404)
+        self.assertTrue(a)
+
+    def test_a_removed_uploaders_loose_picture_is_hidden(self):
+        pic = self.legacy(self.received_on_q1(self.ann, "a.png"))
+        self.act("act_on_upload", HOST, {"id": pic, "action": "approve"})
+        self.assertEqual(self.s.snapshot(self.bo)["questionPics"], {"Q1": [pic]})
+        self.act("set_removed", HOST, {"pid": self.ann, "on": True})
+        self.assertNotIn("questionPics", self.s.snapshot(self.bo))
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": pic}).http, 404)
 
     def test_each_form_keeps_its_attachments(self):
         uid = self.offered_and_accepted(self.ann)

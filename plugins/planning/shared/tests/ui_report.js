@@ -82,8 +82,11 @@ async function main() {
     ok("  the sent list names it, and the field keeps no text", (await pia.locator(".vf-reportpop .vf-rep-sent li", { hasText: "Your screenshot, 640 × 400" }).count()) === 1 && (await pia.inputValue("#vf-rep-ta")) === "");
     await pia.locator(".vf-reportpop .vf-attdraft .vf-ref-x").tap();
     ok("  its x takes it off", await until(pia, () => document.querySelector(".vf-reportpop .vf-attdraft").hidden && ![...document.querySelectorAll(".vf-reportpop .vf-rep-sent li")].some(li => /screenshot/.test(li.textContent))));
+    await pia.locator(".vf-reportpop .vf-rep-attach").focus(); // picked from its button: the file dialog returns focus there
     await pia.locator(".vf-reportpop input[type=file]").setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: png(3200, 1800, [800, 1000]) });
     ok("the screenshot shows in the form", await until(pia, () => !!document.querySelector(".vf-reportpop .vf-attdraft .vf-ref-thumb img")?.naturalWidth));
+    ok("  and focus moves from the hidden button to the chip", await until(pia, () => document.activeElement === document.querySelector(".vf-reportpop .vf-attdraft .vf-ref-img")),
+      await pia.evaluate(() => document.activeElement?.className));
     const shot = await pia.evaluate(() => { const i = document.querySelector(".vf-reportpop .vf-attdraft .vf-ref-thumb img"); return { w: i.naturalWidth, h: i.naturalHeight, src: i.src.slice(0, 30) }; });
     ok("  re-encoded in the browser to 1600 px on its long edge", shot.w === 1600 && shot.h === 900, JSON.stringify(shot));
     ok("  as WebP or JPEG", /^data:image\/(webp|jpeg);base64,/.test(shot.src), shot.src);

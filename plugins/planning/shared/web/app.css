@@ -874,7 +874,9 @@
 }
 .app .vf-claude-av .vf-i { inline-size: 62%; block-size: 62%; stroke-width: 2; fill: currentColor; fill-opacity: 0.2; }
 .app .vf-basis { margin-block-start: 6px; color: var(--muted); font-size: 12px; }
-.app .vf-ndot { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+.app .vf-ndot { inline-size: 8px; block-size: 8px; margin-block-start: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+/* an answer card's and a question row's dot stay the smaller size they had */
+.app :is(.vf-card-head, .vf-qside) .vf-ndot { inline-size: 7px; block-size: 7px; margin-block-start: 0; }
 .app .vf-qside .vf-ndot { margin-block-start: 2px; }
 .app .core-avatar[data-pid][role="button"] { cursor: pointer; }
 .app .vf-anshead .vf-seg { margin-inline-start: 4px; }
@@ -1862,7 +1864,6 @@
   font-size: 12px; line-height: 17px; color: var(--faint); overflow-wrap: anywhere;
 }
 .app .vf-nitem .vf-card-time { line-height: 20px; margin: 0; }
-.app .vf-nitem .vf-ndot { margin-block-start: 6px; }
 .app .vf-mutebtn { margin-block-start: 8px; justify-self: start; }
 .app .vf-mutebox { display: grid; gap: 2px; padding-block-end: 4px; }
 .app .vf-mutebox .vf-sw-row > .vf-sw-txt { align-self: flex-start; } /* the switch sits on the label's first line */

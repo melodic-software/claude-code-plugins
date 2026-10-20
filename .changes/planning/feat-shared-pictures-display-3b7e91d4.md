@@ -15,8 +15,10 @@ bump: patch
 
 ### Fixed
 
-- Shared session: a received picture offered on a question but carried by nothing shows under that question: to
-  everyone once the host approves it, and before then to the host (with Approve picture) and its uploader (with
-  Remove). Snapshots carry it in a new optional `questionPics` field.
+- Shared session: a received picture offered on a question that nothing ever carried (from before attachments) shows
+  under that question: to everyone once the host approves it, and before then to the host (with Approve picture) and
+  its uploader (with Remove). Snapshots carry it in a new optional `questionPics` field. A form's unsent picture and
+  one a post carried, even one since cleared, deleted or hidden, never show there or read back to anyone else; new
+  uploads record this in optional `draft` and `carried` marks, and taking a pasted picture off a form removes it.
 - Shared session: times no longer read "now ago", and "You marked this round ready" goes by person, so someone else
   with the same name no longer reads it.
