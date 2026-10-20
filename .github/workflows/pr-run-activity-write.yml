@@ -1868,7 +1868,7 @@ jobs:
           path: |
             ${{ runner.temp }}/lane-feedback-out/run.json
             ${{ runner.temp }}/lane-feedback-out/replies.jsonl
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: error
 
       # dependency-review, after any model turn, also after a failed,
@@ -2447,7 +2447,7 @@ jobs:
         with:
           name: reuse-summary-${{ inputs.issue-number }}
           path: ${{ runner.temp }}/reuse-summary/reuse-summary.json
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: error
           overwrite: true
 
