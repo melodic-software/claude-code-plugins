@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "TaskCreate", "input": {"subject": "Run ./test.sh", "description": "x"}},
+        {"tool": "TaskList", "input": {}}
+      ],
+      "why": "reads the live list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "TaskCreate", "input": {"subject": "Run ./test.sh", "description": "x"}},
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/x-handoff-retry-backoff.md", "content": "x"}}
+      ],
+      "why": "writes the save-point without reading the list"
+    }
+  ]
+}
