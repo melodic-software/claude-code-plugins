@@ -63,7 +63,7 @@
 #    user_sweep:{updated,failed,would_update,withheld_downgrades},
 #    downgraded, moved_during_run, noop_unverified, install_gap, installed, installed_with_unset_user_config,
 #    install_enable_deferred, stopped_before_install, enable_gap, enabled,
-#    project_enable_rows, normalize, cache_content, catalog_regression,
+#    pending_enable, project_enable_rows, normalize, cache_content, catalog_regression,
 #    divergences, divergences_here, in_repo_records, in_repo_ids,
 #    stale_project_records, user_scope_orphans, installed_disabled, delisted,
 #    delisted_project, delisted_settings_only, self_updated, self_update,
@@ -108,6 +108,9 @@
 #   not_a_repo, and the counts as of the checkout's last fetch (never fetched here).
 #   `enable_gap` is the gap the step FOUND; `enabled` is what it filled at user and
 #   local scope, and `project_enable_rows` is what it reports rather than writes.
+#   `pending_enable[]` is `{id, outcome}` (`enabled` or `enable_failed`) for each
+#   id an earlier interrupted `ask` run left in pending-enable.txt that this run
+#   found installed at user scope and effectively `false`, and tried to enable.
 #   `updated` carries forward moves and unreadable-direction moves (flagged
 #   `direction: "unknown"`); a pair whose new version is LOWER lands in `downgraded`
 #   instead, which is what keeps a backward move off the report's `Updated:` line
