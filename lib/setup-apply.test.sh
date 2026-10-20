@@ -558,6 +558,7 @@ ln -s real.md "$R/AGENTS.md"
 out="$(run --root "$R" --yes mode=slow)"
 assert_eq "a symlinked AGENTS.md: exits 1 and is not written through" "1:# Real" "$?:$(cat "$R/real.md")"
 one_line "a symlinked AGENTS.md" "$out"
+assert_eq "a symlinked AGENTS.md: refused before any write, so no docs/ or .gitignore" "0:0" "$(exists "$R/docs"):$(exists "$R/.gitignore")"
 
 R="$(git_root home-symlink-claude)"
 printf '# Agents\n' >"$R/AGENTS.md"
