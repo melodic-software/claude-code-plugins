@@ -18,6 +18,12 @@ after(() => rmSync(scratch, { recursive: true, force: true }));
 const HOME = join(scratch, "home");
 mkdirSync(HOME, { recursive: true });
 
+/** The convention-home resolver applies a home only inside a git work tree, so a scratch project that binds one is one. */
+function gitInit(dir) {
+  const r = spawnSync("git", ["init", "-q", dir], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+}
+
 /** Runs detect.mjs as a CLI; `env` replaces the child's environment when given. */
 function detect(args, env) {
   const r = spawnSync(process.execPath, [DETECT, ...args], { encoding: "utf8", env });
@@ -387,6 +393,7 @@ describe("team surface", () => {
   test("a failing resolver (exit 3) degrades with its cause", () => {
     const project = join(scratch, "broken-pointer");
     mkdirSync(project, { recursive: true });
+    gitInit(project);
     writeFileSync(join(project, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome: `no-such-dir`\n<!-- END GENERATED: convention-home -->\n");
     const { team, routes } = detect(["--project", project, ...seams]);
     assert.equal(team.loaded, false);
@@ -402,6 +409,7 @@ describe("team surface", () => {
     writeFileSync(join(outside, "user-experience.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\n");
     const project = join(scratch, "linked-home");
     mkdirSync(join(project, "docs"), { recursive: true });
+    gitInit(project);
     symlinkSync(outside, join(project, "docs/conventions"));
     const { team } = detect(["--project", project, ...seams]);
     assert.equal(team.loaded, false);

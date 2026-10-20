@@ -148,7 +148,8 @@ function inside(p) {
 function teamSurface() {
   if (opts.team) return { path: opts.team, file: resolve(opts.team) };
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", opts.project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
-  if (r.status !== 0 && r.status !== 1) {
+  // 1 no pointer, 4 declined, 5 not applicable (home, ancestor of home, or outside git): none binds a home, so the default stands.
+  if (r.status !== 0 && r.status !== 1 && r.status !== 4 && r.status !== 5) {
     const cause = r.error?.code || r.stderr?.trim().split("\n").at(-1) || `exit ${r.status}`;
     return { path: null, cause: `convention home unresolved (${cause})` };
   }

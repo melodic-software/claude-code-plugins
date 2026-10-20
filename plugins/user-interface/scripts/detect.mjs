@@ -175,7 +175,8 @@ function projectSignals() {
 function conventionHome() {
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", opts.project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
   if (r.status === 0) return { home: r.stdout.trim() };
-  if (r.status === 1) return { home: DEFAULT_HOME };
+  // 1 no pointer, 4 declined, 5 not applicable (home, ancestor of home, or outside git): none binds a home, so the default stands.
+  if (r.status === 1 || r.status === 4 || r.status === 5) return { home: DEFAULT_HOME };
   const cause = r.error?.code || r.stderr?.trim().split("\n").at(-1) || `exit ${r.status}`;
   return { home: null, error: `convention home unresolved (${cause}); the team and local layers are not read` };
 }
