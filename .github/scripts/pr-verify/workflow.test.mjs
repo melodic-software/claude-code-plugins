@@ -38,6 +38,12 @@ const list = (block, key) => {
   return body.split("\n").map((line) => line.trim()).filter(Boolean);
 };
 const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@[0-9a-f]{40} # v\d+\.\d+\.\d+$/;
+// The subscription job's one lane record names why the key did not judge.
+const SUB_LANE =
+  "${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'pr-verify (key AUTOMATIONS_CLAUDE_API_KEY hit a credit stop)' || 'pr-verify (key AUTOMATIONS_CLAUDE_API_KEY is empty)' }}";
+const KEY_CLASS = "${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}";
+const KEY_REPORT_IF =
+  "(steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.lane-class != 'credit-stop' || steps.key-leg.outcome == 'failure')";
 const CREDENTIAL = {
   [KEY]: ["api-key", "AUTOMATIONS_CLAUDE_API_KEY"],
   [SUB]: ["subscription-token", "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"],
@@ -118,7 +124,7 @@ test("each secret appears only in its own job", () => {
     const [, own] = CREDENTIAL[job];
     const [, other] = CREDENTIAL[job === KEY ? SUB : KEY];
     assert.ok(jobText(job).includes(`secrets.${own}`), job);
-    assert.ok(!jobText(job).includes(other), job);
+    assert.ok(!jobText(job).includes(`secrets.${other}`), job);
   }
   assert.doesNotMatch(text, /secrets\.(?!AUTOMATIONS_CLAUDE_API_KEY\b|AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN\b)/);
   assert.doesNotMatch(text, /secrets: inherit|toJSON\(secrets\)/);
@@ -130,13 +136,26 @@ test("the subscription job runs only on a clean credit stop or an empty key, on 
   const gate = /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1].replace(/\s+/g, " ").trim();
   assert.equal(
     gate,
-    "(needs.check-intent.outputs.lane-class == 'credit-stop' && needs.check-intent.outputs.key-leg-clean == 'true') || needs.check-intent.outputs.credential-present == 'false'",
+    [
+      "github.ref == 'refs/heads/main'",
+      "&& github.event.workflow_run.event == 'pull_request'",
+      "&& github.event.workflow_run.conclusion == 'success'",
+      "&& github.event.workflow_run.head_repository.full_name == github.repository",
+      "&& ((needs.check-intent.outputs.lane-class == 'credit-stop'",
+      "&& needs.check-intent.outputs.key-leg-clean == 'true')",
+      "|| needs.check-intent.outputs.credential-present == 'false')",
+    ].join(" "),
   );
   // No status function, so GitHub adds success(): a failed key job skips it.
   assert.doesNotMatch(gate, /always\(\)|failure\(\)|cancelled\(\)|success\(\)/);
   assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
-  // The key job's outputs reach only that if, never a step.
-  assert.equal(job.match(/needs\./g).length, 3);
+  // The key job's outputs reach only that if and the record's lane name,
+  // which they pick between two literals; never a run: script.
+  const steps = job.slice(job.indexOf("\n    steps:\n"));
+  assert.deepEqual(
+    steps.split("\n").filter((line) => line.includes("needs.")),
+    [`          lane: ${SUB_LANE}`],
+  );
   const key = jobText(KEY);
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(key)?.[1];
   assert.equal(
@@ -159,8 +178,15 @@ test("the key job hands the judgment on only after a clean credit stop or with n
   assert.match(leg, /^ {8}if: steps\.judge\.outputs\.lane-class == 'credit-stop'$/m);
   assert.match(leg, /^ {10}LOG_FILE: \$\{\{ steps\.judge\.outputs\.log-file \}\}$/m);
   assert.match(leg, /write-verdict\.mjs check-key-leg\n/);
-  assert.ok(index("Check the key leg") > index("Judge the pull request"));
-  assert.ok(index("Check the key leg") < index("Write the verdict"));
+  // It runs before the report, which reads its outcome, and its failure
+  // leaves the red to "Fail without a verdict" after the report.
+  assert.match(leg, /^ {8}continue-on-error: true$/m);
+  assert.ok(index("Check the key leg") === index("Judge the pull request") + 1);
+  assert.ok(index("Report the judgment's outcome") === index("Check the key leg") + 1);
+  // The owner's signal to rotate a key, printed before the denial check can stop the step.
+  const run = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(leg)[1];
+  assert.match(run.split("\n")[0], /^ {10}echo "::warning::the automations role's API key \(AUTOMATIONS_CLAUDE_API_KEY\) hit a credit stop/);
+  assert.ok(run.indexOf("::warning::") < run.indexOf("check-key-leg"));
   assert.equal(index("Check the key leg", SUB), -1);
   for (const job of JOBS) {
     const credential = step("Check the credential", job);
@@ -183,7 +209,9 @@ test("the subscription job repeats the key job's steps but for the credential", 
           .join("\n")
           .replace(/AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN/g, "AUTOMATIONS_CLAUDE_API_KEY")
           .replace(/^( {10})subscription-token: /m, "$1api-key: ")
-          .replace(/^( {8}if: )\((steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure')\) && steps\.judge\.outputs\.lane-class != 'credit-stop'$/m, "$1$2")
+          .replace(`if: ${KEY_REPORT_IF}`, "if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'")
+          .replace(`known-failure-class: ${KEY_CLASS}`, "known-failure-class: ${{ steps.judge.outputs.lane-class }}")
+          .replace(`lane: ${SUB_LANE}`, "lane: pr-verify")
           .replace(/ && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success'$/m, ""),
       );
   assert.deepEqual(normalize(STEPS[SUB]), normalize(STEPS[KEY]));
@@ -230,9 +258,9 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
   for (const job of JOBS) {
     const report = step("Report the judgment's outcome", job);
     assert.equal(PIN.exec(/^ {8}uses: (.*)$/m.exec(report)[1])?.[1], "report-lane-outcome", job);
-    assert.ok(index("Report the judgment's outcome", job) === index("Judge the pull request", job) + 1, job);
+    assert.ok(index("Report the judgment's outcome", job) === index("Judge the pull request", job) + (job === KEY ? 2 : 1), job);
     assert.equal(input(report, "credential"), "${{ steps.judge.outputs.credential }}", job);
-    assert.equal(input(report, "known-failure-class"), "${{ steps.judge.outputs.lane-class }}", job);
+
     assert.equal(input(report, "step-timeout-minutes"), "22", job);
     // The start time is taken right before the judge, so a timeout is told from other failures.
     assert.equal(input(report, "step-started-at"), "${{ steps.prompt.outputs.started-at }}", job);
@@ -242,16 +270,34 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
     assert.equal(STEPS[job].at(-1).name, "Fail without a verdict", job);
     assert.match(STEPS[job].at(-1).block, /exit 1/, job);
   }
-  // A credit stop is reported once, by the subscription job that judges after it.
-  assert.match(
-    step("Report the judgment's outcome", KEY),
-    /^ {8}if: \(steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'\) && steps\.judge\.outputs\.lane-class != 'credit-stop'$/m,
-  );
   assert.match(step("Report the judgment's outcome", SUB), /^ {8}if: steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'$/m);
+  assert.equal(input(step("Report the judgment's outcome", SUB), "known-failure-class"), "${{ steps.judge.outputs.lane-class }}");
+  assert.equal(input(step("Report the judgment's outcome", SUB), "lane"), SUB_LANE);
   // Only a hand-off spares the key job its red; an empty token fails the subscription job.
   assert.match(
     STEPS[KEY].at(-1).block,
     /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success' && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success'$/m,
   );
   assert.match(STEPS[SUB].at(-1).block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
+});
+
+test("a credit stop leaves exactly one lane record, from the job that saw its end", () => {
+  const report = step("Report the judgment's outcome", KEY);
+  assert.equal(/^ {8}if: (.*)$/m.exec(report)[1], KEY_REPORT_IF);
+  assert.equal(input(report, "lane"), "pr-verify");
+  // A key leg that is not clean hands nothing on, so the key job records the
+  // stop itself, as the class report-lane-outcome knows for a credit stop.
+  assert.equal(input(report, "known-failure-class"), KEY_CLASS);
+  // A clean stop skips this report; the subscription job, which runs exactly
+  // when key-leg-clean is true, records the run and names the stop in its lane.
+  assert.match(jobText(SUB), /needs\.check-intent\.outputs\.key-leg-clean == 'true'/);
+  assert.match(SUB_LANE, /lane-class == 'credit-stop' && '[^']*credit stop\)'/);
+  assert.doesNotMatch(SUB_LANE, /=[a-z]/, "no key=value token a lane reader could parse");
+});
+
+test("every ci-workflows action is pinned to one release", () => {
+  const refs = [...text.matchAll(/uses: melodic-software\/ci-workflows\/[^@\s]+@([0-9a-f]{40}) # (v\d+\.\d+\.\d+)$/gm)].map((m) => `${m[1]} ${m[2]}`);
+  assert.equal(refs.length, (text.match(/melodic-software\/ci-workflows\//g) ?? []).length, "every ref is a SHA pin with its tag");
+  assert.ok(refs.length >= 6);
+  assert.equal(new Set(refs).size, 1, `one pin: ${[...new Set(refs)].join(", ")}`);
 });

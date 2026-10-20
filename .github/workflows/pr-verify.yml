@@ -20,7 +20,8 @@ name: pr-verify
 # denial, or its key is empty; then check-intent writes no verdict and does
 # not fail, so one job per run judges. The second job repeats every step from
 # a fresh checkout. From check-intent it reads only three outputs, each
-# compared to a fixed string in its `if` and never written into a run:
+# compared to a fixed string in its `if` (and lane-class once more to pick
+# its lane record's name between two literals), never written into a run:
 # script; it takes no artifact or cache. run-claude-cli sets
 # lane-class after it restores the step files, so the model cannot set it.
 # The job tokens can only read. Every script and local action comes from the
@@ -200,7 +201,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.agree.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@34c8358f2d6c2551d7d462064ea46d403df0b7ac # v0.52.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
 
       - name: Isolate the runner
         if: steps.agree.outcome == 'success'
@@ -237,7 +238,8 @@ jobs:
       # continue-on-error keeps a launcher failure, which run-claude-cli
       # reports by failing this step, from ending the job before the outcome
       # step; "Fail without a verdict" carries the red. A credit stop skips
-      # the outcome and verdict steps: the subscription job judges instead.
+      # the verdict steps, and a clean one the outcome step too: the
+      # subscription job judges and records the run instead.
       # One leg of leg-timeout-minutes and the CLI install fit in
       # timeout-minutes, which the outcome step repeats, and that fits in the
       # job's 30. The model may share its job with the upload: it has Read
@@ -282,9 +284,28 @@ jobs:
           json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
           leg-timeout-minutes: "10"
 
+      # After a credit stop: the owner's signal to rotate a key, then the
+      # denial check. A denial on the key leg means no verdict, so the
+      # subscription job runs only on this step's clean=true; continue-on-error
+      # lets the report record the stop, and "Fail without a verdict" carries
+      # the red.
+      - name: Check the key leg
+        id: key-leg
+        if: steps.judge.outputs.lane-class == 'credit-stop'
+        continue-on-error: true
+        env:
+          LOG_FILE: ${{ steps.judge.outputs.log-file }}
+        run: |
+          echo "::warning::the automations role's API key (AUTOMATIONS_CLAUDE_API_KEY) hit a credit stop; rotate a spare key in"
+          node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
+          echo "::notice::check-intent-subscription judges on the subscription token"
+
+      # One lane record per run: a clean credit stop is recorded by the
+      # subscription job; a stop with a denial on the key leg, here, as
+      # rate-limit, the class report-lane-outcome knows for a credit stop.
       - name: Report the judgment's outcome
-        if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && steps.judge.outputs.lane-class != 'credit-stop'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@34c8358f2d6c2551d7d462064ea46d403df0b7ac # v0.52.0
+        if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.lane-class != 'credit-stop' || steps.key-leg.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -293,18 +314,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge.outputs.lane-class }}
-
-      # A denial on the key leg before its credit stop means no verdict, so
-      # the subscription job runs only on this step's clean=true.
-      - name: Check the key leg
-        id: key-leg
-        if: steps.judge.outputs.lane-class == 'credit-stop'
-        env:
-          LOG_FILE: ${{ steps.judge.outputs.log-file }}
-        run: |
-          node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
-          echo "::notice::the key leg ended in a credit stop; check-intent-subscription judges on the subscription token"
+          known-failure-class: ${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}
 
       # The structured output, in the last result message of the execution
       # file, is untrusted model text: read from the file and checked by the
@@ -362,9 +372,13 @@ jobs:
   check-intent-subscription:
     needs: check-intent
     if: >-
-      (needs.check-intent.outputs.lane-class == 'credit-stop'
+      github.ref == 'refs/heads/main'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && ((needs.check-intent.outputs.lane-class == 'credit-stop'
       && needs.check-intent.outputs.key-leg-clean == 'true')
-      || needs.check-intent.outputs.credential-present == 'false'
+      || needs.check-intent.outputs.credential-present == 'false')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -501,7 +515,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.agree.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@34c8358f2d6c2551d7d462064ea46d403df0b7ac # v0.52.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
 
       - name: Isolate the runner
         if: steps.agree.outcome == 'success'
@@ -584,11 +598,11 @@ jobs:
 
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@34c8358f2d6c2551d7d462064ea46d403df0b7ac # v0.52.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
-          lane: pr-verify
+          lane: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'pr-verify (key AUTOMATIONS_CLAUDE_API_KEY hit a credit stop)' || 'pr-verify (key AUTOMATIONS_CLAUDE_API_KEY is empty)' }}
           step-started-at: ${{ steps.prompt.outputs.started-at }}
           step-timeout-minutes: 22
           credential: ${{ steps.judge.outputs.credential }}
