@@ -3,6 +3,16 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.19.0] - 2026-10-20
+
+### Added
+
+- `audit-plugin-landscape` skill: an on-demand, read-only report on installed plugins and known marketplaces. `scripts/landscape_ages.py` batches `gh api` calls to give each one's last upstream commit date and flags 60+ days without a commit, an archived repository, a moved or renamed repository, and a missing source path; the skill groups overlapping plugins, lists alternatives with evidence, and recommends adopt, adapt or drop without filing issues or changing installed state.
+
+### Fixed
+
+- `/harness-ops:plugins sync` under `install_new: ask` no longer tells the model to offer every new catalog plugin in one batched multi-select, which the `AskUserQuestion` tool rejects for a gap of 1 and cannot hold for a gap over 4. The offer now goes in chunks of at most 4 options per question and 4 questions per call, with a further call past 16. Each chunk's question text is distinct, a chunk of 1 (a gap of 1, or the one left over from a gap of 5, 9, 13 and so on) is a single-select Install/Skip question, and an unanswered chunk counts as declined. The skill body, the install-enable context, the README and the `install_new` manifest description state the same rule, and three new evals cover a gap of 1, a gap over 4, and a leftover chunk of 1 in a further call past 16.
+
 ## [3.18.0] - 2026-10-20
 
 ### Added
