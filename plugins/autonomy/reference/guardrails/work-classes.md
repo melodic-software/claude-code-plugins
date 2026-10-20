@@ -185,7 +185,7 @@ does not have: a population to divide by, a non-merge outcome signal, and a look
 demotion rule. All three are org-scale: none of them exists at the volume a single deployment
 produces. Absent them, "reviewer burden" is a count with nothing to normalize against: it moves with
 volume rather than with trustworthiness, and a term that moves with volume rewards a cell for
-producing less. A metric in name only.
+producing less, so it does not measure trustworthiness.
 
 **Trigger to reconsider:** the volume at which all three requirements are satisfiable is reached,
 and a non-merge outcome signal exists. Reaching only the volume is not the trigger.
