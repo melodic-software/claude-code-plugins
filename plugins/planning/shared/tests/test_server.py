@@ -697,16 +697,16 @@ class TestDataFolderRule(unittest.TestCase):
 
 
 class TestSnapshot(ServerCase):
-    def test_the_anonymous_view_has_only_the_four_keys(self):
+    def test_the_anonymous_view_has_only_the_three_keys(self):
         code, _, out = self.get("/api/state")
         self.assertEqual(code, 200)
-        self.assertEqual(sorted(out), ["ended", "joinNeedsKey", "schemaVersion", "title"])
+        self.assertEqual(sorted(out), ["ended", "joinNeedsKey", "title"])
 
     def test_a_person_snapshot_carries_the_reload_trigger(self):
         _, guest = self.join("Ann")
         code, h, out = self.get("/api/state", guest)
         self.assertEqual(code, 200)
-        self.assertEqual(out["schemaVersion"], 7)
+        self.assertNotIn("schemaVersion", out)
         self.assertIsInstance(out["rev"], int)
         self.assertEqual(out["build"], server.build_hash())
         self.assertEqual(h["X-Shared-Build"], out["build"])
@@ -898,7 +898,7 @@ class TestSnapshotContract(unittest.TestCase):
     (the page reads the prototype's names; core.js builds them from these). A key the server drops
     or renames fails here before it blanks part of the page."""
 
-    TOP_ALL = {"schemaVersion", "rev", "build", "title", "goal", "ended", "serverTime", "settings", "rounds", "round", "questions", "cards", "locks"}
+    TOP_ALL = {"rev", "build", "title", "goal", "ended", "serverTime", "settings", "rounds", "round", "questions", "cards", "locks"}
     TOP_ALL |= {"suggestions", "results", "chat", "people", "presence", "lastSeen", "requestCounts", "proposals", "myRequests", "myMergeRequests", "inbox", "me"}
     TOP_MODERATOR = {"share", "guestKey"}
     TOP_OWNER = {"requests", "mergeRequests", "removed", "cardDetails"}
@@ -906,7 +906,8 @@ class TestSnapshotContract(unittest.TestCase):
 
     def setUp(self):
         self.d = tmpdir(self)
-        self.app = server.App(self.d, watch_tunnel=False, initial_state=FIXTURES / "state-v1.json")
+        detached.write_private(self.d / "state.json", (FIXTURES / "state-sample.json").read_text(encoding="utf-8"))
+        self.app = server.App(self.d, watch_tunnel=False)
         self.app.serve()
         self.addCleanup(self.app.shutdown)
         self.port = self.app.guest_port
@@ -1021,10 +1022,10 @@ class TestControl(ServerCase):
         code, h, body = self.get(f"/assets/{aid}")
         self.assertEqual((code, body, h["Content-Security-Policy"]), (200, PNG, "sandbox"))
 
-    def test_the_ping_reports_the_guest_port_and_schema(self):
+    def test_the_ping_reports_the_guest_port_and_build(self):
         code, _, out = call(self.app.control_port, "GET", "/api/ping")
         self.assertEqual(code, 200)
-        self.assertEqual((out["guestPort"], out["schemaVersion"], out["build"]), (self.port, 7, server.build_hash()))
+        self.assertEqual((out["guestPort"], out["build"], "schemaVersion" in out), (self.port, server.build_hash(), False))
 
     def test_a_sent_round_reaches_the_watcher_and_is_stamped_delivered(self):
         self.open_round("Q1")
@@ -1066,34 +1067,17 @@ class TestStart(unittest.TestCase):
         with self.assertRaises(server.StartRefused):
             server.App(d, watch_tunnel=False)
 
-    def test_a_newer_schema_is_refused_naming_both_versions(self):
+    def test_a_state_file_with_a_schema_version_starts_and_its_next_write_drops_it(self):
         d = tmpdir(self)
         server.App(d, watch_tunnel=False).shutdown()
         doc = json.loads((d / "state.json").read_text(encoding="utf-8"))
-        doc["schemaVersion"] = 99
+        doc["schemaVersion"] = 7
         (d / "state.json").write_text(json.dumps(doc), encoding="utf-8")
-        with self.assertRaisesRegex(server.StartRefused, "99.*newer than 7"):
-            server.App(d, watch_tunnel=False)
-
-    def test_an_initial_state_file_seeds_a_new_session_through_migrate(self):
-        d, src = tmpdir(self), tmpdir(self)
-        server.App(src, watch_tunnel=False).shutdown()
-        doc = json.loads((src / "state.json").read_text(encoding="utf-8"))
-        doc["session"]["title"] = "Imported"
-        (src / "seed.json").write_text(json.dumps(doc), encoding="utf-8")
-        calls = []
-        real = session.migrate.migrate
-        with mock.patch.object(session.migrate, "migrate", side_effect=lambda *a: calls.append(a[0]) or real(*a)):
-            app = server.App(d, watch_tunnel=False, initial_state=src / "seed.json")
+        app = server.App(d, watch_tunnel=False)
         self.addCleanup(app.shutdown)
-        self.assertEqual((app.session.state["session"]["title"], len(calls)), ("Imported", 1))
-
-    def test_an_invalid_initial_state_leaves_no_state_file(self):
-        d = tmpdir(self)
-        (d / "seed.json").write_text(json.dumps({"schemaVersion": 1}), encoding="utf-8")
-        with self.assertRaises(server.StartRefused):
-            server.App(d, watch_tunnel=False, initial_state=d / "seed.json")
-        self.assertFalse((d / "state.json").exists())
+        app.session.set_title(session.HOST, {"title": "Still here"})
+        again = json.loads((d / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual((again["session"]["title"], again["people"], "schemaVersion" in again), ("Still here", doc["people"], False))
 
     def test_the_log_rotates_at_its_size_keeping_three(self):
         d = tmpdir(self)
@@ -1382,53 +1366,19 @@ class TestClientLog(LogCase):
         self.assertIn("entry-19", (d / "server.log").read_text(encoding="utf-8"))
 
 
-class TestOldPages(unittest.TestCase):
-    """A prototype page left open across the cutover polls `GET /api/state` with no query string and
-    its identity headers (X-Session-Secret, and X-Owner-Token on the owner's tab), as its core.js
-    poll() does. In a session imported from the prototype it gets a payload its script reads."""
-
-    SECRET = "fixture-guest-secret-ann-not-a-real-secret-000"
-    OWNER = "fixture-owner-token-0001"
-
-    def setUp(self):
-        self.d = tmpdir(self)
-        self.app = server.App(self.d, watch_tunnel=False, initial_state=FIXTURES / "state-v0-prototype.json")
-        self.app.serve()
-        self.addCleanup(self.app.shutdown)
-
-    def poll(self, path, headers):
-        return call(self.app.guest_port, "GET", path, headers=headers)
-
-    def test_an_old_page_poll_gets_the_reload_banner(self):
-        for who in ({"X-Session-Secret": self.SECRET}, {"X-Owner-Token": self.OWNER}):
-            code, _, out = self.poll("/api/state", who)
-            self.assertEqual(code, 200)
-            self.assertEqual(out, {"schemaVersion": 7, "rev": self.app.session.state["rev"], "outdated": True, "title": "This page was updated: reload"})
-
-    def test_the_payload_overrides_no_default_of_the_old_script_with_another_type(self):
-        """fixtures/old-page-defaults.json is DEFAULTS from the prototype page's script
-        (.work/shared-interview-proto/web/core.js), which spreads each poll's answer over it."""
-        defaults = json.loads((FIXTURES / "old-page-defaults.json").read_text(encoding="utf-8"))["defaults"]
-        _, _, out = self.poll("/api/state", {"X-Session-Secret": self.SECRET})
-        self.assertEqual({k: type(v) for k, v in out.items()}, {"schemaVersion": int, "rev": int, "outdated": bool, "title": str})
-        self.assertIs(type(defaults["title"]), str)  # the one key the old script also has keeps its type
-        self.assertEqual(set(out) & set(defaults), {"title"})  # settings among them: absent keeps the script's own
-
-    def test_a_poll_with_a_query_string_gets_the_full_snapshot(self):
-        code, _, out = self.poll("/api/state?since=0", {"X-Session-Secret": self.SECRET})
-        self.assertEqual((code, out["me"]["pid"]), (200, "pidAnn001"))
-
-    def test_a_visitor_without_identity_gets_the_anonymous_view(self):
-        _, _, out = self.poll("/api/state", {})
-        self.assertEqual(sorted(out), ["ended", "joinNeedsKey", "schemaVersion", "title"])
-
-    def test_a_session_not_imported_answers_every_poll_in_full(self):
+class TestStatePoll(unittest.TestCase):
+    def test_a_poll_with_no_query_string_gets_the_full_snapshot_beside_a_prototype_file(self):
+        """The live session was imported from the prototype, so state.v0.json sits beside its state.json; a poll
+        without a query string is answered like any other, with no reload banner."""
         d = tmpdir(self)
+        app = server.App(d, watch_tunnel=False)
+        app.shutdown()
+        detached.write_private(d / "state.v0.json", "{}\n")
         app = server.App(d, watch_tunnel=False)
         app.serve()
         self.addCleanup(app.shutdown)
         code, _, out = call(app.guest_port, "GET", "/api/state", headers={"X-Owner-Token": app.secrets["owner"]})
-        self.assertEqual((code, out["me"]["role"]), (200, "owner"))
+        self.assertEqual((code, out["me"]["role"], "outdated" in out), (200, "owner", False))
 
 
 class TestTunnelWatch(unittest.TestCase):
@@ -1538,7 +1488,7 @@ class TestModerationRoutes(ServerCase):
         self.assertEqual(code, 200, out)
         self.assertEqual(self.state(self.bo)["intro"], "Why you're here.")
         code, _, anon = self.get("/api/state")
-        self.assertEqual(sorted(anon), ["ended", "joinNeedsKey", "schemaVersion", "title"])
+        self.assertEqual(sorted(anon), ["ended", "joinNeedsKey", "title"])
 
     def test_the_owner_merges_a_second_identity_into_the_owner_and_its_secret_ends(self):
         code, _, out = self.post("/api/chat", {"text": "From my phone"}, self.bo)

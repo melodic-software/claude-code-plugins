@@ -54,7 +54,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 ## Shared session
 
-- **Waiting to `ack-round`:** until it lands, the page shows Waiting for Claude and the owner can still cancel. Apply `ack-round` first on every `round-sent`, before recording or thinking about the next round.
+- **A pause after `ack-round`:** once it lands, the page shows Claude is working and the owner can no longer cancel, so a question to the owner before the next `open-round` leaves everyone waiting. Apply `ack-round` with `open-round` or `close-round` in one apply, and ask the owner after it lands.
 
 - **A placement missing:** every pending proposal needs exactly one placement in the `open-round` or `close-round`; a missing or doubled one refuses the whole apply.
 

@@ -2,7 +2,6 @@
 // reads the prototype's state names; toView() builds them from the contract snapshot, and each action
 // below sends the contract route's body. The map: .work/shared-interview-ui/snapshot-map.md.
 (() => {
-  const SCHEMA_VERSION = 7; // the session file version this page was built for; another one reloads it
   const memory = new Map();
   const store = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })()
     || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
@@ -112,16 +111,16 @@
     const plain = t => (typeof t === "string" && t.includes("<@") ? t.replace(TOKEN, (_, p) => "@" + label(p)) : t);
     const view = {
       ...structuredClone(DEFAULTS), // its own maps: a question whose last answer, lock, suggestion or result went must lose its key
-      schemaVersion: s.schemaVersion, rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", ended: !!s.ended, serverTime: s.serverTime,
+      rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", ended: !!s.ended, serverTime: s.serverTime,
       // reviewAnswers: absent (a session from before the setting) reviews every answer, as those sessions always did.
       settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always", reviewAnswers: settings.reviewAnswers !== false },
       people, ownerPid: "host",
       leaders: live.filter(p => p.role === "leader").map(p => p.pid), trusted: live.filter(p => p.trusted && p.pid !== "host").map(p => p.pid),
       removed: (s.removed || []).map(p => p.pid),
       rounds: rounds.map(r => ({ n: r.n, status: r.status.kind })),
-      round: last ? { current: last.n, status: last.status.kind, sentAt: last.status.sentAt,
+      round: last ? { current: last.n, status: last.status.kind, sentAt: last.status.sentAt, ackAt: last.status.ackAt,
         ...(last.status.ready ? { ready: { by: nameOf(last.status.ready.by), cid: last.status.ready.by, ts: last.status.ready.at } } : {}) } : { current: 1, status: "open" },
-      requestCounts: s.requestCounts || DEFAULTS.requestCounts,
+      requestCounts: s.requestCounts || DEFAULTS.requestCounts, behind: s.behind || {}, aboutYou: s.aboutYou || {}, myAbout: s.me?.aboutYou || null,
       shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, guestKey: s.guestKey || "",
     };
     const proposals = s.proposals || [];
@@ -410,7 +409,10 @@
     },
 
     answersFor: qid => Core.state.answers[qid] || [],
-    myAnswer: qid => Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.claude && !a.option)?.text || "",
+    myAnswer: qid => { const d = scopeOf(qid).device; return Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.claude && !a.option && (!d || a.device === d))?.text || ""; },
+    /** Follow-up 47: on a question asked once per device, the device kinds I answered from other than this one. */
+    myOtherDevices: qid => { const d = scopeOf(qid).device; return d ? [...new Set(Core.answersFor(qid).filter(a => a.cid === Core.me.cid && !a.claude && !a.option && a.device && a.device !== d).map(a => a.device))] : []; },
+    thisDevice: () => deviceKind(),
     /** People here right now other than me, optionally on one question. */
     others: qid => Core.state.presence.filter(p => p.cid !== Core.me.cid && (qid == null || p.q === qid)),
     owner: () => Core.state.presence.find(p => p.owner),
@@ -428,7 +430,7 @@
     // Each action rejects with {status, error, message, ...} from the server; errorText(e) words it.
     /** My one answer to a question, citing results; empty text clears it. Carries the view and device it was made on. */
     /** extra.attachments (C44), when given, replaces the upload ids the answer carries; left out, it keeps them. */
-    answerCiting: (qid, text, cites, extra) => act("/api/answer", { qid, text, cites, ...(extra?.attachments ? { attachments: extra.attachments } : {}), ...where() })
+    answerCiting: (qid, text, cites, extra) => act("/api/answer", { qid, text, cites, ...(extra?.attachments ? { attachments: extra.attachments } : {}), ...where(), ...scopeOf(qid) })
       .then(r => { typingUntil = 0; return r; }),
     /** Choice, confirm, prototype or poll question: pick an option ("" clears it), with an optional comment.
      *  Picking "other" (Something else…) needs opts.other, the person's own option, which takes the comment's place. */
@@ -437,7 +439,7 @@
      *  empty list or a null value clears it. `other` is the person's own option when the pick holds "other".
      *  `attachments`, when given, replaces the upload ids the pick carries (C44); left out, it keeps them. */
     pickWith: (qid, fields, { comment, other, attachments } = {}) => {
-      const body = { qid, ...contractPick(fields), ...(other != null ? { other } : { comment: comment || "" }), ...(attachments ? { attachments } : {}), ...where() };
+      const body = { qid, ...contractPick(fields), ...(other != null ? { other } : { comment: comment || "" }), ...(attachments ? { attachments } : {}), ...where(), ...scopeOf(qid) };
       return act("/api/pick", body, { key: "pick:" + qid, patch: (s, pid) => patchPick(s, pid, qid, body) }).then(r => { typingUntil = 0; return r; });
     },
     idea: (text, extra) => act("/api/propose", { text, ...withAtt(extra) }).then(r => { typingUntil = 0; return r; }),
@@ -601,6 +603,8 @@
     /** Owner: "Why you're here" (empty removes it). */
     setIntro: intro => act("/api/session/intro", { intro }),
     setColor: color => act("/api/color", { color }),
+    /** Follow-up 46: how comfortable I am with tech (low, ok, high) and an optional note; only the owner reads them. */
+    setAboutYou: (techComfort, note) => act("/api/about-you", { techComfort, ...(note ? { note } : {}) }),
     setLeader: (pid, on) => act("/api/person/role", { pid, role: on ? "leader" : "guest" }),
     setTrusted: (pid, on) => act("/api/person/trust", { pid, on }),
     /** Owner: the page's settings names (showNames, hideClaude) become the contract's. */
@@ -692,6 +696,15 @@
   const BROWSERS = [[/SamsungBrowser\//, "samsung"], [/Edg\//, "edge"], [/(FBAN|FBAV|Instagram|Line\/|; wv\))/, "in-app"], [/Firefox\/|FxiOS\//, "firefox"], [/Chrome\/|CriOS\//, "chrome"], [/Safari\//, "safari"]];
   const deviceKind = () => (matchMedia("(pointer: coarse)").matches ? (matchMedia("(max-width: 720px)").matches ? "phone" : "tablet") : "computer");
   const browserKind = () => BROWSERS.find(([re]) => re.test(navigator.userAgent))?.[1] || "other";
+  /** A question asked once per device (answerScope device) takes the device kind with each answer and pick. */
+  const scopeOf = qid => (Core.state.questions.find(q => q.id === qid)?.answerScope === "device" ? { device: deviceKind() } : {});
+  /** Follow-up 45: {app, open}, the social app whose built-in browser shows this page and the browser to open it in
+   *  instead; null in any other browser. */
+  Core.inApp = () => {
+    const ua = navigator.userAgent;
+    const app = /Instagram/.test(ua) ? "Instagram" : /Messenger|FB_IAB\/MESSENGER|FBAN\/MessengerForiOS/i.test(ua) ? "Messenger" : /FBAN|FBAV|FB_IAB/.test(ua) ? "Facebook" : "";
+    return app ? { app, open: /iPhone|iPad|iPod/.test(ua) ? "Safari" : "Chrome" } : null;
+  };
   function where() {
     const c = Core.context?.() || {};
     const view = ["focus", "compare", "tree", "host", "prototype"].includes(c.view) ? c.view : "focus";
@@ -1202,7 +1215,6 @@
       if (r.status === 401 && !ownerToken && s.error === "merged-into-owner") { etag = ""; markMerged(); return; }
       if (r.status === 401 && !ownerToken) { forget(); etag = ""; askName(errorText(s)); return; }
       if (!r.ok) return;
-      if (s.outdated || (s.schemaVersion != null && s.schemaVersion !== SCHEMA_VERSION)) return reload("version");
       if (s.build) { if (build && s.build !== build) return reload("build"); build = s.build; }
       etag = r.headers.get("ETag") || "";
       good();

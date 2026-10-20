@@ -2276,6 +2276,18 @@
 .app .vf-orient-row { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 12px; }
 .app .vf-orient-row .vf-btn { block-size: 44px; padding-inline: 16px; font-size: 14px; white-space: normal; text-align: center; }
 .app .vf-orient-x { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; min-inline-size: 44px; block-size: 44px; padding-inline: 12px; }
+/* follow-up 52: what the toolbar's filter hides from the rail, and the way back */
+.app .vf-railfilter { margin: 4px 8px 8px; padding: 6px 10px; border-radius: var(--r-sm); background: color-mix(in oklch, var(--review) 14%, transparent); font-size: 12.5px; overflow-wrap: anywhere; }
+.app .vf-railfilter[hidden] { display: none; }
+/* follow-up 47: a question asked once per device, answered on another one */
+.app .vf-devnote { margin: 0 0 10px; padding: 8px 12px; border-radius: var(--r-md); background: color-mix(in oklch, var(--accent) 8%, var(--pane)); font-size: 13.5px; overflow-wrap: anywhere; }
+.app .vf-devnote[hidden] { display: none; }
+/* follow-up 39: the goal in one line on a return visit, closable */
+.app .vf-goalback { display: flex; align-items: center; gap: 6px; margin-block-end: 12px; padding: 2px 2px 2px 12px; border-radius: var(--r-md);
+  border: 1px solid color-mix(in oklch, var(--accent) 35%, var(--line)); background: color-mix(in oklch, var(--accent) 6%, var(--pane)); font-size: 13px; }
+.app .vf-goalback[hidden] { display: none; }
+.app .vf-goalback-t { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.app .vf-goalback-x { flex: none; inline-size: 44px; block-size: 44px; }
 
 /* ux-review-2 #4: the guest's one control for the views, sort and filters. */
 .app .vf-viewopts { flex: none; }

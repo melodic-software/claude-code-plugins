@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+// A question asked once per device (answerScope "device", follow-up 47), against `share.sh ensure-running` with the
+// fake cloudflared: a guest answers it on a computer, opens the session on a phone with their personal link, sees that
+// they answered on their computer and are asked for this phone too, and answers again; the owner then reads one card
+// per device, each named with its device.
+//   node plugins/planning/shared/tests/ui_per_device.js
+// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
+// Expected values come from Q94 (one answer per device, a prompt on a new device) and the texts this suite writes,
+// never from the page.
+"use strict";
+const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
+
+const Q = "Which device do you use for checkout?";
+
+async function main() {
+  const pw = loadPlaywright();
+  if (!pw) { console.log("SKIP: ui_per_device.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; } // silent-skip-ok: a browser suite needs a local Playwright
+  let browser;
+  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; } // silent-skip-ok: no browser binary
+  const s = suite("ui_per_device"), { ok } = s, rec = recorder(browser);
+  try {
+    const A = await s.start("per-device");
+    s.apply(A.dir, [{ op: "set-title", title: "Checkout" },
+      { op: "open-round", questions: [{ id: "Q1", text: Q, alternatives: [], dependsOn: [], purpose: "gather", format: { kind: "text" }, answerScope: "device" }] }]);
+    const owner = await rec.open(A.ownerUrl, { context: { viewport: { width: 1440, height: 900 } } });
+    await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
+    const ann = await rec.open(A.localUrl, { context: { viewport: { width: 1440, height: 900 } } });
+    const annPid = await joinAs(ann, "Ann");
+    await until(ann, () => !!document.querySelector(".vf-qtext")?.textContent);
+    if (await ann.locator(".vf-orient-x").isVisible().catch(() => false)) await ann.click(".vf-orient-x");
+    ok("on her computer nothing asks her again yet", await ann.evaluate(() => document.querySelector(".vf-devnote").hidden));
+    await ann.fill("#vf-answer", "My laptop, mostly.");
+    await ann.press("#vf-answer", "Control+Enter");
+    ok("her answer is stored as the computer's", await until(owner, pid => (window.Core.snapshot()?.cards?.Q1 || []).some(c => c.pid === pid && c.device === "computer" && c.text === "My laptop, mostly."), annPid, 10000),
+      JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.cards?.Q1)));
+
+    const link = await ann.evaluate(() => window.Core.personalLink());
+    const phone = await rec.open(link.replace(/^https?:\/\/[^/]+\//, A.localUrl), { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
+    await until(phone, pid => window.Core.snapshot()?.me?.pid === pid, annPid, 10000);
+    ok("on her phone the question says she answered on her computer and asks for this phone too", await until(phone, () =>
+      document.querySelector(".vf-devnote:not([hidden])")?.textContent === "You answered this on your computer. It asks for one answer per device: answer for this phone too.", null, 10000),
+    await phone.evaluate(() => document.querySelector(".vf-devnote")?.textContent || ""));
+    ok("  and her answer box is empty for this phone", (await phone.inputValue("#vf-answer")) === "");
+    await phone.fill("#vf-answer", "On the bus, my phone.");
+    await phone.evaluate(() => window.Core.answerCiting("Q1", document.getElementById("vf-answer").value, []));
+    ok("her phone answer is a second card, the computer's kept", await until(owner, pid => {
+      const mine = (window.Core.snapshot()?.cards?.Q1 || []).filter(c => c.pid === pid).map(c => `${c.device}:${c.text}`).sort().join("|");
+      return mine === "computer:My laptop, mostly.|phone:On the bus, my phone.";
+    }, annPid, 10000), JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.cards?.Q1)));
+    ok("  and the prompt goes", await until(phone, () => document.querySelector(".vf-devnote").hidden, null, 10000));
+    ok("the owner reads one card per device, each named with its device", await until(owner, () => {
+      const names = [...document.querySelectorAll(".vf-alist .vf-card")].map(c => c.textContent);
+      return names.some(t => t.includes("Ann, computer") && t.includes("My laptop")) && names.some(t => t.includes("Ann, phone") && t.includes("On the bus"));
+    }, null, 10000), await owner.evaluate(() => [...document.querySelectorAll(".vf-alist .vf-card")].map(c => c.textContent.slice(0, 60)).join(" | ")));
+
+    ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
+    const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
+    ok("no page error", errs.length === 0, errs.slice(0, 3).join(" | "));
+  } catch (e) {
+    ok("the suite ran to the end", false, String(e.stack || e).split("\n").slice(0, 3).join(" "));
+  } finally { await browser.close(); }
+  return s.finish();
+}
+
+main().then(code => process.exit(code), e => { console.error(e); process.exit(1); });

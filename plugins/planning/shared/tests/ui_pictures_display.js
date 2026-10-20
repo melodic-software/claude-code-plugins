@@ -62,9 +62,8 @@ async function main() {
     const port = new URL(A.localUrl).port;
     s.share(A.dir, "stop");
     const file = path.join(A.dir, "state.json"), st = JSON.parse(fs.readFileSync(file, "utf8"));
-    // as main wrote it (schemaVersion 6, no marks), offered before #8420 (5026be8b, 2026-10-19T14:48:06Z): the upgrade keeps it loose
-    st.schemaVersion = 6;
-    for (const u of st.uploads) { delete u.draft; delete u.carried; if (u.id === old) u.at = Date.parse("2026-10-19T14:48:06Z") / 1000 - 3600; }
+    // unmarked, neither a draft nor carried, as an offer from before attachments is in the live state
+    for (const u of st.uploads) if (u.id === old) { delete u.draft; delete u.carried; }
     fs.writeFileSync(file, JSON.stringify(st));
     s.share(A.dir, "ensure-running", "--guest-port", port);
     const reopen = async (page, url) => { const p = await rec.openIn(page.context(), url); await until(p, () => !!window.Core.snapshot()?.me); await page.close(); return p; };
