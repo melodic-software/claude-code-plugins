@@ -695,7 +695,7 @@ HOOK_ALIAS_WORK_MAX=128
 
 # The work budget bounds time, not stack, so the walk's nesting depth has its own
 # cap, sized to the process's stack (guard::alias_depth_max).
-guard::alias_depth_max "$HOOK_ALIAS_WORK_MAX"
+guard::alias_depth_max
 
 # Call as: alias_reexpand_admit <kind> <state-word>... — returns 1 when this
 # exact state was already analyzed, and never returns at all when the traversal
