@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.26.1] - 2026-10-20
+
+### Fixed
+
+- `video-digest` `run-watch.js` now removes its temp video, frame and sheet directories when SIGHUP, SIGINT or SIGTERM interrupts a watch before `watch.json` records them, then exits `129`, `130` or `143`. On POSIX the interrupt kills each child's whole process group, so a yt-dlp ffmpeg grandchild ends too; on Windows only direct children are killed. Cleanup runs once, and the handlers are removed when the run ends.
+
 ## [0.26.0] - 2026-10-20
 
 ### Added

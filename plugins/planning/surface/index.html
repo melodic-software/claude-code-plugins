@@ -708,8 +708,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const acts = () => S.doc.activity || [];
   const actKey = e => { if (e.seq != null) return "s" + e.seq; let h = 5381; for (const ch of String(e.text)) h = (h * 33 + ch.charCodeAt(0)) | 0; return e.at + "|" + (h >>> 0).toString(36); }; // the entry's seq, else the time and a hash; never the text
   function unseenActs(){ const s = new Set(lsGet("actSeen", [])); return acts().filter(e => !s.has(actKey(e))); }
-  // "Needs you": a new round, a Notes reply, a restatement to confirm, the finish, or a question that still waits on the user (a reply to an ask, a hold on their answer); the rest is the log
-  const needsAct = e => !!(e.notes || e.added || e.finished || e.restate || (e.ids || []).some(id => Q[id] && needsYou(Q[id])));
+  // "Needs you": a restatement to confirm, the finish, a Notes reply that asks, or a question that still waits on the user (a reply to an ask, a hold on their answer); the rest is the log, Claude-side bookkeeping included (a plain Notes reply, added questions, a revision)
+  const needsAct = e => !!(e.finished || e.restate || e.asks || ((e.waits || !(e.notes || e.added || e.revised)) && (e.ids || []).some(id => Q[id] && needsYou(Q[id]))));
   function markSeen(pred){
     const s = new Set(lsGet("actSeen", [])), keys = new Set(acts().map(actKey));
     acts().forEach(e => { if (!pred || pred(e)) s.add(actKey(e)); });

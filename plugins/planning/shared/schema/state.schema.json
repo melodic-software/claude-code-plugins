@@ -12,7 +12,7 @@
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": {"enum": [6]},
+    "schemaVersion": {"enum": [7]},
     "pluginVersion": {"type": "string"},
     "writtenBy": {"type": "string"},
     "rev": {"type": "integer", "minimum": 0},
@@ -1020,6 +1020,8 @@
         "size": {"type": "integer", "minimum": 0},
         "thumb": {"type": "string"},
         "shown": {"const": true, "description": "The owner approved this guest's received picture: everyone who sees what carries it sees it."},
+        "draft": {"const": true, "description": "Offered from a form and not sent with anything yet: never shown under its question."},
+        "carried": {"const": true, "description": "A record has carried it: never shown under its question again, even once nothing carries it."},
         "chunks": {"type": "integer", "minimum": 0},
         "status": {
           "oneOf": [

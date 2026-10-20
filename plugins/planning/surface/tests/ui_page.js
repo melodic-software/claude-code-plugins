@@ -180,6 +180,19 @@ async page => { // the question page itself: choices, chips, banners, header and
     const c9 = await page.$$eval("#choices .choice", els => els.map(e => e.textContent));
     ok("#5910: an older terminal accept (no rev) whose recommendation changed after it offers no Reconfirm", c9.length > 0 && !c9.some(t => /Reconfirm/.test(t)) && /support lead/.test(await text("#choices .choice.rec")), JSON.stringify(c9));
   }
+  if (PHASE === 10) { // #7751: by now the feed holds revisions, an added question and a saved reply; Needs you lists only what waits on the user
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    const badge = await page.$eval("#actBadge", b => b.hidden ? 0 : +b.textContent.trim() || 0).catch(() => -1);
+    await page.click("#qhead"); await page.keyboard.press("l"); await page.waitForTimeout(300);
+    const split = await page.evaluate(() => {
+      const h = document.getElementById("actNeeds"), n = h.nextElementSibling, log = document.getElementById("actLog");
+      return {needs: (n ? n.textContent : "").replace(/\s+/g, " "), log: (log ? log.textContent : "").replace(/\s+/g, " "), count: +(h.textContent.match(/\((\d+)\)/) || [0, -1])[1], rows: n && n.matches("ol") ? n.children.length : 0, unseen: n && n.matches("ol") ? n.querySelectorAll("li.unseen").length : 0};
+    });
+    ok("#7751: added, revised and note-saved entries are in the log, not under Needs you", !/Added Q9|Revised Q|revised Q|added Q9/i.test(split.needs) && /Added Q9/.test(split.log) && /evised Q/.test(split.log), JSON.stringify(split));
+    ok("#8035: a Notes reply that asks is under Needs you, a plain one is in the log", /Note posted/.test(split.needs) && /Note posted/.test(split.log) && split.rows > 0, JSON.stringify(split));
+    ok("#7751: the Needs you heading counts only the entries listed under it", split.count === split.rows, JSON.stringify(split));
+    ok("#7751: the Activity badge equals the unseen entries listed under Needs you", badge === split.unseen, badge + " badge / " + split.unseen + " unseen of " + split.count + " listed");
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");
