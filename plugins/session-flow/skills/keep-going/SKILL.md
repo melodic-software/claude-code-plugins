@@ -53,12 +53,40 @@ itself the thing this skill removes.
    this thread, per the off-thread kinds in
    [`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)
    an open-ended set (background tasks, shells, monitors, scheduled
-   jobs, dynamic workflows, subagents), not a fixed catalogue. Single
-   out every subagent or workflow agent whose last notification carries a
-   rate-limit error type or a usage-limit message, and every agent the
-   user's prompt or a branch or PR trail says ended on a usage limit (a
-   gone session's notifications are not available): they take the
-   rate-limited path in step 4.
+   jobs, dynamic workflows, subagents, external CLI processes), not a
+   fixed catalogue. Single out every subagent or workflow agent whose last
+   notification carries a rate-limit error type or a usage-limit message,
+   and every agent the user's prompt or a branch or PR trail says ended on
+   a usage limit (a gone session's notifications are not available): they
+   take the rate-limited path in step 4. For each background shell, also list its child
+   process tree and flag any process waiting on an interactive prompt or
+   stdin, so a run hung on a `[y/N]` question is found instead of read
+   as slow:
+
+   ```shell
+   python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/check-child-input-wait.py" "<shell pid>"
+   ```
+
+   `<shell pid>` is the OS process id of the shell, not its task or shell
+   id: take it from the pid the task reports, else find the shell with
+   `ps` (its parent is the session). When no pid can be resolved, skip
+   this check for that shell and say so in the report.
+
+   It prints JSON: each descendant with its command line and a
+   `waiting_on_input` verdict of `yes`, `no` or `unknown`, plus `waiting`
+   and `unknown` pid lists. Exit `0`: none waiting. Exit `1`: at least one
+   waiting. Exit `2`: bad argument or the pid is not running. Exit `3`:
+   the process table could not be read. Exit `4`: none waiting, but some
+   verdicts are `unknown`. `unknown` (an elevated process the session
+   cannot inspect, a platform with no signal, or on Linux a process the
+   script can read only through `/proc/<pid>/wchan`, which flags a tty
+   read and nothing else) is never read as `no`: inspect that process by
+   other means before calling it slow. On Linux each row also carries
+   `stdin`, where fd 0 points: a Claude Code shell's children inherit
+   `/dev/null`, which cannot hang on a prompt, and a `pipe:[...]` there
+   is usually a pipeline waiting on its producer, not on a person. A Linux
+   `yes` needs `/proc/<pid>/syscall`, which only an ancestor can read
+   under Yama `ptrace_scope` 1 or higher.
 2. **Inspect real state, never assume.** Read each item's actual state
    from the source of truth, per that doc's inspect-real-state invariant:
    do not infer "it probably finished" or "it probably died". Only the
@@ -66,6 +94,18 @@ itself the thing this skill removes.
    gone (a crash, a restart, a closed terminal), its agent and task ids
    went with it: find the work by what it left behind, its branch, its
    PR, its worktree and commits, not by an id that no longer resolves.
+
+   **Measure the gap first.** Run
+   `python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/measure-stop-gap.py" "<session transcript path>"`
+   on this live, resumed session's transcript; a stopped transcript no
+   prompt has resumed yet is out of its scope. It prints JSON with the last assistant entry, the limit or error
+   entry (null when there is none), now, and the gap from the stop to
+   now (`gap`, `gap_seconds`); a transcript with no limit or error entry
+   measures from the last assistant entry. Exit `2` (missing, unreadable
+   or empty transcript, or no assistant entry) means the gap is unknown:
+   report it as unknown, never estimate it. State the gap in the report.
+   Anything remembered from before the stop and older than the gap is
+   re-read, not trusted: limit windows, leases, PR state and CI runs.
 3. **Goal alignment, before any recovery ACTION.** When the resume
    follows a `/session-flow:handoff`, read that file rather than trusting
    memory, and when the handoff's path was lost (a `/clear` without
@@ -126,7 +166,9 @@ itself the thing this skill removes.
 6. **Report.** Open with whatever needs the user: a gated kill or
    re-fire, or a question about the goal. Below it, one list sorts every
    item as still-running, recovered, restarted, abandoned, or lost /
-   unrecoverable. Work picked up from another agent's trail adds its
+   unrecoverable. Name every child process step 1 flagged as waiting on
+   input, with its command line, and every `unknown` verdict; killing one
+   stays behind the side-effect gate below. Work picked up from another agent's trail adds its
    verdict and the split between inherited and redone work (next
    section). Every rate-limited agent from step 1 appears with its
    partial-work evidence and its final action: resumed, restarted, or
@@ -255,19 +297,39 @@ For any "is it stuck / check the monitor / poke it":
   is installed and mods are on. For which fields the statusline `rate_limits`
   object carries and who receives it, see
   [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data);
-  the record below holds its as-of date and recheck trigger. This skill has no
-  in-session account-identity signal, so a captured message never drives a
-  still-blocked verdict by itself: re-check live before handing back. When no
+  the record below holds its as-of date and recheck trigger. A captured
+  message never drives a still-blocked verdict by itself: re-check live
+  before handing back. When no
   live reading is obtainable (mods off, the guard not installed, the
   tool's registration refused by policy, or a tool answer with no windows,
   `verdict: "unknown"`, as under API-key or enterprise auth), ask the
   operator which account is active and whether it has
   headroom, as in the exit `2` path. Never invent a window and never conclude
   still-blocked.
+- **Name both accounts before reading the message against the live reading.**
+  Read the active account's identity from `claude auth status` at resume,
+  using whichever field in its output identifies the account. A field that
+  only describes how the CLI is configured never makes an identity known:
+  with no identifying field the state is unknown. The account at the time of the stop is the one the stop entry, the
+  handoff or the operator recorded. Report both, each with its source, and one
+  of three states:
+  - **unchanged**: both identities are known and equal, so the captured
+    message and the live reading describe one account and the limit may have
+    lifted (apply the reset check above).
+  - **changed**: both are known and differ, so the captured message belongs to
+    the old account. Do not read it against the current one; take the current
+    account's own live reading (or the operator's answer when none is
+    obtainable, as above) and say the account changed.
+  - **unknown**: either side is missing, unreadable (`claude auth status`
+    fails or shows no identifying field) or ambiguous. Ask the
+    operator which account is active and which one hit the limit; never infer
+    a state, and say why the reading failed.
+
+  Switching accounts or driving account rotation is not this skill's job.
 
   | Decision | Pointer | As of | Recheck trigger |
   |---|---|---|---|
-  | A captured usage-limit message is account-bound. Still-blocked requires a live re-check of the current account, or the operator's answer when none is obtainable. The date-bearing `Sep 8, 6pm` form is unparsed (exit 2). | For the reset time a limit message carries, see [costs: When a developer asks about a limit](https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit). For what `/usage` shows a subscriber, see [costs: Using the `/usage` command](https://code.claude.com/docs/en/costs#using-the-/usage-command). For the `rate_limits` field, who receives it and when, see [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data). For the parsed forms, see `check-usage-limit-reset.py` `RESET_RE` (no month token). | 2026-09-29 | That costs section stops covering the reset time; `/usage` stops showing plan usage bars; the statusline page drops `rate_limits` or starts passing it to the model; an in-session account-identity field this skill can read without a sibling plugin ships; or `RESET_RE` starts matching a date-bearing form. |
+  | A captured usage-limit message is account-bound. Still-blocked requires a live re-check of the current account, or the operator's answer when none is obtainable. The date-bearing `Sep 8, 6pm` form is unparsed (exit 2). | For the reset time a limit message carries, see [costs: When a developer asks about a limit](https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit). For what `/usage` shows a subscriber, see [costs: Using the `/usage` command](https://code.claude.com/docs/en/costs#using-the-/usage-command). For the `rate_limits` field, who receives it and when, see [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data). For the parsed forms, see `check-usage-limit-reset.py` `RESET_RE` (no month token). For the account-identity reading, see [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) `claude auth status`. | 2026-10-18 | That costs section stops covering the reset time; `/usage` stops showing plan usage bars; the statusline page drops `rate_limits` or starts passing it to the model; `claude auth status` stops reporting an identifying field or changes its output; or `RESET_RE` starts matching a date-bearing form. |
 
 ## Still blocked (limit not yet reset). Hand back, don't busy-wait
 

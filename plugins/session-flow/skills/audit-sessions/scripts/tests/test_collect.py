@@ -113,6 +113,7 @@ def test_full_session_record(data_dir, multi):
         "end": "2026-09-20T10:30:05Z",
         "wall_clock_s": 1805,
         "active_s": 45,
+        "active_gap_s": 1235,
         "turn_durations": 2,
         "idle_gaps_gt5m": 2,
         "idle_gaps_gt1h": 0,
@@ -165,7 +166,17 @@ def test_full_session_record(data_dir, multi):
         "by_model": {"claude-haiku-4-5-20251001": 1},
         "by_depth": {"1": 1},
     }
-    assert rec["stop_hooks"] == {"runs": 1, "ms_total": 150, "ms_p50": 150, "ms_p90": 150, "blocks": 0, "errors": 0}
+    assert rec["stop_hooks"] == {
+        "runs": 1,
+        "ms_total": 150,
+        "ms_p50": 150,
+        "ms_p90": 150,
+        "wait_ms_total": 100,
+        "wait_ms_p50": 100,
+        "wait_ms_p90": 100,
+        "blocks": 0,
+        "errors": 0,
+    }
     assert rec["context"] == {
         "compactions": [{"trigger": "manual", "pre_tokens": 150000, "post_tokens": 20000}],
         "compact_commands": 1,
@@ -940,3 +951,60 @@ def test_resolve_bash_follows_exec_bash_order(env, platform, present, expected):
     import collect as collect_module
 
     assert collect_module.resolve_bash(env, platform, exists=present.__contains__) == expected
+
+
+# --- Stop wait and gap-based active time ---
+
+
+def _stamp(seconds: int) -> str:
+    return f"2026-09-20T{10 + seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}Z"
+
+
+def _line(kind: str, seconds: int, **fields) -> dict:
+    return {"type": kind, "sessionId": "s1", "version": "2.1.287", "uuid": f"u{seconds}-{kind}", "timestamp": _stamp(seconds), **fields}
+
+
+def _typed(seconds: int) -> dict:
+    return _line("user", seconds, promptSource="typed", message={"role": "user", "content": "go"})
+
+
+def _reply(seconds: int) -> dict:
+    message = {"id": f"m{seconds}", "role": "assistant", "model": "m", "content": [{"type": "text", "text": "ok"}], "usage": {"output_tokens": 1}}
+    return _line("assistant", seconds, message=message)
+
+
+def _stop(seconds: int, durations: list[int]) -> dict:
+    infos = [{"command": f"h{i}", "durationMs": d} for i, d in enumerate(durations)]
+    return _line("system", seconds, subtype="stop_hook_summary", hookInfos=infos, preventedContinuation=False, hookErrors=[])
+
+
+def _collect_one(data_dir: Path, tmp_path: Path, lines: list[dict]) -> dict:
+    root = tmp_path / "projects"
+    (root / "proj").mkdir(parents=True)
+    (root / "proj" / "s1.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8")
+    result = collect(data_dir, root)
+    assert result.returncode == 0, result.stdout + result.stderr
+    return records(data_dir)["s1"]
+
+
+def test_stop_wait_is_the_slowest_hook_and_an_empty_hook_list_is_zero(data_dir, tmp_path):
+    rec = _collect_one(data_dir, tmp_path, [_typed(0), _reply(5), _stop(6, [100, 50]), _stop(9, [])])
+    stop = rec["stop_hooks"]
+    assert (stop["runs"], stop["ms_total"], stop["wait_ms_total"]) == (2, 150, 100)
+    assert stop["wait_ms_p90"] == 100
+    assert "invariant:stop_wait_over_sum" not in json.dumps(rec["census"])
+
+
+def test_active_time_is_bounded_by_wall_clock_despite_an_oversized_turn_duration(data_dir, tmp_path):
+    turn = _line("system", 3180, subtype="turn_duration", durationMs=239_599_036)
+    rec = _collect_one(data_dir, tmp_path, [_typed(0), _reply(60), turn])
+    block = rec["time"]
+    assert block["wall_clock_s"] == 3180 and block["active_s"] == 239_599
+    assert block["active_gap_s"] == 60 + 300 <= block["wall_clock_s"]
+    assert "invariant:active_over_wall" not in json.dumps(rec["census"])
+
+
+def test_active_time_is_nonzero_without_a_turn_duration_record(data_dir, tmp_path):
+    rec = _collect_one(data_dir, tmp_path, [_typed(0), _reply(20), _typed(50), _reply(80)])
+    assert rec["time"]["turn_durations"] == 0 and rec["time"]["active_s"] == 0
+    assert rec["time"]["active_gap_s"] == 80

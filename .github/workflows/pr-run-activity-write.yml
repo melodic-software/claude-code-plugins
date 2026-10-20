@@ -275,6 +275,11 @@ on:
           report, which this run reused instead of running the model; empty
           otherwise. Set only by runner steps, before the mint.
         value: ${{ jobs.run.outputs.reuse-branch }}
+      resume-branch:
+        description: >-
+          Issue mode: the earlier run's lane branch this run resumed; empty
+          otherwise. Set only by runner steps, before the mint.
+        value: ${{ jobs.run.outputs.resume-branch }}
 
 permissions: {}
 
@@ -342,6 +347,7 @@ jobs:
       # job failed before its act step.
       run-failure: ${{ steps.lane-token.outputs.failure-reason }}
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
+      resume-branch: ${{ steps.issue-prior.outputs.resume-branch }}
       # The lane record, from steps that read the execution file after the
       # skill. A forged limit stop can only restart the lane after a reset
       # limit-stop.mjs and report-outcome clamp to at least
@@ -1893,7 +1899,7 @@ jobs:
           path: |
             ${{ runner.temp }}/lane-feedback-out/run.json
             ${{ runner.temp }}/lane-feedback-out/replies.jsonl
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: error
 
       # dependency-review, after any model turn, also after a failed,
@@ -2472,7 +2478,7 @@ jobs:
         with:
           name: reuse-summary-${{ inputs.issue-number }}
           path: ${{ runner.temp }}/reuse-summary/reuse-summary.json
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: error
           overwrite: true
 

@@ -78,9 +78,14 @@ for (const domains of ["all", [], ["*"], ["any"], ["code.claude.com,x"], ["Code.
   });
 }
 
-// Only the write runner grants the web, so a read skill cannot ask for it.
-test("web-access on with effect read fails the schema", () => {
+// Only the runner that stages edit tools grants the web, so a read skill that
+// hands on no patch cannot ask for it (README.md, Activities, web-access).
+test("web-access on with effect read and no applied-by.patch fails the schema", () => {
   rejected({ effect: "read", "reads-untrusted": true, "web-access": { enabled: true, domains: "any" } });
+});
+
+test("web-access off with effect read validates", () => {
+  assert.doesNotThrow(() => selected({ effect: "read", "web-access": { enabled: false } }));
 });
 
 test("web-access with an unknown key fails the schema", () => {

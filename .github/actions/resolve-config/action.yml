@@ -70,6 +70,13 @@ inputs:
       applying leaf that sets `prepare` fails the step otherwise.
     required: false
     default: "false"
+  applied-by-supported:
+    description: >
+      The applied-by keys this runner hands on (`patch`), comma- or
+      space-separated. An applying leaf whose applied-by sets any other key
+      fails the step.
+    required: false
+    default: ""
   github-token:
     description: >
       Read-only token, used only when an applies-when predicate needs the
@@ -180,6 +187,7 @@ runs:
         PR_NUMBER: ${{ inputs.pr-number }}
         HEAD_SHA: ${{ inputs.head-sha }}
         PREPARE_SUPPORTED: ${{ inputs.prepare-supported }}
+        APPLIED_BY_SUPPORTED: ${{ inputs.applied-by-supported }}
         ISSUE_DIMENSIONS: ${{ inputs.issue-dimensions }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}

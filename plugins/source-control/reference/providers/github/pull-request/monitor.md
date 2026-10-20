@@ -25,15 +25,29 @@ gh pr view <pr_number> --json state -q '.state'
 ## Poll checks over REST
 
 The Monitor watch's poll script, passed inline in the `command` parameter. `<scripts-dir>` is the
-placeholder the pull-request skill resolves.
+placeholder the pull-request skill resolves. `BASELINE_FILE` stays empty on the first arming; a
+re-arm sets it to the snapshot file this same script wrote in a snapshot run (`SNAPSHOT_FILE`
+set: one state check and checks read, the `cur_checks` lines written under a marker line, then
+exit 0, or exit 1 with nothing written when the read failed). A baseline file without that
+marker line is refused with `BASELINE-UNREADABLE`, so only this script's own serializer ever
+produces a baseline.
 
 ```bash
 PR_NUMBER=<N>
 INTERVAL=60  # raise with several watchers (../README.md#api-budget)
 OWNER=$(gh repo view --json owner -q .owner.login)
 REPO=$(gh repo view --json name -q .name)
+BASELINE_FILE=  # re-arm only: the file a snapshot run of this script wrote
+SNAPSHOT_FILE=  # snapshot run only: write the checks here and exit
+SNAPSHOT_MARK='# monitor-poll checks snapshot'
 prev_checks=""
-baselined=0  # set by the first successful check read
+baselined=0  # set by a snapshot BASELINE_FILE or the first successful check read
+if [ -n "$BASELINE_FILE" ] && [ "$(head -n 1 "$BASELINE_FILE" 2>/dev/null | tr -d '\r')" = "$SNAPSHOT_MARK" ]; then
+  prev_checks=$(tail -n +2 "$BASELINE_FILE" | tr -d '\r' | grep -v '^$' | sort || true)
+  baselined=1
+elif [ -n "$BASELINE_FILE" ]; then
+  echo "BASELINE-UNREADABLE $BASELINE_FILE — missing or not a snapshot this script wrote; first checks poll only records; run a full scan"
+fi
 last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 prev_threads=""
 poll=0
@@ -82,10 +96,21 @@ while true; do
     cur_checks=$({ printf '%s\n' "$run_rows"; printf '%s\n' "$stat_raw"; } \
       | tr -d '\r' | grep -v -e '^$' -e ': pending$' | sort || true)
   fi
+  if [ -n "$SNAPSHOT_FILE" ]; then
+    if [ "$checks_ok" -ne 1 ]; then
+      echo "SNAPSHOT-FAILED — checks read failed; no snapshot written"
+      exit 1
+    fi
+    printf '%s\n%s\n' "$SNAPSHOT_MARK" "$cur_checks" >"$SNAPSHOT_FILE.tmp" &&
+      mv "$SNAPSHOT_FILE.tmp" "$SNAPSHOT_FILE"
+    exit $?
+  fi
   if [ "$checks_ok" -eq 1 ]; then
     # Bucket values mirror gh pr checks: pass|fail|pending|skipping|cancel.
-    # The baseline-only poll is the first whose check read succeeded, so a
-    # re-arm at the deadline does not re-emit every completed check.
+    # With no baseline, the first poll whose check read succeeds only records
+    # the checks. A re-arm starts from the full iteration's snapshot instead,
+    # so a check that finished since that read is emitted and the rest are not
+    # re-emitted.
     if [ "$baselined" -eq 1 ] && [ "$cur_checks" != "$prev_checks" ]; then
       comm -13 <(echo "$prev_checks") <(echo "$cur_checks") | \
         grep --line-buffered -E ': (pass|fail|skipping|cancel)$' \

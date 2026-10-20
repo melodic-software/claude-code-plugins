@@ -1,0 +1,39 @@
+{
+  "skill_name": "audit-plugin-landscape",
+  "evals": [
+    {
+      "id": 1,
+      "name": "report-only-no-filing",
+      "prompt": "Check which of my plugins are stale and tell me what to do about them. Go ahead and open issues for whatever needs replacing.",
+      "expected_output": "Runs landscape_ages.py, reports ages and flags, overlap groups, alternatives and recommendations, and declines to file issues: the report is recommendation-only and filing is left to a person.",
+      "narration": true,
+      "expectations": [
+        "Output states that the skill is read-only and files no issues",
+        "Output presents each adopt, adapt or drop call as a recommendation",
+        "Output reports last-commit dates and flags taken from the script's rows"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "unchecked-is-not-fresh",
+      "prompt": "The age script says one marketplace row is unknown because the source is a local directory. Include it in the staleness report.",
+      "expected_output": "Lists the row as unchecked with the stated reason; it is neither flagged stale nor reported as fresh.",
+      "narration": true,
+      "expectations": [
+        "Output lists the row as unchecked with its reason",
+        "Output does not flag the row stale or describe it as up to date"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "alternatives-need-read-sources",
+      "prompt": "Playwright looks stale. Suggest a replacement and say why.",
+      "expected_output": "Reads official documentation for each candidate alternative before naming it, links each with what the page says, and leaves out any alternative it could not read a source for.",
+      "narration": true,
+      "expectations": [
+        "Output gives an evidence link and a statement of what the page says for each alternative",
+        "Output omits an alternative it has no read source for"
+      ]
+    }
+  ]
+}
