@@ -51,11 +51,13 @@ LANES: dict[str, tuple[str, str]] = {
 
 # What a lane run may take from the pull request's own checkout: its caller
 # workflows and the local actions and scripts they run (.github/), the review
-# plugin, and Claude Code project config at any depth (.claude/). A pull
-# request that changes any of them ran its own copy on its pull_request
-# event, so its records prove no review by the default branch's lane.
+# plugin, and Claude Code project config at any depth (.claude/, .mcp.json).
+# A pull request that changes any of them ran its own copy on its
+# pull_request event, so its records prove no review by the default branch's
+# lane.
 LANE_SOURCE_PREFIXES = (".github/", "plugins/review/")
 LANE_SOURCE_SEGMENT = ".claude"
+LANE_SOURCE_NAME = ".mcp.json"
 
 RECORD_TITLE = "claude-lane-review-complete"
 _SHA = r"[0-9a-f]{40}"
@@ -158,9 +160,11 @@ def lane_source(path: Any) -> bool:
     path that is not a string counts as one."""
     if not isinstance(path, str):
         return True
+    *dirs, name = path.split("/")
     return (
         path.startswith(LANE_SOURCE_PREFIXES)
-        or LANE_SOURCE_SEGMENT in (path.split("/")[:-1])
+        or LANE_SOURCE_SEGMENT in dirs
+        or name == LANE_SOURCE_NAME
     )
 
 

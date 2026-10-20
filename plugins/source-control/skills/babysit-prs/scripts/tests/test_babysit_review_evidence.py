@@ -332,6 +332,8 @@ class LaneSourceTests(Base):
             "plugins/review/skills/security-review/SKILL.md",
             ".claude/settings.json",
             "plugins/foo/.claude/rules/x.md",
+            ".mcp.json",
+            "plugins/foo/.mcp.json",
         ):
             with self.subTest(path):
                 result = self.bound(path)
