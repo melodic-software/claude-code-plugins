@@ -194,6 +194,34 @@ expect "--check-bump fails when only a fragment-mode carrier's copy changed" 1 $
 LAST_OUTPUT="$out"
 assert_output_contains "--check-bump lists the one carrier whose copy changed" "scripts/new-changelog-fragment.sh --stdin alpha patch <<'EOF'"
 
+# --- a branch behind its base is compared from the fork point ---------------------
+# The base later syncs a shared file and its copies; a branch that changed none of
+# them must not be charged for that sync.
+fixture
+run >/dev/null
+git_init_test_repo "$root" >/dev/null || exit 2
+git -C "$root" add -A && git -C "$root" commit -qm base
+fork="$(git -C "$root" rev-parse HEAD)"
+git -C "$root" checkout -q -b feature
+printf 'unrelated\n' >"$root/notes.txt"
+git -C "$root" add -A && git -C "$root" commit -qm "feature: unrelated change"
+git -C "$root" checkout -q "$fork"
+git -C "$root" checkout -q -b main-ahead
+printf 'export const esc = (s) => String(s ?? "");\n' >"$root/lib/esc.mjs"
+run >/dev/null
+git -C "$root" add -A && git -C "$root" commit -qm "main: sync esc"
+git -C "$root" checkout -q feature
+out="$(run --check-bump main-ahead)"
+expect "--check-bump passes a branch behind its base that changed no shared file" 0 $? "$out"
+
+# The same branch that changes the shared file itself still fails.
+printf 'export const esc = (s) => String(s) + "";\n' >"$root/lib/esc.mjs"
+run >/dev/null
+out="$(run --check-bump main-ahead)"
+expect "--check-bump fails a branch behind its base that changed a shared file itself" 1 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "--check-bump names the stale carrier of the branch's own change" "STALE VERSION: lib/esc.mjs or its copy plugins/alpha/lib/esc.mjs changed vs main-ahead"
+
 # --- the executable bit follows the canonical, on regen and in --check ----------
 fixture
 printf '#!/usr/bin/env bash\necho hi\n' >"$root/lib/tool.sh"
