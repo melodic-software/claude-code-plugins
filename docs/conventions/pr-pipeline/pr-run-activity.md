@@ -1265,7 +1265,12 @@ with `output-mode: patch`, so the model job holds no write token, then `apply-is
 `report-outcome` (scripts) in the write file. The write file refuses an issue skill red
 (`issue-skill-in-write-runner`). The model job's run job holds `contents: read` and
 `pull-requests: read` only; `claude-code-action` needs a GitHub token and exports it to the
-CLI's environment, so that job's read-only `GITHUB_TOKEN` is the one token it holds. At most three `resolve-issue` jobs run at once:
+CLI's environment, so that job's read-only `GITHUB_TOKEN` is the one token it holds. Before any job that
+gets the lane's Claude credential, the caller's `admit` job runs `check-trusted-trigger` from the
+default branch tip, with `contents: read` and no secret (`require-pr: false`, `require-kind:
+human`, `app-label: agent-ready`, the lanes App id): `pick-slot` and `resolve-issue` need it and
+run only on its `proceed` output `true`, so an unlisted account's label on an issue anyone can
+open starts no credentialed job. The read file's own trigger gate checks the same again. At most three `resolve-issue` jobs run at once:
 a `pick-slot` job takes the issue number modulo `SLOTS` (3), and `resolve-issue` joins the
 `work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of admissions waits
 in line, holding no runner, instead of spending the lanes App's hourly API quota at once.

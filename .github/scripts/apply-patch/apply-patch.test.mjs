@@ -443,7 +443,7 @@ test("issue target: the lookup takes the issue row whatever the prepare mode", (
   const picked = rowFor(RULES, { prepare: "ci-context", target: "issue" });
   assert.equal(picked.name, "issue");
   assert.equal(picked.target, "issue");
-  assert.equal(picked["max-files"], RULES.issue["max-files"]);
+  assert.equal(picked["max-files"], 300);
 });
 
 test("issue target: makes <lane>/issue-<n>-<run id>-<attempt> at the start commit with one commit", async (t) => {
@@ -577,6 +577,12 @@ test("issue target: main reads ISSUE_NUMBER and REQUIRED_LABELS and writes the c
   assert.equal(REQUIRED_LABELS, '["agent-ready"]');
   await assert.rejects(main([], noRequired, { api, cwd: fix.repo, gitBin: "git", log: () => {} }), /REQUIRED_LABELS not set/);
   await assert.rejects(main([], { ...env, ISSUE_NUMBER: "7a" }, { api, cwd: fix.repo, gitBin: "git", log: () => {} }), /ISSUE_NUMBER is not a positive integer/);
+  const { PATCH_BASE_SHA, ...noBase } = env;
+  assert.equal(PATCH_BASE_SHA, fix.head);
+  const idle = fakeApi(fix.repo, fix.head, { labels: READY });
+  await assert.rejects(main([], noBase, { api: idle, cwd: fix.repo, gitBin: "git", log: () => {} }), /PATCH_BASE_SHA not set/);
+  await assert.rejects(main([], { ...env, PATCH_BASE_SHA: "" }, { api: idle, cwd: fix.repo, gitBin: "git", log: () => {} }), /PATCH_BASE_SHA not set/);
+  assert.deepEqual(idle.calls, [], "a missing base fails closed before any API call");
 });
 
 // A resume tip of the patch's own, made after the default-branch commit.

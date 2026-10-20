@@ -35,13 +35,70 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The lane's admission gate, before any job that gets a credential: the
+  # account that applied agent-ready, and any re-runner, must be a listed
+  # human, or the lanes App applying agent-ready itself (work-unblock's).
+  # Anyone else's label, on an issue anyone can open, starts nothing past
+  # this job. It runs check-trusted-trigger from the default branch tip with
+  # a read-only token and no secret; the read runner checks the trigger again.
+  admit:
+    if: github.event.label.name == 'agent-ready'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      proceed: ${{ steps.gate.outputs.proceed }}
+    steps:
+      # The gate cannot match an unset lanes App id, so the App's own
+      # labels would read as a stranger's and its exception would never hold.
+      - name: Assert the lanes App sender id and default branch are set
+        env:
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
+            exit 1
+          fi
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::the event names no default branch"
+            exit 1
+          fi
+
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the trigger
+        id: gate
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          triggering-actor: ${{ github.triggering_actor }}
+          require-pr: "false"
+          require-kind: human
+          app-label: agent-ready
+
   # Picks the concurrency slot resolve-issue waits on (a run-time cap, not a
   # lane slot in pr-pipeline.yaml): the issue number modulo SLOTS. Workflow
   # expressions have no arithmetic operator, so a job computes it. A burst of
   # admissions then waits in SLOTS queues instead of spending the lanes App's
   # hourly API quota at once.
   pick-slot:
-    if: github.event.label.name == 'agent-ready'
+    needs: admit
+    if: github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -104,8 +161,10 @@ jobs:
   # listed human's; the App's other labels never start one. No step of this
   # lane adds agent-ready, so a run cannot start another.
   resolve-issue:
-    needs: pick-slot
-    if: github.event.label.name == 'agent-ready' && needs.pick-slot.outputs.capped != 'true'
+    needs: [admit, pick-slot]
+    if: >-
+      github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
+      && needs.pick-slot.outputs.capped != 'true'
     # One run per slot at a time; the rest wait in line, holding no runner,
     # and are never cancelled (`queue: max`). GitHub keeps at most 100 waiting
     # per slot and cancels any more. report-outcome takes no slot, so it never

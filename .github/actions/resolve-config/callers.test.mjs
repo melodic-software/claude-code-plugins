@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
+import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -425,7 +426,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
   assert.equal(slotOf("7 + 1"), null, "an issue number that is not digits picks no slot");
 
   assert.equal(pick.outputs.slot, `\${{ steps.${step.id}.outputs.slot }}`);
-  assert.equal(resolve.needs, "pick-slot");
+  assert.deepEqual(resolve.needs, ["admit", "pick-slot"]);
   assert.equal(resolve.concurrency.queue, "max");
   assert.notEqual(resolve.concurrency["cancel-in-progress"], true, "GitHub rejects queue: max with cancel-in-progress");
   const groups = new Set(
@@ -437,7 +438,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
 
   // A label other than agent-ready starts neither job, so it holds no runner.
   for (const [label, runs] of [["agent-ready", true], ["bug", false]]) {
-    const context = { "github.event.label.name": label, "needs.pick-slot.outputs.capped": "false" };
+    const context = { "github.event.label.name": label, "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": "false" };
     assert.equal(evaluate(pick.if, context), runs, label);
     assert.equal(evaluate(resolve.if, context), runs, label);
   }
@@ -445,7 +446,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
   // set nothing starts it.
   assert.equal(pick.outputs.capped, "${{ steps.wip.outputs.capped }}");
   for (const [capped, runs] of [["true", false], ["false", true], ["", true]]) {
-    const context = { "github.event.label.name": "agent-ready", "needs.pick-slot.outputs.capped": capped };
+    const context = { "github.event.label.name": "agent-ready", "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": capped };
     assert.equal(evaluate(resolve.if, context), runs, `capped ${JSON.stringify(capped)}`);
   }
   const wip = pick.steps.find((item) => item.id === "wip");
@@ -642,4 +643,111 @@ test("no job using pr-run-activity-write.yml runs the resolve-issue model step, 
   assert.equal(evaluate(refuse.if, context("7", "script")), false);
   assert.equal(evaluate(refuse.if, context("", "skill")), false);
   assert.equal(spawnSync("bash", ["-c", refuse.run]).status, 1);
+});
+
+// The admission gate: on an issue anyone can open, only a listed human's
+// agent-ready label (or the lanes App's own) may start a job that gets the
+// issue lane's Claude credential or runs the read runner.
+const ISSUE_SECRET = "${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}";
+const ADMITTED = "needs.admit.outputs.proceed == 'true'";
+
+function needsOf(jobs, id, seen = new Set()) {
+  for (const need of [jobs[id].needs ?? []].flat()) {
+    if (!seen.has(need)) {
+      seen.add(need);
+      needsOf(jobs, need, seen);
+    }
+  }
+  return seen;
+}
+
+test("work-resolve-issue.yml: every job that gets the issue lane's credential or runs the read runner needs the admission gate's proceed", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const admit = jobs.admit;
+  assert.deepEqual(admit.permissions, { contents: "read" }, "the gate holds a read-only token");
+  assert.equal(admit.secrets, undefined);
+  assert.doesNotMatch(JSON.stringify(admit), /secrets\./, "the gate names no secret");
+  assert.equal(admit.outputs.proceed, "${{ steps.gate.outputs.proceed }}");
+  const checkout = admit.steps.find((s) => String(s.uses ?? "").startsWith("actions/checkout@"));
+  assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
+  assert.equal(checkout.with["persist-credentials"], false);
+  const gate = admit.steps.find((s) => s.id === "gate");
+  assert.equal(gate.uses, "./.base/.github/actions/check-trusted-trigger");
+  assert.deepEqual(
+    [gate.with["require-pr"], gate.with["require-kind"], gate.with["app-label"], gate.with["lanes-app-id"]],
+    ["false", "human", "agent-ready", "${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}"],
+  );
+  const guarded = Object.entries(jobs).filter(
+    ([, job]) => JSON.stringify(job).includes(ISSUE_SECRET) || job.uses === "./.github/workflows/pr-run-activity-read.yml",
+  );
+  assert.deepEqual(guarded.map(([id]) => id), ["resolve-issue"]);
+  for (const [id, job] of [...guarded, ["pick-slot", jobs["pick-slot"]]]) {
+    assert.ok(needsOf(jobs, id).has("admit"), `${id} needs admit`);
+    assert.ok(String(job.if).includes(ADMITTED), `${id} requires the gate's proceed`);
+    const context = {
+      "github.event.label.name": "agent-ready",
+      "needs.admit.outputs.proceed": "true",
+      "needs.pick-slot.outputs.capped": "false",
+    };
+    assert.equal(evaluate(job.if, context), true, `${id} runs once admitted`);
+    for (const proceed of ["false", ""]) {
+      assert.equal(evaluate(job.if, { ...context, "needs.admit.outputs.proceed": proceed }), false, `${id} with proceed ${JSON.stringify(proceed)}`);
+    }
+  }
+});
+
+// Drives the gate step's inputs through check-trusted-trigger's own main, as
+// the action's env map passes them, on an agent-ready label event.
+async function admitOn(sender, triggeringActor) {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const gate = jobs.admit.steps.find((s) => s.id === "gate");
+  const action = parse(read("../check-trusted-trigger/action.yml"));
+  const dir = mkdtempSync(join(tmpdir(), "admit-"));
+  try {
+    const eventPath = join(dir, "event.json");
+    const output = join(dir, "output");
+    writeFileSync(eventPath, JSON.stringify({ action: "labeled", label: { name: "agent-ready" }, issue: { number: 7 }, sender, repository: { full_name: "o/r" } }));
+    writeFileSync(output, "");
+    const values = {
+      "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936",
+      "github.triggering_actor": triggeringActor,
+    };
+    // The event the runner would pass through the action's defaults.
+    const env = { GITHUB_OUTPUT: output, REPOSITORY: "o/r", EVENT_NAME: "issues", EVENT_PATH: eventPath };
+    for (const [name, value] of Object.entries(action.runs.steps[0].env)) {
+      const input = value.match(/^\$\{\{ inputs\.([\w-]+) \}\}$/)?.[1];
+      if (!input || !Object.hasOwn(gate.with, input)) continue;
+      const given = String(gate.with[input]);
+      env[name] = /^\$\{\{/.test(given) ? evaluate(given, values) : given;
+    }
+    env.TRUSTED_ACTORS_PATH = fileURLToPath(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url));
+    const github = async () => {
+      throw new Error("the actor-only gate reads no API");
+    };
+    await checkTrustedTrigger({ env, github: Object.assign(github, { graphql: github }) });
+    // GITHUB_OUTPUT's delimited form, as writeOutputs writes it.
+    const proceed = /^proceed<<(\S+)\n(.*)\n\1$/m.exec(readFileSync(output, "utf8"))?.[2] ?? "";
+    const resolve = jobs["resolve-issue"];
+    return {
+      proceed,
+      runs: evaluate(resolve.if, {
+        "github.event.label.name": "agent-ready",
+        "needs.admit.outputs.proceed": proceed,
+        "needs.pick-slot.outputs.capped": "false",
+      }),
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("work-resolve-issue.yml: an unlisted labeler's agent-ready is refused at the gate and the credentialed job is skipped", async () => {
+  const stranger = { login: "stranger", id: 9999001, type: "User" };
+  assert.deepEqual(await admitOn(stranger, "stranger"), { proceed: "false", runs: false });
+  const listedBot = { login: "claude[bot]", id: 209825114, type: "Bot" };
+  assert.deepEqual(await admitOn(listedBot, "claude[bot]"), { proceed: "false", runs: false }, "a listed bot is not a human");
+  const human = { login: "kyle-sexton", id: 153232337, type: "User" };
+  assert.deepEqual(await admitOn(human, "kyle-sexton"), { proceed: "true", runs: true }, "a listed human's label is admitted");
+  const app = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
+  assert.deepEqual(await admitOn(app, "melodic-automation-lanes[bot]"), { proceed: "true", runs: true }, "the lanes App's own agent-ready is admitted");
 });

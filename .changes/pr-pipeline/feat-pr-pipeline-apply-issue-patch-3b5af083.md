@@ -11,6 +11,9 @@ bump: minor
   usage limit so a resumed run continues it. The earlier-work check, the issue file, the reuse
   path and the reuse summary pass move to the read runner with it
   ([pr-run-activity.md, Issue mode](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#issue-mode)).
+- work-resolve-issue.yml checks the labeler in an `admit` job, with a read-only token and no
+  secret, before any job that gets the lane's Claude credential: an unlisted account's
+  `agent-ready` starts no credentialed job.
 - The write runner refuses an issue skill, and its apply-patch select step runs the activity's
   own script from the base.
 
