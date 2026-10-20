@@ -1,0 +1,37 @@
+diff --git a/plugins/sample-kit/scripts/list.mjs b/plugins/sample-kit/scripts/list.mjs
+index 0a1b2c3..4d5e6f7 100644
+--- a/plugins/sample-kit/scripts/list.mjs
++++ b/plugins/sample-kit/scripts/list.mjs
+@@ -8,4 +8,12 @@ import { request } from "./api.mjs";
+
++// The API takes at most 99 per page.
++export function checkPageSize(size) {
++  if (!Number.isInteger(size) || size < 1 || size >= 100) {
++    throw new Error("page size must be 1-99");
++  }
++}
++
+ export async function list({ pageSize = 50 } = {}) {
++  checkPageSize(pageSize);
+   return request("GET", `/items?per_page=${pageSize}`);
+ }
+diff --git a/plugins/sample-kit/scripts/list.test.mjs b/plugins/sample-kit/scripts/list.test.mjs
+index 7e8f9a0..b1c2d3e 100644
+--- a/plugins/sample-kit/scripts/list.test.mjs
++++ b/plugins/sample-kit/scripts/list.test.mjs
+@@ -2,3 +2,14 @@ import assert from "node:assert/strict";
+ import { test } from "node:test";
+
+-import { list } from "./list.mjs";
++import { checkPageSize, list } from "./list.mjs";
++
++test("page sizes 1 and 99 are accepted", () => {
++  assert.doesNotThrow(() => checkPageSize(1));
++  assert.doesNotThrow(() => checkPageSize(99));
++});
++
++test("page sizes 0 and 100 are rejected", () => {
++  for (const size of [0, 100]) {
++    assert.throws(() => checkPageSize(size), { message: "page size must be 1-99" });
++  }
++});

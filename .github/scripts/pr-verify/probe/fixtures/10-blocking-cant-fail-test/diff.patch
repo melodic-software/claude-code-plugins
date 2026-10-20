@@ -1,0 +1,29 @@
+diff --git a/plugins/sample-kit/scripts/duration.mjs b/plugins/sample-kit/scripts/duration.mjs
+index 0d1e2f3..4a5b6c7 100644
+--- a/plugins/sample-kit/scripts/duration.mjs
++++ b/plugins/sample-kit/scripts/duration.mjs
+@@ -6,5 +6,8 @@ export function parseDuration(text) {
+   if (!match) {
+     throw new Error(`not a duration: ${text}`);
+   }
++  if (match[1].startsWith("-")) {
++    throw new Error("duration must be positive");
++  }
+   return Number(match[1]) * UNITS[match[2]];
+ }
+diff --git a/plugins/sample-kit/scripts/duration.test.mjs b/plugins/sample-kit/scripts/duration.test.mjs
+index 1e2f3a4..5b6c7d8 100644
+--- a/plugins/sample-kit/scripts/duration.test.mjs
++++ b/plugins/sample-kit/scripts/duration.test.mjs
+@@ -9,3 +9,11 @@ test("parses minutes", () => {
+ test("parses seconds", () => {
+   assert.equal(parseDuration("30s"), 30_000);
+ });
++
++test("rejects negative durations", () => {
++  try {
++    parseDuration("-5m");
++  } catch (error) {
++    assert.match(error.message, /duration must be positive/);
++  }
++});

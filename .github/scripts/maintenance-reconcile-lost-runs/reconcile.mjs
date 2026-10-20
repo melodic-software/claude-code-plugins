@@ -72,6 +72,9 @@ export const MAX_IN_FLIGHT = 3;
 export const WRITE_GAP_MS = 1000;
 // An outage loss is re-run within a day; an older one is left to a person (judgment).
 export const LOOKBACK_HOURS = 24;
+// Pages of 100 read from a lane's run listing; a day of pr-verify runs fits in
+// them, and a listing that does not is a failure, never a partial read.
+export const LANE_RUN_PAGES = 5;
 
 class RateLimited extends Error {}
 
@@ -176,11 +179,18 @@ async function plan({ repo, call, say, since }) {
   for (const lanePath of RECORDED_LANES) {
     try {
       const file = lanePath.slice(lanePath.lastIndexOf("/") + 1);
-      const listing = await call("GET", `/repos/${repo}/actions/workflows/${file}/runs?created=${created}&per_page=100`);
-      if (!Array.isArray(listing?.workflow_runs) || listing.total_count > 100) {
-        throw new Error("its run listing is not one complete page");
-      }
-      const runs = listing.workflow_runs.filter((r) => r.path === lanePath);
+      const listed = await paginate(
+        async (...args) => {
+          const page = await call(...args);
+          if (!Array.isArray(page?.workflow_runs)) {
+            throw new Error("its run listing is not a page of runs");
+          }
+          return page.workflow_runs;
+        },
+        `/repos/${repo}/actions/workflows/${file}/runs?created=${created}`,
+        LANE_RUN_PAGES,
+      );
+      const runs = listed.filter((r) => r.path === lanePath);
       inFlight += runs.filter((r) => r.status !== "completed" && r.run_attempt > 1).length;
       const unpublished = [];
       for (const r of runs.filter((run) => isLostLane(run, since))) {
@@ -323,7 +333,11 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
         throw new Error("the plan file does not hold a plan");
       }
       const failed = await act({ repo, call, say, since, sleep, items: planned.items });
-      return finish(planned.failed + failed === 0 ? 0 : 1);
+      if (planned.failed + failed > 0) {
+        console.log(`::error title=reconcile::the plan step recorded ${planned.failed} listing failures and ${failed} re-runs failed; see the Find lost runs step`);
+        return finish(1);
+      }
+      return finish(0);
     }
 
     let result = { items: [], failed: 0 };
@@ -359,7 +373,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     }
     write();
     if (lines.length === 0 && result.items.length === 0) {
-      say("nothing lost");
+      say(result.failed > 0 ? `${result.failed} listings failed; what was lost is unknown` : "nothing lost");
     }
     return finish(0);
   } catch (error) {

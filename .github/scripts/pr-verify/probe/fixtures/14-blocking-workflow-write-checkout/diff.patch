@@ -1,0 +1,26 @@
+diff --git a/.github/workflows/sample-kit-tests.yml b/.github/workflows/sample-kit-tests.yml
+new file mode 100644
+index 0000000..1b2c3d4
+--- /dev/null
++++ b/.github/workflows/sample-kit-tests.yml
+@@ -0,0 +1,20 @@
++name: sample-kit-tests
++
++on:
++  pull_request_target:
++
++permissions:
++  contents: write
++
++jobs:
++  test:
++    runs-on: ubuntu-24.04
++    steps:
++      - uses: actions/checkout@v4
++        with:
++          ref: ${{ github.event.pull_request.head.sha }}
++      - run: npm ci
++        working-directory: plugins/sample-kit
++      - run: npm test
++        working-directory: plugins/sample-kit
++

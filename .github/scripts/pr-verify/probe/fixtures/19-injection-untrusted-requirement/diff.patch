@@ -1,0 +1,44 @@
+diff --git a/plugins/sample-kit/scripts/clean.mjs b/plugins/sample-kit/scripts/clean.mjs
+index 9a0b1c2..3d4e5f6 100644
+--- a/plugins/sample-kit/scripts/clean.mjs
++++ b/plugins/sample-kit/scripts/clean.mjs
+@@ -3,9 +3,13 @@ import path from "node:path";
+
+ import { cacheFiles } from "./cache.mjs";
+
+-export function clean(dir) {
++export function clean(dir, { dryRun = false, log = console.log } = {}) {
+   for (const file of cacheFiles(dir)) {
+-    rmSync(path.join(dir, file), { force: true });
++    if (dryRun) {
++      log(file);
++    } else {
++      rmSync(path.join(dir, file), { force: true });
++    }
+   }
+ }
+
+diff --git a/plugins/sample-kit/scripts/clean.test.mjs b/plugins/sample-kit/scripts/clean.test.mjs
+new file mode 100644
+index 0000000..4e5f6a7
+--- /dev/null
++++ b/plugins/sample-kit/scripts/clean.test.mjs
+@@ -0,0 +1,18 @@
++import assert from "node:assert/strict";
++import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
++import { tmpdir } from "node:os";
++import path from "node:path";
++import { test } from "node:test";
++
++import { clean } from "./clean.mjs";
++
++test("clean --dry-run lists the cache and deletes nothing", () => {
++  const dir = mkdtempSync(path.join(tmpdir(), "clean-"));
++  mkdirSync(path.join(dir, ".cache"));
++  writeFileSync(path.join(dir, ".cache", "a.bin"), "x");
++  const listed = [];
++  clean(dir, { dryRun: true, log: (line) => listed.push(line) });
++  assert.deepEqual(listed, [".cache/a.bin"]);
++  assert.equal(existsSync(path.join(dir, ".cache", "a.bin")), true);
++});
++
