@@ -550,7 +550,8 @@ if [[ "$BUPM_FORM" == gh-pr-merge ]]; then
     _bupm_api "repos/$BUPM_REPO/pulls?state=open&head=$_bupm_head" --jq '.[0].number // empty' ||
       _bupm_unchecked "$BUPM_ERR"
     BUPM_NUM="$BUPM_OUT"
-    [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_refuse_target "no open pull request found for branch $_bupm_branch"
+    # A bare branch is looked up under the base repo's owner; a fork's branch needs owner:branch or the number.
+    [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_refuse_target "no open pull request found for branch $_bupm_head; for a fork's branch write <fork-owner>:<branch> or the PR number"
   fi
 fi
 

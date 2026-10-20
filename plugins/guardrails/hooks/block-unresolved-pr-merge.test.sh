@@ -513,6 +513,10 @@ echo '[]' >"$FIX/pulls_list.json"
 invoke "$(jq -n --arg c 'gh pr merge --squash' --arg d "$REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')"
 assert_exit "bare merge, no open PR for the branch" 2 "$RC"
 assert_contains "bare merge, no PR -> names the literal form" "$ERR" "gh pr merge <number> -R owner/repo"
+scenario none none green green
+echo '[]' >"$FIX/pulls_list.json"
+run "fork branch named bare (looked up under the base owner)" 'gh pr merge feat/x -R acme/widgets --squash' 2
+assert_contains "fork branch named bare -> names the owner:branch form" "$ERR" "<fork-owner>:<branch>"
 
 # MUST stay quiet: a literal target is checked as usual, whatever else is a variable.
 scenario none none green green
@@ -530,6 +534,9 @@ assert_contains "bare number -> placeholder repo" "$(calls)" "repos/{owner}/{rep
 scenario none none green green
 run "literal branch name" 'gh pr merge feat/x -R acme/widgets --squash' 0
 assert_contains "branch -> looked up" "$(calls)" "head=acme:feat/x"
+scenario none none green green
+run "fork branch as owner:branch" 'gh pr merge contributor:feat/x -R acme/widgets --squash' 0
+assert_contains "owner:branch -> looked up under the fork owner" "$(calls)" "head=contributor:feat/x"
 scenario none none green green
 invoke "$(jq -n --arg c 'gh pr merge --squash' --arg d "$REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')"
 assert_exit "bare merge on a branch with an open PR" 0 "$RC"
