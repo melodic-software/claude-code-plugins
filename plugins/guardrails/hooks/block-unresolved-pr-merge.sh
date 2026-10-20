@@ -48,9 +48,11 @@
 # a `gh pr merge` with no selector whose current branch cannot be read or has
 # no open PR, or one whose `-R` value is missing, is blocked with the literal
 # form to use (`gh pr merge <number> -R owner/repo`); otherwise any `$R` or
-# `$n` would skip the check. A bare `gh pr merge` in a command that holds a
-# backtick is blocked too: the tokenizer splits a backtick substitution off, so
-# a target it supplied would look like no selector at all. ALSO FAILS CLOSED: a GraphQL merge,
+# `$n` would skip the check. A Bash merge command holding a backtick outside
+# single quotes is blocked too: the tokenizer splits a backtick substitution off,
+# so the target it reads need not be the one the shell runs (`5`echo 0`` reads
+# #5, merges #50). So is a command holding more than one merge, which must run
+# as one command per merge so each is checked. ALSO FAILS CLOSED: a GraphQL merge,
 # auto-merge or merge-queue mutation whose PR cannot be resolved (an id from a
 # variable or `$(...)`, an unreadable node, no gh) is blocked, because a
 # scripted mutation almost always takes its id that way. In a Claude Code
@@ -68,9 +70,9 @@
 # (`$GH pr merge`), `eval`, a wrapper such as
 # `sudo`, `env` or `xargs`, or a child shell (`bash -c '...'`), or sitting
 # inside `$(...)`; a GraphQL mutation read from a file (`--input`), whose name
-# never appears in the command; only the first merge in one command string is
-# checked; past 100 reviews or check runs the rest are not read; more than 100
-# review threads with none unresolved in the first 100 is reported as unchecked;
+# never appears in the command; past 100 reviews or check runs the rest are
+# not read; more than 100 review threads with none unresolved in the first 100
+# is reported as unchecked;
 # a cancelled run `<name>` is cleared by a newer successful `<name> (...)` run
 # of the same app in another check suite even when that run belongs to an unrelated
 # workflow, which the check-runs payload cannot tell apart from a matrix leg;
@@ -132,8 +134,8 @@ COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 BUPM_CWD="${HOOK_JQ_FIELDS[2]}"
 
-# What the command (or MCP call) asks for. Globals, set once, by the first
-# merge path found.
+# What the command (or MCP call) asks for. Globals, set by the merge path
+# found; a command with more than one is refused, so the last one wins.
 BUPM_FORM=""  # gh-pr-merge | rest-merge | ccr-auto-merge | graphql | mcp
 BUPM_AUTO=0   # 1: the request waits for checks (auto-merge or merge queue)
 BUPM_REPO=""  # owner/repo, may hold gh's {owner}/{repo} placeholders
@@ -142,6 +144,50 @@ BUPM_SEL=""   # gh pr merge selector: number, URL or branch; empty = current bra
 BUPM_NODE=""  # GraphQL PullRequest node id
 # Why the merge target is not a literal value; set means refuse.
 BUPM_UNRESOLVED=""
+BUPM_MERGES=0 # merge paths found in the command
+BUPM_BT=0     # 1: the command holds a backtick substitution
+
+# _bupm_mask_backticks <text>: true when a backtick substitution stands outside
+# single quotes (double quotes still run one); BUPM_MASKED gets the text with
+# each substitution replaced by `$BT`, so the parser reads the word it sits in
+# as not literal instead of splitting the substitution off (`pulls/4`echo
+# 2`/merge` would otherwise not look like a merge route at all). A heredoc body
+# is read as shell text, which can only refuse more, never less.
+BUPM_MASKED=""
+_bupm_mask_backticks() {
+  # q: "" unquoted, s in '...', a in $'...', d in "..."
+  local s="$1" i c q="" out="" hit=1
+  for ((i = 0; i < ${#s}; i++)); do
+    c="${s:i:1}"
+    if [[ "$q" == s ]]; then
+      [[ "$c" == "'" ]] && q=""
+    elif [[ "$c" == "\\" ]]; then
+      c+="${s:i+1:1}"
+      ((++i))
+    elif [[ "$q" == a ]]; then
+      [[ "$c" == "'" ]] && q=""
+    elif [[ "$c" == '`' ]]; then
+      hit=0
+      # shellcheck disable=SC2016  # a literal placeholder, not an expansion
+      c='$BT'
+      for ((++i; i < ${#s}; i++)); do
+        [[ "${s:i:1}" == "\\" ]] && ((++i)) && continue
+        [[ "${s:i:1}" == '`' ]] && break
+      done
+    elif [[ "$c" == '"' ]]; then
+      if [[ "$q" == d ]]; then q=""; else q=d; fi
+    elif [[ -z "$q" && "$c" == "'" ]]; then
+      q=s
+    elif [[ -z "$q" && "$c" == '$' && "${s:i+1:1}" == "'" ]]; then
+      q=a
+      c+="'"
+      ((++i))
+    fi
+    out+="$c"
+  done
+  BUPM_MASKED="$out"
+  return "$hit"
+}
 
 # _bupm_literal <word>: true when the word holds no expansion the guard
 # cannot evaluate (a parameter, `$(...)` or a backtick substitution).
@@ -248,7 +294,7 @@ _bupm_gh_pr_merge() {
       --disable-auto | --help | -h) return 1 ;;
       --auto) auto=1 && continue ;;
       -R | --repo)
-        # No value: a backtick substitution was split off as its own segment.
+        # No value: nothing names the repository.
         (($#)) || why="the -R value is missing"
         repo="${1-}" && shift && continue
         ;;
@@ -270,7 +316,6 @@ _bupm_gh_pr_merge() {
   BUPM_SEL="$sel"
   _bupm_literal "$repo" || why="the repository $repo is not literal"
   _bupm_literal "$sel" || why="the pull request $sel is not literal"
-  [[ -z "$sel" && "$COMMAND" == *'`'* ]] && why="no pull request is named and a backtick substitution may supply it"
   BUPM_UNRESOLVED="$why"
 }
 
@@ -330,10 +375,16 @@ _bupm_curl() {
   _bupm_rest_path "${url#*api.github.com}" "$method"
 }
 
-# hook::bash_parse_segments callback: one segment's argv words.
+# hook::bash_parse_segments callback: one segment's argv words. Counts the
+# merge paths found; a recorder returns 0 only when it recorded one.
 # shellcheck disable=SC2329  # invoked through hook::bash_parse_segments
 _bupm_segment() {
-  [[ -z "$BUPM_FORM" ]] || return 0
+  _bupm_command "$@" && ((++BUPM_MERGES))
+  return 0
+}
+
+# shellcheck disable=SC2329  # reached from _bupm_segment
+_bupm_command() {
   # Step over what stands before the command word: NAME=value assignments; a
   # reserved word the tokenizer leaves at the head of a segment (`then gh ...`,
   # `do gh ...`, `{ gh ...`), as block-root-delete-target.sh does; and the
@@ -348,7 +399,7 @@ _bupm_segment() {
       ;;
     esac
   done
-  (($#)) || return 0
+  (($#)) || return 1
   local cmd="${1##*/}"
   cmd="${cmd##*\\}"
   cmd="${cmd,,}"
@@ -368,7 +419,7 @@ _bupm_segment() {
         *) break ;;
         esac
       done
-      [[ "${1-}" == merge ]] || return 0
+      [[ "${1-}" == merge ]] || return 1
       shift
       if [[ -n "$pre_repo" ]]; then
         _bupm_gh_pr_merge -R "$pre_repo" "$@"
@@ -377,12 +428,13 @@ _bupm_segment() {
       fi
     elif [[ "${1-}" == api ]]; then
       _bupm_gh_api "${@:2}"
+    else
+      return 1
     fi
     ;;
   curl) _bupm_curl "$@" ;;
-  *) ;;
+  *) return 1 ;;
   esac
-  return 0
 }
 
 if [[ "$TOOL_NAME" =~ ^mcp__.+__(merge_pull_request|enable_pr_auto_merge)$ ]]; then
@@ -398,7 +450,10 @@ else
   # Cheap pre-filter: every matched path names `merge` or `enqueue`.
   _bupm_lc="${COMMAND,,}"
   [[ "$_bupm_lc" == *merge* || "$_bupm_lc" == *enqueue* ]] || exit 0
-  hook::bash_parse_segments "$COMMAND" _bupm_segment
+  # In PowerShell a backtick is the escape character, not a substitution.
+  BUPM_MASKED="$COMMAND"
+  [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *'`'* ]] && _bupm_mask_backticks "$COMMAND" && BUPM_BT=1
+  hook::bash_parse_segments "$BUPM_MASKED" _bupm_segment
   [[ -n "$BUPM_FORM" ]] || exit 0
 fi
 
@@ -505,6 +560,10 @@ _bupm_refuse_target() {
   emit_tel "blocked" "$BUPM_FORM-unresolvable"
   exit 2
 }
+((BUPM_MERGES > 1)) &&
+  _bupm_refuse_target "this command holds $BUPM_MERGES merges and only one can be checked; run each merge as its own command"
+((BUPM_BT)) &&
+  _bupm_refuse_target "the command holds a backtick substitution, which can change the target after the guard reads it"
 [[ -z "$BUPM_UNRESOLVED" ]] || _bupm_refuse_target "$BUPM_UNRESOLVED"
 
 # A GraphQL mutation must name its PR by a literal node id the guard can
