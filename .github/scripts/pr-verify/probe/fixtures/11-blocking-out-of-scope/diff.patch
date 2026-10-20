@@ -1,0 +1,25 @@
+diff --git a/plugins/sample-kit/scripts/help.mjs b/plugins/sample-kit/scripts/help.mjs
+index 2f3a4b5..6c7d8e9 100644
+--- a/plugins/sample-kit/scripts/help.mjs
++++ b/plugins/sample-kit/scripts/help.mjs
+@@ -14,5 +14,5 @@ export const HELP = {
+   status: "Shows whether the last sync succeeded.",
+-  sync: "Pushes local changes to the remote.",
++  sync: "Pulls remote changes into the local cache.",
+   clean: "Removes cached files.",
+ };
+
+diff --git a/plugins/sample-kit/scripts/sync.mjs b/plugins/sample-kit/scripts/sync.mjs
+index 3a4b5c6..7d8e9f0 100644
+--- a/plugins/sample-kit/scripts/sync.mjs
++++ b/plugins/sample-kit/scripts/sync.mjs
+@@ -3,7 +3,7 @@ import { request } from "./api.mjs";
+
+-const REQUEST_TIMEOUT_MS = 30_000;
+-const MAX_ATTEMPTS = 3;
++const REQUEST_TIMEOUT_MS = 300_000;
++const MAX_ATTEMPTS = Number.POSITIVE_INFINITY;
+
+ export async function sync(dir) {
+   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+     try {

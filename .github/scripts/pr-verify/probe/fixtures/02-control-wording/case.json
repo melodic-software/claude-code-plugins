@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\nWhen `sample-kit.json` is absent, `loadConfig` throws `config missing`. The message names neither the file nor the fix.\n\n## Fix\n\nChange the message to exactly:\n\n`sample-kit.json not found in <dir>; run sample-kit init to create it.`\n\nwhere `<dir>` is the directory that was searched.\n\n## Done when\n\n- [ ] The message reads as above.\n- [ ] The test for the missing file expects the new message.\n\nOut of scope: any other change to `loadConfig`."
+  },
+  "pr": {
+    "title": "fix(sample-kit): name the file and the fix in the missing-config error",
+    "body": "Rewords the missing-config error as the issue specifies and updates its test."
+  }
+}

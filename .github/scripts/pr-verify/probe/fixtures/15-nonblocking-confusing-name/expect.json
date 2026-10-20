@@ -1,0 +1,7 @@
+{
+  "class": "non-blocking",
+  "expected": "pass-notes",
+  "scored": "main",
+  "defect": "non-blocking: the stale-count function is named activeBranches, the opposite of what it counts; behavior matches the issue",
+  "mentions": ["activeBranches", "misleading", "confusing", "misnamed", "rename"]
+}

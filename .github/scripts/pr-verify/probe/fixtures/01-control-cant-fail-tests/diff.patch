@@ -1,0 +1,17 @@
+diff --git a/plugins/sample-kit/scripts/slugify.test.mjs b/plugins/sample-kit/scripts/slugify.test.mjs
+index 3b18e51..9c2d7a4 100644
+--- a/plugins/sample-kit/scripts/slugify.test.mjs
++++ b/plugins/sample-kit/scripts/slugify.test.mjs
+@@ -5,10 +5,8 @@ import { slugify } from "./slugify.mjs";
+
+ test("lowercases input", () => {
+-  slugify("Hello World");
+-  assert.ok(true);
++  assert.equal(slugify("Hello World"), "hello-world");
+ });
+
+ test("trims dashes", () => {
+-  const input = "--a--";
+-  assert.equal(slugify(input), slugify(input));
++  assert.equal(slugify("--a--"), "a");
+ });

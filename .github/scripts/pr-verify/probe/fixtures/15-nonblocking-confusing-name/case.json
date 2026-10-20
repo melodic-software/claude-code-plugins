@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`sample-kit report` does not say how many branches have gone stale.\n\n## Fix\n\nCount branches with no commit in the last 30 days and print `stale: <n>` in the report.\n\n## Done when\n\n- [ ] The report prints `stale: <n>`.\n- [ ] Tests cover zero stale branches and two stale branches."
+  },
+  "pr": {
+    "title": "feat(sample-kit): report the stale branch count",
+    "body": "Counts branches idle for 30 days and prints the count, with tests for zero and two."
+  }
+}
