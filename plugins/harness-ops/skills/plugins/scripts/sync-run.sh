@@ -92,6 +92,9 @@
 #   `{total, paths, project, by_parent:[{parent,count,paths}], more_parents, list_file}`,
 #   `project` counting the project-scope records among `total`,
 #   with the full `[{path,count}]` in `list_file` (null under --audit);
+#   `user_home_records` is `{total, paths}` for the project/local records whose
+#   projectPath is a user home (`projectPathIsHome`), which `divergences` and
+#   `divergences_here` never count;
 #   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
 #   `{id, version, files_differ, unreleased_changes}` per stale install, the last
@@ -710,6 +713,14 @@ catalog_regression_rows() {
 # it. Only `versionsMatch: false` rows are actionable; a same-version multi-scope
 # install is benign and is never counted.
 #
+# A scope whose projectPath is a user home (`projectPathIsHome`) is not a project
+# at all, and converge blocks it, so it is dropped before the versions are
+# compared: a divergence that exists only because of such a record is not
+# actionable. A report with no such field keeps every scope.
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+ACTIONABLE_DEF='def actionable: select(.versionsMatch == false)
+    | select(([.scopes[]? | select(.projectPathIsHome != true) | .version] | unique | length) > 1);'
+#
 # The post count is then split by what an operator can do about each row, so the
 # report points converge only at rows converge can act on. A divergence row is
 # classed by its project/local pins: any pin that is present and not a linked
@@ -731,8 +742,9 @@ catalog_regression_rows() {
 linked_worktree_paths() {
   local __var="$1" post="$2" paths="" p fs line
   local found=()
-  jq_to paths -r '[.divergences[]? | select(.versionsMatch == false) | .scopes[]?
-    | select(.projectPathPresent == true) | .projectPath] | unique | .[]' "$post" || paths=""
+  jq_to paths -r "$ACTIONABLE_DEF"'[.divergences[]? | actionable | .scopes[]?
+    | select(.projectPathIsHome != true and .projectPathPresent == true) | .projectPath]
+    | unique | .[]' "$post" || paths=""
   while IFS= read -r p; do
     p="${p//$'\r'/}"
     [[ -n "$p" ]] || continue
@@ -769,11 +781,11 @@ divergence_block() {
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c -n --argjson moved "$moved_rows" \
     --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" \
-    --argjson wt "$linked" '
+    --argjson wt "$linked" "$ACTIONABLE_DEF"'
     # A pin at the project the run stands in is converge-actionable even when that
     # project is itself a linked worktree, so it is never classed `worktree`.
     ([$q[0].installed[]? | select(.currentProject == true) | .projectPath]) as $curp
-    | def act: [.divergences[]? | select(.versionsMatch == false) | .id];
+    | def act: [.divergences[]? | actionable | .id];
     def pin_class:
       if .projectPathPresent == false then "blocked"
       elif .projectPathPresent == true and (.projectPath as $pp | $curp | index($pp)) == null
@@ -787,9 +799,12 @@ divergence_block() {
     # Only a pin that differs from the row'"'"'s highest version is the skew converge or
     # a worktree removal would settle; a pin already at it is not what makes the
     # row actionable. An unparsable version stays in, the conservative direction.
+    # A pin keyed to a user home (`projectPathIsHome`) is dropped like in `actionable`:
+    # it never sets the highest version and never classes the row.
     def row_class:
-      ([.scopes[]? | .version | version_triple | select(. != null)] | max) as $top
-      | [.scopes[]? | select((.projectPath // "") != "")
+      [.scopes[]? | select(.projectPathIsHome != true)] as $s
+      | ([$s[] | .version | version_triple | select(. != null)] | max) as $top
+      | [$s[] | select((.projectPath // "") != "")
          | select($top == null or (.version | version_triple) != $top)
          | pin_class] as $c
       | if ($c | length) == 0 or ($c | index("actionable")) != null then "actionable"
@@ -801,7 +816,7 @@ divergence_block() {
     | [$new[] | select(. as $i | $conc | index($i))] as $by_conc
     | ($new - $by_conc) as $by_step
     | ([$q[0].installed[]? | select(.currentProject == true) | .id]) as $here
-    | ([$q[0].divergences[]? | select(.versionsMatch == false) | {id, c: row_class}]) as $rows
+    | ([$q[0].divergences[]? | actionable | {id, c: row_class}]) as $rows
     | ([$rows[] | select(.c == "actionable")]) as $act_rows
     | {pre: ($pre | length), mid: ($mid | length), post: ($post | length),
        new_total: ($new | length),
@@ -1585,6 +1600,7 @@ report_extras() {
   done
   if [[ -z "$src" ]]; then
     jq_to "$__var" -c -n '{auto_update: null, catalog_source: null, user_scope_orphans: [],
+      user_home_records: {total: 0, paths: []},
       delisted: [], delisted_project: [], delisted_settings_only: [],
       stale_project_records: {total: null, paths: null, by_parent: [], more_parents: 0, list_file: null},
       in_repo_records: null, in_repo_ids: [], divergences_here: null}'
@@ -1610,12 +1626,16 @@ report_extras() {
   # record count first, capped at STALE_PARENT_ROWS rows; `more_parents` counts
   # the groups past the cap.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to "$__var" -c --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" '
+  jq_to "$__var" -c --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" \
+    "$ACTIONABLE_DEF"'
     def parent: capture("^(?<p>.*[/\\\\])[^/\\\\]+[/\\\\]*$").p // .;
-    ([.divergences[]? | select(.versionsMatch == false) | .id]) as $act
+    ([.divergences[]? | actionable | .id]) as $act
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
+    | ([.installed[]? | select(.projectPathIsHome == true)]) as $homes
     | {auto_update: .marketplace.autoUpdate,
+       user_home_records: {total: ($homes | length),
+                           paths: ($homes | map(.projectPath) | unique)},
        catalog_source: (.marketplace.source // null),
        user_scope_orphans: (.user_scope_orphans // []),
        delisted: (.delisted // []),

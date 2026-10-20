@@ -925,6 +925,39 @@ assert_eq "stale project records: they are not counted as in-repo records" "1" \
   "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
 
 # ============================================================================
+# Case: a project record keyed to a user home is not a divergence. The user-scope
+# sweep moves alpha to 0.2.0 and leaves the home-keyed record at 0.1.0, which
+# would be one actionable divergence were that record a project. It is reported
+# in its own digest field instead.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1": [
+      {"scope": "user", "installPath": "a", "version": "0.1.0"},
+      {"scope": "project", "projectPath": "/mnt/c/Users/someone", "installPath": "a", "version": "0.1.0"}
+    ]
+  }
+}'
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.2.0)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "user-home record: the sweep moved the user-scope record" "alpha@market1" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated[0].id // empty' <<<"$out")"
+assert_eq "user-home record: the skew it leaves is not an actionable divergence" "0" \
+  "$(jq -r '.marketplaces[0].divergences.post' <<<"$out")"
+assert_eq "user-home record: the digest counts the record" "1" \
+  "$(jq -r '.marketplaces[0].user_home_records.total' <<<"$out")"
+assert_eq "user-home record: and names its path" "/mnt/c/Users/someone" \
+  "$(jq -r '.marketplaces[0].user_home_records.paths[0]' <<<"$out")"
+
+# ============================================================================
 # Case: the digest carries per-step timings from a clock ladder. The same
 # fixture runs three times: on the host's own clock, on a stubbed `date` whose
 # `%N` prints a literal N (an older date), and on the host's `date` with
@@ -1505,6 +1538,12 @@ assert_not_contains "stale render: local-scope records only name no worktree aud
 assert_contains "stale render: local-scope records are counted and named as unreaped" \
   "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" \
   "  Of these, 2 local-scope record(s); nothing reaps them yet."
+# Records keyed to a user home get their own row, and a digest with none omits it.
+assert_contains "user-home render: the records get a row of their own" \
+  "$(needs_digest sync '{"user_home_records":{"total":1,"paths":["/mnt/c/Users/someone"]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
+  $'User-home project records: 1 record(s) keyed to a user home directory\n  - /mnt/c/Users/someone'
+assert_not_contains "user-home render: no records, no row" \
+  "$(needs_digest sync '{"user_home_records":{"total":0,"paths":[]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")" "User-home project records"
 needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 # A digest written before `self_update` existed: the note names no plugin rather
 # than the first moved row.
@@ -1647,6 +1686,38 @@ report_of "$case_dir" --marketplace market1 --audit --install-new none
 assert_exit "divergences current worktree: exit 0" 0 "$REPORT_RC"
 assert_eq "divergences current worktree: its own pin is actionable here, the sibling's stays a worktree" \
   '{"post":2,"actionable_here":1,"actionable_elsewhere":0,"in_worktrees":1,"blocked":0}' \
+  "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
+
+# A pin keyed to a user home is in no class. beta's skew exists only because of
+# its home pin, so the row is not counted; alpha's home pin is present and not a
+# worktree, yet only its absent pin classes the row, so it is blocked.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+for name in alpha beta; do catalog_plugin "$case_dir" market1 "$name" 0.2.0; done
+mkdir -p "$case_dir/home"
+p_home=$(norm_path "$case_dir/home")
+p_gone=$(norm_path "$case_dir/gone")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_home\", \"installPath\": \"a\", \"version\": \"0.1.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_gone\", \"installPath\": \"a\", \"version\": \"0.1.0\"}],
+    \"beta@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"b\", \"version\": \"0.2.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$p_home\", \"installPath\": \"b\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(HOME="$p_home" CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --audit --install-new none
+assert_exit "divergences user home: exit 0" 0 "$REPORT_RC"
+assert_eq "divergences user home: a home pin neither counts a row nor makes one actionable" \
+  '{"post":1,"actionable_here":0,"actionable_elsewhere":0,"in_worktrees":0,"blocked":1}' \
   "$(jq -c '.marketplaces[0].divergences | {post, actionable_here, actionable_elsewhere, in_worktrees, blocked}' <<<"$REPORT_DIGEST")"
 
 # --- an install that left userConfig options unset ---------------------------

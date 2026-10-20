@@ -831,7 +831,10 @@ project/local pins that differ from the row's highest version (a pin already at 
 any such pin that is present and not in a linked worktree makes the row actionable (a row with no
 such pin is actionable too); otherwise any in a linked worktree makes it a worktree row; otherwise
 every such pin is in a path that is not present and the row is blocked. An actionable row is
-`here` when its id has a record for the repo the run stands in. A linked worktree is a present path
+`here` when its id has a record for the repo the run stands in. A scope whose `projectPathIsHome` is
+true is not a project ([scope-semantics.md](scope-semantics.md)), so it is dropped before any of this:
+it never makes a row skewed or actionable, and a divergence that exists only because of such a record
+is in no class and not in `post`. A linked worktree is a present path
 whose `.git` is a file whose `gitdir:` line names a `<repo>.git/worktrees/<name>` entry of another
 repository: a repository's own `.git` is a directory, a submodule's names `/modules/`, and a
 `--separate-git-dir` checkout names a git directory that is not under a `.git/worktrees/`, so none
