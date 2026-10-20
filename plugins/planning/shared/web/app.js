@@ -6681,23 +6681,23 @@
         mid.append(nameRow, meta);
         const acts = E("div", "vf-hp-acts");
         // The owner renames anyone here, with the same form as their own name in the person card.
-        const pa = personActs(() => li._p.pid, false, () => { rform.hidden = false; rin.value = li._p.name; rin.focus(); rin.select(); });
+        const pa = personActs(() => li._p.pid, false, () => { rform.hidden = false; nameIn.value = li._p.name; nameIn.focus(); nameIn.select(); });
         const rform = E("form", "vf-rename vf-hp-rename"); rform.hidden = true;
-        const rin = E("input", "vf-input"); rin.maxLength = 40;
+        const nameIn = E("input", "vf-input"); nameIn.maxLength = 40;
         const rrow = E("div", "vf-crow"), rcancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
         const rsave = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Save name"); rsave.type = "submit";
-        rrow.append(rcancel, rsave); rform.append(rin, rrow); mid.append(rform);
+        rrow.append(rcancel, rsave); rform.append(nameIn, rrow); mid.append(rform);
         rcancel.onclick = () => { rform.hidden = true; pa.rename.focus(); };
         rform.onsubmit = e => {
           e.preventDefault();
-          const v = rin.value.trim(); if (!v) return rin.focus();
+          const v = nameIn.value.trim(); if (!v) return nameIn.focus();
           rsave.disabled = true;
           Core.renamePerson(li._p.pid, v).then(j => { rform.hidden = true; flash(j.name !== v ? `Someone already uses that name, so they are ${j.name}.` : `Renamed to ${j.name}.`); pa.rename.focus(); })
             .catch(fail).finally(() => { rsave.disabled = false; });
         };
         acts.append(pa.rename, pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
         li.append(avBox, mid, acts);
-        li._k = { avBox, nm, meta, role, ctxB, ...pa, rform, rin, acts, avKey: "" };
+        li._k = { avBox, nm, meta, role, ctxB, ...pa, rform, nameIn, acts, avKey: "" };
         return li;
       }, (li, p) => {
         const k = li._k, h = here.get(p.pid), rl = roleOf(p.pid), isGone = gone.has(p.pid), me2 = isMe(p.pid);
@@ -6721,7 +6721,7 @@
         const can = owner && !me2 && rl !== "Host";
         k.acts.hidden = !can;
         paintPersonActs(k, p.pid, "row");
-        k.rin.setAttribute("aria-label", `New name for ${disp(p.name)}`);
+        k.nameIn.setAttribute("aria-label", `New name for ${disp(p.name)}`);
         if (!can || isGone) k.rform.hidden = true;
       });
       if (ui.pop === personPop) fillPersonView();
