@@ -24,9 +24,11 @@ enable-state mismatch (a plugin `true` in one scope's `enabledPlugins` and `fals
 That needs comparing each scope's *raw* `enabledPlugins` map, which `fleet-state.sh` doesn't expose
 today (only the merged effective value, in `enabled`). This is a genuine blind spot, not a deferred
 fix: never claim the report surfaces an enable-state mismatch, and never hand-parse the settings
-files directly to work around the gap. The one sanctioned exception is the committed-enable check
-in Step 2: a read-only look at one `enabledPlugins` key in a tracked project settings file. The fix is extending `fleet-state.sh` to expose the raw
-per-scope maps, not something this skill's prompt layer can paper over.
+files directly to work around the gap. The fix for this blind spot is extending `fleet-state.sh` to
+expose the raw per-scope maps, not something this skill's prompt layer can paper over. The one
+sanctioned settings read is the committed-enable check in Step 2: a read-only look at one
+`enabledPlugins` key in a tracked project settings file, which detects no mismatch. It is removed
+when #7458 moves project pin updates into `sync`.
 
 ## Step 1: Detect
 
@@ -64,9 +66,10 @@ the removal deletes an enable every clone and worktree reads. `update -s project
 that file (the update exemption in the same file). For each `project`-scope row, in the row's own
 `scopes[].projectPath` (the precondition below applies first):
 
-1. Read `<projectPath>/.claude/settings.json` and look for an `enabledPlugins` entry for the id.
-   This is the sanctioned exception to the no-hand-parse rule: read-only, one key, tracked
-   project settings file only. Write nothing, and read no other settings file this way.
+1. Read `<projectPath>/.claude/settings.json` with the Read tool, never `jq` or a shell capture,
+   and look for an `enabledPlugins` entry for the id. This is the sanctioned exception to the
+   no-hand-parse rule: read-only, one key, tracked project settings file only. Write nothing, and
+   read no other settings file this way.
 2. Run `git -C "<projectPath>" ls-files --error-unmatch .claude/settings.json`. Exit `0` means
    the file is tracked.
 
