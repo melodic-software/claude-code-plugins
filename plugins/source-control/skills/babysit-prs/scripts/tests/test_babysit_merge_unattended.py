@@ -1678,6 +1678,11 @@ class CheckInputsChangedOnTheBase(Unattended):
             self.config, check_inputs=("scripts/shared-copies.txt",)
         )
         self.update_code = 0
+        self.update_stdout = (
+            '{"message":"Resource not accessible by integration","status":"403"}'
+        )
+        self.update_stderr = "gh: Resource not accessible by integration (HTTP 403)"
+        self.update_failure: Exception | None = None
         self.inputs_reads: list[tuple[Any, ...]] = []
         self.inputs_answer: dict[str, Any] = {
             "state": "stale",
@@ -1689,13 +1694,12 @@ class CheckInputsChangedOnTheBase(Unattended):
     def _capture(self, args: list[str]) -> Any:
         if self.UPDATE in args:
             self.log.append("update-branch:" + args[-1])
+            if self.update_failure is not None:
+                raise self.update_failure
             if self.update_code == 0:
                 return subprocess.CompletedProcess(args, 0, "{}", "")
             return subprocess.CompletedProcess(
-                args,
-                self.update_code,
-                '{"message":"Resource not accessible by integration","status":"403"}',
-                "gh: Resource not accessible by integration (HTTP 403)",
+                args, self.update_code, self.update_stdout, self.update_stderr
             )
         return super()._capture(args)
 
@@ -1748,6 +1752,97 @@ class CheckInputsChangedOnTheBase(Unattended):
             read["updateError"],
             {"status": 403, "message": "Resource not accessible by integration"},
         )
+
+    SHARED_COPY_LABEL = (
+        f"write:api -X POST repos/owner/repo/issues/{PR}/labels -f labels[]=needs-human"
+    )
+
+    def refuse_shared_copy(self) -> tuple[int, dict[str, Any]]:
+        self.inputs_answer["changed"] = ["lib/a.sh"]
+        self.inputs_answer["regenerate"] = ["lib/a.sh"]
+        return self.run_main()
+
+    def test_a_carried_canonical_changed_on_the_base_is_refused_and_escalated(
+        self,
+    ) -> None:
+        # Updating merges the base's canonical but leaves the copies the PR
+        # generated from its own, so only a merge plus a regeneration clears
+        # it, and no lane acts on the refusal: a person is asked, once.
+        code, out = self.refuse_shared_copy()
+        self.assert_no_merge(code)
+        (comment,) = [e for e in self.log if "/issues/" in e and "/comments" in e]
+        self.assertEqual(self.log, [comment, self.SHARED_COPY_LABEL])
+        self.assertNotIn("update-branch", " ".join(self.log))
+        body = comment.split(" -f body=", 1)[1]
+        self.assertEqual(body.split("\n")[0], merge.SHARED_COPY_ESCALATION_MARKER)
+        self.assertIn(f" at head `{HEAD}`", body.split("\n")[1])
+        for text in (
+            "shared-copy-sources-changed:lib/a.sh",
+            "`lib/a.sh`",
+            self.MERGE_BASE,
+            "scripts/sync-shared-copies.sh",
+            "push",
+        ):
+            self.assertIn(text, body)
+        (blocker,) = [b for b in out["blockers"] if "shared-copy-sources-changed:" in b]
+        self.assertIn("lib/a.sh", blocker)
+        self.assertIn(self.MERGE_BASE, blocker)
+        self.assertIn("scripts/sync-shared-copies.sh", blocker)
+        self.assertEqual(
+            out["unattended"]["enqueue"]["escalation"],
+            {"label": "added", "comment": "created"},
+        )
+
+    def test_a_rerun_at_the_same_head_does_not_escalate_twice(self) -> None:
+        self.refuse_shared_copy()
+        body = self.log[0].split(" -f body=", 1)[1]
+        self.log = []
+        self.comments = [
+            {
+                "id": 81,
+                "user": {"login": IDENTITY, "type": "Bot"},
+                "created_at": "2026-10-12T10:00:00Z",
+                "updated_at": "2026-10-12T10:00:00Z",
+                "body": body,
+            }
+        ]
+        self.pr_labels = [{"name": "needs-human"}]
+        code, out = self.refuse_shared_copy()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+        self.assertEqual(
+            out["unattended"]["enqueue"]["escalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
+    def assert_held_after_update(self, code: int, out: Any) -> None:
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [f"update-branch:expected_head_sha={HEAD}"])
+        (blocker,) = [b for b in out["blockers"] if "check-inputs-changed:" in b]
+        self.assertIn("may have landed", blocker)
+
+    def test_an_update_that_times_out_holds(self) -> None:
+        # The update may have landed, so the old head is not pinned.
+        self.update_failure = RuntimeError("gh api timed out after 30s")
+        code, out = self.run_main()
+        self.assert_held_after_update(code, out)
+        read = out["unattended"]["enqueue"]["checkInputs"]
+        self.assertIsNone(read["updated"])
+        self.assertEqual(
+            read["updateError"],
+            {"status": None, "message": "gh api timed out after 30s"},
+        )
+
+    def test_an_update_with_no_status_or_a_server_error_holds(self) -> None:
+        for stderr in ("Post: context deadline exceeded", "gh: Bad gateway (HTTP 502)"):
+            with self.subTest(stderr=stderr):
+                self.log = []
+                self.update_code, self.update_stdout = 1, ""
+                self.update_stderr = stderr
+                code, out = self.run_main()
+                self.assert_held_after_update(code, out)
+                read = out["unattended"]["enqueue"]["checkInputs"]
+                self.assertIsNone(read["updated"])
 
     def test_a_kill_switch_stop_writes_no_update(self) -> None:
         self.kill = [PROCEED, policy.KillSwitch(False, "disabled")]
@@ -2527,6 +2622,7 @@ class WholeReviewRequest(Unattended):
         self.lanes = CARRIED
         self.limit: str | None = None
         self.toggles: list[str] = []
+        self.lane_toggles: int | None = 0
 
     def _toggle(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
         self.log.append("toggle")
@@ -2540,6 +2636,9 @@ class WholeReviewRequest(Unattended):
             mock.patch.object(merge, "_now", return_value=self.now),
             mock.patch.object(merge.whole_review, "limits", return_value=self.limit),
             mock.patch.object(merge.whole_review, "toggle", side_effect=self._toggle),
+            mock.patch.object(
+                merge.whole_review, "lane_toggles", return_value=self.lane_toggles
+            ),
         ):
             return super().run_main(*flags, merge_flag=merge_flag)
 
@@ -2615,6 +2714,28 @@ class WholeReviewRequest(Unattended):
         posted = self.posted()
         for head in ("d" * 40, "e" * 40):
             self.assertTrue(merge.whole_review.recorded(posted, head), head)
+
+    def test_deleted_records_do_not_reset_the_timeline_cap(self) -> None:
+        # The lane deleted the record lines from the reasons comment; its two
+        # conversions to draft stay on the timeline.
+        self.earlier_sweep(merge.whole_review.RECORD_RE.sub("", self.two_toggles()))
+        self.lane_toggles = 2
+        _, out = self.run_main()
+        self.assertNotIn("toggle", self.log)
+        self.assertEqual(
+            out["unattended"]["writes"]["wholeReview"],
+            {"toggled": False, "skipped": "toggle-cap:2"},
+        )
+        self.assertFalse(merge.whole_review.recorded(self.posted(), HEAD))
+
+    def test_an_unread_timeline_requests_nothing(self) -> None:
+        self.lane_toggles = None
+        _, out = self.run_main()
+        self.assertNotIn("toggle", self.log)
+        self.assertEqual(
+            out["unattended"]["writes"]["wholeReview"],
+            {"toggled": False, "skipped": "toggle-cap:unread"},
+        )
 
     def test_every_record_is_kept_when_the_score_clears(self) -> None:
         self.earlier_sweep(

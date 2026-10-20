@@ -2441,23 +2441,30 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
     return text
 
 
+def _full_history_root(checkout: Path) -> Path | None:
+    """The top of the clone holding `checkout` when it has its whole history
+    (not shallow or partial), else None."""
+    # Pathspecs resolve against the working directory, so run at the top.
+    top = _git(checkout, "rev-parse", "--show-toplevel")
+    if not top or not top.strip():
+        return None
+    root = Path(top.strip())
+    if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
+        return None
+    # A partial clone lacks older blobs, which the read never fetches.
+    promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
+    if _git(root, "config", "--get-regexp", promisor) is not None:
+        return None
+    return root
+
+
 def _clones_holding(sha: str) -> Iterator[Path]:
     """The top of each clone in `_history_checkouts` that holds `sha` with its
-    whole history (not shallow or partial). A commit id names its whole
+    whole history (`_full_history_root`). A commit id names its whole
     ancestry and tree, so any clone holding it answers for the repository."""
     for checkout in _history_checkouts():
-        # Pathspecs resolve against the working directory, so run at the top.
-        top = _git(checkout, "rev-parse", "--show-toplevel")
-        if not top or not top.strip():
-            continue
-        root = Path(top.strip())
-        if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
-            continue
-        # A partial clone lacks older blobs, which the read never fetches.
-        promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
-        if _git(root, "config", "--get-regexp", promisor) is not None:
-            continue
-        if _git(root, "cat-file", "-e", f"{sha}^{{commit}}") is None:
+        root = _full_history_root(checkout)
+        if root is None or _git(root, "cat-file", "-e", f"{sha}^{{commit}}") is None:
             continue
         yield root
 

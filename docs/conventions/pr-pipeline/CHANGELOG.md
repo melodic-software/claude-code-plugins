@@ -1,5 +1,33 @@
 # Changelog for the PR pipeline convention
 
+## [2.19.3] - 2026-10-20
+
+### Fixed
+
+- The review-threads round records the SHA-256 of the thread file before the model runs, and the branch move and the reply collection read the file only when it still matches; otherwise the PR branch is not moved and no replies are collected ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+- pr-merge's `gate-check` job writes a `pr-merge / gate` check only at a candidate's current pull request head: its read also fetches each pull request's head, and a row whose head differs, or whose pull request the read reports `NOT_FOUND`, is skipped with a logged reason instead of taking its commit from the summary artifact alone. A missing pull request skips only its own row; any other GraphQL error still leaves the read's candidates unwritten. The job gains `pull-requests: read` for that read.
+
+- pr-merge counts the cap of two whole reviews per lane pull request from the lane identity's conversions to draft on the pull request timeline as well as from the reasons comment's record lines, so editing that comment, which the lane token can do, no longer resets the cap. An unread timeline requests no whole review.
+
+## [2.19.2] - 2026-10-20
+
+### Changed
+
+- Write lanes deny the shell commands that can print a file or the environment (`echo`, `printf`, `cat`, `head`, `tail`, `grep`, `find`, `env`, `printenv`, `strings`, `od`, `xxd`, `diff`, `sed`, `awk`, `sort`, `cut`, `tr`, `base64`, `nl`, `tac`, `rev`, `uniq`, `fold`, `column`, `jq`, `xargs`, `more`, `less`) and `Read` of `/proc`; the skill reads files with `Read`, `Grep` and `Glob`. `resolve-issue` fetches only the Claude Code, Claude platform, GitHub, Node.js and Python docs hosts, and no longer runs `scripts/run-test-file.sh` or `check-skill.sh`; the pull request's CI runs the tests ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+## [2.19.1] - 2026-10-20
+
+### Fixed
+
+- pr-merge holds a stale-input pull request at its old head when the `update-branch` call gets no answer (a timeout, no HTTP status, or a server error), since the update may have landed; only a 4xx refusal enqueues as before. `merge.check-inputs` reads only a clone that is neither shallow nor partial ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [2.19.0] - 2026-10-20
+
+### Added
+
+- pr-merge requests a whole review of a lane pull request held only by findings an incremental review cannot clear: it records the request in the reasons comment, then converts the pull request to a draft and marks it ready, once per head, at most twice per pull request and once per run, only while fewer than 35 jobs run or wait and both tokens have 30% of each rate-limit bucket left ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
 ## [2.18.0] - 2026-10-20
 
 ### Changed

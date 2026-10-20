@@ -1,10 +1,10 @@
 // Runs the review-threads path check of pr-run-activity-write.yml's promote
 // step (the `script:` of the step with `id: promote`) against fake GitHub
-// clients. A changed path in scope reaches the next gate, the hold-label read,
+// clients, and the thread-file check of its collect step. A changed path in scope reaches the next gate, the hold-label read,
 // which fails here because the case passes no hold labels.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,10 +15,10 @@ const SCOPE = new URL("./thread-scope.mjs", import.meta.url);
 const HEAD = "a".repeat(40);
 const LANE = "b".repeat(40);
 
-function promoteScript() {
+function stepScript(step = "promote") {
   const lines = readFileSync(WORKFLOW, "utf8").split("\n");
-  const id = lines.findIndex((line) => /^\s+id: promote$/.test(line));
-  assert.notEqual(id, -1, "the workflow has the promote step");
+  const id = lines.findIndex((line) => line.trim() === `id: ${step}`);
+  assert.notEqual(id, -1, `the workflow has the ${step} step`);
   const start = lines.findIndex((line, i) => i > id && /^\s+script: \|$/.test(line));
   const keyIndent = lines[start].search(/\S/);
   const body = [];
@@ -34,9 +34,12 @@ const dir = mkdtempSync(join(tmpdir(), "promote-scope-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 
 // Every lane-tip tree entry is a regular file unless `modes` names it.
-async function promote(files, { scope = readFileSync(SCOPE), sha256, threads = [{ path: "plugins/p/evals/c/case.yaml" }, { path: "src/round.py" }], modes = {} } = {}) {
+// `edit` rewrites the thread file after its SHA-256 is recorded.
+async function promote(files, { scope = readFileSync(SCOPE), sha256, threads = [{ path: "plugins/p/evals/c/case.yaml" }, { path: "src/round.py" }], modes = {}, threadsSha256, edit } = {}) {
   const threadFile = join(dir, "threads.json");
   writeFileSync(threadFile, JSON.stringify({ threads }));
+  const recorded = threadsSha256 ?? createHash("sha256").update(readFileSync(threadFile)).digest("hex");
+  if (edit) writeFileSync(threadFile, edit);
   const scopeScript = join(dir, "thread-scope.mjs");
   writeFileSync(scopeScript, scope);
   const env = {
@@ -47,6 +50,7 @@ async function promote(files, { scope = readFileSync(SCOPE), sha256, threads = [
     THREAD_FILE: threadFile,
     SCOPE_SCRIPT: scopeScript,
     SCOPE_SHA256: sha256 ?? createHash("sha256").update(readFileSync(SCOPE)).digest("hex"),
+    THREADS_SHA256: recorded,
     DEPENDENCY_REVIEW: "false",
     HOLD_LABELS: "",
   };
@@ -72,7 +76,7 @@ async function promote(files, { scope = readFileSync(SCOPE), sha256, threads = [
   const context = { repo: { owner: "o", repo: "r" } };
   try {
     const AsyncFunction = (async () => {}).constructor;
-    await new AsyncFunction("github", "context", "core", "require", promoteScript())(
+    await new AsyncFunction("github", "context", "core", "require", stepScript())(
       github,
       context,
       core,
@@ -138,4 +142,55 @@ test("a symbolic link or gitlink the lane adds at an in-scope path stops the mov
   }
   const removed = await promote([{ filename: "plugins/p/README.md", status: "removed" }], { modes: { "plugins/p/README.md": { type: "missing" } } });
   assert.match(removed[0], HOLD);
+});
+
+const WIDENED = JSON.stringify({ threads: [{ path: ".github/workflows/x.yml" }] });
+const MOVE_REFUSED = "threads.json does not match the SHA-256 the select step recorded; the PR branch is not moved";
+
+test("a thread file edited after its hash, or no recorded hash, stops the move", async () => {
+  for (const options of [{ edit: WIDENED }, { threadsSha256: "" }]) {
+    const failed = await promote([{ filename: ".github/workflows/x.yml" }], options);
+    assert.deepEqual(failed, [MOVE_REFUSED]);
+  }
+});
+
+async function collect({ edit, threadsSha256 } = {}) {
+  const threadFile = join(dir, "collect-threads.json");
+  writeFileSync(threadFile, JSON.stringify({ threads: [{ id: "T1", path: "src/round.py", comments: [{ id: 1 }] }] }));
+  const recorded = threadsSha256 ?? createHash("sha256").update(readFileSync(threadFile)).digest("hex");
+  if (edit) writeFileSync(threadFile, edit);
+  const outDir = join(dir, "collect-out");
+  const saved = { ...process.env };
+  Object.assign(process.env, {
+    HEAD_SHA: HEAD,
+    THREAD_FILE: threadFile,
+    THREADS_SHA256: recorded,
+    REPLIES_FILE: join(dir, "absent-replies.jsonl"),
+    OUT_DIR: outDir,
+  });
+  const failed = [];
+  const core = { setOutput() {}, info() {}, setFailed: (message) => failed.push(message) };
+  try {
+    const AsyncFunction = (async () => {}).constructor;
+    await new AsyncFunction("core", "require", stepScript("feedback-collect"))(core, createRequire(import.meta.url));
+  } finally {
+    process.env = saved;
+  }
+  return { failed, outDir };
+}
+
+test("the collect step writes run.json from an unedited thread file", async () => {
+  const { failed, outDir } = await collect();
+  assert.deepEqual(failed, []);
+  assert.deepEqual(JSON.parse(readFileSync(join(outDir, "run.json"), "utf8")).threads, [
+    { id: "T1", path: "src/round.py", comment_ids: [1] },
+  ]);
+});
+
+test("a thread file edited after its hash, or no recorded hash, writes no run.json", async () => {
+  for (const options of [{ edit: WIDENED.replace('"path"', '"id":"T9","comments":[],"path"') }, { threadsSha256: "" }]) {
+    const { failed, outDir } = await collect(options);
+    assert.deepEqual(failed, ["threads.json does not match the SHA-256 the select step recorded; no replies are collected"]);
+    assert.equal(existsSync(join(outDir, "run.json")), false);
+  }
 });
