@@ -14,6 +14,7 @@ set -uo pipefail
 # repository-local variables (GIT_INDEX_FILE among them) would point its git commands at the
 # caller's repository instead. CALLER_INDEX keeps the caller's index path for the check below.
 CALLER_INDEX="${GIT_INDEX_FILE:-}"
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 # shellcheck disable=SC2046 # one word per variable name is intended
 unset $(git rev-parse --local-env-vars)
 
