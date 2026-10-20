@@ -2,9 +2,9 @@
  * @typedef {Object} AuthSessionInput
  * @property {import('playwright').BrowserContext} context
  * @property {import('playwright').Page} page
- * @property {object} course
+ * @property {import('../lib/types.js').Course} course
  * @property {string} storageStatePath
- * @property {object} platformCfg
+ * @property {import('../lib/types.js').PlatformConfig} platformCfg
  */
 
 export {};

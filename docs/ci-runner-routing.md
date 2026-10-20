@@ -63,7 +63,8 @@ advisory lane was setting the number. Its `on.paths` filters repeat the `shell`,
 that touches none of them starts no Windows run; the two are kept in step by
 hand. Inside a run, its `select-tests-windows` job runs the same planner over the same
 diff, and a Windows step runs only when the change selects its suite
-(`scripts/test-windows-plan.txt`); a schedule run (09:17 and 16:17 UTC), a
+(`scripts/test-windows-plan.txt`), counting no changed path that
+`scripts/test-windows-inert-paths.txt` lists; a schedule run (09:17 and 16:17 UTC), a
 dispatch, and a change to that workflow run every step. The
 metadata checks (Conventional Commits title,
 `do-not-merge` label, issue linkage) run as the `check-contract` composite step
