@@ -39,11 +39,18 @@
 # `--admin` is held to the same rule: a bypass flag does not exempt a merge
 # from unread feedback.
 #
-# FAILS OPEN, VISIBLY. When gh is missing or unauthenticated, a read fails, the
-# time budget runs out, or the PR cannot be identified, the merge runs and both
-# the user and the model are told it will run unchecked. CI and other machines
-# are never wedged. The org ruleset that requires conversation resolution is
-# the server-side backstop. ONE EXCEPTION FAILS CLOSED: a GraphQL merge,
+# FAILS OPEN, VISIBLY. When gh is missing or unauthenticated, a read fails, or
+# the time budget runs out, the merge runs and both the user and the model are
+# told it will run unchecked. CI and other machines are never wedged. The org
+# ruleset that requires conversation resolution is the server-side backstop.
+# AN UNRESOLVABLE TARGET FAILS CLOSED (#8598): a `gh pr merge` or REST merge
+# whose repo or PR number comes from a shell variable, `$(...)` or backticks,
+# a `gh pr merge` with no selector whose current branch cannot be read or has
+# no open PR, or one whose `-R` value is missing, is blocked with the literal
+# form to use (`gh pr merge <number> -R owner/repo`); otherwise any `$R` or
+# `$n` would skip the check. A bare `gh pr merge` in a command that holds a
+# backtick is blocked too: the tokenizer splits a backtick substitution off, so
+# a target it supplied would look like no selector at all. ALSO FAILS CLOSED: a GraphQL merge,
 # auto-merge or merge-queue mutation whose PR cannot be resolved (an id from a
 # variable or `$(...)`, an unreadable node, no gh) is blocked, because a
 # scripted mutation almost always takes its id that way. In a Claude Code
@@ -57,7 +64,8 @@
 # with its repo. `gh pr merge --help` / `-h` and `--disable-auto` are not merges.
 #
 # KNOWN GAPS (stated, not chased): a merge from a script (Python, Node) or the
-# web UI; a merge command built through expansion, `eval`, a wrapper such as
+# web UI; a merge command whose command word comes from expansion
+# (`$GH pr merge`), `eval`, a wrapper such as
 # `sudo`, `env` or `xargs`, or a child shell (`bash -c '...'`), or sitting
 # inside `$(...)`; a GraphQL mutation read from a file (`--input`), whose name
 # never appears in the command; only the first merge in one command string is
@@ -132,6 +140,13 @@ BUPM_REPO=""  # owner/repo, may hold gh's {owner}/{repo} placeholders
 BUPM_NUM=""   # PR number
 BUPM_SEL=""   # gh pr merge selector: number, URL or branch; empty = current branch
 BUPM_NODE=""  # GraphQL PullRequest node id
+# Why the merge target is not a literal value; set means refuse.
+BUPM_UNRESOLVED=""
+
+# _bupm_literal <word>: true when the word holds no expansion the guard
+# cannot evaluate (a parameter, `$(...)` or a backtick substitution).
+# shellcheck disable=SC2329  # reached from the recorders below
+_bupm_literal() { [[ "$1" != *'$'* && "$1" != *'`'* ]]; }
 
 emit_tel() {
   [[ -n "$start" ]] || return 0
@@ -156,6 +171,11 @@ _bupm_rest_path() {
   p="${p%%\?*}"
   p="${p%/}"
   [[ "$m" == PUT ]] || return 1
+  if [[ "$p" =~ ^repos/.+/pulls/[^/]+/(merge|ccr/auto_merge)$ ]] && ! _bupm_literal "$p"; then
+    BUPM_FORM="rest-merge"
+    BUPM_UNRESOLVED="the route $p is not literal"
+    return 0
+  fi
   [[ "$p" =~ ^repos/([^/]+/[^/]+)/pulls/([0-9]+)/(merge|ccr/auto_merge)$ ]] || return 1
   BUPM_REPO="${BASH_REMATCH[1]}"
   BUPM_NUM="${BASH_REMATCH[2]}"
@@ -217,7 +237,7 @@ _bupm_graphql() {
 # gh pr merge <args>
 # shellcheck disable=SC2329
 _bupm_gh_pr_merge() {
-  local a sel="" repo="" auto=0 flags=1
+  local a sel="" repo="" auto=0 flags=1 why=""
   while (($#)); do
     a="$1"
     shift
@@ -227,7 +247,11 @@ _bupm_gh_pr_merge() {
       # Not a merge: gh prints help, or switches auto-merge off.
       --disable-auto | --help | -h) return 1 ;;
       --auto) auto=1 && continue ;;
-      -R | --repo) repo="${1-}" && shift && continue ;;
+      -R | --repo)
+        # No value: a backtick substitution was split off as its own segment.
+        (($#)) || why="the -R value is missing"
+        repo="${1-}" && shift && continue
+        ;;
       --repo=*) repo="${a#--repo=}" && continue ;;
       -R?*) repo="${a#-R}" && continue ;;
       -A | --author-email | -b | --body | -F | --body-file | --match-head-commit | -t | --subject)
@@ -244,6 +268,10 @@ _bupm_gh_pr_merge() {
   BUPM_AUTO=$auto
   BUPM_REPO="$repo"
   BUPM_SEL="$sel"
+  _bupm_literal "$repo" || why="the repository $repo is not literal"
+  _bupm_literal "$sel" || why="the pull request $sel is not literal"
+  [[ -z "$sel" && "$COMMAND" == *'`'* ]] && why="no pull request is named and a backtick substitution may supply it"
+  BUPM_UNRESOLVED="$why"
 }
 
 # gh api <args>
@@ -465,6 +493,20 @@ _bupm_refuse() {
   exit 2
 }
 
+# _bupm_refuse_target <reason>: fail closed, for a gh pr merge or REST merge
+# whose repo or PR number is not a literal value.
+_bupm_refuse_target() {
+  # shellcheck disable=SC2016  # $(...) is literal text in the message
+  {
+    printf 'BLOCKED: guardrails could not tell which pull request this merge targets (%s), so it could not check it for unresolved review threads, change requests or failing checks.\n' "$1"
+    printf 'Fix: write the repository and PR number literally: gh pr merge <number> -R owner/repo (or PUT repos/owner/repo/pulls/<number>/merge). A shell variable, $(...) or backticks hide the target; in a loop, write each merge as its own literal command.\n'
+    printf 'Only the user can turn this guard off (block_unresolved_pr_merge_enabled).\n'
+  } >&2
+  emit_tel "blocked" "$BUPM_FORM-unresolvable"
+  exit 2
+}
+[[ -z "$BUPM_UNRESOLVED" ]] || _bupm_refuse_target "$BUPM_UNRESOLVED"
+
 # A GraphQL mutation must name its PR by a literal node id the guard can
 # resolve; see the fail-closed note below.
 if [[ "$BUPM_FORM" == graphql ]]; then
@@ -500,7 +542,7 @@ if [[ "$BUPM_FORM" == gh-pr-merge ]]; then
     _bupm_branch="$BUPM_SEL"
   else
     _bupm_branch=$(git -C "${BUPM_CWD:-.}" branch --show-current 2>/dev/null) || _bupm_branch=""
-    [[ -n "$_bupm_branch" ]] || _bupm_unchecked "no PR was named and the current branch could not be read"
+    [[ -n "$_bupm_branch" ]] || _bupm_refuse_target "no PR was named and the current branch could not be read"
   fi
   if [[ -z "$BUPM_NUM" ]]; then
     _bupm_head="$_bupm_branch"
@@ -508,7 +550,7 @@ if [[ "$BUPM_FORM" == gh-pr-merge ]]; then
     _bupm_api "repos/$BUPM_REPO/pulls?state=open&head=$_bupm_head" --jq '.[0].number // empty' ||
       _bupm_unchecked "$BUPM_ERR"
     BUPM_NUM="$BUPM_OUT"
-    [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_unchecked "no open pull request found for branch $_bupm_branch"
+    [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_refuse_target "no open pull request found for branch $_bupm_branch"
   fi
 fi
 
