@@ -54,8 +54,12 @@ say(!steps.some((s) => /(update|create)Ref\(/.test(body(s)) && /Ref\([^)]*force:
 const post = byId("post");
 const commit = byId("commit");
 say(/bash "\$BIN\/post\.sh"/.test(post.run ?? ""), "the post step runs the base copy of post.sh");
-say(/workflow-staged\)?[^\n]*\n?[^\n]*skip-reason=awaiting-human|unresolved-conflict \| workflow-staged\)/.test(post.run ?? ""),
-  "the post step turns workflow-staged into an escalation (awaiting-human)");
+// The case arm naming the reason sets skip=awaiting-human on its next line.
+const escalates = (reason) =>
+  new RegExp(`^\\s*[a-z| -]*\\b${reason}\\b[a-z| -]*\\)\\s*\\n\\s*tree="" skip=awaiting-human$`, "m").test(post.run ?? ""); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+for (const reason of ["unresolved-conflict", "workflow-staged", "unexpected-path-staged"]) {
+  say(escalates(reason), `the post step turns ${reason} into an escalation (awaiting-human)`);
+}
 say(/tree=""/.test(post.run ?? ""), "an escalating post step clears its tree output");
 const commitIf = String(commit.if ?? "");
 say(/steps\.post\.outcome == 'success'/.test(commitIf) && /steps\.post\.outputs\.escalation-reason == ''/.test(commitIf)
@@ -69,6 +73,17 @@ say(/protected-path-conflict/.test(prepare.run ?? ""), "a conflicted workflow pa
 
 // Clause 3: no head code runs with the write token.
 say(mint >= 0 && checkout > mint, "the lane token is minted before the head checkout");
+// A workflow-modified skip ends the mint green with no token (#7732), so no
+// step after it may key on the head re-read alone.
+const keyed = steps.slice(mint + 1)
+  .filter((s) => /steps\.head-recheck\.outputs\.proceed/.test(String(s.if ?? "")) && !/steps\.lane-token\.outputs\.token != ''/.test(String(s.if ?? "")))
+  .map((s) => s.name);
+say(keyed.length === 0, `no step after the mint keys on the head re-read instead of the token (${keyed.join(", ") || "none"})`);
+say(String(steps[checkout]?.if ?? "") === "steps.lane-token.outputs.token != ''", "the head checkout runs only with a minted token");
+const mintWith = byId("lane-token").with ?? {};
+say(mintWith["pr-workflow-change-ok"] === "${{ inputs.issue-number == '' && github.event_name == 'pull_request' }}" && mintWith["github-token"] === "${{ github.token }}"
+  && mintWith["head-sha"] === "${{ steps.gate.outputs.head-sha }}",
+  "the workflow-modified skip runs on pull_request only, off issue mode, and compares the gated head with the job's own token");
 const recheck = at((s) => s.id === "head-recheck");
 say(recheck >= 0 && recheck < mint, "the head re-read runs before the mint");
 for (const id of ["merge-bin", "hold-label", "stage"]) {
@@ -106,15 +121,23 @@ say(skill.with?.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'melodic
 say(/--setting-sources user/.test(args) && /--permission-mode dontAsk/.test(args) && !/bypass/i.test(args),
   "the skill loads user settings only, under dontAsk");
 const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "utf8");
-// The four exceptions: an activity's `checks`, each a read-only base-copy
+// The five exceptions: an activity's `checks`, each a read-only base-copy
 // wrapper the skill may run with no arguments; its `verify-scripts`, each a
 // read-only wrapper over a base copy it may run with any arguments; under web-access `any`,
-// the read-only base copy of the two docs scripts; and under prepare:
-// review-threads, the read-only review-thread tool wrapper.
+// the read-only base copy of the two docs scripts; under prepare:
+// review-threads, the read-only review-thread tool wrapper; with the
+// commit tool, chmod +x, since commit_files takes each file's mode from disk;
+// and under prepare: ci-context, bare Bash for a read skill, which runs in
+// pr-run-activity-read.yml with no write token (this file fails a read effect
+// before it stages anything).
 const docsRule = String.raw`allowed="$allowed,Bash(bash $DOCS_DIR/$script *),Bash(bash \\\"$DOCS_DIR/$script\\\" *)"`;
+const ciContextRule = 'allowed="$allowed,Bash,Edit,Write,Agent,Read(/$CI_DIR/**),Edit(/$SCRATCH/**)"';
 const allowedLines = stage.split("\n").filter((l) => /allowed="\$allowed|allowed="Skill/.test(l));
-say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', 'allowed="$allowed,Bash($verifier *)"', docsRule, 'allowed="$allowed,Bash($tool *)"'].includes(l.trim())),
-  "the runner grants the skill no Bash but its check wrappers, its verify-scripts, the docs scripts and the review-thread tool");
+say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', 'allowed="$allowed,Bash($verifier *)"', docsRule, 'allowed="$allowed,Bash($tool *)"', 'allowed="$allowed,Bash(chmod +x *)"', ciContextRule].includes(l.trim())),
+  "the runner grants the skill no Bash but its check wrappers, its verify-scripts, the docs scripts, the review-thread tool, chmod +x and a read ci-context skill's");
+const readBranch = stage.slice(stage.indexOf("          read)\n"), stage.indexOf("          mutate-branch | mutate-tracker"));
+say(readBranch.includes(ciContextRule) && /ci-context\) \[ "\$EFFECT" = read \] \|\| fail/.test(stage),
+  "the ci-context Bash grant sits in the read effect's branch, and ci-context with any other effect fails red");
 say(/chmod -R a-w "\$VERIFY_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$VERIFY_DIR\/\*\*\),Write\(\/\$VERIFY_DIR\/\*\*\)"/.test(stage),
   "the verify-scripts copy is read-only to the skill");
 say(/chmod -R a-w "\$FEEDBACK_DIR"/.test(stage) && /Edit\(\/\$FEEDBACK_DIR\/\*\*\),Write\(\/\$FEEDBACK_DIR\/\*\*\),Edit\(\/\$FEEDBACK_STATE\/\*\*\),Write\(\/\$FEEDBACK_STATE\/\*\*\)/.test(stage),

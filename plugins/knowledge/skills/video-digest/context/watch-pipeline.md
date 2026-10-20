@@ -59,7 +59,10 @@ Runs acquire (retry + throttle) → transcript → dynamic coverage watching →
 Writes:
 
 - `source/transcript.txt`
-- `run-state/watch.json`: phase-map + `tempSession` paths
+- `run-state/watch.json`: phase-map + `tempSession` paths; plus `durationMismatch` (both durations)
+  only when the metadata duration and the probed media duration differ by more than
+  `max(5 s, 1%)` of the longer, which also adds a `Duration mismatch` section to the slice
+  `README.md`. The pipeline uses the probed duration either way.
 - `key-frames/selection.json`: temp frame/sheet paths (no bulk copy into repo)
 - `key-frames/coverage-plan.json`: dynamic sampling plan
 - `source/harvested-links.json`
@@ -357,7 +360,11 @@ node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-wat
 ```
 
 Writes `verification/<ISO-basic>Z-watch-outcomes.md`. Once it exits 0 and the blocking checklist
-items (8.1-8.4, 9.1, 9.2, 9.4) are ticked, close the slice:
+items (8.1-8.4, 9.1, 9.2, 9.4) are ticked, re-lay-out the slice into the knowledge corpus or a
+project layout when one is configured, then close it. `close` deletes the temp media (video, frames,
+contact sheets) that `watch/relayout-slice.js` copies `media/` and `frames/all/` from, so a relayout
+run after `close` can only use `--no-media`. Command and flags: `output-contract.md` "Scope of the
+setting".
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/watch-state.js close "<slice-dir>"

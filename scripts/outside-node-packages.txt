@@ -7,11 +7,17 @@
 .github/actions/check-signed-commits
 .github/actions/check-trusted-base
 .github/actions/check-trusted-trigger
+.github/actions/check-wip-cap
 .github/actions/collect-base-activity
+.github/actions/log-api-budget
 .github/actions/report-check-run
 .github/actions/request-lane-token
 .github/actions/select-trusted-text
+.github/scripts/apply-patch
+.github/scripts/intake-reenter
 .github/scripts/maintenance-audit-lane-runs
+.github/scripts/maintenance-monitor-signals
+.github/scripts/maintenance-reconcile-lost-runs
 .github/scripts/pr-merge
 .github/scripts/pr-unblock
 .github/scripts/pr-verify

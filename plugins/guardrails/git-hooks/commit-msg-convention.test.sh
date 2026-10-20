@@ -96,6 +96,42 @@ cp "$CHECK" "$WORK/lone/commit-msg-convention.sh"
 new_repo "$TICKET"
 expect "no resolver anywhere: passes rather than block blind" 0 "$(msg "$REPO" "junk subject" "$WORK/lone/commit-msg-convention.sh")"
 
+# A stub resolver beside a copy of the hook, so the resolver's exit code and
+# stderr are the test's to choose (STUB_RC, STUB_ERR, STUB_OUT). Exit 1 with empty
+# stderr is "no convention tracked": silent. Exit 1 with stderr, or exit 2, means
+# the check did not run: one notice with the diagnostic on stderr, exit 0.
+mkdir -p "$WORK/stub"
+cp "$CHECK" "$WORK/stub/commit-msg-convention.sh"
+cat >"$WORK/stub/resolve-convention-pattern.sh" <<'EOF'
+#!/usr/bin/env bash
+[[ -n "${STUB_ERR:-}" ]] && printf '%s\n' "$STUB_ERR" >&2
+[[ -n "${STUB_OUT:-}" ]] && printf '%s\n' "$STUB_OUT"
+exit "${STUB_RC:-0}"
+EOF
+new_repo ""
+stub() { # <rc> <stderr> <stdout> <subject> -> sets STUB_EXIT, STUB_STDOUT, STUB_STDERR
+  printf '%s\n' "$4" >"$WORK/msg"
+  STUB_STDOUT="$(cd "$REPO" && STUB_RC="$1" STUB_ERR="$2" STUB_OUT="$3" bash "$WORK/stub/commit-msg-convention.sh" "$WORK/msg" 2>"$WORK/stub.err")"
+  STUB_EXIT=$?
+  STUB_STDERR="$(<"$WORK/stub.err")"
+}
+has() { grep -q -- "$1" <<<"$STUB_STDERR" && echo yes || echo no; } # <text> -> yes|no
+stub 1 "" "" "junk subject"
+expect "resolver exit 1, empty stderr: exit 0 and nothing printed" "0|" "$STUB_EXIT|$STUB_STDERR$STUB_STDOUT"
+stub 1 "resolve-convention-pattern: broken pointer" "" "junk subject"
+expect "resolver exit 1 with stderr: exit 0, one notice holding the diagnostic" "0|1|yes|yes" \
+  "$STUB_EXIT|$(grep -c . <<<"$STUB_STDERR")|$(has 'did not run')|$(has 'broken pointer')"
+stub 2 "resolve-convention-pattern: usage" "" "junk subject"
+expect "resolver exit 2: exit 0, one notice holding the diagnostic" "0|1|yes|yes" \
+  "$STUB_EXIT|$(grep -c . <<<"$STUB_STDERR")|$(has 'did not run')|$(has 'usage')"
+stub 2 "" "" "junk subject"
+expect "resolver exit 2, no stderr: exit 0 and the notice names the status" "0|yes" \
+  "$STUB_EXIT|$(has 'exit status 2')"
+stub 0 "" "^[A-Z]+-[0-9]+: .+" "junk subject"
+expect "a resolved convention still rejects a non-matching subject" 1 "$STUB_EXIT"
+stub 0 "" "^[A-Z]+-[0-9]+: .+" "ABC-1: fine"
+expect "a resolved convention still passes a matching subject" "0|" "$STUB_EXIT|$STUB_STDERR"
+
 expect "the sentinel marker stays on line 2 of the source" yes \
   "$(grep -q 'guardrails-commit-msg-convention' < <(sed -n 2p "$CHECK") && echo yes)"
 

@@ -5,9 +5,21 @@ name: intake-triage
 # only allowlisted labels that exist here, or `needs-human` when the run
 # escalates. Advisory: never blocks a merge. See ci-workflows'
 # intake-triage.yml for the security model and inputs.
+#
+# workflow_dispatch triages one issue by number: issues a job's GITHUB_TOKEN
+# creates (the lane sweep's) start no issues run, and intake-reenter.yml
+# sends back an answered needs-decision or needs-info issue. The reusable admits a
+# dispatch only from an actor whose id is in allowed-author-ids or
+# allowed-bot-sender-ids, and reads the issue from the API.
 on:
   issues:
     types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue-number:
+        description: The issue to triage.
+        type: string
+        required: true
 
 permissions: {}
 
@@ -19,11 +31,15 @@ permissions: {}
 jobs:
   # Skips intake for an issue /work-items:decompose published already
   # triaged; see .github/actions/check-born-triaged. A failed gate leaves
-  # skip empty, so intake runs. The job also resolves the lane's model, turns
-  # and effort from the triage-issue route of the default branch's models
-  # block; when that fails, claude-args is empty and intake does not run, so
-  # it never falls back to the CLI's own model and an unbounded turn budget.
+  # skip empty, so intake falls through to the reusable, which turns away
+  # every person when human-ids is empty too. The job also resolves the lane's
+  # model, turns and effort from the triage-issue route of the default
+  # branch's models block; when that fails, claude-args is empty and intake
+  # does not run, so it never falls back to the CLI's own model and an
+  # unbounded turn budget. A dispatch runs only from main, so the trusted-actor
+  # list, the models block and the lane's AGENTS.md come from the default branch.
   born-triaged:
+    if: github.event_name == 'issues' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -31,6 +47,9 @@ jobs:
       issues: read # read the issue's current body, type and labels
     outputs:
       skip: ${{ steps.check.outputs.skip }}
+      # The trusted-actor list's human ids, for the reusable's author gate.
+      human-ids: ${{ steps.check.outputs.human-ids }}
+      bot-ids: ${{ steps.bots.outputs.ids }}
       # Empty when the profile sets a subagent model, which the reusable
       # cannot apply; the refusal step below shows why.
       claude-args: ${{ steps.models.outputs.settings-json == '' && steps.models.outputs.claude-args || '' }}
@@ -79,23 +98,47 @@ jobs:
         id: check
         uses: ./.base/.github/actions/check-born-triaged # zizmor: ignore[self-repository]
         with:
+          issue-number: ${{ github.event.issue.number || inputs.issue-number }}
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
 
+      # Bots the reusable admits: github-actions[bot] (41898282), the actor of
+      # a dispatch sent with a GITHUB_TOKEN, and the lanes App when its id is
+      # set. An issue the GITHUB_TOKEN opens starts no issues run, so listing
+      # 41898282 admits only its dispatches.
+      - name: Compose the bot id list
+        id: bots
+        env:
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+        run: |
+          ids=41898282
+          if printf '%s' "$LANES_APP_ID" | grep -Eq '^[1-9][0-9]*$'; then
+            ids="$ids,$LANES_APP_ID"
+          fi
+          echo "ids=$ids" >> "$GITHUB_OUTPUT"
+
+  # A dispatch asks for triage, so the born-triaged skip applies to an opened
+  # issue only: intake-reenter.yml dispatches an answered issue that was born
+  # triaged and may still carry a status label.
   intake-triage:
     needs: born-triaged
     if: >-
       ${{ !cancelled()
-      && needs.born-triaged.outputs.skip != 'true'
+      && (github.event_name == 'workflow_dispatch' || needs.born-triaged.outputs.skip != 'true')
       && needs.born-triaged.outputs.claude-args != '' }}
     permissions:
       contents: read # check out the default branch so the lane can read AGENTS.md
       issues: write  # apply labels and post the triage comment
     concurrency:
-      group: intake-triage-${{ github.event.issue.number || github.run_id }}
+      group: intake-triage-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@3c8a4b2aeff5871cf72d35a686692bc6f0d44815 # v0.45.0
+    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@f129f4c142d00ec3feacbf2b9102d327088504bf # v0.51.0
     with:
       runner: ubuntu-24.04
+      role: automations
       claude-args: ${{ needs.born-triaged.outputs.claude-args }}
+      issue-number: ${{ inputs.issue-number }}
+      allowed-author-ids: ${{ needs.born-triaged.outputs.human-ids }}
+      allowed-bot-sender-ids: ${{ needs.born-triaged.outputs.bot-ids }}
     secrets:
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      CLAUDE_API_KEY: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}

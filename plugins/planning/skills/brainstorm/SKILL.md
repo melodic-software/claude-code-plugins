@@ -39,9 +39,13 @@ stop).
 2. **Ground**. Fast breadth pass (`Glob`/`Grep`/targeted Read; survey the file landscape before
    reading anything in depth) over where the problem lives: entry points, existing mechanisms that
    already partially address it, prior art in the repo.
+   Before any candidate, read the Brief's `### Problem`; absent, establish it (problem fields, evidence
+   rating, restate-and-confirm; a prescribed solution gets rethink-or-accept):
+   [`${CLAUDE_PLUGIN_ROOT}/context/problem-framing.md`](../../context/problem-framing.md). Its
+   `time_units` user layer is `${user_config.time_units}` (unexpanded means unset).
 3. **Diverge**. Generate the candidate list (default ~10; scale to the problem), ordered
    **cheapest → most ambitious**. Every candidate is codebase-grounded and names the
-   files/mechanisms it would touch, one line each: what, where, effort tier, expected impact. Do
+   files/mechanisms it would touch, one line each: what, where, effort tier (a `work_size` size level), expected impact. Do
    not self-censor the ambitious end; the user calibrates, not you.
 4. **React**. The user marks what resonates. A prose numbered list is the default reaction
    surface; for a large or multi-axis spread, offer an interactive view (candidates from cheapest to

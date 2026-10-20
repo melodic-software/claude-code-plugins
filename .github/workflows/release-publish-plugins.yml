@@ -11,13 +11,18 @@ name: release-publish-plugins
 # request that GITHUB_TOKEN opens or updates starts no `pull_request` runs, and
 # the release pull request needs `ci-status`. The commit goes through the GraphQL
 # createCommitOnBranch mutation, which GitHub signs, so main's
-# required_signatures rule accepts it (the pattern of pr-bump-plugin-version.yml).
+# required_signatures rule accepts it.
 #
 # A scheduled run, and a push of a fragment to main, run `merge`: it queues a
-# release pull request that is current and green, rebuilds one that is stale,
-# conflicted, or failing ci-status on a base behind main, and builds one when
-# none is open (ADR 0048, Rollout 3, Resolved decisions 1 and 2, and the
-# 2026-10-17 amendment). Neither action rebuilds one in the merge queue:
+# release pull request that is current and green, and builds one when none is
+# open. Current means main has changed no file the release changes (a fragment
+# it consumed, a CHANGELOG.md, a plugin.json) since its build base, the main
+# commit it was cut from; fragments main added since then ride the next
+# release. A scheduled run also rebuilds one that is not current, conflicted,
+# or failing ci-status on a base behind main; a push run never rebuilds, since
+# each rebuild cancels the release pull request's running checks (ADR 0048,
+# Rollout 3, Resolved decisions 1 and 2, and the 2026-10-17 and 2026-10-20
+# amendments). Neither action rebuilds one in the merge queue:
 # .github/scripts/release-publish-plugins/decide-rebuild.sh decides for both.
 # workflow_dispatch runs either action by hand.
 on:
@@ -41,10 +46,11 @@ on:
 permissions: {}
 
 # One release at a time. A newer run supersedes a running one: the newest run
-# reads the newest main.
+# reads the newest main. A push run waits instead, so it never cancels a
+# scheduled run's rebuild that it would not redo.
 concurrency:
   group: release-plugins
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
   merge:
@@ -88,9 +94,9 @@ jobs:
       # expectedHeadOid pins the queued head to the one checked above: a push to
       # release/plugins in between makes the call fail rather than queue an
       # unchecked head. A head already queued, or whose latest `ci-status` has
-      # not passed, is left for a later run.
+      # not passed, is left for a later run, as is one a push run deferred.
       - name: Queue the checked head
-        if: steps.check.outputs.rebuild == 'false'
+        if: steps.check.outputs.rebuild == 'false' && steps.check.outputs.deferred != 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_ID: ${{ steps.check.outputs.id }}
@@ -214,7 +220,7 @@ jobs:
           stage=release/plugins-next
           gh api -X DELETE "$refs/heads/$stage" --silent 2>/dev/null || true
           gh api -X POST "$refs" -f ref="refs/heads/$stage" -f sha="$MAIN_SHA" --silent
-          git add -A -- plugins .changes
+          git add -A -- plugins docs/conventions .changes
           # File contents go through stdin and files, never argv, so a large file fits.
           adds="$RUNNER_TEMP/additions.jsonl"
           dels="$RUNNER_TEMP/deletions.json"

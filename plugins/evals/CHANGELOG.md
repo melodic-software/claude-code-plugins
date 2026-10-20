@@ -1,5 +1,23 @@
 # Changelog: evals
 
+## [0.9.5] - 2026-10-20
+
+### Changed
+
+- The `plugin-eval` preflight report prints git's version on its own `git_version` line after `floor_met`, which now holds only the boolean.
+
+### Fixed
+
+- `calibrate-judge.py build` writes each sample into `case.yaml` as `execution.append_system_prompt` instead of `prompt.md` frontmatter, so a sample holding a markdown table rule (`---`) no longer ends the frontmatter early and its case loads and is tested.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [0.9.4] - 2026-10-18
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.9.3] - 2026-10-16
 
 ### Changed

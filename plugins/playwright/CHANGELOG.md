@@ -3,6 +3,38 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1] - 2026-10-20
+
+### Changed
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [0.13.0] - 2026-10-18
+
+### Changed
+
+- **Breaking: `/playwright:demo-video` spells out quality control.** `scripts/qc.py` is now `scripts/quality_control.py` and `reference/qc.md` is `reference/quality-control.md`. The `qc` section of `scripts/defaults.json` is now `quality_control`, so a `--config` file that overrides `qc.*` thresholds must rename that key; there is no alias for the old name. The report is written as `quality-control.json` in the quality-control output directory instead of `qc.json`.
+
+- **`/playwright:demo-video` gives an outcome time to be read.** A hold that shows a step's `outcome` lasts its reading time (`captions.seconds_per_word`, never under `captions.min_seconds`, both new in `scripts/defaults.json`), and `quality_control.py` lets a still run in that hold take the reading time on top of `still_max`; holds with no outcome keep the limit. A step that stays on its page now shows its `outcome` too.
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
+- A refused edit plan now names the steps whose shot search found no zoom shot, the usual cause behind a caption with no empty anchor.
+- The camera-off `SKIP` in quality control no longer says "plain style" for a produced video.
+- The skill covers looping CSS animations (including `::before` and `::after`) that keep `demo.settle` from finishing, and says where exploration artifacts and changed app state go.
+
+- **`/playwright:demo-video` keeps an in-place step's narration under its own caption.** When a step that stays on its page has an `outcome`, its step and results lines now end before the outcome caption replaces the step caption: the edit slows the typed results, or the cursor travel when there are none, until they fit. Before, the step's line could play more than a second into the outcome caption.
+
 ## [0.12.5] - 2026-10-16
 
 ### Changed

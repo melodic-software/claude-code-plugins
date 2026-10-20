@@ -1,5 +1,87 @@
 # Changelog: session-flow plugin
 
+## [0.61.0] - 2026-10-20
+
+### Added
+
+- Two `/session-flow:handoff` eval cases, `ho-task-tools-recreate-calls` and `ho-no-task-tools-says-so`, one for each task-tool branch of the environment section (the Task tools, and neither the Task tools nor `TodoWrite`).
+
+- `running-retro` checkpoint finds skill-fit gaps with six detectors: a skill bypassed or overridden, the same rules re-typed into several briefs, a worker stalled or re-briefed for the same reason, a denial that forced a workaround, a verifier loop stopped by judgment, and the owner asking whether a skill exists. Each finding names its owning plugin and skill and cites its evidence. Before offering to file, the skill searches the owning plugin's open issues through `/work-items:track search`; skill-fit gaps are never auto-filed.
+- Eval case `rr-skill-fit-names-owner`.
+
+- `/session-flow:keep-going` lists the child process tree of each background shell and flags any child waiting on an interactive prompt or stdin, using the new `check-child-input-wait.py` (Linux through `/proc`, macOS through `ps`, Windows through PowerShell). A process the platform gives no signal for reports `unknown`, never "not waiting". Killing a flagged child stays behind the side-effect gate.
+- The shared off-thread reference lists "external CLI processes and their child trees" as a kind.
+
+### Fixed
+
+- `/session-flow:continue-in-background`: the dirty-tree gate reads the effective `worktree.bgIsolation` (managed, local, project, user settings files, in that order; a `--settings` value cannot be read and is reported as not covered). With `none` the background session edits the checkout directly, so the gate launches instead of refusing and the launch report warns that the session edits this checkout in place, alongside the user.
+
+## [0.60.0] - 2026-10-20
+
+### Added
+
+- `## Next` sections on `running-retro` and `show-options`, naming each skill's successor.
+
+- Plugin-eval cases for `/session-flow:workflow` progress tracking: `wf-task-tools-track-stages` (a session with the Task tools keeps its stage list in them) and `wf-no-task-tools-checklist-file` (a session with neither the Task tools nor TodoWrite uses the checklist file as its only tracker).
+
+- keep-going singles out every subagent or workflow agent whose last notification carries a rate-limit error, re-checks the live windows, reads its partial work, resumes it with `SendMessage` when its id resolves (restarting from its trail otherwise), and reports each with its evidence and one action.
+
+- keep-going names the active account (read from `claude auth status`) and the account at the time of a rate-limit stop, and reports changed, unchanged or unknown with the source of each reading, so a captured limit message is not read against a different account. When either identity cannot be established, it reports unknown and asks the operator.
+
+- keep-going measures how long the session was stopped from transcript timestamps with a bundled `measure-stop-gap.py`, states the gap in its report, and re-reads limit windows, leases, PR state and CI runs older than the gap instead of trusting them.
+
+### Changed
+
+- Durable-state gather reference: the `$`-expansion note points to the `/source-control:worktree` accepted-shapes heading instead of restating it, and keeps the braced-form observation ([#5673](https://github.com/melodic-software/claude-code-plugins/issues/5673)).
+
+- `/session-flow:orchestrate worker` and `worker compact` exports now carry a one-line rule against ending the turn to wait on the worker's own background job: poll in the foreground with a bounded loop, or return what you have.
+
+- The retro data-retention pointer and the save-point `/goal` record are re-checked against the live docs: the retention pointer carries a fresh as-of date and a recheck trigger that names what the retro relies on, and the goal record now carries section anchors, an as-of date and a recheck trigger.
+
+- `audit-sessions` markdown report names the worst 5 sessions (or linked PRs) per finding, then how many more there are and that the JSON report holds the full list; the JSON report is unchanged.
+- The metrics table gains a `Statistic` column: `cache.write_5m_share` reads "machine-wide ratio" and `hooks.stop_ms` reads "median of per-session p90" instead of "median".
+- The `audit-sessions` description and opening no longer claim to audit corrections or trends, and the "why am I correcting Claude so often" and "am I getting faster" triggers are removed; the opening now says to compare two `--since`/`--until` runs by hand.
+
+- The orchestrate skill now points its model-inheritance, delegate-bulk-work and tune-effort claims at the upstream sections they rest on, with as-of dates and recheck triggers.
+
+- `handoff` Constraints entries that record a permission or auto-mode refusal, or an owner-reserved step, carry the session, date and verbatim denial text (or the owner's quoted words); a resumed session retries a recorded refusal once in its documented shape before handing the action to the user, and a lifted reservation moves under `Superseded:`.
+- `handoff` Remaining actions list prework (review a peer's PR, check a release, pre-verify the awaited condition) when every action waits on a peer or the owner, instead of a bare "no action owed" line.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+- `sweep.py --write-report` no longer appends to `reports/<scope>/history.jsonl`; nothing read it. Existing files are left in place.
+
+### Fixed
+
+- `/session-flow:orchestrate` no longer caps workers on usage or rate-limit headroom, and picks the cheaper model tier by whether the work is mechanical or judgment, not by fan-out width. Backoff on this session's own rate-limit errors and sibling 429s stays.
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- The shared settings checker behind `/session-flow:setup` validates string and object settings, and reports a setting whose schema shape it does not check instead of stopping with a JavaScript error.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+- `continue-in-background` launches the `claude --bg` session with `--permission-mode auto`, so a permission ask no longer waits for an attach while the user is away. The launch report says auto mode may deny an action and that where a denied action is reported is unverified.
+
+## [0.59.0] - 2026-10-18
+
+### Added
+
+- The shared off-thread work reference names nested subagents and workflow agents as a kind and has inventory descend through every level the harness exposes, reporting any level it cannot enumerate. A keep-going eval covers a subagent that spawned its own subagent.
+
+### Changed
+
+- The running-retro observer decodes transcript lines through the shared `transcript_reader.decode_line`, so it no longer carries its own JSONL decode; its events, `mid` tagging and turn-boundary rule are unchanged, and the status `parse_errors` count now includes non-object lines.
+- `transcript_reader` gains `decode_line(line, stats)`, the one-line entry point `iter_records` is now built on.
+
+### Fixed
+
+- The observer's comment on bare strings in a user content list no longer claims the canonical parser counts them as human messages.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.58.3] - 2026-10-17
 
 ### Changed

@@ -1,0 +1,22 @@
+{
+  "repos/acme/mk": {"status": 200, "body": {"full_name": "acme/mk", "archived": false}},
+  "repos/acme/mk/commits?path=plugins%2Ffresh&per_page=1": {"status": 200, "body": [{"commit": {"committer": {"date": "2026-10-10T12:00:00Z"}}}]},
+  "repos/acme/mk/contents/plugins/fresh": {"status": 200, "body": {"type": "dir"}},
+  "repos/acme/mk/commits?path=plugins%2Faging&per_page=1": {"status": 200, "body": [{"commit": {"committer": {"date": "2026-08-20T00:30:00Z"}}}]},
+  "repos/acme/mk/contents/plugins/aging": {"status": 200, "body": {"type": "dir"}},
+  "repos/acme/mk/commits?path=plugins%2Fboundary&per_page=1": {"status": 200, "body": [{"commit": {"committer": {"date": "2026-08-19T08:00:00Z"}}}]},
+  "repos/acme/mk/contents/plugins/boundary": {"status": 200, "body": {"type": "dir"}},
+  "repos/acme/mk/commits?path=plugins%2Fvanished&per_page=1": {"status": 200, "body": []},
+  "repos/acme/mk/contents/plugins/vanished": {"status": 404, "body": "Not Found"},
+  "repos/acme/mk/commits?path=.claude-plugin%2Fmarketplace.json&per_page=1": {"status": 200, "body": [{"commit": {"committer": {"date": "2026-10-01T00:00:00Z"}}}]},
+  "repos/acme/mk/contents/.claude-plugin/marketplace.json": {"status": 200, "body": {"type": "file"}},
+  "repos/acme/old": {"status": 200, "body": {"full_name": "acme/old", "archived": true}},
+  "repos/acme/old/commits?path=.claude-plugin%2Fmarketplace.json&per_page=1": {"status": 200, "body": [{"commit": {"committer": {"date": "2026-04-20T00:00:00Z"}}}]},
+  "repos/acme/old/contents/.claude-plugin/marketplace.json": {"status": 200, "body": {"type": "file"}},
+  "repos/acme/gone": {"status": 200, "body": {"full_name": "acme/gone-renamed", "archived": false}},
+  "repos/acme/gone/commits?path=.claude-plugin%2Fmarketplace.json&per_page=1": {"status": 200, "body": [{"commit": {"committer": {"date": "2026-10-02T00:00:00Z"}}}]},
+  "repos/acme/gone/contents/.claude-plugin/marketplace.json": {"status": 200, "body": {"type": "file"}},
+  "repos/acme/deleted": {"status": 404, "body": "Not Found"},
+  "repos/acme/deleted/commits?path=.claude-plugin%2Fmarketplace.json&per_page=1": {"status": 404, "body": "Not Found"},
+  "repos/acme/deleted/contents/.claude-plugin/marketplace.json": {"status": 404, "body": "Not Found"}
+}

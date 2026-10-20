@@ -3,6 +3,44 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-10-20
+
+### Added
+
+- An eval case, `css-rule-corner-shape`, checking that smoothed or squircle button corners use `border-radius` (optionally with `corner-shape`) and keep a visible focus indicator, never a `clip-path` on the button.
+
+- An eval case, `web-interruptible-motion`, checking that `/user-interface:write-animation` keeps the current value and velocity when a toggle reverses mid-animation instead of restarting a keyframe from zero.
+
+- Shared `resolve-convention-home.sh` synced: `--ref` (a 40-hex commit id or `origin/<name>`) reads the pointer and the home as committed, `-` reads the region from stdin, a `declined` line in the region exits 4 so the caller does not ask again, and a root that is `$HOME`, an ancestor of it or outside a git work tree exits 5 (not applicable).
+- Shared `config-cascade.mjs` synced: `resolve()` takes a `floors` option (key path to `Floor direction`), and a personal `.local.yaml` value that loosens a floor key the team set is dropped with an error naming the layer, file and key. A `.local.md` H2 section replaces the team `.md` section with the same heading, returned as `sections`.
+
+### Changed
+
+- `/user-interface:write-css` layout reference: the content grid with breakouts is now the container of every page, and a pass over existing CSS replaces each centered `max-width` wrapper with it, per the re-audited upstream pin.
+
+- The config cascade has four layers (default, `userConfig`, team, personal): a file under `~/docs/conventions/` is no longer read. An invalid team or `userConfig` value falls to the default, never to a lower layer's value; an invalid personal value leaves the team value standing.
+- With no `--root`, `resolve-convention-home.sh` reads the git toplevel of `CLAUDE_PROJECT_DIR` (else of the current directory): one home per git root.
+- `detect.mjs --config` reads no team or overlay file when the repository declined a convention home or none applies (the project is `$HOME`, an ancestor of it, or outside git): the bundled defaults apply, and `home_skipped` says why.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+- A `CLAUDE.md` symlinked to `AGENTS.md`, or the reverse, no longer prints a `duplicate:` notice.
+- A convention home whose name starts with `..` (such as `..conf`) is no longer refused as outside the project.
+
+## [0.6.3] - 2026-10-18
+
+### Changed
+
+- The README links ADR 0075, which supersedes ADR 0061's layers and paths for plugin settings.
+
+## [0.6.2] - 2026-10-18
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.6.1] - 2026-10-16
 
 ### Changed

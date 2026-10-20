@@ -293,6 +293,11 @@ HARNESS_WRAPPER_NOTE = (
 
 #: Concurrency and fan-out env vars, with the default the official docs state.
 #: A value of None means the variable is not documented at all, which is itself reportable.
+#: Pointer: https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit (the
+#: concurrent-subagent default and its exemptions) and
+#: https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents (the
+#: nesting-depth default). As of 2026-10-18. Recheck when either
+#: section changes a default, its accepted values, or its exemptions.
 CONCURRENCY_ENV_DEFAULTS = {
     "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": 20,
     "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": 3,
@@ -2240,11 +2245,12 @@ def shell_resolution(root: Path, process_env: dict | None = None) -> dict:
             "PowerShell wrap that row and no bash.exe resolved for it. "
             "This engine never executes either bash.exe, so it reports the resolution and "
             "leaves per-binary timing to the operator. "
-            "(https://code.claude.com/docs/en/troubleshoot-install and "
+            "(https://code.claude.com/docs/en/troubleshoot-install#claude-code-on-windows-"
+            "requires-either-git-for-windows-for-bash-or-powershell and "
             "https://code.claude.com/docs/en/settings-reference, the `env` section, verified "
-            "2026-09-20; recheck when troubleshoot-install's resolution order or accepted-name "
-            "list changes, when settings-reference changes what `env` applies to, or when "
-            "hooks.md changes the `shell` field's accepted-value list.)"
+            "2026-10-18; recheck when troubleshoot-install's resolution order, its step-2 skip "
+            "rule or accepted-name list changes, when settings-reference changes what `env` "
+            "applies to, or when hooks.md changes the `shell` field's accepted-value list.)"
         ),
     }
     if error:
@@ -2255,7 +2261,8 @@ def shell_resolution(root: Path, process_env: dict | None = None) -> dict:
             "bash.exe in two documented "
             "steps: first the default install locations (C:\\Program Files\\Git and "
             "C:\\Program Files (x86)\\Git), then the git on PATH, taking bin\\bash.exe from that "
-            "Git installation. Which step wins on this host is not resolved here."
+            "Git installation; the PATH step has documented skip rules for some locations (see "
+            "the pointer). Which step wins on this host is not resolved here."
         )
         return record
     normalized = value.replace("\\", "/")

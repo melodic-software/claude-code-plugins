@@ -134,6 +134,19 @@ IDS="$(frontier_ids false <<<"$SIGNAL")"
 assert_eq "default frontier still surfaces a provenance: signal item" \
   "github:o/r#1,github:o/r#6" "$IDS"
 
+# A status label that waits on a person floors the item too, and the attended lane
+# still sees it.
+STATUS='{"schema_version":"1.0","items":[
+  {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
+  {"id":"github:o/r#9","state":"open","assignees":[],"labels":["agent-ready","status: needs-decision"],"blocked_by_count":0},
+  {"id":"github:o/r#10","state":"open","assignees":[],"labels":["agent-ready","status: needs-info"],"blocked_by_count":0}]}'
+IDS="$(frontier_ids true <<<"$STATUS")"
+assert_eq "autonomous frontier drops status: needs-decision and needs-info even when agent-ready" \
+  "github:o/r#1" "$IDS"
+IDS="$(frontier_ids false <<<"$STATUS")"
+assert_eq "default frontier still surfaces status: needs-decision and needs-info items" \
+  "github:o/r#1,github:o/r#9,github:o/r#10" "$IDS"
+
 # C3 scoped is deliberately NOT in the floor (the admission gate owns it), so it
 # must survive this filter.
 SCOPED='{"schema_version":"1.0","items":[

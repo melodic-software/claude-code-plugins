@@ -3,6 +3,26 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.7] - 2026-10-20
+
+### Added
+
+- A `visualize` eval case: a dashboard request whose natural implementation loads an external charting library and a remote logo must still produce an Artifact page that inlines its CSS, JS and images and makes no network call, even to a host the Artifact CSP allows.
+
+### Fixed
+
+- The publish gate also scans a normalized copy of each line (tags removed, HTML entities decoded, doubled backslashes folded), so a credential or machine path that is tag-split, HTML-escaped or JSON-escaped is refused or routed before upload, as the pages host already does.
+
+- The visualize decision matrix's terminal Markdown rendering source now carries a pointer record (anchors, as-of date, recheck trigger) and says the page documents only syntax highlighting and hyperlinks.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [0.12.6] - 2026-10-18
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.12.5] - 2026-10-16
 
 ### Changed

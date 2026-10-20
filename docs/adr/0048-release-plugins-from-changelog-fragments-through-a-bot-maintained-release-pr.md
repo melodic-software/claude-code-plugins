@@ -1,7 +1,8 @@
 # Release plugins from changelog fragments through a bot-maintained release PR
 
-- Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild, see
-  the amendment below)
+- Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild) and
+  2026-10-20 (a push run never rebuilds, and a release may merge past newer fragments), see the
+  amendments below
 - Date: 2026-10-03
 
 ## Context
@@ -169,11 +170,11 @@ version bumps and CHANGELOG entries.
 | `check-changelog-parity.sh --check`, `--check-preserved`, `--check-order` | Kept as they are. They guard CHANGELOG integrity, which now changes only in release pull requests |
 | `--check-bump` | Kept for the release pull request. Its "bump without change" rule (`check-changelog-parity.sh:93-96`) counts a consumed fragment as the change. For a plugin in fragment mode, any other pull request that changes its `version` or adds a CHANGELOG heading fails with a message pointing at `.changes/` |
 | New `check-changelog-fragments.sh` | Validates every added or modified fragment: path names an existing plugin, front matter has a valid `bump`, the body has at least one known `###` section (a `bump: none` fragment needs only a non-empty reason line instead), and an added fragment's path is new on the base |
-| New `check-changelog-fragments.sh --check-required <base>` | For each fragment-mode plugin whose shipped files (anything under `plugins/<name>/`) the pull request changes, requires an added or modified fragment for that plugin, `bump: none` included. Only the release pull request's own writes (the root `CHANGELOG.md` and a version-only `plugin.json` edit) are exempt; the same edits in any other pull request need a fragment. A pull request that `dependabot[bot]` opened, whose every commit Dependabot authored, GitHub committed and GitHub verified (read from the commits API), needs none: its fragment is written after the merge (the `dependabot-fragments.yml` row). The one other commit it may carry is `pr-bump-plugin-version.yml`'s verified `github-actions[bot]` bump, touching only the `plugin.json` and `CHANGELOG.md` of plugins not in fragment mode |
+| New `check-changelog-fragments.sh --check-required <base>` | For each fragment-mode plugin whose shipped files (anything under `plugins/<name>/`) the pull request changes, requires an added or modified fragment for that plugin, `bump: none` included. Only the release pull request's own writes (the root `CHANGELOG.md` and a version-only `plugin.json` edit) are exempt; the same edits in any other pull request need a fragment. A pull request that `dependabot[bot]` opened, whose every commit Dependabot authored, GitHub committed and GitHub verified (read from the commits API), needs none: its fragment is written after the merge (the `dependabot-fragments.yml` row). The one other commit it may carry is `pr-bump-plugin-version.yml`'s verified `github-actions[bot]` bump, touching only the `plugin.json` and `CHANGELOG.md` of plugins not in fragment mode (removed in phase 5) |
 | New `check-changelog-fragments.sh --check-release <base>` | Runs on the release pull request only. Fails when the base holds an unconsumed fragment for a plugin the release bumps (see The release pull request) |
 | `check-vendor-version-bump.sh` and the `sync-*.sh --check-bump` steps | One shared predicate in `scripts/lib/` replaces "manifest version moved" with "manifest version moved, or a fragment for that plugin with a `bump` other than `none` was added". The version-moved branch stays so legacy plugins pass during the dual mode. `check-vendor-version-bump.sh` exempts a verified Dependabot change set as `--check-required` does, through the same `changelog_fragments::dependabot_only` |
 | `check-stale-base-overlap.sh` | Unchanged. It stops firing on version files because pull requests no longer touch them |
-| `pr-bump-plugin-version.yml` and `scripts/dependabot-plugin-bump.sh` | Commit nothing for a plugin the base lists in fragment mode. Any commit this workflow pushes to a Dependabot pull request is made with `GITHUB_TOKEN`, which holds every run on it at `action_required` (#5786), and the owner declined a dedicated App for it. Legacy plugins keep the bump commit until they are listed |
+| `pr-bump-plugin-version.yml` and `scripts/dependabot-plugin-bump.sh` (removed in phase 5) | Commit nothing for a plugin the base lists in fragment mode. Any commit this workflow pushes to a Dependabot pull request is made with `GITHUB_TOKEN`, which holds every run on it at `action_required` (#5786), and the owner declined a dedicated App for it. Legacy plugins keep the bump commit until they are listed |
 | New `dependabot-fragments.yml` and `scripts/dependabot-fragments.sh` | On a push to main that changes `plugins/**`, and hourly, write a `patch` fragment (`### Changed` with the pull request title and its dependency lines) for each fragment-mode plugin a merged Dependabot pull request changed, and land them through one pull request, `release/dependabot-fragments`, opened as the release App and armed to auto-merge. A fragment is named `dependabot-<pr>-<merge sha8>.md` and skipped once main's history ever added it, so a rerun writes nothing twice and a release that ran first loses nothing: the fragment lands later and the next release takes it |
 | `resolve-version-bump-conflict.sh` | Kept in the `source-control` plugin, which other repositories install and which may still bump per pull request. This repository stops calling it once every plugin is in fragment mode, and the four skill documents above say it applies only to repositories that bump per pull request |
 
@@ -284,10 +285,22 @@ proven.
    (33), `rate-limit-guard` (27) and `animation` (22). The carrier fragments
    (`new-changelog-fragment.sh --carriers-of`), the ADR 0019 amendment, `docs/migration-playbook.md`
    and `AGENTS.md` already key on the list, so they needed no change; phase 5 rewords them for
-   "all plugins".
+   "all plugins". On 2026-10-18 `developer-experience`, `display-redaction` and `user-experience`
+   joined, because they were added after the bulk move (all three carry synced shared-lib
+   copies), so a shared-lib change still bumped their `plugin.json` and `CHANGELOG.md` directly.
 5. **Retire the per-PR path in this repository.** Replace the opt-in list with "all plugins", drop
    the version-moved branch of the shared predicate, and reword the resolver references. Rollback:
-   revert this phase's commit, which restores phase 4.
+   revert this phase's commit, which restores phase 4. On 2026-10-18 the three plugins added
+   since phase 4 (`developer-experience`, `display-redaction`, `user-experience`) joined, so the
+   list names all 90 plugins under `plugins/`, and `pr-bump-plugin-version.yml` and
+   `scripts/dependabot-plugin-bump.sh`, which committed nothing once every plugin was listed, were
+   removed, along with `--check-required`'s exemption for that workflow's commit. The list stays,
+   and nothing yet fails a new plugin left off it, which is how these three were missed.
+   `--check-bump` now applies its per-PR rules only to the release pull request, on its own run
+   and in the merge queue, where they keep released versions monotonic. The version-moved branch of the shared predicate
+   (`check-vendor-version-bump.sh`, `sync-shared-copies.sh`, `check-standards-contract-bump.sh`)
+   and the resolver references in the `source-control` plugin are not yet changed, and the
+   Dependabot merge gates still admit the removed workflow's commit (#8217).
 
 ## Resolved decisions
 
@@ -315,3 +328,33 @@ only warns.
 The statement under Trigger and cadence that rebuilds happen only as often as fragments for the
 plugins in the open release land no longer holds: while main keeps moving, a failing release pull
 request, from a flake or from its own content, is rebuilt on every run.
+
+## Amendment (2026-10-20): a push run never rebuilds, and newer fragments ride the next release
+
+A run started by a push of a fragment to main only queues the open release pull request when it is
+current and green, and builds one when none is open; it never rebuilds an open one. Every rebuild
+that Trigger and cadence and the 2026-10-17 amendment call for happens on the scheduled and
+`workflow_dispatch` runs instead, and a fragment that lands between scheduled runs rides the next
+one. A push run also no longer cancels a running one, so it cannot cancel a scheduled rebuild it
+would not redo.
+
+Each rebuild pushes a new head to `release/plugins`, which cancels the release pull request's
+running checks. On 2026-10-20, with fragments landing on main faster than those checks finish,
+push-triggered rebuilds cancelled them run after run (`pr-require-checks` runs
+[39375083134](https://github.com/melodic-software/claude-code-plugins/actions/runs/39375083134) and
+[39375176650](https://github.com/melodic-software/claude-code-plugins/actions/runs/39375176650)), so the release pull request never reached a green `ci-status` and never merged.
+
+"Current" also changes. A release pull request is current when no file it changes, meaning a
+fragment it consumed, a `CHANGELOG.md` or a `plugin.json`, has changed on main since its build base,
+the main commit the release was cut from (its merge base with main, since the build job cuts it as
+one commit on main's tip). `check-changelog-fragments.sh --check-release` compares each such path's
+blob on main with its blob at the build base, so a consumed fragment edited or removed on main, or a
+plugin's `CHANGELOG.md` or version changed there, still starts a rebuild on the next scheduled run.
+A fragment main added after the build no longer does, for any plugin: the merge leaves it untouched
+and it rides the next release. The release bullets under The release pull request that rebuild or
+eject a release for an unconsumed fragment no longer hold. In the merge queue the check compares
+`merge_group.base_sha` with the queued pull request's head (`CHANGELOG_PR_HEAD`), and refuses when
+either is missing. While fragments keep landing, the
+previous rule made every release stale before its checks finished, so each scheduled run would
+rebuild it and cancel them as the push rebuilds did in the 2026-10-20 runs above. The release and
+pull-request-merge owner decided this rule in an owner-session committee decision on 2026-10-20.

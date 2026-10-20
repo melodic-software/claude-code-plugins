@@ -290,6 +290,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/harness-config:unhobble`](../plugins/harness-config/skills/unhobble/SKILL.md) | `harness-config` | Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns |
 | [`/harness-memory:audit`](../plugins/harness-memory/skills/audit/SKILL.md) | `harness-memory` | Audit CLAUDE.md, a root AGENTS.md, rules, and auto-memory against the official-docs checklist |
 | [`/harness-memory:stateless`](../plugins/harness-memory/skills/stateless/SKILL.md) | `harness-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |
+| [`/harness-ops:audit-plugin-landscape`](../plugins/harness-ops/skills/audit-plugin-landscape/SKILL.md) | `harness-ops` | Report plugin and marketplace staleness, overlaps and alternatives; recommend only |
 | [`/harness-ops:behavior-probes`](../plugins/harness-ops/skills/behavior-probes/SKILL.md) | `harness-ops` | Run data-driven live probes of Claude Code permission and platform behavior and record the outcomes |
 | [`/harness-ops:changelog`](../plugins/harness-ops/skills/changelog/SKILL.md) | `harness-ops` | Ingest a Claude Code release changelog and integrate its changes into the repo |
 | [`/harness-ops:check`](../plugins/harness-ops/skills/check/SKILL.md) | `harness-ops` | Report whether node and jq resolve for the harness-ops hooks. Never installs. |
@@ -315,6 +316,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/powershell-format:check`](../plugins/powershell-format/skills/check/SKILL.md) | `powershell-format` | Report whether pwsh, PSScriptAnalyzer and node are installed. Never installs. |
 | [`/rate-limit-guard:check`](../plugins/rate-limit-guard/skills/check/SKILL.md) | `rate-limit-guard` | Report whether node resolves and whether the rate-limit-guard mod can load. Never installs. |
 | [`/repo-hygiene:clean`](../plugins/repo-hygiene/skills/clean/SKILL.md) | `repo-hygiene` | Clean caches, build artifacts, stale branches, and stashes per repo |
+| [`/review:check`](../plugins/review/skills/check/SKILL.md) | `review` | Report whether node resolves and the connected-page Artifact guard is registered. Never installs. |
 | [`/ruff-format:check`](../plugins/ruff-format/skills/check/SKILL.md) | `ruff-format` | Report whether ruff and node are installed. Never installs. |
 | [`/session-flow:check`](../plugins/session-flow/skills/check/SKILL.md) | `session-flow` | Report whether node and jq resolve for the session-flow observer hook. Never installs. |
 | [`/session-flow:show-options`](../plugins/session-flow/skills/show-options/SKILL.md) | `session-flow` | Lay out the skills that fit this moment as a ranked, nothing-hidden menu |

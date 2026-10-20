@@ -1,6 +1,6 @@
 {
   "name": "planning",
-  "version": "0.75.1",
+  "version": "0.77.1",
   "userConfig": {
     "surface": {
       "type": "string",
@@ -15,7 +15,7 @@
     "use_ask_user_question": {
       "type": "boolean",
       "title": "AskUserQuestion question rounds",
-      "description": "When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of up to 4 independent questions through the AskUserQuestion tool instead of inline prose. Default: inline prose (dictation-friendly).",
+      "description": "When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of independent questions that fits one AskUserQuestion call instead of inline prose. Default: inline prose (dictation-friendly).",
       "default": false
     },
     "use_emoji_question_markers": {
@@ -23,6 +23,12 @@
       "title": "Interview question emoji anchors",
       "description": "When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text.",
       "default": false
+    },
+    "shared_session_open_browser": {
+      "type": "boolean",
+      "title": "Open the shared interview page",
+      "description": "When on, starting a /planning:interview shared session opens the owner's page in the default browser. Turn off to open it yourself. Default: on.",
+      "default": true
     },
     "plan_store": {
       "type": "string",
@@ -42,6 +48,12 @@
       "type": "boolean",
       "title": "Stub scaffold commit",
       "description": "When on, /planning:design hands off the stub files and signatures a change needs, and /planning:plan puts one stub phase right after dead-code removal (first when there is none). Default: off. A repository's docs/conventions/planning.yaml scaffold_stubs key overrides this value.",
+      "default": false
+    },
+    "time_units": {
+      "type": "boolean",
+      "title": "Time units in estimates",
+      "description": "When on, the planning skills may state an estimate or budget of work in hours, days or weeks; when off they use the work_size levels instead. Practice cadence and measurement windows are not affected. Default: off. A repository's docs/conventions/planning.yaml time_units key overrides this value.",
       "default": false
     }
   },

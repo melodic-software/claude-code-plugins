@@ -59,9 +59,9 @@
 #    timings:{total,outside_marketplaces,resolution}, marketplaces:[…], errors:[…]}
 #   Each marketplace block: {name, timings, catalog_last_updated, catalog_source,
 #    source_checkout, auto_update, refresh:{rc,output,predicted}, project_root,
-#    in_repo:{updated,failed,would_update},
+#    in_repo:{updated,failed,would_update,live_read},
 #    user_sweep:{updated,failed,would_update,withheld_downgrades},
-#    downgraded, install_gap, installed, installed_with_unset_user_config,
+#    downgraded, moved_during_run, noop_unverified, install_gap, installed, installed_with_unset_user_config,
 #    install_enable_deferred, stopped_before_install, enable_gap, enabled,
 #    project_enable_rows, normalize, cache_content, catalog_regression,
 #    divergences, divergences_here, in_repo_records, in_repo_ids,
@@ -95,7 +95,11 @@
 #   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
 #   `{id, version, files_differ, unreleased_changes}` per stale install, the last
-#   true when the clone holds `.changes/<plugin>/`. `source_checkout` is null
+#   true when the clone holds `.changes/<plugin>/`. `in_repo.live_read[]` is
+#   `{id, scope, installed, path}`, filled under --audit only, for each in-repo
+#   record of a marketplace whose `directory` source is the run's own project
+#   root (or a folder under it): the CLI reads that folder live and will not
+#   update the record, so it is not in `would_update`. `source_checkout` is null
 #   unless the source is `directory`; then it is `{path, state, branch, upstream,
 #   ahead, behind, dirty}` with `state` one of tracking, no_upstream, detached,
 #   not_a_repo, and the counts as of the checkout's last fetch (never fetched here).
@@ -105,6 +109,13 @@
 #   `direction: "unknown"`); a pair whose new version is LOWER lands in `downgraded`
 #   instead, which is what keeps a backward move off the report's `Updated:` line
 #   even for an id the guard could not prove in advance.
+#   `moved_during_run[]` is `{id, scope, kind, old, new, direction}` for each id whose
+#   update call the CLI answered "already at the latest version" while the post
+#   snapshot's version differs from the pre-mutation one: it moved during the run
+#   under something other than this run's update calls. A backward one is also in
+#   `downgraded`, flagged `concurrent: true`. `noop_unverified` counts the already-
+#   current answers the snapshots could not confirm (a version unread, or the
+#   snapshot and the CLI's printed version disagreeing); those ids stay no-ops.
 #   Ids and counts only: the digest is read by a model in one turn, so per-file
 #   cache-check detail stays in `<run_dir>/cache-content.<mp>.json`.
 #
@@ -484,11 +495,15 @@ predict_cli() {
 }
 
 # `<new>` from the CLI's own line, which is the only source that reflects an update
-# immediately (sync.md's source 2). Empty when the line names no version.
+# immediately (sync.md's source 2). Empty when the line names no version. For an
+# already-current line it is the version in the line's parentheses, the install's
+# version as the CLI read it, which finalize_moves checks against the snapshots.
 cli_reported_version() {
   local __var="$1" text="$2"
   if [[ "$text" =~ updated\ from\ ([^[:space:]]+)\ to\ ([^[:space:]]+) ]]; then
     printf -v "$__var" '%s' "${BASH_REMATCH[2]}"
+  elif [[ "$text" =~ already\ at\ the\ latest\ version\ \(([^\)[:space:]]+)\) ]]; then
+    printf -v "$__var" '%s' "${BASH_REMATCH[1]}"
   else
     printf -v "$__var" '%s' ""
   fi
@@ -524,8 +539,11 @@ unset_user_config_of() {
 # post-sweep snapshot. Reporting the first as an update with an unknown version
 # would put most of an already-current fleet under `Updated:`.
 #   updated  the CLI named a version pair
-#   noop     the CLI said the id is already at the latest version
-#   other    the CLI named neither; the post-sweep read decides
+#   noop     the CLI said the id is already at the latest version. That is the
+#            CLI's text only: finalize_moves checks it against the snapshots
+#            before it drops the id, because an id that something else moved
+#            earlier in the run prints the same line
+#   other   the CLI named neither; the post-sweep read decides
 cli_move_result() {
   local __var="$1" text="$2"
   case "$text" in
@@ -633,9 +651,10 @@ setup_run_dir() {
 }
 
 # --- own plugin name -----------------------------------------------------------
-# Step 3 sweeps every user-scope id, which necessarily includes the plugin
-# providing this skill. Read the name from the manifest rather than hardcoding it,
-# for the same reason no marketplace name is hardcoded.
+# The run can move the plugin providing this skill (Step 3 sweeps every user-scope
+# candidate), and so can a concurrent update; either lands in a moved row the
+# self-update check matches by this name. Read the name from the manifest rather
+# than hardcoding it, for the same reason no marketplace name is hardcoded.
 own_plugin_name() {
   local manifest="$CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json" name=""
   [[ -f "$manifest" ]] && jq_to name -r '.name // ""' "$manifest" 2>/dev/null
@@ -690,20 +709,29 @@ divergence_block() {
   local pre="$RUN_DIR/pre.$mp.json" mid="$RUN_DIR/mid.$mp.json" post="$RUN_DIR/post.$mp.json"
   if [[ ! -f "$pre" || ! -f "$mid" || ! -f "$post" ]]; then
     jq_to "$__var" -c -n '{pre: null, mid: null, post: null, new_total: null,
-      new_by_interval: {in_repo: null, user_sweep: null}, pre_existing: null,
+      new_by_interval: {in_repo: null, user_sweep: null, concurrent: null}, pre_existing: null,
       note: "a snapshot was missing; the split could not be computed"}'
     return 0
   fi
+  # The ids that moved during the run under a call this run did not make an update
+  # (finalize_moves' MOVED_DURING): a new divergence on one of them is not the
+  # step's doing, so it is split out of the interval it first appeared in.
+  local moved_rows
+  json_array_of moved_rows ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to "$__var" -c -n \
+  jq_to "$__var" -c -n --argjson moved "$moved_rows" \
     --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" '
     def act: [.divergences[]? | select(.versionsMatch == false) | .id];
-    ($p[0] | act) as $pre | ($m[0] | act) as $mid | ($q[0] | act) as $post
+    ($moved | map(.id)) as $conc
+    | ($p[0] | act) as $pre | ($m[0] | act) as $mid | ($q[0] | act) as $post
     | ($post - $pre) as $new
+    | [$new[] | select(. as $i | $conc | index($i))] as $by_conc
+    | ($new - $by_conc) as $by_step
     | {pre: ($pre | length), mid: ($mid | length), post: ($post | length),
        new_total: ($new | length),
-       new_by_interval: {in_repo: ([$new[] | select(. as $i | $mid | index($i))] | length),
-                         user_sweep: ([$new[] | select(. as $i | $mid | index($i) | not)] | length)},
+       new_by_interval: {in_repo: ([$by_step[] | select(. as $i | $mid | index($i))] | length),
+                         user_sweep: ([$by_step[] | select(. as $i | $mid | index($i) | not)] | length),
+                         concurrent: ($by_conc | length)},
        pre_existing: (($post | length) - ($new | length))}'
 }
 
@@ -713,8 +741,9 @@ divergence_block() {
 # values ARE the per-marketplace reset, so both come from this one function.
 reset_marketplace_state() {
   MP_ERRORS=()
-  IR_UPDATED=() IR_FAILED=() IR_WOULD=()
+  IR_UPDATED=() IR_FAILED=() IR_WOULD=() IR_LIVE=()
   US_UPDATED=() US_FAILED=() US_WOULD=()
+  MOVED_DURING=() NOOP_UNVERIFIED=0
   WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=()
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
   SELF_UPDATED="false" SELF_UPDATE="null" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
@@ -896,11 +925,35 @@ run_marketplace() {
       # exit 2 with empty output is a FAILED projection, never "nothing in-repo".
       mp_error "in-repo projection failed (exit $rc), step not run: $(proj_err)"
     else
+      # A marketplace whose `directory` source is this very repository is read
+      # live from that folder: `claude plugin update` answers "nothing to update"
+      # and leaves the project record pinned, so an update predicted for it
+      # would be one the CLI never makes.
+      local live_path=""
+      if [[ "$MODE" == "audit" ]]; then
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to live_path -r '
+          def fold: gsub("\\\\"; "/") | rtrimstr("/");
+          (.marketplace.source // "") as $s | (.project_root // "" | fold) as $r
+          # fleet-state folds the project root to lower case after the drive letter
+          # on Windows, where the recorded source keeps its case: compare folded.
+          | ($r | test("^[A-Za-z]:")) as $ci
+          | def eqp($a; $b): if $ci then ($a | ascii_downcase) == ($b | ascii_downcase) else $a == $b end;
+          if ($s | startswith("directory:")) and $r != "" then
+              ($s | sub("^directory:"; "") | fold) as $p
+              | if eqp($p; $r) or eqp(($p | .[0:($r | length) + 1]); $r + "/") then $p else "" end
+            else "" end' "$RUN_DIR/pre.$mp.json"
+      fi
       while IFS=$'\t' read -r id scope; do
         id="${id//$'\r'/}"
         scope="${scope//$'\r'/}"
         [[ -n "$id" ]] || continue
         version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
+        if [[ "$MODE" == "audit" && -n "$live_path" ]]; then
+          IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
+            '{id: $id, scope: $sc, installed: $old, path: $path}')")
+          continue
+        fi
         if [[ "$MODE" == "audit" ]]; then
           predict_cli "claude plugin update $id -s $scope"
           IR_WOULD+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" \
@@ -994,8 +1047,11 @@ run_marketplace() {
         # Through the move ledger like every other mutation, so the direction
         # compare is the one that decides where it renders and the row survives an
         # `--only-install` re-entry.
-        local applied=""
-        cli_reported_version applied "$CLI_OUT"
+        local applied="" applied_result=""
+        cli_move_result applied_result "$CLI_OUT"
+        # Only an update line names the version this call applied; an
+        # already-current line's version is the installed one.
+        [[ "$applied_result" == "updated" ]] && cli_reported_version applied "$CLI_OUT"
         [[ -n "$applied" ]] || applied="$new"
         printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${applied:--}" updated \
           >>"$RUN_DIR/moves.$mp.tsv"
@@ -1082,11 +1138,12 @@ run_marketplace() {
   local own
   own=$(own_plugin_name)
   if [[ -n "$own" ]]; then
-    # Every scope, not just the user sweep: a project/local `harness-ops` record
-    # Step 2 moved is the same self-update, and the running algorithm is just as
-    # stale for it.
+    # Every scope and every mover: a project/local `harness-ops` record Step 2
+    # moved is the same self-update, and so is one that moved during the run under
+    # a CLI call that reported it already current. The running algorithm is just
+    # as stale for each.
     for row in ${IR_UPDATED[@]+"${IR_UPDATED[@]}"} ${US_UPDATED[@]+"${US_UPDATED[@]}"} \
-      ${DOWNGRADED[@]+"${DOWNGRADED[@]}"}; do
+      ${DOWNGRADED[@]+"${DOWNGRADED[@]}"} ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}; do
       case "$row" in
       *"\"id\":\"$own@"*)
         SELF_UPDATED="true"
@@ -1324,8 +1381,56 @@ finalize_moves() {
     # and an empty interior field would shift every later column left by one.
     [[ "$old" == "-" ]] && old=""
     [[ "$new" == "-" ]] && new=""
-    # An id the CLI called already-current changed nothing and is not a report row.
-    [[ "$result" == "noop" ]] && continue
+    # An id the CLI called already-current is a true noop only when the snapshots
+    # agree and the run's own record took. First, when the run's own project/local
+    # record is still below the catalog, the CLI judged some other record (a linked
+    # worktree's update is a no-op, #6713) and the update did not take: a failure,
+    # never a quiet success, or the next run would count the same divergence again.
+    # Otherwise the post read decides; the version the CLI's line printed (`new`,
+    # for a noop row) is the cross-check. A post version that differs from `old`
+    # means the install moved after the pre-mutation read and this call changed
+    # nothing: a concurrent move, reported as its own row. A version that cannot be
+    # read, or the two sources disagreeing, stays a noop and is counted as unverified.
+    if [[ "$result" == "noop" ]]; then
+      if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" && -f "$post" ]]; then
+        local ncur ncat nlabel
+        version_at ncur "$post" "$id" "$scope"
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to ncat -r --arg id "$id" '.catalog_versions[$id] // ""' "$post"
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to nlabel -r --arg id "$id" --arg sc "$scope" \
+          'first(.installed[]? | select(.id == $id and .scope == $sc and .currentProject == true)
+            | .label) // ""' "$post"
+        if [[ -n "$ncur" && -n "$ncat" && "$(version_direction "$ncur" "$ncat")" == "forward" ]]; then
+          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg cur "$ncur" --arg cat "$ncat" --arg label "$nlabel" \
+            '{id: $id, scope: $sc, rc: 0, output: "",
+              reason: ("the CLI said already at the latest version, but this project'"'"'s record is still at \($cur) and the catalog reads \($cat): the update did not take"
+                + (if $label == "" then "" else " (" + $label + ")" end))}')")
+          continue
+        fi
+      fi
+      local post_v=""
+      [[ -f "$post" ]] && version_at post_v "$post" "$id" "$scope"
+      if [[ -z "$old" || -z "$post_v" ]]; then
+        NOOP_UNVERIFIED=$((NOOP_UNVERIFIED + 1))
+        continue
+      fi
+      if [[ "$post_v" == "$old" ]]; then
+        [[ -z "$new" || "$new" == "$old" ]] || NOOP_UNVERIFIED=$((NOOP_UNVERIFIED + 1))
+        continue
+      fi
+      new="$post_v"
+      dir=$(version_direction "$old" "$new")
+      [[ "$dir" == "same" ]] && continue
+      row=$(jq -c -n --arg id "$id" --arg sc "$scope" --arg k "$kind" --arg o "$old" --arg n "$new" --arg d "$dir" \
+        '{id: $id, scope: $sc, kind: $k, old: $o, new: $n, direction: $d}')
+      MOVED_DURING+=("$row")
+      if [[ "$dir" == "backward" ]]; then
+        DOWNGRADED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
+          '{id: $id, scope: $sc, old: $o, new: $n, concurrent: true}')")
+      fi
+      continue
+    fi
     if [[ -z "$new" && -f "$post" ]]; then
       version_at new "$post" "$id" "$scope"
       [[ "$new" == "$old" ]] && new=""
@@ -1443,6 +1548,7 @@ report_extras() {
                                | {total: ($absent | length),
                                   paths: ($absent | map(.projectPath) | unique | length),
                                   project: ($absent | map(select(.scope == "project")) | length),
+                                  "local": ($absent | map(select(.scope == "local")) | length),
                                   by_parent: $groups[:$cap],
                                   more_parents: ([0, ($groups | length) - $cap] | max),
                                   list_file: (if $list_file == "" then null else $list_file end)}),
@@ -1579,7 +1685,9 @@ monitor_rows() {
   printf -v "$__var" '%s' "[]"
   [[ -f "$post" ]] || return 0
   for row in ${IR_UPDATED[@]+"${IR_UPDATED[@]}"} ${US_UPDATED[@]+"${US_UPDATED[@]}"} \
-    ${DOWNGRADED[@]+"${DOWNGRADED[@]}"}; do
+    ${DOWNGRADED[@]+"${DOWNGRADED[@]}"} ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}; do
+    # A backward concurrent move sits in both arrays; the downgraded copy counts.
+    [[ "$row" == *'"kind":'* && "$row" == *'"direction":"backward"'* ]] && continue
     jq_to id -r '.id' <<<"$row"
     jq_to scope -r '.scope' <<<"$row"
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
@@ -1597,7 +1705,7 @@ monitor_rows() {
 # --- one marketplace block --------------------------------------------------------
 emit_marketplace_block() {
   local mp="$1"
-  local ir_u ir_f ir_w us_u us_f us_w wh dg inst en pr errs unset_cfg installed_disabled monitors
+  local ir_u ir_f ir_w ir_l us_u us_f us_w wh dg moved inst en pr errs unset_cfg installed_disabled monitors
   # A marketplace abandoned on a failed read reaches here without finalize_moves.
   [[ -n "$T_FN_S" ]] || clock_into T_FN_S
   # Written on the first pass only. The re-entry reads this sidecar; overwriting
@@ -1610,11 +1718,13 @@ emit_marketplace_block() {
   json_array_of ir_u ${IR_UPDATED[@]+"${IR_UPDATED[@]}"}
   json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
   json_array_of ir_w ${IR_WOULD[@]+"${IR_WOULD[@]}"}
+  json_array_of ir_l ${IR_LIVE[@]+"${IR_LIVE[@]}"}
   json_array_of us_u ${US_UPDATED[@]+"${US_UPDATED[@]}"}
   json_array_of us_f ${US_FAILED[@]+"${US_FAILED[@]}"}
   json_array_of us_w ${US_WOULD[@]+"${US_WOULD[@]}"}
   json_array_of wh ${WITHHELD[@]+"${WITHHELD[@]}"}
   json_array_of dg ${DOWNGRADED[@]+"${DOWNGRADED[@]}"}
+  json_array_of moved ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}
   json_array_of inst ${INSTALLED_ROWS[@]+"${INSTALLED_ROWS[@]}"}
   json_array_of en ${ENABLED_ROWS[@]+"${ENABLED_ROWS[@]}"}
   json_array_of pr ${PROJECT_ROWS[@]+"${PROJECT_ROWS[@]}"}
@@ -1653,8 +1763,9 @@ emit_marketplace_block() {
     --argjson refresh_predicted "$REFRESH_PREDICTED" \
     --argjson project_root "$PROJECT_ROOT_JSON" \
     --argjson ir_u "$ir_u" --argjson ir_f "$ir_f" --argjson ir_w "$ir_w" \
-    --argjson us_u "$us_u" --argjson us_f "$us_f" --argjson us_w "$us_w" \
+    --argjson ir_l "$ir_l" --argjson us_u "$us_u" --argjson us_f "$us_f" --argjson us_w "$us_w" \
     --argjson wh "$wh" --argjson dg "$dg" \
+    --argjson moved "$moved" --argjson noop_unverified "$NOOP_UNVERIFIED" \
     --argjson install_gap "$INSTALL_GAP" --argjson inst "$inst" \
     --argjson enable_gap "$ENABLE_GAP" --argjson en "$en" --argjson pr "$pr" \
     --argjson deferred "$INSTALL_DEFERRED" --argjson stopped "$STOPPED_BEFORE_INSTALL" \
@@ -1706,10 +1817,12 @@ emit_marketplace_block() {
      source_checkout: $checkout,
      refresh: {rc: $refresh_rc, output: $refresh_out, reason: $refresh_reason, predicted: $refresh_predicted},
      project_root: $project_root,
-     in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w},
+     in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w, live_read: $ir_l},
      user_sweep: {updated: $us_u, failed: $us_f, would_update: $us_w,
                   withheld_downgrades: $wh},
      downgraded: $dg,
+     moved_during_run: $moved,
+     noop_unverified: $noop_unverified,
      install_gap: $install_gap,
      installed: $inst,
      installed_with_unset_user_config: $unset_cfg,

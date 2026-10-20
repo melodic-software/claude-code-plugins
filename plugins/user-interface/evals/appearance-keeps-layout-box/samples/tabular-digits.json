@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ".countdown { font-variant-numeric: tabular-nums; min-inline-size: 5ch; }\n.countdown[data-loading] { block-size: 1.2em; inline-size: 5ch; }",
+      "why": "tabular digits in a fixed-width slot, skeleton at the final size"
+    },
+    {
+      "answer": ".timer { font-feature-settings: \"tnum\"; inline-size: 6ch; text-align: end; }",
+      "why": "the font-feature-settings equivalent in a fixed-width slot"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".countdown { font-size: 2rem; }\n.countdown.loading { height: 1em; width: 2ch; }",
+      "why": "proportional digits, no reserved width"
+    }
+  ]
+}

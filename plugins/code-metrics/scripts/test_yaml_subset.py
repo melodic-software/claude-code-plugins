@@ -77,6 +77,11 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(doc["registries"], ["scripts/a.txt", "scripts/b.txt"])
         self.assertEqual(doc["lanes"], ["typescript", "python"])
 
+    def test_an_escaped_quote_does_not_end_a_quoted_flow_item(self) -> None:
+        doc = parse('x: ["a\\",b", c]  # note\ny: ["p\\\\", q]\n')
+        self.assertEqual(doc["x"], ['a",b', "c"])
+        self.assertEqual(doc["y"], ["p\\", "q"])
+
     def test_sequence_of_mappings_starting_on_the_dash_line(self) -> None:
         doc = parse(
             """
@@ -136,6 +141,22 @@ class ParseTests(unittest.TestCase):
         self.assert_error("a: [1, [2]]\n", 1, "nested flow sequences")
         self.assert_error("a: 'unterminated\n", 1, "unterminated")
         self.assert_error("a:\n  b: 1\n c: 2\n", 3, "unexpected indent")
+
+    def test_quotes_and_comments_in_plain_values(self) -> None:
+        self.assertEqual(
+            parse("title: it's fine # comment\n"), {"title": "it's fine"}
+        )
+        self.assertEqual(parse('say: a"b # c\n'), {"say": 'a"b'})
+        self.assertEqual(
+            parse("name: 'quoted # kept' # dropped\n"), {"name": "quoted # kept"}
+        )
+        self.assertEqual(parse("- it's # c\n"), ["it's"])
+        self.assertEqual(parse("k:\n  - 'a # b'\n"), {"k": ["a # b"]})
+
+    def test_a_duplicate_key_in_a_sequence_item_is_reported_on_its_own_line(
+        self,
+    ) -> None:
+        self.assert_error("- job: a\n  id: x\n  job: b\n", 3, "duplicate key")
 
 
 class CommandLineTests(unittest.TestCase):
