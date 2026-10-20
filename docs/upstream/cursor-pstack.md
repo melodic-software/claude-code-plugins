@@ -121,7 +121,7 @@ from [`why`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff
 inference tier; the row above records the re-check at the pin.
 
 `/discovery:trace-intent` excludes code shape from the scale and records it as a gap. The reason is
-operational: code is the one source that is always present and free to read, so a weak but
+operational. Code is the one source that is always present and free to read, so a weak but
 admissible rung for it gets used exactly when the real record is thin, which is when the reader most
 needs to be told the record is thin.
 
@@ -217,7 +217,7 @@ routes form and medium and does no comprehension work; the names rule was planne
 `discovery:trace-intent` are that pair, and `education:explain` now calls both for a codebase subject.
 
 **Reversed:** the anti-pacing rejection. `education:explain` now bars checks on the reader, labels
-naming a sentence's role and commentary on its own tempo; `education:teach` is unchanged. A
+naming a sentence's role and commentary on its own tempo; `education:teach` is unchanged. An
 `explain_starting_rung` setting lets a user or a repository start explain at peer level.
 
 **Still declined:** the image-generation branch (our visualization skills have no image-generation
@@ -283,9 +283,9 @@ We ship neither a skill nor a convention for
 [`show-me-your-work`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/show-me-your-work);
 the row above lists what we took and where it went.
 
-The lane first proposed absorbing it into `session-flow:running-retro`. That failed: the retro
-ledger is defect-shaped and written after the fact by a transcript-reading subagent, and it cannot
-produce a result cell. The trail we wanted is decision-shaped and written by the acting agent at
+The lane first proposed absorbing it into `session-flow:running-retro`. That failed because the
+retro ledger is defect-shaped and written after the fact by a transcript-reading subagent, and it
+cannot produce a result cell. The trail we wanted is decision-shaped and written by the acting agent at
 decision time.
 
 An audit then argued for a shared capture convention across eight audit-trail surfaces. Checked one
