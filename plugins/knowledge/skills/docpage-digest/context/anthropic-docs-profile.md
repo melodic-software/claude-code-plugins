@@ -378,10 +378,12 @@ Every model-pinned spawn brief uses the conditional framing contract from `SKILL
 
 ## Digest sections state mechanism, never operator instance
 
-Hard rule: no consuming-org context in digest sections (Summary, Key claims, Implications,
-candidate artifacts). Digests state the documented mechanism. Operator-side environment notes
-route to the interview handoff, never into the digest body: which org, which machine, which live
-setting.
+Hard rule: no consuming-org context in any digest prose section (Summary, Key claims,
+Implications, candidate artifacts, Open questions for interview). Digests state the documented
+mechanism. Consuming-org context includes skills, plugins or conventions visible in the digest
+agent's own session. Operator-side environment notes route to the interview handoff, never into
+the digest body: which org, which machine, which live setting. The run's own vocabulary stays out
+too; [`check-prose-terms.py`](../scripts/check-prose-terms.py) catches `unit NN` and `SOURCES.md`.
 
 ## Doc queue
 
