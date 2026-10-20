@@ -126,11 +126,13 @@ class MainExitCodes(unittest.TestCase):
 
     def test_partial_outage_still_reports_and_exits_zero(self):
         def api(endpoint):
-            return recorded(endpoint) if endpoint == "repos/acme/mk" else (0, "offline")
+            return (0, "offline") if "plugins" in endpoint else recorded(endpoint)
 
         code, out, _ = self.run_main(api)
         self.assertEqual(code, 0)
-        self.assertTrue(json.loads(out))
+        rows = json.loads(out)
+        self.assertTrue(any(not r["unknown"] for r in rows))
+        self.assertTrue(any("(status 0)" in (r["unknown"] or "") for r in rows))
 
     def test_all_repositories_answering_exits_zero(self):
         code, out, _ = self.run_main(recorded)
