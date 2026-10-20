@@ -1,7 +1,7 @@
 # Release plugins from changelog fragments through a bot-maintained release PR
 
-- Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild, see
-  the amendment below)
+- Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild) and
+  2026-10-20 (a push run never rebuilds), see the amendments below
 - Date: 2026-10-03
 
 ## Context
@@ -327,3 +327,18 @@ only warns.
 The statement under Trigger and cadence that rebuilds happen only as often as fragments for the
 plugins in the open release land no longer holds: while main keeps moving, a failing release pull
 request, from a flake or from its own content, is rebuilt on every run.
+
+## Amendment (2026-10-20): a push run never rebuilds
+
+A run started by a push of a fragment to main only queues the open release pull request when it is
+current and green, and builds one when none is open; it never rebuilds an open one. Every rebuild
+that Trigger and cadence and the 2026-10-17 amendment call for happens on the scheduled and
+`workflow_dispatch` runs instead, and a fragment that lands between scheduled runs rides the next
+one. A push run also no longer cancels a running one, so it cannot cancel a scheduled rebuild it
+would not redo.
+
+Each rebuild pushes a new head to `release/plugins`, which cancels the release pull request's
+running checks. On 2026-10-20, with fragments landing on main faster than those checks finish,
+push-triggered rebuilds cancelled them run after run (`pr-require-checks` runs
+[39375083134](https://github.com/melodic-software/claude-code-plugins/actions/runs/39375083134) and
+[39375176650](https://github.com/melodic-software/claude-code-plugins/actions/runs/39375176650)), so the release pull request never reached a green `ci-status` and never merged.
