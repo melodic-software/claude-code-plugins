@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -7,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   fetchDeckAttachments,
+  httpsTransport,
   isNonPublicAddress,
   MAX_REDIRECT_HOPS,
   pinnedLookup,
@@ -333,6 +335,24 @@ describe("fetchDeckAttachments", () => {
 
     expect(result.fetched).toHaveLength(0);
     expect(result.skipped[0]).toMatch(/network down/);
+  });
+});
+
+describe("httpsTransport", () => {
+  it("connects to the pinned address and gives up on a stalled server", { timeout: 5000 }, async () => {
+    const sockets = [];
+    const server = net.createServer((socket) => sockets.push(socket));
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = /** @type {import('node:net').AddressInfo} */ (server.address());
+    try {
+      await expect(httpsTransport(`https://deck.invalid:${port}/a.pdf`, "127.0.0.1", 100)).rejects.toThrow(
+        "request idle for 100 ms",
+      );
+      expect(sockets).toHaveLength(1);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 });
 

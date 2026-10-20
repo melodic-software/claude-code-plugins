@@ -235,18 +235,25 @@ export function pinnedLookup(address) {
  * @typedef {(url: string, address: string | null) => Promise<TransportResponse>} Transport
  */
 
+/** Socket idle limit per request, matching undici's default headers and body timeouts that `fetch` applied. */
+const REQUEST_TIMEOUT_MS = 300_000;
+
 /**
  * GET `url` over node:https with the socket pinned to the vetted `address`. TLS
  * still verifies the certificate and SNI against the original hostname. Redirects
- * are not followed; the caller re-vets every hop.
+ * are not followed; the caller re-vets every hop. A socket idle past `timeoutMs`
+ * destroys the request, so a stalled server cannot hang the run.
  *
- * @type {Transport}
+ * @param {string} url
+ * @param {string | null} address
+ * @param {number} [timeoutMs]
+ * @returns {Promise<TransportResponse>}
  */
-function httpsTransport(url, address) {
+export function httpsTransport(url, address, timeoutMs = REQUEST_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const request = https.request(
       new URL(url),
-      { method: "GET", ...(address ? { lookup: pinnedLookup(address) } : {}) },
+      { method: "GET", timeout: timeoutMs, ...(address ? { lookup: pinnedLookup(address) } : {}) },
       (res) => {
         const headers = new Headers();
         for (const [name, value] of Object.entries(res.headers)) {
@@ -263,6 +270,7 @@ function httpsTransport(url, address) {
         });
       },
     );
+    request.on("timeout", () => request.destroy(new Error(`request idle for ${timeoutMs} ms`)));
     request.on("error", reject);
     request.end();
   });
