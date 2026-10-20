@@ -439,6 +439,16 @@ class TestJoin(SessionCase):
         colors = [self.s.state["people"][p]["color"] for p in (HOST, a, b)]
         self.assertEqual(colors, ["c1", "c2", "c3"])
 
+    def test_the_name_claude_is_refused_at_join_and_rename(self):
+        for name in ("Claude", " claude ", "CLAUDE"):
+            err = self.refused("reserved-name", "join", None, {"name": name})
+            self.assertEqual(err.http, 400)
+        pid, _ = self.join("Ann")
+        self.refused("reserved-name", "rename", pid, {"name": "Claude"})
+        self.refused("reserved-name", "join", HOST, {"name": "claude"})
+        self.assertEqual(self.s.state["people"][pid]["name"], "Ann")
+        self.assertEqual(self.s.rename(pid, {"name": "Claudette"})["name"], "Claudette")
+
     def test_join_is_refused_after_the_session_ends(self):
         self.act("end_session", HOST, {"on": True})
         err = self.refused("ended", "join", None, {"name": "Ann"})
