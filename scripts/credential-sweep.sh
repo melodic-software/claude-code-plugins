@@ -20,10 +20,14 @@
 #   artifacts    every artifact created since --since, unzipped
 #   releases     name and body of every published release, and its assets
 #   bot-comments issue, pull request and review comments by Bot accounts
-#   caches       listed only: the API serves no cache contents, so a cache is a
-#                gap, never a pass
-#   step-summaries  never read: no REST endpoint serves GITHUB_STEP_SUMMARY, so
-#                every job is counted as a gap
+#   caches       listed only
+#
+# Two kinds of unread data are reported apart. UNREADABLE BY DESIGN is what the
+# API serves to nobody: cache contents, job step summaries (no REST endpoint
+# serves GITHUB_STEP_SUMMARY) and expired artifacts. It is counted in its own
+# section and never moves the exit code. A GAP is something readable that was
+# not read: a failed list or download, an unparsable page, a rate-limit stop.
+#
 # Binaries get a strings(1) -n 8 pass whose output is scanned as text; nested
 # archives are read by gitleaks --max-archive-depth.
 #
@@ -36,7 +40,8 @@
 # Every output is redacted: gitleaks runs with --redact, and the report keeps
 # only rule, path and line.
 #
-# Exit: 0 no hits and no gaps; 1 hits; 2 gaps only; 3 could not start (usage,
+# Exit: 0 no hits and nothing readable missed; 1 hits; 2 gaps and no hits;
+# 3 could not start (usage,
 # missing tool, wrong gitleaks version, no repository list).
 set -uo pipefail
 
@@ -78,6 +83,7 @@ cleanup() {
 }
 
 gap() { printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$STATE/gaps.tsv"; }
+by_design() { printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$STATE/by-design.tsv"; }
 bump() { COUNT["$1:$2"]=$((${COUNT["$1:$2"]:-0} + ${3:-1})); }
 safe_name() { printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'; }
 
@@ -172,7 +178,7 @@ sweep_logs_and_checks() {
     jq -r '"check-run \(.id) \(.name)\ntitle: \(.output.title // "")\nsummary: \(.output.summary // "")\ntext: \(.output.text // "")\n"' \
       "$STATE/checks.jsonl" >"$dl/check-runs/run-$id.txt"
   done < <(jq -r --arg s "$SINCE" 'select(.created_at >= $s) | [.id, (.run_attempt // 1), .check_suite_id] | @tsv' "$STATE/runs.jsonl")
-  ((jobs == 0)) || gap "$r" step-summaries "$jobs jobs: no REST endpoint serves GITHUB_STEP_SUMMARY"
+  ((jobs == 0)) || by_design "$r" step-summaries "$jobs jobs: no REST endpoint serves GITHUB_STEP_SUMMARY"
   return 0
 }
 
@@ -187,7 +193,7 @@ sweep_artifacts() {
   fi
   while IFS=$'\t' read -r id name expired; do
     if [[ "$expired" == true ]]; then
-      gap "$r" artifacts "artifact $id ($name): expired, contents gone"
+      by_design "$r" artifacts "artifact $id ($name): expired, contents gone"
       continue
     fi
     dir="$dl/artifacts/$id-$(safe_name "$name")"
@@ -263,7 +269,7 @@ sweep_caches() {
   fi
   n="$(wc -l <"$STATE/caches.jsonl")"
   bump "$r" caches "$n"
-  ((n == 0)) || gap "$r" caches "$n entries listed; the API serves no cache contents"
+  ((n == 0)) || by_design "$r" caches "$n entries listed; the API serves no cache contents"
   return 0
 }
 
@@ -345,6 +351,13 @@ report() {
     else
       awk -F '\t' '{ printf "- %s: %s: %s\n", $1, $2, $3 }' "$STATE/gaps.tsv"
     fi
+    printf '\n## Unreadable by design (%d)\n\nThe API serves these to nobody; they do not change the exit code.\n\n' \
+      "$(wc -l <"$STATE/by-design.tsv")"
+    if [[ -s "$STATE/by-design.tsv" ]]; then
+      awk -F '\t' '{ printf "- %s: %s: %s\n", $1, $2, $3 }' "$STATE/by-design.tsv"
+    else
+      printf 'None\n'
+    fi
   } >"$OUT/summary.md"
   cat "$OUT/summary.md"
   printf '\nReport: %s\n' "$OUT/summary.md"
@@ -392,6 +405,7 @@ main() {
   STATE="$OUT/state"
   mkdir -p "$DL" "$STATE" || die "cannot create $OUT"
   : >"$STATE/gaps.tsv"
+  : >"$STATE/by-design.tsv"
   trap cleanup EXIT
 
   ((${#REPOS[@]} > 0)) || list_public_repos

@@ -4,9 +4,10 @@
 # real scanner.
 #
 # Expected values come from the sweep's contract: a hit is reported by rule and
-# location and never by value, anything unread is listed under GAPS, every
-# request is a GET, the first rate-limit error stops the sweep, and the exit
-# code is 0 clean, 1 hits, 2 gaps only, 3 could not start.
+# location and never by value, anything readable but unread is listed under
+# GAPS, what the API serves to nobody is listed apart and leaves the exit code
+# alone, every request is a GET, the first rate-limit error stops the sweep,
+# and the exit code is 0 clean, 1 hits, 2 gaps and no hits, 3 could not start.
 #
 # The planted token is assembled at run time from two halves, so no line of
 # this file matches a gitleaks or GitGuardian token pattern.
@@ -151,10 +152,9 @@ one_run "$F" r '{"check_runs":[{"id":31,"name":"build","output":{"title":"ok","s
 log_zip "$F" r "token $PLANTED"
 STUB_LEAK_FILE=r/logs/run-11-attempt-1/build/1_step.txt STUB_SECRET="$PLANTED" \
   sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-hit" --repo r
-expect_rc "a hit exits 1 even with gaps beside it" 1
+expect_rc "a hit exits 1" 1
 expect_out "the hit names rule, location and line" '| github-pat | r/logs/run-11-attempt-1/build/1_step.txt | 3 |'
 expect_no_value "an unredacted scanner report never reaches the output or the report" "$TMP/out-hit"
-expect_out "a job's unreadable step summary is a gap" '- r: step-summaries: 1 jobs'
 expect_get_only "every request is a GET"
 if [[ "$LOG" != *runs/99/* ]]; then ok "a run before --since is not fetched"; else fail "run 99 was fetched: $LOG"; fi
 if [[ ! -e "$TMP/out-hit/downloads" ]]; then ok "downloads are removed without --keep"; else fail "downloads left behind"; fi
@@ -189,13 +189,23 @@ expect_rc "no hits and no gaps exit 0" 0
 expect_out "no gaps is stated" $'## GAPS (0)\n\nNone'
 if [[ -d "$TMP/out-clean/downloads/r" ]]; then ok "--keep keeps the downloads"; else fail "--keep removed the downloads"; fi
 
-# --- A listed cache is a gap: its contents are not readable -----------------
+# --- What the API serves to nobody is listed apart and exits 0 --------------
+F="$TMP/by-design"
+base_fixture "$F" r
+one_run "$F" r '{"check_runs":[{"id":31,"name":"build","output":{"title":"ok","summary":"","text":null}},{"id":32,"name":"lint","output":{}}]}'
+log_zip "$F" r "nothing secret here"
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-summaries" --repo r
+expect_rc "unread step summaries alone exit 0" 0
+expect_out "no gaps beside unread step summaries" $'## GAPS (0)\n\nNone'
+expect_out "the step summaries are counted as unreadable by design" \
+  $'## Unreadable by design (1)\n\nThe API serves these to nobody; they do not change the exit code.\n\n- r: step-summaries: 2 jobs'
+
 F="$TMP/cache"
 base_fixture "$F" r
 fix "$F" "repos/o/r/actions/caches?per_page=100&page=1" '{"actions_caches":[{"id":1,"key":"k1"},{"id":2,"key":"k2"}]}'
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-cache" --repo r
-expect_rc "cache entries alone exit 2" 2
-expect_out "the caches are listed as a gap" '- r: caches: 2 entries listed'
+expect_rc "cache entries alone exit 0" 0
+expect_out "the caches are counted as unreadable by design" '- r: caches: 2 entries listed'
 
 # --- The first rate-limit error stops every later request -------------------
 F="$TMP/limit"
