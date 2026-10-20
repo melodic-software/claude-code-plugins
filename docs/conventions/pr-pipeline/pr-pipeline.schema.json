@@ -750,7 +750,7 @@
         "event-sweep-min-minutes": {
           "type": "integer",
           "minimum": 0,
-          "description": "Minutes after a pr-merge sweep finishes (its pr-merge-summary artifact) during which a run woken by pull_request_target skips its candidate listing and gate; the post-merge check still runs. Scheduled and hand-started runs always sweep. 0: never skip. Absent: 10."
+          "description": "Minutes after a pr-merge sweep that reached every candidate finishes (its pr-merge-summary artifact shows no budget stop and a row per candidate) during which a run woken by pull_request_target skips its candidate listing and gate; the post-merge check still runs. Scheduled and hand-started runs always sweep. 0: never skip. Absent: 10."
         },
         "skip-unchanged": {
           "type": "object",

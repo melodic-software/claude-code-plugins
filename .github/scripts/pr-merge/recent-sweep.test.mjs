@@ -2,7 +2,9 @@
 // pr-merge-summary artifact when its sweep ends; scheduled and hand-started
 // runs always sweep; a pull_request_target run skips its sweep when such an
 // artifact from a pr-merge.yml run is younger than
-// merge.event-sweep-min-minutes (absent: 10, 0: never skip), and any failure
+// merge.event-sweep-min-minutes (absent: 10, 0: never skip) and its
+// pr-merge-sweep.json shows the gate reached every candidate (sweep-summary.mjs:
+// budget_stop null, and every listed candidate a non-held row). Any failure
 // sweeps, as every run did before this check.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -23,12 +25,16 @@ after(() => rmSync(dir, { recursive: true, force: true }));
 
 const minutesAgo = (m) => new Date(NOW - m * 60_000).toISOString();
 const artifact = (runId, minutes, extra = {}) => ({
+  id: 9000 + runId,
   name: "pr-merge-summary",
   expired: false,
   created_at: minutesAgo(minutes),
   workflow_run: { id: runId },
   ...extra,
 });
+// A complete sweep: two candidates, one held row, both candidates gated.
+const complete = (extra = {}) =>
+  JSON.stringify({ candidates: 2, held: 1, skipped: 0, budget_stop: null, results: [{}, {}, {}], ...extra });
 const sweepRun = (id, event = "schedule", extra = {}) => ({
   id,
   event,
@@ -38,7 +44,7 @@ const sweepRun = (id, event = "schedule", extra = {}) => ({
 });
 
 let n = 0;
-async function check({ event = "pull_request_target", min = "", artifacts = [], runs = {}, fail, body } = {}) {
+async function check({ event = "pull_request_target", min = "", artifacts = [], runs = {}, fail, body, summary: sweep = complete() } = {}) {
   n += 1;
   const output = join(dir, `output-${n}`);
   const summary = join(dir, `summary-${n}`);
@@ -57,6 +63,14 @@ async function check({ event = "pull_request_target", min = "", artifacts = [], 
     }
     throw new GitHubError(404, `${method} ${path}`);
   };
+  const downloads = [];
+  const download = (id) => {
+    downloads.push(id);
+    if (sweep instanceof Error) {
+      throw sweep;
+    }
+    return sweep;
+  };
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(String(line));
@@ -72,6 +86,7 @@ async function check({ event = "pull_request_target", min = "", artifacts = [], 
         MIN_MINUTES: min,
       },
       actions,
+      download,
       now: NOW,
     });
   } finally {
@@ -81,7 +96,7 @@ async function check({ event = "pull_request_target", min = "", artifacts = [], 
   try {
     written = readFileSync(output, "utf8");
   } catch {}
-  return { status, calls, stdout: lines.join("\n"), skip: /^skip=true$/m.test(written), written };
+  return { status, calls, downloads, stdout: lines.join("\n"), skip: /^skip=true$/m.test(written), written };
 }
 
 test("an event run within the default 10 minutes of a finished sweep skips, with one greppable line", async () => {
@@ -89,6 +104,7 @@ test("an event run within the default 10 minutes of a finished sweep skips, with
   assert.equal(run.status, 0);
   assert.equal(run.skip, true);
   assert.deepEqual(run.calls, [`GET ${ARTIFACTS}`, `GET ${RUN(400)}`]);
+  assert.deepEqual(run.downloads, [9400]);
   assert.match(run.stdout, /^event-sweep-skip: last-sweep-finished=2026-10-20T06:56:00\.000Z age-min=4 min-minutes=10$/m);
 });
 
@@ -97,6 +113,39 @@ test("an event run outside the window sweeps", async () => {
   assert.equal(run.skip, false);
   assert.match(run.written, /^skip=false$/m);
   assert.doesNotMatch(run.stdout, /event-sweep-skip:/);
+  assert.deepEqual(run.downloads, []);
+});
+
+test("a sweep the gate budget stopped does not count", async () => {
+  const run = await check({
+    artifacts: [artifact(400, 2)],
+    runs: { 400: sweepRun(400) },
+    summary: complete({ results: [{}, {}], budget_stop: { reached: 1, skipped: 0, candidates: 2, next_after: 7 } }),
+  });
+  assert.equal(run.skip, false);
+  assert.match(run.stdout, /did not reach every candidate/);
+});
+
+test("a sweep that ended before its last candidate, with no budget stop, does not count", async () => {
+  const run = await check({ artifacts: [artifact(400, 2)], runs: { 400: sweepRun(400) }, summary: complete({ results: [{}, {}] }) });
+  assert.equal(run.skip, false);
+});
+
+test("a summary missing a field does not count", async () => {
+  for (const key of ["candidates", "held", "budget_stop", "results"]) {
+    const parsed = JSON.parse(complete());
+    delete parsed[key];
+    const run = await check({ artifacts: [artifact(400, 2)], runs: { 400: sweepRun(400) }, summary: JSON.stringify(parsed) });
+    assert.equal(run.skip, false, key);
+  }
+});
+
+test("a truncated, unparsable or undownloadable summary sweeps, with a warning", async () => {
+  for (const summary of [complete().slice(0, 20), "", new Error("unzip failed")]) {
+    const run = await check({ artifacts: [artifact(400, 2)], runs: { 400: sweepRun(400) }, summary });
+    assert.equal(run.skip, false, String(summary));
+    assert.match(run.stdout, /^::warning title=recent-sweep::.*the sweep runs$/m);
+  }
 });
 
 test("the setting sets the window", async () => {

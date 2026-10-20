@@ -493,10 +493,11 @@ jobs:
             lane ${{ steps.lane-token.outputs.token }}
             github-token ${{ github.token }}
 
-      # A pull_request_target run skips its listing and gate when a sweep
-      # finished within merge.event-sweep-min-minutes (absent: 10, 0: never):
-      # that sweep read every candidate, and the next scheduled run reads them
-      # again. The post-merge check below still runs. Scheduled and
+      # A pull_request_target run skips its listing and gate when a sweep that
+      # reached every candidate (its pr-merge-summary shows no budget stop and
+      # a row per candidate) finished within merge.event-sweep-min-minutes
+      # (absent: 10, 0: never); the next scheduled run reads them again. The
+      # post-merge check below still runs. Scheduled and
       # hand-started runs always sweep. Any error sweeps. Rules:
       # .github/scripts/pr-merge/recent-sweep.mjs.
       - name: Skip the sweep after a recent one

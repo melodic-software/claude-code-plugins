@@ -7,13 +7,18 @@
 // always sweep.
 //
 // A sweep finished when its run uploaded the pr-merge-summary artifact, which
-// only a run that ran the gate does. The newest unexpired one counts when its
-// run is main's pr-merge.yml: scheduled or hand-started on main, or
-// pull_request_target. A skip prints one line for counting saved sweeps:
+// a run that ran the gate does even when the gate stopped early (its budget,
+// a failure, a cancel). So the newest unexpired one counts only when its run
+// is main's pr-merge.yml (scheduled or hand-started on main, or
+// pull_request_target) and its pr-merge-sweep.json shows the gate reached
+// every candidate: budget_stop null and one non-held row per listed candidate
+// (sweep-summary.mjs). A skip prints one line for counting saved sweeps:
 //   event-sweep-skip: last-sweep-finished=<iso> age-min=<n> min-minutes=<N>
 //
-// Any failure answers `skip=false`: the run sweeps, as every run did before
-// this check. Two REST calls, with the job's own token (actions: read).
+// Any failure, or a summary missing a field, answers `skip=false`: the run
+// sweeps, as every run did before this check. Two REST calls, and a third, the
+// artifact download, only when the sweep is inside the window; all with the
+// job's own token (actions: read).
 //
 // Environment:
 //   ACTIONS_TOKEN        the job's GITHUB_TOKEN
@@ -23,8 +28,12 @@
 //   MIN_MINUTES          merge.event-sweep-min-minutes; empty is 10, 0 never skips
 //   GITHUB_OUTPUT        receives skip=true or skip=false
 //   GITHUB_STEP_SUMMARY  the skip is listed there when set
+//   RUNNER_TEMP          where the artifact is downloaded
 //   GITHUB_API_URL
-import { appendFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { appendFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -34,6 +43,8 @@ const ARTIFACT = "pr-merge-summary";
 const WORKFLOW_PATH = ".github/workflows/pr-merge.yml";
 const DEFAULT_MINUTES = 10;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
+const SUMMARY_FILE = "pr-merge-sweep.json";
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
@@ -46,7 +57,33 @@ function sweepRun(run) {
   );
 }
 
-export async function main({ env = process.env, actions, now = Date.now() } = {}) {
+// Whether a pr-merge-sweep.json shows the gate reached every candidate it
+// listed: no budget stop, and the rows less the held ones match the listed
+// count (gated rows plus carried ones). Any missing field is incomplete.
+export function sweptAll(sweep) {
+  return (
+    sweep?.budget_stop === null &&
+    Number.isInteger(sweep.candidates) &&
+    Number.isInteger(sweep.held) &&
+    Array.isArray(sweep.results) &&
+    sweep.results.length - sweep.held === sweep.candidates
+  );
+}
+
+function ghDownload({ repo, token, dir }) {
+  return (artifactId) => {
+    const zip = join(mkdtempSync(join(dir, "recent-sweep-")), "artifact.zip");
+    const bytes = execFileSync("gh", ["api", `repos/${repo}/actions/artifacts/${artifactId}/zip`], {
+      env: { ...process.env, GH_TOKEN: token },
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "inherit"],
+    });
+    writeFileSync(zip, bytes);
+    return execFileSync("unzip", ["-p", zip, SUMMARY_FILE], { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
+  };
+}
+
+export async function main({ env = process.env, actions, download, now = Date.now() } = {}) {
   let skip = false;
   try {
     if (env.GITHUB_EVENT_NAME !== "pull_request_target") {
@@ -87,6 +124,11 @@ export async function main({ env = process.env, actions, now = Date.now() } = {}
     const age = Math.max(0, Math.floor((now - finished) / 60_000));
     if (age >= min) {
       console.log(`the last pr-merge sweep finished ${age} minutes ago, not within ${min}; this run sweeps`);
+      return 0;
+    }
+    download ??= ghDownload({ repo: env.GITHUB_REPOSITORY, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP || tmpdir() });
+    if (!sweptAll(JSON.parse(download(newest.id)))) {
+      console.log(`run ${run.id}'s sweep did not reach every candidate; this run sweeps`);
       return 0;
     }
     skip = true;
