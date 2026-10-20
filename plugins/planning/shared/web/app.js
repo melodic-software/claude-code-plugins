@@ -20,7 +20,7 @@
       order: store.get("vf-order", "new"), seen: store.get("vf-seen", {}), seenAt: null,
       propFilter: "new", reqSeen: new Set(), reqEditing: new Set(),
       resClosed: new Set(), askOpen: false, askKind: "ask", exp: new Set(), pcard: null, mergeFrom: "", mergeTo: "",
-      bumped: false, heard: {}, renaming: false, tie: null,
+      bumped: false, heard: {}, renaming: false, renameFor: null, tie: null,
       // round 8
       revealed: new Set(), clOpen: new Map(), cites: {}, hostFilter: "all", treeClosed: new Set(),
       askPanel: false, askMode: "ask", askQ: "", askSelf: false, apAud: null, askAud: null, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
@@ -265,10 +265,13 @@
       return { question, park, later, restore };
     }
     /** F5: the owner's buttons for the person `getPid()` returns, the same words and toasts in the person card, the Host
-     *  view's people row, the person view and Settings' removed people: View all, Leader, Trusted, Merge…, Remove (or
-     *  Restore). `menu` draws them as the card's menu rows. Each place shows the ones that fit with paintPersonActs. */
-    function personActs(getPid, menu) {
+     *  view's people row, the person view and Settings' removed people: Rename, View all, Leader, Trusted, Merge…, Remove
+     *  (or Restore). `menu` draws them as the card's menu rows; `onRename(pid, button)` opens that place's rename form,
+     *  and without it there is no Rename. Each place shows the ones that fit with paintPersonActs. */
+    function personActs(getPid, menu, onRename) {
       const c = menu ? "vf-menu-item" : "vf-btn vf-btn-ghost vf-btn-sm";
+      const rename = btn(`${c} vf-pa-rename`, "Rename"); rename._on = !!onRename;
+      rename.onclick = () => onRename(getPid(), rename);
       const view = btn(`${c} vf-hp-view`, "View all"), lead = btn(`${c} vf-toggle vf-pa-lead`, "Leader"), trust = btn(`${c} vf-toggle vf-pa-trust`, "Trusted");
       const merge = btn(`${c} vf-pa-merge`, "Merge…"), remove = btn(`${c} ${menu ? "vf-menu-danger" : "vf-btn-danger"} vf-pa-remove`, "Remove");
       const gone = () => (Core.state.removed || []).includes(getPid());
@@ -286,7 +289,7 @@
         const p = getPid(), out = gone();
         Core.removePerson(p, !out).then(() => flash(out ? "Restored. Their content shows again." : `${disp(nameOf(p))} was removed. Their content is hidden; restore them from Settings.`)).catch(fail);
       });
-      return { view, lead, trust, merge, remove };
+      return { rename, view, lead, trust, merge, remove };
     }
     /** Leader and Trusted say whether they are on; a removed person has only Restore (and View all). `here` is the
      *  place's own row: the person view does not offer itself. */
@@ -301,6 +304,7 @@
       k.remove.textContent = out ? "Restore" : "Remove"; k.remove.hidden = !known;
       k.remove.setAttribute("aria-label", `${out ? "Restore" : "Remove"} ${name}`);
       k.view.hidden = here === "view"; k.view.setAttribute("aria-label", `View everything ${name} did`);
+      k.rename.hidden = !k.rename._on || out || !known; k.rename.setAttribute("aria-label", `Rename ${name}`);
     }
     /** New: Make it a question, Later, Park. Not placed: also Back to Proposed. Parked or Later: Back to Proposed, Make it a question. */
     function paintPropActs(k, i) {
@@ -4886,11 +4890,33 @@
         }
       }
       if (owner && c.pinned && !me && role !== "Host" && S.people) {
-        const acts = E("div", "vf-pc-acts"), pa = personActs(() => pid, true);
+        const acts = E("div", "vf-pc-acts"), pa = personActs(() => pid, true, p => {
+          ui.renameFor = p; ui.renameDraft = null; fillPcard();
+          const i = pcard.querySelector('[data-k="rnp"]'); i?.focus(); i?.select();
+        });
         for (const [kk, b] of Object.entries(pa)) k(b, "pa-" + kk);
         paintPersonActs(pa, pid, "card");
-        acts.append(pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
+        acts.append(pa.rename, pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
         parts.push(acts);
+        if (ui.renameFor === pid) {
+          // The same form as one's own name, for this person.
+          const f = E("form", "vf-rename");
+          const inp = E("input", "vf-input"); inp.maxLength = 40; inp.value = ui.renameDraft ?? nameOf(pid); inp.setAttribute("aria-label", `New name for ${disp(nameOf(pid))}`); k(inp, "rnp");
+          inp.oninput = () => { ui.renameDraft = inp.value; };
+          const row = E("div", "vf-crow");
+          const cancel = k(btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), "rpc");
+          const save = k(E("button", "vf-btn vf-btn-primary vf-btn-sm", "Save name"), "rps"); save.type = "submit";
+          row.append(cancel, save); f.append(inp, row);
+          cancel.onclick = () => { ui.renameFor = null; ui.renameDraft = null; fillPcard(); pcard.querySelector('[data-k="pa-rename"]')?.focus(); };
+          f.onsubmit = e => {
+            e.preventDefault();
+            const v = inp.value.trim(); if (!v) return inp.focus();
+            save.disabled = true;
+            Core.renamePerson(pid, v).then(j => { ui.renameFor = null; ui.renameDraft = null; flash(j.name !== v ? `Someone already uses that name, so they are ${j.name}.` : `Renamed to ${j.name}.`); fillPcard(); })
+              .catch(fail).finally(() => { save.disabled = false; });
+          };
+          parts.push(f);
+        }
         if (ui.mergeFrom === pid) {
           const box = E("div", "vf-merge");
           if (ui.mergeTo) {
@@ -6654,26 +6680,24 @@
         const nameRow = E("span", "vf-hp-namerow"); nameRow.append(nm, role, ctxB);
         mid.append(nameRow, meta);
         const acts = E("div", "vf-hp-acts");
-        const pa = personActs(() => li._p.pid);
         // The owner renames anyone here, with the same form as their own name in the person card.
-        const rename = btn("vf-btn vf-btn-ghost vf-btn-sm vf-pa-rename", "Rename");
+        const pa = personActs(() => li._p.pid, false, () => { rform.hidden = false; rin.value = li._p.name; rin.focus(); rin.select(); });
         const rform = E("form", "vf-rename vf-hp-rename"); rform.hidden = true;
         const rin = E("input", "vf-input"); rin.maxLength = 40;
         const rrow = E("div", "vf-crow"), rcancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
         const rsave = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Save name"); rsave.type = "submit";
         rrow.append(rcancel, rsave); rform.append(rin, rrow); mid.append(rform);
-        rename.onclick = () => { rform.hidden = false; rin.value = li._p.name; rin.focus(); rin.select(); };
-        rcancel.onclick = () => { rform.hidden = true; rename.focus(); };
+        rcancel.onclick = () => { rform.hidden = true; pa.rename.focus(); };
         rform.onsubmit = e => {
           e.preventDefault();
           const v = rin.value.trim(); if (!v) return rin.focus();
           rsave.disabled = true;
-          Core.renamePerson(li._p.pid, v).then(j => { rform.hidden = true; flash(j.name !== v ? `Someone already uses that name, so they are ${j.name}.` : `Renamed to ${j.name}.`); rename.focus(); })
+          Core.renamePerson(li._p.pid, v).then(j => { rform.hidden = true; flash(j.name !== v ? `Someone already uses that name, so they are ${j.name}.` : `Renamed to ${j.name}.`); pa.rename.focus(); })
             .catch(fail).finally(() => { rsave.disabled = false; });
         };
-        acts.append(rename, pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
+        acts.append(pa.rename, pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
         li.append(avBox, mid, acts);
-        li._k = { avBox, nm, meta, role, ctxB, ...pa, rename, rform, rin, acts, avKey: "" };
+        li._k = { avBox, nm, meta, role, ctxB, ...pa, rform, rin, acts, avKey: "" };
         return li;
       }, (li, p) => {
         const k = li._k, h = here.get(p.pid), rl = roleOf(p.pid), isGone = gone.has(p.pid), me2 = isMe(p.pid);
@@ -6697,7 +6721,6 @@
         const can = owner && !me2 && rl !== "Host";
         k.acts.hidden = !can;
         paintPersonActs(k, p.pid, "row");
-        k.rename.hidden = isGone; k.rename.setAttribute("aria-label", `Rename ${disp(p.name)}`);
         k.rin.setAttribute("aria-label", `New name for ${disp(p.name)}`);
         if (!can || isGone) k.rform.hidden = true;
       });
