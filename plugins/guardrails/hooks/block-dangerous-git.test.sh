@@ -2419,6 +2419,85 @@ BDG_HOPS=""
 for ((bdg_i = 1; bdg_i <= 141; bdg_i++)); do BDG_HOPS+=" -c alias.a$bdg_i=a$((bdg_i + 1))"; done
 expect_both "attended: reset --hard, then an alias chain past the budget, denies" 2 \
   --command "git reset --hard; git$BDG_HOPS a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
+# The alias walk recurses on bash's C stack. Before the depth cap this chain
+# crashed the guard (SIGSEGV, exit 139, which Claude Code lets through) on a
+# 512 KB stack before the work budget could deny it.
+if (ulimit -s 512) 2>/dev/null; then
+  BDG_P=$(jq -nc --arg c "git$BDG_HOPS a1" --arg d "$REPO_SHA1" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+  BDG_RC=0
+  BDG_ERR=$(
+    ulimit -s 512
+    bash "$HOOK" <<<"$BDG_P" 2>&1 >/dev/null
+  ) || BDG_RC=$?
+  assert_exit "512 KB stack: the 141-hop alias chain denies (direct)" 2 "$BDG_RC"
+  assert_contains "512 KB stack: the alias-budget deny is on stderr (direct)" "$BDG_ERR" "re-expansions"
+  BDG_RC=0
+  BDG_ERR=$(
+    ulimit -s 512
+    bash "$GUARD_DISPATCH" --lib lib/powershell/ps-command.sh \
+      block-no-verify.sh "$HOOK" block-noncanonical-commit.sh <<<"$BDG_P" 2>&1 >/dev/null
+  ) || BDG_RC=$?
+  assert_exit "512 KB stack: the 141-hop alias chain denies (dispatched)" 2 "$BDG_RC"
+  assert_contains "512 KB stack: the alias-budget deny is on stderr (dispatched)" "$BDG_ERR" "re-expansions"
+fi
+# Stay loud: a walk nested past the depth cap denies with a message rather than
+# running on. The cap is lowered so a short, otherwise benign chain reaches it.
+expect "depth cap: a chain nested past the cap denies" 2 \
+  --command "git -c alias.a1=a2 -c alias.a2=a3 -c alias.a3=status a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- GUARDRAILS_ALIAS_DEPTH_MAX=2
+assert_contains "depth cap: the deny names the alias chain" "$GUARD_ERR" "alias chain"
+expect "depth cap: the same chain inside the cap is allowed" 0 \
+  --command "git -c alias.a1=a2 -c alias.a2=a3 -c alias.a3=status a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- GUARDRAILS_ALIAS_DEPTH_MAX=8
+expect "depth cap: a dangerous form inside the cap still denies" 2 \
+  --command "git -c alias.a1=a2 -c alias.a2=a3 -c alias.a3='reset --hard' a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- GUARDRAILS_ALIAS_DEPTH_MAX=8
+# Without /proc (macOS, Git Bash) or with an unlimited stack the cap is 25, not
+# the work budget: a 30-hop chain stays inside the budget but past 25 levels.
+BDG_HOPS30=""
+for ((bdg_i = 1; bdg_i < 30; bdg_i++)); do BDG_HOPS30+=" -c alias.a$bdg_i=a$((bdg_i + 1))"; done
+BDG_HOPS30+=" -c alias.a30=status"
+BDG_LIMITS="$TEST_TMPDIR/limits-unlimited"
+printf 'Max stack size            unlimited            unlimited            bytes\n' >"$BDG_LIMITS"
+BDG_HUGE="$TEST_TMPDIR/limits-huge"
+printf 'Max stack size            999999999999         999999999999         bytes\n' >"$BDG_HUGE"
+expect "depth cap: a 30-hop chain is allowed under the real stack" 0 \
+  --command "git$BDG_HOPS30 a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1"
+expect "depth cap: no limits file falls back to 25, so the 30-hop chain denies" 2 \
+  --command "git$BDG_HOPS30 a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- GUARDRAILS_PROC_LIMITS="$TEST_TMPDIR/no-such-limits"
+assert_contains "depth cap: the no-/proc deny names the alias chain" "$GUARD_ERR" "alias chain"
+expect "depth cap: no limits file, the 141-hop chain denies" 2 \
+  --command "git$BDG_HOPS a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- GUARDRAILS_PROC_LIMITS="$TEST_TMPDIR/no-such-limits"
+assert_contains "depth cap: the 141-hop deny names the alias chain" "$GUARD_ERR" "alias chain"
+expect "depth cap: an unlimited stack falls back to 25, so the 30-hop chain denies" 2 \
+  --command "git$BDG_HOPS30 a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- GUARDRAILS_PROC_LIMITS="$BDG_LIMITS"
+expect "depth cap: an unlimited stack, the 141-hop chain denies" 2 \
+  --command "git$BDG_HOPS a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- GUARDRAILS_PROC_LIMITS="$BDG_LIMITS"
+assert_contains "depth cap: the unlimited-stack deny names the alias chain" "$GUARD_ERR" "alias chain"
+expect "depth cap: an override above the computed cap is ignored" 2 \
+  --command "git$BDG_HOPS30 a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- GUARDRAILS_PROC_LIMITS="$TEST_TMPDIR/no-such-limits" GUARDRAILS_ALIAS_DEPTH_MAX=100000
+expect "depth cap: an override above the computed cap still denies the 141-hop chain" 2 \
+  --command "git$BDG_HOPS a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- GUARDRAILS_PROC_LIMITS="$TEST_TMPDIR/no-such-limits" GUARDRAILS_ALIAS_DEPTH_MAX=100000
+expect "depth cap: a non-numeric override is ignored" 2 \
+  --command "git$BDG_HOPS30 a1" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" \
+  -- GUARDRAILS_PROC_LIMITS="$TEST_TMPDIR/no-such-limits" GUARDRAILS_ALIAS_DEPTH_MAX=abc
+# A limits file claiming a huge stack cannot raise the cap past the real one: on
+# a 512 KB stack (real cap 25) the 141-hop chain still denies instead of crashing.
+if (ulimit -s 512) 2>/dev/null; then
+  BDG_RC=0
+  BDG_ERR=$(
+    ulimit -s 512
+    GUARDRAILS_PROC_LIMITS="$BDG_HUGE" bash "$HOOK" <<<"$BDG_P" 2>&1 >/dev/null
+  ) || BDG_RC=$?
+  assert_exit "512 KB stack: a huge-stack limits file still denies the 141-hop chain" 2 "$BDG_RC"
+  assert_contains "512 KB stack: the huge-stack-file deny names the alias chain" "$BDG_ERR" "alias chain"
+fi
 expect "attended: two dangerous forms ask once, naming both" 0 \
   --command "git reset --hard; git clean -fd" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- CLAUDE_CODE_SESSION_ATTENDED=1
 assert_contains "attended: the reason names reset --hard" \

@@ -1,0 +1,7 @@
+{
+  "name": "maintenance-reconcile-lost-runs",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

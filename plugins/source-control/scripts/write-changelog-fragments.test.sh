@@ -186,6 +186,21 @@ out=$(write "$r" "fix: once")
 write "$r" "fix: once" >/dev/null
 assert_eq "rerun: the entry appears once" 1 "$(grep -c -- '- once' "$r/$out")"
 
+# 9b. The same description under another type is a new entry, not a rerun, and
+#     a body line that only contains the entry text does not count either.
+r=$(mkrepo)
+out=$(write "$r" "fix: update docs")
+git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: update docs" >/dev/null
+echo three >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
+write "$r" "feat: update docs" >/dev/null
+assert_eq "same text, new type: Fixed then Added" $'---\nbump: minor\n---\n\n### Fixed\n\n- update docs\n\n### Added\n\n- update docs' "$(frag "$r" "$out")"
+r=$(mkrepo)
+out=$(write "$r" $'fix: first\n\nsee - second')
+git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: first" >/dev/null
+echo three >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
+write "$r" "fix: second" >/dev/null
+assert_eq "entry text inside a body line: still written" 1 "$(grep -c '^- second$' "$r/$out")"
+
 # 10. A fragment main already holds, from an earlier branch with the same name,
 #     is not this branch's: a new fragment is written and the old one untouched.
 r=$(mkrepo)
@@ -219,7 +234,50 @@ r=$(mkrepo)
 out=$(write "$r" "fix(demo): y")
 assert_eq "convention: one fragment, for demo" ".changes/demo/feat-x-00000001.md" "$out"
 
-# 11. Usage errors.
+# 11. Two releasing commits of the same type share one heading, and a later
+#     entry lands under the matching heading when another follows it.
+r=$(mkrepo)
+out=$(write "$r" "fix: one")
+git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: one" >/dev/null
+echo five >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
+write "$r" "fix: two" >/dev/null
+assert_eq "two fixes: one Fixed heading" 1 "$(grep -c '^### Fixed$' "$r/$out")"
+assert_eq "two fixes: both entries under it" $'---\nbump: patch\n---\n\n### Fixed\n\n- one\n\n- two' "$(frag "$r" "$out")"
+git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: two" >/dev/null
+echo six >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
+write "$r" "feat: three" >/dev/null
+echo seven >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
+write "$r" "fix: four" >/dev/null
+assert_eq "fix, feat, fix: one heading each" "1 1" "$(grep -c '^### Fixed$' "$r/$out") $(grep -c '^### Added$' "$r/$out")"
+assert_eq "fix, feat, fix: the late fix sits under Fixed" $'### Fixed\n\n- one\n\n- two\n\n- four\n\n### Added\n\n- three' \
+  "$(sed -n '/^### Fixed/,$p' "$r/$out")"
+valid "merged headings validate" "$r" "$out"
+
+# 12. A fragment already on the merge base is never edited, and nothing is
+#     written while a merge is in progress.
+r=$(mkrepo)
+{
+  git -C "$r" commit -qm "feat: alpha work"
+  git -C "$r" checkout -q main
+  mkdir -p "$r/.changes/alpha" && printf -- '---\nbump: patch\n---\n\n### Fixed\n\n- from main\n' >"$r/.changes/alpha/fix-other-00000009.md"
+  git -C "$r" add -A && git -C "$r" commit -qm "fix: other" -q
+  git -C "$r" checkout -q feat/x
+  git -C "$r" merge --no-commit --no-ff main
+  echo eight >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
+} >/dev/null 2>&1
+before=$(cat "$r/.changes/alpha/fix-other-00000009.md")
+out=$(write "$r" "fix: during merge")
+assert_exit "merge in progress: exit 0" 0 "$?"
+assert_eq "merge in progress: nothing written" "" "$out"
+assert_eq "merge in progress: the merged-in fragment is unchanged" "$before" "$(cat "$r/.changes/alpha/fix-other-00000009.md")"
+assert_eq "merge in progress: no new fragment" 1 "$(nfrag "$r")"
+git -C "$r" commit -qm "Merge main" >/dev/null 2>&1
+echo nine >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
+out=$(write "$r" "fix: after merge")
+assert_eq "after the merge: a new branch fragment, not main's" 2 "$(nfrag "$r")"
+assert_eq "after the merge: main's fragment is unchanged" "$before" "$(cat "$r/.changes/alpha/fix-other-00000009.md")"
+
+# 13. Usage errors.
 out=$(write "$r" "feat: x" --level huge)
 assert_exit "bad --level: exit 2" 2 "$?"
 

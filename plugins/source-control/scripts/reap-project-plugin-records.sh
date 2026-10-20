@@ -13,15 +13,16 @@
 # THE BOUNDARY, RENDERED IN CODE RATHER THAN IN PROSE. `claude plugin uninstall
 # <id> -s project` has NO path flag: it resolves strictly against the current
 # directory (measured for project scope only — see skills/worktree/fixtures/README.md).
-# Local scope is unmeasured: this script assumes the same behavior and keeps the same
-# cwd guard for it, so a differing local-scope CLI is what to recheck. This script
-# therefore requires `--worktree-path` to name the directory it is already
-# standing in and refuses otherwise, so it structurally cannot act on any path
-# other than its own cwd. That is deliberate: a record for a live repository on
-# an unmounted network share or a detached external volume is indistinguishable
-# from a dead worktree to a bare existence check, and this script must never be
-# able to reach one. The trigger is a teardown the caller is performing, never
-# path liveness.
+# Local scope is unmeasured: this script assumes the same behavior and gives it the
+# same directory handling, so a differing local-scope CLI is what to recheck. This
+# script therefore resolves `--worktree-path` to one directory and enters it itself,
+# so the caller's cwd does not matter (a worktree-isolated session cannot `cd`
+# between commands) and the script acts on that one path only. It refuses a main
+# working tree (its `.git` is a directory, or git reports its git dir equal to its
+# common dir) before entering, so the main checkout's records are out of reach. A
+# record for a live repository on an unmounted network share or a detached external
+# volume is indistinguishable from a dead worktree to a bare existence check, which
+# is why the trigger is a teardown the caller is performing, never path liveness.
 #
 # TWO CALLS IT NEVER MAKES.
 #   * `-s user` — the CLI's own failure text for an id with no project record
@@ -56,7 +57,7 @@
 # Exit codes:
 #   0  pass complete (including "no records recorded here")
 #   1  at least one record for this directory survived the pass
-#   2  usage error, or --worktree-path is not the current directory
+#   2  usage error, or --worktree-path is unresolvable or a main working tree
 #   3  prerequisite missing (claude CLI, jq), or an enumeration failed — the
 #      caller reports the reap as unavailable and proceeds with the removal.
 #      This covers BOTH enumerations. A failed POST-reap enumeration means the
@@ -143,7 +144,7 @@ norm_path() {
   # second belt on that same class, applied to BOTH sides. It is not a perfect
   # injection: a UNC `//server/share/x` squeezes to `/server/share/x`, so in
   # principle two spellings could merge. No valid Windows path spells the latter,
-  # and the cwd guard below confines the ACTION regardless of what the matcher
+  # and the directory change below confines the ACTION regardless of what the matcher
   # returns — a false match can only ever produce a reported no-op.
   # `\134` is tr's octal for a backslash — written that way because the literal
   # forms are a quoting minefield here.
@@ -161,28 +162,45 @@ resolve_dir() {
   (cd "$1" 2>/dev/null && native_pwd) || return 1
 }
 
-here_native="$(native_pwd)"
-here_key="$(norm_path "$here_native")"
-
 arg_native="$(resolve_dir "$worktree_path")" || arg_native=""
 if [[ -z "$arg_native" ]]; then
   printf 'error: --worktree-path does not resolve to a directory: %s\n' "$worktree_path"
-  printf 'info: the project scope has no path flag, so this script must be run from inside the directory whose records it removes.\n'
+  printf 'info: the project scope has no path flag, so this script acts on the directory it stands in, which is the one --worktree-path names.\n'
   exit 2
 fi
-arg_key="$(norm_path "$arg_native")"
 
-if [[ "$arg_key" != "$here_key" ]]; then
-  printf 'error: --worktree-path is not the current directory — refusing.\n'
-  printf 'error:   --worktree-path resolves to: %s\n' "$arg_native"
-  printf 'error:   current directory is:        %s\n' "$here_native"
-  printf 'info: the project scope acts on the current directory and nothing else; running this from elsewhere could only ever be a no-op or a mistake.\n'
+# A main working tree keeps `.git` as a directory; a linked worktree, a husk and
+# an empty orphan do not. The refusal comes before the directory change so the
+# main checkout's records are unreachable from here.
+if [[ -d "$arg_native/.git" ]]; then
+  printf 'error: --worktree-path is a main working tree (its .git is a directory) — refusing: %s\n' "$arg_native"
+  printf 'info: this script reaps the records of a worktree being torn down, never those of a main checkout.\n'
   exit 2
 fi
+# A `.git` file is a main checkout too when git reports its git dir equal to its
+# common dir (`git init --separate-git-dir`, a submodule). Skipped when git
+# cannot resolve the path, as for a husk whose gitdir is gone.
+if [[ -f "$arg_native/.git" ]] && have git; then
+  git_dirs="$(git -C "$arg_native" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)" || git_dirs=""
+  if [[ -n "$git_dirs" && "${git_dirs%%$'\n'*}" == "${git_dirs#*$'\n'}" ]]; then
+    printf 'error: --worktree-path is a main working tree (its git dir is its common dir) — refusing: %s\n' "$arg_native"
+    printf 'info: this script reaps the records of a worktree being torn down, never those of a main checkout.\n'
+    exit 2
+  fi
+fi
+
+# The project scope has no path flag, so the script enters the named directory
+# itself; the caller's cwd does not matter.
+cd "$arg_native" 2>/dev/null || {
+  printf 'error: could not enter --worktree-path: %s\n' "$arg_native"
+  exit 2
+}
+here_native="$(native_pwd)"
+here_key="$(norm_path "$here_native")"
 
 have claude || {
   printf 'warn: claude CLI not on PATH — project-scope install records for this directory cannot be reaped.\n'
-  printf 'info: the records survive the removal; re-run this script from a directory recreated at %s once the CLI is available.\n' "$here_native"
+  printf 'info: the records survive the removal; re-run this script against a directory recreated at %s once the CLI is available.\n' "$here_native"
   exit 3
 }
 have jq || {
@@ -195,7 +213,7 @@ have jq || {
 # the machine regardless of cwd — measured, and re-checkable:
 # skills/worktree/fixtures/README.md § project-scope-reap-probe.sh arm 2,
 # Claude Code 2.1.240, re-run unchanged on 2.1.241 — so enumeration is
-# cwd-independent and the cwd guard above is what confines the ACTION.
+# cwd-independent and the directory change above is what confines the ACTION.
 list_ids() {
   local raw
   raw="$(claude plugin list --json 2>/dev/null)" || return 1
@@ -247,8 +265,8 @@ if [[ "$dry_run" -eq 1 ]]; then
   exit 0
 fi
 
-# The settings file the uninstall CLI rewrites. Relative on purpose: the cwd
-# guard above pins the cwd to the directory being reaped, and git resolves a
+# The settings file the uninstall CLI rewrites. Relative on purpose: the
+# script has already entered the directory being reaped, and git resolves a
 # relative pathspec against the cwd.
 SETTINGS_REL=".claude/settings.json"
 

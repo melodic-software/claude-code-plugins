@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Skill-fit gap #1: implement-dispatch needs a PLAN.md the work did not have. owner: implementation:implement-dispatch · existing issue: not searched",
+      "why": "owner line names plugin and skill"
+    },
+    {
+      "answer": "Owner: implementation:implement-dispatch. Existing issue: none found.",
+      "why": "plugin:skill form, case-insensitive owner label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A skill was bypassed during dispatch; consider reviewing it.",
+      "why": "no owning skill named"
+    },
+    {
+      "answer": "The implement-dispatch step was skipped.",
+      "why": "skill without owning plugin"
+    },
+    {
+      "answer": "No skill-fit gaps found; you ran /implementation:implement-dispatch.",
+      "why": "echoes the prompt without an owner line"
+    }
+  ]
+}

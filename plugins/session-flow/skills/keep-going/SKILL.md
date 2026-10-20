@@ -53,12 +53,40 @@ itself the thing this skill removes.
    this thread, per the off-thread kinds in
    [`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)
    an open-ended set (background tasks, shells, monitors, scheduled
-   jobs, dynamic workflows, subagents), not a fixed catalogue. Single
-   out every subagent or workflow agent whose last notification carries a
-   rate-limit error type or a usage-limit message, and every agent the
-   user's prompt or a branch or PR trail says ended on a usage limit (a
-   gone session's notifications are not available): they take the
-   rate-limited path in step 4.
+   jobs, dynamic workflows, subagents, external CLI processes), not a
+   fixed catalogue. Single out every subagent or workflow agent whose last
+   notification carries a rate-limit error type or a usage-limit message,
+   and every agent the user's prompt or a branch or PR trail says ended on
+   a usage limit (a gone session's notifications are not available): they
+   take the rate-limited path in step 4. For each background shell, also list its child
+   process tree and flag any process waiting on an interactive prompt or
+   stdin, so a run hung on a `[y/N]` question is found instead of read
+   as slow:
+
+   ```shell
+   python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/check-child-input-wait.py" "<shell pid>"
+   ```
+
+   `<shell pid>` is the OS process id of the shell, not its task or shell
+   id: take it from the pid the task reports, else find the shell with
+   `ps` (its parent is the session). When no pid can be resolved, skip
+   this check for that shell and say so in the report.
+
+   It prints JSON: each descendant with its command line and a
+   `waiting_on_input` verdict of `yes`, `no` or `unknown`, plus `waiting`
+   and `unknown` pid lists. Exit `0`: none waiting. Exit `1`: at least one
+   waiting. Exit `2`: bad argument or the pid is not running. Exit `3`:
+   the process table could not be read. Exit `4`: none waiting, but some
+   verdicts are `unknown`. `unknown` (an elevated process the session
+   cannot inspect, a platform with no signal, or on Linux a process the
+   script can read only through `/proc/<pid>/wchan`, which flags a tty
+   read and nothing else) is never read as `no`: inspect that process by
+   other means before calling it slow. On Linux each row also carries
+   `stdin`, where fd 0 points: a Claude Code shell's children inherit
+   `/dev/null`, which cannot hang on a prompt, and a `pipe:[...]` there
+   is usually a pipeline waiting on its producer, not on a person. A Linux
+   `yes` needs `/proc/<pid>/syscall`, which only an ancestor can read
+   under Yama `ptrace_scope` 1 or higher.
 2. **Inspect real state, never assume.** Read each item's actual state
    from the source of truth, per that doc's inspect-real-state invariant:
    do not infer "it probably finished" or "it probably died". Only the
@@ -66,6 +94,18 @@ itself the thing this skill removes.
    gone (a crash, a restart, a closed terminal), its agent and task ids
    went with it: find the work by what it left behind, its branch, its
    PR, its worktree and commits, not by an id that no longer resolves.
+
+   **Measure the gap first.** Run
+   `python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/measure-stop-gap.py" "<session transcript path>"`
+   on this live, resumed session's transcript; a stopped transcript no
+   prompt has resumed yet is out of its scope. It prints JSON with the last assistant entry, the limit or error
+   entry (null when there is none), now, and the gap from the stop to
+   now (`gap`, `gap_seconds`); a transcript with no limit or error entry
+   measures from the last assistant entry. Exit `2` (missing, unreadable
+   or empty transcript, or no assistant entry) means the gap is unknown:
+   report it as unknown, never estimate it. State the gap in the report.
+   Anything remembered from before the stop and older than the gap is
+   re-read, not trusted: limit windows, leases, PR state and CI runs.
 3. **Goal alignment, before any recovery ACTION.** When the resume
    follows a `/session-flow:handoff`, read that file rather than trusting
    memory, and when the handoff's path was lost (a `/clear` without
@@ -126,7 +166,9 @@ itself the thing this skill removes.
 6. **Report.** Open with whatever needs the user: a gated kill or
    re-fire, or a question about the goal. Below it, one list sorts every
    item as still-running, recovered, restarted, abandoned, or lost /
-   unrecoverable. Work picked up from another agent's trail adds its
+   unrecoverable. Name every child process step 1 flagged as waiting on
+   input, with its command line, and every `unknown` verdict; killing one
+   stays behind the side-effect gate below. Work picked up from another agent's trail adds its
    verdict and the split between inherited and redone work (next
    section). Every rate-limited agent from step 1 appears with its
    partial-work evidence and its final action: resumed, restarted, or

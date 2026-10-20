@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261018T090000Z-handoff-retry-backoff.md", "content": "### Environment to re-establish\n\n- This session has no task tools; the stage state is in .work/retry-backoff/workflow-checklist.md."}}
+      ],
+      "why": "save-point states no task tools and points at the checklist"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261018T090000Z-handoff-retry-backoff.md", "content": "Environment to re-establish\n- [ ] Cap the delay\n- [ ] Run ./test.sh"}}
+      ],
+      "why": "list rebuilt, no statement"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261018T090000Z-handoff-retry-backoff.md", "content": "Environment: branch feat/retry-backoff, no services running."}}
+      ],
+      "why": "silent on task tools"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261018T090000Z-handoff-retry-backoff.md", "content": "This session has no task tools."}}
+      ],
+      "why": "no pointer to the checklist"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/tmp/<user>/w/plugins/session-flow/skills/handoff/reference/structure.md"}}
+      ],
+      "why": "structure-doc sentence only read, nothing written"
+    }
+  ]
+}
