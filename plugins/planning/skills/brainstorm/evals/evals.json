@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "diverges-candidate-spread",
-      "prompt": "/planning:brainstorm users keep dropping off during onboarding and we're not sure where to intervene.",
+      "prompt": "/planning:brainstorm users keep dropping off during onboarding and we're not sure where to intervene. Yes, that is the problem. Why: we pay to bring these users in and lose them before they see the product work. My own ideas: none yet. Go ahead with candidates.",
       "expected_output": "The skill restates the problem, does a fast codebase grounding pass, and produces a candidate list ordered cheapest to most ambitious — each candidate codebase-grounded (names files/mechanisms it would touch) with effort tier and expected impact — then invites the user to mark what resonates.",
       "files": [],
       "expectations": [
@@ -17,19 +17,19 @@
     {
       "id": 2,
       "name": "does-not-decide-for-user",
-      "prompt": "/planning:brainstorm we need to speed up the reports page. Just pick the best approach and tell me which one to do.",
-      "expected_output": "The skill still produces the cheapest-to-most-ambitious candidate spread and names exactly one recommended option marked (RECOMMENDED) with a basis, but leaves the selection to the user's reaction rather than unilaterally deciding and closing off the alternatives.",
+      "prompt": "/planning:brainstorm we need to speed up the reports page. Yes, that is the problem. Why: account managers open it during client calls. My own ideas: none. Just pick the best approach and tell me which one to do.",
+      "expected_output": "The skill still produces the cheapest-to-most-ambitious candidate spread and marks exactly one recommended route onward (RECOMMENDED) with a basis, but leaves the selection to the user's reaction rather than unilaterally deciding and closing off the alternatives.",
       "files": [],
       "expectations": [
         "Output presents multiple candidates rather than collapsing to a single answer",
-        "Output marks exactly one option as (RECOMMENDED) with a one-line basis",
+        "Output marks exactly one route onward as (RECOMMENDED) with a one-line basis",
         "Output leaves the final selection to the user rather than declaring the decision made"
       ]
     },
     {
       "id": 3,
       "name": "does-not-self-censor-ambitious-end",
-      "prompt": "/planning:brainstorm how could we cut our CI runtime — but keep it realistic, I don't want any big rewrites.",
+      "prompt": "/planning:brainstorm how could we cut our CI runtime — but keep it realistic, I don't want any big rewrites. Yes, that is the problem. Why: developers wait on CI before every merge. My own ideas: none. Go ahead with candidates.",
       "expected_output": "The candidate list still spans cheapest to most ambitious including the high-effort options; the skill does not pre-filter the ambitious end, letting the user calibrate scope instead of self-censoring.",
       "files": [],
       "expectations": [
@@ -64,20 +64,21 @@
     {
       "id": 6,
       "name": "observed-fact-evidence-bar-d5",
-      "prompt": "/planning:brainstorm we should speed up nightly ETL — I think we need a bigger warehouse or more workers.",
-      "expected_output": "Produces multiple codebase-grounded candidates where each option cites an observed, falsifiable fact about this repository (a concrete path or mechanism plus a claim that could be wrong), not only a plausible improvement story.",
+      "prompt": "/planning:brainstorm we should speed up nightly ETL — I think we need a bigger warehouse or more workers. Yes, slow nightly ETL is the problem. Why: the morning reports arrive late. Those are my own first ideas. Go ahead with candidates.",
+      "expected_output": "Baseline case. Produces multiple codebase-grounded candidates where each option cites an observed, falsifiable fact about this repository (a concrete path or mechanism plus a claim that could be wrong), not only a plausible improvement story.",
       "files": [],
       "expectations": [
         "Each candidate names a concrete file, module, or mechanism in this repo that the option would touch",
         "Each candidate ties the option to an observed fact that could be falsified by reading the codebase, not merely a plausible narrative",
         "Output still presents multiple ordered candidates and invites the user to react rather than picking unilaterally"
-      ]
+      ],
+      "source": "Baseline case: grades a heuristic docs/finding-your-unknowns.md 'Heuristics awaiting evidence' records as not a standing instruction; a failure is evidence for that heuristic, not a skill defect."
     },
     {
       "id": 7,
       "name": "disconnected-scan-before-new-work-d7-d11",
-      "prompt": "/planning:brainstorm we want notification recipients to get weekly summaries and to see whether a notification was opened. Treat the files under evals/fixtures/disconnected-scan/ as this repository (relative to the skill directory); each carries an added .txt suffix, so app/notifier.py.txt is app/notifier.py.",
-      "expected_output": "Before proposing new work, the skill scans for what is already built but not connected and reports it as candidates ahead of greenfield options: the unused build_digest import in app/notifier.py (the digest builder exists in app/digest.py), the weekly_digest flag in app/config.py that defaults to False and is never read, and the delivery_receipts table in db/schema.sql that nothing reads or writes. It then invites the user to react.",
+      "prompt": "/planning:brainstorm we want notification recipients to get weekly summaries and to see whether a notification was opened. Yes, that is the problem. Why: recipients say they get too many emails, and we cannot tell what they read. My own ideas: none. Go ahead with candidates. Treat the files under evals/fixtures/disconnected-scan/ as this repository (relative to the skill directory); each carries an added .txt suffix, so app/notifier.py.txt is app/notifier.py.",
+      "expected_output": "Baseline case. Before proposing new work, the skill scans for what is already built but not connected and reports it as candidates ahead of greenfield options: the unused build_digest import in app/notifier.py (the digest builder exists in app/digest.py), the weekly_digest flag in app/config.py that defaults to False and is never read, and the delivery_receipts table in db/schema.sql that nothing reads or writes. It then invites the user to react.",
       "files": [
         "evals/fixtures/disconnected-scan/app/notifier.py.txt",
         "evals/fixtures/disconnected-scan/app/digest.py.txt",
@@ -91,12 +92,13 @@
         "Output names the delivery_receipts table in db/schema.sql as having no reader",
         "Output reports the disconnected items as candidates ahead of any greenfield option (wire up or enable existing work before building new)",
         "Output ends by inviting the user to react or mark what resonates rather than picking one"
-      ]
+      ],
+      "source": "Baseline case: grades a heuristic docs/finding-your-unknowns.md 'Heuristics awaiting evidence' records as not a standing instruction; a failure is evidence for that heuristic, not a skill defect."
     },
     {
       "id": 8,
       "name": "offers-built-candidate-view",
-      "prompt": "/planning:brainstorm how could we cut our CI runtime? You gave me twelve candidates, can I tick the ones I like in a page?",
+      "prompt": "/planning:brainstorm how could we cut our CI runtime? Intake is done: the problem is confirmed, my why is that developers wait on CI before every merge, and I had no ideas of my own. You gave me twelve candidates, can I tick the ones I like in a page?",
       "expected_output": "The skill keeps the numbered candidate list as the record and offers an interactive view built with the checked-in builder from JSON data, candidates ordered cheapest first, with the destination resolved from the medium cascade key.",
       "files": [],
       "expectations": [
