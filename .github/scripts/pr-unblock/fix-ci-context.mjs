@@ -16,7 +16,8 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
 
-// The trailer apply-ci-fix.mjs writes on every fix commit; a round is one.
+// The trailer apply-patch.mjs writes on every fix commit, from the ci-context
+// row of patch-rules.json; a round is one.
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/fix-ci";
 const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
 // The aggregate of the others: fixing them fixes it.

@@ -6,7 +6,11 @@ name: pr-run-activity-read
 # resolves the base-SHA config, fails red on any effect but `read` before the
 # PR head is checked out, and runs a skill or a script with the job's
 # read-only GITHUB_TOKEN; the report job writes the check from the run job's
-# runner-computed outputs.
+# runner-computed outputs. A PR-mode skill runs on ci-workflows'
+# run-claude-cli, on one Claude secret per call: the caller's first call
+# passes the role's API key and hands off on a credit stop or an empty key,
+# and its second call, gated on those outputs, passes the OAuth token. An
+# issue skill runs on claude-code-action.
 # Secrets are scrubbed per workflow run, so this file references no App key.
 # Only the broker-check job, which runs no PR head code, requests an OIDC
 # token; the run job that runs head code holds neither. Write activities run
@@ -29,13 +33,6 @@ on:
         description: The activity to run from the lane's slots.
         required: true
         type: string
-      output-mode:
-        description: >-
-          clean-tree fails a run that leaves the tree changed; patch uploads
-          the change as a patch artifact instead.
-        required: false
-        type: string
-        default: clean-tree
       config-path:
         description: The config, relative to the base checkout. For test callers only.
         required: false
@@ -71,8 +68,17 @@ on:
         default: ""
       role:
         description: >-
-          Issue mode: the funding role whose secret the caller passes; the
-          lane record names the credential from it.
+          The funding role whose secret the caller passes, lower-case kebab;
+          the lane record names the credential from it. Required for a skill.
+        required: false
+        type: string
+        default: ""
+      fallback:
+        description: >-
+          PR mode: empty for the first call, which runs on claude-api-key and
+          hands off on a credit stop or an empty key; `credit-stop` or
+          `no-key` for the second, which runs on claude-code-oauth-token and
+          names why in its lane record.
         required: false
         type: string
         default: ""
@@ -109,9 +115,14 @@ on:
         required: false
         type: string
         default: ""
+    # A caller passes one of the two: PR mode's first call the API key, its
+    # fallback call and issue mode the OAuth token.
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
+        required: false
+      claude-api-key:
+        description: The role's Claude Console API key, for a PR-mode skill's first call.
         required: false
     # Patch output mode. Head code ran in the job that sets the patch outputs:
     # the job that applies the patch checks it against patch-sha256.
@@ -164,6 +175,24 @@ on:
           Issue mode: the earlier run's lane branch this run resumed; empty
           otherwise. Set only by runner steps, before any model turn.
         value: ${{ jobs.run.outputs.resume-branch }}
+      # PR mode, from run-claude-cli and the credential steps, never from
+      # model text: the caller's fallback call reads these alone.
+      lane-class:
+        description: >-
+          The launcher's failure class, `credit-stop` when the key leg hit
+          one; empty on success or when no launcher ran.
+        value: ${{ jobs.run.outputs.lane-class }}
+      credential-present:
+        description: >-
+          `true` or `false`: whether the call's Claude secret was set; empty
+          when no launcher was to run.
+        value: ${{ jobs.run.outputs.credential-present }}
+      handed-off:
+        description: >-
+          `true` when the first call's key was empty or hit a credit stop, so
+          it uploaded nothing, recorded no lane outcome and posted no check,
+          and the fallback call runs the activity.
+        value: ${{ jobs.run.outputs.handed-off }}
 
 permissions: {}
 
@@ -261,12 +290,15 @@ jobs:
       can-commit: ${{ steps.config.outputs.can-commit }}
       # A gate skill succeeds only on a `pass` verdict, and a skill that took
       # no model turn fails. The verdict step's ACT_OUTCOME repeats this
-      # expression: runner-policy refuses YAML aliases.
+      # expression: runner-policy refuses YAML aliases. A PR-mode skill runs
+      # on one of act-key and act-token.
       act-outcome: >-
-        ${{ steps.act-skill.outcome == 'success'
+        ${{ (steps.act-skill.outcome == 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
         && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
         || steps.act-turns.outcome != 'success') && 'failure'
         || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
+        || steps.act-key.outcome != 'skipped' && steps.act-key.outcome
+        || steps.act-token.outcome != 'skipped' && steps.act-token.outcome
         || steps.act-script.outcome }}
       # Set after head code ran; see the collect step.
       # The verdict step's PATCH_STATE repeats this expression.
@@ -281,6 +313,11 @@ jobs:
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       resume-branch: ${{ steps.issue-prior.outputs.resume-branch }}
       resume-tip: ${{ steps.issue-prior.outputs.resume-tip }}
+      # PR mode: run-claude-cli sets lane-class after it restores the step
+      # files, so the leg cannot set it; the presence steps run before it.
+      lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
+      credential-present: ${{ steps.key-present.outputs.present || steps.token-present.outputs.present }}
+      handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.lane-class == 'credit-stop' }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
       # silently let the App's own events through. An empty default branch
@@ -295,19 +332,26 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
           TRUSTED_BASE: ${{ inputs.trusted-base }}
-          OUTPUT_MODE: ${{ inputs.output-mode }}
+          FALLBACK: ${{ inputs.fallback }}
         run: |
           # Issue mode runs only on the issues event that names that issue,
-          # trusting the default branch tip, in patch mode, with none of the
-          # PR inputs.
+          # trusting the default branch tip, with none of the PR inputs; the
+          # config step below holds it to patch mode.
           if [ -n "$ISSUE_NUMBER" ] || [ "$EVENT_NAME" = issues ]; then
             if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || [ "$EVENT_NAME" != issues ] ||
               [ "$ISSUE_NUMBER" != "$EVENT_ISSUE" ] || [ "$TRUSTED_BASE" != default-tip ] ||
-              [ "$OUTPUT_MODE" != patch ] || [ -n "$PR_NUMBER$DISPATCHER_RUN_ID" ]; then
-              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, output-mode patch, and no pr-number or dispatcher-run-id"
+              [ -n "$PR_NUMBER$DISPATCHER_RUN_ID$FALLBACK" ]; then
+              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, and no pr-number, dispatcher-run-id or fallback"
               exit 1
             fi
           fi
+          case "$FALLBACK" in
+            "" | credit-stop | no-key) ;;
+            *)
+              echo "::error::the fallback input must be empty, credit-stop or no-key"
+              exit 1
+              ;;
+          esac
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
             exit 1
@@ -410,8 +454,9 @@ jobs:
           # This file performs prepare: ci-context (the context steps below)
           # and refuses every other mode.
           prepare-supported: "true"
-          # With output-mode: patch, it collects the activity's change as a patch
-          # artifact; in issue mode it also uploads the run's outcome file.
+          # An activity whose applied-by names a patch leaves its change as a
+          # patch artifact (patch mode); in issue mode it also uploads the
+          # run's outcome file.
           applied-by-supported: ${{ inputs.issue-number != '' && 'patch work-outcome' || 'patch' }}
 
       # Any other effect belongs in pr-run-activity-write.yml; the caller chose
@@ -422,17 +467,20 @@ jobs:
           echo "::error::effect-not-read: a write activity runs in pr-run-activity-write.yml, not pr-run-activity-read.yml"
           exit 1
 
-      - name: Assert the output mode is known
-        if: inputs.output-mode != 'clean-tree' && inputs.output-mode != 'patch'
+      # Issue mode makes no PR, so its change leaves only as a patch.
+      - name: Assert an issue activity is in patch mode
+        if: >-
+          steps.config.outcome == 'success' && inputs.issue-number != ''
+          && steps.config.outputs.applied-by-patch == ''
         run: |
-          echo "::error::the output-mode input must be clean-tree or patch"
+          echo "::error::issue mode needs an activity whose applied-by names a patch"
           exit 1
 
       # A gate must judge the head it is posted on, unchanged.
       - name: Assert a gate activity is not in patch mode
-        if: inputs.output-mode == 'patch' && steps.config.outputs.gating == 'gate'
+        if: steps.config.outputs.applied-by-patch != '' && steps.config.outputs.gating == 'gate'
         run: |
-          echo "::error::a gating: gate activity cannot use output-mode: patch"
+          echo "::error::a gating: gate activity cannot hand on a patch"
           exit 1
 
       # ci-context is this file's one prepare mode, and its edits leave only
@@ -440,12 +488,41 @@ jobs:
       - name: Assert the prepare mode is ci-context in patch mode
         if: >-
           steps.config.outcome == 'success' && steps.config.outputs.prepare != ''
-          && (steps.config.outputs.prepare != 'ci-context' || inputs.output-mode != 'patch')
+          && (steps.config.outputs.prepare != 'ci-context' || steps.config.outputs.applied-by-patch == '')
         env:
           PREPARE: ${{ steps.config.outputs.prepare }}
         run: |
-          echo "::error::prepare: $PREPARE is not a read mode, or ci-context runs without output-mode: patch"
+          echo "::error::prepare: $PREPARE is not a read mode, or ci-context runs without an applied-by patch"
           exit 1
+
+      # PR mode runs a skill on run-claude-cli: a role names its secret, a
+      # model alias is set (`default` resolves to none, which the launcher
+      # cannot pass), and the fallback picks the lane record's name. Before
+      # any head code.
+      - name: Check the launcher's inputs
+        id: launch
+        if: >-
+          steps.config.outcome == 'success' && inputs.issue-number == ''
+          && steps.config.outputs.kind == 'skill'
+        env:
+          ROLE: ${{ inputs.role }}
+          MODEL: ${{ steps.config.outputs.model }}
+          GATING: ${{ steps.config.outputs.gating }}
+        run: |
+          if [[ ! "$ROLE" =~ ^[a-z][a-z0-9-]*$ ]]; then
+            echo "::error::a PR-mode skill needs a role of lowercase letters, digits and hyphens"
+            exit 1
+          fi
+          if [ -z "$MODEL" ]; then
+            echo "::error::the activity's model is default, which run-claude-cli cannot pass; name an alias"
+            exit 1
+          fi
+          if [ "$GATING" != advisory ]; then
+            echo "::error::a PR-mode gate skill's verdict is not read from run-claude-cli"
+            exit 1
+          fi
+          role=${ROLE^^}
+          echo "key-name=${role//-/_}_CLAUDE_API_KEY" >>"$GITHUB_OUTPUT"
 
       # Issue mode: a run that waited in its concurrency slot keeps the
       # workflow files of its label event, and the apply job of the same run
@@ -565,7 +642,8 @@ jobs:
           github-token: ${{ github.token }}
 
       # The head checkout below replaces .base, so what the activity runs from
-      # the base is copied out first.
+      # the base is copied out first. A PR-mode skill runs on run-claude-cli,
+      # an issue skill on claude-code-action.
       - name: Stage the activity from the base
         id: stage
         if: steps.go.outputs.run == 'true'
@@ -579,6 +657,7 @@ jobs:
           prepare: ${{ steps.config.outputs.prepare }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
           issue-number: ${{ inputs.issue-number }}
+          launcher: ${{ inputs.issue-number == '' && 'run-claude-cli' || 'claude-code-action' }}
 
       # Issue mode: the skill reads the issue from its scratch directory, so it
       # needs no shell or API access. Title, body and labels as written, which
@@ -609,6 +688,12 @@ jobs:
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
         run: node .base/.github/scripts/work-resolve-issue/write-issue.mjs
 
+      # run-claude-cli refuses to run without these root-owned settings, which
+      # need sudo, so they are written before the runner is isolated.
+      - name: Apply the Claude managed settings
+        if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
+
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
         if: steps.go.outputs.run == 'true'
@@ -638,7 +723,7 @@ jobs:
           echo "ready=true" >>"$GITHUB_OUTPUT"
 
       - name: Copy the patch collector from the base
-        if: steps.go.outputs.run == 'true' && inputs.output-mode == 'patch'
+        if: steps.go.outputs.run == 'true' && steps.config.outputs.applied-by-patch != ''
         env:
           DEST: ${{ runner.temp }}/read-patch
         run: |
@@ -675,6 +760,31 @@ jobs:
           fi
           echo "sha=$HEAD_SHA" >>"$GITHUB_OUTPUT"
 
+      # PR mode: run-claude-cli reads only inside the checkout, so the stage
+      # the base copy left goes to .lane/, which a head may not hold. The
+      # plugin and the CI context are read-only, git ignores the directory,
+      # and the patch leaves it out (collect-patch.sh).
+      - name: Stage the skill's files in the checkout
+        if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
+        env:
+          STAGE: ${{ runner.temp }}/lane-stage
+          TRUSTED_CONTEXT: ${{ runner.temp }}/trusted-context.json
+        run: |
+          if [ -e .lane ] || [ -L .lane ] || [ -n "$(git ls-tree HEAD -- .lane)" ]; then
+            echo "::error::the head holds .lane, where the runner stages the skill's files"
+            exit 1
+          fi
+          cp -R "$STAGE" .lane
+          if [ -f "$TRUSTED_CONTEXT" ]; then
+            cp "$TRUSTED_CONTEXT" .lane/trusted-context.json
+          fi
+          chmod -R a-w .lane/plugins
+          if [ -d .lane/ci ]; then
+            chmod -R a-w .lane/ci
+          fi
+          mkdir -p .git/info
+          echo /.lane/ >>.git/info/exclude
+
       - name: Set up Python for the skill
         if: steps.setup-env.outputs.ready == 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -699,13 +809,122 @@ jobs:
             cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"
           done
 
-      # In issue mode a failure does not stop the job here: the next step
-      # fails it unless the failure is only the turn cap on a successful
-      # result, and a failed run's partial change is still collected, so a
-      # resumed run continues it.
+      # PR mode: run-claude-cli on exactly one credential per call, so a
+      # step references one Claude secret. The first call runs on the role's
+      # API key (act-key); after its credit stop or with its key empty it
+      # hands off, and the caller's fallback call runs on the role's OAuth
+      # token (act-token). Only whether the secret is set leaves these steps,
+      # never its value.
+      - name: Check the API key
+        id: key-present
+        if: >-
+          steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
+          && inputs.fallback == ''
+        env:
+          PRESENT: ${{ secrets.claude-api-key != '' }}
+          SECRET_NAME: ${{ steps.launch.outputs.key-name }}
+        run: |
+          if [ "$PRESENT" = true ]; then
+            echo "present=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::$SECRET_NAME is empty; the caller's fallback call runs the activity on the subscription token"
+            echo "present=false" >>"$GITHUB_OUTPUT"
+          fi
+          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Check the OAuth token
+        id: token-present
+        if: >-
+          steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
+          && inputs.fallback != ''
+        env:
+          PRESENT: ${{ secrets.claude-code-oauth-token != '' }}
+        run: |
+          if [ "$PRESENT" = true ]; then
+            echo "present=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::the role's OAuth token is empty; the activity does not run"
+            echo "present=false" >>"$GITHUB_OUTPUT"
+          fi
+          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      # continue-on-error keeps a launcher failure, which run-claude-cli
+      # reports by failing its step, from ending the job before the reply,
+      # turn and outcome steps; "Fail without a result" carries the red. A
+      # handoff skips every upload, the lane record and the check. One leg
+      # of leg-timeout-minutes and the CLI install fit in timeout-minutes,
+      # which the lane record repeats, and that fits in the caller's job
+      # timeout. setup-python exports LD_LIBRARY_PATH, which the launcher
+      # refuses as a loader variable, so the step clears it.
+      - name: Run the skill on the API key
+        id: act-key
+        if: steps.key-present.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 50
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
+        env:
+          # No work may outlive the result message the launcher reads.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+          TRUSTED_CONTEXT_FILE: >-
+            ${{ steps.config.outputs.reads-untrusted == 'true'
+            && format('{0}/.lane/trusted-context.json', github.workspace) || '' }}
+        with:
+          lane: ${{ inputs.activity }}
+          role: ${{ inputs.role }}
+          prompt-file: ${{ github.workspace }}/.lane/prompt.md
+          preamble: ${{ steps.stage.outputs.preamble }}
+          api-key: ${{ secrets.claude-api-key }}
+          # The model, turns and effort come from the base config's models
+          # route (resolve-config), never from text the run reads.
+          model: ${{ steps.config.outputs.model }}
+          effort: ${{ steps.config.outputs.effort }}
+          max-turns: ${{ steps.config.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: ${{ steps.stage.outputs.tools }}
+          allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
+          disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
+          plugin-dirs: ${{ steps.stage.outputs.plugin-dirs }}
+          leg-timeout-minutes: "45"
+
+      - name: Run the skill on the OAuth token
+        id: act-token
+        if: steps.token-present.outputs.present == 'true'
+        continue-on-error: true
+        timeout-minutes: 50
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+          TRUSTED_CONTEXT_FILE: >-
+            ${{ steps.config.outputs.reads-untrusted == 'true'
+            && format('{0}/.lane/trusted-context.json', github.workspace) || '' }}
+        with:
+          lane: ${{ inputs.activity }}
+          role: ${{ inputs.role }}
+          prompt-file: ${{ github.workspace }}/.lane/prompt.md
+          preamble: ${{ steps.stage.outputs.preamble }}
+          subscription-token: ${{ secrets.claude-code-oauth-token }}
+          model: ${{ steps.config.outputs.model }}
+          effort: ${{ steps.config.outputs.effort }}
+          max-turns: ${{ steps.config.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: ${{ steps.stage.outputs.tools }}
+          allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
+          disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
+          plugin-dirs: ${{ steps.stage.outputs.plugin-dirs }}
+          leg-timeout-minutes: "45"
+
+      # Issue mode, on claude-code-action until the issue lane moves to the
+      # launcher. A failure does not stop the job here: the next step fails
+      # it unless the failure is only the turn cap on a successful result,
+      # and a failed run's partial change is still collected, so a resumed
+      # run continues it.
       - name: Run the skill activity
         id: act-skill
-        if: steps.go.outputs.run == 'true' && steps.config.outputs.kind == 'skill'
+        if: >-
+          steps.go.outputs.run == 'true' && steps.config.outputs.kind == 'skill'
+          && inputs.issue-number != ''
         continue-on-error: ${{ inputs.issue-number != '' }}
         uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
         env:
@@ -726,9 +945,6 @@ jobs:
           # drops that break, or when the row stops naming run_in_background).
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           CLAUDE_BRANCH: ${{ steps.gate.outputs.head-ref }}
-          TRUSTED_CONTEXT_FILE: >-
-            ${{ steps.config.outputs.reads-untrusted == 'true' && inputs.issue-number == ''
-            && format('{0}/trusted-context.json', runner.temp) || '' }}
         with:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           # The action needs a GitHub token and exports it to the CLI's
@@ -810,12 +1026,19 @@ jobs:
       # data, never interpolated into a command. The file path falls back to
       # the action's fixed location (base-action/src/execution-file.ts:6-13).
       # It is also uploaded below as audit evidence, since the REST API cannot
-      # read step summaries; nothing in this workflow reads that artifact.
+      # read step summaries; apply-patch's ci-escalations report reads it. A
+      # launcher run that handed off has no reply: the fallback call's is
+      # the run's.
       - name: Show the skill's final reply
-        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        if: >-
+          always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
+          || (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
+          && steps.act-key.outputs.lane-class != 'credit-stop'
+          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
         env:
           EXECUTION_FILE: >-
             ${{ steps.act-skill.outputs.execution_file
+            || steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file
             || format('{0}/claude-execution-output.json', runner.temp) }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
         run: |
@@ -841,11 +1064,16 @@ jobs:
       # out of the recorded text.
       - name: Check the skill took a model turn
         id: act-turns
-        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        if: >-
+          always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
+          || (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
+          && steps.act-key.outputs.lane-class != 'credit-stop'
+          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EXECUTION_FILE: >-
             ${{ steps.act-skill.outputs.execution_file
+            || steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file
             || format('{0}/claude-execution-output.json', runner.temp) }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
         with:
@@ -894,9 +1122,15 @@ jobs:
               );
             }
 
+      # A handoff uploads nothing: the fallback call's artifacts take the same
+      # names. Every upload below repeats the handoff terms.
       - name: Upload the skill's final reply
         id: reply-upload
-        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        if: >-
+          always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
+          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
+          || steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
+          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
@@ -975,6 +1209,30 @@ jobs:
           credential: ${{ steps.credential.outputs.name }}
           max-turns: ${{ steps.config.outputs.max-turns }}
 
+      # PR mode: one lane record per run. A handoff records nothing; the
+      # fallback call records the run under a name that says why it ran
+      # (until report-lane-outcome takes the reason itself, ci-workflows#806).
+      - name: Record the launcher's lane outcome
+        if: >-
+          always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
+          && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
+          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
+        with:
+          outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome }}
+          execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
+          lane: >-
+            ${{ inputs.fallback == 'credit-stop'
+            && format('{0}/{1} (key {2} hit a credit stop)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
+            || inputs.fallback == 'no-key'
+            && format('{0}/{1} (key {2} is empty)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
+            || format('{0}/{1}', inputs.lane, inputs.activity) }}
+          step-started-at: ${{ steps.key-present.outputs.started-at || steps.token-present.outputs.started-at }}
+          step-timeout-minutes: 50
+          credential: ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential }}
+          max-turns: ${{ steps.config.outputs.max-turns }}
+          known-failure-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
+
       # The verdict comes from the action's structured_output, read through env
       # and parsed by jq. Anything but exactly `pass` fails the activity; the
       # summary is model text, printed as data.
@@ -997,43 +1255,6 @@ jobs:
             echo "::error::the gate skill's verdict is not pass"
             exit 1
           fi
-
-      # On pull_request events the action replaces these paths with the base
-      # branch's copies when the PR head is untrusted (claude-code-action
-      # src/github/operations/restore-config.ts:26-35 lists them, :269-349
-      # restores them and unstages). Put back only what that restore changed,
-      # so a file the skill created or edited under them still shows as dirty.
-      # Head file names are pathspecs here, so globbing is off.
-      - name: Undo the action's restore of base config paths
-        if: >-
-          steps.go.outputs.run == 'true' && steps.config.outputs.kind == 'skill'
-          && github.event.pull_request.base.ref != ''
-        env:
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          GIT_LITERAL_PATHSPECS: "1"
-        run: |
-          base="refs/remotes/origin/$BASE_REF"
-          if ! git rev-parse -q --verify "$base^{commit}" >/dev/null; then
-            echo "The action fetched no base branch, so it restored nothing"
-            exit 0
-          fi
-          same_as_base() {
-            git cat-file -e "$base:$1" 2>/dev/null && [ -f "$1" ] && [ ! -L "$1" ] &&
-              [ "$(git hash-object -- "$1")" = "$(git rev-parse "$base:$1")" ]
-          }
-          for path in .claude .mcp.json .claude.json .gitmodules .ripgreprc CLAUDE.md CLAUDE.local.md .husky; do
-            while IFS= read -r -d '' file; do
-              if ! git cat-file -e "$HEAD_SHA:$file" 2>/dev/null && same_as_base "$file"; then
-                rm -f -- "$file"
-              fi
-            done < <(git ls-tree -r -z --name-only "$base" -- "$path")
-            while IFS= read -r -d '' file; do
-              if { [ ! -e "$file" ] && [ ! -L "$file" ]; } || same_as_base "$file"; then
-                git checkout "$HEAD_SHA" -- "$file"
-              fi
-            done < <(git ls-tree -r -z --name-only "$HEAD_SHA" -- "$path")
-          done
 
       - name: Run the script activity
         id: act-script
@@ -1063,7 +1284,7 @@ jobs:
 
       - name: Check the working tree is clean
         id: tree
-        if: steps.go.outputs.run == 'true' && inputs.output-mode != 'patch'
+        if: steps.go.outputs.run == 'true' && steps.config.outputs.applied-by-patch == ''
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             git status --short
@@ -1072,19 +1293,24 @@ jobs:
             echo "dirty-tree=false" >>"$GITHUB_OUTPUT"
           fi
 
-      # Patch output mode, in place of the clean-tree check, and only after an
-      # act step that succeeded: what the activity changed against the gated
-      # head becomes one binary patch. Head code ran in this job and could have
-      # replaced the collector copy, so the patch and its SHA-256 are activity
-      # output; the job that applies the patch checks both.
+      # Patch output mode, for an activity whose applied-by names a patch, in
+      # place of the clean-tree check, and only after an act step that
+      # succeeded: what the activity changed against the gated head becomes
+      # one binary patch. Head code ran in this job and could have replaced
+      # the collector copy, so the patch and its SHA-256 are activity output;
+      # the job that applies the patch checks both. The launcher steps fail
+      # softly, so a PR-mode skill needs one that succeeded: a handoff or a
+      # failed leg collects nothing.
       # In issue mode it also runs after a failed skill step (a turn cap or a
       # usage limit), so the partial work reaches a lane branch a resumed run
       # continues; the apply job holds it to the same rules.
       - name: Collect the patch
         id: patch
         if: >-
-          always() && steps.go.outputs.run == 'true' && inputs.output-mode == 'patch'
-          && (job.status == 'success' || inputs.issue-number != ''
+          always() && steps.go.outputs.run == 'true' && steps.config.outputs.applied-by-patch != ''
+          && (job.status == 'success'
+          && (steps.launch.outcome != 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
+          || inputs.issue-number != ''
           && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'))
         env:
           HEAD_SHA: ${{ steps.start.outputs.sha }}
@@ -1096,7 +1322,9 @@ jobs:
 
       - name: Upload the patch
         id: patch-upload
-        if: always() && steps.patch.outputs.state == 'written'
+        if: >-
+          always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
+          && steps.patch.outputs.state == 'written'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
@@ -1156,8 +1384,9 @@ jobs:
           overwrite: true
 
       # Written after head code ran, so the report job only cross-checks it.
+      # A handoff leaves the verdict to the fallback call.
       - name: Write the verdict
-        if: always()
+        if: always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
         env:
           LANE: ${{ inputs.lane }}
           ACTIVITY: ${{ inputs.activity }}
@@ -1169,10 +1398,12 @@ jobs:
           CONFIG_OUTCOME: ${{ steps.config.outcome }}
           SKIP_REASON: ${{ steps.config.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
           ACT_OUTCOME: >-
-            ${{ steps.act-skill.outcome == 'success'
+            ${{ (steps.act-skill.outcome == 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
             && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
             || steps.act-turns.outcome != 'success') && 'failure'
             || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
+            || steps.act-key.outcome != 'skipped' && steps.act-key.outcome
+            || steps.act-token.outcome != 'skipped' && steps.act-token.outcome
             || steps.act-script.outcome }}
           DIRTY_TREE: ${{ steps.tree.outputs.dirty-tree }}
           PATCH_STATE: ${{ steps.patch-upload.outcome == 'success' && 'written' || steps.patch.outputs.state == 'empty' && 'empty' || '' }}
@@ -1208,13 +1439,26 @@ jobs:
             }' >"$VERDICT_DIR/verdict.json"
 
       - name: Upload the verdict
-        if: always()
+        if: always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict/verdict.json
           retention-days: 1
           if-no-files-found: error
+
+      # The launcher steps fail softly. A run that handed off ends green and
+      # leaves the activity to the fallback call; any other PR-mode skill run
+      # that got as far as the credential steps and left no launcher success
+      # fails here.
+      - name: Fail without a result
+        if: >-
+          always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success')
+          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
+          && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
+        run: |
+          echo "::error::the skill's launcher run left no result"
+          exit 1
 
   # Issue mode, reuse: the summary pass, in its own job with a read-only
   # GITHUB_TOKEN. It starts only when the run job's issue-prior step named a
@@ -1424,9 +1668,10 @@ jobs:
     needs: [broker-check, run]
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
     # lanes App's own pull_request events skip the run job. Issue mode has no
-    # PR head to post a check on.
+    # PR head to post a check on, and a run that handed off leaves the check
+    # to the caller's fallback call.
     if: >-
-      always() && inputs.issue-number == ''
+      always() && inputs.issue-number == '' && needs.run.outputs.handed-off != 'true'
       && !(github.event_name == 'pull_request'
       && github.event.pull_request.head.repo.full_name != github.repository)
       && !(github.event_name == 'pull_request'

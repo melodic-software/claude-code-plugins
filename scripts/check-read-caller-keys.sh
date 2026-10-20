@@ -20,7 +20,9 @@
 #   - no `secrets: inherit`;
 #   - every `secrets` reference in a `${{ }}` expression is `secrets.<name>`
 #     with `<name>` on the allowlist `claude_code_oauth_token`,
-#     `automations_claude_code_oauth_token`, `github_token`
+#     `automations_claude_code_oauth_token`,
+#     `issue_lane_claude_code_oauth_token`, `claude_api_key`,
+#     `automations_claude_api_key`, `github_token`
 #     (lower-cased, `-` read as `_`); `toJSON(secrets)`, `secrets[...]` and
 #     bare `secrets` fail.
 # No file of such a run sets `permissions: write-all`. The read workflow

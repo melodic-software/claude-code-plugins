@@ -69,6 +69,9 @@ function evaluate(expression, context) {
   return Function(`return (${body});`)();
 }
 
+// The secret names one step or job references, sorted.
+const stepSecrets = (node) => [...new Set([...JSON.stringify(node).matchAll(/secrets\.([\w-]+)/g)].map((m) => m[1]))].sort();
+
 const SUBAGENT = '{"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"haiku"}}';
 const ARGS = "--model sonnet --max-turns 75 --effort high";
 
@@ -566,7 +569,7 @@ test("work-resolve-issue.yml: the resolve-issue model job receives no App token 
   const resolve = jobs["resolve-issue"];
   assert.equal(resolve.uses, "./.github/workflows/pr-run-activity-read.yml");
   assert.equal(resolve.with.activity, "resolve-issue");
-  assert.equal(resolve.with["output-mode"], "patch");
+  assert.equal(resolve.with["output-mode"], undefined, "patch mode comes from the activity's applied-by");
   assert.deepEqual(Object.keys(resolve.secrets), ["claude-code-oauth-token"], "only the issue lane's Claude credential");
   assert.equal(resolve.secrets["claude-code-oauth-token"], "${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}");
 
@@ -580,9 +583,12 @@ test("work-resolve-issue.yml: the resolve-issue model job receives no App token 
     assert.equal(step.with["persist-credentials"], false, `${step.name} leaves no git credential`);
     assert.equal(step.with.token, undefined, `${step.name} takes no token`);
   }
+  // The issue skill's step and the launcher steps each name one Claude
+  // secret, and nothing else is a secret.
   const secrets = [...text.matchAll(/secrets\.([\w-]+)/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(secrets)], ["claude-code-oauth-token"]);
+  assert.deepEqual([...new Set(secrets)].sort(), ["claude-api-key", "claude-code-oauth-token"]);
   const skill = run.steps.find((s) => s.id === "act-skill");
+  assert.deepEqual(stepSecrets(skill), ["claude-code-oauth-token"]);
   assert.equal(skill.with.github_token, "${{ github.token }}", "the action gets the job's read-only token only");
   // No job of the read runner holds a write permission but the report job's
   // checks and the broker-check job's id-token, neither of which runs the model.
@@ -767,4 +773,297 @@ test("work-resolve-issue.yml: an unlisted labeler's agent-ready is refused at th
   assert.deepEqual(await admitOn(human, stranger), { proceed: "false", runs: false }, "an unlisted re-runner of a listed human's run is refused");
   const app = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
   assert.deepEqual(await admitOn(app), { proceed: "true", runs: true }, "the lanes App's own agent-ready is admitted");
+});
+
+// --- fix-ci on run-claude-cli: one Claude credential per call ---
+
+const READ_RUNNER = "./.github/workflows/pr-run-activity-read.yml";
+const workflowFiles = () => readdirSync(new URL("../../workflows/", import.meta.url)).filter((file) => /\.ya?ml$/.test(file));
+// The secret a read-runner input takes, by the suffix run-claude-cli names
+// it with: <ROLE>_CLAUDE_API_KEY or <ROLE>_CLAUDE_CODE_OAUTH_TOKEN.
+const CLAUDE_SECRETS = { "claude-api-key": "CLAUDE_API_KEY", "claude-code-oauth-token": "CLAUDE_CODE_OAUTH_TOKEN" };
+const atStep = (expression, context) => evaluate(String(expression).replaceAll("always()", "true"), context);
+
+test("every read-runner caller job passes exactly one Claude secret, named for its role", () => {
+  const callers = [];
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (job?.uses !== READ_RUNNER) continue;
+      callers.push(`${file} ${id}`);
+      const names = Object.keys(job.secrets ?? {});
+      assert.equal(names.length, 1, `${file} ${id} passes ${names.join(", ")}`);
+      const [name] = names;
+      assert.ok(Object.hasOwn(CLAUDE_SECRETS, name), `${file} ${id} passes ${name}`);
+      assert.match(job.with.role, /^[a-z][a-z0-9-]*$/, `${file} ${id} names a role`);
+      const role = job.with.role.toUpperCase().replaceAll("-", "_");
+      assert.equal(job.secrets[name], `\${{ secrets.${role}_${CLAUDE_SECRETS[name]} }}`, `${file} ${id}`);
+      assert.equal(job.with["output-mode"], undefined, `${file} ${id}: patch mode comes from the activity's applied-by`);
+    }
+  }
+  assert.deepEqual(callers.sort(), ["pr-unblock.yml fix-ci", "pr-unblock.yml fix-ci-subscription", "work-resolve-issue.yml resolve-issue"]);
+});
+
+test("no workflow step references both Claude secrets or sets CLAUDE_CODE_ENTRYPOINT, and claude-code-action gets no API key", () => {
+  for (const file of workflowFiles()) {
+    const doc = workflow(file);
+    assert.ok(!Object.hasOwn(doc.env ?? {}, "CLAUDE_CODE_ENTRYPOINT"), file);
+    for (const [id, job] of Object.entries(doc.jobs ?? {})) {
+      assert.ok(!Object.hasOwn(job.env ?? {}, "CLAUDE_CODE_ENTRYPOINT"), `${file} ${id}`);
+      for (const step of job.steps ?? []) {
+        const names = stepSecrets(step);
+        const both = names.some((name) => /api[-_]key/i.test(name)) && names.some((name) => /oauth[-_]token/i.test(name));
+        assert.ok(!both, `${file} ${id} ${step.name}: ${names.join(", ")}`);
+        assert.ok(!Object.hasOwn(step.env ?? {}, "CLAUDE_CODE_ENTRYPOINT"), `${file} ${id} ${step.name}`);
+        if (String(step.uses ?? "").startsWith("anthropics/claude-code-action@")) {
+          assert.doesNotMatch(JSON.stringify(step.with ?? {}), /api[-_]key/i, `${file} ${id} ${step.name}`);
+        }
+      }
+    }
+  }
+});
+
+test("pr-run-activity-read.yml: the run job can only read, and each launcher step holds one Claude secret", () => {
+  const { jobs } = workflow("pr-run-activity-read.yml");
+  assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" }, "read-only, no id-token");
+  const step = (id) => jobs.run.steps.find((s) => s.id === id);
+  const launcher = "melodic-software/ci-workflows/.github/actions/run-claude-cli@7b362428c76085a160e28656cd2c75c3147a69ff";
+  for (const [id, input, secret] of [
+    ["act-key", "api-key", "claude-api-key"],
+    ["act-token", "subscription-token", "claude-code-oauth-token"],
+  ]) {
+    const launch = step(id);
+    assert.equal(launch.uses, launcher, id);
+    assert.deepEqual(stepSecrets(launch), [secret], id);
+    assert.equal(launch.with[input], `\${{ secrets.${secret} }}`, id);
+    assert.equal(launch.with[input === "api-key" ? "subscription-token" : "api-key"], undefined, id);
+    assert.equal(launch.with["permission-mode"], "dontAsk", id);
+    assert.equal(launch["continue-on-error"], true, id);
+    assert.equal(launch["timeout-minutes"], 50, id);
+    assert.equal(launch.with["leg-timeout-minutes"], "45", id);
+    for (const list of ["tools", "allowed-tools", "disallowed-tools", "plugin-dirs", "preamble"]) {
+      assert.equal(launch.with[list], `\${{ steps.stage.outputs.${list} }}`, `${id} ${list}`);
+    }
+    for (const value of ["model", "effort", "max-turns"]) {
+      assert.equal(launch.with[value], `\${{ steps.config.outputs.${value} }}`, `${id} ${value}`);
+    }
+  }
+  // The key leg runs on a set key and the token leg only on a fallback call.
+  assert.equal(step("act-key").if, "steps.key-present.outputs.present == 'true'");
+  assert.equal(step("act-token").if, "steps.token-present.outputs.present == 'true'");
+  assert.match(step("key-present").if, /&& inputs\.fallback == ''$/);
+  assert.match(step("token-present").if, /&& inputs\.fallback != ''$/);
+  // The managed settings need sudo, so they come before the isolation; the
+  // head checkout comes after both.
+  const index = (name) => jobs.run.steps.findIndex((s) => s.name === name);
+  assert.ok(index("Apply the Claude managed settings") < index("Isolate the runner"));
+  assert.ok(index("Isolate the runner") < index("Check out the PR head"));
+  assert.ok(index("Stage the skill's files in the checkout") < index("Run the skill on the API key"));
+});
+
+test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_TEMP or /proc", () => {
+  const launchers = [];
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      for (const step of job.steps ?? []) {
+        if (!String(step.uses ?? "").includes("/run-claude-cli@")) continue;
+        launchers.push(`${file} ${id} ${step.id}`);
+        for (const input of ["plugin-dirs", "add-dirs"]) {
+          assert.doesNotMatch(String(step.with?.[input] ?? ""), /runner\.temp|RUNNER_TEMP|\/proc/, `${file} ${id} ${input}`);
+        }
+      }
+    }
+  }
+  assert.ok(launchers.includes("pr-run-activity-read.yml run act-key") && launchers.includes("pr-run-activity-read.yml run act-token"), launchers.join(", "));
+});
+
+// A call that handed off (its key empty, or a credit stop on its key leg)
+// uploads nothing, records no lane outcome and posts no check: the fallback
+// call's artifacts take the same names, and fix-ci-dispatch.mjs counts the
+// fix-ci checks on a head.
+test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, the patch and the report", () => {
+  const { jobs } = workflow("pr-run-activity-read.yml");
+  const run = jobs.run;
+  const base = {
+    "inputs.issue-number": "",
+    "inputs.fallback": "",
+    "job.status": "success",
+    "steps.go.outputs.run": "true",
+    "steps.config.outputs.kind": "skill",
+    "steps.config.outputs.applied-by-patch": "apply-patch",
+    "steps.launch.outcome": "success",
+    "steps.act-skill.outcome": "skipped",
+    "steps.act-token.outcome": "skipped",
+    "steps.token-present.outcome": "skipped",
+    "steps.token-present.outputs.present": "",
+    "steps.key-present.outcome": "success",
+    "steps.patch.outputs.state": "written",
+  };
+  const handoffs = {
+    "an empty key": { ...base, "steps.key-present.outputs.present": "false", "steps.act-key.outcome": "skipped", "steps.act-key.outputs.lane-class": "" },
+    "a credit stop": { ...base, "steps.key-present.outputs.present": "true", "steps.act-key.outcome": "failure", "steps.act-key.outputs.lane-class": "credit-stop" },
+  };
+  const ran = { ...base, "steps.key-present.outputs.present": "true", "steps.act-key.outcome": "success", "steps.act-key.outputs.lane-class": "" };
+  const guarded = run.steps.filter((s) => /^actions\/upload-artifact@|\/report-lane-outcome@/.test(String(s.uses ?? "")) || s.id === "patch");
+  assert.deepEqual(
+    guarded.map((s) => s.id ?? s.name),
+    ["reply-upload", "lane-record", "Record the launcher's lane outcome", "patch", "patch-upload", "Upload the issue outcome", "Upload the verdict"],
+  );
+  for (const step of guarded) {
+    for (const [name, context] of Object.entries(handoffs)) {
+      assert.equal(atStep(step.if, context), false, `${step.id ?? step.name} after ${name}`);
+    }
+  }
+  // A PR-mode call that ran uploads its reply, patch and verdict and records its outcome.
+  for (const step of guarded.filter((s) => !String(s.if).includes("inputs.issue-number != ''"))) {
+    assert.equal(atStep(step.if, ran), true, step.id ?? step.name);
+  }
+  const handedOff = (context) => atStep(run.outputs["handed-off"], context);
+  assert.equal(handedOff(handoffs["an empty key"]), true);
+  assert.equal(handedOff(handoffs["a credit stop"]), true);
+  assert.equal(handedOff(ran), false);
+  assert.equal(handedOff({ "steps.key-present.outputs.present": "", "steps.act-key.outputs.lane-class": "" }), false, "the fallback call never hands off");
+  assert.equal(handedOff({ ...ran, "steps.act-key.outcome": "failure", "steps.act-key.outputs.lane-class": "rate-limit" }), false);
+
+  const report = (handedOffOutput) =>
+    atStep(jobs.report.if, {
+      "inputs.issue-number": "",
+      "needs.run.outputs.handed-off": handedOffOutput,
+      "github.event_name": "workflow_dispatch",
+      "github.event.pull_request.head.repo.full_name": "",
+      "github.repository": "o/r",
+      "format('{0}', github.event.sender.id)": "1",
+      "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
+    });
+  assert.equal(report("true"), false);
+  assert.equal(report("false"), true);
+
+  // The handoff ends green; a call left with no launcher success fails.
+  const fail = run.steps.find((s) => s.name === "Fail without a result");
+  assert.equal(run.steps.at(-1), fail, "the run job's last step");
+  for (const [name, context] of Object.entries(handoffs)) assert.equal(atStep(fail.if, context), false, name);
+  assert.equal(atStep(fail.if, ran), false);
+  assert.equal(atStep(fail.if, { ...ran, "steps.act-key.outcome": "failure", "steps.act-key.outputs.lane-class": "max-turns" }), true);
+  const noToken = {
+    ...base,
+    "inputs.fallback": "credit-stop",
+    "steps.key-present.outcome": "skipped",
+    "steps.key-present.outputs.present": "",
+    "steps.act-key.outcome": "skipped",
+    "steps.act-key.outputs.lane-class": "",
+    "steps.token-present.outcome": "success",
+    "steps.token-present.outputs.present": "false",
+  };
+  assert.equal(atStep(fail.if, noToken), true, "an empty token on the fallback call fails red");
+  assert.equal(spawnSync("bash", ["-c", fail.run]).status, 1);
+});
+
+test("pr-run-activity-read.yml: the fallback call's lane record names why it ran", () => {
+  const { jobs } = workflow("pr-run-activity-read.yml");
+  const record = jobs.run.steps.find((s) => s.name === "Record the launcher's lane outcome");
+  const lane = (fallback) =>
+    atStep(
+      record.with.lane.replace(/format\('([^']*)', inputs\.lane, inputs\.activity(?:, steps\.launch\.outputs\.key-name)?\)/g, (_, text) =>
+        JSON.stringify(text.replace("{0}", "pr-unblock").replace("{1}", "fix-ci").replace("{2}", "AUTOMATIONS_CLAUDE_API_KEY")),
+      ),
+      { "inputs.fallback": fallback },
+    );
+  assert.equal(lane(""), "pr-unblock/fix-ci");
+  assert.equal(lane("credit-stop"), "pr-unblock/fix-ci (key AUTOMATIONS_CLAUDE_API_KEY hit a credit stop)");
+  assert.equal(lane("no-key"), "pr-unblock/fix-ci (key AUTOMATIONS_CLAUDE_API_KEY is empty)");
+  assert.equal(record.with["step-timeout-minutes"], 50, "the launcher step's timeout");
+});
+
+test("pr-unblock.yml: fix-ci-subscription runs only on fix-ci's credit stop or empty key and reads only those two outputs", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const first = jobs["fix-ci"];
+  const sub = jobs["fix-ci-subscription"];
+  assert.deepEqual(sub.needs, ["fix-ci-context", "fix-ci"]);
+  assert.equal(sub.uses, READ_RUNNER);
+  assert.deepEqual(first.secrets, { "claude-api-key": "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}" });
+  assert.deepEqual(sub.secrets, { "claude-code-oauth-token": "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" });
+  assert.equal(first.with.role, "automations");
+  assert.equal(first.with.fallback, undefined);
+  const { fallback, ...same } = sub.with;
+  assert.deepEqual(same, first.with, "the fallback call runs the same activity on the same inputs");
+  // fix-ci's outputs reach the fallback call only through two exact compares.
+  const text = JSON.stringify(sub);
+  const compares = [...text.matchAll(/needs\.fix-ci\.outputs\.([\w-]+) == '([^']*)'/g)].map((m) => `${m[1]} == ${m[2]}`);
+  assert.deepEqual([...new Set(compares)].sort(), ["credential-present == false", "lane-class == credit-stop"]);
+  assert.doesNotMatch(text.replace(/needs\.fix-ci\.outputs\.(lane-class == 'credit-stop'|credential-present == 'false')/g, ""), /needs\.fix-ci\.outputs\./);
+  const runs = (proceed, laneClass, present) =>
+    evaluate(sub.if, {
+      "needs.fix-ci-context.outputs.proceed": proceed,
+      "needs.fix-ci.outputs.lane-class": laneClass,
+      "needs.fix-ci.outputs.credential-present": present,
+    });
+  assert.equal(runs("true", "credit-stop", "true"), true);
+  assert.equal(runs("true", "", "false"), true);
+  for (const laneClass of ["", "rate-limit", "max-turns", "timeout", "other", "credit-stop "]) {
+    assert.equal(runs("true", laneClass, "true"), false, JSON.stringify(laneClass));
+  }
+  assert.equal(runs("true", "", ""), false, "a fix-ci that stopped before its credential step");
+  assert.equal(runs("false", "credit-stop", "true"), false);
+  assert.equal(evaluate(fallback, { "needs.fix-ci.outputs.lane-class": "credit-stop" }), "credit-stop");
+  assert.equal(evaluate(fallback, { "needs.fix-ci.outputs.lane-class": "" }), "no-key");
+  // No run: script in the lane reads fix-ci's outputs.
+  for (const [id, job] of Object.entries(jobs)) {
+    for (const step of job.steps ?? []) {
+      assert.doesNotMatch(String(step.run ?? ""), /needs\.fix-ci\.outputs\./, `${id} ${step.name}`);
+    }
+  }
+  // Both calls and the push job queue in the per-PR write group, never cancelled.
+  for (const id of ["fix-ci", "fix-ci-subscription", "apply-patch"]) {
+    assert.deepEqual(jobs[id].concurrency, { group: "pr-pipeline-write-${{ inputs.pr-number }}", queue: "max" }, id);
+  }
+  assert.equal(first.with["timeout-minutes"], 60, "the run job holds the 50-minute launcher step");
+});
+
+test("pr-unblock.yml: apply-patch takes the patch from whichever fix-ci call ran the activity", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const apply = jobs["apply-patch"];
+  assert.deepEqual(apply.needs, ["fix-ci", "fix-ci-subscription"]);
+  assert.equal(apply.uses, "./.github/workflows/pr-run-activity-write.yml");
+  assert.equal(apply.with.activity, "apply-patch");
+  assert.equal(apply.with["patch-activity"], "fix-ci");
+  assert.equal(apply.secrets, undefined, "the push job gets no Claude credential");
+  const outputs = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt", "patch-head-sha": "head-sha" };
+  const context = (from) => {
+    const values = {};
+    for (const job of ["fix-ci-subscription", "fix-ci"]) {
+      for (const output of Object.values(outputs)) {
+        values[`needs.${job}.outputs.${output}`] = job === from ? `${job}:${output}` : "";
+      }
+    }
+    return values;
+  };
+  for (const from of ["fix-ci", "fix-ci-subscription"]) {
+    for (const [input, output] of Object.entries(outputs)) {
+      assert.equal(evaluate(apply.with[input], context(from)), `${from}:${output}`, `${input} after ${from}`);
+    }
+  }
+  const runs = (first, second) =>
+    evaluate(apply.if, { "needs.fix-ci-subscription.outputs.patch-state": second, "needs.fix-ci.outputs.patch-state": first });
+  assert.equal(runs("written", ""), true);
+  assert.equal(runs("", "written"), true);
+  assert.equal(runs("", "empty"), true, "an empty patch hands the PR to a person");
+  assert.equal(runs("", ""), false, "a handoff whose fallback call left no patch");
+  assert.ok(jobs["report-escalation"].needs.includes("apply-patch"));
+  assert.ok(!jobs["report-escalation"].needs.includes("apply-ci-fix"));
+});
+
+test("pr-run-activity-read.yml: with output-mode gone, issue mode still refuses an activity that hands on no patch", () => {
+  const read = workflow("pr-run-activity-read.yml");
+  assert.equal(read.on.workflow_call.inputs["output-mode"], undefined);
+  const steps = read.jobs.run.steps;
+  const guard = steps.find((s) => s.name === "Assert an issue activity is in patch mode");
+  const refuses = (issue, patch) =>
+    evaluate(guard.if, { "steps.config.outcome": "success", "inputs.issue-number": issue, "steps.config.outputs.applied-by-patch": patch });
+  assert.equal(refuses("7", ""), true, "an issue activity with no applied-by patch");
+  assert.equal(spawnSync("bash", ["-c", guard.run]).status, 1);
+  assert.equal(refuses("7", "apply-issue-patch"), false);
+  assert.equal(refuses("", ""), false, "a PR-mode read activity may leave a clean tree");
+  const index = (predicate) => steps.findIndex(predicate);
+  assert.ok(index((s) => s === guard) > index((s) => s.id === "config"));
+  assert.ok(index((s) => s === guard) < index((s) => s.name === "Check out the PR head"), "before any head code");
+  assert.ok(index((s) => s === guard) < index((s) => s.id === "act-skill"));
 });

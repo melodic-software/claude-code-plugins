@@ -171,6 +171,13 @@ run_case "a read caller passing a secret off the allowlist fails" 1 \
 run_case "a read caller passing the lanes' Claude Code OAuth token passes" 0 \
   "printf '      other: \${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}\n' >>$CALLER"
 
+run_case "a read caller passing the automations role's Claude API key passes" 0 \
+  "printf '      claude-api-key: \${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}\n' >>$CALLER"
+
+run_case "a read caller passing another role's Claude API key fails" 1 \
+  "printf '      claude-api-key: \${{ secrets.ISSUE_LANE_CLAUDE_API_KEY }}\n' >>$CALLER" \
+  "$CALLER:11: reads secrets.ISSUE_LANE_CLAUDE_API_KEY, which is not on the read-run allowlist"
+
 run_case "secrets: inherit in a read caller fails" 1 \
   "sed 's/^    secrets:\$/    secrets: inherit/; /claude-code-oauth-token/d' $CALLER >$CALLER.new && mv $CALLER.new $CALLER" \
   "$CALLER:9: passes secrets: inherit"

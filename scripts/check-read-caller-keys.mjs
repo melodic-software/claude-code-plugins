@@ -26,8 +26,17 @@ const APP_KEY_INPUTS = new Set(["app-private-key", "private-key"]);
 // Secrets a read run may name, compared lower-cased with `-` read as `_`.
 // automations_claude_code_oauth_token is the lanes' Claude Code OAuth token,
 // the same kind of credential as claude_code_oauth_token under the automation
-// account's name; pr-unblock.yml's fix-ci read job runs on it.
-const ALLOWED_SECRETS = new Set(["claude_code_oauth_token", "automations_claude_code_oauth_token", "issue_lane_claude_code_oauth_token", "github_token"]);
+// account's name; pr-unblock.yml's fix-ci-subscription read job runs on it.
+// claude_api_key and automations_claude_api_key are the role's Claude Console
+// API key, which fix-ci's first read job runs on.
+const ALLOWED_SECRETS = new Set([
+  "claude_code_oauth_token",
+  "automations_claude_code_oauth_token",
+  "issue_lane_claude_code_oauth_token",
+  "claude_api_key",
+  "automations_claude_api_key",
+  "github_token",
+]);
 const KEY = "references the App key";
 
 const root = path.resolve(import.meta.dirname, "..");

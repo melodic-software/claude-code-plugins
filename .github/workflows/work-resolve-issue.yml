@@ -188,7 +188,6 @@ jobs:
       role: issue-lane
       activity: resolve-issue
       issue-number: ${{ format('{0}', github.event.issue.number) }}
-      output-mode: patch
       trusted-base: default-tip
       app-label: agent-ready
       timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}
