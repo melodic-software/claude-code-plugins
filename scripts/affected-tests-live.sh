@@ -255,7 +255,8 @@ read_pairs=(
   "plugins/instruction-placement/git-hooks/index-check.test.sh|plugins/instruction-placement/.claude-plugin/plugin.json"
 )
 for fixture in events-v1 invalid-device-scope-on-prototype invalid-reaction-agree \
-  invalid-recommendation-on-choice state-full state-v7-live wire-heartbeat wire-presence; do
+  invalid-recommendation-on-choice old-page-defaults state-v0-prototype state-v2-mentions \
+  state-v3 state-v4 state-v5 wire-heartbeat wire-presence; do
   read_pairs+=("$s_session|$pl_fix/$fixture.json")
 done
 for pair in "${read_pairs[@]}"; do
