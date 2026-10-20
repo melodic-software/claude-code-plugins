@@ -317,7 +317,8 @@ function teamSettings(doc, warn) {
     const root = realpathSync(resolve(opts.project));
     let at = resolve(opts.project, rel);
     while (!existsSync(at)) at = dirname(at);
-    return reserved(relative(root, realpathSync(at)));
+    const resolved = relative(root, realpathSync(at));
+    return resolved === "" || reserved(resolved);
   };
   const usable = (p) => {
     const rel = inside(p);
