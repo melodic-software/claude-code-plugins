@@ -819,13 +819,14 @@
     const goalAdd = btn("vf-goal-add", "Add a goal");
     const goalInput = E("input", "vf-input vf-goal-input"); goalInput.maxLength = 200; goalInput.hidden = true;
     goalInput.setAttribute("aria-label", "Session goal"); goalInput.placeholder = "What this session should settle";
-    titleRow.append(titleTxt, titleInput, titleEdit);
-    goalRow.append(goalTxt, goalAdd, goalInput, goalEdit);
-    titles.append(titleRow, goalRow);
-    brand.append(E("span", "vf-mark"), titles);
+    // The Live pill sits on the title's own line, so it stays beside the title however wide the goal runs.
     const live = E("span", "vf-live"); live.setAttribute("role", "status");
     const liveTxt = E("span", "vf-live-txt");
     live.append(E("span", "vf-live-dot"), liveTxt);
+    titleRow.append(titleTxt, titleInput, titleEdit, live);
+    goalRow.append(goalTxt, goalAdd, goalInput, goalEdit);
+    titles.append(titleRow, goalRow);
+    brand.append(E("span", "vf-mark"), titles);
     const people = E("div", "vf-people"); people.setAttribute("aria-label", "People here");
     const hereCount = E("span", "vf-here");
     const shareBtn = lbtn("vf-tbtn vf-sharebtn", "link", "Share"); shareBtn.setAttribute("aria-haspopup", "dialog");
@@ -844,7 +845,7 @@
     const bellBtn = btn("vf-tbtn vf-bell vf-inboxbtn"); bellBtn.setAttribute("aria-haspopup", "dialog"); bellBtn.setAttribute("aria-expanded", "false");
     const bellBadge = E("span", "vf-bell-n");
     bellBtn.append(icon("host"), E("span", "vf-inbox-l", "Inbox"), bellBadge);
-    top.append(brand, live, E("div", "vf-spacer"), people, hereCount, askTop, shareBtn, follow, keysBtn, themeBtn, bellBtn, gear);
+    top.append(brand, E("div", "vf-spacer"), people, hereCount, askTop, shareBtn, follow, keysBtn, themeBtn, bellBtn, gear);
 
     // ---------- rail ----------
     const body = E("main", "vf-body");
