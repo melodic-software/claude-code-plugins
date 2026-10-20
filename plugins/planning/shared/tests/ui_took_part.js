@@ -147,7 +147,7 @@ async function main() {
       const c = document.querySelector(".vf-round-cur > .vf-catchup");
       return !!c && !c.hidden && c.textContent.startsWith(l);
     }, line));
-    await maude.locator(".vf-orient .vf-catchup-go").click();
+    await maude.locator(".vf-orient .vf-catchup .vf-lbtn").click();
     ok("  Catch up on round 1 opens round 1's first open question", await until(maude, t => document.querySelector(".vf-qtext")?.textContent === t, T.g, 10000),
       await maude.evaluate(() => document.querySelector(".vf-qtext")?.textContent));
 

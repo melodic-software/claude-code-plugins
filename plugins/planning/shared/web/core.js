@@ -2,7 +2,7 @@
 // reads the prototype's state names; toView() builds them from the contract snapshot, and each action
 // below sends the contract route's body. The map: .work/shared-interview-ui/snapshot-map.md.
 (() => {
-  const SCHEMA_VERSION = 6; // the session file version this page was built for; another one reloads it
+  const SCHEMA_VERSION = 7; // the session file version this page was built for; another one reloads it
   const memory = new Map();
   const store = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })()
     || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
@@ -54,7 +54,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
-    goal: "", intro: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
+    goal: "", intro: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
@@ -120,7 +120,7 @@
       removed: (s.removed || []).map(p => p.pid),
       rounds: rounds.map(r => ({ n: r.n, status: r.status.kind })),
       round: last ? { current: last.n, status: last.status.kind, sentAt: last.status.sentAt,
-        ...(last.status.ready ? { ready: { by: nameOf(last.status.ready.by), ts: last.status.ready.at } } : {}) } : { current: 1, status: "open" },
+        ...(last.status.ready ? { ready: { by: nameOf(last.status.ready.by), cid: last.status.ready.by, ts: last.status.ready.at } } : {}) } : { current: 1, status: "open" },
       requestCounts: s.requestCounts || DEFAULTS.requestCounts,
       shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, guestKey: s.guestKey || "",
     };
@@ -250,7 +250,7 @@
     // files answers carry. No path ever reaches the page.
     const upView = u => ({ id: u.id, cid: u.pid, by: nameOf(u.pid), qid: u.qid || "", file: u.file, ext: u.ext, size: u.size, ts: u.at,
       total: u.chunks, chunkSize: u.chunkSize, status: u.status.kind, received: u.status.received || 0, bytes: u.status.bytes || 0,
-      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}), ...(u.image ? { image: true } : {}), ...(u.shown ? { shown: true } : {}) });
+      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}), ...(u.image ? { image: true } : {}), ...(u.shown ? { shown: true } : {}), ...(u.carried ? { carried: true } : {}) });
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
@@ -258,6 +258,8 @@
     // My own problem reports (Your reports): their words, additions and status, never the page context.
     view.myReports = (s.myReports || []).map(r => ({ id: r.id, text: r.text, image: r.image, status: r.status, ts: r.ts, adds: r.adds || [] }));
     view.files = { ...held.files, ...(s.files || {}) };
+    // Follow-up 32: qid -> received pictures offered on it that nothing carries, as far as this viewer may see them.
+    view.questionPics = s.questionPics || {};
     // Passes and their reasons (owner only): qid -> pid -> {reason?, ts}.
     view.passes = s.passes || {};
     // Present people are active or away (with since when); a person with no heartbeat for a while is absent: offline.
@@ -362,6 +364,13 @@
     state: structuredClone(DEFAULTS),
     live: false,
     errorText,
+    /** The time since ts (server seconds): "5 min", "2 h", "3 d", or "" under a minute. */
+    span(ts) {
+      const s = Math.max(0, Math.round((Core.state.serverTime || Date.now() / 1000) - ts));
+      return s < 60 ? "" : s < 3600 ? `${Math.floor(s / 60)} min` : s < 86400 ? `${Math.floor(s / 3600)} h` : `${Math.floor(s / 86400)} d`;
+    },
+    /** When ts was, as the page writes it everywhere: "just now", "5 min ago". */
+    since(ts) { const d = Core.span(ts); return d ? `${d} ago` : "just now"; },
 
     /** fn(state, Core) runs after every poll and every local change. Returns an unsubscribe function. */
     subscribe(fn) { listeners.add(fn); fn(Core.state, Core); return () => listeners.delete(fn); },
