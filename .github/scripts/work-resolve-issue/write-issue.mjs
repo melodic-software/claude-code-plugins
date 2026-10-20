@@ -40,10 +40,9 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
-const DECISION = /^\*\*Decision recorded\.\*\*(\s|$)/;
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
 // out the body.
 export const MAX_OTHER_COMMENTS = 20;
@@ -176,7 +175,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
 
     const frozenAt = await readAdmittedAt(client, repository, env.ISSUE_NUMBER, env.LABEL_NAME, Number(env.LABEL_SENDER_ID), lanesAppId, humans, eventAt);
     // Timestamps are whole seconds, so a change in the label's own second counts as after it.
-    // NaN compares false, so an unparseable time is a change.
+    // NaN compares false, so an unparsable time is a change.
     const edits = await readIssueEdits(client, repository, env.ISSUE_NUMBER);
     if (!edits.every((time) => time == null || timeOf(time) < frozenAt)) {
       throw new Error(`the issue title or body changed after ${env.LABEL_NAME} was added`);
@@ -190,19 +189,13 @@ export async function main({ env = process.env, github, log = console.log } = {}
       }
       const createdAt = timeOf(comment.created_at);
       const editedAt = lastEditedAt === null ? createdAt : timeOf(lastEditedAt);
-      // NaN compares false, so an unparseable time is left out.
+      // NaN compares false, so an unparsable time is left out.
       if (!(createdAt < frozenAt && editedAt < frozenAt)) {
         dropped["after-admission"] += 1;
         continue;
       }
       const human = humans.has(comment.user.id);
-      // A decision is a human's own text: not posted through an App, and
-      // never edited or last edited by a human.
-      const decision =
-        human &&
-        comment.performed_via_github_app == null &&
-        (lastEditedAt === null || humans.has(lastEditorId)) &&
-        DECISION.test(firstLine(comment.body));
+      const decision = isDecisionComment({ comment, lastEditedAt, lastEditorId }, humans);
       comments.push({
         author_login: comment.user.login,
         author_kind: human ? "human" : "bot",

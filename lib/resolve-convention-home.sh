@@ -9,7 +9,7 @@
 # needs the home reads the same line. Eight plugins each parsing that line in
 # their own prose would drift exactly the way retirement detection drifted, so
 # the grammar lives here, once, tested, and the doctrine doc cites this helper
-# as its owner.
+# as its owner. The behavior follows docs/adr/0075 (fixes 1, 2, 4, 5, 6, 13).
 #
 # GRAMMAR. The root instruction file carries a region delimited by two marker
 # lines (surrounding whitespace, a leading UTF-8 BOM, and a trailing carriage
@@ -28,14 +28,33 @@
 # equal to `.` or `..`, an optional trailing `/` which is dropped on output.
 # Anything else — an absolute path, a leading `~`, a backslash, a drive letter,
 # whitespace, or an empty token — is an invalid pointer, never a best-effort
-# parse.
+# parse. A line inside the region that is exactly `declined` (surrounding
+# whitespace ignored) records that the repository declined a home: the caller
+# must not ask again. A `declined` line beside a pointer line is a FAIL.
 #
 # WHICH FILE. `AGENTS.md` is canonical; `CLAUDE.md` is consulted when AGENTS.md
 # carries no region. A CLAUDE.md whose only non-blank content is `@AGENTS.md` is
-# a pure import shim and is never consulted. When BOTH files carry a region,
-# AGENTS.md supplies the printed value and CLAUDE.md's copy is reported on
-# stderr as `duplicate:` — the doctrine calls that a finding with a remediation
-# (remove the copy), not a hard stop, so the exit stays 0.
+# a pure import shim and is never consulted. The two files are compared
+# physically (realpath): when one is a symlink to the other they are one file,
+# read once, and nothing is reported. When two distinct files both carry a
+# region, AGENTS.md supplies the printed value and CLAUDE.md's copy is reported
+# on stderr as `duplicate:` — the doctrine calls that a finding with a
+# remediation (remove the copy), not a hard stop, so the exit stays 0.
+#
+# WHERE A HOME CAN APPLY. The root is classified first. It is "not applicable"
+# (exit 5) when it is $HOME, an ancestor of $HOME, or not inside a git work
+# tree: a home directory or a loose folder is not a repository that binds a
+# home. With no --root the root is the git toplevel of CLAUDE_PROJECT_DIR (else
+# of the current directory), one home per git root: CLAUDE_PROJECT_DIR only says
+# where to look, so a subdirectory of a repository never reads a file of its own.
+#
+# WHAT IS READ. By default the working tree. `--ref <ref>` reads AGENTS.md,
+# CLAUDE.md and the home directory as committed at <ref>, so a lane resolves the
+# pointer at the base commit: a 40-hex commit id or `origin/<name>`, validated
+# before any git call and passed to git after --end-of-options. A file that is a
+# symlink at <ref> is not read. `-` reads the region from stdin as the text of
+# AGENTS.md instead (a remote reader passes text it fetched itself); it names no
+# tree, so the root is not classified and the home directory is not checked.
 #
 # UNTRUSTED INPUT. The root file is consumer prose. Nothing read from it is
 # evaluated, expanded, or interpolated into a command: a candidate token is only
@@ -43,10 +62,12 @@
 # Every line is stripped of `\r` and truncated to MAX_LINE bytes before parsing.
 #
 # Usage:
-#   resolve-convention-home.sh [--root <repo>] [--explain] [--help]
+#   resolve-convention-home.sh [--root <repo>] [--ref <ref>] [--explain] [--help] [-]
 #
-#   --root <repo>  the repository root (default: ${CLAUDE_PROJECT_DIR}, else the
-#                  git toplevel, else the current directory)
+#   --root <repo>  the repository root (default: the git toplevel of
+#                  ${CLAUDE_PROJECT_DIR}, else of the current directory)
+#   --ref <ref>    read the committed files at <ref> (40-hex id or origin/<name>)
+#   -              read the AGENTS.md text from stdin (not with --root or --ref)
 #   --explain      write which file, region, and token were used to stderr
 #
 # Exit:
@@ -55,10 +76,18 @@
 #      stderr does not change this)
 #   1  no region, or a region with no pointer line, in any consulted root file
 #      — the caller asks the operator; nothing is inferred here
-#   2  usage error or an unusable --root
+#   2  usage error, an unusable --root, or an invalid or unresolvable --ref
 #   3  FAIL, each with a distinct stderr message: two pointer lines in one
 #      region; an unterminated or nested region; an invalid pointer path; a
-#      pointer whose target directory is missing
+#      pointer whose target directory is missing; `declined` beside a pointer
+#   4  a region holds a `declined` line: the repository declined a home, so the
+#      caller uses the bundled defaults and does not ask again
+#   5  not applicable: the root is $HOME, an ancestor of it, or not a git work
+#      tree; no home applies and nothing is asked
+#
+# A pointer with no concern file under the home is not an error here: the home
+# resolves, and the cascade reports the missing file's layer as absent so the
+# bundled default applies (config-cascade.mjs).
 #
 # Shared source: lib/resolve-convention-home.sh at the marketplace repo root is the canonical source; the copies in the plugins
 # that carry it are generated by scripts/sync-shared-copies.sh and registered in
@@ -83,18 +112,26 @@ inside the `<!-- BEGIN GENERATED: convention-home -->` region of AGENTS.md
 (canonical) or CLAUDE.md (unless it is a pure `@AGENTS.md` shim).
 
 Usage:
-  resolve-convention-home.sh [--root <repo>] [--explain] [--help]
+  resolve-convention-home.sh [--root <repo>] [--ref <ref>] [--explain] [--help] [-]
 
-  --root <repo>  repository root (default: CLAUDE_PROJECT_DIR, git toplevel, cwd)
+  --root <repo>  repository root (default: git toplevel of CLAUDE_PROJECT_DIR, else cwd)
+  --ref <ref>    read the files as committed at <ref> (40-hex id or origin/<name>)
+  -              read the AGENTS.md text from stdin (not with --root or --ref)
   --explain      write the file, region, and token used to stderr
 
 Exit: 0 resolved (home on stdout); 1 no pointer anywhere (ask); 2 usage;
       3 FAIL — two pointers in one region, unterminated region, invalid path,
-      or target directory missing.
+      target directory missing, or `declined` beside a pointer;
+      4 declined (a `declined` line in the region; do not ask again);
+      5 not applicable (root is $HOME, an ancestor of it, or not a git work tree).
 EOF
 }
 
 ROOT_ARG=""
+HAS_ROOT=0
+REF=""
+HAS_REF=0
+STDIN_MODE=0
 EXPLAIN=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -108,7 +145,21 @@ while [[ $# -gt 0 ]]; do
       exit 2
     fi
     ROOT_ARG="$2"
+    HAS_ROOT=1
     shift 2
+    ;;
+  --ref)
+    if [[ $# -lt 2 ]]; then
+      echo "ERROR: --ref needs a commit id or origin/<name>" >&2
+      exit 2
+    fi
+    HAS_REF=1
+    REF="$2"
+    shift 2
+    ;;
+  -)
+    STDIN_MODE=1
+    shift
     ;;
   --explain)
     EXPLAIN=1
@@ -122,21 +173,84 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -n "$ROOT_ARG" ]]; then
-  ROOT="$ROOT_ARG"
-elif [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-  ROOT="$CLAUDE_PROJECT_DIR"
-else
-  # tr -d '\r': Git on Windows can return a CRLF-terminated path.
-  ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  [[ -n "$ROOT" ]] || ROOT="$PWD"
-fi
-if [[ ! -d "$ROOT" ]]; then
-  echo "ERROR: --root is not a directory: $ROOT" >&2
+if [[ $STDIN_MODE -eq 1 && ( $HAS_ROOT -eq 1 || $HAS_REF -eq 1 ) ]]; then
+  echo "ERROR: - (stdin) names no tree; it cannot be combined with --root or --ref" >&2
   exit 2
+fi
+if [[ $HAS_REF -eq 1 ]]; then
+  # Only a full commit id or origin/<name> passes; nothing that git could read
+  # as an option, a revision range or a path.
+  if ! [[ "$REF" =~ ^[0-9a-f]{40}$ || ("$REF" =~ ^origin/[A-Za-z0-9._/-]+$ && "$REF" != *..* && "$REF" != origin/-*) ]]; then
+    echo "ERROR: invalid --ref; expected a 40-hex commit id or origin/<name>" >&2
+    exit 2
+  fi
 fi
 
 explain() { [[ $EXPLAIN -eq 1 ]] && echo "$*" >&2; return 0; }
+
+SCRATCH=""
+cleanup() { [[ -z "$SCRATCH" ]] || rm -rf "$SCRATCH"; }
+trap cleanup EXIT
+
+ROOT=""
+if [[ $STDIN_MODE -eq 0 ]]; then
+  if [[ $HAS_ROOT -eq 1 ]]; then
+    ROOT="$ROOT_ARG"
+  else
+    START="${CLAUDE_PROJECT_DIR:-$PWD}"
+    # tr -d '\r': Git on Windows can return a CRLF-terminated path.
+    ROOT="$(git -C "$START" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+    [[ -n "$ROOT" ]] || ROOT="$START"
+  fi
+  if [[ ! -d "$ROOT" ]]; then
+    echo "ERROR: --root is not a directory: $ROOT" >&2
+    exit 2
+  fi
+fi
+
+# phys <path>: the physical path of an existing file or directory, symlinks
+# resolved (realpath, else a readlink walk for macOS before 13).
+phys() {
+  local p="$1" dir n=0 target
+  if command -v realpath >/dev/null 2>&1; then
+    realpath -- "$p" 2>/dev/null && return 0
+  fi
+  while [[ -L "$p" && $n -lt 40 ]]; do
+    target="$(readlink "$p")" || return 1
+    case "$target" in
+    /*) p="$target" ;;
+    *) p="$(dirname "$p")/$target" ;;
+    esac
+    n=$((n + 1))
+  done
+  if [[ -d "$p" ]]; then
+    (cd "$p" && pwd -P)
+  else
+    dir="$(cd "$(dirname "$p")" && pwd -P)" || return 1
+    printf '%s/%s\n' "$dir" "$(basename "$p")"
+  fi
+}
+
+# classify_root: exit 5 when no home can apply to $ROOT.
+classify_root() {
+  local root_p home_p why=""
+  root_p="$(CDPATH='' cd -- "$ROOT" && pwd -P)" || return 0
+  if [[ -n "${HOME:-}" && -d "$HOME" ]]; then
+    home_p="$(CDPATH='' cd -- "$HOME" && pwd -P)"
+    if [[ "$root_p" == "$home_p" ]]; then
+      why="the root is \$HOME"
+    elif [[ "$root_p" == "/" || "$home_p/" == "$root_p/"* ]]; then
+      why="the root is an ancestor of \$HOME"
+    fi
+  fi
+  if [[ -z "$why" ]] && ! git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    why="the root is not inside a git work tree"
+  fi
+  if [[ -n "$why" ]]; then
+    echo "not applicable: $why ($root_p); no convention home applies" >&2
+    exit 5
+  fi
+}
 
 trim() {
   local s="$1"
@@ -169,9 +283,11 @@ is_pure_shim() {
 #   empty     a region exists but holds no pointer line
 #   one       exactly one pointer line; SCAN_TOKEN holds its first backticked token
 #   many      two or more pointer lines
+#   declined  a `declined` line and no pointer line
+#   mixed     a `declined` line beside a pointer line
 #   unterminated / nested   a BEGIN with no END, or a BEGIN inside a region
 scan_file() {
-  local file="$1" line in_region=0 regions=0 pointers=0 rest
+  local file="$1" line in_region=0 regions=0 pointers=0 declined=0 rest
   SCAN_STATE="none"
   SCAN_TOKEN=""
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -189,6 +305,10 @@ scan_file() {
       ;;
     "$END_MARKER")
       in_region=0
+      continue
+      ;;
+    declined)
+      [[ $in_region -eq 1 ]] && declined=1
       continue
       ;;
     *) ;;
@@ -209,6 +329,10 @@ scan_file() {
     SCAN_STATE="unterminated"
   elif [[ $regions -eq 0 ]]; then
     SCAN_STATE="none"
+  elif [[ $declined -eq 1 && $pointers -gt 0 ]]; then
+    SCAN_STATE="mixed"
+  elif [[ $declined -eq 1 ]]; then
+    SCAN_STATE="declined"
   elif [[ $pointers -eq 0 ]]; then
     SCAN_STATE="empty"
   elif [[ $pointers -eq 1 ]]; then
@@ -249,6 +373,19 @@ valid_home() {
   return 0
 }
 
+# committed_file <name> <dest>: copy <name> as committed at $REF into <dest>.
+# Returns 1 when it is absent or not a regular file at $REF (a symlink is not read).
+committed_file() {
+  local entry mode
+  entry="$(git -C "$ROOT" ls-tree "$REF" -- "$1" 2>/dev/null)" || return 1
+  mode="${entry%% *}"
+  # ./ keeps the path relative to $ROOT, as ls-tree reads it, when $ROOT is below the toplevel.
+  case "$mode" in
+  100644 | 100755) git -C "$ROOT" show --end-of-options "$REF:./$1" >"$2" 2>/dev/null ;;
+  *) return 1 ;;
+  esac
+}
+
 # TOKEN here is the parser sense: the pointer line scan_file lifts out of a
 # convention-home region, never a credential. gitleaks' generic-api-key rule
 # keys on the identifier and then takes the next line it can reach as the
@@ -257,23 +394,58 @@ valid_home() {
 AGENTS_STATE="none"; AGENTS_TOKEN=""
 CLAUDE_STATE="none"; CLAUDE_TOKEN="" # gitleaks:allow
 CLAUDE_SHIM=0 # gitleaks:allow
+CLAUDE_SAME=0 # gitleaks:allow
+AGENTS_FILE=""
+CLAUDE_FILE="" # gitleaks:allow
 
-if [[ -f "$ROOT/AGENTS.md" ]]; then
-  scan_file "$ROOT/AGENTS.md"
+if [[ $STDIN_MODE -eq 1 ]]; then
+  SCRATCH="$(mktemp -d)" || exit 2
+  cat >"$SCRATCH/AGENTS.md"
+  AGENTS_FILE="$SCRATCH/AGENTS.md"
+else
+  classify_root
+  if [[ $HAS_REF -eq 1 ]]; then
+    if ! git -C "$ROOT" rev-parse --verify --quiet --end-of-options "$REF^{commit}" >/dev/null; then
+      echo "ERROR: --ref does not resolve to a commit: $REF" >&2
+      exit 2
+    fi
+    SCRATCH="$(mktemp -d)" || exit 2
+    committed_file AGENTS.md "$SCRATCH/AGENTS.md" && AGENTS_FILE="$SCRATCH/AGENTS.md"
+    committed_file CLAUDE.md "$SCRATCH/CLAUDE.md" && CLAUDE_FILE="$SCRATCH/CLAUDE.md"
+  else
+    [[ -f "$ROOT/AGENTS.md" ]] && AGENTS_FILE="$ROOT/AGENTS.md"
+    [[ -f "$ROOT/CLAUDE.md" ]] && CLAUDE_FILE="$ROOT/CLAUDE.md"
+    if [[ -n "$AGENTS_FILE" && -n "$CLAUDE_FILE" && "$(phys "$AGENTS_FILE")" == "$(phys "$CLAUDE_FILE")" ]]; then
+      CLAUDE_SAME=1
+      CLAUDE_FILE=""
+    fi
+  fi
+fi
+
+if [[ -n "$AGENTS_FILE" ]]; then
+  scan_file "$AGENTS_FILE"
   AGENTS_STATE="$SCAN_STATE"; AGENTS_TOKEN="$SCAN_TOKEN"
 fi
-if [[ -f "$ROOT/CLAUDE.md" ]]; then
-  if is_pure_shim "$ROOT/CLAUDE.md"; then
+if [[ -n "$CLAUDE_FILE" ]]; then
+  if is_pure_shim "$CLAUDE_FILE"; then
     CLAUDE_SHIM=1
   else
-    scan_file "$ROOT/CLAUDE.md"
+    scan_file "$CLAUDE_FILE"
     CLAUDE_STATE="$SCAN_STATE"; CLAUDE_TOKEN="$SCAN_TOKEN"
   fi
 fi
 
-explain "root:      $ROOT"
+if [[ $STDIN_MODE -eq 1 ]]; then
+  explain "source:    stdin"
+elif [[ $HAS_REF -eq 1 ]]; then
+  explain "root:      $ROOT at $REF"
+else
+  explain "root:      $ROOT"
+fi
 explain "AGENTS.md: $AGENTS_STATE"
-if [[ $CLAUDE_SHIM -eq 1 ]]; then
+if [[ $CLAUDE_SAME -eq 1 ]]; then
+  explain "CLAUDE.md: the same file as AGENTS.md (not read twice)"
+elif [[ $CLAUDE_SHIM -eq 1 ]]; then
   explain "CLAUDE.md: pure @AGENTS.md shim (not consulted)"
 else
   explain "CLAUDE.md: $CLAUDE_STATE"
@@ -289,16 +461,25 @@ if [[ "$AGENTS_STATE" != "none" ]]; then
 else
   CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"
 fi
+[[ $STDIN_MODE -eq 1 ]] && CHOSEN="stdin"
 explain "chosen:    $CHOSEN ($STATE)"
 
 case "$STATE" in
 none)
-  echo "no convention-home region in AGENTS.md or CLAUDE.md under $ROOT; ask the operator for the home" >&2
+  echo "no convention-home region in AGENTS.md or CLAUDE.md under ${ROOT:-stdin}; ask the operator for the home" >&2
   exit 1
   ;;
 empty)
   echo "convention-home region in $CHOSEN has no pointer line; ask the operator for the home" >&2
   exit 1
+  ;;
+declined)
+  echo "declined: convention-home region in $CHOSEN records that this repository declined a home; use the bundled defaults and do not ask again" >&2
+  exit 4
+  ;;
+mixed)
+  echo "FAIL: convention-home region in $CHOSEN holds both a declined line and a pointer line; keep one" >&2
+  exit 3
   ;;
 many)
   echo "FAIL: two pointer lines in one convention-home region ($CHOSEN); keep exactly one" >&2
@@ -322,7 +503,14 @@ fi
 HOME_DIR="${TOKEN%/}"
 explain "token:     $TOKEN"
 
-if [[ ! -d "$ROOT/$HOME_DIR" ]]; then
+if [[ $STDIN_MODE -eq 1 ]]; then
+  : # no tree to check the directory against
+elif [[ $HAS_REF -eq 1 ]]; then
+  if [[ "$(git -C "$ROOT" cat-file -t "$REF:./$HOME_DIR" 2>/dev/null)" != "tree" ]]; then
+    echo "FAIL: pointer target directory missing: $HOME_DIR (named in $CHOSEN, not found at $REF)" >&2
+    exit 3
+  fi
+elif [[ ! -d "$ROOT/$HOME_DIR" ]]; then
   echo "FAIL: pointer target directory missing: $HOME_DIR (named in $CHOSEN, not found under $ROOT)" >&2
   exit 3
 fi

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Checkpoint findings: 1 Skill-fit gap (implement-dispatch bypassed).",
+      "why": "category named"
+    },
+    {
+      "answer": "Found a skill-fit gap: the skill needed a PLAN.md.",
+      "why": "lowercase category"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Checkpoint findings: 1 Efficiency issue with the workers.",
+      "why": "wrong category"
+    },
+    {
+      "answer": "Nothing to report this checkpoint.",
+      "why": "no finding"
+    }
+  ]
+}

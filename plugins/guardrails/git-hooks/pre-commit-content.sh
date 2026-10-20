@@ -17,8 +17,8 @@
 # whole content, a changed file on the lines the commit adds, read from the
 # index (the work tree with --worktree). Every staged path is judged, a
 # force-added gitignored one included; --worktree leaves out untracked
-# gitignored files. Skipped: symbolic links, submodules, files git calls
-# binary, and files over 1 MiB. The two
+# gitignored files. Skipped: symbolic links, submodules, files holding a NUL
+# byte (whatever a `-diff` attribute says), and files over 1 MiB. The two
 # guards' path exemptions apply (tests/fixtures for secrets only).
 #
 # Findings print as "<path>:<line>: <message>" on stderr and exit 1. The
@@ -94,28 +94,6 @@ index_mode() {
   printf '%s' "${entry%% *}"
 }
 
-# file_text <path>: what the commit would hold, on stdout.
-file_text() {
-  if [[ "$CHECKS_MODE" == worktree ]]; then
-    cat -- "$1"
-  else
-    git show ":$1" 2>/dev/null
-  fi
-}
-
-is_binary() {
-  local stat
-  if [[ "$CHECKS_MODE" == worktree ]]; then
-    git ls-files --error-unmatch -- ":(literal)$1" >/dev/null 2>&1 || {
-      grep -Iq . -- "$1" 2>/dev/null && return 1
-      [[ -s "$1" ]]
-      return
-    }
-  fi
-  stat="$(checks_diff --numstat -- "$1" 2>/dev/null)"
-  [[ "$stat" == "-	-	"* ]]
-}
-
 file_size() {
   if [[ "$CHECKS_MODE" == worktree ]]; then
     wc -c <"$1" | tr -d ' '
@@ -147,16 +125,16 @@ while IFS= read -r -d '' f; do
     *) continue ;;
     esac
   fi
-  is_binary "$f" && continue
+  checks_has_nul "$f" && continue
   (($(file_size "$f") <= MAX_BYTES)) || continue
   sink="$out"
   if [[ "$f" == *[\"\\[:cntrl:]]* ]]; then
     # Git quotes such a name whatever core.quotePath says, so the range table
     # holds no entry for it: the file is judged whole, past the range filter.
-    text="$(file_text "$f"; printf x)"
+    text="$(checks_file_text "$f"; printf x)"
     sink="$whole"
   else
-    text="$(file_text "$f" | added_only "$f"; printf x)"
+    text="$(checks_file_text "$f" | added_only "$f"; printf x)"
   fi
   text="${text%x}"
   [[ -n "${text//[[:space:]]/}" ]] || continue
