@@ -27,7 +27,8 @@ Distinct neighbors: `/planning:design` Phase 1 decomposes the problem space WITH
 already chosen; a proactive architecture-friction scan (e.g. `/architecture:improve`, if enabled)
 hunts on its own lanes; a UI-variation prototyper (e.g. `/prototype:explore-directions`, if
 enabled) builds visual variations of a chosen direction. This skill is the general, problem-shaped
-entry upstream of all three. Creative-domain ideation owned by a domain skill (e.g. songwriting
+entry upstream of all three. One request to raise or deepen, not options to compare, is
+`/discipline:be-ambitious` (if enabled; the user types it). Creative-domain ideation owned by a domain skill (e.g. songwriting
 brainstorms → `/songwriting:workflow`, if enabled) stays with that skill.
 
 ## Task
