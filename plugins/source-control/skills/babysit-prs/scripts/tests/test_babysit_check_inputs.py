@@ -187,6 +187,25 @@ class ChangedSinceMergeBase(unittest.TestCase):
                 self.assertEqual(out["state"], "unknown")
                 self.assertTrue(out["reason"])
 
+    def test_a_partial_clone_is_unknown(self) -> None:
+        # A blobless clone lacks the tip's registry once a fetch moves the tip;
+        # read as empty, it would register nothing and answer `current`.
+        git(self.origin, "config", "uploadpack.allowFilter", "true")
+        partial = self.tmp / "partial"
+        git(
+            self.tmp,
+            "clone",
+            "-q",
+            "--filter=blob:none",
+            f"file://{self.origin}",
+            str(partial),
+        )
+        commit(self.origin, REGISTRY, "lib/a.sh plugins/z/a.sh\n")
+        git(partial, "fetch", "-q", "origin")
+        out = self.read((REGISTRY,), self.k, partial)
+        self.assertEqual(out["state"], "unknown")
+        self.assertTrue(out["reason"])
+
     def test_no_paths_is_off(self) -> None:
         self.assertEqual(self.read((), self.p), {"state": "off"})
 

@@ -76,13 +76,11 @@ def _names(out: str) -> list[str]:
 
 
 def _full_history_clone(roots: Iterable[Path], tip_ref: str) -> tuple[Path, str] | None:
-    """The first clone that resolves `tip_ref` and holds its whole history."""
+    """The first clone that resolves `tip_ref` and holds its whole history
+    (not shallow or partial)."""
     for checkout in roots:
-        top = _git(checkout, "rev-parse", "--show-toplevel")
-        if not top or not top.strip():
-            continue
-        root = Path(top.strip())
-        if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
+        root = merge_policy._full_history_root(checkout)
+        if root is None:
             continue
         tip = (
             _git(root, "rev-parse", "--verify", "--quiet", f"{tip_ref}^{{commit}}")
