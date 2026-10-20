@@ -1497,7 +1497,6 @@
 .app .vf-cm-col { min-width: 0; display: grid; gap: 4px; }
 .app .vf-cm-head { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; font-size: 12px; }
 .app .vf-cm-name { font-weight: 650; }
-.app .vf-cm-new { margin: 0; inline-size: 6px; block-size: 6px; }
 .app .vf-cm-txt { font-size: 13.5px; overflow-wrap: anywhere; }
 .app .vf-cm-txt p { margin: 0; }
 .app .vf-cm-ishidden .vf-cm-txt { color: var(--muted); }

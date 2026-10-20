@@ -76,14 +76,15 @@ async function main() {
     // ---------- F15: one class each, the dots at the sizes they had ----------
     ok("the rail's new dot, the counters and inline link buttons use one class each", await bo.evaluate(() => !document.querySelector(".vf-newdot, .vf-linkbtn, .vf-catchup-go, .vf-rep-count")
       && !!document.querySelector(".vf-qside .vf-ndot") && !!document.querySelector(".vf-reportpop .vf-count-txt")));
-    const dot = (page, cls) => page.evaluate(c => {
+    const dot = (page, cls, dotCls = "vf-ndot") => page.evaluate(([c, dc]) => {
       const host = document.createElement(c.split(" ")[0]); host.className = c.split(" ").slice(1).join(" ");
-      const d = document.createElement("span"); d.className = "vf-ndot"; host.append(d); document.querySelector(".app").append(host);
+      const d = document.createElement("span"); d.className = dc; host.append(d); document.querySelector(".app").append(host);
       const cs = getComputedStyle(d), out = `${cs.width} ${cs.marginBlockStart}`; host.remove(); return out;
-    }, cls);
-    const dots = { card: await dot(bo, "div vf-card-head"), rail: await dot(bo, "span vf-qside"), note: await dot(bo, "button vf-nitem"), inbox: await dot(bo, "button vf-ixitem") };
-    ok("an answer card's dot is 7 px, a question row's 7 px 2 px down, a notification's 8 px 6 px down, an Inbox row's 8 px",
-      dots.card === "7px 0px" && dots.rail === "7px 2px" && dots.note === "8px 6px" && dots.inbox === "8px 0px", JSON.stringify(dots));
+    }, [cls, dotCls]);
+    const dots = { card: await dot(bo, "div vf-card-head"), rail: await dot(bo, "span vf-qside"), note: await dot(bo, "button vf-nitem"), inbox: await dot(bo, "button vf-ixitem"),
+      comment: await dot(bo, "div vf-cm-head", "vf-ndot vf-cm-new") };
+    ok("an answer card's dot is 7 px, a question row's 7 px 2 px down, a notification's and a Discussion comment's 8 px 6 px down, an Inbox row's 8 px",
+      dots.card === "7px 0px" && dots.rail === "7px 2px" && dots.note === "8px 6px" && dots.comment === "8px 6px" && dots.inbox === "8px 0px", JSON.stringify(dots));
 
     // ---------- B5: the uploader's row shows the thumbnail her browser made ----------
     await paste(ann, "#vf-answer");
