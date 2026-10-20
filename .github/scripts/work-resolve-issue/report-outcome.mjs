@@ -18,7 +18,9 @@
 //             results (RUNNER_CHECKS). A done outcome whose not_done holds a
 //             required check is stopped, and so is one whose runner checks
 //             failed or cannot be read for the branch's current tip, whatever
-//             the outcome file says.
+//             the outcome file says. A body whose closing keywords close any
+//             issue but the admitted one, or close it on a Refs run, fails
+//             the run before the PR opens.
 //   pushback  comments why, adds the human-gated label, removes agent-ready.
 //   stopped   comments why, adds the human-gated label, removes agent-ready,
 //             and names the branch that holds any partial work. A missing or
@@ -719,6 +721,34 @@ export function decide({
   };
 }
 
+// GitHub's closing keywords before `#N`, `owner/repo#N` or an issue URL. A
+// keyword inside a longer word (`unfixes`) closes nothing.
+const CLOSING =
+  /(?<![\w-])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+(?:https?:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/|([\w.-]+\/[\w.-]+)?#)(\d+)\b/gi;
+
+// The PR body as it opens: on merge it may close the admitted issue and no
+// other, and a Refs run's body closes nothing. A body that names the admitted
+// issue on no line of its kind gains that line first; one that closes another
+// issue throws, so the run fails before the PR opens.
+export function checkClosingKeywords(body, { issueNumber, repo, link }) {
+  const refs = link === "refs";
+  let closesAdmitted = false;
+  for (const [, url, slug, number] of body.matchAll(CLOSING)) {
+    const target = (url ?? slug ?? repo).toLowerCase();
+    if (target !== repo.toLowerCase() || Number(number) !== issueNumber) {
+      throw new Error(`the PR body closes ${url ?? slug ?? ""}#${number}, but the run was admitted for #${issueNumber}`);
+    }
+    closesAdmitted = true;
+  }
+  if (refs && closesAdmitted) {
+    throw new Error(`the run links #${issueNumber} by Refs, but the PR body closes it`);
+  }
+  if (refs) {
+    return new RegExp(`^Refs: #${issueNumber}\\b`, "m").test(body) ? body : `Refs: #${issueNumber}\n\n${body}`;
+  }
+  return closesAdmitted ? body : `Closes #${issueNumber}\n\n${body}`;
+}
+
 function humanLabelFrom(path) {
   let config;
   try {
@@ -1252,6 +1282,11 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       // A rerun finds the PR it already opened. Anyone can open a PR between two branches of a public repository, so
       // only one the lanes App opened is reused; otherwise the create fails.
       const owner = env.GITHUB_REPOSITORY.split("/")[0];
+      const body = checkClosingKeywords(plan.body, {
+        issueNumber,
+        repo: env.GITHUB_REPOSITORY,
+        link: plan.refsHold ? "refs" : "closes",
+      });
       const open = (
         await github("GET", `${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${plan.branch}`)}`)
       ).find((candidate) => candidate.user?.login === bot);
@@ -1259,7 +1294,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         open ??
         (await github("POST", `${repo}/pulls`, {
           title: plan.title,
-          body: plan.body,
+          body,
           head: plan.branch,
           base: base || (await github("GET", repo)).default_branch,
           draft: false,

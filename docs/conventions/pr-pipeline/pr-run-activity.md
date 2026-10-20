@@ -1294,7 +1294,7 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
-  The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
+  The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. Before the PR opens, a body whose closing keywords close any other issue, or close `#<n>` on a `Refs:` run, fails the run. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
   removes `agent-ready`. Each comment opens with the marker
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
