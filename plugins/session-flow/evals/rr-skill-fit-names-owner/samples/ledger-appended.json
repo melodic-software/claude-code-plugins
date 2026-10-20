@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [".work/running-retros/20261018T000000Z-running-retro-dispatch.md"],
+      "why": "ledger with the topic"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [".work/running-retros/notes.md"],
+      "why": "not the ledger name"
+    }
+  ]
+}

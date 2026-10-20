@@ -1394,12 +1394,33 @@ finalize_moves() {
     [[ "$old" == "-" ]] && old=""
     [[ "$new" == "-" ]] && new=""
     # An id the CLI called already-current is a true noop only when the snapshots
-    # agree. The post read decides; the version the CLI's line printed (`new`, for a
-    # noop row) is the cross-check. A post version that differs from `old` means the
-    # install moved after the pre-mutation read and this call changed nothing: a
-    # concurrent move, reported as its own row. A version that cannot be read, or
-    # the two sources disagreeing, stays a noop and is counted as unverified.
+    # agree and the run's own record took. First, when the run's own project/local
+    # record is still below the catalog, the CLI judged some other record (a linked
+    # worktree's update is a no-op, #6713) and the update did not take: a failure,
+    # never a quiet success, or the next run would count the same divergence again.
+    # Otherwise the post read decides; the version the CLI's line printed (`new`,
+    # for a noop row) is the cross-check. A post version that differs from `old`
+    # means the install moved after the pre-mutation read and this call changed
+    # nothing: a concurrent move, reported as its own row. A version that cannot be
+    # read, or the two sources disagreeing, stays a noop and is counted as unverified.
     if [[ "$result" == "noop" ]]; then
+      if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" && -f "$post" ]]; then
+        local ncur ncat nlabel
+        version_at ncur "$post" "$id" "$scope"
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to ncat -r --arg id "$id" '.catalog_versions[$id] // ""' "$post"
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to nlabel -r --arg id "$id" --arg sc "$scope" \
+          'first(.installed[]? | select(.id == $id and .scope == $sc and .currentProject == true)
+            | .label) // ""' "$post"
+        if [[ -n "$ncur" && -n "$ncat" && "$(version_direction "$ncur" "$ncat")" == "forward" ]]; then
+          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg cur "$ncur" --arg cat "$ncat" --arg label "$nlabel" \
+            '{id: $id, scope: $sc, rc: 0, output: "",
+              reason: ("the CLI said already at the latest version, but this project'"'"'s record is still at \($cur) and the catalog reads \($cat): the update did not take"
+                + (if $label == "" then "" else " (" + $label + ")" end))}')")
+          continue
+        fi
+      fi
       local post_v=""
       [[ -f "$post" ]] && version_at post_v "$post" "$id" "$scope"
       if [[ -z "$old" || -z "$post_v" ]]; then

@@ -171,6 +171,9 @@ Do not append a new entry whose text already sits in the section, whatever its t
 prefix: keep the oldest tagged entry (re-tag it when this session re-verified it), and `validate`
 warns on the second copy.
 
+Carrying a Constraints entry forward re-checks any refusal or owner reservation it records against
+the structure doc's evidence and retry rule ("Constraints that must hold").
+
 The constraints re-scan attestation is not a cumulative entry. It goes on the `Re-scan:` line of
 `## This session`, which is rewritten every hop, so it never accumulates.
 

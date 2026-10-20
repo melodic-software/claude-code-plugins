@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Before: 342 words. After: 171 words.\n\nCloses #482\n\n## Summary\n\nThe pricing service now reads tier discounts from a cache refreshed every 15 minutes instead of computing them per request. Marta Quell approved the interval in review on 2026-10-14.\n\n## Fix\n\n- Adds `TierDiscountCache`, which loads `tier_discounts` into memory.\n- **Irreversible:** the migration drops `accounts.discount_overrides`. Once it runs in production that data is gone and there is no rollback. Take a backup snapshot before deploying.\n\n## Verification\n\n- Full test suite passes locally.\n- Staging load test: quote endpoint p95 went from 410 ms to 120 ms.\n\n## Related\n\n- Follows #455.\n- **Ask:** the billing team must review the migration before merge."
+    },
+    {
+      "answer": "**Closes #482**\n\n### Summary\nTier discounts come from a cache with a fifteen-minute (15 min) refresh, not per-request math; Marta Quell signed off Oct 14.\n\n### Fix\n`TierDiscountCache` loads `tier_discounts`. Warning: the migration permanently removes the `discount_overrides` column on `accounts`, and this cannot be undone. Snapshot a backup first.\n\n### Verification\nTests green. Staging p95 on quotes: 410ms -> 120ms.\n\n### Related\n#455. Needs sign-off from billing on the migration before it merges.\n\n| | Words |\n|---|---|\n| Before | 342 |\n| After | 120 |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Before: 342 words. After: 171 words.\n\nCloses #482\n\n## Summary\n\nThe pricing service now reads tier discounts from a cache refreshed every 15 minutes instead of computing them per request. Marta Quell approved the interval in review on 2026-10-14.\n\n## Fix\n\n- Adds `TierDiscountCache`, which loads `tier_discounts` into memory.\n- Removes an unused column on `accounts`.\n\n## Verification\n\n- Full test suite passes locally.\n- Staging load test: quote endpoint p95 went from 410 ms to 120 ms.\n\n## Related\n\n- Follows #455.\n- **Ask:** the billing team must review the migration before merge."
+    },
+    {
+      "answer": "Closes #482\n\n## Summary\nCache added.\n\n## Fix\nDrops `discount_overrides`.\n\n## Verification\nTests pass.\n\n## Related\n#455"
+    }
+  ]
+}

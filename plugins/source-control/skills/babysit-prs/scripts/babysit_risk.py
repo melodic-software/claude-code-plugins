@@ -15,7 +15,9 @@ The HIGH path floor and the lane table are fixed here on purpose. A weaker value
 could only come from a file a pull request can edit, and this module's own path
 is in the floor, so a pull request cannot change the rule it is judged by. The
 configured `merge.diff-check.denied-paths` and `floor-paths` are joined to the
-floor, never in place of it. With the floor, a SKILL.md, agents/**/*.md or
+floor, never in place of it. So are the paths each plugin's base-side
+`DECLARATION_FILES` declare as run (`RiskInput.declarations`); a declaration it
+cannot read rates HIGH as `high-path:**`. With the floor, a SKILL.md, agents/**/*.md or
 commands/**/*.md file whose head text gains or changes a capability frontmatter
 key, adds a `!` command, or changes a line inside a ```! block, compared with
 its base text, or whose text could not be read, rates HIGH as
@@ -46,6 +48,7 @@ and a blast radius other than LOW above C2 to `blast-radius-missing`.
 from __future__ import annotations
 
 import enum
+import json
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -128,6 +131,10 @@ class RiskInput:
     c2_contradictions: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
+    # Each DECLARATION_FILES file at the base SHA as (path, text), None when
+    # unreadable; None when the base tree could not be listed. What they
+    # declare runs joins HIGH_FLOOR while it applies.
+    declarations: tuple[tuple[str, str | None], ...] | None = ()
 
 
 @dataclass(frozen=True)
@@ -164,6 +171,10 @@ HIGH_FLOOR: tuple[str, ...] = (
     "plugins/*/hooks/**",
     "prompts/**",
     "plugins/*/lib/**",  # synced copies of lib/ that hooks run
+    "plugins/*/bin/**",  # on the Bash tool's PATH while the plugin is enabled
+    # Scripts skills run through `!` lines, and agents and workflows by path.
+    "plugins/*/scripts/**",
+    "plugins/*/skills/*/scripts/**",
     # Hook-run scripts outside hooks/.
     "plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py",
     "plugins/disk-hygiene/skills/clean/scripts/engine_context.py",
@@ -178,6 +189,7 @@ HIGH_FLOOR: tuple[str, ...] = (
     "**/.gitmodules",
     "**/CLAUDE.local.md",
     "**/.mcp.json",
+    "**/.lsp.json",
     "**/AGENTS.override.md",
 )
 # Floor entries `merge.diff-check.high-path-floor` gates in every lane.
@@ -185,6 +197,27 @@ FLOOR_ADDITIONS: tuple[str, ...] = (
     "plugins/*/monitors/**",  # commands Claude Code runs in the background
     "plugins/*/workflows/**",
 )
+
+# Plugin files that declare what Claude Code runs. The caller reads each at the
+# base SHA, so a pull request cannot drop the declaration that floors its code.
+DECLARATION_FILES: tuple[str, ...] = (
+    "plugins/*/.claude-plugin/plugin.json",
+    "plugins/*/.mcp.json",
+    "plugins/*/.lsp.json",
+    "plugins/*/hooks/hooks.json",
+    "plugins/*/monitors/monitors.json",
+)
+# plugin.json keys whose values Claude Code runs or reads as run config; its
+# other `./` paths (types, skills) are not executable. A string value of one is
+# a pointer to a config file, which is read and declares too.
+_EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
+_PLUGIN_ROOT_REF = re.compile(
+    r"\$(?:\{CLAUDE_PLUGIN_ROOT\}|CLAUDE_PLUGIN_ROOT\b)([^\s\"'`;|&<>(){}$]*)"
+)
+# Any spelling of the variable; one _PLUGIN_ROOT_REF does not consume (a
+# default, a trim, PowerShell's or cmd's form) is unsafe.
+_PLUGIN_ROOT_NAME = re.compile("CLAUDE_PLUGIN_ROOT", re.IGNORECASE)
+_RELATIVE = ("./", "../", ".\\", "..\\")
 
 # Lane -> (code, severity) for an open finding on that lane. Both lanes are
 # required: a lane absent from the input is unbound.
@@ -421,6 +454,155 @@ def _readable_globs(value: Any, unsafe: list[str]) -> tuple[str, ...]:
     return globs
 
 
+def _strings(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if not isinstance(value, (dict, list)):
+        return []
+    items = value.values() if isinstance(value, dict) else value
+    return [s for item in items for s in _strings(item)]
+
+
+def _resolve(root: str, rest: str) -> list[str] | None:
+    """The segments of a path under the plugin root, None when it leaves it."""
+    parts: list[str] = []
+    for segment in rest.replace("\\", "/").split("/"):
+        if segment == "..":
+            if not parts:
+                return None
+            parts.pop()
+        elif segment not in ("", "."):
+            parts.append(segment)
+    return parts
+
+
+def _under_root(root: str, rest: str) -> str | None:
+    """A declared path as the directory holding it (code beside an entry point
+    runs with it), or the path itself at the plugin root; None when it leaves
+    the plugin."""
+    parts = _resolve(root, rest)
+    if parts is None:
+        return None
+    return "/".join([root, *(parts[:-1] if len(parts) > 1 else parts)])
+
+
+_DECLARATION_NAMES = {g.removeprefix("plugins/*/") for g in DECLARATION_FILES}
+_PLUGIN_JSON = ".claude-plugin/plugin.json"
+# A monitors file holds the monitors array; the other declarations an object.
+_MONITORS = "monitors/monitors.json"
+
+
+def _located(path: Any) -> tuple[str, str, str] | None:
+    """(normalized path, plugin root, casefolded path under the root) for a
+    safe path inside a plugin directory."""
+    normalized, safe = normalize_path(path)
+    parts = normalized.split("/")
+    if not safe or len(parts) < 3 or parts[0] != "plugins":
+        return None
+    return normalized, "/".join(parts[:2]), "/".join(parts[2:]).casefold()
+
+
+def _load(text: Any, *, array: bool = False) -> dict[str, Any] | list[Any] | None:
+    if not isinstance(text, str):
+        return None
+    try:
+        data = json.loads(text)
+    except (ValueError, RecursionError):
+        return None
+    return (
+        data if isinstance(data, dict) or (array and isinstance(data, list)) else None
+    )
+
+
+def _executable_values(data: dict[str, Any]) -> list[tuple[Any, bool]]:
+    """Each executable key's value, and whether it is a monitors value."""
+    experimental = data.get("experimental")
+    monitors = experimental.get("monitors") if isinstance(experimental, dict) else None
+    keyed = [(data.get(key), key == "monitors") for key in _EXECUTABLE_KEYS]
+    return [*keyed, (monitors, True)]
+
+
+def _pointers(path: Any, text: Any) -> list[tuple[str, bool]]:
+    """`declaration_pointers`, each with whether a monitors key names it."""
+    located, data = _located(path), _load(text)
+    if located is None or located[2] != _PLUGIN_JSON or not isinstance(data, dict):
+        return []
+    root = located[1]
+    found = []
+    for value, monitors in _executable_values(data):
+        pointers = [value] if isinstance(value, str) else _sequence(value) or ()
+        for pointer in pointers:
+            parts = _resolve(root, pointer) if isinstance(pointer, str) else None
+            if parts:
+                found.append(("/".join([root, *parts]), monitors))
+    return found
+
+
+def declaration_pointers(path: Any, text: Any) -> tuple[str, ...]:
+    """The config files a plugin.json's executable keys point at (a string or
+    a list of strings), as repository paths for the caller to read at the base
+    SHA; () for any other file, unreadable text, or a pointer leaving the
+    plugin, which the scorer rates."""
+    return tuple(dict.fromkeys(pointer for pointer, _ in _pointers(path, text)))
+
+
+def _declared_paths(value: Any, unsafe: list[str]) -> tuple[str, ...]:
+    """The paths base-side declarations run: every `${CLAUDE_PLUGIN_ROOT}`
+    reference and every `./` or `../` path, resolved against the plugin root,
+    in plugin.json under an executable key only, and in the files its pointers
+    name. A declaration it cannot read, a pointer not read, a reference it
+    cannot resolve, or a path outside its plugin is unsafe."""
+    entries = _sequence(value)
+    if entries is None:
+        unsafe.append(f"declarations unreadable: {_show(value)}")
+        return ()
+    pairs = []
+    for entry in entries:
+        pair = _sequence(entry)
+        pairs.append(pair if pair is not None and len(pair) == 2 else (entry, None))
+    named = [
+        (p.casefold(), monitors)
+        for path, text in pairs
+        for p, monitors in _pointers(path, text)
+    ]
+    pointers = {p for p, _ in named}
+    monitor_files = {p for p, monitors in named if monitors}
+    read = {located[0].casefold() for path, _ in pairs if (located := _located(path))}
+    unsafe.extend(f"pointer not read: {_show(p)}" for p in sorted(pointers - read))
+    found = []
+    for path, text in pairs:
+        located = _located(path)
+        if located is None or not (
+            located[2] in _DECLARATION_NAMES or located[0].casefold() in pointers
+        ):
+            unsafe.append(f"declaration file not recognized: {_show(path)}")
+            continue
+        _, root, name = located
+        array = name == _MONITORS or located[0].casefold() in monitor_files
+        data = _load(text, array=array)
+        if data is None or (name == _PLUGIN_JSON and not isinstance(data, dict)):
+            unsafe.append(f"declaration unreadable: {_show(path)}")
+            continue
+        scope = (
+            [value for value, _ in _executable_values(data)]
+            if isinstance(data, dict) and name == _PLUGIN_JSON
+            else data
+        )
+        for string in _strings(scope):
+            refs = [m.group(1) for m in _PLUGIN_ROOT_REF.finditer(string)]
+            if len(_PLUGIN_ROOT_NAME.findall(string)) > len(refs):
+                unsafe.append(f"{_show(path)} names the plugin root as {_show(string)}")
+            if string.startswith(_RELATIVE):
+                refs.append(string)
+            for ref in refs:
+                declared = _under_root(root, ref)
+                if declared is None or not normalize_path(declared)[1]:
+                    unsafe.append(f"{_show(path)} declares {_show(ref)}")
+                else:
+                    found.append(declared)
+    return tuple(dict.fromkeys(found))
+
+
 _SCRIPT_SUFFIXES = (".ps1", ".cjs")
 _EXECUTABLE_MODE = "100755"
 
@@ -649,7 +831,8 @@ def _high_path_reasons(
         if extended
         else ()
     )
-    floor = (*HIGH_FLOOR, *added) if on else ()
+    declared = _declared_paths(inp.declarations, unsafe) if on else ()
+    floor = (*HIGH_FLOOR, *added, *declared) if on else ()
     scopes = _readable_globs(inp.floor_script_scopes, unsafe) if extended else ()
     reasons = []
     if unsafe:

@@ -58,14 +58,14 @@ class TestChain(unittest.TestCase):
 
 class TestMigrate(unittest.TestCase):
     def test_current_version_comes_back_unchanged(self):
-        doc = {"schemaVersion": 5, "rev": 3}
-        self.assertEqual(migrate.migrate(doc), {"schemaVersion": 5, "rev": 3})
+        doc = {"schemaVersion": 6, "rev": 3}
+        self.assertEqual(migrate.migrate(doc), {"schemaVersion": 6, "rev": 3})
 
     def test_newer_version_is_refused_naming_both_versions(self):
         with self.assertRaises(migrate.MigrationError) as ctx:
-            migrate.migrate({"schemaVersion": 6})
-        self.assertIn("schemaVersion 6", str(ctx.exception))
-        self.assertIn("newer than 5", str(ctx.exception))
+            migrate.migrate({"schemaVersion": 7})
+        self.assertIn("schemaVersion 7", str(ctx.exception))
+        self.assertIn("newer than 6", str(ctx.exception))
 
     def test_missing_or_non_integer_version_is_refused(self):
         for doc in (
@@ -93,11 +93,11 @@ class TestMigrate(unittest.TestCase):
 
     def test_a_gap_in_the_chain_is_refused(self):
         with (
-            mock.patch.object(migrate, "CURRENT", 6),
+            mock.patch.object(migrate, "CURRENT", 7),
             self.assertRaises(migrate.MigrationError) as ctx,
         ):
-            migrate.migrate({"schemaVersion": 5})
-        self.assertIn("no migration from schemaVersion 5 to 6", str(ctx.exception))
+            migrate.migrate({"schemaVersion": 6})
+        self.assertIn("no migration from schemaVersion 6 to 7", str(ctx.exception))
 
     def test_v3_gains_inbox_seen_with_each_persons_requests_read_and_nothing_else_changes(self):
         raw = (FIXTURES / "state-v3.json").read_text(encoding="utf-8")
@@ -118,11 +118,38 @@ class TestMigrate(unittest.TestCase):
                               {"id": "X3", "published": False, "by": {"kind": "guest-claude", "pid": "pidAnn001"}}]}}
         self.assertEqual(migrate.migrate(doc)["inboxSeen"], {"pidAnn001": {"R1": "unshared", "R3": "answered"}, "host": {"R2": "answered"}})
 
+    def test_v5_marks_discards_cancelled_and_starts_claudes_earlier_failures_read(self):
+        def failed(reason, cancelled=False):
+            return {"kind": "failed", "at": 1.0, "reason": reason, "cancelled": cancelled}
+
+        def req(rid, pid, status, runner="host"):
+            return {"id": rid, "pid": pid, "runner": runner, "status": status}
+
+        doc = {"schemaVersion": 5, "people": {"pidAnn001": {"status": {"kind": "active"}}, "pidGone01": {"status": {"kind": "removed"}}},
+               "inboxSeen": {"host": {"R9": "answered"}}, "requests": [
+                   req("R1", "pidAnn001", failed(migrate.NOT_SHARED)),  # the owner discarded it
+                   req("R2", "pidAnn001", failed("No sources found.")),  # Claude failed it
+                   req("R3", "pidAnn001", failed("Cancelled by the owner.", True)),
+                   req("R4", "pidGone01", failed("No sources found.")),
+                   req("R5", "pidAnn001", failed("No sources found."), runner="self"),
+                   req("R6", "host", failed("No sources found.")),
+                   req("R7", "pidAnn001", {"kind": "pending"})]}
+        raw, notes = json.dumps(doc), []
+        out = migrate.migrate(doc, notes)
+        self.assertEqual([r["status"].get("cancelled") for r in out["requests"]], [True, False, True, False, False, False, None])
+        self.assertEqual(out["inboxSeen"], {"host": {"R9": "answered", "fail:R2": "open"}})
+        self.assertEqual((out["schemaVersion"], json.dumps(doc)), (6, raw))
+        self.assertEqual(notes, ["inbox: 1 requests Claude failed start read for the owner", "requests: 1 discarded ones marked cancelled"])
+
+    def test_v5_with_nothing_to_mark_changes_only_its_version(self):
+        doc = json.loads((FIXTURES / "state-v5.json").read_text(encoding="utf-8"))
+        self.assertEqual(migrate.migrate(doc), {**doc, "schemaVersion": 6})
+
     def test_v4_gains_empty_discussions_and_seen_marks_and_nothing_else_changes(self):
         raw = (FIXTURES / "state-v4.json").read_text(encoding="utf-8")
         doc, notes = json.loads(raw), []
         out = migrate.migrate(doc, notes)
-        self.assertEqual((out["discussions"], out["discussionSeen"], out["schemaVersion"]), ({}, {}, 5))
+        self.assertEqual((out["discussions"], out["discussionSeen"], out["schemaVersion"]), ({}, {}, migrate.CURRENT))
         self.assertEqual({k: v for k, v in out.items() if k not in ("discussions", "discussionSeen", "schemaVersion")}, {k: v for k, v in doc.items() if k != "schemaVersion"})
         self.assertEqual((doc, notes), (json.loads(raw), []))
         self.assertIsNone(schema.first_error(out, STATE))
