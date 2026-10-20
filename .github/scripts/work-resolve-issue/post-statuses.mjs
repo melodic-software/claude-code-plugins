@@ -131,19 +131,24 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
     }
     const dir = env.WORK_OUTCOME_DIR ?? "";
     const ran = readBranch(dir, Number(env.ISSUE_NUMBER));
-    const repo = `/repos/${env.GITHUB_REPOSITORY}`;
-    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
     // A resumed run that committed nothing has its PR opened from the branch
     // it resumed, at the tip run-checks checked, so its statuses go on that
     // tip, under report-outcome's gate: lane.json's resume (rewritable) is
     // the runner's, a check ran and none failed, and every commit ahead of
-    // the default branch is the lanes App's. Otherwise none is posted.
+    // the default branch is the lanes App's, and the branch is still at that
+    // tip (one that cannot be read is not). Otherwise none is posted.
     const resume = env.RESUME_BRANCH ?? "";
     const resumed =
       !reuse && !ran && resume !== "" && readBranch(dir, Number(env.ISSUE_NUMBER), "resume") === resume ? resume : "";
     const checks = resumed ? readChecks(env.RUNNER_CHECKS ?? "", { branch: resumed }) : null;
+    const repo = `/repos/${env.GITHUB_REPOSITORY}`;
+    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
+    const headSha = (branch) =>
+      github("GET", `${repo}/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`).then(
+        (answer) => answer?.object?.sha,
+      );
     let checkedTip;
-    if (checksPassed(checks)) {
+    if (checksPassed(checks) && (await headSha(resumed).catch(() => "")) === checks.tip) {
       const base = (await github("GET", repo))?.default_branch;
       const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${checks.tip}`);
       if (allLaneCommits(listedCommits(comparison), env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]")) {
@@ -166,8 +171,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
       console.log("post-statuses: no lane branch, so no status is posted");
       return 0;
     }
-    const ref = branch.split("/").map(encodeURIComponent).join("/");
-    const sha = checkedTip ?? (await github("GET", `${repo}/git/ref/heads/${ref}`))?.object?.sha;
+    const sha = checkedTip ?? (await headSha(branch));
     if (!/^[0-9a-f]{40}$/.test(sha ?? "")) {
       throw new Error(`no head SHA read for ${branch}`);
     }
