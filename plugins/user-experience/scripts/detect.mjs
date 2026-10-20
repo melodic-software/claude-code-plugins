@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import { resolve as resolveConfig } from "./lib/config-cascade.mjs";
 import { installed } from "./lib/installed.mjs";
 import { rejections } from "./lib/team-policy.mjs";
+import { parse as parseYaml } from "./lib/yaml-subset.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ROUTING = join(ROOT, "reference/routing.json");
@@ -194,7 +195,7 @@ function readTeam({ path, file, home, seam, cause }) {
 /** The resolver's merged team settings in `home`, held to the layout versions this plugin reads. */
 function checkTeam(path, home, seam) {
   // Under --team the scratch home is also the user home, so only the --team file is read.
-  const out = resolveConfig({ plugin: PLUGIN, projectRoot: opts.project, home, schema: TEAM_LAYOUT, teamOnly: ["routing"], userHome: seam ? home : opts.home });
+  const out = resolveConfig({ plugin: PLUGIN, projectRoot: opts.project, home, schema: TEAM_LAYOUT, teamOnly: ["routing", "version"], userHome: seam ? home : opts.home });
   const layer = out.layers.find((l) => l.name === "team");
   const prefix = `team (${layer.path}): `;
   const shown = (m) => m.replaceAll(layer.path, path);
@@ -205,18 +206,23 @@ function checkTeam(path, home, seam) {
   if (outside) return { path, cause: "resolves outside the project" };
   if (fileError) return { path, cause: /^(is a symlink|is not a regular file)/.test(fileError) ? `unreadable (${fileError})` : `malformed: ${fileError === "the top level must be a mapping" ? "the top level is not a mapping" : fileError}` };
   if (!existsSync(layer.path)) return { path, cause: "not found" };
+  // The resolver reads an empty file as an empty mapping; for this plugin it is malformed.
+  if (parseYaml(readFileSync(layer.path, "utf8")) == null) return { path, cause: "malformed: the top level is not a mapping" };
   // The user and local layers merge into out.values too, so their refusals are warnings as well.
   const notes = out.layers.filter((l) => ["team", "local", "user"].includes(l.name)).flatMap((l) => l.errors).map((e) => shown(e));
   const doc = out.values;
+  // A setting's warning names the local layer when that layer supplied the value.
+  const local = out.layers.find((l) => l.name === "local");
+  const from = (k) => (out.provenance[k] === "local" ? `local (${local.path}): ` : "");
   const { version, routing: routingSchema } = TEAM_SCHEMA.properties;
   if (doc.version !== version.const) return { path, cause: `version ${quote(doc.version ?? null)} is not one this plugin reads (${version.const})` };
   const { routing } = doc;
-  if (routing == null) return { path, doc, notes };
+  if (routing == null) return { path, doc, notes, from };
   if (!isMapping(routing)) return { path, cause: "malformed: routing is not a mapping" };
   const major = typeof routing.version === "number" ? Math.trunc(routing.version) : routing.version;
   const known = routingSchema.properties.version.const;
   if (major !== known) return { path, cause: `routing.version ${quote(routing.version ?? null)} is not one this plugin reads (${known})` };
-  return { path, doc, notes };
+  return { path, doc, notes, from };
 }
 
 /** Errors for `value` against the row-schema keywords routing.schema.json uses. */
@@ -329,12 +335,13 @@ const RESERVED = [".claude", ".git"];
 const DEFAULTS = { jtbd_school: "unset", research_paths: [], persona_paths: [], output_home: null };
 
 /** The team file's settings beyond routing; a bad value falls back to its default with a warning. */
-function teamSettings(doc, warn) {
+function teamSettings(doc, warn, from) {
   const props = TEAM_SCHEMA.properties;
-  for (const k of Object.keys(doc)) if (!Object.hasOwn(props, k)) warn(`unknown key ${quote(k)} ignored`);
+  const at = (k) => (m) => warn(`${from(k)}${m}`);
+  for (const k of Object.keys(doc)) if (!Object.hasOwn(props, k)) at(k)(`unknown key ${quote(k)} ignored`);
   let school = doc.jtbd_school ?? DEFAULTS.jtbd_school;
   if (!props.jtbd_school.enum.includes(school)) {
-    warn(`jtbd_school ${quote(school)} is not one of ${props.jtbd_school.enum.join(", ")}; unset used`);
+    at("jtbd_school")(`jtbd_school ${quote(school)} is not one of ${props.jtbd_school.enum.join(", ")}; unset used`);
     school = DEFAULTS.jtbd_school;
   }
   // A project path outside .claude and .git: a deliverable there would become a standing project
@@ -353,15 +360,15 @@ function teamSettings(doc, warn) {
     return rel === null || reserved(rel) || resolvesReserved(rel) ? null : rel;
   };
   const paths = (k) =>
-    listAt(doc[k], k, warn).flatMap((p) => {
+    listAt(doc[k], k, at(k)).flatMap((p) => {
       const rel = usable(p);
-      if (rel === null) warn(`${k} entry ${quote(p)} is outside the project, under .claude or .git, or not a path; dropped`);
+      if (rel === null) at(k)(`${k} entry ${quote(p)} is outside the project, under .claude or .git, or not a path; dropped`);
       return rel === null ? [] : [rel];
     });
   let home = DEFAULTS.output_home;
   if (doc.output_home != null) {
     home = usable(doc.output_home);
-    if (home === null) warn(`output_home ${quote(doc.output_home)} is outside the project, under .claude or .git, or not a path; default used`);
+    if (home === null) at("output_home")(`output_home ${quote(doc.output_home)} is outside the project, under .claude or .git, or not a path; default used`);
   }
   return { jtbd_school: school, research_paths: paths("research_paths"), persona_paths: paths("persona_paths"), output_home: home };
 }
@@ -388,7 +395,7 @@ if (source.doc) {
   const warnings = [...source.notes];
   const warn = (w) => warnings.push(w);
   ({ rows, touched } = mergeRoutes(bundled, source.doc.routing ?? {}, source.path, warn, presence));
-  team = { path: source.path, loaded: true, warnings, ...teamSettings(source.doc, warn) };
+  team = { path: source.path, loaded: true, warnings, ...teamSettings(source.doc, warn, source.from) };
 } else {
   const named = source.path ?? `the ${TEAM_FILE} team file`;
   const skipped_reason = `${named} skipped: ${source.cause}. Built-in routes used; team overrides and the deny floor were not applied. Run ${SETUP} to create or repair it.`;

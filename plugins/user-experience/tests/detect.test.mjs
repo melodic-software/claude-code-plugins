@@ -423,6 +423,42 @@ describe("team surface", () => {
     assert.ok(!team.warnings.some((w) => w.startsWith("user (")), team.warnings.join("\n"));
   });
 
+  /** detect's team result for a scratch git project holding `files` under docs/conventions. */
+  const withLayers = (name, files) => {
+    const project = join(scratch, name);
+    mkdirSync(join(project, "docs/conventions"), { recursive: true });
+    gitInit(project);
+    for (const [file, text] of Object.entries(files)) writeFileSync(join(project, "docs/conventions", file), text);
+    return detect(["--project", project, ...seams]).team;
+  };
+  const TEAM_YAML = "version: 1\njtbd_school: outcome-driven-innovation\noutput_home: docs/ux\n";
+
+  test("a rejected value in the local layer is a warning naming the layer and key; the key takes its default", () => {
+    const team = withLayers("local-rejected", { "user-experience.yaml": TEAM_YAML, "user-experience.local.yaml": "output_home: 5\n" });
+    assert.equal(team.loaded, true);
+    assert.equal(team.jtbd_school, "outcome-driven-innovation", "the team keys still load");
+    assert.equal(team.output_home, null, "ADR 0075: a lower layer's value is never used for an invalid one");
+    assert.ok(team.warnings.some((w) => w.startsWith("local (") && w.includes("output_home 5")), team.warnings.join("\n"));
+  });
+
+  test("a clean local layer adds no warnings", () => {
+    const team = withLayers("local-clean", { "user-experience.yaml": TEAM_YAML, "user-experience.local.yaml": "output_home: docs/ux/mine\n" });
+    assert.equal(team.output_home, "docs/ux/mine");
+    assert.deepEqual(team.warnings, []);
+  });
+
+  test("a local version cannot admit a team file at an unknown version", () => {
+    const team = withLayers("local-version", { "user-experience.yaml": "version: 2\noutput_home: docs/ux\n", "user-experience.local.yaml": "version: 1\n" });
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /version 2 is not one this plugin reads/);
+  });
+
+  test("an empty team file is malformed", () => {
+    const team = withLayers("empty-team", { "user-experience.yaml": "" });
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /malformed: the top level is not a mapping/);
+  });
+
   test("an empty routing key is accepted, and a routing that is not a mapping degrades", () => {
     const empty = join(scratch, "routing-empty.yaml");
     writeFileSync(empty, "version: 1\nrouting:\n");
