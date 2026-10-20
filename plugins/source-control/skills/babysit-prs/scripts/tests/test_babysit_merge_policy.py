@@ -287,6 +287,30 @@ class ReadConfigAt(unittest.TestCase):
                     any("max-queue-ejections" in n for n in config.notes), noted
                 )
 
+    def test_risk_escalation_minutes_defaults_to_sixty_and_reads_minutes(
+        self,
+    ) -> None:
+        def with_minutes(value: str) -> str:
+            return PIPELINE.replace(
+                "merge:\n", f"merge:\n  risk-escalation-minutes: {value}\n"
+            )
+
+        for text, expected, noted in (
+            (PIPELINE, 60, False),
+            (with_minutes("0"), 0, False),
+            (with_minutes("90"), 90, False),
+            (with_minutes("-5"), 60, True),
+            (with_minutes("an hour"), 60, True),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.risk_escalation_minutes, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(
+                    any("risk-escalation-minutes" in n for n in config.notes), noted
+                )
+
     def test_check_inputs_reads_a_path_list_and_is_empty_when_absent(self) -> None:
         listed = PIPELINE.replace(
             "merge:\n",

@@ -64,6 +64,33 @@ mid-flight checkpoint captures and routes, it does not score or codify.
 | Efficiency | Redundant reads, missed parallel tool calls, avoidable compaction pressure, over- or under-use of delegation, the slowest turns and their cause |
 | Emerging pattern | A repeatable multi-step procedure surfacing this session that may be worth encapsulating |
 | Verification gap | Something asserted but not checked, or checkable but skipped |
+| Skill-fit gap | A skill that fired and did not fit the work (detectors below) |
+
+## Skill-fit gap detectors
+
+Flag a **Skill-fit gap** at each place the transcript or the subagents' returns show one of these.
+Each is a structural claim, so method rule 4's compute-don't-assert rule applies: count the matches before
+writing the finding.
+
+1. A skill was invoked, then bypassed or overridden by the session's own later work.
+2. The same rules were re-typed into several subagent briefs.
+3. A worker stalled, or was nudged or re-briefed for the same reason more than once.
+4. A permission or classifier denial forced a workaround.
+5. A verifier loop was stopped by judgment rather than by passing.
+6. The owner asked whether a skill exists for something.
+
+Each skill-fit finding carries two fields beyond the table columns (its Evidence column cites the transcript turn or
+subagent return, redacted):
+
+- **Owning plugin and skill**: the plugin and skill the gap belongs to, read from the transcript's
+  skill invocation or the repo's skill listing. Write `no owner found` when none is evidenced,
+  and never guess one.
+- **Existing issue**: any matching open issue, or `none found`. The subagent makes no network
+  calls, so it leaves this `not searched` and the main agent fills it (SKILL.md step 5).
+
+Route a skill-fit gap as **Skill change** (the owning skill should change) or **New-skill
+candidate** (no existing skill owns a recurring pattern). The session-start listing of likely
+skills is `/session-flow:show-options`, not a detector here.
 
 ## Suggested resolution route (classify, do not apply)
 
@@ -101,6 +128,10 @@ Chain: <N prior checkpoint(s) folded in from the running ledger, or "first check
 | # | Category | Finding | Evidence | Suggested route | New / carried |
 |---|---|---|---|---|---|
 | 1 | Efficiency | ... | ... (redacted) | Tracker issue | new |
+| 2 | Skill-fit gap | ... | ... (redacted) | Skill change | new |
+
+Skill-fit gaps (one line per skill-fit row above):
+- #2 · owner: <plugin>:<skill> or "no owner found" · existing issue: not searched
 
 Subjective-state note assessment: <confirmed / challenged, with the transcript evidence>
 New-skill candidates: <candidate(s) with one-line rationale, or "none this checkpoint">
@@ -143,8 +174,9 @@ grouping tool-use events by API message id or an actual count of matched occurre
 from a narrative impression, and dropped rather than asserted uncomputed if it can't be derived;
 before routing a computed sequential/unbatched claim as an Efficiency finding, check for a genuine
 data, control, resource, or side-effect dependency between the calls that would make the sequencing
-correct rather than a miss; read the named repo convention docs to judge drift; classify each finding
-by category and
+correct rather than a miss; read the named repo convention docs to judge drift; run the six
+Skill-fit gap detectors and give each such finding its owning plugin and skill, its evidence and
+"existing issue: not searched"; classify each finding by category and
 suggested resolution route; run the mandatory redaction pass. Return ONLY the compact "Checkpoint
 findings" block. Do not echo the transcript.
 ```

@@ -25,7 +25,11 @@
 #   resolve-roles.sh pointers [--defaults F] TSV owner, key, value of every
 #                                            pointer*, as_of and recheck default
 # Options:
-#   --workload code|research|mechanical   apply roles.<r>.workloads.<w> keys
+#   --workload <w>                        apply roles.<r>.workloads.<w> keys; <w>
+#                                         is a workload some layer declares
+#                                         (workloads.<w>: true); the bundled
+#                                         layer declares code, research and
+#                                         mechanical
 #   --session-model <alias>               the session model's alias (opus,
 #                                         sonnet, haiku, fable); omitted
 #                                         means unknown, which the guard treats
@@ -50,8 +54,8 @@
 # session, gains one `notes` entry pointing at reference/routing-rubric.md; the
 # role still resolves.
 #
-# Exit: 0 resolved; 2 usage error, unknown role (valid roles on stderr), or an
-# unreadable bundled layer.
+# Exit: 0 resolved; 2 usage error, unknown role (valid roles on stderr),
+# undeclared workload (declared ones on stderr), or an unreadable bundled layer.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,7 +69,6 @@ DEFAULTS="$SCRIPT_DIR/../reference/defaults.yaml"
 # level). `default`, `opusplan` and the `[1m]` variants are left out on purpose.
 ALIASES=" opus sonnet haiku fable "
 EFFORTS=" low medium high xhigh max "
-WORKLOADS=" code research mechanical "
 
 die() {
   printf 'resolve-roles: %s\n' "$1" >&2
@@ -135,15 +138,15 @@ if [[ "$MODE" == pointers ]]; then
 fi
 
 [[ -n "$TARGET" ]] || die "name a role or 'all'"
-[[ -z "$WORKLOAD" || "$WORKLOADS" == *" $WORKLOAD "* ]] ||
-  die "unknown workload '$WORKLOAD' (valid:$WORKLOADS)"
 [[ -z "$SESSION_MODEL" || "$ALIASES" == *" $SESSION_MODEL "* ]] ||
   die "unknown session model '$SESSION_MODEL' (valid:$ALIASES; omit when unknown)"
 
 # Bash 3.2 (stock macOS) has no associative arrays, so each dotted key maps to
-# a VAL_<key> and SRC_<key> variable. Keys hold only [A-Za-z0-9_.-].
+# a VAL_<key> and SRC_<key> variable. Keys hold only [A-Za-z0-9_.-]; `_` is
+# escaped first, so `a-b` and `a_H_b` get distinct names.
 kv_name() {
-  local n="${1//-/_H_}"
+  local n="${1//_/_U_}"
+  n="${n//-/_H_}"
   printf '%s' "${n//./_D_}"
 }
 set_kv() { # set_kv <key> <value> <source layer>
@@ -166,11 +169,21 @@ src() {
 ROLES=()
 NOTES=()
 LAYERS_JSON=()
+# Workload names any layer declares, and every role workload key applied as
+# "<layer>\t<key>\t<workload>": a key's workload must be declared once all
+# layers are read, whichever layer declares it.
+WL_NAMES=()
+WL_KEYS=()
+WL_NAME_RE='^[A-Za-z0-9_][A-Za-z0-9_-]*$'
 
 while IFS=$'\t' read -r key value; do
   [[ -n "$key" ]] || continue
   set_kv "$key" "$value" bundled
   if [[ "$key" =~ ^roles\.([^.]+)\.model$ ]]; then ROLES+=("${BASH_REMATCH[1]}"); fi
+  if [[ "$key" =~ ^workloads\.([^.]+)$ ]]; then WL_NAMES+=("${BASH_REMATCH[1]}"); fi
+  if [[ "$key" =~ ^roles\.[^.]+\.workloads\.([^.]+)\.(model|effort)$ ]]; then
+    WL_KEYS+=("bundled"$'\t'"$key"$'\t'"${BASH_REMATCH[1]}")
+  fi
 done <<<"$bundled"
 
 if [[ "$TARGET" != all && " ${ROLES[*]} " != *" $TARGET "* ]]; then
@@ -183,7 +196,7 @@ valid_value() { # valid_value <field> <value>
   model) [[ "$2" == inherit || "$ALIASES" == *" $2 "* ]] ;;
   fanout_model) [[ "$ALIASES" == *" $2 "* ]] ;;
   effort) [[ "$EFFORTS" == *" $2 "* ]] ;;
-  frontier_guard) [[ "$2" == true || "$2" == false ]] ;;
+  frontier_guard | declared) [[ "$2" == true || "$2" == false ]] ;;
   frontier)
     local a parts=()
     IFS=',' read -ra parts <<<"$2"
@@ -215,12 +228,18 @@ apply_layer() {
     fanout.frontier_guard) field=frontier_guard ;;
     fanout.model) field=fanout_model ;;
     *)
-      if [[ "$key" =~ ^roles\.([^.]+)\.(model|effort)$ ]]; then
+      if [[ "$key" =~ ^workloads\.([^.]+)$ ]]; then
+        w="${BASH_REMATCH[1]}" field=declared
+        if [[ ! "$w" =~ $WL_NAME_RE ]]; then
+          NOTES+=("$label: ${key//[^[:print:]]/?} ignored: a workload name holds only letters, digits, _ and -, and does not start with -")
+          continue
+        fi
+      elif [[ "$key" =~ ^roles\.([^.]+)\.(model|effort)$ ]]; then
         role="${BASH_REMATCH[1]}" field="${BASH_REMATCH[2]}"
       elif [[ "$key" =~ ^roles\.([^.]+)\.workloads\.([^.]+)\.(model|effort)$ ]]; then
         role="${BASH_REMATCH[1]}" w="${BASH_REMATCH[2]}" field="${BASH_REMATCH[3]}"
-        if [[ "$WORKLOADS" != *" $w "* ]]; then
-          NOTES+=("$label: $key ignored: unknown workload '$w' (valid:$WORKLOADS)")
+        if [[ ! "$w" =~ $WL_NAME_RE ]]; then
+          NOTES+=("$label: ${key//[^[:print:]]/?} ignored: a workload name holds only letters, digits, _ and -, and does not start with -")
           continue
         fi
       elif [[ "$key" =~ ^(roles\.[^.]+|fanout)\.(pointer[^.]*|basis_[^.]*|claim_[^.]*|reason_[^.]*|as_of|recheck)$ ]]; then
@@ -242,6 +261,11 @@ apply_layer() {
       continue
     fi
     set_kv "$key" "$value" "$label"
+    if [[ "$field" == declared ]]; then
+      WL_NAMES+=("$w")
+    elif [[ "$key" == *.workloads.* ]]; then
+      WL_KEYS+=("$label"$'\t'"$key"$'\t'"$w")
+    fi
   done <<<"$records"
 }
 
@@ -299,6 +323,19 @@ else
     layer_state overlay "$OVERLAY" absent
   fi
 fi
+
+# A workload is declared when its last workloads.<w> value is true.
+DECLARED=" "
+for w in "${WL_NAMES[@]+"${WL_NAMES[@]}"}"; do
+  [[ "$(val "workloads.$w")" == true && "$DECLARED" != *" $w "* ]] && DECLARED+="$w "
+done
+for e in "${WL_KEYS[@]+"${WL_KEYS[@]}"}"; do
+  IFS=$'\t' read -r label key w <<<"$e"
+  [[ "$DECLARED" == *" $w "* ]] ||
+    NOTES+=("$label: $key ignored: undeclared workload '$w' (declare it with workloads.$w: true)")
+done
+[[ -z "$WORKLOAD" || "$DECLARED" == *" $WORKLOAD "* ]] ||
+  die "unknown workload '$WORKLOAD' (declared:${DECLARED% })"
 
 FRONTIER=",$(val frontier),"
 is_frontier() { [[ "$FRONTIER" == *",$1,"* ]]; }

@@ -92,6 +92,7 @@ defaults keep every pipeline working):
 | `yt_dlp_cookies_file` | string | (empty) | `video-digest`: path to a Netscape cookies.txt for authenticated acquisition. Never commit cookie files. |
 | `yt_dlp_cookies_from_browser` | string | (empty) | `video-digest`: browser to pull YouTube cookies from (`chrome`, `firefox`, `edge`, …), forcing one instead of the automatic fallback. A cookies file wins over this. |
 | `max_concurrent_acquires` | number | `1` | `video-digest`: cap on concurrent yt-dlp acquisitions during a batch (1–3). Higher increases HTTP 429 risk. |
+| `asr_python` | string | (empty) | `video-digest`: path to the Python interpreter that imports `faster_whisper`, probed before `python`, `python3` and `py` on PATH. Nothing is installed. |
 
 `book-distill` itself writes to a **target skill** you name at invocation, so it
 needs no configuration to run; `library_dir` is the shared setting the
@@ -123,6 +124,7 @@ reads it from.
 | `yt_dlp_cookies_file` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_YT_DLP_COOKIES_FILE` | Path to a Netscape-format cookies.txt for authenticated video acquisition (YouTube bot checks; the three login-required X cases). Empty by default (unauthenticated; YouTube adds an automatic browser-cookie fallback on a bot check, and X never iterates browser profiles). Never commit cookie files. |
 | `yt_dlp_cookies_from_browser` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_YT_DLP_COOKIES_FROM_BROWSER` | Browser to pull cookies from (e.g. chrome, firefox, edge), forcing one instead of the automatic platform-ordered fallback. YouTube only, since the X adapter is cookies-file-only. Empty by default. A cookies file, when set, wins over this. |
 | `max_concurrent_acquires` | number<br>*min 1, max 3* | `1` | `CLAUDE_PLUGIN_OPTION_MAX_CONCURRENT_ACQUIRES` | Cap on concurrent yt-dlp acquisition runs during a video-digest batch, 1 to 3. Default 1; raising it increases HTTP 429 throttling risk. |
+| `asr_python` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_ASR_PYTHON` | Path to the Python interpreter that imports faster_whisper, probed before python, python3 and py on PATH (video-digest's optional ASR rung). Use it when the default Python refuses pip install --user. Empty by default. Nothing is installed. |
 
 ### How to set these
 

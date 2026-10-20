@@ -48,11 +48,11 @@
       "metric": "time.active_s",
       "lens": "context",
       "unit": "s",
-      "threshold": 26064,
-      "route": "retro-codify",
-      "suggested_skill": "/session-flow:retro",
-      "confidence": "measured",
-      "basis": "active seconds per session; spike median 0.76 h, p90 7.24 h"
+      "threshold": null,
+      "route": null,
+      "suggested_skill": null,
+      "confidence": "heuristic",
+      "basis": "active seconds per session, read from the main session's record timestamps (store field time.active_gap_s): the sum of gaps between consecutive user, assistant and system records, each capped at the 300 s idle boundary (a judgment value, the same as idle_gaps_gt5m), so it never exceeds wall clock. It approximates Claude Code's native claude_code.active_time.total metric from transcript timestamps and is a second definition beside it. Internal-format read: the earlier definition summed turn_duration records, which are sparse and can time a turn begun in a previous transcript (76 of 764 sessions above wall clock, Claude Code 2.1.241-2.1.288, audit 2026-10-03); time.active_s no longer reads them. Threshold null until #6077 re-derives it on this definition (the old 26064 s came from turn_duration sums)"
     },
     {
       "metric": "context.clear_commands",
@@ -108,11 +108,11 @@
       "metric": "hooks.stop_ms",
       "lens": "hooks",
       "unit": "ms",
-      "threshold": 645,
+      "threshold": null,
       "route": "config-change",
       "suggested_skill": "/harness-ops:audit-performance",
-      "confidence": "measured",
-      "basis": "a session's p90 stop-hook run time; spike median 211 ms, p90 645 ms"
+      "confidence": "heuristic",
+      "basis": "a session's p90 Stop wait, read from stop_hook_summary records (store field stop_hooks.wait_ms_p90): per Stop run the slowest hookInfos[].durationMs, since matching hooks run in parallel and the person waits for the slowest. Internal-format read: that durationMs is each hook's own run time is inferred, not documented (Claude Code 2.1.241-2.1.288; across 7,843 multi-hook Stop records the observed wait was at least the max in every record, audit 2026-10-03). The earlier definition summed the hooks (stop_hooks.ms_p90, still stored). Threshold null until #6077 re-derives it on this definition. Route kept by owner decision (2026-10-11): /harness-ops:audit-performance is the skill that tunes hook cost, even though its engine does not read transcripts; recheck when #6033 (whether harness-ops summarizes recorded hook durations) is decided"
     },
     {
       "metric": "edits.churn_per_pr",

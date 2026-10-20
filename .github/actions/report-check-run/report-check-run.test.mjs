@@ -44,7 +44,7 @@ function fakeFetch(status = 201) {
       init,
       body: init.body === undefined ? undefined : JSON.parse(init.body),
     });
-    return { ok: status < 300, status, json: async () => ({ id: 1 }) };
+    return new Response(JSON.stringify({ id: 1 }), { status });
   };
   fetchImpl.calls = calls;
   return fetchImpl;

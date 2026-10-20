@@ -198,6 +198,7 @@ assert_eq "case 5: no rows after cleanup" "" "$OUT"
 # --- Case 6: a CRLF-authored AGENTS.md also resolves --------------------------
 crlf="$TEST_TMPDIR/crlf-consumer"
 mkdir -p "$crlf/docs/conventions"
+git init -q "$crlf" >/dev/null 2>&1 # the resolver applies a home only inside a git work tree
 {
   printf '# Repo\r\n\r\nCRLF-authored prose.\r\n\r\n'
   printf '<!-- BEGIN GENERATED: convention-home -->\r\n'

@@ -328,6 +328,38 @@ class HighReasonTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn(code, _codes(result))
 
+    def test_plugin_and_skill_scripts_are_high(self):
+        # Skills run these through `!` lines, and agents and workflows by path.
+        cases = [
+            (
+                "plugins/bugs/scripts/concat-gotchas.sh",
+                "high-path:plugins/*/scripts/**",
+            ),
+            (
+                "plugins/foo/skills/bar/scripts/run.py",
+                "high-path:plugins/*/skills/*/scripts/**",
+            ),
+        ]
+        for path, code in cases:
+            with self.subTest(path):
+                result = score(_input(files=(_file(path),)))
+                self.assertEqual(result.score, Risk.HIGH)
+                self.assertIn(code, _codes(result))
+
+    def test_skill_prose_edit_stays_low(self):
+        after = FRONT.replace("Body.", "Body, reworded.")
+        result = score(_input(files=(_edit(SKILL, FRONT, after),)))
+        self.assertEqual(result.score, Risk.LOW, result.reasons)
+
+    def test_near_miss_script_directories_are_not_high(self):
+        for path in (
+            "plugins/foo/reference/scripts.md",
+            "plugins/foo/skills/bar/reference/scripts/x.md",
+            "plugins/foo/docs/scripts/x.sh",
+        ):
+            with self.subTest(path):
+                self.assertEqual(score(_input(files=(_file(path),))).score, Risk.LOW)
+
     def test_agents_md_at_depth_three_is_high(self):
         result = score(_input(files=(_file("plugins/foo/skills/AGENTS.md"),)))
         self.assertEqual(result.score, Risk.HIGH)
@@ -365,7 +397,6 @@ class HighReasonTests(unittest.TestCase):
         for path in (
             "docs/conventions-old/x.md",
             "plugins/reviewer/x.md",
-            "plugins/foo/scripts/x.sh",
             "plugins/foo/REVIEW.md",
             "plugins/foo/agents.md.bak",
         ):

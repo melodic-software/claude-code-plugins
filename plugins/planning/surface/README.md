@@ -115,12 +115,14 @@ Nearest wins, per key, and each Settings row names its layer: this browser's loc
 | `waitTimeout` | `90` | 5 to 110 seconds; curl allows 10 more |
 | `staleDepth` | `direct` | `direct` |
 | `leaseTimeout` | `600` | 5 to 3600 seconds a silent watcher keeps its lease; read on every poll |
+| `settleQuiet` | `10` | 0.5 to 60 seconds a found event waits for more before the watcher wakes; read on every poll |
+| `settleBurst` | `30` | 1 to 120 seconds, the longest a reply is held in all; never past the watcher's wait deadline. A `settleQuiet` above `settleBurst` puts both back to the defaults |
 
 The repo and user files also take `themeTokens` (`{"light": {...}, "dark": {...}}`). `browserCommand` (a program or argv list that receives the URL) is read only from a user file passed as `--user-settings` on that same `ensure-running` call. The user file a running server recorded keeps supplying every other setting, but never the opener, so `--open` alone uses the default browser. An invalid value falls through to the layer below with a note printed by `ensure-running`. Theme tokens layer per token: the data dir's `theme.json`, then the user file's `themeTokens`, then the repo's `themeTokens`, then the built-in set.
 
 ## Known gaps
 
-- The browser suites run only where `playwright-cli` resolves; elsewhere `surface.test.sh` prints a SKIP with the count not run. CI does not install `playwright-cli`, so the browser checks print SKIP there. That is deliberate: the SKIP line in `surface.test.sh` stays as a stated choice, and the Python unit tests cover the server side in CI.
+- The browser suites run only where `playwright-cli` resolves; elsewhere `surface.test.sh`, `surface-ui-c.test.sh` and `surface-journey.test.sh` each print a SKIP with the count not run. CI gets `playwright-cli` from the root `package.json` (`@playwright/cli`), so the browser checks run there, and the test planner can give each part its own leg.
 - Browsers cap HTTP/1.1 connections at six per origin and each tab holds one SSE stream, so keep to one or two tabs.
 - Chromium logs a network error line for an intended 409; the page itself logs nothing.
 - Mermaid visuals show their source with a "rendering not available" line.

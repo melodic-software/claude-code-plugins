@@ -3,6 +3,16 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0] - 2026-10-20
+
+### Added
+
+- A plan phase tagged `Review: architecture`, `security`, `code-design` or `concurrency` now gets that review at its boundary. `/implementation:implement` and `/implementation:implement-dispatch` invoke `/review:quality-gate architecture`, `security`, `code-design` or `slice concurrency` with the previous phase-boundary commit as `--base`, the plan's `Quality bar:` line when it has one, `--report-only`, and, for a worker's worktree, `--worktree`, and pass no rationale. The sequence is review, fix inside the phase fence, one re-review against the same base, then the acceptance verdict last. Any CRITICAL on the re-review goes to `DEVIATIONS.md` as a blocking `human-decision` and is escalated once, never looped. An untagged phase gets no review. Under an unattended permission mode that denies the review's worktree reads, the run logs the review as not run (`unverified`), lists it in the final report, and continues to the phase-verifier.
+
+### Fixed
+
+- `implement-dispatch` briefs, `implementer` and `scoped-implementer` tell a worker to name scratch files `<branch>-<purpose>` and never run a scratch script it did not write in this task, so parallel workers sharing one scratchpad stop running each other's leftover scripts.
+
 ## [0.30.1] - 2026-10-18
 
 ### Fixed

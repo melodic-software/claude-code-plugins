@@ -1784,10 +1784,17 @@ jobs:
       # takes a fragment under .changes/<plugin>/ in each pull request, and the
       # release pull request (branch release/plugins) bumps it. --check
       # validates every fragment in the tree; --check-required asks a change to
-      # such a plugin for one. --check-release keeps a release from merging past
-      # a fragment it never consumed: on the release pull request against the
-      # base, and in the merge queue against HEAD^1, the tree the queued squash
-      # commit lands on (main plus every entry ahead of it).
+      # such a plugin for one. --check-release keeps a release from merging over
+      # a file it changes (a consumed fragment, a CHANGELOG.md, a plugin.json)
+      # that the base changed since the release was cut: on the release pull
+      # request against the base, and in the merge queue against the group's
+      # base commit, `merge_group.base_sha` ("The SHA of the merge group's
+      # parent commit", https://docs.github.com/en/webhooks/webhook-events-and-payloads#merge_group).
+      # That base already holds the entries ahead in the queue: a group has
+      # "changes from pull requests ahead of it in the queue"
+      # (https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue).
+      # The queue checks out a single-parent squash whose HEAD^1 is that base,
+      # so the release is read from the queued pull request's head instead.
       - name: Verify every changelog fragment is well formed
         id: changelog_fragments_check
         continue-on-error: true
@@ -1823,11 +1830,26 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
-          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          CHANGELOG_HEAD_REF: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.head_ref || github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          CHANGELOG_PR_HEAD: ${{ steps.queued_pr.outputs.head_sha }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          QUEUED_PR: ${{ steps.queued_pr.outcome }}
         shell: bash scripts/run-hygiene-gate.sh changelog-fragments-release {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            scripts/check-changelog-fragments.sh --check-release 'HEAD^1'
+            if [ "$QUEUED_PR" != success ]; then
+              echo "::error::The queued pull request could not be resolved; refusing to pass the release gate without knowing whether it is the release."
+              exit 1
+            fi
+            if [ "$CHANGELOG_HEAD_REF" != release/plugins ]; then
+              echo "::notice::Declined: the queued pull request is not the release."
+              exit 0
+            fi
+            if [ -z "$MERGE_GROUP_BASE_SHA" ]; then
+              echo "::error::The merge group carries no base_sha; refusing to judge the release without the commit it lands on."
+              exit 1
+            fi
+            scripts/check-changelog-fragments.sh --check-release "$MERGE_GROUP_BASE_SHA"
           elif [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$CHANGELOG_HEAD_REF" = release/plugins ]; then
             scripts/check-changelog-fragments.sh --check-release "origin/$BASE_REF"
           else
@@ -3037,6 +3059,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           BROKER_PATHS='.github/actions/resolve-config/resolve.mjs
+          .github/actions/resolve-config/dimensions.mjs
           .github/actions/resolve-config/predicate.mjs
           .github/actions/resolve-config/vocabulary.mjs
           .github/actions/resolve-config/package.json

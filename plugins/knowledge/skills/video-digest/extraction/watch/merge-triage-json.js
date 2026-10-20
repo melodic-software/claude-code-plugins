@@ -48,7 +48,7 @@ export function mergeTriageJson(sliceDir, batchPaths) {
     }
   }
 
-  /** @type {object[]} */
+  /** @type {{ sheetId: string }[]} */
   const sheets = [];
   for (const batchPath of paths) {
     const sheet = readJsonFile(batchPath);

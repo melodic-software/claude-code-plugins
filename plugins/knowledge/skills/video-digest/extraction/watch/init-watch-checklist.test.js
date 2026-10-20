@@ -87,6 +87,15 @@ describe("initWatchChecklist", () => {
     expect(body).toContain("highVolume=true");
   });
 
+  it("lists the corpus relayout row 9.5 before the close row 9.3", () => {
+    const body = fs.readFileSync(initWatchChecklist(makeSliceDir(), { force: true }), "utf8");
+    const relayout = body.indexOf("- [ ] **9.5**");
+    const close = body.indexOf("- [ ] **9.3**");
+
+    expect(relayout).toBeGreaterThan(-1);
+    expect(close).toBeGreaterThan(relayout);
+  });
+
   it("defers the floors/class header when vision-plan.md is absent", () => {
     const sliceDir = makeSliceDir();
     const outPath = initWatchChecklist(sliceDir, { force: true });
