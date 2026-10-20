@@ -458,13 +458,16 @@ def _open_findings(
 
     A resolved thread is closed when:
     - a human resolved it;
-    - the covering chain reports no finding at all and the thread was opened
-      before the covering review's job completed, so that review read past it.
-      A whole review of the head is a chain of one, so a clean whole review
-      closes a thread whoever resolved it; an incremental review reads only
-      what changed and never closes an unchanged thread this way. Closure is
-      per lane: a security-lane (HIGH) thread needs the security lane's own
-      clean whole review;
+    - the covering chain reports no finding at all, no other completed review
+      of a chain link's head (whole or incremental) reported one, and the
+      thread was opened before the covering review's job completed, so that
+      review read past it. A whole review of the head is a chain of one, so a
+      clean whole review closes a thread whoever resolved it, unless another
+      review of that head reported a finding: re-running the review of a head
+      until it comes back clean never clears one, only a new head or a human
+      does. An incremental review reads only what changed and never closes an
+      unchanged thread this way. Closure is per lane: a security-lane (HIGH)
+      thread needs the security lane's own clean whole review;
     - or GitHub marks it outdated, it was opened before the first review at
       `reviewed` (the head whose review covers the pinned head) started, and
       no line of its flagged range is left at the pinned head
@@ -491,6 +494,8 @@ def _open_findings(
     # Per head, the most (findings, summary findings) any completed whole
     # review of it reported.
     whole_max: dict[str, tuple[int, int]] = {}
+    # Per head, the most findings any completed review of it reported.
+    head_max: dict[str, int] = {}
     # Whether any review of `reviewed` was whole or reported a finding.
     head_spent = False
     for item in lane_runs:
@@ -507,6 +512,7 @@ def _open_findings(
                 continue
             if rec.findings < rec.inline:  # type: ignore[operator]
                 raise Unbound("count-inconsistent")
+            head_max[rec.sha] = max(head_max.get(rec.sha, 0), rec.findings)
             if rec.whole:
                 n, m = whole_max.get(rec.sha, (0, 0))
                 whole_max[rec.sha] = (
@@ -537,7 +543,9 @@ def _open_findings(
         for rec in chain
     ]
     summary = sum(m for _, m in counts)
-    cleared = all(n == 0 for n, _ in counts)
+    cleared = all(n == 0 for n, _ in counts) and not any(
+        head_max.get(rec.sha) for rec in chain
+    )
     # The covering review read only threads opened before its job completed.
     read_through = chain[0].completed
     if not isinstance(threads, list | tuple):
