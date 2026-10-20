@@ -65,7 +65,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
     await page.click('[data-acceptall="g1"]'); await page.waitForSelector("#dlg[open]");
     const listed = await text("#dlgBody li");
-    ok("the Accept all list still shows the recommendation's first sentence only", /Ship it on Monday\./.test(listed) && !/Watch the error logs/.test(listed), listed);
+    ok("the group Accept all list shows every sentence of the recommendation", /Ship it on Monday\..*Watch the error logs.*Roll back on the first new error/.test(listed), listed);
     await page.click("#dlgCancel"); await page.waitForTimeout(150);
 
     // #5917: five prerequisites share one wrapped row, and a met one is marked by more than color

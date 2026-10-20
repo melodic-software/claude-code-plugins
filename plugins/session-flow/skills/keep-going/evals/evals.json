@@ -185,6 +185,19 @@
         "When `claude auth status` cannot be read or is ambiguous, states unknown and asks the operator rather than guessing",
         "Does not switch accounts or drive account rotation"
       ]
+    },
+    {
+      "id": 16,
+      "name": "report-states-the-measured-gap-after-a-rate-limit-stop",
+      "prompt": "keep going — we hit a rate limit and I was away for a while. The session transcript is at ~/.claude/projects/app/session.jsonl.",
+      "expected_output": "In step 2 the skill runs measure-stop-gap.py on the transcript instead of estimating how long the session was stopped, and the report states the measured gap (from the limit entry to now). It re-reads limit windows, leases, PR state and CI runs older than the gap rather than trusting remembered values. If the checker exits non-zero, the report says the gap is unknown and does not guess one.",
+      "files": [],
+      "expectations": [
+        "Runs measure-stop-gap.py on the session transcript during inspection rather than estimating the stop's length",
+        "The report states the gap length measured from the limit entry to now",
+        "Re-reads limit windows, leases, PR state and CI runs older than the gap instead of trusting remembered state",
+        "If the checker exits non-zero, reports the gap as unknown and does not invent a duration"
+      ]
     }
   ]
 }

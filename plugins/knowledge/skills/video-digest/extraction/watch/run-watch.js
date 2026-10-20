@@ -287,6 +287,7 @@ async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFr
     temp.recorded = true;
     const continuationPrompt = await writeContinuationPrompt(sliceDir, next);
 
+    /** @type {ReturnType<typeof postBootstrapSlice> | null} */
     let postBootstrap = null;
     try {
       postBootstrap = postBootstrapSlice(sliceDir);

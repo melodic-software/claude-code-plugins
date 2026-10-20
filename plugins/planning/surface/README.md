@@ -120,7 +120,7 @@ The repo and user files also take `themeTokens` (`{"light": {...}, "dark": {...}
 
 ## Known gaps
 
-- The browser suites run only where `playwright-cli` resolves; elsewhere `surface.test.sh` prints a SKIP with the count not run. CI does not install `playwright-cli`, so the browser checks print SKIP there. That is deliberate: the SKIP line in `surface.test.sh` stays as a stated choice, and the Python unit tests cover the server side in CI.
+- The browser suites run only where `playwright-cli` resolves; elsewhere `surface.test.sh`, `surface-ui-c.test.sh` and `surface-journey.test.sh` each print a SKIP with the count not run. CI gets `playwright-cli` from the root `package.json` (`@playwright/cli`), so the browser checks run there, and the test planner can give each part its own leg.
 - Browsers cap HTTP/1.1 connections at six per origin and each tab holds one SSE stream, so keep to one or two tabs.
 - Chromium logs a network error line for an intended 409; the page itself logs nothing.
 - Mermaid visuals show their source with a "rendering not available" line.
