@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.81.0] - 2026-10-20
+
+### Added
+
+- `round.sh supersede` and `round.sh resolve` (#6124): terminal commands that set an answered register row of a ledger to `superseded-by-plan` (taking its resolution as `was`, written `was plain::` or `was answer::` to record the row's form so `restore` gives it back byte for byte; a bare `was::` still loads) and clear it by `reconfirm` or `restore`. They escape through the exporter, back the ledger up, print the `check-open-questions.sh` verdict, and need no page. `/planning:plan` "Plan changes after the Brief" names them instead of describing the grammar.
+
+### Fixed
+
+- **Interview source links pin to a commit SHA.** The surface spoke's Source rule requires a repo-file link of the form `blob/<sha>/<path>`, and `round.py add`, `add-round`, `apply` and `revise` warn (without refusing) on a `blob/<branch>` link in a question's `facts`, naming the question.
+
 ## [0.80.0] - 2026-10-20
 
 ### Added
