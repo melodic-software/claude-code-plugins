@@ -572,6 +572,30 @@ describe("team paths may not start with a dot (.claude, .git, .env, .aws)", () =
     assert.deepEqual(team.research_paths, []);
   });
 
+  for (const target of [".", "research/.."]) {
+    test(`a symlink inside the project that resolves to the root (${target}) is rejected with the root reason`, { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+      const project = mkdtempSync(join(scratch, "reserved-root-link-"));
+      mkdirSync(join(project, "research"));
+      symlinkSync(target, join(project, "rootlink"));
+      const file = join(scratch, `reserved-${++n}.yaml`);
+      writeFileSync(file, "version: 1\noutput_home: rootlink\nresearch_paths:\n  - rootlink\n");
+      const { team } = detect(["--project", project, ...seams, "--team", file]);
+      assert.equal(team.output_home, null);
+      assert.deepEqual(team.research_paths, []);
+      assert.equal(team.warnings.filter((w) => w.includes("repository root")).length, 2, team.warnings.join("\n"));
+    });
+  }
+
+  test("a symlink inside the project that resolves outside it is refused for both keys", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+    const project = mkdtempSync(join(scratch, "reserved-out-link-"));
+    symlinkSync("..", join(project, "up"));
+    const file = join(scratch, `reserved-${++n}.yaml`);
+    writeFileSync(file, "version: 1\noutput_home: up/x\nresearch_paths:\n  - up\n");
+    const { team } = detect(["--project", project, ...seams, "--team", file]);
+    assert.equal(team.output_home, null);
+    assert.deepEqual(team.research_paths, []);
+  });
+
   test("a symlink inside the project that points at .claude cannot carry a path there", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
     const project = mkdtempSync(join(scratch, "reserved-link-"));
     mkdirSync(join(project, ".claude"));

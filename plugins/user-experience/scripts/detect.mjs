@@ -313,18 +313,29 @@ function teamSettings(doc, warn) {
   const reserved = (rel) => rel.split(/[\\/]/)[0].startsWith(".");
   // Checked as written and as resolved, so a symlink inside the project that points at a dot
   // location cannot carry a path there.
-  const resolvesReserved = (rel) => {
+  const resolved = (rel) => {
     const root = realpathSync(resolve(opts.project));
     let at = resolve(opts.project, rel);
+    const exists = existsSync(at);
     while (!existsSync(at)) at = dirname(at);
-    return reserved(relative(root, realpathSync(at)));
+    return { real: relative(root, realpathSync(at)), exists };
   };
+  // relative() gives "" for the root, so an existing path that resolves there (a symlink to the
+  // root) is the root; a missing path whose nearest existing ancestor is the root is not.
+  const resolvesToRoot = (rel) => {
+    const { real, exists } = resolved(rel);
+    return exists && real === "";
+  };
+  const resolvesReserved = (rel) => resolvesToRoot(rel) || reserved(resolved(rel).real);
   const usable = (p) => {
     const rel = inside(p);
     return rel === null || reserved(rel) || resolvesReserved(rel) ? null : rel;
   };
   const ROOT_REASON = "resolves to the repository root, which holds tool config and secrets; name a subdirectory";
-  const why = (p, fallback) => (inside(p) === "." ? ROOT_REASON : fallback);
+  const why = (p, fallback) => {
+    const rel = inside(p);
+    return rel === "." || (rel !== null && resolvesToRoot(rel)) ? ROOT_REASON : fallback;
+  };
   const paths = (k) =>
     listAt(doc[k], k, warn).flatMap((p) => {
       const rel = usable(p);
