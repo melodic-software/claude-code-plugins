@@ -307,11 +307,10 @@ function teamSettings(doc, warn) {
   }
   // A project path whose first segment is not a dotfile or dot-directory: a deliverable under
   // .claude would become a standing project rule, and research read from .claude, .git, .env or
-  // .aws is configuration or secrets, not research.
-  const reserved = (rel) => {
-    const seg = rel.split(/[\\/]/)[0];
-    return seg !== "." && seg.startsWith(".");
-  };
+  // .aws is configuration or secrets, not research. The project root (".") counts too, since a
+  // research path there reads every dot location under it and an output home there writes beside
+  // tool config at the root.
+  const reserved = (rel) => rel.split(/[\\/]/)[0].startsWith(".");
   // Checked as written and as resolved, so a symlink inside the project that points at a dot
   // location cannot carry a path there.
   const resolvesReserved = (rel) => {
@@ -324,16 +323,18 @@ function teamSettings(doc, warn) {
     const rel = inside(p);
     return rel === null || reserved(rel) || resolvesReserved(rel) ? null : rel;
   };
+  const ROOT_REASON = "resolves to the repository root, which holds tool config and secrets; name a subdirectory";
+  const why = (p, fallback) => (inside(p) === "." ? ROOT_REASON : fallback);
   const paths = (k) =>
     listAt(doc[k], k, warn).flatMap((p) => {
       const rel = usable(p);
-      if (rel === null) warn(`${k} entry ${quote(p)} is outside the project, starts with a dot, or is not a path; dropped`);
+      if (rel === null) warn(`${k} entry ${quote(p)} ${why(p, "is outside the project, starts with a dot, or is not a path")}; dropped`);
       return rel === null ? [] : [rel];
     });
   let home = DEFAULTS.output_home;
   if (doc.output_home != null) {
     home = usable(doc.output_home);
-    if (home === null) warn(`output_home ${quote(doc.output_home)} is outside the project, starts with a dot, or is not a path; default used`);
+    if (home === null) warn(`output_home ${quote(doc.output_home)} ${why(doc.output_home, "is outside the project, starts with a dot, or is not a path")}; default used`);
   }
   return { jtbd_school: school, research_paths: paths("research_paths"), persona_paths: paths("persona_paths"), output_home: home };
 }

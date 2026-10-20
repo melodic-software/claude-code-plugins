@@ -526,15 +526,39 @@ describe("team paths may not start with a dot (.claude, .git, .env, .aws)", () =
     assert.equal(run("version: 1\noutput_home: research/ux\n").output_home, "research/ux");
   });
 
-  test("the project root is not a dot-directory: output_home . and research_paths research/.. are kept", () => {
-    const team = run("version: 1\noutput_home: .\nresearch_paths:\n  - research/..\n");
-    assert.equal(team.output_home, ".");
-    assert.deepEqual(team.research_paths, ["."]);
-    assert.ok(!team.warnings.some((w) => w.includes("output_home") || w.includes("research_paths")), team.warnings.join("\n"));
+  test("the repository root is dropped for output_home and research_paths, with a warning naming why", () => {
+    const team = run("version: 1\noutput_home: .\nresearch_paths:\n  - .\n  - research/..\n  - research\n");
+    assert.equal(team.output_home, null);
+    assert.deepEqual(team.research_paths, ["research"]);
+    for (const [key, value] of [["output_home", "."], ["research_paths", "."], ["research_paths", "research/.."]]) {
+      assert.ok(
+        team.warnings.some((w) => w.includes(key) && w.includes(JSON.stringify(value)) && w.includes("repository root")),
+        `${key} ${value}: ${team.warnings.join("\n")}`,
+      );
+    }
   });
 
-  test("a dot-directory below a kept root is still dropped: .hidden/x", () => {
-    assert.equal(run("version: 1\noutput_home: .hidden/x\n").output_home, null);
+  for (const value of [".", "./", "research/..", "research/../", "research/./.."]) {
+    test(`every spelling of the root is dropped for both keys: ${JSON.stringify(value)}`, () => {
+      const team = run(`version: 1\noutput_home: ${JSON.stringify(value)}\nresearch_paths:\n  - ${JSON.stringify(value)}\n`);
+      assert.equal(team.output_home, null);
+      assert.deepEqual(team.research_paths, []);
+      assert.ok(team.warnings.filter((w) => w.includes("repository root")).length === 2, team.warnings.join("\n"));
+    });
+  }
+
+  test("an empty path and an absolute path to the root are dropped for both keys", () => {
+    for (const value of ["", EXISTING, `${EXISTING}/`]) {
+      const team = run(`version: 1\noutput_home: ${JSON.stringify(value)}\nresearch_paths:\n  - ${JSON.stringify(value)}\n`);
+      assert.equal(team.output_home, null, value);
+      assert.deepEqual(team.research_paths, [], value);
+    }
+  });
+
+  test("a dot-directory is dropped for both keys: .hidden/x", () => {
+    const team = run("version: 1\noutput_home: .hidden/x\nresearch_paths:\n  - .hidden/x\n");
+    assert.equal(team.output_home, null);
+    assert.deepEqual(team.research_paths, []);
   });
 
   test("a symlink inside the project that points at a dot-directory cannot carry a path there", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
