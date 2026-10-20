@@ -17,6 +17,19 @@ const LIST = path.join(FIXTURES, "trusted-actors.json");
 const HEAD_SHA = "1111111111111111111111111111111111111111";
 const BASE_SHA = "2222222222222222222222222222222222222222";
 const STRANGER = { login: "stranger", id: 9999001, type: "User" };
+const OWN_RUN_ID = "39000000001";
+const OWN_ROUTE = `GET /repos/${REPOSITORY}/actions/runs/${OWN_RUN_ID}`;
+// The account each triggering-actor login in these tests stands for.
+const USERS = {
+  "kyle-sexton": { login: "kyle-sexton", id: 153232337, type: "User" },
+  stranger: STRANGER,
+  "claude[bot]": { login: "claude[bot]", id: 209825114, type: "Bot" },
+  "melodic-automation-lanes[bot]": { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" },
+  "github-actions[bot]": { login: "github-actions[bot]", id: 41898282, type: "Bot" },
+  "github-merge-queue[bot]": { login: "github-merge-queue[bot]", id: 118344674, type: "Bot" },
+};
+// A listed login now held by another account.
+const IMPOSTOR = { login: "kyle-sexton", id: 9999002, type: "User" };
 
 const fixture = (name) => JSON.parse(readFileSync(path.join(FIXTURES, name), "utf8"));
 
@@ -35,6 +48,7 @@ function fakeGitHub(routes) {
     return structuredClone(value);
   };
   github.calls = calls;
+  github.routes = routes;
   return github;
 }
 
@@ -83,15 +97,32 @@ async function gate({
   expectedUpstreamHead,
   lanesAppId,
   requirePr,
-  runId,
+  runId = OWN_RUN_ID,
   dispatchedWorkflow,
   requireKind,
   appLabel,
   reconcilerWorkflow,
-  runAttempt,
+  runAttempt = "1",
+  rerunner = USERS[triggeringActor.toLowerCase()],
+  ownRun,
   sleep = fakeSleep(),
 }) {
   const outputPath = writeJson("output", "");
+  // This run's own record, unless the test routes it: the re-runner is read
+  // from its triggering_actor, by default the user triggeringActor names.
+  const ownRoute = `GET /repos/${REPOSITORY}/actions/runs/${runId}`;
+  const record = ownRun !== undefined ? ownRun : { id: Number(runId), run_attempt: Number(runAttempt), triggering_actor: rerunner };
+  const withOwnRun = async (method, apiPath, ...rest) => {
+    const key = `${method} ${apiPath}`;
+    if (key !== ownRoute || key in (github.routes ?? {})) {
+      return github(method, apiPath, ...rest);
+    }
+    github.calls?.push(key);
+    if (record instanceof GitHubError) {
+      throw record;
+    }
+    return structuredClone(record);
+  };
   await main({
     env: {
       EVENT_NAME: eventName,
@@ -120,7 +151,7 @@ async function gate({
       ...(reconcilerWorkflow === undefined ? {} : { RECONCILER_WORKFLOW: reconcilerWorkflow }),
       ...(runAttempt === undefined ? {} : { GITHUB_RUN_ATTEMPT: runAttempt }),
     },
-    github,
+    github: withOwnRun,
     sleep,
   });
   return readOutputs(readFileSync(outputPath, "utf8"));
@@ -209,7 +240,7 @@ test("workflow_dispatch: resolves the head ref of a same-repo PR by fetching it"
     prNumber: "42",
   });
   assert.deepEqual(outputs, PROCEED);
-  assert.deepEqual(github.calls, [`GET /repos/${REPOSITORY}/pulls/42`]);
+  assert.deepEqual(github.calls, [`GET /repos/${REPOSITORY}/pulls/42`, OWN_ROUTE]);
 });
 
 test("workflow_dispatch: a fetched PR with a null head repo counts as a fork", async () => {
@@ -649,9 +680,9 @@ test("dispatcher: a sender named github-actions[bot] under another id is not the
 test("dispatcher: the dispatcher check is skipped for a listed human sender", async () => {
   const event = fixture("event-workflow-dispatch-dispatcher.json");
   event.sender = KYLE;
-  const github = fakeGitHub(dispatcherRoutes());
+  const github = fakeGitHub(dispatcherRoutes({ self: { triggering_actor: KYLE } }));
   assert.deepEqual(await dispatched({ github, event, triggeringActor: "kyle-sexton" }), PROCEED);
-  assert.deepEqual(github.calls, [pullRoute]);
+  assert.deepEqual(github.calls, [pullRoute, selfRoute]);
 });
 
 test("dispatcher: a dispatched run still needs a listed PR author", async () => {
@@ -704,7 +735,7 @@ test("dispatcher: the run id is ignored on a pull_request event", async () => {
     }),
     PROCEED,
   );
-  assert.deepEqual(github.calls, []);
+  assert.deepEqual(github.calls, [selfRoute]);
 });
 
 // The dispatcher run's record of the runs it dispatched
@@ -883,7 +914,7 @@ test("dispatcher: a re-run attempt 2 by a listed human refuses once the record h
 test("dispatcher: a listed human's own dispatch reads no record", async () => {
   const event = fixture("event-workflow-dispatch-dispatcher.json");
   event.sender = KYLE;
-  const github = fakeGitHub(dispatcherRoutes({ artifacts: listing() }));
+  const github = fakeGitHub(dispatcherRoutes({ artifacts: listing(), self: { triggering_actor: KYLE } }));
   assert.deepEqual(await dispatched({ github, event, triggeringActor: "kyle-sexton" }), PROCEED);
   assert.equal(artifactReads(github), 0);
 });
@@ -1052,13 +1083,13 @@ test("reconciler re-run: with no record, github-actions[bot] stays an untrusted 
   assert.deepEqual(sleep.waits, [5000]);
 });
 
-test("reconciler re-run: without reconciler-workflow the bot re-runner stops and nothing is read", async () => {
+test("reconciler re-run: without reconciler-workflow the bot re-runner stops and no record is read", async () => {
   const github = fakeGitHub(rerunRoutes());
   assert.deepEqual(
     await reconcilerRerun({ github, reconcilerWorkflow: "" }),
     STOPPED("untrusted-rerunner"),
   );
-  assert.deepEqual(github.calls, [commitPulls]);
+  assert.deepEqual(github.calls, [commitPulls, `GET /repos/${REPOSITORY}/actions/runs/${LOST_RUN_ID}`]);
 });
 
 test("reconciler re-run: an unlisted re-runner with no record still stops", async () => {
@@ -1198,7 +1229,7 @@ function actorOnly({ eventName = "workflow_dispatch", event, ...rest }) {
 }
 
 test("actor-only: a listed sender and triggering actor on workflow_dispatch proceed without a PR", async () => {
-  assert.deepEqual(await actorOnly({}), { outputs: ACTORS_OK, calls: [] });
+  assert.deepEqual(await actorOnly({}), { outputs: ACTORS_OK, calls: [OWN_ROUTE] });
 });
 
 test("actor-only: an unlisted workflow_dispatch sender stops with untrusted-actor", async () => {
@@ -1223,7 +1254,7 @@ test("actor-only: a push checks only the triggering actor", async () => {
     triggeringActor: "kyle-sexton",
   });
   assert.deepEqual(outputs, ACTORS_OK);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, [OWN_ROUTE]);
 });
 
 test("actor-only: a push with an unlisted triggering actor stops", async () => {
@@ -1243,7 +1274,7 @@ test("actor-only: a push with a denied triggering actor stops", async () => {
 test("actor-only: a pr-number is not read", async () => {
   const { outputs, calls } = await actorOnly({ prNumber: "42" });
   assert.deepEqual(outputs, ACTORS_OK);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, [OWN_ROUTE]);
 });
 
 for (const eventName of ["pull_request", "workflow_run", "schedule"]) {
@@ -1257,7 +1288,7 @@ for (const eventName of ["pull_request", "workflow_run", "schedule"]) {
 test("actor-only: an issues label from a listed human proceeds without a PR", async () => {
   const { outputs, calls } = await actorOnly({ eventName: "issues", requireKind: "human" });
   assert.deepEqual(outputs, ACTORS_OK);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, [OWN_ROUTE]);
 });
 
 test("actor-only: an issues label from an unlisted sender stops with untrusted-actor", async () => {
@@ -1335,10 +1366,10 @@ function appLabel({ label = "agent-ready", action = "labeled", sender = LANES_AP
   }).then((outputs) => ({ outputs, calls: github.calls }));
 }
 
-test("app-label: the App's agent-ready label proceeds on the label alone and reads nothing", async () => {
+test("app-label: the App's agent-ready label proceeds on the label alone and reads only its own run", async () => {
   const { outputs, calls } = await appLabel();
   assert.deepEqual(outputs, ACTORS_OK);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, [OWN_ROUTE]);
 });
 
 test("app-label: a listed human re-running the App's run proceeds", async () => {
@@ -1393,7 +1424,7 @@ test("app-label:another listed bot applying agent-ready still stops with untrust
 test("app-label:a human's agent-ready label proceeds as before", async () => {
   const { outputs, calls } = await appLabel({ sender: KYLE, triggeringActor: "kyle-sexton" });
   assert.deepEqual(outputs, ACTORS_OK);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, [OWN_ROUTE]);
 });
 
 test("app-label:outside issues, the App sender still stops with bot-actor", async () => {
@@ -1579,7 +1610,7 @@ test("bot-actor: a malformed denied-id list stops with list-unreadable", async (
   );
 });
 
-test("triggering-actor: a listed re-runner proceeds, matched without case", async () => {
+test("triggering-actor: a listed re-runner proceeds whatever the login's case", async () => {
   assert.deepEqual(
     await gate({
       eventName: "pull_request",
@@ -1601,15 +1632,21 @@ test("untrusted-rerunner: an unlisted re-runner of a trusted run stops", async (
   );
 });
 
-test("untrusted-rerunner: an empty re-runner login stops instead of skipping the check", async () => {
-  assert.deepEqual(
-    await gate({
-      eventName: "pull_request",
-      event: fixture("event-pull-request.json"),
-      triggeringActor: "",
-    }),
-    STOPPED("untrusted-rerunner"),
-  );
+test("untrusted-rerunner: an empty re-runner login does not skip the check of the record's id", async () => {
+  for (const [rerunner, expected] of [
+    [USERS["kyle-sexton"], PROCEED],
+    [STRANGER, STOPPED("untrusted-rerunner")],
+  ]) {
+    assert.deepEqual(
+      await gate({
+        eventName: "pull_request",
+        event: fixture("event-pull-request.json"),
+        triggeringActor: "",
+        rerunner,
+      }),
+      expected,
+    );
+  }
 });
 
 // failure handling
@@ -1920,10 +1957,146 @@ test("workflow_run dispatcher: the push dispatcher still proceeds with both conf
 test("workflow_run dispatcher: a listed human's own dispatch is unchanged", async () => {
   const event = fixture("event-workflow-dispatch-dispatcher.json");
   event.sender = KYLE;
-  const github = fakeGitHub(runDispatcherRoutes());
+  const github = fakeGitHub(runDispatcherRoutes({ self: { triggering_actor: KYLE } }));
   assert.deepEqual(
     await runDispatched({ github, event, triggeringActor: "kyle-sexton" }),
     PROCEED,
   );
-  assert.deepEqual(github.calls, [pullRoute]);
+  assert.deepEqual(github.calls, [pullRoute, selfRoute]);
 });
+
+// The re-runner is read by id from this run's own record
+// (GET /actions/runs/{run_id}), never by login: a released login another
+// account registers stays untrusted.
+
+const prPaths = {
+  pull_request: () => ({ eventName: "pull_request", event: fixture("event-pull-request.json") }),
+  workflow_dispatch: () => ({
+    eventName: "workflow_dispatch",
+    event: fixture("event-workflow-dispatch.json"),
+    prNumber: "42",
+    github: fakeGitHub({ [pullRoute]: fixture("api-pull-42.json") }),
+  }),
+  workflow_run: () => ({
+    eventName: "workflow_run",
+    event: fixture("event-workflow-run.json"),
+    github: fakeGitHub({ [commitPulls]: [fixture("api-pull-42.json")] }),
+  }),
+};
+
+for (const [name, path_] of Object.entries(prPaths)) {
+  test(`re-runner by id: ${name}, a listed login held by another id stops`, async () => {
+    assert.deepEqual(await gate({ ...path_(), rerunner: IMPOSTOR }), STOPPED("untrusted-rerunner"));
+  });
+
+  test(`re-runner by id: ${name}, a listed id proceeds whatever its login`, async () => {
+    const args = path_();
+    args.github ??= fakeGitHub({});
+    assert.deepEqual(
+      await gate({ ...args, triggeringActor: "kyle-renamed", rerunner: { ...USERS["kyle-sexton"], login: "kyle-renamed" } }),
+      PROCEED,
+    );
+    assert.ok(args.github.calls.includes(OWN_ROUTE));
+  });
+
+  test(`re-runner by id: ${name}, a failed own-run read stops`, async () => {
+    assert.deepEqual(
+      await gate({ ...path_(), ownRun: new GitHubError(403, OWN_ROUTE) }),
+      STOPPED("untrusted-rerunner"),
+    );
+  });
+}
+
+const actorPaths = {
+  workflow_dispatch: () => ({}),
+  push: () => ({ eventName: "push", event: { sender: STRANGER } }),
+  issues: () => ({ eventName: "issues", requireKind: "human" }),
+};
+
+for (const [name, path_] of Object.entries(actorPaths)) {
+  test(`re-runner by id: actor-only ${name}, a listed login held by another id stops`, async () => {
+    const { outputs, calls } = await actorOnly({ ...path_(), rerunner: IMPOSTOR });
+    assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+    assert.deepEqual(calls, [OWN_ROUTE]);
+  });
+
+  test(`re-runner by id: actor-only ${name}, a failed own-run read stops`, async () => {
+    const { outputs } = await actorOnly({ ...path_(), ownRun: new GitHubError(403, OWN_ROUTE) });
+    assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+  });
+}
+
+test("re-runner by id: app-label, the App's login held by another id stops", async () => {
+  const { outputs } = await appLabel({ rerunner: { ...LANES_APP, id: 9999003 } });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+test("re-runner by id: app-label, a human's login held by another id stops", async () => {
+  const { outputs } = await appLabel({ triggeringActor: "kyle-sexton", rerunner: IMPOSTOR });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+test("re-runner by id: app-label, the App as re-runner must still be on the list", async () => {
+  const list = writeJson("no-app.json", {
+    version: 1,
+    actors: [{ id: 153232337, login: "kyle-sexton", kind: "human" }],
+  });
+  const { outputs } = await appLabel({ list });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+test("re-runner by id: app-label, a failed own-run read stops", async () => {
+  const { outputs } = await appLabel({ ownRun: new GitHubError(403, OWN_ROUTE) });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+// work-resolve-issue.yml's admit job: require-pr false, require-kind human,
+// app-label agent-ready and the lanes App id.
+test("re-runner by id: the admit inputs admit a listed human's or the App's agent-ready label", async () => {
+  assert.deepEqual(await appLabel({ sender: KYLE, triggeringActor: "kyle-sexton", deniedActorIds: "" }), {
+    outputs: ACTORS_OK,
+    calls: [OWN_ROUTE],
+  });
+  assert.deepEqual(await appLabel({ deniedActorIds: "" }), { outputs: ACTORS_OK, calls: [OWN_ROUTE] });
+  const { outputs } = await appLabel({ sender: STRANGER, triggeringActor: "stranger", deniedActorIds: "" });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+const malformed = {
+  "a non-object body": null,
+  "an array body": [],
+  "no triggering_actor": { id: Number(OWN_RUN_ID), run_attempt: 1 },
+  "a string triggering_actor id": {
+    id: Number(OWN_RUN_ID),
+    run_attempt: 1,
+    triggering_actor: { ...USERS["kyle-sexton"], id: "153232337" },
+  },
+  "another run's id": { id: 39000000002, run_attempt: 1, triggering_actor: USERS["kyle-sexton"] },
+  "another attempt": { id: Number(OWN_RUN_ID), run_attempt: 2, triggering_actor: USERS["kyle-sexton"] },
+};
+
+for (const [label, ownRun] of Object.entries(malformed)) {
+  test(`re-runner by id: a run record with ${label} stops`, async () => {
+    assert.deepEqual(
+      await gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), ownRun }),
+      STOPPED("untrusted-rerunner"),
+    );
+    const { outputs } = await actorOnly({ ownRun });
+    assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+  });
+}
+
+for (const [label, ids] of [
+  ["no run id", { runId: "" }],
+  ["a malformed run id", { runId: "1/../../pulls/1" }],
+  ["no run attempt", { runAttempt: "" }],
+]) {
+  test(`re-runner by id: ${label} stops before any read`, async () => {
+    const github = fakeGitHub({});
+    assert.deepEqual(
+      await gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), github, ...ids }),
+      STOPPED("untrusted-rerunner"),
+    );
+    assert.deepEqual(github.calls, []);
+  });
+}

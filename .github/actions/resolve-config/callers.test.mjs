@@ -697,8 +697,11 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
 });
 
 // Drives the gate step's inputs through check-trusted-trigger's own main, as
-// the action's env map passes them, on an agent-ready label event.
-async function admitOn(sender, triggeringActor) {
+// the action's env map passes them, on an agent-ready label event. The gate
+// reads the run attempt's re-runner by id from the run's own record; the stub
+// answers that read alone, with `rerunner` (the labeler by default).
+const RUN_ID = "39500000001";
+async function admitOn(sender, rerunner = sender) {
   const { jobs } = workflow("work-resolve-issue.yml");
   const gate = jobs.admit.steps.find((s) => s.id === "gate");
   const action = parse(read("../check-trusted-trigger/action.yml"));
@@ -710,10 +713,17 @@ async function admitOn(sender, triggeringActor) {
     writeFileSync(output, "");
     const values = {
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936",
-      "github.triggering_actor": triggeringActor,
+      "github.triggering_actor": rerunner.login,
     };
-    // The event the runner would pass through the action's defaults.
-    const env = { GITHUB_OUTPUT: output, REPOSITORY: "o/r", EVENT_NAME: "issues", EVENT_PATH: eventPath };
+    // The event and run the runner would pass through the action's defaults.
+    const env = {
+      GITHUB_OUTPUT: output,
+      REPOSITORY: "o/r",
+      EVENT_NAME: "issues",
+      EVENT_PATH: eventPath,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_RUN_ATTEMPT: "1",
+    };
     for (const [name, value] of Object.entries(action.runs.steps[0].env)) {
       const input = value.match(/^\$\{\{ inputs\.([\w-]+) \}\}$/)?.[1];
       if (!input || !Object.hasOwn(gate.with, input)) continue;
@@ -721,13 +731,19 @@ async function admitOn(sender, triggeringActor) {
       env[name] = /^\$\{\{/.test(given) ? evaluate(given, values) : given;
     }
     env.TRUSTED_ACTORS_PATH = fileURLToPath(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url));
-    const github = async () => {
-      throw new Error("the actor-only gate reads no API");
+    const reads = [];
+    const github = async (method, path) => {
+      reads.push(`${method} ${path}`);
+      if (method === "GET" && path === `/repos/o/r/actions/runs/${RUN_ID}`) {
+        return { id: Number(RUN_ID), run_attempt: 1, triggering_actor: { login: rerunner.login, id: rerunner.id } };
+      }
+      throw new Error(`the actor-only gate reads only its own run record, not ${method} ${path}`);
     };
     await checkTrustedTrigger({ env, github: Object.assign(github, { graphql: github }) });
     // GITHUB_OUTPUT's delimited form, as writeOutputs writes it.
     const proceed = /^proceed<<(\S+)\n(.*)\n\1$/m.exec(readFileSync(output, "utf8"))?.[2] ?? "";
     const resolve = jobs["resolve-issue"];
+    assert.ok(reads.every((call) => call === `GET /repos/o/r/actions/runs/${RUN_ID}`), reads.join(", "));
     return {
       proceed,
       runs: evaluate(resolve.if, {
@@ -743,11 +759,12 @@ async function admitOn(sender, triggeringActor) {
 
 test("work-resolve-issue.yml: an unlisted labeler's agent-ready is refused at the gate and the credentialed job is skipped", async () => {
   const stranger = { login: "stranger", id: 9999001, type: "User" };
-  assert.deepEqual(await admitOn(stranger, "stranger"), { proceed: "false", runs: false });
+  assert.deepEqual(await admitOn(stranger), { proceed: "false", runs: false });
   const listedBot = { login: "claude[bot]", id: 209825114, type: "Bot" };
-  assert.deepEqual(await admitOn(listedBot, "claude[bot]"), { proceed: "false", runs: false }, "a listed bot is not a human");
+  assert.deepEqual(await admitOn(listedBot), { proceed: "false", runs: false }, "a listed bot is not a human");
   const human = { login: "kyle-sexton", id: 153232337, type: "User" };
-  assert.deepEqual(await admitOn(human, "kyle-sexton"), { proceed: "true", runs: true }, "a listed human's label is admitted");
+  assert.deepEqual(await admitOn(human), { proceed: "true", runs: true }, "a listed human's label is admitted");
+  assert.deepEqual(await admitOn(human, stranger), { proceed: "false", runs: false }, "an unlisted re-runner of a listed human's run is refused");
   const app = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
-  assert.deepEqual(await admitOn(app, "melodic-automation-lanes[bot]"), { proceed: "true", runs: true }, "the lanes App's own agent-ready is admitted");
+  assert.deepEqual(await admitOn(app), { proceed: "true", runs: true }, "the lanes App's own agent-ready is admitted");
 });
