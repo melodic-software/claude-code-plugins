@@ -5883,11 +5883,12 @@
       const list = draftOf(q, rec), own = list.includes("other") ? ownText(q, rec).trim() : null;
       if (own === "") { openOther(qid); return flash("Write your own option first."); }
       const fields = q.format === "multi" ? { options: list } : { order: list };
+      // A file still waiting for the host holds the save back, the picks kept as drafted.
+      const early = own == null ? earlyOf(q, rec) : null;
+      if (earlyWaits(qid, early)) return;
       // The saved pick shows at once; a refusal puts the draft back.
       const draft = ui.fdraft[qid], ownDraft = ui.otherText[qid];
       delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
-      const early = own == null ? earlyOf(q, rec) : null;
-      if (earlyWaits(qid, early)) return;
       Core.pickWith(qid, fields, own != null ? { other: own } : early || { comment: commentOf(rec) })
         .then(() => { if (early) sentEarly(qid, early); flash(q.format === "multi" ? `Your picks are saved${early?.comment ? " with your comment" : ""}.` : `Your ranking is saved${early?.comment ? " with your comment" : ""}.`); })
         .catch(e => { if (draft && !ui.fdraft[qid]) ui.fdraft[qid] = draft; if (ownDraft != null && ui.otherText[qid] == null) ui.otherText[qid] = ownDraft; fail(e); render(); });
@@ -5912,10 +5913,10 @@
       clearTimeout(FMT.timer);
       const save = () => {
         const rec = myRec(qid);
-        delete ui.fdraft[qid];
-        if (rec?.value === n) return render();
+        if (rec?.value === n) { delete ui.fdraft[qid]; return render(); }
         const early = earlyOf(q, rec);
-        if (earlyWaits(qid, early)) return render();
+        if (earlyWaits(qid, early)) return render(); // the value stays drafted until its file is ready
+        delete ui.fdraft[qid];
         Core.pickWith(qid, { value: n }, early || { comment: commentOf(rec) }).then(() => { if (early) sentEarly(qid, early); announce(`You chose ${n}.`); armAdvance(qid); }).catch(fail).finally(render);
       };
       if (now) save(); else FMT.timer = setTimeout(save, 450);

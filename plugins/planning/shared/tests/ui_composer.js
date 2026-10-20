@@ -6,7 +6,7 @@
 // sends chat, Escape cancels a comment edit, the counter shows near the limit, the request edit field has its limit and
 // a pasted answer from one's own Claude is never cut (follow-ups 22, 31, F1, F2, B1, B3); a poll or pick-many comment,
 // and its files, go in with the pick in one step, on a phone too, keeping text typed while the pick is on its way
-// (26); a field the person is not typing in never pulls the page back when it repaints (28); Claude's answer to an ask
+// (26), a save held back by a file still waiting for the host keeping the picks; a field the person is not typing in never pulls the page back when it repaints (28); Claude's answer to an ask
 // becomes its asker's own option on a choice question, asking first when they had picked, never once taken down or
 // while it is their own Claude's unshared answer (29); and unsent text comes back only to whoever wrote it.
 //   node plugins/planning/shared/tests/ui_composer.js
@@ -326,6 +326,36 @@ async function main() {
     ok("a file attached before the pick goes in with the pick and its comment", await until(owner, id => (window.Core.snapshot().cards?.Q4 || [])
       .some(c => c.pick === "opt-2" && c.text === "With a photo of the menu" && (c.attachments || []).includes(id)), up),
       JSON.stringify(await myCard(fay, "Q4")));
+
+    // ---------- a pick-many save held back by a file still waiting for the host keeps the picks drafted ----------
+    const hy = await rec.open(A.localUrl, DESK);
+    await joinAs(hy, "Hy");
+    await go(hy, T.q5);
+    await until(hy, () => !!document.querySelector(".vf-composer .vf-attach")?.offsetParent);
+    await hy.fill("#vf-answer", "Card first");
+    await hy.evaluate(async () => {
+      const c = document.createElement("canvas"); c.width = 64; c.height = 40; c.getContext("2d").fillRect(0, 0, 64, 40);
+      const blob = await new Promise(r => c.toBlob(r, "image/png")), dt = new DataTransfer();
+      dt.items.add(new File([blob], "cards.png", { type: "image/png" }));
+      document.getElementById("vf-answer").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    });
+    await until(hy, () => (window.Core.snapshot().myUploads || []).length === 1, null, 10000);
+    for (const label of ["Card", "PayPal"]) await hy.locator(".vf-check-row", { hasText: label }).locator("input").check();
+    const picksSent = [];
+    hy.on("request", r => { if (new URL(r.url()).pathname === "/api/pick") picksSent.push(r.url()); });
+    await hy.click(".vf-fmt-save");
+    const waitSaid = await until(hy, () => /is waiting for the host/.test(document.querySelector(".vf-toast.vf-on span")?.textContent || ""));
+    await hy.waitForTimeout(2000); // a poll or two repaint the page
+    const checked = () => hy.evaluate(() => [...document.querySelectorAll(".vf-check-row")].filter(r => r.querySelector("input")?.checked).map(r => r.textContent.trim()));
+    const heldPicks = await checked();
+    ok("Save my picks held back by a file waiting for the host sends nothing and keeps both picks checked", waitSaid && picksSent.length === 0
+      && heldPicks.length === 2 && heldPicks.some(t => t.includes("Card")) && heldPicks.some(t => t.includes("PayPal")), JSON.stringify({ waitSaid, sent: picksSent.length, heldPicks }));
+    const hyUp = await hy.evaluate(() => window.Core.snapshot().myUploads[0].id);
+    await owner.evaluate(id => window.Core.uploadAct(id, "accept"), hyUp);
+    await until(hy, id => (window.Core.snapshot().myUploads || []).some(u => u.id === id && u.status.kind === "done"), hyUp, 30000);
+    await hy.click(".vf-fmt-save");
+    ok("  once the host accepts the file, Save sends those picks with the comment and the file", await until(owner, id => (window.Core.snapshot().cards?.Q5 || [])
+      .some(c => JSON.stringify(c.picks) === '["opt-1","opt-2"]' && c.text === "Card first" && (c.attachments || []).includes(id)), hyUp), JSON.stringify(await myCard(hy, "Q5")));
 
     // ---------- S1: unsent text belongs to whoever wrote it ----------
     const UNSENT_HOST = "The host's unsent line";
