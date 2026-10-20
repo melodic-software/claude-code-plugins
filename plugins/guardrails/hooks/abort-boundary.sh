@@ -113,6 +113,39 @@ guard::refuse_unparsable() {
 guard::refuse_alias_chain() {
   guard::say_once alias-chain "BLOCKED: checking this git alias chain needs over $HOOK_ALIAS_WORK_MAX re-expansions. Run the subcommand directly."
 }
+# guard::alias_depth_max: set HOOK_ALIAS_DEPTH_MAX, the deepest alias re-expansion
+# the git guards walk. The work budget bounds time, not stack: bash runs each
+# nested check_segment on the C stack, and a walk under 128 analyses still
+# crashed the process (SIGSEGV, exit 139, which Claude Code lets through) on a
+# 512 KB stack. A level costs up to ~9 KB measured under the dispatcher (a
+# 512 KB stack survives 50 hops and not 60), so the cap is 20 KB a level, which
+# leaves headroom for the heavier `!` shell-alias levels. The stack comes from
+# /proc with builtins, because `$(ulimit -s)` forks and these guards run on every
+# Bash call. No /proc (macOS, Git Bash) or an unlimited stack gives 25, what a
+# 512 KB stack yields, and no stack gives more than 409 (8 MiB). For tests only,
+# GUARDRAILS_PROC_LIMITS names a second limits file and GUARDRAILS_ALIAS_DEPTH_MAX
+# a number; each can only lower the cap, since the result is the minimum of every
+# value read and a missing or unparsable file reads as 25.
+guard::alias_depth_max() {
+  local file line cap
+  HOOK_ALIAS_DEPTH_MAX=
+  for file in /proc/self/limits ${GUARDRAILS_PROC_LIMITS:+"$GUARDRAILS_PROC_LIMITS"}; do
+    cap=25
+    if [[ -r "$file" ]]; then
+      while IFS= read -r line; do
+        if [[ "$line" =~ ^Max\ stack\ size[[:space:]]+([0-9]+)[[:space:]] ]]; then
+          cap=$((10#${BASH_REMATCH[1]} / 1024 / 20))
+          break
+        fi
+      done <"$file"
+    fi
+    ((cap <= 409)) || cap=409
+    [[ -n "$HOOK_ALIAS_DEPTH_MAX" ]] && ((cap >= HOOK_ALIAS_DEPTH_MAX)) || HOOK_ALIAS_DEPTH_MAX=$cap
+  done
+  if [[ "${GUARDRAILS_ALIAS_DEPTH_MAX-}" =~ ^[0-9]+$ ]] && ((10#$GUARDRAILS_ALIAS_DEPTH_MAX < HOOK_ALIAS_DEPTH_MAX)); then
+    HOOK_ALIAS_DEPTH_MAX=$((10#$GUARDRAILS_ALIAS_DEPTH_MAX))
+  fi
+}
 guard::refuse_config_env_alias() { # <alias>
   guard::say_once "config-env-$1" "BLOCKED: git alias '$1' is defined via --config-env, so its expansion cannot be checked. Define it in git config or run the subcommand directly."
 }

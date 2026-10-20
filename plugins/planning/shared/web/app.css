@@ -874,8 +874,10 @@
 }
 .app .vf-claude-av .vf-i { inline-size: 62%; block-size: 62%; stroke-width: 2; fill: currentColor; fill-opacity: 0.2; }
 .app .vf-basis { margin-block-start: 6px; color: var(--muted); font-size: 12px; }
-.app .vf-newdot { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--accent); flex: none; }
-.app .vf-qside .vf-newdot { margin-block-start: 2px; }
+.app .vf-ndot { inline-size: 8px; block-size: 8px; margin-block-start: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+/* an answer card's and a question row's dot stay the smaller size they had */
+.app :is(.vf-card-head, .vf-qside) .vf-ndot { inline-size: 7px; block-size: 7px; margin-block-start: 0; }
+.app .vf-qside .vf-ndot { margin-block-start: 2px; }
 .app .core-avatar[data-pid][role="button"] { cursor: pointer; }
 .app .vf-anshead .vf-seg { margin-inline-start: 4px; }
 
@@ -1019,11 +1021,9 @@
 .app .vf-propose { inline-size: 100%; margin-block-start: 6px; color: var(--text); }
 .app :is(.vf-proposepop, .vf-reportpop) { inline-size: 340px; display: grid; gap: 8px; }
 .app :is(.vf-proposepop, .vf-reportpop) .vf-pop-title { margin: 0; }
-/* Report a problem: the file input hides behind its label button; the screenshot shows small; the sent list wraps */
-.app .vf-rep-file { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); opacity: 0; }
-.app .vf-rep-add { cursor: pointer; display: inline-flex; align-items: center; }
-.app .vf-rep-shotrow:has(+ .vf-rep-file:focus-visible) .vf-rep-add { outline: 2px solid var(--accent); outline-offset: 2px; }
-.app .vf-rep-count { font-size: 12px; color: var(--faint); }
+/* Report a problem: the screenshot row hides once its chip shows; the sent list wraps */
+.app .vf-rep-shotrow { justify-content: flex-start; margin-block-start: 0; }
+.app .vf-rep-shotrow:has(> [hidden]:only-child) { display: none; }
 .app .vf-rep-shot { display: block; max-inline-size: 100%; max-block-size: 140px; border-radius: var(--r-sm); border: 1px solid var(--line); }
 .app .vf-rep-sent { margin: 0; display: grid; gap: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .app .vf-rep-sent li::before { content: "· "; }
@@ -1036,7 +1036,6 @@
 .app .vf-myrep-adds { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 .app .vf-myrep-add { display: grid; gap: 6px; }
 .app :is(.vf-myrep-add, .vf-myrep-adds)[hidden] { display: none; }
-.app .vf-myrep-add:has(.vf-rep-file:focus-visible) .vf-rep-add { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app .vf-myprops { display: grid; gap: 4px; padding: 4px 8px 2px; }
 .app .vf-mp { display: grid; gap: 1px; font-size: 12px; }
 .app .vf-mp-txt { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1069,7 +1068,6 @@
 
 /* ---------- settings extras, share notice, person card ---------- */
 .app .vf-menu-plain { color: var(--text); }
-.app .vf-menu-danger { color: var(--warn); }
 .app .vf-sub-note { margin: 0 8px 4px; }
 .app .vf-settings { max-block-size: calc(100% - 16px); overflow: auto; }
 .app .vf-removed { display: grid; gap: 4px; padding-inline: 8px; }
@@ -1335,8 +1333,7 @@
 /* Catch-up (triage row 43): a closed round still takes late answers. In the welcome card and above the current round. */
 .app .vf-catchup { margin: 0 0 6px; padding: 6px 8px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--text); font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
 .app .vf-catchup[hidden] { display: none; }
-.app .vf-catchup-go { display: inline; padding: 0; min-block-size: 24px; border: 0; background: none; font: inherit; font-weight: 600; color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
-.app .vf-catchup-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.app .vf-catchup .vf-lbtn { display: inline; font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .app .vf-round > .vf-catchup { margin: 4px 8px 6px; }
 /* Pass and the optional nudge: one quiet line under the answer box. */
 .app .vf-passbox { display: grid; gap: 6px; margin-block: 6px 10px; font-size: 13px; color: var(--muted); }
@@ -1500,7 +1497,6 @@
 .app .vf-cm-col { min-width: 0; display: grid; gap: 4px; }
 .app .vf-cm-head { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; font-size: 12px; }
 .app .vf-cm-name { font-weight: 650; }
-.app .vf-cm-new { margin: 0; inline-size: 6px; block-size: 6px; }
 .app .vf-cm-txt { font-size: 13.5px; overflow-wrap: anywhere; }
 .app .vf-cm-txt p { margin: 0; }
 .app .vf-cm-ishidden .vf-cm-txt { color: var(--muted); }
@@ -1752,7 +1748,7 @@
 .app .vf-role-removed { background: var(--review-soft); color: var(--review); }
 .app .vf-role-trusted { background: var(--raise); color: var(--text); }
 .app .vf-toggle[aria-pressed="true"] { color: var(--text); background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 55%, transparent); }
-.app .vf-btn-danger { color: var(--warn); }
+.app :is(.vf-btn-danger, .vf-menu-danger) { color: var(--warn); }
 .app .vf-hlinks { display: flex; gap: 6px; flex-wrap: wrap; }
 .app .vf-hs-links > .vf-btn { justify-self: start; }
 .app .vf-laterlist { gap: 6px; }
@@ -1867,7 +1863,6 @@
   font-size: 12px; line-height: 17px; color: var(--faint); overflow-wrap: anywhere;
 }
 .app .vf-nitem .vf-card-time { line-height: 20px; margin: 0; }
-.app .vf-ndot { inline-size: 8px; block-size: 8px; margin-block-start: 6px; border-radius: 50%; background: var(--accent); }
 .app .vf-mutebtn { margin-block-start: 8px; justify-self: start; }
 .app .vf-mutebox { display: grid; gap: 2px; padding-block-end: 4px; }
 .app .vf-mutebox .vf-sw-row > .vf-sw-txt { align-self: flex-start; } /* the switch sits on the label's first line */

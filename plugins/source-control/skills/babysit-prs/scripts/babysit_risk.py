@@ -103,6 +103,10 @@ class LaneEvidence:
     bound: bool  # the evidence binding held on the pinned SHA
     unbound_reason: str | None
     open_findings: int | None  # None when not bound
+    # Every open finding is one a clean whole review of the head closes: none
+    # was reported at the head, no whole review of it is recorded, and no
+    # lane thread is unresolved.
+    whole_review_clears: bool = False
 
 
 @dataclass(frozen=True)
@@ -172,6 +176,9 @@ HIGH_FLOOR: tuple[str, ...] = (
     "prompts/**",
     "plugins/*/lib/**",  # synced copies of lib/ that hooks run
     "plugins/*/bin/**",  # on the Bash tool's PATH while the plugin is enabled
+    # Scripts skills run through `!` lines, and agents and workflows by path.
+    "plugins/*/scripts/**",
+    "plugins/*/skills/*/scripts/**",
     # Hook-run scripts outside hooks/.
     "plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py",
     "plugins/disk-hygiene/skills/clean/scripts/engine_context.py",

@@ -2394,6 +2394,77 @@ unm_fixture tfjson-array-module main.tf.json '{"module":[{"net":{"source":"https
 unm_check "$TEST_TMPDIR/unm-tfjson-array-module"
 assert_contains "an array-form remote module refuses by name" "$unm_rec" '"reason": "terraform-module-unread:main.tf.json:module.net"'
 
+# Kubernetes CronJob and Job are listed as unmapped, never read.
+k8s_dep=$'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: api\n  namespace: prod\nspec:\n  replicas: 2\n  template:\n    spec:\n      containers:\n        - name: api\n          image: acme/api:1'
+k8s_cron=$'apiVersion: batch/v1\nkind: CronJob\nmetadata:\n  name: nightly\n  namespace: prod\nspec:\n  schedule: "0 2 * * *"\n  jobTemplate:\n    spec:\n      template:\n        spec:\n          containers:\n            - name: nightly\n              image: acme/nightly:1\n              env:\n                - name: LOG_LEVEL\n                  value: info'
+k8s_job=$'apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: migrate\n  namespace: prod\nspec:\n  template:\n    spec:\n      containers:\n        - name: migrate\n          image: acme/migrate:1'
+unm_fixture k8s-batch k8s/api.yaml "$k8s_dep" k8s/cron.yaml "$k8s_cron" k8s/job.yaml "$k8s_job"
+unm_check "$TEST_TMPDIR/unm-k8s-batch"
+assert_contains "a CronJob is listed as unmapped" "$unm_rec" '{"tool":"kubernetes","type":"CronJob","evidence":"k8s/cron.yaml"}'
+assert_contains "a Job is listed as unmapped" "$unm_rec" '{"tool":"kubernetes","type":"Job","evidence":"k8s/job.yaml"}'
+assert_contains "the batch kinds are counted" "$unm_sum" "unmapped=2"
+assert_contains "the batch kinds render in the unmapped table" "$unm_md" '| kubernetes | CronJob | k8s/cron.yaml |'
+assert_contains "the deployment is still drawn" "$unm_rec" '"container":"api","env":"prod","tool":"kubernetes"'
+assert_not_contains "a CronJob container is not placed" "$unm_rec" '"container":"nightly"'
+assert_not_contains "a Job container is not placed" "$unm_rec" '"container":"migrate"'
+assert_not_contains "a CronJob parameter is not recorded" "$unm_rec" '"parameter":"LOG_LEVEL"'
+
+k8s_cron_ns="${k8s_cron//namespace: prod/namespace: jobs}"
+unm_fixture k8s-batch-env k8s/api.yaml "$k8s_dep" k8s/cron.yaml "$k8s_cron_ns"
+unm_check "$TEST_TMPDIR/unm-k8s-batch-env"
+assert_not_contains "a CronJob in its own namespace adds no environment" "$unm_rec" '"environment":"jobs"'
+assert_not_contains "a CronJob in its own namespace causes no diff" "$unm_rec" '"change":'
+unm_fixture k8s-batch-only k8s/cron.yaml "$k8s_cron"
+unm_check "$TEST_TMPDIR/unm-k8s-batch-only"
+assert_contains "a repository of only a CronJob is refused, not drawn empty" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the refusal keeps the CronJob" "$unm_rec" '{"tool":"kubernetes","type":"CronJob","evidence":"k8s/cron.yaml"}'
+
+# A diff compares the compute nodes of the IaC readers between environments.
+tf_eks=$'resource "aws_eks_cluster" "extra" {\n  name = "extra"\n}'
+unm_fixture tf-compute-diff envs/dev/main.tf "$tf_ecs"$'\n'"$tf_eks" envs/prod/main.tf "$tf_ecs"
+unm_check "$TEST_TMPDIR/unm-tf-compute-diff"
+assert_contains "a compute node in one environment only is a diff row" "$unm_rec" '"change":"compute-removed","left":"dev","right":"prod","tool":"terraform","container":"aws_eks_cluster.extra","detail":"compute present only in dev"'
+assert_not_contains "a compute node in both environments is not a diff row" "$unm_rec" '"container":"aws_ecs_cluster.c","detail":"compute'
+unm_fixture tf-compute-same envs/dev/main.tf "$tf_ecs" envs/prod/main.tf "$tf_ecs"
+unm_check "$TEST_TMPDIR/unm-tf-compute-same"
+assert_not_contains "matching compute nodes add no diff" "$unm_rec" '"change":"compute'
+unm_fixture tf-compute-other envs/dev/main.tf "$tf_ecs"$'\n'"$tf_eks" envs/prod/main.tf "$tf_ecs"$'\nresource "google_container_cluster" "extra" {\n  name = "extra"\n}'
+unm_check "$TEST_TMPDIR/unm-tf-compute-other"
+assert_contains "a node only the other environment declares is added" "$unm_rec" '"container":"google_container_cluster.extra","detail":"compute present only in prod"'
+unm_fixture tf-compute-name envs/dev/main.tf "$tf_ecs" envs/prod/main.tf "${tf_ecs/name = \"c\"/name = \"c-prod\"}"
+unm_check "$TEST_TMPDIR/unm-tf-compute-name"
+assert_contains "the renamed node carries its new name" "$unm_rec" '"id":"prod/aws_ecs_cluster.c","env":"prod","tool":"terraform","kind":"compute","name":"c-prod"'
+assert_not_contains "a changed name alone is not a difference" "$unm_rec" '"change":"compute'
+
+# ARM nodes match by type and order among nodes of that type, not array position.
+arm_kube='{"type":"Microsoft.ContainerService/managedClusters","name":"kube"}'
+arm_site_plain="{\"type\":\"Microsoft.Web/sites\",\"name\":\"web\",\"properties\":{\"serverFarmId\":\"[resourceId('Microsoft.Web/serverfarms', 'plan')]\",\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:1\"}}}"
+# shellcheck disable=SC2016 # $schema is a literal JSON key
+arm_tpl() { printf '{"$schema":"%s","contentVersion":"1.0.0.0","resources":[%s]}' "$arm_schema" "$1"; }
+unm_fixture arm-compute-order envs/dev/main.json "$(arm_tpl "$arm_plan,$arm_site_plain")" envs/prod/main.json "$(arm_tpl "$arm_site_plain,$arm_kube,$arm_plan")"
+unm_check "$TEST_TMPDIR/unm-arm-compute-order"
+assert_contains "the moved plan sits at another array position" "$unm_rec" '"id":"prod/resources[2]","env":"prod","tool":"arm","kind":"compute","name":"plan"'
+assert_not_contains "an ARM node at another array position is not removed" "$unm_rec" '"change":"compute-removed"'
+assert_contains "an ARM node in one environment only is added" "$unm_rec" '"change":"compute-added","left":"dev","right":"prod","tool":"arm","container":"Microsoft.ContainerService/managedClusters#1","detail":"compute present only in prod"'
+assert_equals "the extra ARM node is the only compute diff row" "$(grep -c '"change":"compute' <<<"$unm_rec")" "1"
+
+# A type change at one address is a compute row for Bicep and Pulumi; CloudFormation diffs its nodes too.
+bicep_extra() { printf "resource extra '%s@2023-01-01' = {\n  name: 'extra'\n}" "$1"; }
+unm_fixture bicep-compute-type envs/dev/main.bicep "$bicep_plan"$'\n'"$(bicep_extra Microsoft.Web/serverfarms)" envs/prod/main.bicep "$bicep_plan"$'\n'"$(bicep_extra Microsoft.ContainerService/managedClusters)"
+unm_check "$TEST_TMPDIR/unm-bicep-compute-type"
+assert_contains "a Bicep node whose type changed is a compute row" "$unm_rec" '"change":"compute","left":"dev","right":"prod","tool":"bicep","container":"extra","detail":"Microsoft.Web/serverfarms -> Microsoft.ContainerService/managedClusters"'
+assert_not_contains "an unchanged Bicep node is not a diff row" "$unm_rec" '"container":"plan","detail":"compute'
+# shellcheck disable=SC2016 # ${...} is Pulumi interpolation, not shell
+pulumi_ecs() { printf 'name: p\nruntime: yaml\nresources:\n  cluster:\n    type: %s\n  td:\n    type: aws:ecs:TaskDefinition\n    properties:\n      containerDefinitions:\n        fn::toJSON:\n          - name: api\n            image: acme/api:1\n  svc:\n    type: aws:ecs:Service\n    properties:\n      cluster: ${cluster.arn}\n      taskDefinition: ${td.arn}' "$1"; }
+unm_fixture pulumi-compute-type envs/dev/Pulumi.yaml "$(pulumi_ecs aws:ecs:Cluster)" envs/prod/Pulumi.yaml "$(pulumi_ecs aws:ecs/cluster:Cluster)"
+unm_check "$TEST_TMPDIR/unm-pulumi-compute-type"
+assert_contains "a Pulumi node whose type changed is a compute row" "$unm_rec" '"change":"compute","left":"dev","right":"prod","tool":"pulumi-yaml","container":"cluster","detail":"aws:ecs:Cluster -> aws:ecs/cluster:Cluster"'
+cfn_svc=$'Resources:\n  Cluster:\n    Type: AWS::ECS::Cluster\n  Task:\n    Type: AWS::ECS::TaskDefinition\n    Properties:\n      ContainerDefinitions:\n        - Name: api\n          Image: acme/api:1\n  Svc:\n    Type: AWS::ECS::Service\n    Properties:\n      Cluster: !Ref Cluster\n      TaskDefinition: !Ref Task'
+unm_fixture cfn-compute-diff envs/dev/t.yaml "$cfn_svc"$'\n  Batch:\n    Type: AWS::ECS::Cluster' envs/prod/t.yaml "$cfn_svc"
+unm_check "$TEST_TMPDIR/unm-cfn-compute-diff"
+assert_contains "a CloudFormation node in one environment only is removed" "$unm_rec" '"change":"compute-removed","left":"dev","right":"prod","tool":"cloudformation","container":"Batch","detail":"compute present only in dev"'
+assert_not_contains "a CloudFormation node in both environments is not a diff row" "$unm_rec" '"container":"Cluster","detail":"compute'
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'
   exit 0

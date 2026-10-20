@@ -406,7 +406,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     if [[ "$(basename "$(dirname "$rel")")" == templates && (-f "$repo/$chart/Chart.yaml" || -f "$repo/$chart/Chart.yml") ]]; then
       continue
     fi
-    if grep -E -q '^kind:[[:space:]]*(Deployment|StatefulSet|DaemonSet|Service|Ingress)[[:space:]]*$' "$repo/$rel" &&
+    if grep -E -q '^kind:[[:space:]]*(Deployment|StatefulSet|DaemonSet|Service|Ingress|CronJob|Job)[[:space:]]*$' "$repo/$rel" &&
       grep -q '^apiVersion:' "$repo/$rel"; then
       printf '%s\n' "$rel" >>"$TMP/k8s.txt"
       add_tool kubernetes yes "$rel"
@@ -733,7 +733,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       printf '\n'
     } >>"$TMP/k8s-replay.txt"
   done <"$TMP/k8s.txt"
-  awk -v places="$PLACES" -v edges="$EDGES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/k8s-flag" -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f - "$TMP/k8s-replay.txt" <<<'
+  awk -v places="$PLACES" -v edges="$EDGES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v unmapped="$UNMAPPED" -v flag="$TMP/k8s-flag" -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f - "$TMP/k8s-replay.txt" <<<'
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function jesc(s) { if (redact_secret_value(s)) s = "[redacted]"; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
     function remember_env(e) { if (e != "" && !(e in seen_env)) { seen_env[e] = 1; env_list[++env_n] = e } }
@@ -745,11 +745,15 @@ if [[ -s "$TMP/k8s.txt" ]]; then
     }
     function ind(s) { match(s, /^ */); return RLENGTH }
     function is_workload() { return kind == "Deployment" || kind == "StatefulSet" || kind == "DaemonSet" }
+    # A CronJob or Job is listed as unmapped, so its containers are not read.
+    function is_batch() { return kind == "CronJob" || kind == "Job" }
     function add_line(list, item) { return (list == "" ? item : list "\n" item) }
     # One workload can hold several containers (a sidecar); each is its own placement,
     # and all of them run on the workload node.
     function flush(    e, key, n, pairs, i) {
       if (kind == "" || meta == "") return
+      # A batch resource places nothing, so it adds no environment of its own.
+      if (is_batch()) { note_unmapped("kubernetes", kind, path); return }
       e = env_for(ns, path)
       remember_env(e)
       evidence[e] = path
@@ -882,7 +886,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       if (raw ~ /^[[:space:]]+replicas:[[:space:]]*[0-9]+[[:space:]]*$/ && replicas == "") {
         replicas = raw; sub(/.*replicas:[[:space:]]*/, "", replicas); replicas = trim(replicas); next
       }
-      if (raw ~ /containers:[[:space:]]*$/) { in_c = 1; next }
+      if (raw ~ /containers:[[:space:]]*$/) { in_c = !is_batch(); next }
       # A list item at the first container item indent starts the next container.
       if (in_c && raw ~ /^[[:space:]]+-[[:space:]]*name:/) {
         match(raw, /^[[:space:]]+/)

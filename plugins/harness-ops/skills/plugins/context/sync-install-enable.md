@@ -55,14 +55,21 @@ guarantee) must key off user-scope completeness. Apply the configured
 policy. SKILL.md's **Configured value** line renders the actual value; that render, not this
 step's prose, is what to branch on:
 
-- **`ask`** (default): present every entry in one batched `AskUserQuestion` multi-select worded
-  as "install and enable", then `claude plugin install <id> -s user` for each the user picks. A
+- **`ask`** (default): present every entry through `AskUserQuestion` multi-selects worded
+  as "install and enable", in chunks of at most 4 options per question and at most 4 questions per
+  call, with a further call past 16 entries. Each chunk's question text is distinct, because
+  answers are keyed by question text. A chunk of 1, whether a gap of 1 or the one left over from a
+  gap of 5, 9, 13 and so on, is one single-select Install/Skip question, with no hand-added Other
+  option. The limits are the tool's, per
+  [Handle approvals and user input](https://code.claude.com/docs/en/agent-sdk/user-input.md) (as
+  of 2026-10-18; recheck if that page changes them). Then `claude plugin install <id> -s user` for each the user picks. A
   pick is the user's choice, so a pick the CLI reports as disabled by default is then enabled with
   `claude plugin enable <id> -s user`; a pick installed enabled gets no `enable`, which exits 1
   for a plugin that is already enabled. Do not show catalog defaults in the prompt: the CLI's
   notice, not the catalog's `defaultEnabled`, decides which picks it enables. A dismissed or unanswered prompt
-  means no picks: re-enter with `--only-install ""` (SKILL.md Step 3), which installs nothing and
-  still completes Step 5, and the report lists the declined gap under "Action needed". Under `ask`
+  (or chunk) means no picks for its entries; the other chunks' picks still go in the id list, and
+  when nothing was answered re-enter with `--only-install ""` (SKILL.md Step 3), which installs
+  nothing and still completes Step 5, and the report lists the declined gap under "Action needed". Under `ask`
   the only persistent opt-out is `enabledPlugins: false`; a decline is re-offered on the next run
 - **`all`**: `claude plugin install <id> -s user` for every entry, no prompt
 - **`none`**: install nothing; list the entries under "Action needed" in the report only

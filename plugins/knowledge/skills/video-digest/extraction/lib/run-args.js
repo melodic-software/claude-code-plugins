@@ -47,6 +47,11 @@ const LEADING_FLAGS = {
     env: "VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC",
     valueLabel: "value",
   },
+  "--asr-python": {
+    key: "asrPython",
+    env: "VIDEO_DIGEST_ASR_PYTHON",
+    valueLabel: "interpreter path",
+  },
 };
 
 /**
@@ -58,6 +63,7 @@ const LEADING_FLAGS = {
  * @property {string} [cookiesFromBrowser]
  * @property {string} [maxConcurrentAcquires]
  * @property {string} [acquirePhaseGap]
+ * @property {string} [asrPython]
  * @property {string} [script]
  * @property {string[]} rest
  */

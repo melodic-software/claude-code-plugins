@@ -92,6 +92,13 @@ class ServerCase(unittest.TestCase):
         self.assertEqual(code, 200, out)
         return out["pid"], {"X-Session-Secret": out["secret"]}
 
+    def claude_from_before(self):
+        """A person named "Claude" in a session from before join and rename refused that name."""
+        pid, _ = self.join("Cee")
+        with self.app.session._tx() as st:
+            st["people"][pid]["name"] = "Claude"
+        return pid
+
     def ops(self, *ops):
         s = self.app.hub
         return call(self.app.control_port, "POST", "/api/ops", {"ops": list(ops)}, {"X-Shared-Token": s.token})
@@ -699,7 +706,7 @@ class TestSnapshot(ServerCase):
         _, guest = self.join("Ann")
         code, h, out = self.get("/api/state", guest)
         self.assertEqual(code, 200)
-        self.assertEqual(out["schemaVersion"], 6)
+        self.assertEqual(out["schemaVersion"], 7)
         self.assertIsInstance(out["rev"], int)
         self.assertEqual(out["build"], server.build_hash())
         self.assertEqual(h["X-Shared-Build"], out["build"])
@@ -1017,7 +1024,7 @@ class TestControl(ServerCase):
     def test_the_ping_reports_the_guest_port_and_schema(self):
         code, _, out = call(self.app.control_port, "GET", "/api/ping")
         self.assertEqual(code, 200)
-        self.assertEqual((out["guestPort"], out["schemaVersion"], out["build"]), (self.port, 6, server.build_hash()))
+        self.assertEqual((out["guestPort"], out["schemaVersion"], out["build"]), (self.port, 7, server.build_hash()))
 
     def test_a_sent_round_reaches_the_watcher_and_is_stamped_delivered(self):
         self.open_round("Q1")
@@ -1065,7 +1072,7 @@ class TestStart(unittest.TestCase):
         doc = json.loads((d / "state.json").read_text(encoding="utf-8"))
         doc["schemaVersion"] = 99
         (d / "state.json").write_text(json.dumps(doc), encoding="utf-8")
-        with self.assertRaisesRegex(server.StartRefused, "99.*newer than 6"):
+        with self.assertRaisesRegex(server.StartRefused, "99.*newer than 7"):
             server.App(d, watch_tunnel=False)
 
     def test_an_initial_state_file_seeds_a_new_session_through_migrate(self):
@@ -1396,7 +1403,7 @@ class TestOldPages(unittest.TestCase):
         for who in ({"X-Session-Secret": self.SECRET}, {"X-Owner-Token": self.OWNER}):
             code, _, out = self.poll("/api/state", who)
             self.assertEqual(code, 200)
-            self.assertEqual(out, {"schemaVersion": 6, "rev": self.app.session.state["rev"], "outdated": True, "title": "This page was updated: reload"})
+            self.assertEqual(out, {"schemaVersion": 7, "rev": self.app.session.state["rev"], "outdated": True, "title": "This page was updated: reload"})
 
     def test_the_payload_overrides_no_default_of_the_old_script_with_another_type(self):
         """fixtures/old-page-defaults.json is DEFAULTS from the prototype page's script
@@ -2258,7 +2265,7 @@ class TestDiscussion(ServerCase):
         self.assertEqual(len(self.app.session.state["requests"]), 1)
 
     def test_at_claude_naming_a_participant_called_claude_files_no_request(self):
-        claude_pid, _ = self.join("Claude")
+        claude_pid = self.claude_from_before()
         out = self.say(self.ann, "@Claude can you check the copy?")
         self.assertNotIn("request", out)
         self.assertEqual(self.comments(self.bo)[0]["text"], f"<@{claude_pid}> can you check the copy?")
@@ -2410,7 +2417,7 @@ class TestGeneralAsk(ServerCase):
         self.assertEqual(self.app.session.state["chat"][-1]["replyTo"]["id"], asked["id"])
 
     def test_at_claude_in_chat_matches_only_the_word(self):
-        claude_pid, _ = self.join("Claude")
+        claude_pid = self.claude_from_before()
         for who, text in ((self.ann, "@Claudette can you look?"), (self.bo, "Mail x@claude.ai about it")):
             self.assertNotIn("request", self.chat(who, text), text)
         time.sleep(1.05)

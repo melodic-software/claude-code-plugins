@@ -592,7 +592,9 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
    claude-code-action reset, and escalates `unresolved-conflict` (an unmerged entry, or conflict
    markers in a staged resolution) or `workflow-staged` (a `.github/workflows/` index entry changed
    since the snapshot, or differs from the gated head, as a workflow change merged in from the base
-   does: the lane token cannot push one) or `unexpected-path-staged` (an index entry added,
+   does, unless the staged `.github/workflows/` entries are exactly the trusted base's (mode and
+   blob), no head workflow is dropped, and the PR's own diff against every merge base touches no
+   workflow) or `unexpected-path-staged` (an index entry added,
    changed or removed at a path the merge did not leave conflicted, as `git add -A` would stage);
    otherwise it writes the index as a tree.
 4. With no escalation reason and a tree, a pinned `github-script` step commits through the Git
@@ -632,7 +634,7 @@ its check:
 | Hold label added during the run, found before the commit | success | `awaiting-human` | empty | neutral |
 | Hold label or draft set during the run, found before the promote | success | `awaiting-human` | empty | neutral |
 | Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
-| Model staged, or the merge brought in, a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
+| Model staged, or the merge brought in, a `.github/workflows/` change that is not the trusted base's own | success | `awaiting-human` | `workflow-staged` | neutral |
 | Model staged a change to a path that did not conflict | success | `awaiting-human` | `unexpected-path-staged` | neutral |
 | Resolved, committed, promoted | success | none | empty | success |
 | Commit step fails or lane branch moved | failure | none | empty | failure |
@@ -641,9 +643,11 @@ its check:
 | A prepare step fails | skipped | none | empty | failure (run job failed) |
 | A post-skill step fails | success | none | empty | failure (run job failed) |
 
-Residual: a `.github/workflows/` change from the base side of the merge (not conflicted, not
-staged by the model) is committed and pushed. GitHub does not refuse it for the App's missing
-`workflows` permission: sandbox probe run 38148710292 pushed such merges by all three methods.
+Residual: when every staged `.github/workflows/` entry is the trusted base's own and the PR
+changes no workflow, the merge is committed and pushed. GitHub did not refuse that shape for the
+App's missing `workflows` permission: sandbox probe run 38148710292 pushed it by all three methods.
+A merged workflow blob that is on no branch was refused (`POST /git/trees` 403 in run
+39066232629), and still escalates.
 
 ### prepare: review-threads
 
@@ -1279,16 +1283,21 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   base and each changed file with its line counts, from `GET /compare`. The skill commits to a new branch,
   `<lane>/issue-<n>-<run id>-<attempt>`, which is kept only when it holds commits. The skill's
   `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty, and on a resume the
-  resumed branch, which a `done` run that committed nothing names when it hands the issue to a person, since the runner checks only its own branch) are uploaded as the
+  resumed branch) are uploaded as the
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
   was minted.
-- `report-outcome` downloads that artifact. On `done` it opens a ready (not draft) PR from the branch whose
-  body starts `Closes #<n>` (or `Refs: #<n>`, with the hold line, when the outcome sets
+- `report-outcome` downloads that artifact. A `done` run that committed nothing on a resume opens its PR from the
+  resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals
+  the `resume-branch` `issue-prior` output), every check passed and at least one ran, the branch is still at the tip
+  checked (the compare reads that SHA, and a new PR whose head is another commit is closed), and every commit on it ahead of the default branch is verified, authored by the lanes App
+  and committed by `web-flow`; the PR body's Verification section says so. Otherwise it hands the issue to a person,
+  naming the resumed branch. On `done` it opens a ready (not draft) PR from the branch whose
+  body starts `Closes #<n>` (or `Refs: #<n>` when the outcome sets
   `"link": "refs"` because a recorded decision keeps the issue open), puts no label on it (the work class stays on the issue), and adds
   `Hold: a human merges this` for structural or untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
-  resolved config; unreadable holds every PR), or for one too large for the compare listing to
-  show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
+  resolved config; unreadable holds every PR), or, while some path is denied, for one too large
+  for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also

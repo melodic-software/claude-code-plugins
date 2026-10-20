@@ -92,6 +92,27 @@
 #   attached. null means not applicable (a user-scope record, or no
 #   projectPath).
 #
+#   Those same records and entries also carry projectPathIsHome: true|false|null.
+#   true means the projectPath IS a user home directory (the current $HOME, any
+#   /home/<name>, /Users/<name>, C:\Users\<name>, or the WSL view of a Windows
+#   home, /mnt/<drive>/Users/<name>; `Users` and the drive letter match
+#   case-insensitively, a trailing separator is ignored). Such a path's
+#   .claude/settings.json is USER settings, not project settings, so a
+#   project-scope command run from there would mutate user scope. A path under a
+#   home (/home/<name>/repos/x) is false. null means not applicable. Like
+#   projectPathPresent it annotates and never filters installed[] or divergences[].
+#
+#   Each of those records also carries linkedWorktree: true|false|null — whether
+#   its projectPath is a linked git worktree (the git dir differs from the git
+#   common dir: `.git` is a file whose gitdir line points into a `worktrees/`
+#   directory that holds a `commondir` file). null means not applicable, or the path is not present so nothing
+#   could be read. `label` is "update ineffective; uninstall clears it" on a
+#   linked-worktree record whose version is below the catalog's (else below the
+#   highest any record of the id holds), and null otherwise. In a linked worktree
+#   `claude plugin update -s project` reports success and leaves the record
+#   unchanged (#6713), so the record is labeled, never dropped: it stays in
+#   installed[] and in divergences[], and versionsMatch is unchanged.
+#
 # Output (stdout) with --ids <selector>: NOT JSON — one record per line, in the
 #   order the block carries them, and nothing else. Fields are TAB-separated and
 #   the first field is always the fully-qualified `<name>@<marketplace>` id, so
@@ -995,7 +1016,37 @@ for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
   [[ -n "$pp" ]] || continue
   pp_fs="${pp//\\//}"
   if [[ -d "$pp_fs" ]]; then
-    presence_tsv+="$pp"$'\t'"true"$'\n'
+    # A third column says whether the directory is a LINKED git worktree: its
+    # `.git` is a file whose `gitdir:` line points into `<common>/worktrees/<name>`
+    # (the git dir differs from the git common dir). A submodule's `.git` file is
+    # also a file but points into `modules/`, so the pattern anchors on a
+    # `/worktrees/` segment and excludes a later `/modules/` segment (a
+    # submodule inside a linked worktree). Builtins only, no process per path.
+    # The common dir's name is not constrained (a bare layout uses `.bare`).
+    # A `/worktrees/` segment alone also matches a separate-git-dir main checkout
+    # kept under a `worktrees/` parent, so the git dir must hold the `commondir`
+    # file git writes only into a linked worktree's admin directory.
+    pp_linked="false"
+    if [[ -f "$pp_fs/.git" ]]; then
+      pp_gitfile=""
+      IFS= read -r pp_gitfile <"$pp_fs/.git" || true
+      pp_gitfile="${pp_gitfile//$'\r'/}"
+      pp_gitfile="${pp_gitfile//\\//}"
+      case "$pp_gitfile" in
+      gitdir:*/worktrees/*/modules/*) ;;
+      gitdir:*/worktrees/*)
+        pp_gd="${pp_gitfile#gitdir:}"
+        pp_gd="${pp_gd# }"
+        case "$pp_gd" in
+        /* | ?:/*) ;;
+        *) pp_gd="$pp_fs/$pp_gd" ;;
+        esac
+        [[ -f "$pp_gd/commondir" ]] && pp_linked="true"
+        ;;
+      *) ;;
+      esac
+    fi
+    presence_tsv+="$pp"$'\t'"true"$'\t'"$pp_linked"$'\n'
   else
     presence_tsv+="$pp"$'\t'"false"$'\n'
   fi
@@ -1032,12 +1083,23 @@ PASS2_PROGRAM='
 
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 PASS3_PROGRAM='
+  def triple:
+    if type == "string" then
+      ((capture("^v?(?<x>[0-9]+)[.](?<y>[0-9]+)[.](?<z>[0-9]+)") // null)
+       | if . == null then null else [.x, .y, .z] | map(tonumber) end)
+    else null end;
   (. | split("\u001d")) as $parts
   | ($parts[0] | fromjson) as $ctx
   | ($parts[1] | split("\n")
       | map(select(length > 0) | split("\t") | select(length >= 2 and (.[0] | length) > 0)
             | {key: .[0], value: (.[1] == "true")})
       | from_entries) as $pres
+  # Third column: whether a PRESENT path is a linked git worktree. Absent from a
+  # path that is not present, so the lookup below answers null, never false.
+  | ($parts[1] | split("\n")
+      | map(select(length > 0) | split("\t") | select(length >= 3 and (.[0] | length) > 0))
+      | map({key: .[0], value: (.[2] == "true")})
+      | from_entries) as $wt
   # Entries whose source is not a string never reached the payload, so they
   # are absent from this map entirely — a lookup returns null, the same
   # fail-open answer as an entry whose manifest could not be read. A manifest
@@ -1052,6 +1114,7 @@ PASS3_PROGRAM='
                  | if . == null or . == false then null elif type == "string" then . else tojson end)})
       | from_entries) as $cv
   | ($ci == "true") as $cib
+  | ($home | gsub("\\\\"; "/") | sub("/+$"; "")) as $home_n
   # Every install record for ids in this marketplace, flattened, with the
   # currentProject flag Windows-normalized on both sides.
   | ($inst[0].plugins | to_entries
@@ -1080,8 +1143,40 @@ PASS3_PROGRAM='
                     .projectPath as $pp
                     | (if ($pres | has($pp)) then $pres[$pp] else null end)
                   else null end
+                ),
+                projectPathIsHome: (
+                  if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 then
+                    (.projectPath | gsub("\\\\"; "/") | sub("/+$"; "")) as $p
+                    | ($p | test("^/home/[^/]+$"))
+                      or ($p | test("^(/Users/[^/]+|/mnt/[a-z]/Users/[^/]+|[a-z]:/Users/[^/]+)$"; "i"))
+                      or ($home_n != "" and $home_n != "/"
+                          and (if $cib then ($p | ascii_downcase) == ($home_n | ascii_downcase) else $p == $home_n end))
+                  else null end
+                ),
+                linkedWorktree: (
+                  if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 then
+                    .projectPath as $pp
+                    | (if ($wt | has($pp)) then $wt[$pp] else null end)
+                  else null end
                 )
               })) as $installed
+  # A lagging project/local record in a linked worktree: `claude plugin update`
+  # reports success there and leaves the record unchanged (#6713), so the record
+  # is labeled instead of dropped. It stays in installed[] and in divergences[],
+  # and the label never changes versionsMatch. "Lagging" is measured against the
+  # catalog version when it parses, else the highest version any record of the id
+  # holds; a version that does not parse is never labeled.
+  | ($installed | group_by(.id)
+      | map({key: .[0].id, value: ([.[].version | triple | select(. != null)] | max)})
+      | from_entries) as $highest
+  | ($installed | map(
+      . as $r
+      | (($cv[$r.id] | triple) // $highest[$r.id]) as $ref
+      | $r + {label: (
+          if $r.linkedWorktree == true and ($r.version | triple) != null
+             and $ref != null and ($r.version | triple) < $ref
+          then "update ineffective; uninstall clears it" else null end)}
+    )) as $installed
   | ([$catalog[0].plugins[]?.name // empty] | unique) as $catalog_names
   | ($catalog_names | map(. + "@" + $name)) as $catalog_ids
   | ([$installed[].id] | unique) as $installed_ids
@@ -1137,7 +1232,7 @@ PASS3_PROGRAM='
       | map(select(length > 1))
       | map({
           id: .[0].id,
-          scopes: map({scope, version, projectPath, projectPathPresent}),
+          scopes: map({scope, version, projectPath, projectPathPresent, projectPathIsHome, linkedWorktree, label}),
           versionsMatch: ((map(.version) | unique | length) == 1)
         })) as $divergences
   | {
@@ -1330,6 +1425,7 @@ emit_marketplace() {
     --arg src "$source_text" \
     --arg cur "$current_project_norm" \
     --arg ci "$case_insensitive_os" \
+    --arg home "${HOME:-}" \
     --arg selector "$IDS_SELECTOR" \
     "$PASS3_PROGRAM" <<<"$ctx_json"$'\x1d'"$presence_tsv"$'\x1d'"$bundle"
 }

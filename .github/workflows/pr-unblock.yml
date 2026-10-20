@@ -305,7 +305,7 @@ jobs:
         with:
           name: ci-context-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ci-context/context.json
-          retention-days: 3
+          retention-days: 1
           if-no-files-found: error
 
   # A fix-ci-context skip (a closed PR or no failing check) runs no fix-ci job,

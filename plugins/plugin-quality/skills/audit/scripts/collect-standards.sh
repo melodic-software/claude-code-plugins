@@ -93,7 +93,8 @@ if [[ -s "$resolver_err" ]]; then
 fi
 rm -f "$resolver_err"
 
-if [[ "$home_rc" -eq 1 ]]; then
+# 1 no pointer, 4 declined, 5 not applicable (home, ancestor of home, or outside git): no home binds, so grade from the topic docs.
+if [[ "$home_rc" -eq 1 || "$home_rc" -eq 4 || "$home_rc" -eq 5 ]]; then
   echo "convention-home: unresolved"
   echo "fallback: convention home unresolved; grade invocation-mode, seam-phrasing, untrusted-content, windows-path-emit, and hook-budget from those topic docs once a home is configured. Nothing was inferred."
   echo "probes: skipped"

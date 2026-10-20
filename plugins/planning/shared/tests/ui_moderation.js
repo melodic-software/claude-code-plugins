@@ -157,6 +157,8 @@ async function main() {
     await clearedRow.getByRole("button", { name: /Show what Gus's cleared answer on Q3 said/ }).click();
     ok("Show what it said fetches its last text for the owner", await until(owner, () => [...document.querySelectorAll(".vf-personpop .vf-ppv-item")]
       .some(i => i.textContent.includes("Q3, cleared") && i.querySelector(".vf-ppv-t").textContent === "Hike, please")));
+    const heads = await owner.evaluate(() => [...document.querySelectorAll(".vf-personpop .vf-ppv-q")].map(h => h.textContent));
+    ok("times read \"just now\" or \"5 min ago\", never \"now ago\"", heads.some(h => /^(just now|\d+ min ago)$/.test(h)) && heads.some(h => /^Q3, cleared (just now|\d+ min ago)/.test(h)) && !heads.some(h => /now ago/.test(h)), JSON.stringify(heads));
     await owner.keyboard.press("Escape");
 
     // ---------- approve new joins ----------
