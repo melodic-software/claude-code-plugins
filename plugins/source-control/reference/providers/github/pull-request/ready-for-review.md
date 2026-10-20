@@ -156,16 +156,20 @@ bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
 `verify-gate.sh check` exits 0 only when the verify step recorded `pass` (or `skipped`, for
 `--skip verify`) for exactly `HEAD_SHA`; exit 3 is a recorded failure and exit 2 a missing result.
 The `&&` keeps the refusal and the flip in one command, so a refused check cannot be followed by
-the flip. The same `&&` guards the cloud-session routes below.
+the flip. The cloud-session routes below are not covered by it: before either, run the `check`
+command above as its own preceding command, and flip only when it exits 0.
 
 In a cloud session `gh pr ready` fails, because the flip is a GraphQL mutation. The proxy's REST
-route:
+route, guarded the same way:
 
 ```bash
-gh api --method POST "repos/{owner}/{repo}/pulls/$PR_NUMBER/ccr/ready_for_review"
+bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
+  gh api --method POST "repos/{owner}/{repo}/pulls/$PR_NUMBER/ccr/ready_for_review"
 ```
 
-Or the GitHub MCP `update_pull_request` call with `draft: false`.
+Or the GitHub MCP `update_pull_request` call with `draft: false`. It is a tool call, so a shell
+`&&` cannot cover it: run `verify-gate.sh check` as its own preceding command and make the call
+only on exit 0.
 
 ## Confirm a ready run
 
