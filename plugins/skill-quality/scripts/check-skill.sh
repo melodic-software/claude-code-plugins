@@ -1335,6 +1335,9 @@ fi
 
 # --- Check 8: vendor/ byte-identical vs HEAD (vendor-backed only) ----------
 
+# The upstream-sha pairing shows vendor/ matches its recorded hash, not that it came from
+# upstream: anyone editing vendor/ can recompute it. It stops an accidental unpaired edit, not a
+# deliberate one; provenance rests on diff review and the skill's own content tests.
 VENDOR_SHA_DEFINITION="SHA-256 of the one non-dotfile under vendor/ with CR bytes removed; with several, SHA-256 of their '<sha>  <path under vendor/>' lines sorted bytewise"
 
 # Prints the vendor/ content hash VENDOR_SHA_DEFINITION states, or nothing
