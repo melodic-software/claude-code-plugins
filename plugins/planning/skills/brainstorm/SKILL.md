@@ -83,7 +83,9 @@ requests". Its `time_units` user layer is `${user_config.time_units}` (unexpande
 5. **Calibrate and hand off**. From the resonating candidates and the criteria, propose a scope and
    route onward: `/planning:prd` (product intent still fuzzy), `/planning:interview` (engineering
    contract), `/planning:design` (type/module decisions), or a feasibility/visual spike through
-   `/prototype:pressure-test` or `/prototype:explore-directions` when enabled. Mark the recommended
+   `/prototype:pressure-test` or `/prototype:explore-directions` when enabled; otherwise a
+   throwaway spike the user builds, which you describe (what to try, what result settles it) and
+   do not write. Mark the recommended
    route (RECOMMENDED), with a `Basis:` line:
    `verified` with the `file:line`, tool output, or URL it rests on, or `judgment`
    (non-consequential only). Ground a consequential recommendation (cross-repo, shared
