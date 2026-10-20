@@ -17,16 +17,16 @@ explicit pattern for each invocation shape.
 ## sensitive-file-deny (Read deny)
 
 Read deny patterns for secret-bearing files. `.env` / `.env.*` are the de-facto secrets convention;
-`secrets/**` is the conventional secrets directory; the `settings.local.json` deny prevents tokens
-stored there from being read by tools; key/PEM/SSH patterns cover private-key material anywhere in the
-tree.
+`secrets/**` is the conventional secrets directory; key/PEM/SSH patterns cover private-key material
+anywhere in the tree. `.claude/settings.local.json` has no baseline deny: it is gitignored, so it is
+absent from CI checkouts, and a Read deny never covered subprocess reads (see the scope section
+below). Never put credentials in it; keep them in an OS credential store or a secrets manager.
 
 | Pattern | Purpose |
 | --- | --- |
 | `Read(./.env)` | Block reading .env file |
 | `Read(./.env.*)` | Block reading .env.local, .env.production, etc. |
 | `Read(./secrets/**)` | Block reading secrets directory |
-| `Read(./.claude/settings.local.json)` | Block reading file containing tokens/secrets |
 | `Read(**/*.key)` | Block reading private-key files anywhere in tree |
 | `Read(**/*.pem)` | Block reading PEM certificate/key files anywhere in tree |
 | `Read(**/id_rsa)` | Block reading SSH private keys |
