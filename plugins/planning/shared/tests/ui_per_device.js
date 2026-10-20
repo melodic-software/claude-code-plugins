@@ -11,6 +11,7 @@
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
 const Q = "Which device do you use for checkout?";
+const Q2 = "How do you pay on this device?";
 
 async function main() {
   const pw = loadPlaywright();
@@ -21,7 +22,9 @@ async function main() {
   try {
     const A = await s.start("per-device");
     s.apply(A.dir, [{ op: "set-title", title: "Checkout" },
-      { op: "open-round", questions: [{ id: "Q1", text: Q, alternatives: [], dependsOn: [], purpose: "gather", format: { kind: "text" }, answerScope: "device" }] }]);
+      { op: "open-round", questions: [{ id: "Q1", text: Q, alternatives: [], dependsOn: [], purpose: "gather", format: { kind: "text" }, answerScope: "device" },
+        { id: "Q2", text: Q2, alternatives: [], dependsOn: [], purpose: "decide", answerScope: "device",
+          format: { kind: "choice", options: [{ id: "opt-1", label: "Saved cards" }, { id: "opt-2", label: "A wallet" }] } }] }]);
     const owner = await rec.open(A.ownerUrl, { context: { viewport: { width: 1440, height: 900 } } });
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     const ann = await rec.open(A.localUrl, { context: { viewport: { width: 1440, height: 900 } } });
@@ -48,6 +51,26 @@ async function main() {
       return mine === "computer:My laptop, mostly.|phone:On the bus, my phone.";
     }, annPid, 10000), JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.cards?.Q1)));
     ok("  and the prompt goes", await until(phone, () => document.querySelector(".vf-devnote").hidden, null, 10000));
+    // Codex P2: on a per-device choice, the phone reads its own record, not the computer's. The computer picked Saved
+    // cards with a comment; the phone picking the same option is sent and stored as the phone's own card, with nothing
+    // of the computer's (before the fix the page took the computer's pick as the phone's and sent nothing).
+    await ann.evaluate(() => window.Core.pick("Q2", "opt-1", "On my laptop the browser keeps them."));
+    await until(owner, pid => (window.Core.snapshot()?.cards?.Q2 || []).some(c => c.pid === pid && c.device === "computer" && c.pick === "opt-1"), annPid, 10000);
+    // the phone's answer above went in through Core, so its editing sheet is still open: close it first
+    if (await phone.locator(".vf-composer-sheet").count()) await phone.locator(".vf-sheethead button", { hasText: "Cancel" }).tap();
+    await phone.locator(".vf-tab", { hasText: "Questions" }).tap();
+    await phone.locator(".vf-q", { hasText: Q2 }).first().tap();
+    await until(phone, t => document.querySelector(".vf-qtext")?.textContent === t, Q2, 10000);
+    ok("on the phone the computer's pick is not shown as this device's", await phone.evaluate(() => !window.Core.myRecord("Q2")));
+    await phone.locator(".vf-opt .vf-optlabel", { hasText: "Saved cards" }).tap();
+    ok("  picking the same option there stores a phone card with that pick and nothing from the computer's", await until(owner, pid => {
+      const mine = (window.Core.snapshot()?.cards?.Q2 || []).filter(c => c.pid === pid);
+      const ph = mine.find(c => c.device === "phone"), pc = mine.find(c => c.device === "computer");
+      return mine.length === 2 && ph?.pick === "opt-1" && !ph.text && !(ph.attachments || []).length && pc?.text === "On my laptop the browser keeps them.";
+    }, annPid, 10000), JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.cards?.Q2)));
+    await phone.locator(".vf-tab", { hasText: "Questions" }).tap();
+    await phone.locator(".vf-q", { hasText: Q }).first().tap();
+
     // The review: a phone turned to landscape (844x390) is still the phone, so it edits that card, never adds one.
     const land = await rec.open(link.replace(/^https?:\/\/[^/]+\//, A.localUrl), { context: { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true } });
     await until(land, pid => window.Core.snapshot()?.me?.pid === pid, annPid, 10000);

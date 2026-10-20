@@ -427,8 +427,8 @@
     /** Placed in a round that has not opened yet: shown, read-only. */
     const notOpenYet = q => roundOf(q) > curRound().current;
     const readOnly = q => !!q && (isSent(q) || notOpenYet(q) || (!!Core.state.ended && !Core.me.isOwner) || !!Core.state.youRemoved);
-    /** My answer record: text, or a pick on a choice question, or both. */
-    const myRec = qid => Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.option && !a.claude);
+    /** My answer record: text, or a pick on a choice question, or both (this device's, on a per-device question). */
+    const myRec = qid => Core.myRecord(qid);
     const hasAnswered = qid => !!myRec(qid);
     const askedOfMe = qid => Core.askedOf(qid).includes(Core.me.cid);
     /** Someone else's answer (not Claude's, not an option): one makes a question not asked of me by name optional. */
@@ -7044,7 +7044,7 @@
       if (q) {
         renderRefs(q); renderQPics(q);
         const devOthers = me.isOwner ? [] : Core.myOtherDevices(q.id);
-        devNote.hidden = !devOthers.length || Core.answersFor(q.id).some(a => a.cid === Core.me.cid && !a.claude && !a.option && a.device === Core.thisDevice());
+        devNote.hidden = !devOthers.length || !!Core.myRecord(q.id);
         if (!devNote.hidden) devNote.textContent = `You answered this on your ${devOthers.join(" and ")}. It asks for one answer per device: answer for this ${Core.thisDevice()} too.`;
         const inRound = S.questions.filter(x => roundOf(x) === roundOf(q));
         qPos.textContent = `${q.id}, round ${roundOf(q)}, question ${inRound.indexOf(q) + 1} of ${inRound.length}`;

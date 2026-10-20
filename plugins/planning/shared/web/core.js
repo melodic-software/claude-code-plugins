@@ -409,7 +409,10 @@
     },
 
     answersFor: qid => Core.state.answers[qid] || [],
-    myAnswer: qid => { const d = scopeOf(qid).device; return Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.claude && !a.option && (!d || a.device === d))?.text || ""; },
+    /** My own answer record on qid: on a question asked once per device, this device's record only, so every read of
+     *  my pick, text, cites and attachments is about the answer this device sends. */
+    myRecord: qid => { const d = scopeOf(qid).device; return Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.claude && !a.option && (!d || a.device === d)); },
+    myAnswer: qid => Core.myRecord(qid)?.text || "",
     /** Follow-up 47: on a question asked once per device, the device kinds I answered from other than this one. */
     myOtherDevices: qid => { const d = scopeOf(qid).device; return d ? [...new Set(Core.answersFor(qid).filter(a => a.cid === Core.me.cid && !a.claude && !a.option && a.device && a.device !== d).map(a => a.device))] : []; },
     thisDevice: () => deviceKind(),
@@ -500,7 +503,8 @@
       const me = Core.state.me, pid = Core.me.cid;
       if (!me || !pid) return false;
       const answers = Core.answersFor(qid);
-      if (answers.some(a => a.cid === pid && !a.claude && !a.option && !a.hidden) || answers.some(a => (a.votes || []).includes(pid))) return true;
+      const mine = Core.myRecord(qid);
+      if ((mine && !mine.hidden) || answers.some(a => (a.votes || []).includes(pid))) return true;
       if (qid in (me.votes || {}) || qid in (me.backs || {}) || qid in (me.passes || {})) return true;
       if (Core.askedOf(qid).includes(pid)) return false;
       return Object.keys(me.reactions?.[qid] || {}).length > 0 || (Core.state.disagreements[qid] || []).some(d => d.cid === pid);
