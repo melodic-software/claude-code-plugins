@@ -740,10 +740,42 @@ class TestFanOutProjection(unittest.TestCase):
         for row in engine.project_fan_out(self.ENTRIES)["rows"]:
             self.assertEqual(row["ceiling"], row["fires"])
             self.assertEqual(
-                row["ceiling"] - row["floor"], row["fire_always_unclassified"], row
+                row["ceiling"] - row["floor"],
+                row["fire_always_unclassified"] + row["settings_duplicates"],
+                row,
             )
         bash = self.rows(engine.project_fan_out(self.ENTRIES))[("PreToolUse", "Bash", None)]
         self.assertEqual((bash["floor"], bash["ceiling"]), (0, 1))
+
+    def settings_pair(self, second_command: str, second_source: str) -> dict:
+        def handler(command: str, source: str) -> dict:
+            return {
+                "event": "PostToolUse",
+                "matcher": "Edit",
+                "command": command,
+                "args": [],
+                "if": None,
+                "source": source,
+            }
+
+        projection = engine.project_fan_out(
+            [handler("fmt.sh", "settings.json"), handler(second_command, second_source)]
+        )
+        return self.rows(projection)[("PostToolUse", "Edit", ".md")]
+
+    def test_one_handler_in_two_settings_files_counts_once_toward_the_floor(self):
+        row = self.settings_pair("fmt.sh", "project settings.json")
+        self.assertEqual((row["floor"], row["ceiling"]), (1, 2))
+        self.assertEqual(row["settings_duplicates"], 1)
+
+    def test_two_different_settings_handlers_both_count_toward_the_floor(self):
+        row = self.settings_pair("lint.sh", "project settings.json")
+        self.assertEqual((row["floor"], row["ceiling"]), (2, 2))
+        self.assertEqual(row["settings_duplicates"], 0)
+
+    def test_a_plugin_copy_of_a_settings_handler_stays_on_the_floor(self):
+        row = self.settings_pair("fmt.sh", "formatter")
+        self.assertEqual((row["floor"], row["ceiling"]), (2, 2))
 
     def test_the_projection_note_names_the_regex_stand_in(self):
         note = engine.project_fan_out([])["note"]
@@ -888,7 +920,7 @@ class TestByMatcherAndBucketCounters(unittest.TestCase):
         notes = engine.classify_hooks([])["notes"]
         joined = " ".join(notes)
         self.assertIn("outside the project directory", joined)
-        self.assertIn("it runs once", joined)
+        self.assertIn("settings_duplicates", joined)
         self.assertIn("parallel", joined)
         self.assertIn(engine.classify_hooks([])["note"], notes)
 

@@ -232,10 +232,13 @@ HOOK_ANCHOR_NOTE = (
     "directory never matches one; the projection counts those rows as firing and over-counts "
     "there."
 )
+#: The `source` labels `hook_inventory` gives settings files, the only handlers the projection collapses.
+SETTINGS_SOURCES = frozenset({"settings.json", "project settings.json"})
 HOOK_DEDUP_NOTE = (
-    'Cross-settings-file dedup is not modeled. Upstream: "If you define the same handler in '
-    "more than one settings file, it runs once. A plugin's or skill's copy of the same handler "
-    'stays separate." Rows that dedup upstream are counted twice here.'
+    "Handlers from settings files that spawn the same command and arguments count once toward "
+    "the floor; each extra copy is counted in `settings_duplicates`, toward the ceiling only, "
+    "because which fields make two handlers the same is not modeled. Plugin and skill copies "
+    "are never collapsed."
 )
 #: Shell executables whose repeated appearance in one command line means nested shells.
 SHELL_TOKENS = ("bash", "sh", "zsh", "pwsh", "powershell", "cmd")
@@ -1775,6 +1778,8 @@ def project_fan_out(entries: list[dict]) -> dict:
             for file_kind in kinds:
                 firing: list[dict] = []
                 fire_always = 0
+                settings_seen: set[str] = set()
+                settings_duplicates = 0
                 for entry, gate, matcher_unknown in gated:
                     if (entry.get("event") or "unknown") != event:
                         continue
@@ -1792,6 +1797,10 @@ def project_fan_out(entries: list[dict]) -> dict:
                         or gate_is_uncertain(gate, tool)
                     ):
                         fire_always += 1
+                    elif entry.get("source") in SETTINGS_SOURCES:
+                        if command_key(entry) in settings_seen:
+                            settings_duplicates += 1
+                        settings_seen.add(command_key(entry))
                     firing.append(entry)
                 rows.append(
                     {
@@ -1801,7 +1810,8 @@ def project_fan_out(entries: list[dict]) -> dict:
                         "fires": len(firing),
                         "distinct_commands": len({command_key(e) for e in firing}),
                         "fire_always_unclassified": fire_always,
-                        "floor": len(firing) - fire_always,
+                        "settings_duplicates": settings_duplicates,
+                        "floor": len(firing) - fire_always - settings_duplicates,
                         "ceiling": len(firing),
                     }
                 )
@@ -1822,9 +1832,10 @@ def project_fan_out(entries: list[dict]) -> dict:
             "`fires` is the `ceiling`: a row whose `if` could not be classified, whose "
             "matcher Python cannot compile, or whose extension gate is narrowed by a directory "
             "or multi-dot suffix is counted as firing and appears in "
-            "`fire_always_unclassified`; `floor` is `fires` minus those rows, the count "
-            "known to fire. A `Write(...)` gate is decided by extension like an `Edit(...)` "
-            "gate, and counts toward the floor only on the `Write` tool."
+            "`fire_always_unclassified`; `floor` is `fires` minus those rows and minus "
+            "`settings_duplicates`, the count known to fire. A `Write(...)` gate is decided "
+            "by extension like an `Edit(...)` gate, and counts toward the floor only on the "
+            "`Write` tool."
         ),
     }
 

@@ -241,14 +241,17 @@ reaches.
 - **Recheck trigger**: the read-and-edit section changes which rule names govern the file-writing
   tools, or a hooks-reference revision names the input field or tool set for file-tool `if` rules.
 
-Two things the projection cannot model, both over-counts rather than hidden spawns. An `if` rule
+Two things the projection models only as over-counts rather than hidden spawns. An `if` rule
 matches only under its anchor, so an edit to a file outside the project directory never matches
-one and every gated row there is counted as firing when none of them is. And dedup is modeled
-nowhere, so rows the product collapses into one run are counted twice here.
+one and every gated row there is counted as firing when none of them is. And for dedup we
+collapse only settings-file handlers that spawn the same command and arguments: each extra copy
+is counted in `settings_duplicates`, toward the ceiling only, never the floor. Collapsing on what
+the row spawns can only lower the floor, so it holds whichever fields the product compares.
+Plugin and skill copies are never collapsed, and any other duplicate is counted in full.
 
 - **Pointer**: when judging which duplicate handlers collapse, fetch
   [hooks: hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields) live.
-  **As of**: 2026-10-11. **Recheck trigger**: that section changes its dedup rule or where hooks
+  **As of**: 2026-10-20. **Recheck trigger**: that section changes its dedup rule or where hooks
   on one event run in parallel.
 
 ### Configuration on disk is not configuration in force

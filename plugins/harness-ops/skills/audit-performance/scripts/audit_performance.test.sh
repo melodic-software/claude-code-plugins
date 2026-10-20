@@ -95,7 +95,7 @@ assert unclassified[0]["reason"], unclassified
 
 joined = " ".join(hooks["notes"])
 assert "outside the project directory" in joined, hooks["notes"]
-assert "it runs once" in joined, hooks["notes"]
+assert "settings_duplicates" in joined, hooks["notes"]
 assert "parallel" in joined, hooks["notes"]
 print("OK: the hook block ships by_matcher, the projection, and unclassified rows")
 
