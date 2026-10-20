@@ -360,7 +360,9 @@ node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-wat
 ```
 
 Writes `verification/<ISO-basic>Z-watch-outcomes.md`. Once it exits 0 and the blocking checklist
-items (8.1-8.4, 9.1, 9.2, 9.4) are ticked, close the slice:
+items (8.1-8.4, 9.1, 9.2, 9.4) are ticked, close the slice. `close` deletes the temp media (video,
+frames, contact sheets). To keep media in a project layout, run `watch/relayout-slice.js` first
+(`output-contract.md` "Scope of the setting"); on a closed slice only `--no-media` works.
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/watch-state.js close "<slice-dir>"

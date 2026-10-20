@@ -153,7 +153,9 @@ audit ai-slop,attribution,harness-config,harness-memory,codebase-health,context-
 # WebFetch truncation hook and whether that hook is registered.
 # explainer-video joins on the same grounds: it reports whether Python, the
 # ManimCE packages its hook installs, ffmpeg and ffprobe resolve, read-only.
-check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,context-guard,context7,desktop-notification,discovery,disk-hygiene,eol-normalizer,explainer-video,go-format,guardrails,instruction-placement,markdown-format,multi-agent,playwright,powershell-format,rate-limit-guard,review,ruff-format,session-flow,skill-quality,source-control,speech,testing,toolchain,typos-format
+# knowledge joins on the same grounds: it reports whether the tools its digest
+# skills declare resolve, read-only.
+check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,context-guard,context7,desktop-notification,discovery,disk-hygiene,eol-normalizer,explainer-video,go-format,guardrails,instruction-placement,knowledge,markdown-format,multi-agent,playwright,powershell-format,rate-limit-guard,review,ruff-format,session-flow,skill-quality,source-control,speech,testing,toolchain,typos-format
 
 # The prerequisites check, for a plugin whose `check` already means something
 # else (docs/conventions/prerequisites/). instruction-placement gates rule
