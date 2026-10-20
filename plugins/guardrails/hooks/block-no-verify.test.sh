@@ -970,6 +970,18 @@ expect_both "git -C repo config core.hooksPath .githooks (blocked: other reposit
   --chdir "$HP_REPO" --command "git -C $HP_BARE config core.hooksPath .githooks"
 expect_both "git config core.hooksPath .githooks (blocked: no dispatcher in .githooks)" 2 \
   --chdir "$HP_BARE" --command "git config core.hooksPath .githooks"
+# A symlink lets the marker live outside the clone, so it never counts.
+HP_DIRLINK="$TEST_TMPDIR/hookspath-dirlink"
+HP_FILELINK="$TEST_TMPDIR/hookspath-filelink"
+git init -q "$HP_DIRLINK"
+git init -q "$HP_FILELINK"
+ln -s "$HP_REPO/.githooks" "$HP_DIRLINK/.githooks"
+mkdir -p "$HP_FILELINK/.githooks"
+ln -s "$HP_REPO/.githooks/pre-commit" "$HP_FILELINK/.githooks/pre-commit"
+expect_both "git config core.hooksPath .githooks (blocked: .githooks is a symlink)" 2 \
+  --chdir "$HP_DIRLINK" --command "git config core.hooksPath .githooks"
+expect_both "git config core.hooksPath .githooks (blocked: dispatcher file is a symlink)" 2 \
+  --chdir "$HP_FILELINK" --command "git config core.hooksPath .githooks"
 expect_both "git config --local core.hookspath /dev/null (blocked)" 2 \
   --command "git config --local core.hookspath /dev/null"
 expect_both "git config --global core.hooksPath ~/hooks (blocked)" 2 \

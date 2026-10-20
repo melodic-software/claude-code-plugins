@@ -30,7 +30,15 @@
 # command string. It does NOT evaluate shell variable / command substitution
 # ($VAR, $(…), $IFS) — a determined author can construct an expansion-based
 # bypass. It is a friction guard against accidental/casual bypass, not a
-# sandbox. The whole-guard deliberate bypass is the kill switch
+# sandbox. The `git config core.hooksPath .githooks` allow reads the dispatcher
+# marker in the hook's own working directory, not a `cd other &&` target, so
+# that compound sets the key in a clone whose `.githooks/` it never checked;
+# that clone's commits then run whatever its `.githooks/` holds, or no hooks
+# if it has none. The allow trusts any real (non-symlink)
+# `.githooks/pre-commit|pre-push|commit-msg` holding `# checks-dispatcher v1`:
+# enabling `.githooks` only runs repository content a merged change already
+# controls, and the marker only keeps the guard from approving the key where
+# guardrails is not installed. The whole-guard deliberate bypass is the kill switch
 # (block_no_verify_enabled userConfig option set to false). PowerShell
 # fail-closed sink shapes listed in the sibling `block_dangerous_git_allow`
 # option (ps-unparsable-<trigger>) set aside only the unreadable region; a
@@ -235,7 +243,7 @@ alias_record() {
 # key writes no path.
 hookspath_write_check() {
   local -a pos=()
-  local scoped=0 top
+  local scoped=0 top f
   while (($# > 0)); do
     case "$1" in
     --get | --get-all | --get-regexp | --get-urlmatch | --unset | --unset-all | \
@@ -264,9 +272,11 @@ hookspath_write_check() {
   ((HOOK_GITINV_SUB_IDX == HOOK_GITINV_GI + 1)) || scoped=1
   if [[ "${pos[1]}" == .githooks ]] && ((scoped == 0)); then
     top="$(git rev-parse --show-toplevel 2>/dev/null)" || top=""
-    if [[ -n "$top" ]] && grep -qs '^# checks-dispatcher v1$' \
-      "$top/.githooks/pre-commit" "$top/.githooks/pre-push" "$top/.githooks/commit-msg"; then
-      return 0
+    # A symlinked directory or hook file could carry a marker from outside the clone.
+    if [[ -n "$top" && -d "$top/.githooks" && ! -L "$top/.githooks" ]]; then
+      for f in "$top"/.githooks/{pre-commit,pre-push,commit-msg}; do
+        [[ -f "$f" && ! -L "$f" ]] && grep -qs '^# checks-dispatcher v1$' "$f" && return 0
+      done
     fi
   fi
   block "hooksPath-config" \
