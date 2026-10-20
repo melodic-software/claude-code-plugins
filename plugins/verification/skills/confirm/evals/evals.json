@@ -316,6 +316,19 @@
         "Beside the test results, it asks for either payslips recorded from the old code and checked against the new code's output, or a run of both versions on the same inputs with their payslips compared",
         "While passing tests are the only evidence and no equivalence evidence has been supplied, it withholds CONFIRMED"
       ]
+    },
+    {
+      "id": "assumption-falsified-01",
+      "name": "falsified-load-bearing-assumption-withholds-confirmed",
+      "prompt": "/verification:confirm. The approved PLAN.md Brief for this branch states the Problem: warehouse staff re-key carrier tracking numbers by hand, so customers get the wrong link. Goal: the label printer's scan fills the tracking number. Intent (why, in the user's words): \"nobody types a tracking number again\". Acceptance criterion AC1: a scanned label stores its tracking number on the order. Its `### Load-bearing assumptions` table has two rows: `Every carrier label carries a scannable barcode | carrier spec sheets | scan one label per carrier | keep manual entry for that carrier` and `Orders are created before labels print | order flow doc | print a label for a fresh order | queue the scan until the order exists`. The change adds the scan handler; its integration test for the regional carrier shows that carrier's labels print with no barcode, so the handler falls back to a text field the user types into. The test for a fresh order passes. Build, tests and lint pass.",
+      "expected_output": "Intent source is the PLAN.md Brief. AC1 is met for carriers with barcodes. The Assumptions line marks the barcode assumption falsified, citing the regional-carrier test, and the order-before-label assumption as holding. Because a load-bearing assumption is falsified and the change leaves people typing tracking numbers, against the stated intent, the verdict is NEEDS WORK, not CONFIRMED, and it asks the user whether to replan.",
+      "files": [],
+      "expectations": [
+        "It reports the every-label-has-a-barcode assumption as falsified, citing the regional carrier's labels printing with no barcode",
+        "It does not report the orders-before-labels assumption as falsified",
+        "It names the conflict with the user's intent that nobody types a tracking number again",
+        "The verdict is not CONFIRMED"
+      ]
     }
   ]
 }
