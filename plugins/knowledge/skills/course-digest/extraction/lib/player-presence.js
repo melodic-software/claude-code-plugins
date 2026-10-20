@@ -26,7 +26,7 @@ export async function hasPlayerElement(page, selector) {
 /**
  * The configured video-player selector, falling back to an adapter default.
  *
- * @param {object} platformCfg
+ * @param {import('./types.js').PlatformConfig} platformCfg
  * @param {string} defaultSelector
  * @param {{ optionalConfig?: boolean }} [options] `optionalConfig: true` reads
  *   the config optionally, so a nullish `platformCfg` yields `defaultSelector`;
