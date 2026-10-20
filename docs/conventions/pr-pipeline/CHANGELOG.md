@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [2.20.4] - 2026-10-20
+
+### Fixed
+
+- The lost-run reconciler lists pr-verify runs once per lost conclusion and per not-yet-completed status instead of all runs of the day, so a day with more than 500 runs no longer fails the page cap.
+
 ## [2.20.3] - 2026-10-20
 
 ### Fixed
