@@ -1,4 +1,4 @@
 schema_version: "1.1"
-name: ba-deepen-pause
+name: ba-deepen-pause # spellchecker:disable-line
 context:
   scaffold_script: scaffold.sh

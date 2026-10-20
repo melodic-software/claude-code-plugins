@@ -11,15 +11,15 @@ tenants=(acme-us globex initech acme-eu)
     hh=$((13 + (minute + 30) / 60))
     mm=$(((minute + 30) % 60))
     ts=$(printf '2026-10-18T%02d:%02d' "$hh" "$mm")
-    if [ "$minute" -eq 35 ]; then
+    if [[ "$minute" -eq 35 ]]; then
       echo "${ts}:00Z level=info msg=deploy release=4.18.2 tenants=acme-eu change=\"PAYMENTS_TIMEOUT_MS 3000->800\""
     fi
     for t in "${tenants[@]}"; do
       release=4.18.1
-      if [ "$t" = acme-eu ] && [ "$minute" -ge 35 ]; then release=4.18.2; fi
-      if [ "$release" = 4.18.2 ] && [ $((minute % 4)) -ne 0 ]; then
+      if [[ "$t" = acme-eu ]] && [[ "$minute" -ge 35 ]]; then release=4.18.2; fi
+      if [[ "$release" = 4.18.2 ]] && [[ $((minute % 4)) -ne 0 ]]; then
         echo "${ts}:12Z level=error tenant=$t route=/checkout status=502 upstream=payments-gateway upstream_ms=801 release=$release"
-      elif [ $((minute % 40)) -eq 7 ] && [ "$t" = globex ]; then
+      elif [[ $((minute % 40)) -eq 7 ]] && [[ "$t" = globex ]]; then
         echo "${ts}:12Z level=error tenant=$t route=/checkout status=502 upstream=payments-gateway upstream_ms=2950 release=$release"
       else
         echo "${ts}:12Z level=info tenant=$t route=/checkout status=200 upstream=payments-gateway upstream_ms=$((400 + (minute * 7) % 900)) release=$release"

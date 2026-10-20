@@ -1,4 +1,4 @@
 schema_version: "1.1"
-name: ba-deepen-carry-on
+name: ba-deepen-carry-on # spellchecker:disable-line
 context:
   scaffold_script: scaffold.sh

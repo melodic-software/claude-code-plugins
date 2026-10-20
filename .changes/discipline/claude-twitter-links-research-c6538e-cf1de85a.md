@@ -2,6 +2,7 @@
 bump: minor
 ---
 
+
 ### Added
 
 - be-ambitious deepens work already in progress
