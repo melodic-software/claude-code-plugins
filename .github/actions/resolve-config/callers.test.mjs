@@ -342,7 +342,7 @@ async function postNotRunCheck(job, context) {
     },
     fetchImpl: async (url, init) => {
       calls.push(JSON.parse(init.body));
-      return { ok: true, status: 201, json: async () => ({ id: 1 }) };
+      return new Response(JSON.stringify({ id: 1 }), { status: 201 });
     },
     log: () => {},
   });
