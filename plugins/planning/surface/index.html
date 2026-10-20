@@ -1657,6 +1657,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const hidden = !passesShow(Q[id]);
     if (!matchesSearch(Q[id])) clearSearch(); // a zero-padded number reaches a question the text does not match
     if (hidden) { S.filter = "all"; lsSet("filter", "all"); }
+    const sec = S.view === "tree" ? null : sections().secs.find(x => x.items.some(q => q.id === id));
+    if (sec) lsSet("col:" + sec.key, {c: false, d: sec.done}); // open the group that holds the target
     select(id, {animate: true});
     if (hidden) toast("Showing all to reveal " + id + ".");
   }
