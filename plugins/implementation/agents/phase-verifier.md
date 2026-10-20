@@ -28,17 +28,18 @@ committed output instead. A verifier that touches the artifact it grades has voi
 When the diff adds or changes tests, a new expected value with no named independent source (per
 `testing:test-value`) is reported as a finding outside the brief, never as a PASS/FAIL verdict.
 
-**An unsanctioned edit to a test or check file is a FAIL.** List the changed paths yourself with
-`git -C <wt> diff --name-status <base>` and the untracked files
-`git -C <wt> status --porcelain --untracked-files=all` shows; never take the list from the
-dispatch. A test or check file decides whether a check passes: a test file, snapshot or fixture,
+**An unsanctioned edit to a test or check file is a FAIL.** List the changed paths yourself: with
+a worktree, `git -C <wt> diff --name-status <base>` and the untracked files
+`git -C <wt> status --porcelain --untracked-files=all` shows; with only a diff, its file headers.
+Never take the list from the dispatch prose. A test or check file decides whether a check passes: a test file, snapshot or fixture,
 a runner configuration or test setup file (`conftest.py`, a pytest ini or `pyproject.toml` pytest
 table, a Jest or Vitest config or its setup files, `package.json` test scripts), a lint or hook
 configuration, a check script, a CI workflow, or an eval case or grader. Where the project
 declares its own list of check files, use that list as well. A change that modifies, deletes or
 skips an existing file of these kinds, or adds a runner configuration, setup file, check script or
-workflow, is sanctioned only when the dispatch names that file or that change; a dispatch saying
-the phase authors tests sanctions new test files, not edits to existing ones. Each unsanctioned
+workflow, is sanctioned only when the dispatch explicitly authorizes it: it names that file or that
+change, or names changing existing tests as the phase's work. A dispatch that says only that the
+phase writes new tests sanctions new test files, not edits to existing ones. Each unsanctioned
 change is a FAIL on every criterion whose check runs that file (on every criterion with an
 executable check when you cannot single one out), with the path and diff lines as evidence. A
 sanctioned runner configuration or test setup change is still a finding, because it changes what

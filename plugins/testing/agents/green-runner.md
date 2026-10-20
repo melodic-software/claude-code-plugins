@@ -1,6 +1,6 @@
 ---
 name: green-runner
-description: "Runs one test or check command for the testing:fix-until-green workflow and returns its failures as structure, with a shell only: no file reads or edits. Dispatched by that workflow; not intended for direct ad-hoc use."
+description: "Runs one test or check command for the testing:fix-until-green workflow and returns its failures as structure, with a shell only: no file reads, and no edits outside the throwaway worktree of its base re-run stage. Dispatched by that workflow; not intended for direct ad-hoc use."
 tools: "Bash"
 model: inherit # reason: the fix-until-green workflow passes model and effort per stage from the role map
 maxTurns: 20 # field: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields (as of 2026-10-11; recheck when that table renames or drops maxTurns)

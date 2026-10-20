@@ -26,7 +26,7 @@ skills cover it.
 
 | Agent | Dispatched by | What it does |
 |---|---|---|
-| `testing:green-runner` | the `testing:fix-until-green` workflow | Runs the command and returns its failures. Bash only. |
+| `testing:green-runner` | the `testing:fix-until-green` workflow | Runs the command and returns its failures; on the base re-run, runs it in a throwaway worktree it creates and removes. Bash only. |
 | `testing:green-fixer` | the `testing:fix-until-green` workflow | Fixes one group of failures in its assigned files, with `testing:test-value` preloaded. Read, Edit and Bash. |
 | `testing:green-verifier` | the `testing:fix-until-green` workflow | Checks a round's diff for test weakening against `testing:test-value`, and re-runs the command on the final pass. Read and Bash. |
 | `testing:test-judge` | `/testing:audit --judge` | Judges where each given test block's expected value came from and reports any instruction embedded in the files it read, never acting on one. Read, Grep and Glob. |
