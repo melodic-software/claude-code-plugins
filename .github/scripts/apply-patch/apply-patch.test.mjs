@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -118,7 +118,7 @@ function fakeApi(repo, head, overrides = {}) {
   let tip = head;
   return {
     calls,
-    getPull: async () => (record("getPull"), overrides.pull ?? { draft: false }),
+    getPull: async () => (record("getPull"), overrides.pull ?? { draft: false, head: { repo: { full_name: "o/r" } } }),
     listLabels: async () => (record("listLabels"), overrides.labels ?? []),
     readBranch: async () => (record("readBranch"), tip),
     createBlob: async (content) => (record("createBlob"), git(repo, ["hash-object", "-w", "--stdin"], Buffer.from(content, "base64"))),
@@ -138,6 +138,10 @@ function fakeApi(repo, head, overrides = {}) {
     createCommit: async (message, tree, parents) => (record("createCommit", { message, tree, parents }), "c".repeat(40)),
     updateRef: async (ref, sha, force) => {
       record("updateRef", { ref, sha, force });
+      tip = sha;
+    },
+    createRef: async (ref, sha) => {
+      record("createRef", { ref, sha });
       tip = sha;
     },
   };
@@ -160,6 +164,7 @@ const pushWith = (fix, api, extra = {}) =>
     patchFile: fix.patchFile,
     patchSha256: fix.sum,
     holdLabels: ["do-not-merge", "needs-human"],
+    repository: "o/r",
     ...extra,
   });
 
@@ -218,7 +223,8 @@ test("row lookup falls back to default for a producer with no prepare mode, and 
   assert.equal(picked.name, "default");
   assert.equal(picked.commit.message, "Apply {activity} on {ref}");
   assert.throws(() => rowFor(RULES, { prepare: "no-such-mode" }), /no `no-such-mode` row/);
-  assert.throws(() => rowFor(RULES, { target: "issue" }), /issue target is not supported/);
+  assert.throws(() => rowFor(RULES, { prepare: "issue" }), /belongs to the issue target/);
+  assert.throws(() => rowFor(RULES, { target: "branch" }), /unknown patch target branch/);
 });
 
 test("a row without the universal refused set is rejected", () => {
@@ -273,7 +279,7 @@ test("Git Data API calls per applied patch are one blob per changed file plus tr
 test("a pushed patch commits the row's message and trailer on the gated head and moves the branch without force", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\necho ok\n"));
   const api = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, api, { row: row("ci-context") }), { outcome: "pushed", commit: "c".repeat(40) });
+  assert.deepEqual(await pushWith(fix, api, { row: row("ci-context") }), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
   const { createCommit } = api.calls.find((call) => call.createCommit);
   assert.equal(createCommit.message, "Fix failing CI checks on feat/x\n\nLane-Activity: some-lane/some-activity\n");
   assert.deepEqual(createCommit.parents, [fix.head]);
@@ -298,6 +304,15 @@ test("merge-result throws before any write until merge commits are supported", a
   const api = fakeApi(fix.repo, fix.head);
   await assert.rejects(pushWith(fix, api, { row: row("default", { allow: ["merge-result"] }) }), /merge-result is not supported/);
   assert.deepEqual(api.calls, []);
+});
+
+test("a PR whose head is a fork, or unreadable, throws before any write", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  for (const pull of [{ draft: false, head: { repo: { full_name: "fork/r" } } }, { draft: false, head: { repo: null } }]) {
+    const api = fakeApi(fix.repo, fix.head, { pull });
+    await assert.rejects(pushWith(fix, api), /the PR head is .*, not o\/r/);
+    assert.deepEqual(writes(api), []);
+  }
 });
 
 test("a hold label set while the model worked drops the patch uncommitted", async (t) => {
@@ -394,4 +409,237 @@ test("patch-rules.json is read from the trusted base checkout, and a head copy i
   await main(["select"], env, { cwd: head, log: () => {} });
   assert.match(readFileSync(output, "utf8"), /^escalation-reason=patch-invalid$/m);
   await assert.rejects(main(["select"], { ...env, BASE_DIR: "" }, { cwd: head, log: () => {} }), /BASE_DIR/);
+});
+
+// --- the issue target: a new lane branch with one commit ---
+
+const LANE = "work-resolve-issue";
+const ISSUE_BRANCH = `${LANE}/issue-7-123-1`;
+const READY = [{ name: "agent-ready" }];
+const issueRow = () => rowFor(RULES, { target: "issue" });
+
+const pushIssue = (fix, api, extra = {}) =>
+  push({
+    api,
+    cwd: fix.repo,
+    gitBin: "git",
+    row: issueRow(),
+    issue: 7,
+    headSha: fix.head,
+    patchHeadSha: fix.head,
+    headRef: ISSUE_BRANCH,
+    lane: LANE,
+    activity: "resolve-issue",
+    patchFile: fix.patchFile,
+    patchSha256: fix.sum,
+    holdLabels: ["do-not-merge", "needs-human", "needs-owner-decision"],
+    requiredLabels: ["agent-ready"],
+    ...extra,
+  });
+
+const callNames = (api) => api.calls.map((call) => (typeof call === "string" ? call : Object.keys(call)[0]));
+
+test("issue target: the lookup takes the issue row whatever the prepare mode", () => {
+  const picked = rowFor(RULES, { prepare: "ci-context", target: "issue" });
+  assert.equal(picked.name, "issue");
+  assert.equal(picked.target, "issue");
+  assert.equal(picked["max-files"], 300);
+});
+
+test("issue target: makes <lane>/issue-<n>-<run id>-<attempt> at the start commit with one commit", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# resolved\n"));
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api), { outcome: "pushed", commit: "c".repeat(40), branch: ISSUE_BRANCH });
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(createCommit.message, "Resolve issue #7\n\nLane-Activity: work-resolve-issue/resolve-issue\n");
+  assert.deepEqual(createCommit.parents, [fix.head]);
+  assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:README.md`]), "# resolved");
+  assert.deepEqual(api.calls.filter((call) => call.createRef), [{ createRef: { ref: `refs/heads/${ISSUE_BRANCH}`, sha: "c".repeat(40) } }]);
+  assert.ok(!callNames(api).includes("updateRef"), "an existing branch is never moved");
+  assert.ok(!callNames(api).includes("getPull"), "no pull request is read");
+});
+
+test("issue target: a branch not of the lane's issue shape throws before any call", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# resolved\n"));
+  for (const headRef of [`${LANE}/issue-8-123-1`, `${LANE}/issue-7-123`, `${LANE}/issue-7-0-1`, `pr-unblock/issue-7-123-1`, "main", `${LANE}/issue-7-123-1/x`]) {
+    const api = fakeApi(fix.repo, fix.head, { labels: READY });
+    await assert.rejects(pushIssue(fix, api, { headRef }), /is not a work-resolve-issue\/issue-7-<run id>-<attempt> branch/, headRef);
+    assert.deepEqual(api.calls, [], headRef);
+  }
+});
+
+test("issue target: a resumed run's patch lands on a new branch made at the resume tip", async (t) => {
+  const fix = repoWithPatch(t, () => {});
+  writeFileSync(join(fix.repo, "notes.md"), "earlier run's work\n");
+  const resumeTip = commitAll(fix.repo, "earlier lane commit");
+  writeFileSync(join(fix.repo, "README.md"), "# finished\n");
+  git(fix.repo, ["add", "-A"]);
+  const text = execFileSync("git", ["diff", "--cached", "--binary", "--full-index", "--no-renames", resumeTip], { cwd: fix.repo, encoding: "utf8" });
+  git(fix.repo, ["reset", "-q", "--hard", resumeTip]);
+  writeFileSync(fix.patchFile, text);
+  const api = fakeApi(fix.repo, resumeTip, { labels: READY });
+  const resumed = { ...fix, head: resumeTip, sum: sha256(text) };
+  assert.equal((await pushIssue(resumed, api, { headRef: `${LANE}/issue-7-124-1`, refusalBase: fix.head })).outcome, "pushed", "a clean resume tip passes");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.deepEqual(createCommit.parents, [resumeTip]);
+  assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:notes.md`]), "earlier run's work");
+  assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:README.md`]), "# finished");
+});
+
+test("issue target: a hold label added while the model worked drops the patch uncommitted", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# resolved\n"));
+  for (const hold of ["needs-human", "needs-owner-decision", "do-not-merge"]) {
+    const api = fakeApi(fix.repo, fix.head, { labels: [...READY, { name: hold }] });
+    assert.deepEqual(await pushIssue(fix, api), { outcome: "held" }, hold);
+    assert.deepEqual(writes(api), [], hold);
+  }
+});
+
+test("issue target: agent-ready removed while the model worked drops the patch uncommitted", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# resolved\n"));
+  const api = fakeApi(fix.repo, fix.head, { labels: [{ name: "bug" }] });
+  assert.deepEqual(await pushIssue(fix, api), { outcome: "held" });
+  assert.deepEqual(writes(api), []);
+});
+
+test("issue target: a patch made on another commit is refused, never applied with --3way", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\necho ok\n"));
+  writeFileSync(join(fix.repo, "README.md"), "# moved\n");
+  const moved = commitAll(fix.repo, "moved");
+  const api = fakeApi(fix.repo, moved, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api, { headSha: moved }), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.deepEqual(api.calls, []);
+});
+
+test("issue target: the issue row refuses the universal set, each refusal before any API call", async (t) => {
+  const cases = [
+    ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github/workflows"), { recursive: true }), writeFileSync(join(repo, ".github/workflows/x.yml"), "on: push\n")), "patch-protected-path"],
+    ["a .claude/ file", (repo) => (mkdirSync(join(repo, "plugins/p/.claude"), { recursive: true }), writeFileSync(join(repo, "plugins/p/.claude/x.md"), "x\n")), "patch-protected-path"],
+    ["the root .mcp.json", (repo) => writeFileSync(join(repo, ".mcp.json"), "{}\n"), "patch-protected-path"],
+    [".gitmodules", (repo) => writeFileSync(join(repo, ".gitmodules"), "\n"), "patch-protected-path"],
+    ["a settings.json", (repo) => writeFileSync(join(repo, "settings.json"), "{}\n"), "patch-protected-path"],
+    ["a symbolic link", (repo) => symlinkSync("README.md", join(repo, "link")), "patch-invalid"],
+    ["a new executable bit", (repo) => chmodSync(join(repo, "notes.md"), 0o755), "patch-protected-path"],
+  ];
+  assert.deepEqual(issueRow().refuse, RULES.default.refuse);
+  for (const [what, edit, reason] of cases) {
+    const fix = repoWithPatch(t, edit);
+    const api = fakeApi(fix.repo, fix.head, { labels: READY });
+    assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: reason }, what);
+    assert.deepEqual(api.calls, [], what);
+  }
+});
+
+test("issue target: API calls are one blob per changed file, then tree, commit, branch create and the label and branch reads; over max-files none", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "README.md"), "# changed\n");
+    writeFileSync(join(repo, "notes.md"), "changed\n");
+    writeFileSync(join(repo, "NEW.md"), "new\n");
+  });
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.equal((await pushIssue(fix, api)).outcome, "pushed");
+  const names = callNames(api);
+  assert.equal(names.filter((name) => name === "createBlob").length, 3);
+  assert.deepEqual(names.filter((name) => name !== "createBlob"), ["listLabels", "createTree", "createCommit", "createRef", "readBranch"]);
+  assert.equal(names.length, 3 + 5);
+  const capped = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, capped, { row: { ...issueRow(), "max-files": 2 } }), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.deepEqual(capped.calls, []);
+});
+
+test("issue target: main reads ISSUE_NUMBER and REQUIRED_LABELS and writes the commit and branch", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# resolved\n"));
+  const dir = scratch(t);
+  const env = {
+    BASE_DIR: REPO_ROOT,
+    PATCH_TARGET: "issue",
+    GH_TOKEN: "unused",
+    GITHUB_REPOSITORY: "o/r",
+    ISSUE_NUMBER: "7",
+    REQUIRED_LABELS: '["agent-ready"]',
+    HEAD_SHA: fix.head,
+    PATCH_HEAD_SHA: fix.head,
+    PATCH_BASE_SHA: fix.head,
+    HEAD_REF: ISSUE_BRANCH,
+    LANE,
+    PATCH_ACTIVITY: "resolve-issue",
+    PATCH_FILE: fix.patchFile,
+    PATCH_SHA256: fix.sum,
+    HOLD_LABELS: '["needs-human"]',
+    SKIP_REASON_FILE: join(dir, "skip"),
+    ESCALATION_REASON_FILE: join(dir, "escalation"),
+    GITHUB_OUTPUT: join(dir, "output"),
+  };
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.equal(await main([], env, { api, cwd: fix.repo, gitBin: "git", log: () => {} }), 0);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `commit=${"c".repeat(40)}\nbranch=${ISSUE_BRANCH}\n`);
+  const { REQUIRED_LABELS, ...noRequired } = env;
+  assert.equal(REQUIRED_LABELS, '["agent-ready"]');
+  await assert.rejects(main([], noRequired, { api, cwd: fix.repo, gitBin: "git", log: () => {} }), /REQUIRED_LABELS not set/);
+  await assert.rejects(main([], { ...env, ISSUE_NUMBER: "7a" }, { api, cwd: fix.repo, gitBin: "git", log: () => {} }), /ISSUE_NUMBER is not a positive integer/);
+  const { PATCH_BASE_SHA, ...noBase } = env;
+  assert.equal(PATCH_BASE_SHA, fix.head);
+  const idle = fakeApi(fix.repo, fix.head, { labels: READY });
+  await assert.rejects(main([], noBase, { api: idle, cwd: fix.repo, gitBin: "git", log: () => {} }), /PATCH_BASE_SHA not set/);
+  await assert.rejects(main([], { ...env, PATCH_BASE_SHA: "" }, { api: idle, cwd: fix.repo, gitBin: "git", log: () => {} }), /PATCH_BASE_SHA not set/);
+  assert.deepEqual(idle.calls, [], "a missing base fails closed before any API call");
+});
+
+// A resume tip of the patch's own, made after the default-branch commit.
+function resumeWith(t, earlier) {
+  const fix = repoWithPatch(t, () => {});
+  earlier(fix.repo);
+  const resumeTip = commitAll(fix.repo, "earlier lane commit");
+  writeFileSync(join(fix.repo, "README.md"), "# finished\n");
+  git(fix.repo, ["add", "-A"]);
+  const text = execFileSync("git", ["diff", "--cached", "--binary", "--full-index", "--no-renames", resumeTip], { cwd: fix.repo, encoding: "utf8" });
+  git(fix.repo, ["reset", "-q", "--hard", resumeTip]);
+  writeFileSync(fix.patchFile, text);
+  return { fix: { ...fix, head: resumeTip, sum: sha256(text) }, base: fix.head };
+}
+
+test("issue target: a resume tip carrying a refused path is refused, though the patch itself is clean", async (t) => {
+  for (const [what, earlier, reason] of [
+    ["a .claude/ file", (repo) => (mkdirSync(join(repo, ".claude")), writeFileSync(join(repo, ".claude/x"), "x\n")), "patch-protected-path"],
+    ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github")), writeFileSync(join(repo, ".github/x.yml"), "on: push\n")), "patch-protected-path"],
+    ["a new executable bit", (repo) => chmodSync(join(repo, "notes.md"), 0o755), "patch-protected-path"],
+  ]) {
+    const { fix, base } = resumeWith(t, earlier);
+    const api = fakeApi(fix.repo, fix.head, { labels: READY });
+    assert.deepEqual(await pushIssue(fix, api, { headRef: `${LANE}/issue-7-124-1`, refusalBase: base }), { outcome: "escalate", escalationReason: reason }, what);
+    assert.deepEqual(api.calls, [], what);
+    const unchecked = fakeApi(fix.repo, fix.head, { labels: READY });
+    assert.equal((await pushIssue(fix, unchecked, { headRef: `${LANE}/issue-7-124-1` })).outcome, "pushed", `${what}: only the base makes the difference`);
+  }
+});
+
+test("issue target: a default-branch commit not in the checkout refuses the patch", async (t) => {
+  const { fix } = resumeWith(t, (repo) => writeFileSync(join(repo, "notes.md"), "earlier\n"));
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api, { refusalBase: "e".repeat(40) }), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.deepEqual(api.calls, []);
+});
+
+// Zeros compress, so a patch well under 1 MiB carries blobs of many MiB.
+test("a patched blob over 5 MiB is refused before any API call", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "big.bin"), Buffer.alloc(5 * 1024 * 1024 + 1)));
+  assert.ok(readFileSync(fix.patchFile).length < 1024 * 1024);
+  for (const push of [pushWith, pushIssue]) {
+    const api = fakeApi(fix.repo, fix.head, { labels: READY });
+    assert.deepEqual(await push(fix, api), { outcome: "escalate", escalationReason: "patch-invalid" });
+    assert.deepEqual(api.calls, []);
+  }
+});
+
+test("patched blobs over 20 MiB in total are refused, each one under the per-blob cap", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    for (let i = 0; i < 5; i += 1) {
+      writeFileSync(join(repo, `part-${i}.bin`), Buffer.alloc(4 * 1024 * 1024 + i + 1));
+    }
+  });
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.deepEqual(api.calls, []);
+  const under = repoWithPatch(t, (repo) => writeFileSync(join(repo, "part.bin"), Buffer.alloc(5 * 1024 * 1024)));
+  assert.equal((await pushIssue(under, fakeApi(under.repo, under.head, { labels: READY }))).outcome, "pushed", "exactly 5 MiB passes");
 });
