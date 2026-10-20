@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- The host can rename anyone in a shared interview session from that person's row in the Host view; a guest still renames only themselves.
+- The host can rename anyone in a shared interview session, from that person's row in the Host view or their person card; a guest still renames only themselves.
 
 ### Fixed
 
