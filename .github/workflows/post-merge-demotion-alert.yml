@@ -26,11 +26,20 @@ name: post-merge-demotion-alert
 # nothing beside another failed job, and the gitleaks gate, which scans every
 # branch on these events, counts against no merge.
 #
-# Test: scripts/post-merge-demotion-alert.test.sh runs the step body.
+# After a failed scheduled or dispatched full run, the report-red-main job
+# applies the red-main rule (docs/conventions/pr-pipeline/README.md, "Red
+# main"): it waits for the run's one re-run, confirms the red, pins the
+# culprit merge and names the revert the bot would open, in its step summary
+# and one log issue. While `red-main.dry-run` is true it pushes, opens and
+# merges nothing.
+#
+# Test: scripts/post-merge-demotion-alert.test.sh runs the alert step body;
+# .github/scripts/post-merge-demotion-alert/ tests the report job.
 
 on:
-  # The job checks out nothing and runs no action, so no code from the
-  # triggering run executes here. The
+  # The alert job checks out nothing and runs no action; the report job checks
+  # out main's tip and runs main's own scripts. So no code from the triggering
+  # run executes here. Each
   # step reads the event's fields through env and acts only on runs of this
   # repository's main branch.
   workflow_run: # zizmor: ignore[dangerous-triggers]
@@ -444,3 +453,82 @@ jobs:
             kind='post-merge-failure issue (lane not demoted)'
           fi
           echo "filed the $signal $kind for $RUN_SHA"
+
+  # The red-main report. It runs after the alert job, so a re-run the alert
+  # started is already under way, and only for a full run on main that
+  # concluded failure: a cancelled, timed-out or not-started run, and the
+  # canary, never trigger it. It holds the job's own GITHUB_TOKEN, never a
+  # lanes App token, writes only its log issue, and skips an event the lanes
+  # App sent.
+  report-red-main:
+    name: Report the red-main culprit
+    needs: [alert]
+    if: >-
+      !cancelled()
+      && github.event.workflow_run.name == 'pr-require-checks'
+      && contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event.workflow_run.event)
+      && github.event.workflow_run.conclusion == 'failure'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    runs-on: ubuntu-24.04
+    # Up to red-main.confirm-wait-minutes (at most 45) waiting on the re-run.
+    timeout-minutes: 60
+    permissions:
+      actions: read # read runs, attempts and jobs
+      checks: read # read the hygiene aggregator's annotations
+      contents: read # check out main; compare the failing range
+      issues: write # file and comment on the log issue
+      pull-requests: read # read each merge's merge-queue entry
+    # One report per run: a later attempt's event waits, then finds it logged.
+    concurrency:
+      group: post-merge-red-main-${{ github.event.workflow_run.id }}
+      cancel-in-progress: false
+    steps:
+      # Full history, so the revert's fit to main's tip is checked in memory.
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this report (reason ${REASON:-unreadable}); nothing read or written"
+
+      # report.mjs reads the red-main leaf through the base's resolve-config,
+      # which needs its dependencies.
+      - name: Install resolve-config's dependencies
+        if: steps.kill.outputs.proceed == 'true'
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      - name: Report the culprit and the revert it would open
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BASE_PATH: .base
+          CALL_BUDGET: "300"
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
+          RUN_CREATED: ${{ github.event.workflow_run.created_at }}
+        run: node .base/.github/scripts/post-merge-demotion-alert/report.mjs

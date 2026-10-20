@@ -445,6 +445,29 @@ wip:
   # keeps starting runs.
   pause-from: "2026-10-18"
 
+# The red-main revert rule (owner decision 2026-10-20). post-merge-demotion-
+# alert.yml's report job reads it after a scheduled or dispatched
+# pr-require-checks run on main fails: red is confirmed only when the one
+# re-run of the failed jobs fails again in the same job, and the culprit is
+# the one merge that fails while its parent passes.
+red-main:
+  # true: the job names the culprit, the evidence runs and the revert it
+  # would open, in its step summary and one log issue, and writes nothing
+  # else. It stays true for 3 days of reports with no wrong blame before any
+  # revert merges; this version has no revert path either way.
+  dry-run: true
+  # Auto-reverts in any 24 hours, dry-run decisions included; past it a person
+  # gets the culprit. 3 is judgment: no source gives a value.
+  daily-cap: 3
+  # A culprit merged longer ago than this goes to a person, since later merges
+  # may build on it. 24 is judgment, as daily-cap.
+  max-culprit-age-hours: 24
+  # Minutes the job waits for the re-run of a full run pr-merge dispatched,
+  # which pr-merge's next scheduled run (every 15 minutes) starts and which
+  # raises no event of its own: 15 to start plus a full run's longest lane
+  # (16) plus queue time.
+  confirm-wait-minutes: 40
+
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
   # class C2 (plugins/autonomy/reference/guardrails/work-classes.md) and reads
