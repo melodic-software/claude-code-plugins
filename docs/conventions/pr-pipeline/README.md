@@ -632,13 +632,14 @@ that fails counts as a refusal.
 - **Stale check inputs.** `merge.check-inputs` lists git pathspecs the pull request checks read.
   When the base changed one since a pull request's merge base, the wrapper updates the branch from
   the base (`update-branch`, a merge) instead of enqueuing it; the new head enqueues on a later run
-  once its checks pass. The answer comes from the local clone of the base with no API read; a head
-  the clone lacks is fetched by SHA. The shared-copy registry (`scripts/shared-copies.txt`) counts
+  once its checks pass. The answer comes from the local full-history clone of the base (never a
+  shallow or partial one) with no API read; a head the clone lacks is fetched by SHA. The shared-copy registry (`scripts/shared-copies.txt`) counts
   only for a pull request whose own changes since the merge base touch the registry or a canonical
   or copy path it registers at the base tip, since a pull request touching none of them merges
   cleanly whatever the base registered; every other listed path counts for every pull request. Any
-  doubt, a refused update (its status and message recorded as `updateError`), or a Dependabot head
-  enqueues as before. Empty or absent updates nothing.
+  doubt, an update the API refused with a 4xx (its status and message recorded as `updateError`),
+  or a Dependabot head enqueues as before. An update with no answer (a timeout, no status, a server
+  error) may have landed, so it holds the old head instead. Empty or absent updates nothing.
 - **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
   pr-merge lane owns Dependabot pull requests (below).
 

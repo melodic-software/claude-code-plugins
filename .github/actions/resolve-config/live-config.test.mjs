@@ -289,29 +289,32 @@ test("live config: resolve-issue self-checks its uncommitted work with check-aff
   assert.ok(!leaf.checks.includes("scripts/check-affected.sh --uncommitted"), leaf.checks.join(" | "));
 });
 
-// #7597: the issue's done-when runs the can't-fail scan, a read-only checker.
-// #7685 and #7686: one test file at a time, and git mv and git rm, in the checkout.
-// #7840 (owner decision 2026-10-17): skill-quality's two checks; check-skill.sh
-// runs each skill's test scripts, without the GitHub token.
-// Runs 39092789214 and 39092790956: the lane was denied new-changelog-fragment.sh.
-test("live config: resolve-issue may run the can't-fail scan, one test file, git mv or rm, the shared-copy sync, skill-quality's checks and the fragment writer; no other activity lists verify-scripts", () => {
-  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["verify-scripts"], [
+// Code a verify-script runs can read the lane's token from any same-user
+// process's /proc/<pid>/environ, so no listed script runs checkout code.
+const RUNS_CHECKOUT_CODE = ["scripts/run-test-file.sh", "plugins/skill-quality/scripts/check-skill.sh"];
+test("live config: resolve-issue may run the can't-fail scan, git mv or rm, the evals check, the shared-copy sync and the fragment writer, and no script that runs checkout code; no other activity lists verify-scripts", () => {
+  const scripts = selected("work-resolve-issue", "resolve-issue", ISSUE)["verify-scripts"];
+  assert.deepEqual(scripts, [
     "plugins/testing/skills/audit/scripts/cant-fail-scan.sh",
-    "scripts/run-test-file.sh",
     "scripts/git-mv-rm.sh",
-    "plugins/skill-quality/scripts/check-skill.sh",
     "plugins/skill-quality/scripts/check-evals-quality.sh",
     "scripts/sync-shared-copies.sh",
     "scripts/new-changelog-fragment.sh",
   ]);
+  for (const script of RUNS_CHECKOUT_CODE) assert.ok(!scripts.includes(script), script);
   const doc = parse(FILES.config);
   const others = Object.entries(doc.activities).filter(([name, a]) => name !== "resolve-issue" && a["verify-scripts"]);
   assert.deepEqual(others, []);
 });
 
-// Owner decision 2026-10-14: the run may read any web page.
-test("live config: resolve-issue may read any domain; review-dependency reads release-note hosts; no other activity reads the web", () => {
-  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"], { enabled: true, domains: "any" });
+// A domain list, not `any`: `any` also grants the curl-based docs scripts.
+test("live config: resolve-issue reads official docs hosts only; review-dependency reads release-note hosts; no other activity reads the web", () => {
+  const web = selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"];
+  assert.notEqual(web.domains, "any");
+  assert.deepEqual(web, {
+    enabled: true,
+    domains: ["code.claude.com", "platform.claude.com", "docs.anthropic.com", "docs.github.com", "nodejs.org", "docs.python.org"],
+  });
   const doc = parse(FILES.config);
   assert.deepEqual(doc.activities["review-dependency"]["web-access"], {
     enabled: true,

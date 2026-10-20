@@ -1510,11 +1510,15 @@ class TestModerationRoutes(ServerCase):
     def test_a_join_waits_for_the_owner_when_approval_is_on(self):
         code, _, out = self.post("/api/session/settings", {"approveJoins": True}, self.owner)
         self.assertEqual(code, 200, out)
+        self.post("/api/session/intro", {"intro": "Why we meet."}, self.owner)
         code, _, out = self.post("/api/join", {"name": "Jib"})
         self.assertEqual((code, out["waiting"]), (200, True))
         jib = {"X-Session-Secret": out["secret"]}
         code, _, err = self.get("/api/state?since=0", jib)
         self.assertEqual((code, err["error"]), (403, "waiting"))
+        # The waiting page's one card: the title and the intro, and nothing else of the session.
+        self.assertEqual({k: err.get(k) for k in ("title", "intro")}, {"title": self.state(self.ann)["title"], "intro": "Why we meet."})
+        self.assertEqual(set(err) - {"error", "message", "title", "intro"}, set())
         self.assertEqual(self.state(self.ann)["me"]["pid"], self.ann_pid)  # a returning guest is not held
         code, _, err = self.post("/api/join/act", {"pid": out["pid"], "action": "admit"}, self.bo)
         self.assertEqual((code, err["error"]), (403, "owner-only"))
