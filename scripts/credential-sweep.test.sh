@@ -89,6 +89,8 @@ base_fixture() {
   fix "$d" "$b/issues/comments?since=${SINCE}T00:00:00Z&$pages" '[]'
   fix "$d" "$b/pulls/comments?since=${SINCE}T00:00:00Z&$pages" '[]'
   fix "$d" "$b/actions/caches?$pages" '{"actions_caches":[]}'
+  fix "$d" "$b/pulls?state=all&sort=updated&direction=desc&$pages" '[]'
+  fix "$d" "$b" '{"private":false}'
 }
 
 # one_run <dir> <repo> <check-runs-json>: run 11 (attempt 1, suite 21) since
@@ -173,13 +175,89 @@ fi
 F="$TMP/gone"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[]}'
-fix_err "$F" "repos/o/r/actions/runs/11/attempts/1/logs" 'gh: Not Found (HTTP 410)'
+fix_err "$F" "repos/o/r/actions/runs/11/attempts/1/logs" 'gh: Server Error (HTTP 502)'
 fix "$F" "orgs/o/repos?type=public&per_page=100&page=1" '[{"name":"r","private":false},{"name":"p","private":true}]'
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-gone"
 expect_rc "gaps without hits exit 2" 2
-expect_out "the undownloadable log is listed under GAPS" '- r: logs: run 11 attempt 1: gh: Not Found (HTTP 410)'
+expect_out "the undownloadable log is listed under GAPS" '- r: logs: run 11 attempt 1: gh: Server Error (HTTP 502)'
 expect_out "no hits is stated" $'## Hits (0)\n\nNone'
 if [[ "$LOG" != *repos/o/p/* ]]; then ok "the default listing sweeps public repos only"; else fail "private repo p was swept: $LOG"; fi
+
+# Control characters in API text never reach the report.
+F="$TMP/ctrl"
+base_fixture "$F" r
+one_run "$F" r '{"check_runs":[]}'
+fix_err "$F" "repos/o/r/actions/runs/11/attempts/1/logs" $'gh: \e[2Jbad (HTTP 502)'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-ctrl" --repo r
+if ! grep -q $'\e' "$TMP/out-ctrl/summary.md"; then ok "control characters are stripped from the report"; else fail "ESC in the report"; fi
+
+# Expired logs (HTTP 410) are served to nobody: listed apart, exit 0.
+F="$TMP/expired"
+base_fixture "$F" r
+one_run "$F" r '{"check_runs":[]}'
+fix_err "$F" "repos/o/r/actions/runs/11/attempts/1/logs" 'gh: Gone (HTTP 410)'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-expired" --repo r
+expect_rc "expired logs alone exit 0" 0
+expect_out "expired logs are counted as unreadable by design" '- r: logs: run 11 attempt 1: logs expired or deleted (HTTP 410)'
+
+# --- A filtered list keeps paging past a page its filter thins out -----------
+F="$TMP/paging"
+base_fixture "$F" r
+humans="$(jq -cn '[range(100) | {id: ., user: {login: "h", type: "User"}, body: "hi", html_url: "u"}]')"
+fix "$F" "repos/o/r/issues/comments?since=${SINCE}T00:00:00Z&per_page=100&page=1" "$humans"
+fix "$F" "repos/o/r/issues/comments?since=${SINCE}T00:00:00Z&per_page=100&page=2" \
+  "[{\"id\":500,\"user\":{\"login\":\"b[bot]\",\"type\":\"Bot\"},\"body\":\"token $PLANTED\",\"html_url\":\"u\"}]"
+STUB_LEAK_FILE=r/bot-comments/issues.txt STUB_SECRET="$PLANTED" \
+  sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-paging" --repo r --keep
+expect_rc "a bot comment on page 2 is swept" 1
+if grep -qF "comment 500 by b[bot]" "$TMP/out-paging/downloads/r/bot-comments/issues.txt"; then
+  ok "page 2 of a filtered list is fetched"
+else
+  fail "page 2 bot comment missing: $LOG"
+fi
+
+# --- Bot review bodies on pull requests updated since --since are swept ------
+F="$TMP/reviews"
+base_fixture "$F" r
+fix "$F" "repos/o/r/pulls?state=all&sort=updated&direction=desc&per_page=100&page=1" \
+  '[{"number":7,"updated_at":"2026-10-05T00:00:00Z"},{"number":3,"updated_at":"2026-09-01T00:00:00Z"}]'
+fix "$F" "repos/o/r/pulls/7/reviews?per_page=100&page=1" \
+  '[{"id":70,"user":{"login":"b[bot]","type":"Bot"},"body":"bot review","html_url":"u"},{"id":71,"user":{"login":"h","type":"User"},"body":"human review","html_url":"u"}]'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reviews" --repo r --keep
+expect_rc "bot reviews alone exit 0" 0
+if grep -qF "review 70 by b[bot]" "$TMP/out-reviews/downloads/r/bot-comments/reviews.txt" &&
+  ! grep -qF "review 71" "$TMP/out-reviews/downloads/r/bot-comments/reviews.txt"; then
+  ok "bot review bodies are swept and human ones are not"
+else
+  fail "review bodies wrong: $(cat "$TMP/out-reviews/downloads/r/bot-comments/reviews.txt")"
+fi
+if [[ "$LOG" != *pulls/3/reviews* ]]; then ok "a pull request before --since is not fetched"; else fail "pull 3 reviews fetched: $LOG"; fi
+
+# --- A symlink in an archive is deleted, never written through ---------------
+F="$TMP/symlink"
+base_fixture "$F" r
+one_run "$F" r '{"check_runs":[]}'
+printf 'untouched\n' >"$TMP/victim"
+"$PYTHON" -I - "$F/$(key "repos/o/r/actions/runs/11/attempts/1/logs")" "$TMP/victim" <<'PY' || fail "could not build the symlink zip"
+import sys, zipfile
+z = zipfile.ZipFile(sys.argv[1], "w")
+link = zipfile.ZipInfo("bin.strings.txt")
+link.create_system = 3
+link.external_attr = (0o120777 << 16)
+z.writestr(link, sys.argv[2])
+z.writestr("bin", b"\x00\x01ATTACKER_CONTROLLED_LINE\x00")
+z.close()
+PY
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-symlink" --repo r
+if [[ "$(cat "$TMP/victim")" == untouched ]]; then ok "a symlink in an archive is not written through"; else fail "victim overwritten: $(cat "$TMP/victim")"; fi
+
+# --- A --repo that is not public is refused ----------------------------------
+F="$TMP/private"
+base_fixture "$F" r
+fix "$F" "repos/o/r" '{"private":true}'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-private" --repo r
+expect_rc "a private --repo exits 3" 3
+if [[ "$(wc -l <<<"$LOG")" -eq 1 ]]; then ok "nothing of a private repo is swept"; else fail "requests after the public check: $LOG"; fi
 
 # --- Nothing unread and nothing found is a clean exit ------------------------
 F="$TMP/clean"
@@ -217,7 +295,7 @@ sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-limit" --repo r --repo s
 expect_rc "a rate-limit stop exits 2" 2
 expect_out "the stop is reported as a gap" 'stopped mid-repo: rate limit on GET'
 expect_out "the repo after the stop is a gap" '- s: all: not swept'
-if [[ "$(wc -l <<<"$LOG")" -eq 1 ]]; then ok "no request follows the rate-limit error"; else fail "requests after the limit: $LOG"; fi
+if [[ "$(tail -n 1 <<<"$LOG")" == *actions/runs* ]]; then ok "no request follows the rate-limit error"; else fail "requests after the limit: $LOG"; fi
 
 # --- Could not start ---------------------------------------------------------
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-usage" --since 2026-13-45

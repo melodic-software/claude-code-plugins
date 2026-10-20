@@ -7,7 +7,8 @@
 #                               [--since YYYY-MM-DD] [--out DIR] [--keep]
 #
 #   --owner  GitHub owner (default melodic-software)
-#   --repo   sweep only NAME; repeatable. Default: every public repo of OWNER.
+#   --repo   sweep only NAME, which must be public; repeatable. Default: every
+#            public repo of OWNER.
 #   --since  first day of activity to sweep (default 90 days ago, GitHub's
 #            default log and artifact retention)
 #   --out    report directory (default .work/credential-sweep/<UTC stamp>)
@@ -20,11 +21,15 @@
 #   artifacts    every artifact created since --since, unzipped
 #   releases     name and body of every published release, and its assets
 #   bot-comments issue, pull request and review comments by Bot accounts
+#   bot-reviews  review bodies by Bot accounts on pull requests updated since
 #   caches       listed only
+#
+# Archives over 1 GiB uncompressed are not extracted (a gap), and symlinks in
+# an archive are deleted after extraction.
 #
 # Two kinds of unread data are reported apart. UNREADABLE BY DESIGN is what the
 # API serves to nobody: cache contents, job step summaries (no REST endpoint
-# serves GITHUB_STEP_SUMMARY) and expired artifacts. It is counted in its own
+# serves GITHUB_STEP_SUMMARY), expired artifacts and logs (HTTP 410). It is counted in its own
 # section and never moves the exit code. A GAP is something readable that was
 # not read: a failed list or download, an unparsable page, a rate-limit stop.
 #
@@ -51,6 +56,7 @@ ROOT="$(cd "$SELF_DIR/.." && pwd)"
 GITLEAKS_PIN="8.30.1"
 CONFIG="$ROOT/.gitleaks.toml"
 PER_PAGE=100
+UNPACK_MAX=$((1024 * 1024 * 1024))
 
 OWNER="melodic-software"
 REPOS=()
@@ -71,7 +77,7 @@ die() {
 }
 
 usage() {
-  sed -n '6,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '6,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
   exit 3
 }
 
@@ -121,7 +127,8 @@ fetch_pages() {
       API_ERR="unparsable response for $path page $page"
       return 1
     fi
-    n="$(jq "[$items] | length" "$tmp")"
+    # The page's own length, before any select in $items, decides paging.
+    n="$(jq 'if type == "array" then length else ([.[] | arrays][0] // [] | length) end' "$tmp")"
     ((n == PER_PAGE)) || return 0
     if [[ -n "$field" ]] &&
       [[ "$(jq --arg s "$SINCE" "[$items | select(.$field >= \$s)] | length" "$tmp")" == 0 ]]; then
@@ -131,13 +138,24 @@ fetch_pages() {
   done
 }
 
-# unpack <zip> <dir>: extract and drop the archive; a failure is a gap.
+# unpack <zip> <dir>: extract and drop the archive; a failure is a gap. An
+# archive over UNPACK_MAX bytes uncompressed is not extracted. Symlinks in the
+# archive are deleted, so no later read or write follows one out of the tree.
 unpack() {
+  local size
+  size="$(unzip -Zt "$1" 2>/dev/null | awk '{ for (i = 1; i < NF; i++) if ($(i + 1) ~ /^bytes/) { print $i; exit } }')"
+  if [[ ! "$size" =~ ^[0-9]+$ ]] || ((size > UNPACK_MAX)); then
+    API_ERR="archive size unreadable or over $UNPACK_MAX bytes uncompressed (${size:-unknown})"
+    rm -f "$1"
+    return 1
+  fi
   mkdir -p "$2"
   if unzip -q -o "$1" -d "$2" >/dev/null 2>&1; then
+    find "$2" -type l -delete
     rm -f "$1"
     return 0
   fi
+  API_ERR="archive did not unzip"
   return 1
 }
 
@@ -158,11 +176,15 @@ sweep_logs_and_checks() {
       ((rc != 3)) || return 3
       if ((rc != 0)); then
         rm -f "$dl/logs/run-$id-attempt-$a.zip"
-        gap "$r" logs "run $id attempt $a: $API_ERR"
+        if [[ "$API_ERR" == *'HTTP 410'* ]]; then
+          by_design "$r" logs "run $id attempt $a: logs expired or deleted (HTTP 410)"
+        else
+          gap "$r" logs "run $id attempt $a: $API_ERR"
+        fi
       elif unpack "$dl/logs/run-$id-attempt-$a.zip" "$dl/logs/run-$id-attempt-$a"; then
         bump "$r" logs
       else
-        gap "$r" logs "run $id attempt $a: log archive did not unzip"
+        gap "$r" logs "run $id attempt $a: $API_ERR"
       fi
     done
     fetch_pages "$STATE/checks.jsonl" "$base/check-suites/$suite/check-runs" '.check_runs[]'
@@ -206,7 +228,7 @@ sweep_artifacts() {
     elif unpack "$dir.zip" "$dir"; then
       bump "$r" artifacts
     else
-      gap "$r" artifacts "artifact $id ($name): archive did not unzip"
+      gap "$r" artifacts "artifact $id ($name): $API_ERR"
     fi
   done < <(jq -r --arg s "$SINCE" 'select(.created_at >= $s) | [.id, .name, .expired] | @tsv' "$STATE/artifacts.jsonl")
   return 0
@@ -255,7 +277,41 @@ sweep_comments() {
       "$STATE/comments.jsonl" >"$dl/bot-comments/$kind.txt"
     bump "$r" bot-comments "$(wc -l <"$STATE/comments.jsonl")"
   done
+  sweep_reviews "$@"
+}
+
+# sweep_reviews: review bodies by Bot accounts on every pull request updated
+# since --since; no repository-wide endpoint lists reviews.
+sweep_reviews() {
+  local r="$1" base="$2" dl="$3" pr rc
+  fetch_pages "$STATE/pulls.jsonl" "$base/pulls?state=all&sort=updated&direction=desc" '.[]' updated_at
+  rc=$?
+  ((rc != 3)) || return 3
+  if ((rc != 0)); then
+    gap "$r" bot-reviews "pull request list unreadable: $API_ERR"
+    return 0
+  fi
+  : >"$dl/bot-comments/reviews.txt"
+  while IFS= read -r pr; do
+    fetch_pages "$STATE/reviews.jsonl" "$base/pulls/$pr/reviews" '.[] | select(.user.type == "Bot")'
+    rc=$?
+    ((rc != 3)) || return 3
+    if ((rc != 0)); then
+      gap "$r" bot-reviews "pull request $pr reviews unreadable: $API_ERR"
+      continue
+    fi
+    jq -r '"review \(.id) by \(.user.login) \(.html_url)\n\(.body // "")\n"' \
+      "$STATE/reviews.jsonl" >>"$dl/bot-comments/reviews.txt"
+    bump "$r" bot-reviews "$(wc -l <"$STATE/reviews.jsonl")"
+  done < <(jq -r --arg s "$SINCE" 'select(.updated_at >= $s) | .number' "$STATE/pulls.jsonl")
   return 0
+}
+
+# check_public <repo>: a --repo name must be a public repository of OWNER.
+check_public() {
+  local tmp="$STATE/repo.json"
+  api_get "$tmp" "repos/$OWNER/$1" || die "cannot read repos/$OWNER/$1: ${STOPPED:-$API_ERR}"
+  [[ "$(jq -r '.private' "$tmp")" == false ]] || die "$OWNER/$1 is not public; this sweep reads public data only"
 }
 
 sweep_caches() {
@@ -320,7 +376,7 @@ scan() {
 
 report() {
   local r src hits gaps
-  local sources=(runs logs check-runs artifacts releases release-assets bot-comments caches)
+  local sources=(runs logs check-runs artifacts releases release-assets bot-comments bot-reviews caches)
   hits="$(jq length "$OUT/findings.json")"
   gaps="$(wc -l <"$STATE/gaps.tsv")"
   {
@@ -358,7 +414,7 @@ report() {
     else
       printf 'None\n'
     fi
-  } >"$OUT/summary.md"
+  } | tr -d '\000-\010\013-\037\177' >"$OUT/summary.md"
   cat "$OUT/summary.md"
   printf '\nReport: %s\n' "$OUT/summary.md"
   if ((hits > 0)); then
@@ -408,7 +464,11 @@ main() {
   : >"$STATE/by-design.tsv"
   trap cleanup EXIT
 
-  ((${#REPOS[@]} > 0)) || list_public_repos
+  if ((${#REPOS[@]} > 0)); then
+    for r in "${REPOS[@]}"; do check_public "$r"; done
+  else
+    list_public_repos
+  fi
   for ((i = 0; i < ${#REPOS[@]}; i++)); do
     r="${REPOS[i]}"
     if [[ -n "$STOPPED" ]]; then
