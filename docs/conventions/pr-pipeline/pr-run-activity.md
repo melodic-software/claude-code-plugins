@@ -408,9 +408,11 @@ change reaches the branch through `commit_files` and `delete_files`. `resolve-is
 `.changes` or `.changes/<plugin>`, and reads `--carriers-of` through its own copy's
 `sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry.
 Every activity whose effect is not `read`, and a read skill that hands on a patch, also gets
-`--disallowedTools` rules for the read-only shell commands that run with no allow rule (`echo`,
-`printf`, `cat`, `head`, `tail`, `grep`, `find`, `env`, `printenv`, `strings`, `od`, `xxd`, each as
-`Bash(<command> *)`) and `Read(//proc/**)`; the skill reads files with `Read`, `Grep` and `Glob`.
+`--disallowedTools` rules for the shell commands that can print a file or the environment,
+including read-only ones that run with no allow rule (`echo`, `printf`, `cat`, `head`, `tail`,
+`grep`, `find`, `env`, `printenv`, `strings`, `od`, `xxd`, `diff`, `sed`, `awk`, `sort`, `cut`,
+`tr`, `base64`, `nl`, `tac`, `rev`, `uniq`, `fold`, `column`, `jq`, `xargs`, `more`, `less`, each as
+`Bash(<command> *)`), and `Read(//proc/**)`; the skill reads files with `Read`, `Grep` and `Glob`.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain

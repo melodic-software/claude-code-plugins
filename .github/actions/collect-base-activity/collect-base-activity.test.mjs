@@ -19,9 +19,10 @@ const CHMOD_RULE = "Bash(chmod +x *)";
 const CHMOD_SENTENCE =
   "run chmod +x on every new or changed file that starts with #! or ends in .sh, because the commit takes each file's mode from disk, then commit";
 
-// Every write lane denies the read-only shell commands that need no allow
-// rule (https://code.claude.com/docs/en/permissions#read-only-commands) and
-// Read of process files.
+// Every write lane denies the shell commands that can print a file or the
+// environment, read-only ones that need no allow rule
+// (https://code.claude.com/docs/en/permissions#read-only-commands) among
+// them, and Read of process files.
 const SHELL_DENIED = [
   "Bash(echo *)",
   "Bash(printf *)",
@@ -35,6 +36,23 @@ const SHELL_DENIED = [
   "Bash(strings *)",
   "Bash(od *)",
   "Bash(xxd *)",
+  "Bash(diff *)",
+  "Bash(sed *)",
+  "Bash(awk *)",
+  "Bash(sort *)",
+  "Bash(cut *)",
+  "Bash(tr *)",
+  "Bash(base64 *)",
+  "Bash(nl *)",
+  "Bash(tac *)",
+  "Bash(rev *)",
+  "Bash(uniq *)",
+  "Bash(fold *)",
+  "Bash(column *)",
+  "Bash(jq *)",
+  "Bash(xargs *)",
+  "Bash(more *)",
+  "Bash(less *)",
   "Read(//proc/**)",
 ];
 // The deny rules other than the write lanes' shell set.
