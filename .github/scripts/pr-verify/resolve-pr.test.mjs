@@ -87,7 +87,8 @@ const artifact = (name, runId, expired = false) => ({ name, expired, workflow_ru
 function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE] } = {}) {
   const github = async (method, apiPath) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
-    if (apiPath === `/repos/${REPO}/commits/${HEAD}/pulls`) return pulls;
+    const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
+    if (listed && listed[1] === HEAD) return pulls.slice((Number(listed[2]) - 1) * 100, Number(listed[2]) * 100);
     if (apiPath === "/graphql") {
       return { data: { repository: { pullRequest: { closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
     }
@@ -234,6 +235,18 @@ test("a name with more than one page of artifacts is read to the end", async () 
   const name = `pr-verify-41-${HEAD}-pass`;
   const artifacts = [...Array.from({ length: 100 }, () => artifact(name, 77, true)), artifact(name, 78)];
   assert.equal(await reason({ artifacts, runs: { 78: verifyRun(78) } }), "already-judged");
+});
+
+test("a FAIL under a PR listed only on the second page of the commit's pull requests is found", async () => {
+  const filler = Array.from({ length: 100 }, (_, index) => pull({ number: 1000 + index, state: "closed" }));
+  const pulls = [pull(), ...filler.slice(1), pull({ number: 99, state: "closed" })];
+  const artifacts = [artifact(`pr-verify-99-${HEAD}-fail`, 77)];
+  assert.equal(await reason({ pulls, artifacts, runs: { 77: verifyRun(77) } }), "already-judged");
+});
+
+test("a commit with more pull-request pages than the cap throws", async () => {
+  const pulls = Array.from({ length: 100 * 100 + 1 }, (_, index) => pull({ number: 1000 + index, state: "closed" }));
+  await assert.rejects(resolve({ pulls }), /more than \d+ pages/);
 });
 
 test("a failed artifact lookup throws instead of judging again", async () => {

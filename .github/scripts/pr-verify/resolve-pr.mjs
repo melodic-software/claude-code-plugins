@@ -121,6 +121,19 @@ export async function countedBy({ github, repository, runId, verdict, base }) {
   }
 }
 
+// Every pull request the commit belongs to; a read that fails throws.
+async function pullsOfCommit(github, repository, head) {
+  const pulls = [];
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const batch = await github("GET", `/repos/${repository}/commits/${head}/pulls?per_page=100&page=${page}`);
+    pulls.push(...batch);
+    if (batch.length < 100) {
+      return pulls;
+    }
+  }
+  throw new Error(`the pull requests of ${head} have more than ${MAX_PAGES} pages`);
+}
+
 // The names that hold a counted verdict at the head: this PR's PASS,
 // PASS-NOTES and FAIL, and a FAIL under each other number the commit's pull
 // requests carry.
@@ -211,7 +224,7 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
     return skip("not-a-passing-run");
   }
   const head = run.head_sha;
-  const associated = await github("GET", `/repos/${repository}/commits/${head}/pulls`);
+  const associated = await pullsOfCommit(github, repository, head);
   const pulls = associated.filter(
     (pull) =>
       pull?.state === "open" &&
