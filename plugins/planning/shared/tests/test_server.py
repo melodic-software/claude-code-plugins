@@ -92,6 +92,13 @@ class ServerCase(unittest.TestCase):
         self.assertEqual(code, 200, out)
         return out["pid"], {"X-Session-Secret": out["secret"]}
 
+    def claude_from_before(self):
+        """A person named "Claude" in a session from before join and rename refused that name."""
+        pid, _ = self.join("Cee")
+        with self.app.session._tx() as st:
+            st["people"][pid]["name"] = "Claude"
+        return pid
+
     def ops(self, *ops):
         s = self.app.hub
         return call(self.app.control_port, "POST", "/api/ops", {"ops": list(ops)}, {"X-Shared-Token": s.token})
@@ -2258,7 +2265,7 @@ class TestDiscussion(ServerCase):
         self.assertEqual(len(self.app.session.state["requests"]), 1)
 
     def test_at_claude_naming_a_participant_called_claude_files_no_request(self):
-        claude_pid, _ = self.join("Claude")
+        claude_pid = self.claude_from_before()
         out = self.say(self.ann, "@Claude can you check the copy?")
         self.assertNotIn("request", out)
         self.assertEqual(self.comments(self.bo)[0]["text"], f"<@{claude_pid}> can you check the copy?")
@@ -2410,7 +2417,7 @@ class TestGeneralAsk(ServerCase):
         self.assertEqual(self.app.session.state["chat"][-1]["replyTo"]["id"], asked["id"])
 
     def test_at_claude_in_chat_matches_only_the_word(self):
-        claude_pid, _ = self.join("Claude")
+        claude_pid = self.claude_from_before()
         for who, text in ((self.ann, "@Claudette can you look?"), (self.bo, "Mail x@claude.ai about it")):
             self.assertNotIn("request", self.chat(who, text), text)
         time.sleep(1.05)

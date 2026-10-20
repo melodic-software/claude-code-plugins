@@ -572,6 +572,7 @@ class Unattended(unittest.TestCase):
         )
 
     def _lane_evidence(self, *args: Any) -> Any:
+        self.lane_args = args
         if self.lane_error is not None:
             raise self.lane_error
         return self.lanes, self.comments
@@ -2117,6 +2118,26 @@ class FloorReadsCapabilityText(Unattended):
         self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
 
 
+class LaneEvidenceGetsTheChangedPaths(Unattended):
+    """The review evidence is bound against the diff's paths, both sides of
+    a rename, and against None when the file list is incomplete."""
+
+    def test_every_changed_path_reaches_the_lane_evidence(self) -> None:
+        moved = ChangedFile(
+            "docs/b.md", "docs/a.md", "renamed", 0, 0, True, "100644", "100644"
+        )
+        self.files = ((LOW_FILE, moved), True)
+        self.run_main(merge_flag=False)
+        self.assertEqual(
+            set(self.lane_args[-1]), {"docs/guide.md", "docs/b.md", "docs/a.md"}
+        )
+
+    def test_an_incomplete_file_list_passes_none(self) -> None:
+        self.files = ((LOW_FILE,), False)
+        self.run_main(merge_flag=False)
+        self.assertIsNone(self.lane_args[-1])
+
+
 class ReasonsComment(Unattended):
     """MED/HIGH on an eligible pull request: one upserted comment (T14, D15)."""
 
@@ -2218,7 +2239,7 @@ class ReasonsComment(Unattended):
             "created_at": "2026-10-12T10:00:00Z",
         }
         lanes = merge.review_evidence.bind(
-            HEAD, [running], [], [], is_human=lambda actor: False
+            HEAD, [running], [], [], is_human=lambda actor: False, changed_paths=()
         )
         self.assertEqual(lanes[0].unbound_reason, "run-not-success")
         self.lanes = lanes
@@ -2674,6 +2695,7 @@ class HeadPushers(unittest.TestCase):
                 IDENTITY,
                 frozenset(),
                 lambda login: "write",
+                (),
             )
 
     def test_an_unlinked_author_or_committer_is_unproven(self) -> None:
@@ -2754,7 +2776,7 @@ class CandidateReadsOnce(unittest.TestCase):
         ):
             pr = policy.pull_request("owner/repo", PR)
             merge._lane_evidence(
-                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write"
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", ()
             )
             reader = merge.verify_evidence.Reader("owner/repo", "main")
             self.assertEqual(

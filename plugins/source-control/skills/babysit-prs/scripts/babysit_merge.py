@@ -137,7 +137,7 @@ import json
 import os
 import re
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -2805,8 +2805,10 @@ def _lane_evidence(
     identity: str,
     self_logins: frozenset[str],
     permission: Callable[[str], str | None],
+    changed_paths: Sequence[str] | None,
 ) -> tuple[tuple[LaneEvidence, ...], list[dict[str, Any]]]:
     """Each lane's evidence for the pull request's head, and its comments.
+    `changed_paths` is `bind()`'s: None when the changed files are unproven.
 
     The human test bound into `bind()` is the merge policy's, and it also
     returns False for the pull request's author and every head pusher (commit
@@ -2882,6 +2884,7 @@ def _lane_evidence(
         comments,
         threads,
         is_human=human,
+        changed_paths=changed_paths,
         base_changed=any(e.get("event") == "base_ref_changed" for e in timeline),
         head_file=_head_file(repo, str(head.get("sha"))),
     )
@@ -2977,10 +2980,22 @@ def score_unattended(
             inputs["own_refusal"] = inputs.get("own_refusal") or verdict.refusal
             reason = policy.reason or verdict.refusal
             return replace(policy, reason=reason, details=details, inputs=inputs)
+    try:
+        files, complete = merge_policy.changed_files(repo, pr)
+    except merge_policy.PolicyReadError:
+        files, complete = (), False
     comments: list[dict[str, Any]] | None = None
     try:
         lanes, comments = _lane_evidence(
-            repo, number, pr, inputs["identity"], self_logins, inputs["permission"]
+            repo,
+            number,
+            pr,
+            inputs["identity"],
+            self_logins,
+            inputs["permission"],
+            [p for f in files for p in (f.path, f.previous_path) if p]
+            if complete
+            else None,
         )
     except HeadPusherUnproven as exc:
         # Fail closed: refused, and its own queued entry leaves.
@@ -2991,10 +3006,6 @@ def score_unattended(
             LaneEvidence(lane, False, "evidence-missing", None)
             for lane in review_evidence.LANES
         )
-    try:
-        files, complete = merge_policy.changed_files(repo, pr)
-    except merge_policy.PolicyReadError:
-        files, complete = (), False
     if config.high_path_floor:
         # The capability check compares base and head text (the floor only).
         files = merge_policy.with_capability_contents(repo, pr, files)
