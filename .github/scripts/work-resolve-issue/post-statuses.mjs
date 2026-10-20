@@ -17,6 +17,8 @@
 //   RESUME_BRANCH       the earlier run's lane branch resolve-issue resumed
 //                       (issue-prior's output), or empty
 //   RUNNER_CHECKS       the run-checks job's output, or empty
+//   LANES_BOT_LOGIN     the lanes App bot login (default
+//                       melodic-automation-lanes[bot])
 //   RESOLVE_RESULT      the resolve-issue job's result
 //   REPORT_RESULT       the report-outcome job's result
 //   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID
@@ -24,7 +26,17 @@ import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { isLaneBranch, readBranch, readChecks, readFunding, readOutcome, readTurnCap } from "./report-outcome.mjs";
+import {
+  allLaneCommits,
+  checksPassed,
+  isLaneBranch,
+  listedCommits,
+  readBranch,
+  readChecks,
+  readFunding,
+  readOutcome,
+  readTurnCap,
+} from "./report-outcome.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
 const STEP_STATES = { pass: "success", fail: "failure" };
@@ -119,13 +131,25 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
     }
     const dir = env.WORK_OUTCOME_DIR ?? "";
     const ran = readBranch(dir, Number(env.ISSUE_NUMBER));
+    const repo = `/repos/${env.GITHUB_REPOSITORY}`;
+    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
     // A resumed run that committed nothing has its PR opened from the branch
     // it resumed, at the tip run-checks checked, so its statuses go on that
-    // tip. lane.json's resume counts only when it is the runner's.
+    // tip, under report-outcome's gate: lane.json's resume (rewritable) is
+    // the runner's, a check ran and none failed, and every commit ahead of
+    // the default branch is the lanes App's. Otherwise none is posted.
     const resume = env.RESUME_BRANCH ?? "";
     const resumed =
       !reuse && !ran && resume !== "" && readBranch(dir, Number(env.ISSUE_NUMBER), "resume") === resume ? resume : "";
-    const checkedTip = resumed ? readChecks(env.RUNNER_CHECKS ?? "", { branch: resumed })?.tip : undefined;
+    const checks = resumed ? readChecks(env.RUNNER_CHECKS ?? "", { branch: resumed }) : null;
+    let checkedTip;
+    if (checksPassed(checks)) {
+      const base = (await github("GET", repo))?.default_branch;
+      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${checks.tip}`);
+      if (allLaneCommits(listedCommits(comparison), env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]")) {
+        checkedTip = checks.tip;
+      }
+    }
     const branch = reuse || ran || (checkedTip ? resumed : "");
     // On a reuse, an outcome this run cannot read counts as none, as in
     // report-outcome: the earlier run's statuses on the branch stand.
@@ -142,8 +166,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
       console.log("post-statuses: no lane branch, so no status is posted");
       return 0;
     }
-    const repo = `/repos/${env.GITHUB_REPOSITORY}`;
-    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
     const ref = branch.split("/").map(encodeURIComponent).join("/");
     const sha = checkedTip ?? (await github("GET", `${repo}/git/ref/heads/${ref}`))?.object?.sha;
     if (!/^[0-9a-f]{40}$/.test(sha ?? "")) {

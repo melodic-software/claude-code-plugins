@@ -469,6 +469,10 @@ const checkFailures = (checks) =>
     ? [{ what: "The runner's check results are missing, unreadable or for another tip of the branch.", required: true }]
     : checks.results.filter(({ exit }) => exit !== 0).map(({ check, exit }) => ({ what: `${check} failed (exit ${exit})`, required: true }));
 
+// The gate a resumed branch passes before its PR opens and its statuses are
+// posted: at least one check ran and none failed.
+export const checksPassed = (checks) => Boolean(checks?.results.length) && !checkFailures(checks).length;
+
 // The runner's check results as the PR body's Verification section shows them.
 const checkLines = (checks) =>
   checks === null
@@ -615,7 +619,7 @@ export function decide({
   // checked it at its current tip and every commit on it ahead of the default
   // branch is the lanes App's; then the PR opens from it when at least one
   // check ran and none failed. Otherwise a person gets it unopened.
-  const resumedChecked = Boolean(checks?.results.length) && !checkFailures(checks).length;
+  const resumedChecked = checksPassed(checks);
   if (outcome.exit === "done" && !branch && resumed && resumedChecked) {
     // `tip`: main opens the PR only at the tip the runner checked.
     const plan = decide({
@@ -790,7 +794,11 @@ const laneCommit = (commit, bot) =>
 // A resume carries every commit ahead of the default branch into the next PR,
 // so each of them, not only the tip, must be the lanes App's. A listing cut
 // short (null) passes none.
-const allLaneCommits = (commits, bot) => Array.isArray(commits) && commits.length > 0 && commits.every((commit) => laneCommit(commit, bot));
+// A GET /compare answer's commits, or null when the listing (at most 250) is
+// cut short.
+export const listedCommits = (comparison) =>
+  Array.isArray(comparison?.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
+export const allLaneCommits = (commits, bot) => Array.isArray(commits) && commits.length > 0 && commits.every((commit) => laneCommit(commit, bot));
 
 export function readBranch(dir, issueNumber, key = "branch") {
   try {
@@ -1189,7 +1197,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       base = (await github("GET", repo)).default_branch;
       const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
       // The listing holds at most 250 commits; one cut short lists none.
-      commits = Array.isArray(comparison.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
+      commits = listedCommits(comparison);
       return (comparison.files ?? []).flatMap((file) =>
         file.previous_filename ? [file.filename, file.previous_filename] : [file.filename],
       );
