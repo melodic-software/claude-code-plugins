@@ -110,10 +110,10 @@ check_range() {
   done < <(checks_diff --name-status -M --diff-filter=R -z 2>/dev/null)
   while IFS= read -r -d '' f; do
     verified_type "$f" || continue
-    checks_regular_file "$f" || continue
+    checks_regular_file --tip "$TIP" "$f" || continue
     if [[ "$renamed" != *$'\n'"$f"$'\n'* ]] && is_new "$f"; then
       text="$(
-        checks_file_text "$f"
+        checks_file_text --tip "$TIP" "$f"
         printf x
       )"
       text="${text%x}"
@@ -121,7 +121,7 @@ check_range() {
         '{hook_event_name: "PostToolUse", tool_name: "Write", tool_input: {file_path: $p, content: $c}}')"
     else
       text="$(
-        checks_file_text "$f" | added_lines "$f"
+        checks_file_text --tip "$TIP" "$f" | added_lines "$f"
         printf x
       )"
       text="${text%x}"

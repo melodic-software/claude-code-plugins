@@ -86,6 +86,13 @@ push_check() {
   printf '%s|%s' "$rc" "$(head -1 <<<"$err")"
 }
 
+push_lines() { # stdin: pre-push ref lines -> "<rc>|<first stderr line>"
+  local err rc
+  err="$(cd "$REPO" && bash "$CHECK" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
+  rc=$?
+  printf '%s|%s' "$rc" "$(head -1 <<<"$err")"
+}
+
 push_err() { # <ref> <local-sha> <remote-sha> -> the whole stderr
   local err
   err="$(cd "$REPO" && printf '%s %s %s %s\n' "$1" "$2" "$1" "$3" |
@@ -129,6 +136,23 @@ git -C "$REPO" mv run.sh tool.sh
 commit_all rename
 expect "a pure rename adds no line, so an earlier unknown flag does not block" "0|" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+
+# Two pushed refs change one file: each range is judged on its own tip's blob.
+new_repo
+git -C "$REPO" switch -q -c clean
+printf '#!/usr/bin/env bash\nfaketool --real\necho fine\n' >"$REPO/run.sh"
+commit_all clean
+clean_tip="$(git -C "$REPO" rev-parse HEAD)"
+git -C "$REPO" switch -q -c bogus "$BASE"
+printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/run.sh"
+commit_all bogus
+bogus_tip="$(git -C "$REPO" rev-parse HEAD)"
+git -C "$REPO" switch -q main
+expect "with two pushed refs changing one file, each is read from its own tip" "1|run.sh:3: $FLAG_FINDING" \
+  "$(printf 'refs/heads/clean %s refs/heads/clean %s\nrefs/heads/bogus %s refs/heads/bogus %s\n' \
+    "$clean_tip" "$ZERO" "$bogus_tip" "$ZERO" | push_lines)"
+expect "with the clean ref alone, nothing blocks" "0|" \
+  "$(printf 'refs/heads/clean %s refs/heads/clean %s\n' "$clean_tip" "$ZERO" | push_lines)"
 
 new_repo
 # shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
