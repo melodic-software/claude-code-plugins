@@ -195,6 +195,9 @@ async function plan({ repo, call, say, since }) {
           noteFailure(`lane run ${r.id}`, error);
         }
       }
+      // The record's head is the pr-verify run's own head_sha (main's tip), not
+      // the pull request's head: the PR binding is the live gate's job
+      // (check-trusted-trigger and resolve-pr), never this record's.
       lanes.push(
         ...unpublished
           .sort(byAge)
