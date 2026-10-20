@@ -867,7 +867,9 @@ reads the heads' existing check runs in one GraphQL query per 50 candidates and 
 the title or conclusion changed, so an unchanged sweep writes nothing; the step logs one line of
 written and unchanged counts per sweep. The same query reads each candidate pull request's current
 head (`pull-requests: read`, the job's only other permission besides `contents: read`), and a row
-whose head differs, or whose pull request does not come back, gets no write. It reads and rewrites only check runs carrying its own
+whose head differs gets no write. A pull request the read reports `NOT_FOUND` (deleted or
+transferred) skips only its own row; any other GraphQL error leaves that read's 50 candidates
+unwritten and fails the step. It reads and rewrites only check runs carrying its own
 external id, since every workflow's `GITHUB_TOKEN` posts as the same GitHub Actions app. The check
 is display-only: it is never required and is not part of `ci-status`, and the gate reads neutral as
 passing, so it holds no merge. Not while `merge.report-only` is true.

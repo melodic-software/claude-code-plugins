@@ -26,7 +26,8 @@
 // did not judge in this run (`carried`) is left as it is, and so is a row
 // whose head is not its pull request's head when read, or whose pull request
 // cannot be read: the summary artifact alone never picks the commit written
-// to. A failed read leaves
+// to. A pull request the read reports NOT_FOUND skips only its own row; any
+// other GraphQL error fails the read. A failed read leaves
 // its chunk's checks as they are, and so does a head whose listing may be
 // cut short, rather than add a duplicate every sweep. Each sweep logs one line of counts, so a
 // reason whose text changes every sweep shows as a write every sweep.
@@ -117,6 +118,18 @@ export const READ_QUERY = (candidates) =>
     .join(" ") +
   "}}";
 
+// Throws unless every GraphQL error is a NOT_FOUND on one pull request alias,
+// whose row is then skipped as not read.
+export function checkErrors(errors) {
+  for (const error of Array.isArray(errors) ? errors : []) {
+    const where = error?.path;
+    const prAlias = Array.isArray(where) && where.length === 2 && where[0] === "repository" && /^p[0-9]+$/.test(String(where[1]));
+    if (error?.type !== "NOT_FOUND" || !prAlias) {
+      throw new Error(`GraphQL error: ${error?.type ?? "unknown"} at ${Array.isArray(where) ? where.join(".") : "no path"}`);
+    }
+  }
+}
+
 // The newest `CHECK_NAME` check run at each head, null for none, and
 // undefined when the listing may be cut short.
 export function existing(node) {
@@ -131,7 +144,7 @@ export function existing(node) {
   return runs.length === 0 ? null : runs.reduce((a, b) => (b.databaseId > a.databaseId ? b : a));
 }
 
-export async function main({ env = process.env, github, now = () => new Date() } = {}) {
+export async function main({ env = process.env, github, fetchImpl, now = () => new Date() } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -152,7 +165,7 @@ export async function main({ env = process.env, github, now = () => new Date() }
         wanted.set(row.head, { pr: row.pr, ...check });
       }
     }
-    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, fetchImpl, keepGraphQLErrors: true });
     const details = RUN_ID.test(env.GITHUB_RUN_ID ?? "")
       ? `${env.GITHUB_SERVER_URL || "https://github.com"}/${repo}/actions/runs/${env.GITHUB_RUN_ID}`
       : undefined;
@@ -168,7 +181,12 @@ export async function main({ env = process.env, github, now = () => new Date() }
       const chunk = heads.slice(start, start + CHUNK);
       let found;
       try {
-        found = (await github("POST", "/graphql", { query: READ_QUERY(chunk.map((head) => ({ head, pr: wanted.get(head).pr }))), variables: { o: owner, r: name, n: CHECK_NAME } }))?.data?.repository;
+        const answer = await github("POST", "/graphql", {
+          query: READ_QUERY(chunk.map((head) => ({ head, pr: wanted.get(head).pr }))),
+          variables: { o: owner, r: name, n: CHECK_NAME },
+        });
+        checkErrors(answer?.errors);
+        found = answer?.data?.repository;
         if (!found) throw new Error("no repository in the answer");
       } catch (error) {
         unread += chunk.length;

@@ -14,6 +14,7 @@ import { main } from "./gate-check.mjs";
 const REPO = "melodic-software/claude-code-plugins";
 const sha = (c) => c.repeat(40);
 const NOW = new Date("2026-10-19T12:00:00Z");
+const API = "https://api.test";
 
 const row = (pr, head, fields = {}) => ({ pr, head, exit: 10, ready: false, enqueued: false, merged: false, reportOnly: false, reason: null, blockers: [], ...fields });
 const suite = (...runs) => ({ checkRuns: { nodes: runs } });
@@ -22,32 +23,45 @@ const listed = (...suites) => ({ checkSuites: { totalCount: suites.length, nodes
 
 // `checks` maps a head to its commit node in the GraphQL answer. Each pull
 // request's head is its first row's head unless `prHeads` names another, or
-// null for a pull request the read returns nothing for.
-function world(rows, checks = {}, { readFails = false, prHeads = {} } = {}) {
+// null for a pull request GitHub reports NOT_FOUND: its alias is null and the
+// answer carries the error, as GitHub sends it. `errors` adds more errors.
+// The answers go through the script's own client, as fetch responses.
+function world(rows, checks = {}, { readFails = false, prHeads = {}, errors = [] } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), "gate-check-"));
   const summary = path.join(dir, "pr-merge-summary.json");
   writeFileSync(summary, JSON.stringify(rows));
   const calls = [];
   const logs = [];
-  const github = async (method, apiPath, body) => {
-    calls.push({ method, path: apiPath, body });
+  const answer = (method, apiPath, body) => {
     if (method === "POST" && apiPath === "/graphql") {
-      if (readFails) throw new Error("POST /graphql failed: 502");
+      if (readFails) return new Response("{}", { status: 502 });
       const heads = [...body.query.matchAll(/h(\d+):object\(oid:"([0-9a-f]{40})"\)/g)];
       const prs = [...body.query.matchAll(/p(\d+):pullRequest\(number:(\d+)\)\{headRefOid\}/g)];
       const headOf = (pr) => (Object.hasOwn(prHeads, pr) ? prHeads[pr] : rows.find((r) => r.pr === pr)?.head);
-      return {
+      const missing = prs.filter(([, , pr]) => headOf(Number(pr)) === null);
+      const found = [
+        ...missing.map(([, i, pr]) => ({ type: "NOT_FOUND", path: ["repository", `p${i}`], message: `Could not resolve to a PullRequest with the number of ${pr}.` })),
+        ...errors,
+      ];
+      return Response.json({
         data: {
           repository: Object.fromEntries([
             ...heads.map(([, i, head]) => [`h${i}`, checks[head] ?? listed()]),
             ...prs.map(([, i, pr]) => [`p${i}`, headOf(Number(pr)) === null ? null : { headRefOid: headOf(Number(pr)) }]),
           ]),
         },
-      };
+        ...(found.length > 0 ? { errors: found } : {}),
+      });
     }
-    return {};
+    return Response.json({}, { status: 201 });
   };
-  const env = { GITHUB_REPOSITORY: REPO, SUMMARY_PATH: summary, GITHUB_RUN_ID: "42" };
+  const fetchImpl = async (url, init) => {
+    const apiPath = url.slice(API.length);
+    const body = init.body === undefined ? undefined : JSON.parse(init.body);
+    calls.push({ method: init.method, path: apiPath, body });
+    return answer(init.method, apiPath, body);
+  };
+  const env = { GITHUB_REPOSITORY: REPO, SUMMARY_PATH: summary, GITHUB_RUN_ID: "42", GITHUB_API_URL: API, GH_TOKEN: "t" };
   return {
     calls,
     logs,
@@ -56,7 +70,7 @@ function world(rows, checks = {}, { readFails = false, prHeads = {} } = {}) {
       const original = console.log;
       console.log = (line) => logs.push(String(line));
       try {
-        return await main({ env, github, now: () => NOW });
+        return await main({ env, fetchImpl, now: () => NOW });
       } finally {
         console.log = original;
       }
@@ -229,4 +243,23 @@ test("a row at its pull request's head is read with that pull request and writte
   await w.run();
   assert.match(w.calls[0].body.query, /p0:pullRequest\(number:7\)\{headRefOid\}/);
   assert.deepEqual(w.writes().map((call) => [call.method, call.body.head_sha, call.body.output.title]), [["POST", sha("a"), "risk:MED"]]);
+});
+
+test("a missing pull request beside valid rows skips only its own row", async () => {
+  const w = world([row(7, sha("a"), { reason: "risk:MED" }), row(8, sha("b"), { reason: "verify:fail" }), row(9, sha("c"), { reason: "x" })], {}, { prHeads: { 8: null } });
+  assert.equal(await w.run(), 0);
+  assert.deepEqual(w.writes().map((call) => call.body.head_sha), [sha("a"), sha("c")]);
+  assert.ok(w.logs.some((line) => line.includes("#8: pull request not read")));
+});
+
+test("a GraphQL error other than a missing pull request fails the chunk", async () => {
+  for (const error of [
+    { type: "FORBIDDEN", path: ["repository", "p0"] },
+    { type: "NOT_FOUND", path: ["repository", "h0"] },
+    { message: "Something went wrong" },
+  ]) {
+    const w = world([row(7, sha("a"), { reason: "risk:MED" })], {}, { errors: [error] });
+    assert.equal(await w.run(), 1);
+    assert.deepEqual(w.writes(), []);
+  }
 });
