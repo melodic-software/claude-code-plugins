@@ -153,15 +153,7 @@ def _bind_lane(
         _require_marker(lane, head, comments)
         _require_marked_runs(lane, lane_runs, comments)
         count = _open_findings(
-            lane,
-            lane_runs,
-            threads,
-            is_human,
-            claimed,
-            reviewed,
-            chain,
-            head_file,
-            head,
+            lane, lane_runs, threads, is_human, claimed, reviewed, chain, head_file
         )
     except Unbound as exc:
         return LaneEvidence(lane, False, exc.reason, None)
@@ -420,7 +412,6 @@ def _open_findings(
     reviewed: str,
     chain: Sequence[_Record],
     head_file: Callable[[str, str], str | None] | None = None,
-    head: str | None = None,
 ) -> int:
     """Summary findings of the review chain covering the pinned head
     (`chain`, from `_resolve`), plus inline threads still open, plus inline
@@ -434,17 +425,15 @@ def _open_findings(
     at its head. A link counts only reviews of its own kind at its head, so
     the other kind's thread-less inline findings at that head drop.
 
-    A resolved thread, whoever resolved it, is closed when the thread was
-    opened before the covering review's job completed, so that review read
-    past it, and either:
-    - the covering review is of the pinned head (`head`) and no recorded
-      review of that head reports a finding: a clean newer review on the
-      head. Closure is per lane, so a thread counted on the security lane (a
-      HIGH finding) closes only when the security lane is clean on the head;
-    - or the covering chain reports no finding at all (a no-change skip at
-      the head reaches it).
-    A resolved thread is also closed when:
+    A resolved thread is closed when:
     - a human resolved it;
+    - the covering chain reports no finding at all and the thread was opened
+      before the covering review's job completed, so that review read past it.
+      A whole review of the head is a chain of one, so a clean whole review
+      closes a thread whoever resolved it; an incremental review reads only
+      what changed and never closes an unchanged thread this way. Closure is
+      per lane: a security-lane (HIGH) thread needs the security lane's own
+      clean whole review;
     - or GitHub marks it outdated, it was opened before the first review at
       `reviewed` (the head whose review covers the pinned head) started, and
       no line of its flagged range is left at the pinned head
@@ -467,8 +456,6 @@ def _open_findings(
     # Per head, the most (findings, summary findings) any completed whole
     # review of it reported.
     whole_max: dict[str, tuple[int, int]] = {}
-    # The most findings any recorded review of the pinned head reported.
-    head_max = 0
     for item in lane_runs:
         for attempt in _attempts(item).values():
             # A draft-skipped run has only the caller job and reviewed nothing.
@@ -483,8 +470,6 @@ def _open_findings(
                 continue
             if rec.findings < rec.inline:  # type: ignore[operator]
                 raise Unbound("count-inconsistent")
-            if rec.sha == head:
-                head_max = max(head_max, rec.findings)
             if rec.whole:
                 n, m = whole_max.get(rec.sha, (0, 0))
                 whole_max[rec.sha] = (
@@ -513,7 +498,7 @@ def _open_findings(
         for rec in chain
     ]
     summary = sum(m for _, m in counts)
-    cleared = all(n == 0 for n, _ in counts) or (reviewed == head and head_max == 0)
+    cleared = all(n == 0 for n, _ in counts)
     # The covering review read only threads opened before its job completed.
     read_through = chain[0].completed
     if not isinstance(threads, list | tuple):

@@ -1,7 +1,5 @@
 ---
-bump: patch
+bump: none
 ---
 
-### Fixed
-
-- pr-merge's open-findings count closes a resolved review thread, whoever resolved it, once the lane's review of the current head completed after the thread was opened and no review of that head reports a finding, so a clean incremental review on top of a whole review that reported findings now clears them. Closure stays per lane: a security-lane (HIGH) finding needs the security lane clean on the head. A clean review of another head, an unresolved thread, or a finding another review of the same head reported still keeps it open.
+Docstring and tests only: pr-merge's open-findings count already closes a resolved thread, whoever resolved it, on a clean whole review of the current head in the thread's lane, and never on a clean incremental review; the tests now pin both, including a resolved security thread staying open after a clean incremental review. No shipped behavior changes.
