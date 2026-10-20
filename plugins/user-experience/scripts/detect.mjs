@@ -308,7 +308,10 @@ function teamSettings(doc, warn) {
   // A project path whose first segment is not a dotfile or dot-directory: a deliverable under
   // .claude would become a standing project rule, and research read from .claude, .git, .env or
   // .aws is configuration or secrets, not research.
-  const reserved = (rel) => rel.split(/[\\/]/)[0].startsWith(".");
+  const reserved = (rel) => {
+    const seg = rel.split(/[\\/]/)[0];
+    return seg !== "." && seg.startsWith(".");
+  };
   // Checked as written and as resolved, so a symlink inside the project that points at a dot
   // location cannot carry a path there.
   const resolvesReserved = (rel) => {

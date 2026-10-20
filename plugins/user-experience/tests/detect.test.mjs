@@ -526,6 +526,17 @@ describe("team paths may not start with a dot (.claude, .git, .env, .aws)", () =
     assert.equal(run("version: 1\noutput_home: research/ux\n").output_home, "research/ux");
   });
 
+  test("the project root is not a dot-directory: output_home . and research_paths research/.. are kept", () => {
+    const team = run("version: 1\noutput_home: .\nresearch_paths:\n  - research/..\n");
+    assert.equal(team.output_home, ".");
+    assert.deepEqual(team.research_paths, ["."]);
+    assert.ok(!team.warnings.some((w) => w.includes("output_home") || w.includes("research_paths")), team.warnings.join("\n"));
+  });
+
+  test("a dot-directory below a kept root is still dropped: .hidden/x", () => {
+    assert.equal(run("version: 1\noutput_home: .hidden/x\n").output_home, null);
+  });
+
   test("a symlink inside the project that points at a dot-directory cannot carry a path there", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
     const project = mkdtempSync(join(scratch, "reserved-dot-link-"));
     mkdirSync(join(project, ".aws"));
