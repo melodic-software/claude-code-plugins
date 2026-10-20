@@ -31,8 +31,8 @@ inputs:
   github-token:
     description: >
       Token that can read the PR, used on workflow_dispatch and workflow_run
-      to fetch it, and on a dispatcher-sent run to read both run records and
-      compare commits.
+      to fetch it, and on a dispatcher-sent run or a reconciler re-run to read
+      the run records and artifacts and compare commits.
     required: false
     default: ${{ github.token }}
   denied-actor-ids:
@@ -96,6 +96,14 @@ inputs:
       The workflow path this run must have when a dispatcher run sent it, and
       it must be a workflow_dispatch run on the default branch. Empty stops
       every dispatcher-sent run.
+    required: false
+    default: ""
+  reconciler-workflow:
+    description: >
+      The workflow path of the lost-run reconciler. A re-run github-actions[bot]
+      started proceeds only as that workflow's recorded re-run of this run's
+      first attempt (the README's reconciler section). Empty keeps every
+      github-actions[bot] re-run stopped with untrusted-rerunner.
     required: false
     default: ""
   require-kind:
@@ -162,6 +170,7 @@ runs:
         EXPECTED_UPSTREAM_HEAD: ${{ inputs.expected-upstream-head }}
         LANES_APP_ID: ${{ inputs.lanes-app-id }}
         DISPATCHED_WORKFLOW: ${{ inputs.dispatched-workflow }}
+        RECONCILER_WORKFLOW: ${{ inputs.reconciler-workflow }}
         REQUIRE_KIND: ${{ inputs.require-kind }}
         APP_LABEL: ${{ inputs.app-label }}
         REQUIRE_PR: ${{ inputs.require-pr }}
