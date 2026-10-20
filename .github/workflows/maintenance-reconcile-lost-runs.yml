@@ -1,0 +1,72 @@
+name: maintenance-reconcile-lost-runs
+
+# Re-runs PR CI runs a GitHub outage ended without a result, so nobody has to
+# re-run them by hand. Every 30 minutes it looks at each open, non-draft pull
+# request into main from a branch of this repository. A CI workflow whose
+# newest run on the PR's current head ended cancelled, timed_out or
+# startup_failure, on its first attempt, is re-run once with this job's own
+# token. The attempt number is the record: a run at attempt 2 was already
+# re-run and is never touched again.
+#
+# It does nothing while githubstatus.com shows Actions as anything but
+# operational, or the page cannot be read, so it adds no load mid-incident. At
+# most 3 PRs have a re-run in flight at once, auto-merge PRs first, and its
+# writes are at least a second apart. A lost lane run (a review, verify or
+# refine lane) is listed in the run summary for a person: those lanes refuse a
+# re-run github-actions[bot] starts. No model, and no PR code is checked out.
+# Rules: .github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs.
+#
+# How to stop it: set the organization or repository lanes kill-switch
+# variable to anything but "false".
+
+on:
+  schedule:
+    - cron: "4,34 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: maintenance-reconcile-lost-runs
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  reconcile:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: write # list runs and re-run a lost CI run
+      contents: read # check out main
+      pull-requests: read # list the open PRs
+    steps:
+      - name: Check out the run's main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Re-run lost CI runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+        run: node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs

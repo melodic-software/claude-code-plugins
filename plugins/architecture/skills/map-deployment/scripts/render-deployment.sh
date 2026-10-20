@@ -253,7 +253,7 @@ summary="$(
           shown_d++
           rows[shown_d] = "| " safe(jget(item, "change")) " | " safe(L) " / " safe(R) " | " safe(jget(item, "tool")) " | " safe(jget(item, "container")) " | " safe(jget(item, "detail")) " |"
         }
-        kinds = "container added or removed, image, replicas, ports, network or Ingress added or removed, network exposure or port or Ingress host, parameter added or removed, parameter value, secret parameter differs (the value is never printed)"
+        kinds = "container added or removed, image, replicas, ports, network or Ingress added or removed, compute node added, removed or of another type (Terraform, Bicep, ARM, CloudFormation, Pulumi), network exposure or port or Ingress host, parameter added or removed, parameter value, secret parameter differs (the value is never printed)"
         if (shown_d == 0) {
           print "No differences of these kinds: " kinds "." > md
         } else {

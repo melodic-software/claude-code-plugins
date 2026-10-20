@@ -45,7 +45,7 @@ What the model still owns, because the script cannot:
 - **The `install_new` policy.** The `user_config.install_new` placeholder substitutes only when Claude Code
   renders SKILL.md; a `context/*.md` spoke is read raw. SKILL.md's "Configured value" line is the
   rendered value, and the model passes it as `--install-new`. On `ask` with a non-empty install gap
-  the script reports the gap and STOPS before Step 4, because only the model can run the batched
+  the script reports the gap and STOPS before Step 4, because only the model can run the chunked
   prompt; it then re-enters with `--only-install <ids> --run-dir <the digest's run_dir>`, which
   performs Step 4, Step 5, and, when this pass skipped it, Step 5b against the same run journal
   and re-emits the digest.
@@ -696,7 +696,7 @@ the user-scope `enabledPlugins` map, so `pre-install.<mp>.json` is stale by the 
 cannot stand in for `pre-enable.<mp>.json`. The two are never collapsed.
 
 **Step 4 stops for the `ask` policy.** When `install_new` renders as `ask` and the install gap is
-non-empty, the script reports the gap and issues no install: the batched prompt belongs to the
+non-empty, the script reports the gap and issues no install: the chunked prompt belongs to the
 model, which runs it and re-enters with `--only-install <the chosen ids>` against the same run
 directory. The digest says so in `stopped_before_install`, so a gap left unresolved is a reported
 state rather than a silent skip. Under `all` the gap is installed; under `none` it is reported and
@@ -821,6 +821,30 @@ resolved, the line leads with this repo's count and then gives the same machine-
 `on this whole machine`, because `<N>` counts every repo's divergences and the here-count is a part
 of it, not a separate remainder. When a snapshot was missed the split cannot be computed, and the
 line says `not computed` rather than assigning the whole delta to one step.
+
+**Split the same count by what can be done about each row.** `converge` can act only on a pin whose
+path is present, and removing a worktree is the right fix for a pin inside one, so a single
+`run converge` pointer over the whole count sends the operator at rows converge marks BLOCKED. The
+digest's `divergences` therefore also carries `actionable_here`, `actionable_elsewhere`,
+`in_worktrees` and `blocked`, which sum to `post`. The script classes each version-skewed row by its
+project/local pins that differ from the row's highest version (a pin already at it is not the skew):
+any such pin that is present and not in a linked worktree makes the row actionable (a row with no
+such pin is actionable too); otherwise any in a linked worktree makes it a worktree row; otherwise
+every such pin is in a path that is not present and the row is blocked. An actionable row is
+`here` when its id has a record for the repo the run stands in. A scope whose `projectPathIsHome` is
+true is not a project ([scope-semantics.md](scope-semantics.md)), so it is dropped before any of this:
+it never makes a row skewed or actionable, and a divergence that exists only because of such a record
+is in no class and not in `post`. A linked worktree is a present path
+whose `.git` is a file whose `gitdir:` line names a `<repo>.git/worktrees/<name>` entry of another
+repository: a repository's own `.git` is a directory, a submodule's names `/modules/`, and a
+`--separate-git-dir` checkout names a git directory that is not under a `.git/worktrees/`, so none
+of them matches.
+
+The render names each non-zero part. Only the actionable parts point at `converge`; the worktree part
+points at `/source-control:worktree audit` (if installed); the blocked part points at the stale
+project records note below it, which says why a path can be absent. `divergences[]` is not filtered
+(`projectPathPresent` stays advisory), and a digest written before the split carries none of the four
+counts and renders the row as it did.
 
 **Say when `harness-ops` itself moved during the run.** Step 3 sweeps every user-scope candidate,
 which can include the plugin providing this skill, and a concurrent update can move it too; the

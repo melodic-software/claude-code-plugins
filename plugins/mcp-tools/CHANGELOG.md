@@ -3,6 +3,16 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2] - 2026-10-20
+
+### Added
+
+- An eval and fixture for the audit's C4 length criterion: a tool description and a server `instructions` field, each over 2,048 characters, must grade WARN with the advice to keep critical details near the start.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.8.1] - 2026-10-16
 
 ### Changed
