@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [2.20.3] - 2026-10-20
+
+### Fixed
+
+- `check-trusted-trigger` matches the re-runner by account id on every path instead of by login: it reads this run's own record (`GET /actions/runs/{run_id}`) and checks `triggering_actor.id` against the trusted-actor list, so a released login re-registered by someone else no longer passes. A failed or malformed read, or a record for another run or attempt, stops with `untrusted-rerunner`. The App-label re-runner must still be the listed lanes App or a listed human. `pr-unblock-dispatch.yml` now passes the job token to the gate so it can read its run.
+
+## [2.20.2] - 2026-10-20
+
+### Fixed
+
+- The lost-run reconciler pages through a day of pr-verify runs instead of failing when there are more than 100, says how many listings failed instead of "nothing lost", and explains an exit 1 in the act step.
+
 ## [2.20.1] - 2026-10-20
 
 ### Fixed

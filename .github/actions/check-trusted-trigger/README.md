@@ -1,7 +1,7 @@
 # check-trusted-trigger
 
 Gate a CI lane on what triggered it, before its model step. The lane proceeds only for a PR from
-this repository whose event actor and PR author are both on the trusted-actor list
+this repository whose event actor, PR author and re-runner are all on the trusted-actor list
 ([ADR 0049](../../../docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md)
 conditions 1 and 2,
 [ADR 0051](../../../docs/adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md)
@@ -15,9 +15,9 @@ condition 1 and the actor and author parts of condition 2).
 | `event-path` | `${{ github.event_path }}` | The event payload file |
 | `trusted-actors-path` | `.base/.github/standards/trusted-actors/trusted-actors.json` | The list, from the base-SHA checkout |
 | `pr-number` | empty | The PR on `workflow_dispatch`; ignored otherwise |
-| `github-token` | `${{ github.token }}` | Reads the PR on `workflow_dispatch` and `workflow_run` |
+| `github-token` | `${{ github.token }}` | Reads this run's own record on every path, and the PR on `workflow_dispatch` and `workflow_run` |
 | `denied-actor-ids` | empty | Comma- or space-separated user ids that stop the lane with `bot-actor` |
-| `triggering-actor` | `${{ github.triggering_actor }}` | The login that started this run attempt; empty stops with `untrusted-rerunner` |
+| `triggering-actor` | `${{ github.triggering_actor }}` | The login that started this run attempt; only routes `github-actions[bot]` to the reconciler check |
 | `dispatcher-run-id` | empty | The dispatcher run that sent a `github-actions[bot]` `workflow_dispatch`; empty keeps today's rules |
 | `dispatcher-workflow` | empty | The workflow path that run must have; empty stops every dispatcher-sent run |
 | `run-dispatcher-workflow` | empty | The workflow path a dispatcher run started by `workflow_run` must have; empty stops every such run |
@@ -34,8 +34,7 @@ condition 1 and the actor and author parts of condition 2).
 
 - **List.** The file must hold `version: 1` and an `actors` array whose entries have exactly an
   integer `id` of at least 1, a string `login` and a `kind` of `human` or `bot`. Matching is on
-  `id`, because a login can be renamed and later registered by someone else; the re-runner below
-  is the one exception.
+  `id`, because a login can be renamed and later registered by someone else.
 - **`pull_request`.** Same repository when `pull_request.head.repo.full_name` equals the
   repository; a null head repo is a fork. Actor is `sender`.
 - **`workflow_dispatch`.** Fetches the PR named by `pr-number`; a null head repo is a fork.
@@ -105,21 +104,20 @@ condition 1 and the actor and author parts of condition 2).
   2. A re-run of a dispatched run, or a run queued for more than a day, is refused once the record
      expires after 1 day. The fix is to re-dispatch.
   3. The gate token has no `actions: read`. Its run and artifact reads work only because this
-     repository is public, so making it private refuses every dispatched run until the calling
-     job grants that permission.
+     repository is public, so making it private refuses every lane run (the re-runner read below)
+     until the calling job grants that permission.
 - **Actor-only mode (`require-pr: false`).** No PR is read and the PR outputs stay empty. Only
   `push`, `workflow_dispatch` and `issues` are handled; any other event stops with `no-pr`. A
   `workflow_dispatch` or `issues` event checks `sender`, on `issues` the account that applied the
   label (denied stops with `bot-actor`, unlisted with `untrusted-actor`); every event checks the
   re-runner below. With `require-kind: human`, the
-  sender and the re-runner must be listed as `kind: human` (the re-runner's login is mapped to its
-  listed id). Any `require-pr` value other than `true` or `false`, or `require-kind` value other
+  sender and the re-runner must be listed as `kind: human`. Any `require-pr` value other than `true` or `false`, or `require-kind` value other
   than empty or `human`, stops with `no-pr`.
 - **App label (`app-label`).** On an `issues` event with `require-kind: human` whose sender is
   `lanes-app-id`, the label event must be `labeled` with exactly that label, or it stops with
   `bot-actor`; the label alone admits the issue, and no comment or edit history is read. An
-  event with no issue number stops with `untrusted-actor`. The re-runner must be the App or a
-  listed human, not denied, or it stops with `untrusted-rerunner`. Empty keeps the App denied on
+  event with no issue number stops with `untrusted-actor`. The re-runner, read as below, must be
+  the App (its id listed) or a listed human, not denied, or it stops with `untrusted-rerunner`. Empty keeps the App denied on
   every event.
 - **`workflow_run`.** Same repository when `workflow_run.head_repository.full_name` equals the
   repository. The PR is looked up from the run's head SHA, because `pull_requests` is empty for
@@ -127,12 +125,13 @@ condition 1 and the actor and author parts of condition 2).
   Actors are `sender`, `workflow_run.actor` and `workflow_run.triggering_actor`: all three must
   be listed, because ADR 0051 requires the actor that started the failed run to be trusted.
 - **Author.** The PR's `user.id` must be listed.
-- **Re-runner.** A re-run keeps the original event and its actors, so `triggering-actor` is
-  checked as well: it must be a listed `login`, compared without case, whose listed id is not
-  denied. The context gives the login only, so this one check matches on login, not id. An empty,
-  unlisted or denied re-runner stops with `untrusted-rerunner`, which `report-check-run` maps to
-  no skip reason, so the check posts failure: a re-run cannot turn an earlier red check on the same
-  SHA neutral.
+- **Re-runner.** A re-run keeps the original event and its actors, so the account that started
+  this attempt is checked as well, by id: this run's own record, read through
+  `GET /actions/runs/{github.run_id}`, must have that `id`, a `run_attempt` equal to
+  `GITHUB_RUN_ATTEMPT`, and a `triggering_actor.id` that is listed and not denied. A malformed run
+  id or attempt, a failed or malformed read, or an unlisted or denied re-runner stops with
+  `untrusted-rerunner`, which `report-check-run` maps to no skip reason, so the check posts
+  failure: a re-run cannot turn an earlier red check on the same SHA neutral.
 - **Reconciler re-run (`reconciler-workflow`).** On the `pull_request` and `workflow_run` paths,
   when `triggering-actor` is `github-actions[bot]` and `reconciler-workflow` is set, the re-runner
   check is replaced by a check of the lost-run reconciler's record; the event's actors and the PR
@@ -181,7 +180,9 @@ Pass the job token (the default, `${{ github.token }}`) as `github-token`. The g
 any App token exists, so the job token is the only one available, and it needs
 `pull-requests: read` to fetch the PR on `workflow_dispatch` and `workflow_run`. That grant is
 read-only, so no write token reaches the model. A token that cannot read the PR stops the lane
-with `no-pr`. A dispatcher-sent run also reads two run records, a comparison and the dispatcher
+with `no-pr`. Every path reads this run's own record for the re-runner; on this public repository
+the job token reads it without `actions: read`, and a token that cannot stops the lane with
+`untrusted-rerunner`. A dispatcher-sent run also reads two run records, a comparison and the dispatcher
 run's artifact list; on this public repository the job token reads them without `actions: read`,
 and a token that cannot stops the lane with `untrusted-actor`. A reconciler re-run reads its own
 attempt, the artifact list by name, the recording run and a comparison the same way, and a token

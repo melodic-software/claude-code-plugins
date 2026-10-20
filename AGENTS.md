@@ -23,6 +23,10 @@ In this repository a small unrelated review fix in the same plugin as the PR als
 (shared changelog fragment); the rule itself is the scope test in
 `plugins/source-control/reference/review-discipline.md`.
 
+One-off investigation tooling and raw data (benchmarks, spikes, evaluation harnesses, run logs)
+stay in the session scratchpad; commit only the conclusion, to the ADR, doc or skill that uses it.
+Commit a harness only when something re-runs it (a CI lane, a schedule, a skill action).
+
 ## When to stop and when to keep going
 
 When a step doesn't need the user's input, keep going, with status notes in the same message as
