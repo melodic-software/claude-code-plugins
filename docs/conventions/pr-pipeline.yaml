@@ -489,6 +489,11 @@ merge:
   # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
   # candidate included, inside the 15 minutes between scheduled runs.
   gate-budget-minutes: 10
+  # Minutes a MED or HIGH reasons comment must stand unchanged at the head
+  # before the gate adds the human-gated label; 0 is no minimum. 60 is longer
+  # than a review lane's run (judgment), so a review still running at the
+  # head, which scores MED, finishes first.
+  risk-escalation-minutes: 60
   # A candidate the last run refused on unchanged inputs is reported with that
   # refusal instead of gated again (babysit_merge_skip.py); it is gated again
   # once its refusal is max-minutes old or has been skipped max-skips runs in
