@@ -439,6 +439,27 @@ test("a VALID fix that also adds a file in its thread's plugin lands; another pl
   }
 });
 
+// #8116's thread PRRT_kwDOTCGFQM6tojDu: the owner's fix request on
+// write-transcript.js named run-transcript.js.
+test("a VALID fix that changes a file its thread's named_paths holds lands; one not named, or a malformed list, does not", async () => {
+  const T = "plugins/knowledge/skills/video-digest/extraction/transcript";
+  const thread = { ...RUN.threads[0], path: `${T}/write-transcript.js` };
+  for (const [threads, landed] of [
+    [[{ ...thread, named_paths: [`${T}/run-transcript.js`] }], true],
+    [[thread], false],
+    [[{ ...thread, named_paths: ["plugins/other/run-transcript.js"] }], false],
+  ]) {
+    const api = fakeApi({
+      compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: thread.path }, { filename: `${T}/run-transcript.js` }] },
+      commits: { [FIX]: { files: [{ filename: thread.path }, { filename: `${T}/run-transcript.js` }] } },
+    });
+    const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })), JSON.stringify({ ...RUN, threads }));
+    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", JSON.stringify(threads[0].named_paths));
+  }
+  const malformed = await run(fakeApi(), lines(reply({ disposition: "VALID", fix_sha: FIX })), JSON.stringify({ ...RUN, threads: [{ ...thread, named_paths: [7] }] }));
+  assert.equal(malformed.escalationReason, "feedback-invalid");
+});
+
 test("feedback-not-landed, nothing posted: a VALID fix commit that does not change its own thread's path", async () => {
   const api = fakeApi({
     compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: "docs/b.md" }] },
