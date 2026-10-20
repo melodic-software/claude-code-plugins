@@ -3,13 +3,14 @@
 // repository starts a verdict, for exactly one open same-repository PR into
 // main whose head is the run's head SHA; the head is the run's, and the base
 // SHA is the PR's; a head with a counted verdict from a completed run (a FAIL
-// under any PR number) is not judged again, but a run still going or one that
+// under any number the commit's pull requests carry) is not judged again, but a run still going or one that
 // uploaded nothing does not stop a new judgment; with merge.verify-authors
 // `lane` (the default) only a PR the lanes App (merge.agent-identity, a Bot
 // account) opened is judged, `any` judges every author, and any other value
 // judges none. Response shapes follow GET
-// /actions/runs/{id}, /commits/{sha}/pulls, /actions/artifacts and the
-// closingIssuesReferences GraphQL field.
+// /actions/runs/{id}, /commits/{sha}/pulls, /actions/artifacts?name= (only
+// artifacts with that name are returned) and the closingIssuesReferences
+// GraphQL field.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -90,8 +91,11 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
     if (apiPath === "/graphql") {
       return { data: { repository: { pullRequest: { closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
     }
-    const page = /\/actions\/artifacts\?per_page=100&page=(\d+)$/.exec(apiPath);
-    if (page) return { artifacts: Number(page[1]) === 1 ? artifacts : [] };
+    const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(apiPath);
+    if (named) {
+      const matching = artifacts.filter((item) => item.name === decodeURIComponent(named[1]));
+      return { total_count: matching.length, artifacts: matching.slice((Number(named[2]) - 1) * 100, Number(named[2]) * 100) };
+    }
     const other = /\/actions\/runs\/(\d+)$/.exec(apiPath);
     if (other && runs[other[1]]) return runs[other[1]];
     const compare = /\/compare\/([0-9a-f]+)\.\.\.main$/.exec(apiPath);
@@ -198,12 +202,50 @@ test("a counted verdict at the head from a completed run stops a new judgment", 
   const cases = {
     "this PR's pass": [artifact(`pr-verify-41-${HEAD}-pass`, 77), verifyRun(77)],
     "this PR's fail": [artifact(`pr-verify-41-${HEAD}-fail`, 77), verifyRun(77)],
+    "this PR's pass-notes": [artifact(`pr-verify-41-${HEAD}-pass-notes`, 77), verifyRun(77)],
     "another PR's fail": [artifact(`pr-verify-99-${HEAD}-fail`, 77), verifyRun(77)],
     "a fail from a run that failed later": [artifact(`pr-verify-41-${HEAD}-fail`, 77), verifyRun(77, { conclusion: "failure" })],
   };
+  // The commit's pull requests name the other numbers a FAIL at the head can carry.
+  const pulls = [pull(), pull({ number: 99, state: "closed" })];
   for (const [label, [item, record]] of Object.entries(cases)) {
-    assert.equal(await reason({ artifacts: [item], runs: { 77: record } }), "already-judged", label);
+    assert.equal(await reason({ pulls, artifacts: [item], runs: { 77: record } }), "already-judged", label);
   }
+});
+
+test("verdicts are looked up by exact name, never by listing every artifact", async () => {
+  const paths = [];
+  const github = fake({ pulls: [pull(), pull({ number: 99, state: "closed" }), pull({ number: 99, state: "closed" })] });
+  const recording = async (method, apiPath, body) => {
+    paths.push(apiPath);
+    return github(method, apiPath, body);
+  };
+  await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  const lookups = paths.filter((apiPath) => apiPath.includes("/actions/artifacts"));
+  assert.deepEqual(lookups.sort(), [
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail&per_page=100&page=1`,
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass&per_page=100&page=1`,
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass-notes&per_page=100&page=1`,
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-99-${HEAD}-fail&per_page=100&page=1`,
+  ]);
+});
+
+test("a name with more than one page of artifacts is read to the end", async () => {
+  const name = `pr-verify-41-${HEAD}-pass`;
+  const artifacts = [...Array.from({ length: 100 }, () => artifact(name, 77, true)), artifact(name, 78)];
+  assert.equal(await reason({ artifacts, runs: { 78: verifyRun(78) } }), "already-judged");
+});
+
+test("a failed artifact lookup throws instead of judging again", async () => {
+  const github = fake();
+  const failing = async (method, apiPath, body) => {
+    if (apiPath.includes("/actions/artifacts")) throw new Error("403 rate limit");
+    return github(method, apiPath, body);
+  };
+  await assert.rejects(
+    resolvePull({ github: failing, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE }),
+    /rate limit/,
+  );
 });
 
 test("a run still going, or a run that uploaded nothing, does not stop a new judgment", async () => {

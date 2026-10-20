@@ -13,9 +13,10 @@
 //   a Bot account whose login is merge.agent-identity, compared as the
 //   pr-merge lane does (babysit_merge_policy._lane_authored); under `any`
 //   anyone may have; any other value judges nothing;
-// - the head has no counted verdict yet: a FAIL at it under any PR number, or
-//   a PASS or PASS-NOTES for this PR, uploaded by a completed run that the
-//   pr-merge lane's reader would count (countedBy, the same checks as
+// - the head has no counted verdict yet: a FAIL at it under this PR's number
+//   or another the commit's pull requests carry, or a PASS or PASS-NOTES for
+//   this PR, each looked up by exact artifact name, uploaded by a completed
+//   run that the pr-merge lane's reader would count (countedBy, the same checks as
 //   babysit_verify_evidence.py). A run still going or one that uploaded
 //   nothing does not stop a new judgment.
 // The babysit-prs test test_verify_rules_sync.py runs this file to keep
@@ -74,16 +75,18 @@ const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[
 const laneAuthored = (user, laneIdentity) =>
   loginKey(laneIdentity) !== "" && user?.type === "Bot" && loginKey(user.login) === loginKey(laneIdentity);
 
-async function listArtifacts(github, repository) {
+// Every artifact with exactly this name; a read that fails throws.
+async function artifactsNamed(github, repository, name) {
   const artifacts = [];
   for (let page = 1; page <= MAX_PAGES; page += 1) {
-    const batch = (await github("GET", `/repos/${repository}/actions/artifacts?per_page=100&page=${page}`))?.artifacts ?? [];
+    const path = `/repos/${repository}/actions/artifacts?name=${encodeURIComponent(name)}&per_page=100&page=${page}`;
+    const batch = (await github("GET", path))?.artifacts ?? [];
     artifacts.push(...batch);
     if (batch.length < 100) {
       return artifacts;
     }
   }
-  throw new Error(`the artifact listing has more than ${MAX_PAGES} pages`);
+  throw new Error(`the ${name} artifacts have more than ${MAX_PAGES} pages`);
 }
 
 // Whether the pr-merge lane would count this artifact's run, and the run is
@@ -118,19 +121,24 @@ export async function countedBy({ github, repository, runId, verdict, base }) {
   }
 }
 
-async function judged({ github, repository, number, head, base }) {
-  for (const artifact of await listArtifacts(github, repository)) {
-    const match = NAME.exec(artifact?.name ?? "");
-    if (!match || match[2] !== head || artifact.expired !== false) {
-      continue;
-    }
-    const [, pr, , verdict] = match;
-    if (verdict !== "fail" && Number(pr) !== number) {
-      continue;
-    }
-    const runId = artifact.workflow_run?.id;
-    if (Number.isSafeInteger(runId) && (await countedBy({ github, repository, runId, verdict, base }))) {
-      return true;
+// The names that hold a counted verdict at the head: this PR's PASS,
+// PASS-NOTES and FAIL, and a FAIL under each other number the commit's pull
+// requests carry.
+async function judged({ github, repository, number, head, base, numbers }) {
+  const names = [
+    ...["pass", "pass-notes", "fail"].map((verdict) => `pr-verify-${number}-${head}-${verdict}`),
+    ...[...new Set(numbers)].filter((other) => other !== number).map((other) => `pr-verify-${other}-${head}-fail`),
+  ];
+  for (const name of names) {
+    const [, , , verdict] = NAME.exec(name);
+    for (const artifact of await artifactsNamed(github, repository, name)) {
+      if (artifact?.name !== name || artifact.expired !== false) {
+        continue;
+      }
+      const runId = artifact.workflow_run?.id;
+      if (Number.isSafeInteger(runId) && (await countedBy({ github, repository, runId, verdict, base }))) {
+        return true;
+      }
     }
   }
   return false;
@@ -203,7 +211,8 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
     return skip("not-a-passing-run");
   }
   const head = run.head_sha;
-  const pulls = (await github("GET", `/repos/${repository}/commits/${head}/pulls`)).filter(
+  const associated = await github("GET", `/repos/${repository}/commits/${head}/pulls`);
+  const pulls = associated.filter(
     (pull) =>
       pull?.state === "open" &&
       pull.head?.sha === head &&
@@ -229,7 +238,8 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
   if (verifyAuthors === "lane" && !laneAuthored(pull.user, laneIdentity)) {
     return skip("author-not-lane");
   }
-  if (await judged({ github, repository, number: pull.number, head, base })) {
+  const numbers = associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0);
+  if (await judged({ github, repository, number: pull.number, head, base, numbers })) {
     return skip("already-judged");
   }
   return {
