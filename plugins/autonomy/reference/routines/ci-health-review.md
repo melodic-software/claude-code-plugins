@@ -72,7 +72,7 @@ carries two prerequisite sets.
 | Isolation floor | `L2`, cited from the [matrix](../guardrails.md#the-matrix) `C1` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
 | Connector entitlements | none. Access is `repo`, so the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
-| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). Security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. Merge policy for this identity is n/a (`C1`) |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). None: `executor_class` is deprecated and caps nothing. Merge policy for this identity is n/a (`C1`) |
 | Repo needs | CI-config presence (ownerless repo-file probe owned by the resolution contract); tracker binding when filing work items through the work-item tracker seam |
 
 ### `ci-health-review/ci-config-change`
@@ -83,7 +83,7 @@ carries two prerequisite sets.
 | Isolation floor | `L2`, cited from the [matrix](../guardrails.md#the-matrix) `C4` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
 | Connector entitlements | none. Access is `repo`, so the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
-| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). Security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. `C4` is human merge always; the cap still binds |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). None: `executor_class` is deprecated and caps nothing. `C4` is human merge always |
 | Repo needs | everything `advisory` requires, plus a merge-bearing path through the matrix for the gated CI-config change. The identity is not eligible where the bound surface cannot carry a merge-policy disposition |
 
 ## Admission and escalation
