@@ -55,8 +55,9 @@ permissions, and passes no App key.
 | `config-path` | `docs/conventions/pr-pipeline.yaml` | For test callers only (below) |
 | `pr-number` | `''` | The PR on `workflow_dispatch` |
 | `timeout-minutes` | `30` | The run job's timeout; the report job's is fixed at 10 |
+| `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3); in the write file also a `pr-feedback-dispatch.yml` run |
-| `trusted-base` | `pr-base` | Write file only: `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
+| `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-sha256` output |
@@ -185,12 +186,13 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `workflow_run`) it is read from the PR with the job's `GITHUB_TOKEN`. It then fails red unless
    the gate's `base-sha` is an ancestor of the default branch tip (`git merge-base --is-ancestor`),
    and checks that SHA out in `.base`. Nothing the PR's base branch chose runs before this check.
-   With the write file's `trusted-base: default-tip` (`mode: default-tip`) it checks out the
+   With `trusted-base: default-tip` (`mode: default-tip`) it checks out the
    default branch tip instead, after the same checks: a PR in merge conflict keeps a stale base
    SHA, and the lane must run the tip's config and actions and merge the tip. The checked-out SHA
    is the `base-sha` output either way, and the merge's second parent in
    [`prepare: merge-base`](#prepare-merge-base).
-5. `resolve-config`, with the gated `head-sha` and `prepare-supported: true`. The read file then
+5. `resolve-config`, with the gated `head-sha` and `prepare-supported: true`; the read file also
+   passes `applied-by-supported: patch` ([Patch output mode](#patch-output-mode)). The read file then
    fails red for any `prepare` but [`ci-context`](#prepare-ci-context), and for `ci-context`
    without `output-mode: patch`.
    An invalid config fails the step red and the check is a failure, never a skip. A config skip
@@ -210,7 +212,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
    any head checkout. The broker mints once per job, so a second request from this job is denied
    `already-minted`. The
    step fails red unless the grant this job resolved is `read` or `write` for each of `contents`,
-   `pull-requests` and `issues` and the broker's answer equals it. The read file requests nothing
+   `pull-requests` and `issues` and the broker's answer equals it. On a `pull_request` run, one
+   refusal skips instead: a 403 `workflow-modified` whose detail names a `.github/workflows/` file the PR
+   itself changes ([below](#a-workflow-file-the-pr-changes)). The read file requests nothing
    and uses the job's read-only `GITHUB_TOKEN` throughout.
 7. [`select-trusted-text`](../../../.github/actions/select-trusted-text/README.md) to
    `$RUNNER_TEMP/trusted-context.json` when the activity `reads-untrusted`, with the App token or,
@@ -302,7 +306,8 @@ input, by those paths as further words. `resolve-config` computes them from the 
 predicate when it has one, with a name of letters, digits and `_ @ + . -` only, no `.` or `..`
 segment, no segment starting with `-` and no leading `@`, which would read as a file mention.
 The paths are the job's scope, what the skill is asked to work on, not a limit on what it can
-touch. For any effect but `read` they leave out instruction surfaces (`CLAUDE.md`,
+touch. For an activity that edits (any effect but `read`, or a skill whose `applied-by` sets
+`patch`) they leave out instruction surfaces (`CLAUDE.md`,
 `CLAUDE.local.md`, `AGENTS.md` at any depth, case-insensitive, and anything under a `.claude`,
 `.claude-plugin`, `skills`, `agents`, `commands`, `hooks`, `output-styles` or `prompts`
 directory) and every path the base `.github/CODEOWNERS` lists, owned or not, so a lane is not
@@ -327,7 +332,9 @@ it the skill cannot read its own reference files. Commits go through the API, si
 (`use_commit_signing`), on a lane branch (`CLAUDE_BRANCH`) the job makes at the gated head SHA
 when the grant can commit.
 
-A skill with any effect but `read` also gets what it needs to do its job: `Edit`, `Write`, `Agent`
+A skill with any effect but `read`, or a `read` skill whose `applied-by` sets `patch` (other than
+in [`ci-context`](#prepare-ci-context), which has its own set), also gets what it needs to do its
+job: `Edit`, `Write`, `Agent`
 (for subagents such as a fix flow's semantic-diff check or a rubric fan-out) and
 `mcp__github_file_ops__commit_files` and `mcp__github_file_ops__delete_files`, the action's
 signed-commit tools on `CLAUDE_BRANCH` (the second carries a rename's old path or a removal), and a
@@ -338,15 +345,19 @@ every file it changed, and delete every committed path it renamed or removed, wi
 skill leaves its edits uncommitted and the lane moves nothing. `commit_files` takes each file's
 mode from disk, and `Write` creates a file without the executable bit, so that grant also allows
 `Bash(chmod +x *)` and the sentence says to run `chmod +x` first on every new or changed file that
-starts with `#!` or ends in `.sh`. A `prepare: merge-base` skill
+starts with `#!` or ends in `.sh`. A `read` skill that hands on a patch gets neither tool, and its
+sentence says to leave every change uncommitted for the runner to collect. A `prepare: merge-base` skill
 gets neither tool nor those sentences: it stages its resolution and the runner commits
 ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
-`checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
-the working directory, writes a wrapper there that runs the copy with the entry's fixed flags and
-`CHECK_DATA_ROOT` naming the checkout, makes the copy read-only and denies `Edit` and `Write` on
+`checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
+the working directory, writes a wrapper there that runs the copy with the entry's fixed flags,
+`CHECK_DATA_ROOT` naming the checkout, `GH_TOKEN` and `GITHUB_TOKEN` unset, and the same git config
+pins as a verify-script's wrapper, makes the copy read-only and denies `Edit` and `Write` on
 it, allows `Bash(<wrapper>)` with no arguments, and names the
-wrappers in `--append-system-prompt` as checks to run before reporting done. For each entry in
+wrappers in `--append-system-prompt` as checks to run before reporting done, with what a check
+reports fixed in the working tree and anything left unfixed named in the report (a skill that
+commits runs the checks, fixes and re-runs them before it commits). For each entry in
 the activity's `verify-scripts`, it checks the path's shape and that the base holds the script,
 copies the script's whole base plugin directory (or the base `scripts/`) to
 `$RUNNER_TEMP/lane-verify`, so the files the script reads beside itself come along, fails if that
@@ -515,7 +526,13 @@ to `$RUNNER_TEMP/base-script` before the head checkout and checked against its r
 ### Patch output mode
 
 Read file only, chosen by the caller's `output-mode: patch` input. It lets an activity run head
-code with no write token and hand its change to a separate job that holds one:
+code with no write token and hand its change to a separate job that holds one. The read file
+collects the change as a patch only when the caller passes `output-mode: patch`. The config's
+`applied-by.patch` is to state the same fact and name the `prepare: apply-patch` script that
+applies it ([README.md, Activities](README.md#activities)); no activity sets `applied-by` today.
+The read file passes
+`applied-by-supported: patch` to `resolve-config`, so a leaf whose `applied-by` sets any other
+key fails red before the head checkout. A `gating: gate` leaf cannot set `applied-by`. The steps:
 
 1. Before the head checkout, the base's
    [`collect-patch.sh`](../../../.github/scripts/read-patch/collect-patch.sh) is copied to
@@ -575,7 +592,9 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
    claude-code-action reset, and escalates `unresolved-conflict` (an unmerged entry, or conflict
    markers in a staged resolution) or `workflow-staged` (a `.github/workflows/` index entry changed
    since the snapshot, or differs from the gated head, as a workflow change merged in from the base
-   does: the lane token cannot push one) or `unexpected-path-staged` (an index entry added,
+   does, unless the staged `.github/workflows/` entries are exactly the trusted base's (mode and
+   blob), no head workflow is dropped, and the PR's own diff against every merge base touches no
+   workflow) or `unexpected-path-staged` (an index entry added,
    changed or removed at a path the merge did not leave conflicted, as `git add -A` would stage);
    otherwise it writes the index as a tree.
 4. With no escalation reason and a tree, a pinned `github-script` step commits through the Git
@@ -607,6 +626,7 @@ its check:
 | Path | act-outcome | skip reason | escalation-reason | Check |
 |---|---|---|---|---|
 | Head moved before mint | skipped | `superseded-sha` | empty | neutral |
+| Broker refused a workflow file the PR changes | skipped | `workflow-modified` | empty | neutral |
 | Hold label present | skipped | `awaiting-human` | empty | neutral |
 | Pre-model escalation | skipped | `awaiting-human` | `protected-path-conflict` / `repeat-cap` / `unresolved-conflict` (no markers) | neutral |
 | Clean merge, no model turn, committed, promoted | success | none | empty | success |
@@ -614,7 +634,7 @@ its check:
 | Hold label added during the run, found before the commit | success | `awaiting-human` | empty | neutral |
 | Hold label or draft set during the run, found before the promote | success | `awaiting-human` | empty | neutral |
 | Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
-| Model staged, or the merge brought in, a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
+| Model staged, or the merge brought in, a `.github/workflows/` change that is not the trusted base's own | success | `awaiting-human` | `workflow-staged` | neutral |
 | Model staged a change to a path that did not conflict | success | `awaiting-human` | `unexpected-path-staged` | neutral |
 | Resolved, committed, promoted | success | none | empty | success |
 | Commit step fails or lane branch moved | failure | none | empty | failure |
@@ -623,9 +643,11 @@ its check:
 | A prepare step fails | skipped | none | empty | failure (run job failed) |
 | A post-skill step fails | success | none | empty | failure (run job failed) |
 
-Residual: a `.github/workflows/` change from the base side of the merge (not conflicted, not
-staged by the model) is committed and pushed. GitHub does not refuse it for the App's missing
-`workflows` permission: sandbox probe run 38148710292 pushed such merges by all three methods.
+Residual: when every staged `.github/workflows/` entry is the trusted base's own and the PR
+changes no workflow, the merge is committed and pushed. GitHub did not refuse that shape for the
+App's missing `workflows` permission: sandbox probe run 38148710292 pushed it by all three methods.
+A merged workflow blob that is on no branch was refused (`POST /git/trees` 403 in run
+39066232629), and still escalates.
 
 ### prepare: review-threads
 
@@ -639,24 +661,34 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
 1. After `resolve-config` and before the mint, the model job runs `address-feedback.mjs select`
    with the job's `GITHUB_TOKEN`. It keeps each unresolved thread whose first comment's review
    the reviewer bot (`claude[bot]` in the base's trusted-actors list, by id) submitted on a head
-   that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, when either every
-   comment is the reviewer bot's, or the lanes App's last comment is a reply the reply job left
-   open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and every comment after it is by a `human` on
-   that list, created after it, and never edited or last edited by such a human. Every other
-   comment must be the reviewer bot's, the lanes App's or such a human's, or the thread is left
-   alone. The thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and
-   marks the replies after the escalation `direction: true`, which the skill follows within the
-   same path rules. On a PR carrying the base's human-gated role label it keeps a thread only when
-   one of those replies is a fix request (a line starting `PR-fix lane: please fix this finding`,
-   any case, outside a fenced block) by a listed human whose permission on the repository reads
-   `write` or `admin` (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), and
+   that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, when every
+   comment is the reviewer bot's; or the lanes App never commented and one comment is a fix
+   request (a line starting `PR-fix lane: please fix this finding`, any case, outside a fenced
+   block) by a `human` on that list whose permission on the repository reads `write` or `admin`
+   (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), whose review may be on any
+   head, so a request on a thread from an earlier review is worked; or the lanes App's last
+   comment is a reply the reply job left open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and
+   every comment after it is by such a `human` (any permission), created after it, whose review
+   may also be on any head. A human's
+   comment counts only when never edited or last edited by such a human. Every other comment must
+   be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. The
+   thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
+   `direction: true` the replies after the escalation, or with no escalation every human comment
+   from the first such fix request on,
+   which the skill follows within the same path rules. The reply job's re-read judges threads the
+   same way. On a PR carrying the base's human-gated role label it keeps a thread only when one of
+   those replies is such a fix request by a write-access human, and
    reports `fix-requested=true`, which lifts only the human-gated hold for the run. No kept thread
    skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
-   `.github/**` escalates `feedback-protected-path`, and two earlier rounds escalate
-   `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR commits
-   carrying a `github-actions` `pr-unblock / address-feedback` check run that ended `success` or
-   `failure` (a round whose reply job was refused still counts). Both skip `awaiting-human` with
-   nothing minted. Otherwise
+   `.github/**` escalates `feedback-protected-path`, and `loop.review-rounds` earlier rounds
+   escalate `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR
+   commits carrying a `github-actions` `pr-unblock / address-feedback` check run that ended
+   `success` or `failure` (a round whose reply job was refused still counts). At the cap, a kept
+   thread with a write-access human's fix request created after the newest counted round (its
+   latest marker, or the completion of a model check run that ended `success`, `failure`,
+   `cancelled` or `timed_out`) still runs one more round, on those threads only; a
+   round with no readable time grants none. Both escalations skip `awaiting-human` with nothing
+   minted. Otherwise
    it writes `$RUNNER_TEMP/lane-feedback/threads.json`.
 2. `collect-base-activity` makes that directory read-only and stages a wrapper over the base's
    `feedback-thread.sh` there. The skill keeps the commit tool and gets `Bash(<wrapper> *)`; Edit
@@ -846,7 +878,9 @@ holds a write token: a base job, a read model job in this mode, and an
    at most 10. For each it writes the name, the workflow file that defines the job (or `null`),
    at most 20 annotations of at most 500 characters, and the last 80 lines, at most 3,000
    characters, of the job log, as `context.json`, uploaded as `ci-context-<run attempt>` with its
-   SHA-256 as a job output. A closed pull request or a head with no such check skips the rest.
+   SHA-256 as a job output. A closed pull request or a head with no such check skips the rest,
+   and a scripted job posts the fix-ci check neutral `not-applicable` on that head with
+   `report-check-run`'s `not-run-reason`, so the dispatcher counts the head as handled.
 2. The read file, before the head checkout, downloads that artifact and fails red unless it
    holds exactly one regular `context.json` of at most 1 MiB, with that SHA-256, written for the
    head this run gated.
@@ -896,6 +930,13 @@ passes the model job's `patch-state`, `patch-sha256`, `patch-attempt`, `head-sha
 
 The run's `escalation-reason` output is the script's reason, else the select step's. The runner
 accepts the script's three reasons only in this mode.
+
+The rules each producer's patch is to be held to are registered in
+[`patch-rules.json`](../../../.github/actions/resolve-config/patch-rules.json), one row per
+producer prepare mode ([README.md, Patch rules](README.md#patch-rules)): the refusals every row
+carries, what else a path must meet, a file cap, the producer output required, the commit's
+parents, message and trailer, and the row's escalation reasons. `apply-ci-fix` above keeps its
+own fixed refusal and does not read the registry.
 
 ## The summary job
 
@@ -1122,6 +1163,29 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 A `kill-switch` denial is red, not neutral: step 3 already stopped the common case, so the denial
 means the job's read and the broker's read of the switch disagreed.
 
+### A workflow file the PR changes
+
+A PR that changes the caller or `pr-run-activity-write.yml` gets `workflow-modified` on every write
+lane run until it merges, and a re-run cannot help. On a `pull_request` run, which executes the
+PR's copy of the workflow files, the run job passes `pr-workflow-change-ok`, and the step skips
+instead of failing when all of these hold. A dispatched or issue run executes the default
+branch's files, so its refusal means the default branch moved, and it stays red:
+
+- the answer is 403 with reason `workflow-modified`;
+- its detail is exactly `<file> differs from refs/heads/<default branch>`, `<file>` a
+  `.github/workflows/` YAML file;
+- GitHub's compare of the default branch with the gated head
+  (`GET /repos/{owner}/{repo}/compare/<default branch>...<head SHA>`, read with the job's
+  `GITHUB_TOKEN`, whose `contents: read` covers it) lists `<file>` as a changed `filename` or
+  `previous_filename`.
+
+The refusal does not say whether the PR or the default branch changed the file, so the compare,
+which reads neither model output nor anything the PR's code writes, decides. A compare lists at
+most 300 changed files; a file it does not list keeps the step red. The step then sets no token,
+names the reason and file in the job summary, and sets the skip reason `workflow-modified`, so
+every later step skips and the check is neutral. Any other answer, a detail that does not parse, a
+file the compare does not list, and a compare that cannot be read stay red.
+
 ### The check endpoint
 
 The read file's `broker-check` job sends `POST` to `LANES_BROKER_URL` with its final `/token`
@@ -1193,8 +1257,17 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   closed one was rejected or merged) and no lanes-App outcome marker for its run: the work was
   made and its report never posted. Branches that fail any of these are passed over, not stopped at, so an older unreported
   branch is reused even when a newer branch's run was handed back or limit-stopped. A branch whose
-  own run posted a hand-back or limited marker is never reused. Any failed read, or an answer of
-  the wrong shape, fails the step, so nothing is minted.
+  own run posted a hand-back or limited marker is never reused. With nothing to reuse, when the
+  newest lanes-App outcome marker is `turn-cap`, `stopped`, `limited` or `funding` (passing over
+  those markers that carry `branch=resumed`, left by a resumed run that kept no branch of its own)
+  and names a run whose newest lane branch passes the same commit, tip and PR checks
+  with every commit ahead of the default branch verified, authored by the lanes App and committed
+  by `web-flow` (a listing the compare cuts short resumes nothing), the run resumes it; when that
+  run's branch is gone or fails a check, the run starts from the default branch, never from an
+  older run's branch: `issue-prior`
+  outputs `resume-branch`, `resume-tip` (the tip it read) and `resume-cause`, and the job checks
+  out that tip and makes its lane branch there instead of at the default branch tip. Any failed
+  read, or an answer of the wrong shape, fails the step, so nothing is minted.
 - Before the skill, the runner writes the issue's number, title, body and labels to `issue.json`
   in the skill's scratch directory, with only the comments `select-trusted-text`'s author and edit
   rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
@@ -1205,24 +1278,44 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   by anyone never moves it, and the lanes App's remove-and-re-add after a limit stop anchors at
   the label it restarted): a
   comment created or edited after that is left out, and a title or body changed since fails the
-  step, so text edited after admission does not steer the run. The skill commits to a new branch,
+  step, so text edited after admission does not steer the run. On a resume, `issue.json` also
+  carries `resume`: the branch, the cause, the tip, the subject of each commit ahead of the trusted
+  base and each changed file with its line counts, from `GET /compare`. The skill commits to a new branch,
   `<lane>/issue-<n>-<run id>-<attempt>`, which is kept only when it holds commits. The skill's
-  `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty) are uploaded as the
+  `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty, and on a resume the
+  resumed branch, which a `done` run that committed nothing names when it hands the issue to a person, since the runner checks only its own branch) are uploaded as the
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
   was minted.
 - `report-outcome` downloads that artifact. On `done` it opens a ready (not draft) PR from the branch whose
-  body starts `Closes #<n>` (or `Refs: #<n>`, with the hold line, when the outcome sets
+  body starts `Closes #<n>` (or `Refs: #<n>` when the outcome sets
   `"link": "refs"` because a recorded decision keeps the issue open), puts no label on it (the work class stays on the issue), and adds
   `Hold: a human merges this` for structural or untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
-  resolved config; unreadable holds every PR), or for one too large for the compare listing to
-  show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
+  resolved config; unreadable holds every PR), or, while some path is denied, for one too large
+  for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
   removes `agent-ready`. Each comment opens with the marker
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
   branches of that run (a marker naming no run covers every branch whose tip is older than it).
+  A run that wrote no readable outcome file and whose lane record has class `max-turns` is a
+  turn-cap stop: the comment opens with `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->`
+  and says "turn cap <n> reached" and names the branch. While the turn-cap markers since a person
+  listed human last added `agent-ready` are fewer than `limits.turn-cap-restarts`, it keeps `agent-ready` and
+  adds no label, and the work-unblock sweep restarts the issue as it does after a limit stop;
+  otherwise it hands back like `stopped`. `lane.json` carries the run's `max-turns` for the cap,
+  and the `pipeline/resolve-issue` status reads "Stopped at the turn cap.". A run that exited
+  non-zero, wrote no readable outcome file, and whose result carries `api_error_status` 400 with
+  "regain access on <date>" (a spend limit or no credit) or 401 (a disabled key) is a funding
+  stop, whatever its class or turn cap (`lane.json` carries `failed`, `api-error-status` and
+  `error-text`, read by the `Read the run's API error` step from the execution file's result
+  fields): the comment opens with `<!-- work-resolve-issue outcome=funding resets=<date> run=<run id> -->`
+  (no `resets` when no date is readable), it keeps `agent-ready` and adds no label, it counts
+  toward `limits.limit-stops-per-issue` with limit stops (not `turn-cap-restarts`), and work-unblock restarts the issue after the date, held
+  within `limits.reset-clamp-min` and `reset-clamp-max`; with no date a person restarts it. The
+  status reads "Stopped on the lane's funding.". The next run resumes a funding-stopped run's
+  branch like a `limited` one's.
 - On a reuse the skill run mints nothing, and the [summary job](#the-summary-job) has a read-only
   model pass describe the branch from its diff and the issue, as the `reuse-summary-<n>` artifact.
 - A non-empty `reuse-branch` also starts `report-outcome` and `report-statuses`, and reaches the

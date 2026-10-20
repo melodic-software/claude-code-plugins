@@ -242,9 +242,7 @@ jobs:
           lane=1
           classify() {
           if [[ "${#range[@]}" -gt 0 && "${#range[@]}" -le 100 ]]; then
-            identity="$(gh api -H 'Accept: application/vnd.github.raw' \
-              "repos/$GITHUB_REPOSITORY/contents/docs/conventions/pr-pipeline.yaml?ref=main" |
-              sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: \([^[:space:]]*\)[[:space:]]*$/\1/p')" || identity=''
+            identity="$configured_identity"
             declare -A numbers=()
             missing=''
             for c in "${range[@]}"; do
@@ -285,21 +283,50 @@ jobs:
           # lookup would answer differently still updates the record filed first.
           marker="<!-- babysit-merge-demotion sha=$RUN_SHA signal=$signal -->"
           failure_marker="<!-- post-merge-failure sha=$RUN_SHA signal=$signal -->"
-          # Records are read by their filer, github-actions[bot], which is any
-          # workflow's GITHUB_TOKEN: an issue a user opens with the marker
-          # cannot stand in for this one.
-          records="$(gh api --paginate \
-            "repos/$GITHUB_REPOSITORY/issues?state=all&creator=github-actions%5Bbot%5D&per_page=100" \
-            --jq '.[] | select(.pull_request == null) | [.number, .state, (.body // "")]
-              | [.[0], .[1], (.[2] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
-                 ([.[2] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
-                  | ltrimstr("- Failing run: ") | sub("\\s+$"; ""))]
-              | @tsv')"
+          # Records are read by their filers: github-actions[bot], which is any
+          # workflow's GITHUB_TOKEN, and merge.agent-identity, which files from
+          # pr-merge.yml's merge job keyed on the merge commit, not the run's
+          # head. An issue a user opens with the marker cannot stand in for
+          # either, and a record of either filer naming this run is its record.
+          # Read once; classify (below) reuses it.
+          configured_identity="$(gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/$GITHUB_REPOSITORY/contents/docs/conventions/pr-pipeline.yaml?ref=main" |
+            sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: \([^[:space:]]*\)[[:space:]]*$/\1/p')" || configured_identity=''
+          lane_filer="$configured_identity"
+          filers=(github-actions%5Bbot%5D)
+          if [[ "$lane_filer" =~ ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\[bot\]$ ]]; then
+            filers+=("${lane_filer%\[bot\]}%5Bbot%5D")
+          else
+            lane_filer=''
+          fi
+          # A failed read of github-actions[bot]'s records fails the job; a
+          # failed read of the identity's warns and files from this workflow's
+          # own records, which can add a record but never drop one.
+          read_records() {
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$1&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | [.number, .state, (.body // "")]
+                | [.[0], .[1], (.[2] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
+                   ([.[2] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
+                    | ltrimstr("- Failing run: ") | sub("\\s+$"; ""))]
+                | @tsv'
+          }
+          records="$(read_records "${filers[0]}")"$'\n'
+          if [[ -n "${filers[1]:-}" ]]; then
+            if lane_records="$(read_records "${filers[1]}")"; then
+              records+="$lane_records"
+            else
+              echo "::warning::could not read $lane_filer's records; matching this workflow's own records only"
+            fi
+          fi
           number=''
           state=''
           filed=''
           while IFS=$'\t' read -r n s first failing; do
-            if [[ "$first" == "$marker" || "$first" == "$failure_marker" ]]; then
+            # A record matched by its failing run must be a demotion record:
+            # anything else names the run without holding the gate.
+            if [[ "$first" == "$marker" || "$first" == "$failure_marker" ||
+              ( "$first" == "<!-- babysit-merge-demotion "* && "$failing" == "$RUN_URL/attempts/"* ) ]]; then
               number="$n"
               state="$s"
               filed="$failing"
@@ -312,9 +339,9 @@ jobs:
             exit 0
           fi
           if [[ -n "$number" ]]; then
-            comments="$(gh api --paginate \
+            comments="$(LANE_FILER="$lane_filer" gh api --paginate \
               "repos/$GITHUB_REPOSITORY/issues/$number/comments?per_page=100" \
-              --jq '.[] | select(.user.login == "github-actions[bot]") | .body')"
+              --jq '.[] | select(.user.login | IN("github-actions[bot]", env.LANE_FILER)) | .body')"
             if [[ -n "$passed" ]]; then
               note="re-run passed: $sighting"
               # A pass is noted only on a record of this run's failure.
@@ -393,7 +420,7 @@ jobs:
             revert='A human reads the failing suites in the run above and finds the merge responsible before reverting anything.'
           fi
           rung="The unattended merge path stays at
-          rung off until a human closes this issue directly (not through a pull request's closing keyword)."
+          rung off while any demotion record is open. Fix main first, then close every open demotion record directly (not through a pull request's closing keyword); a new sighting of the same failure reopens its record."
           if [[ -z "$lane" ]]; then
             rung='No merge in it was put in the merge queue by the lanes App, so the lane is NOT demoted and keeps merging; a human fixes main.'
             if [[ "${#range[@]}" -eq 1 ]]; then

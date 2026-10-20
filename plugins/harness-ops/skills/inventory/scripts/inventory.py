@@ -1196,6 +1196,76 @@ def _scan(
     return i
 
 
+_TABLE_NAME = r"[A-Za-z_$][A-Za-z0-9_$]*"
+_TABLE_READ_RE = re.compile(
+    r"(" + _TABLE_NAME + r")\(\)\.(" + _TABLE_NAME + r")(?:\(\))?\s*(?=[,;})\]]|\Z)"
+)
+_TABLE_LOCAL_RE = re.compile(r"\(\)\s*=>\s*(" + _TABLE_NAME + r")\[")
+_TABLE_DEFAULT_RE = re.compile(r"\?\?\s*([\"'])([^\"'\\]*)\1\s*\Z")
+
+
+def _table_arrow(
+    src: str,
+    braces: BraceMap,
+    k: int,
+    n: int,
+    acc: _Values,
+    *,
+    hops: int,
+    anchor: int | None,
+    shadow: Scope,
+) -> int | None:
+    """An arrow body `<local>().<member>()` (or `.<member>`) read through a
+    mode table, as its index past the body; None for any other shape.
+
+    `<local>` is a binding of `()=><table>[<expr>??"<key>"]` and `<table>`
+    an object literal of object literals. Each row's `<member>` that reduces
+    to a string is a variant, the `<key>` row's last, so it is `value`. A
+    default row that does not reduce, or no row that does, leaves the field
+    unresolved.
+    """
+    read = _TABLE_READ_RE.match(src, k, n)
+    if read is None or hops <= 0 or read.group(1) in shadow:
+        return None
+    at = anchor if anchor is not None else k
+    local = _binding_value(src, braces, read.group(1), at, deferred=True)
+    head = None if local is None else _TABLE_LOCAL_RE.match(src, local)
+    if head is None or head.group(1) in shadow:
+        return None
+    bracket = head.end() - 1
+    close = _match_close(src, braces, bracket, n) - 1
+    after = _skip_ws(src, close + 1, n)
+    if after < n and src[after] not in ",;})]":
+        return None
+    default = _TABLE_DEFAULT_RE.search(src[bracket + 1 : close])
+    table = _binding_value(src, braces, head.group(1), at, deferred=True)
+    table_close = None if table is None else braces.pairs.get(table)
+    if default is None or table is None or table_close is None:
+        return None
+    variants: list[str] = []
+    default_value: str | None = None
+    for key, (kind, pos) in _object_fields(src, braces, table).items():
+        row = _skip_ws(src, pos, table_close)
+        if kind != "value" or not src.startswith("{", row):
+            return None
+        sub = _Values()
+        found = _eval_field(
+            src, braces, row, read.group(2), sub, hops=hops - 1, methods=True
+        )
+        if found is None or not sub.variants or sub.unresolved:
+            continue
+        if key == default.group(2):
+            default_value = sub.variants[-1]
+        elif sub.variants[-1] not in variants:
+            variants.append(sub.variants[-1])
+    if default_value is None:
+        return None
+    acc.via.add("arrow")
+    for v in [*variants, default_value]:
+        acc.add(v)
+    return read.end()
+
+
 def _operand(
     src: str,
     braces: BraceMap,
@@ -1222,6 +1292,13 @@ def _operand(
         k = _skip_ws(src, close, n)
         if src.startswith("=>", k):
             params = shadow | _param_names(src[i + 1 : close - 1])
+            if not src[i + 1 : close - 1].strip():
+                body = _skip_ws(src, k + 2, n)
+                tabled = _table_arrow(
+                    src, braces, body, n, acc, hops=hops, anchor=anchor, shadow=params
+                )
+                if tabled is not None:
+                    return tabled
             return _arrow_body(src, braces, k + 2, n, acc, **{**kw, "shadow": params})
     start = i
     parts: list[Any] = []
@@ -3966,6 +4043,29 @@ def extract_builtin_agents(
     return out, notes
 
 
+def _tool_aliases(
+    src: str,
+    braces: BraceMap,
+    entry: tuple[str, int] | None,
+    index: dict[str, list[tuple[int, str]]],
+    open_i: int,
+) -> tuple[list[str], str | None]:
+    """A tool's `aliases` and how they were read: the names that resolved,
+    `literal` when every element did, `absent` when the field is missing,
+    `partial` when an element of the array did not (the list is a floor),
+    `unresolved` when the field is not an array literal. An unread alias is
+    never reported as a tool with none."""
+    if entry is None:
+        return [], "absent"
+    if entry[0] != "value" or not src.startswith("[", entry[1]):
+        return [], "unresolved"
+    try:
+        names, complete = _array_names(src, braces, entry[1], index, open_i)
+    except (ValueError, IndexError):
+        return [], "partial"
+    return names, "literal" if complete else "partial"
+
+
 def extract_builtin_tools(
     src: str, braces: BraceMap
 ) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
@@ -4024,12 +4124,10 @@ def extract_builtin_tools(
         ufn = resolve_field(src, braces, open_i, "userFacingName", methods=True)
         if ufn and ufn["value"] and ufn["value"] != name:
             rec["user_facing_name"] = ufn["value"]
-        aliases = fields.get("aliases")
-        rec["aliases"] = (
-            _array_names(src, braces, aliases[1], index, open_i)[0]
-            if aliases and aliases[0] == "value" and src.startswith("[", aliases[1])
-            else []
+        rec["aliases"], alias_source = _tool_aliases(
+            src, braces, fields.get("aliases"), index, open_i
         )
+        rec["aliases_source"] = alias_source
         rec["deferred"] = _literal_flag(src, fields, "shouldDefer", False)
         rec["always_load"] = _literal_flag(src, fields, "alwaysLoad", False)
         rec["flag_driven"] = [

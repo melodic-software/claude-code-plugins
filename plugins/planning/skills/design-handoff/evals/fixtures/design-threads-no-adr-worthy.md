@@ -20,3 +20,15 @@ Decision: stream exports in pages of 500 rows.
 Rationale: the constant lives in one place and can be tuned from measurements without any
 data or contract change. Loading the whole result set into memory was rejected because of
 peak memory on large reports.
+
+## Thread 4: Principles. RESOLVED
+
+Principles applied: YAGNI keeps options in one defaults file until the settings service lands.
+Generalize now or wait: the Brief's `Intent: second variant = speculative` line settles it: wait
+for the third occurrence.
+Rationale: the Intent line is the user's answer.
+
+## Thread 5: Lifecycle and reversibility. RESOLVED
+
+Door: Threads 1, 2 and 3 two-way.
+Rationale: each changes by editing code, with no data or contract change.

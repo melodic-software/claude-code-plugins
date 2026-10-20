@@ -4,11 +4,12 @@ hydration, REST pagination, and the single GraphQL review-thread paginator."""
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import re
 import subprocess
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Any, cast
 from urllib.parse import quote, unquote, urlparse
 
@@ -982,7 +983,58 @@ def fetch_issue_comments(repo: str, number: int) -> list[dict[str, Any]]:
     ]
 
 
-def fetch_pull_request_commits(repo: str, number: int) -> list[dict[str, Any]]:
+# One candidate's reads of a pull request's commits, keyed by (repo, number,
+# head SHA): the commit rows and the record's commit count. None outside
+# `candidate_reads`, so nothing is shared beyond one candidate's gate process.
+_CANDIDATE_COMMITS: dict[tuple[str, int, str], list[dict[str, Any]]] | None = None
+_CANDIDATE_TOTALS: dict[tuple[str, int, str], int] | None = None
+
+
+@contextlib.contextmanager
+def candidate_reads() -> Iterator[None]:
+    """Within this scope a pull request's commits are read once per head."""
+    global _CANDIDATE_COMMITS, _CANDIDATE_TOTALS
+    saved = _CANDIDATE_COMMITS, _CANDIDATE_TOTALS
+    _CANDIDATE_COMMITS, _CANDIDATE_TOTALS = {}, {}
+    try:
+        yield
+    finally:
+        _CANDIDATE_COMMITS, _CANDIDATE_TOTALS = saved
+
+
+def _candidate_key(repo: str, number: int, head: Any) -> tuple[str, int, str]:
+    return repo.casefold(), number, str(head or "")
+
+
+def pull_request_commits_once(
+    repo: str, number: int, head: Any, read: Callable[[], list[dict[str, Any]]]
+) -> list[dict[str, Any]]:
+    """`read()`'s commit rows, or an earlier read's for the same head in this
+    `candidate_reads` scope. Kept only when the list ends at `head`, so a list
+    read while the head moved, or cut at the API's cap, is read again."""
+    if _CANDIDATE_COMMITS is None or not head:
+        return read()
+    key = _candidate_key(repo, number, head)
+    rows = _CANDIDATE_COMMITS.get(key)
+    if rows is None:
+        rows = read()
+        if rows and rows[-1].get("sha") == head:
+            _CANDIDATE_COMMITS[key] = rows
+    return list(rows)
+
+
+def record_pull_request_total(repo: str, number: int, head: Any, total: Any) -> None:
+    """Keep a pull request record's commit count for its head in this
+    `candidate_reads` scope."""
+    if _CANDIDATE_TOTALS is None or not head or isinstance(total, bool):
+        return
+    if isinstance(total, int):
+        _CANDIDATE_TOTALS[_candidate_key(repo, number, head)] = total
+
+
+def fetch_pull_request_commits(
+    repo: str, number: int, head: str | None = None
+) -> list[dict[str, Any]]:
     """Every commit on the PR with its signature-verification verdict.
 
     Reads `.commit.verification` per commit -- `verified` plus GitHub's
@@ -994,14 +1046,29 @@ def fetch_pull_request_commits(repo: str, number: int) -> list[dict[str, Any]]:
     GitHub's `GET /repos/{owner}/{repo}/pulls/{n}/commits` endpoint returns at
     most **250** commits regardless of pagination; when the PR carries more, this
     raises `RuntimeError` so callers fail closed rather than under-report.
+    `head`, the expected head SHA, lets a `candidate_reads` scope reuse the
+    rows and the record's count already read for that head.
     """
-    rows = fetch_paginated_api(
-        f"repos/{repo}/pulls/{number}/commits?per_page=100",
-        f"{repo}#{number} commits",
+    rows = pull_request_commits_once(
+        repo,
+        number,
+        head,
+        lambda: fetch_paginated_api(
+            f"repos/{repo}/pulls/{number}/commits?per_page=100",
+            f"{repo}#{number} commits",
+        ),
     )
-    reported_total = gh_json(
-        ["api", f"repos/{repo}/pulls/{number}", "--jq", ".commits"]
-    )
+    # The record's count is for `head`; rows that do not end there were read
+    # after the head moved, so they need a count read alongside them.
+    reported_total = None
+    if rows and rows[-1].get("sha") == head:
+        reported_total = (_CANDIDATE_TOTALS or {}).get(
+            _candidate_key(repo, number, head)
+        )
+    if reported_total is None:
+        reported_total = gh_json(
+            ["api", f"repos/{repo}/pulls/{number}", "--jq", ".commits"]
+        )
     total = int(reported_total) if isinstance(reported_total, int) else 0
     # GitHub documents a 250-commit ceiling on this endpoint; pagination does not
     # lift it, so a short walk against a larger PR is under-reporting.

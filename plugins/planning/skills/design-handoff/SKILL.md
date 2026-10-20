@@ -45,9 +45,24 @@ Read `design-threads.md` in the topic's design slice and confirm, thread by thre
 - **directional**. Direction agreed AND the remaining detail carries a research tag, or
 - **TAGGED-DEFERRED**. An explicit research tag naming the external investigation needed.
 
-A thread that is unresolved AND untagged is a silent gap → **FAIL**: list the offending
-thread(s), route back by invoking `/planning:design` via the Skill tool (its design-threads and
-discussion rounds) to resolve or tag, and do NOT hand off. Read the verdict off
+Two threads are required, each in one of those states:
+
+- **Principles**: which design principles, or consumer overrides recorded as
+  `Overrides bundled default <principle> per <standards file>`, shaped the design, and how
+  generalize-now-or-wait was settled (citing the Brief's `Intent:` line counts).
+- **Lifecycle and reversibility**: the door calls `/planning:design` "Lifecycle and
+  reversibility" requires at the Brief's quality bar, in a thread of that name or as `Door:` lines
+  in the decision threads.
+
+At quality bar `prototype` both are skipped and named: a thread reading `deferred (prototype)`
+counts as TAGGED-DEFERRED. Stumble: the gate judged only the threads present, so a design that
+never weighed principles or reversibility passed.
+
+A thread that is unresolved AND untagged, or a required thread that is missing, is a silent gap →
+**FAIL**: open the reply with the verdict sentence (`Gate: FAIL`, naming each offending or missing
+thread) and the coverage table, then route back by invoking `/planning:design` via the Skill tool
+(its design-threads and discussion rounds) to resolve or tag, and do NOT hand off. Stumble: routing
+first let the design round replace the verdict, so the reply never said the gate failed. Read the verdict off
 `design-threads.md`, never from a "did we cover enough?" recap of your own: a producing model
 rubber-stamps its own recap.
 
@@ -59,7 +74,7 @@ FAIL: no design evidence; route back by invoking `/planning:design` via the Skil
 
 ## Coverage report (advisory)
 
-After the verdict sentence, and on a FAIL after the routing sentence too, emit one table reporting
+After the verdict sentence (on a FAIL, before routing back), emit one table reporting
 coverage across the six dimensions a design answers: what, how, where, who, when, why. Emit it on
 PASS and on FAIL alike. It never contributes to the pass/fail determination, it never blocks a
 handoff, no flag makes it block, and the table is never written to disk.
@@ -143,7 +158,8 @@ Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artif
 - Deferred research items with tags
 - Design artifacts produced, and that PLAN.md's `## Design` section now holds them
 - Dependency order for implementation (which decisions block others)
-- Extension / config / observability threads **RESOLVED** or **TAGGED-DEFERRED**.
+- Extension / config / observability, principle and reversibility threads **RESOLVED** or
+  **TAGGED-DEFERRED**.
   `/planning:plan` next walks its design-default checklist against the plan
 - **Review-routing notes**. When the consuming project declares review checklists (architecture,
   code-design, security, multi-tenancy, messaging, and the like), list which apply to this slice

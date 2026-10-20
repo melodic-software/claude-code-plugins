@@ -171,11 +171,21 @@ fallback), then:
    topic slug (argument or inferred); when none resolves, use `resume`:
 
    ```bash
-   cd "${CLAUDE_PROJECT_DIR}" && CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --bg --name "continue-<topic>" "$(cat "<prompt-file>")" && rm -f "<prompt-file>"
+   cd "${CLAUDE_PROJECT_DIR}" && CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --bg --name "continue-<topic>" --permission-mode auto "$(cat "<prompt-file>")" && rm -f "<prompt-file>"
    ```
 
    Insert `--effort "<level>"` before the prompt argument when "What the launched session
    inherits" below calls for it.
+
+   `--permission-mode auto` is always passed, following the repository's rule to launch
+   unattended local lanes with `--permission-mode auto` (AGENTS.md). Whether a detached session
+   can still stop on a prompt after auto mode falls back is unverified: no probe has been run.
+   Pointer: [Permission modes § When auto mode falls back](https://code.claude.com/docs/en/permission-modes#when-auto-mode-falls-back)
+   and [agent view § Permission mode, model, and effort](https://code.claude.com/docs/en/agent-view#permission-mode-model-and-effort);
+   as of 2026-10-19; recheck trigger: either section changes what a background session does when
+   an action is denied or auto mode falls back. The launch report says auto mode may deny an
+   action and that where a denied action is reported is unverified; it never promises the final
+   hand-off.
 
    `claude --bg` starts the session as a background agent and returns immediately; the user
    manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
@@ -189,8 +199,9 @@ fallback), then:
    scrubbed the prompt by this point; this exposure is one more reason secrets never belong in
    save-point output on ANY path.
 3. Report the launch result: the command's output, the agent name, the `claude agents`
-   management hint, and any launched-session behavior the resumed work depends on (next
-   section). Verify the agent actually appeared. A zero-exit launch can still be invisible if
+   management hint, any launched-session behavior the resumed work depends on (next
+   section), and that auto mode may deny an action and where a denied action is reported is
+   unverified, never a promise of the final hand-off. Verify the agent actually appeared. A zero-exit launch can still be invisible if
    the persistence override is ever unrecognized. Confirm by listing sessions non-interactively this
    turn when the CLI offers a way, and otherwise telling the user explicitly: "confirm it
    appears in `claude agents`". The `/clear`-then-paste instruction is replaced by this report.
@@ -282,6 +293,9 @@ Our rules:
   - **As of**: 2026-10-02
   - **Recheck trigger**: either section is renamed or moved, the table's columns change, or the
     `--effort` flag changes.
+- **Permission mode is set at launch, not inherited.** Step 2's command always passes
+  `--permission-mode auto`, so a directory setting with another default mode does not set the
+  launched session's mode.
 - **Directory settings ARE read normally.** The session reads its settings from the directory
   it runs in, the same as a fresh `claude` started there.
 
@@ -309,11 +323,12 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   `WorktreeCreate` hook configured → launch, that reading stated in the report; any other
   `rev-parse` result, failing or `false`, and any hook whose absence is not established → state
   unknown, no launch, same fallback
-- [ ] Background agent launched with the rails prompt (`claude --bg --name …`), the payload being
+- [ ] Background agent launched with the rails prompt (`claude --bg --name … --permission-mode auto`), the payload being
   the between-rails text of the resume region of `save_point.py emit <file>` on the full path
   (validated first, exit 0 quoted; a goal region, when present, excluded) or the emitted block on
   prompt-only, and the launch result reported (including any non-inherited flags mirrored or worth
-  flagging), OR the non-zero exit reported with fallback to
+  flagging, and that auto mode may deny an action and where a denied action is reported is
+  unverified), OR the non-zero exit reported with fallback to
   `/clear`-then-paste
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts

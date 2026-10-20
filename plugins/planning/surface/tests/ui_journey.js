@@ -62,13 +62,23 @@ async page => { // the user journey in order on one page, no reload after phase 
     await pick("Q3"); await page.fill("#note", "Keep the cache small");
     await pick("Q4"); await page.fill("#note", "Challenge: Fails a build that runs past ten minutes on a slow machine?");
     const aa = await page.$('[data-acceptall="g2"]');
-    ok("Accept all offered on the group for the two opened questions", !!aa && /Accept all \(2\)/.test(aa ? await aa.textContent() : ""));
+    ok("Accept all on the group counts every open question, opened or not", !!aa && /Accept all \(3\)/.test(aa ? await aa.textContent() : ""), aa ? await aa.textContent() : "");
     await aa.click(); await page.waitForTimeout(200);
+    const dlgAll = await page.evaluate(() => document.getElementById("dlgBody").innerText);
+    ok("the all-questions dialog lists the unopened Q5 beside Q3 and names no unopened exclusion", /Q3/.test(dlgAll) && /Q5/.test(dlgAll) && !/you have not opened/.test(dlgAll) && /challenges a commitment: Q4/.test(dlgAll), dlgAll.replace(/\s+/g, " ").slice(0, 300));
+    ok("the all-questions dialog shows Q3's commitment as unconfirmed and Q3's full recommendation", /Commits you to, stays unconfirmed: Rebuilds the cache when the lock file changes/.test(dlgAll) && /Entries expire after fourteen days\./.test(dlgAll), dlgAll.replace(/\s+/g, " ").slice(0, 400));
+    await tap("#dlgCancel", 200);
+    // select Q3 and Q4 with the rail checkboxes: Accept selected takes just those
+    await page.check('[data-pick="Q3"]'); await page.check('[data-pick="Q4"]'); await page.waitForTimeout(150);
+    const sb = await page.$('[data-acceptsel="g2"]');
+    ok("two selected questions turn Accept all into Accept selected (2)", !!sb && /Accept selected \(2\)/.test(sb ? await sb.textContent() : "") && !(await page.$('[data-acceptall="g2"]')));
+    await sb.click(); await page.waitForTimeout(200);
     const dlg = await page.evaluate(() => document.getElementById("dlgBody").innerText);
-    ok("the dialog lists Q3 with its carried note", /Q3/.test(dlg) && /Note: Keep the cache small/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 200));
-    ok("the dialog leaves out the Challenge note and the unopened question, and says there is no batch undo", /challenges a commitment: Q4/.test(dlg) && /1 open question you have not opened/.test(dlg) && /cannot be undone as one step/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 300));
+    ok("the dialog lists Q3 with its carried note", /Q3/.test(dlg) && /Note: Keep the cache small/.test(dlg) && !/Q5/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 200));
+    ok("the dialog leaves out the Challenge note and says there is no batch undo", /challenges a commitment: Q4/.test(dlg) && /cannot be undone as one step/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 300));
     await tap("#dlgOk", 900);
     const acc = (await events()).filter(e => e.kind === "accept" && ["Q3", "Q4", "Q5"].includes(e.id));
+    ok("no commitment on Q3 is confirmed by the accept", !(await events()).some(e => e.kind === "confirm" && e.id === "Q3"));
     const drafts = await page.evaluate(() => Object.keys(localStorage).filter(k => /:draft:Q[34]$/.test(k)).map(k => k.slice(-2)).sort().join(","));
     ok("one accept for Q3 carrying its note, none for Q4; only Q3's draft is cleared", acc.length === 1 && acc[0].id === "Q3" && acc[0].text === "Keep the cache small" && drafts === "Q4", JSON.stringify(acc) + " drafts " + drafts);
 

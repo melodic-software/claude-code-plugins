@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: su-piano-verse-overrides
+graders:
+  - name: bracket-override-syntax
+    type: regex
+    pattern: '\[(?:Intro|Verse|Pre-Chorus|Chorus|Bridge|Outro|Final Chorus|Hook)[^\]\n]*?(?::|\|)[^\]\n]*[a-z][^\]\n]*\]'
+    flags: 'i'
+    target: last_message
+  - name: piano-verse-tag
+    type: regex
+    pattern: '\[Verse[^\]\n]*?[:|][^\]\n]*\bpiano\b[^\]\n]*\]'
+    flags: 'i'
+    target: last_message
+  - name: final-chorus-band-tag
+    type: regex
+    pattern: '\[(?:Final\s+)?Chorus[^\]\n]*?[:|][^\]\n]*\b(?:full band|gang vocals?|band)\b[^\]\n]*\]'
+    flags: 'i'
+    target: last_message
+  - name: no-x2-repeat
+    type: regex
+    pattern: '\((?:x|×)\s*\d+\)|\[(?:x|×)\s*\d+\]|[ \t](?:x|×)\s?[2-9][ \t]*$'
+    flags: 'im'
+    match: not_contains
+    target: last_message
+  - name: fenced-lyrics-block
+    type: regex
+    pattern: '```[^\n]*\n(?:(?!```)[\s\S])*?\[Verse(?:(?!```)[\s\S])*```'
+    flags: 'i'
+    target: last_message
