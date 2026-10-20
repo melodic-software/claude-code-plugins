@@ -181,6 +181,13 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
             say(`#${pull.number}: run ${listed.id} changed since the listing; left alone`);
             continue;
           }
+          // A push since the listing makes this run obsolete, and re-running it
+          // would cancel the new head's CI in the PR's concurrency group.
+          const current = await call("GET", `/repos/${repo}/pulls/${pull.number}`);
+          if (current?.state !== "open" || current.draft === true || current.head?.sha !== pull.head.sha) {
+            say(`#${pull.number}: the PR changed since the listing; run ${listed.id} left alone`);
+            continue;
+          }
           if (wrote) {
             await sleep(WRITE_GAP_MS);
           }

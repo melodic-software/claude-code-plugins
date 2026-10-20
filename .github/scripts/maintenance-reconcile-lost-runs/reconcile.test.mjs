@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { main } from "./reconcile.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -57,6 +57,10 @@ function fakeGitHub({ pulls, runs = [], fail = {} }) {
     }
     if (method === "GET" && path.startsWith(`/repos/${REPO}/pulls?`)) {
       return path.includes("page=1") ? pulls : [];
+    }
+    const pull = /^\/repos\/[^/]+\/[^/]+\/pulls\/([0-9]+)$/.exec(path);
+    if (method === "GET" && pull) {
+      return pulls.find((p) => p.number === Number(pull[1]));
     }
     const listing = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\?head_sha=([0-9a-f]{40})&per_page=100$/.exec(path);
     if (method === "GET" && listing) {
@@ -245,4 +249,38 @@ test("a refused re-run is reported and the rest go ahead", async () => {
   });
   assert.equal(code, 1);
   assert.ok(calls.includes(`POST /repos/${REPO}/actions/runs/102/rerun`));
+});
+
+test("a re-run GitHub accepts with its empty 201 response counts as done", async () => {
+  // The re-run endpoint answers 201 with no body; the real client parses it.
+  const { github: fake, calls } = fakeGitHub({ pulls: [pr(1)], runs: [run(101, sha(1))] });
+  const fetchImpl = async (url, init) => {
+    const answer = await fake(init.method, url.slice("https://api.example".length));
+    return init.method === "POST" ? new Response(null, { status: 201 }) : Response.json(answer);
+  };
+  const code = await main({
+    env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed" },
+    github: createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl }),
+    fetchStatus: async () => STATUS,
+    sleep: async () => {},
+    now: NOW,
+  });
+  assert.equal(code, 0);
+  assert.ok(calls.includes(`POST /repos/${REPO}/actions/runs/101/rerun`));
+});
+
+test("a PR whose head moved, or that closed or went draft, after the listing is left alone", async () => {
+  for (const now of [{ head: { ...pr(1).head, sha: sha(2) } }, { state: "closed" }, { draft: true }]) {
+    const { github, calls } = fakeGitHub({ pulls: [pr(1)], runs: [run(101, sha(1))] });
+    const code = await main({
+      env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed" },
+      github: async (method, path, body) =>
+        method === "GET" && path === `/repos/${REPO}/pulls/1` ? { ...pr(1), ...now } : github(method, path, body),
+      fetchStatus: async () => STATUS,
+      sleep: async () => {},
+      now: NOW,
+    });
+    assert.equal(code, 0, JSON.stringify(now));
+    assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0, JSON.stringify(now));
+  }
 });

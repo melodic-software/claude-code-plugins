@@ -561,7 +561,7 @@ for (const [label, overrides] of [
     dispatcher: { run_attempt: 2, triggering_actor: null },
   }],
   ["the dispatcher run has no run_started_at", { dispatcher: { run_started_at: null } }],
-  ["the dispatcher run has an unparseable updated_at", { dispatcher: { updated_at: "soon" } }],
+  ["the dispatcher run has an unparsable updated_at", { dispatcher: { updated_at: "soon" } }],
   ["the dispatcher run has no run_attempt", { dispatcher: { run_attempt: null } }],
   ["this run has no created_at", { self: { created_at: null } }],
 ]) {
@@ -1375,6 +1375,12 @@ test("createGitHub sends the token and raises GitHubError with the status on fai
     return true;
   });
   assert.deepEqual(seen[0], { url: "https://api.example/ok", auth: "Bearer t0ken", method: "GET" });
+});
+
+test("createGitHub returns null for a success with no body", async () => {
+  const fetchImpl = async () => new Response(null, { status: 201 });
+  const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl });
+  assert.equal(await github("POST", "/repos/o/r/actions/runs/1/rerun"), null);
 });
 
 test("createGitHub raises on a GraphQL response that carries errors", async () => {
