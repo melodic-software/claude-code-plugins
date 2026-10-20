@@ -238,6 +238,10 @@ export function pinnedLookup(address) {
 /** Socket idle limit per request, matching undici's default headers and body timeouts that `fetch` applied. */
 const REQUEST_TIMEOUT_MS = 300_000;
 
+/** The request headers `fetch` sent by default; some hosts refuse a request with no User-Agent. No
+ * Accept-Encoding: https.request does not decompress, and `fetch` asked for compression only because it did. */
+const REQUEST_HEADERS = { "user-agent": "node", accept: "*/*" };
+
 /**
  * GET `url` over node:https with the socket pinned to the vetted `address`. TLS
  * still verifies the certificate and SNI against the original hostname. Redirects
@@ -253,7 +257,7 @@ export function httpsTransport(url, address, timeoutMs = REQUEST_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const request = https.request(
       new URL(url),
-      { method: "GET", timeout: timeoutMs, ...(address ? { lookup: pinnedLookup(address) } : {}) },
+      { method: "GET", headers: REQUEST_HEADERS, timeout: timeoutMs, ...(address ? { lookup: pinnedLookup(address) } : {}) },
       (res) => {
         const headers = new Headers();
         for (const [name, value] of Object.entries(res.headers)) {

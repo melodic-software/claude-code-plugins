@@ -1,4 +1,6 @@
+import { EventEmitter } from "node:events";
 import fs from "node:fs";
+import https from "node:https";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -353,6 +355,24 @@ describe("httpsTransport", () => {
       for (const socket of sockets) socket.destroy();
       await new Promise((resolve) => server.close(resolve));
     }
+  });
+});
+
+describe("httpsTransport headers", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("sends the User-Agent and Accept headers fetch sent by default", async () => {
+    /** @type {any} */
+    let options;
+    vi.spyOn(https, "request").mockImplementation((/** @type {any} */ _url, /** @type {any} */ opts) => {
+      options = opts;
+      const request = /** @type {any} */ (new EventEmitter());
+      request.end = () => request.emit("error", new Error("stop"));
+      request.destroy = () => {};
+      return request;
+    });
+    await expect(httpsTransport("https://deck.example/a.pdf", "93.184.216.34")).rejects.toThrow("stop");
+    expect(options.headers).toEqual({ "user-agent": "node", accept: "*/*" });
   });
 });
 
