@@ -3894,25 +3894,43 @@ def unattended_enqueue(
     # what the checks read since the merge base, the branch is updated from
     # the base instead; a later run enqueues the new head once its checks
     # pass. A Dependabot head is not written (its own rebases stop), and a
-    # doubtful read or refused update enqueues as before.
+    # doubtful read or an update the API refused (4xx) enqueues as before. An
+    # update with no answer (a timeout, no status, a server error) may have
+    # landed, so the old head is held rather than pinned.
     inputs_read = check_inputs.changed_since_merge_base(
         inputs["config"].check_inputs, pin, branch
     )
     step["checkInputs"] = inputs_read
     if inputs_read["state"] == "stale" and eligible_dependabot is None:
-        proc = gh_capture(
-            ["api", "-X", "PUT", f"repos/{repo}/pulls/{number}/update-branch"]
-            + ["-f", f"expected_head_sha={pin}"]
+        stale = (
+            f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
+            f"{branch} since merge base {inputs_read['mergeBase']}"
         )
-        inputs_read["updated"] = proc.returncode == 0
-        if proc.returncode == 0:
-            return hold(
-                f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
-                f"{branch} since merge base {inputs_read['mergeBase']}; the branch "
-                "was updated from the base, so the new head is enqueued once its "
-                "checks pass"
+        try:
+            proc = gh_capture(
+                ["api", "-X", "PUT", f"repos/{repo}/pulls/{number}/update-branch"]
+                + ["-f", f"expected_head_sha={pin}"]
             )
-        inputs_read["updateError"] = update_error(proc)
+        except (RuntimeError, ValueError, OSError) as exc:
+            proc = None
+            inputs_read["updateError"] = {"status": None, "message": str(exc)[:500]}
+        if proc is not None and proc.returncode == 0:
+            inputs_read["updated"] = True
+            return hold(
+                f"{stale}; the branch was updated from the base, so the new head "
+                "is enqueued once its checks pass"
+            )
+        if proc is not None:
+            inputs_read["updateError"] = update_error(proc)
+        status = inputs_read["updateError"]["status"]
+        if status is None or not 400 <= status < 500:
+            inputs_read["updated"] = None
+            return hold(
+                f"{stale}; the update from the base got no answer "
+                f"({status or 'no status'}) and may have landed, so this head "
+                "is not enqueued"
+            )
+        inputs_read["updated"] = False
     proc = gh_capture(
         ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
         + ["-f", f"body={postmerge.pin_comment(pin)}"]
