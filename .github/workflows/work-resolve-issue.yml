@@ -133,7 +133,7 @@ jobs:
   # the merge gate like any failing check. This is the lane's only `statuses: write` grant, on the job's own
   # GITHUB_TOKEN, and it runs only scripts from the default branch tip.
   report-statuses:
-    needs: [resolve-issue, report-outcome]
+    needs: [resolve-issue, run-checks, report-outcome]
     if: >-
       ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
       || needs.resolve-issue.outputs.reuse-branch != '') }}
@@ -170,6 +170,8 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           WORK_OUTCOME_DIR: ${{ runner.temp }}/work-outcome
           REUSE_BRANCH: ${{ needs.resolve-issue.outputs.reuse-branch }}
+          RESUME_BRANCH: ${{ needs.resolve-issue.outputs.resume-branch }}
+          RUNNER_CHECKS: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
           RESOLVE_RESULT: ${{ needs.resolve-issue.result }}
           REPORT_RESULT: ${{ needs.report-outcome.result }}
         run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
