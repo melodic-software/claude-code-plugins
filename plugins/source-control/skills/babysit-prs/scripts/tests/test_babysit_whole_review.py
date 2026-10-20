@@ -61,8 +61,10 @@ class Wanted(unittest.TestCase):
 
 class Record(unittest.TestCase):
     def test_round_trip_is_per_head(self) -> None:
-        body = wr.with_record("reasons", HEAD)
+        at = datetime(2026, 10, 20, 11, 0, 5, tzinfo=UTC)
+        body = wr.with_records("reasons", [wr.record_line(HEAD, at)])
         self.assertTrue(wr.recorded(body, HEAD))
+        self.assertEqual(wr.records(body), [(HEAD, at)])
         self.assertFalse(wr.recorded(body, "b" * 40))
         self.assertFalse(wr.recorded(None, HEAD))
 
@@ -75,6 +77,7 @@ class Limits(unittest.TestCase):
         self.lane_left = 5000
         self.job_left = 5000
         self.runs: list[dict[str, Any]] = [{"id": 1}, {"id": 2}]
+        self.queued: list[dict[str, Any]] = []
         self.jobs = {1: ["in_progress", "completed"], 2: ["queued"]}
         self.calls: list[str] = []
 
@@ -91,8 +94,10 @@ class Limits(unittest.TestCase):
                     }
                 }
             )
-        if "/actions/runs?" in endpoint:
+        if "/actions/runs?status=in_progress" in endpoint:
             return done({"workflow_runs": self.runs})
+        if "/actions/runs?status=queued" in endpoint:
+            return done({"workflow_runs": self.queued})
         run_id = int(endpoint.split("/runs/")[1].split("/")[0])
         return done({"jobs": [{"status": s} for s in self.jobs[run_id]]})
 
@@ -125,6 +130,11 @@ class Limits(unittest.TestCase):
 
     def test_running_jobs_at_the_cap(self) -> None:
         self.jobs = {1: ["in_progress"] * 30, 2: ["queued"] * 5}
+        self.assertEqual(self.limits(), "running-jobs:35")
+
+    def test_queued_runs_jobs_count_too(self) -> None:
+        self.jobs = {1: ["in_progress"] * 30, 2: ["queued"], 3: ["queued"] * 4}
+        self.queued = [{"id": 3}]
         self.assertEqual(self.limits(), "running-jobs:35")
 
     def test_a_full_page_of_runs_reads_no_jobs(self) -> None:
@@ -202,18 +212,25 @@ class Recover(unittest.TestCase):
     def comment(self, body: str, login: str = LANE, at: str = "T1") -> dict[str, Any]:
         return {"user": {"login": login}, "created_at": at, "body": body}
 
+    RECORDED = datetime(2026, 10, 20, 11, 0, tzinfo=UTC)
+
     def reasons(self, head: str = HEAD) -> str:
-        return wr.with_record(f"{wr.RISK_MARKER}\nUnattended merge: risk MED", head)
+        return wr.with_records(
+            f"{wr.RISK_MARKER}\nUnattended merge: risk MED",
+            [wr.record_line(head, self.RECORDED)],
+        )
 
     def recover(
         self,
         drafts: list[dict[str, Any]],
         comments: list[dict[str, Any]],
         converter: str | None = "lanes",
+        converted: str = "2026-10-20T11:00:20Z",
     ) -> tuple[list[dict[str, Any]], list[str]]:
         writes: list[str] = []
         actor = None if converter is None else {"login": converter}
-        timeline = {"data": {"node": {"timelineItems": {"nodes": [{"actor": actor}]}}}}
+        event = {"actor": actor, "createdAt": converted}
+        timeline = {"data": {"node": {"timelineItems": {"nodes": [event]}}}}
 
         def capture(args: list[str]) -> Any:
             if wr.READY in args[3]:
@@ -238,6 +255,23 @@ class Recover(unittest.TestCase):
         )
         self.assertEqual((out, writes), ([], []))
 
+    def test_a_lane_draft_outside_the_window_stays_a_draft(self) -> None:
+        # The lane drafted it on purpose an hour after an old toggle.
+        out, writes = self.recover(
+            [self.draft()],
+            [self.comment(self.reasons())],
+            converted="2026-10-20T12:00:00Z",
+        )
+        self.assertEqual((out, writes), ([], []))
+
+    def test_a_conversion_before_the_record_stays_a_draft(self) -> None:
+        out, writes = self.recover(
+            [self.draft()],
+            [self.comment(self.reasons())],
+            converted="2026-10-20T10:50:00Z",
+        )
+        self.assertEqual((out, writes), ([], []))
+
     def test_a_head_moved_mid_toggle_still_recovers(self) -> None:
         moved = self.draft(head="b" * 40)
         out, writes = self.recover([moved], [self.comment(self.reasons(HEAD))])
@@ -252,7 +286,9 @@ class Recover(unittest.TestCase):
         self.assertEqual(writes, ["id=PR_7"])
 
     def test_leaves_other_drafts(self) -> None:
-        unmarked = wr.with_record("no marker line", HEAD)
+        unmarked = wr.with_records(
+            "no marker line", [wr.record_line(HEAD, self.RECORDED)]
+        )
         for drafts, comments, converter in (
             ([self.draft()], [self.comment(f"{wr.RISK_MARKER}\nno record")], "lanes"),
             ([self.draft()], [self.comment(unmarked)], "lanes"),

@@ -2555,7 +2555,7 @@ class WholeReviewRequest(Unattended):
         self.assert_no_merge(code)
         self.assertEqual(self.log, ["risk-comment:POST", "toggle"])
         self.assertEqual(self.toggles, [self.node_id])
-        self.assertIn(merge.whole_review.record_line(HEAD), self.posted())
+        self.assertTrue(merge.whole_review.recorded(self.posted(), HEAD))
         self.assertEqual(out["unattended"]["writes"]["wholeReview"], {"toggled": True})
 
     def test_a_recorded_head_is_not_toggled_again_and_keeps_its_record(self) -> None:
@@ -2579,7 +2579,7 @@ class WholeReviewRequest(Unattended):
         patched = next(
             c.args[0][-1] for c in self.capture.call_args_list if "PATCH" in c.args[0]
         )
-        self.assertIn(merge.whole_review.record_line(HEAD), patched)
+        self.assertTrue(merge.whole_review.recorded(patched, HEAD))
         self.assertTrue(patched.endswith(merge.RISK_ESCALATION_LINE))
 
     def test_a_record_at_an_older_head_does_not_stop_a_new_one(self) -> None:
@@ -2590,12 +2590,51 @@ class WholeReviewRequest(Unattended):
         self.run_main()
         self.assertEqual(self.log, ["risk-comment:PATCH", "toggle"])
 
+    def two_toggles(self) -> str:
+        """A reasons comment recording whole reviews at two earlier heads."""
+        stamp = self.WRITTEN
+        return "\n".join(
+            [
+                f"{merge.RISK_MARKER}\nan earlier assessment",
+                "",
+                merge.whole_review.record_line("d" * 40, stamp),
+                merge.whole_review.record_line("e" * 40, stamp),
+            ]
+        )
+
+    def test_a_third_whole_review_is_never_toggled(self) -> None:
+        # The lane resolved its threads and pushed a trivial commit; the new
+        # head's clean incremental review would buy a third whole review.
+        self.earlier_sweep(self.two_toggles())
+        _, out = self.run_main()
+        self.assertNotIn("toggle", self.log)
+        self.assertEqual(
+            out["unattended"]["writes"]["wholeReview"],
+            {"toggled": False, "skipped": "toggle-cap:2"},
+        )
+        posted = self.posted()
+        for head in ("d" * 40, "e" * 40):
+            self.assertTrue(merge.whole_review.recorded(posted, head), head)
+
+    def test_every_record_is_kept_when_the_score_clears(self) -> None:
+        self.earlier_sweep(
+            self.two_toggles().replace(
+                "an earlier assessment",
+                f"Unattended merge: risk **MED** at head `{HEAD}`.",
+            )
+        )
+        self.lanes = BOUND
+        self.run_main()
+        cleared = self.posted()
+        self.assertTrue(cleared.startswith(merge.risk_cleared_body(HEAD)))
+        self.assertEqual(len(merge.whole_review.RECORD_RE.findall(cleared)), 2)
+
     def test_an_escalated_comment_is_not_toggled(self) -> None:
         self.run_main()
         body = self.posted()
         self.setUp()
         self.earlier_sweep(
-            f"{body.replace(merge.whole_review.record_line(HEAD), '').rstrip()}"
+            f"{merge.whole_review.RECORD_RE.sub('', body).rstrip()}"
             f"\n\n{merge.RISK_ESCALATION_LINE}"
         )
         self.run_main()
@@ -2605,7 +2644,7 @@ class WholeReviewRequest(Unattended):
         self.limit = "running-jobs:40"
         _, out = self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST"])
-        self.assertNotIn(merge.whole_review.record_line(HEAD), self.posted())
+        self.assertFalse(merge.whole_review.recorded(self.posted(), HEAD))
         self.assertEqual(
             out["unattended"]["writes"]["wholeReview"],
             {"toggled": False, "skipped": "running-jobs:40"},

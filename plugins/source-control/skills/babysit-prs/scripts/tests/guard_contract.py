@@ -1542,7 +1542,7 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "conversion to draft, and marks ready a draft whose newest "
             "reasons comment (`<!-- babysit-merge-risk -->`) by the lane "
             "identity records a whole-review request, when the lane identity "
-            "also made that conversion."
+            "also made that conversion within ten minutes after a record."
         ),
         backed_by=("whole-review.marks-ready",),
     ),

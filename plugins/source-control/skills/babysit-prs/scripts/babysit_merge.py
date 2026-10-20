@@ -3665,7 +3665,10 @@ def unattended_writes(
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         prior = _newest_marker_comment(inputs["comments"], identity, RISK_MARKER)
         text = str((prior or {}).get("body") or "")
-        cleared = risk_cleared_body(head)
+        # Every whole-review record stays, so the cap counts across heads.
+        cleared = whole_review.with_records(
+            risk_cleared_body(head), whole_review.record_lines(text)
+        )
         if (
             prior is not None
             and f" at head `{head}`" in text
@@ -3722,14 +3725,16 @@ def _whole_review_record(
     head: str,
     prior: dict[str, Any] | None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """The reasons comment body with the whole-review record line, and the
-    request: `{"toggle": True}` when this run records a new one. A record of
-    this head in the prior comment is carried. A lane pull request scored
-    `wholeReviewWanted` whose comment is not escalated is recorded when this
-    sweep's limits allow it."""
+    """The reasons comment body with every whole-review record line the
+    prior comment holds, and the request: `{"toggle": True}` when this run
+    records a new one. A lane pull request scored `wholeReviewWanted` whose
+    comment is not escalated, with no record at this head and fewer than
+    `MAX_TOGGLES` in all, is recorded when this sweep's limits allow it."""
     text = str((prior or {}).get("body") or "")
+    lines = whole_review.record_lines(text)
+    kept = whole_review.with_records(body, lines)
     if whole_review.recorded(text, head):
-        return whole_review.with_record(body, head), None
+        return kept, None
     inputs = policy.inputs or {}
     pr = json_object(inputs.get("pr"))
     user = json_object(pr.get("user"))
@@ -3741,11 +3746,14 @@ def _whole_review_record(
         or author != str(inputs.get("identity") or "").casefold()
         or text.endswith(RISK_ESCALATION_LINE)
     ):
-        return body, None
+        return kept, None
+    if len(lines) >= whole_review.MAX_TOGGLES:
+        return kept, {"toggled": False, "skipped": f"toggle-cap:{len(lines)}"}
     refusal = whole_review.limits(repo)
     if refusal is not None:
-        return body, {"toggled": False, "skipped": refusal}
-    return whole_review.with_record(body, head), {"toggle": True}
+        return kept, {"toggled": False, "skipped": refusal}
+    line = whole_review.record_line(head, _now())
+    return whole_review.with_records(body, [*lines, line]), {"toggle": True}
 
 
 def _identity_queue_entries(

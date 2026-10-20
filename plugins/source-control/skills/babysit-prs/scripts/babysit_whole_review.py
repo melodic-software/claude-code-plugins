@@ -7,8 +7,9 @@ A whole review runs on `ready_for_review`, so the request converts the pull
 request to a draft and marks it ready again, with the lane token (an App
 token's events start workflows; GITHUB_TOKEN's do not). Bounds:
 
-- once per head: the reasons comment carries `record_line(head)`, written
-  before the toggle and carried on every rewrite at that head;
+- once per head, and `MAX_TOGGLES` per pull request: the reasons comment
+  carries a `record_line` per request, written before the toggle and kept
+  on every rewrite;
 - at most one request per pr-merge sweep: the first candidate to reach
   `limits` claims the `SPENT_ENV` file, whatever its answer; with no
   `SPENT_ENV` (the local babysit loop) nothing is requested;
@@ -17,7 +18,7 @@ token's events start workflows; GITHUB_TOKEN's do not). Bounds:
 
 `recover` marks ready a draft the toggle left behind (the run ended between
 its two writes), only when the lane identity made its newest conversion to
-draft.
+draft within `CONVERT_WINDOW` of a record's time.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import UTC, datetime, timedelta
@@ -38,6 +40,16 @@ from babysit_gh import fetch_paginated_api, gh_capture
 # The reasons comment babysit_merge.py writes; the record lives in it.
 RISK_MARKER = "<!-- babysit-merge-risk -->"
 RECORD_PREFIX = "Whole review requested at head `"
+RECORD_RE = re.compile(
+    rf"^{re.escape(RECORD_PREFIX)}([0-9a-f]{{40}})` at "
+    r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ): .*$",
+    re.MULTILINE,
+)
+# Whole reviews a lane pull request may request; past that a person decides.
+MAX_TOGGLES = 2
+# A lane conversion to draft this long after a record belongs to its toggle.
+CONVERT_WINDOW = timedelta(minutes=10)
+CONVERT_SKEW = timedelta(minutes=1)
 SPENT_ENV = "BABYSIT_WHOLE_REVIEW_SPENT"
 # The job's own token (GITHUB_TOKEN), which also reads the runs.
 JOB_TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
@@ -56,19 +68,33 @@ READY = (
 )
 
 
-def record_line(head: str) -> str:
+def record_line(head: str, at: datetime) -> str:
+    """One request's line; `at` is when the gate wrote it, before the toggle."""
+    stamp = at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return (
-        f"{RECORD_PREFIX}{head}`: an incremental review cannot "
+        f"{RECORD_PREFIX}{head}` at {stamp}: an incremental review cannot "
         "clear the findings below."
     )
 
 
+def records(body: Any) -> list[tuple[str, datetime]]:
+    """(head, time) of every request line in `body`, in order."""
+    return [
+        (m[1], datetime.fromisoformat(m[2]))
+        for m in RECORD_RE.finditer(str(body or ""))
+    ]
+
+
 def recorded(body: Any, head: str) -> bool:
-    return record_line(head) in str(body or "")
+    return any(sha == head for sha, _ in records(body))
 
 
-def with_record(body: str, head: str) -> str:
-    return f"{body}\n\n{record_line(head)}"
+def with_records(body: str, lines: Sequence[str]) -> str:
+    return "\n\n".join([body, "\n".join(lines)]) if lines else body
+
+
+def record_lines(body: Any) -> list[str]:
+    return [m[0] for m in RECORD_RE.finditer(str(body or ""))]
 
 
 def wanted(
@@ -102,10 +128,15 @@ def _remaining(env: Mapping[str, str] | None) -> int:
 
 
 def _running_jobs(repo: str, env: Mapping[str, str]) -> int:
-    """Unfinished jobs of the in-progress runs, counted up to the cap; a run
-    holds at least one, so a page of that many runs needs no job read."""
-    runs = _api([f"repos/{repo}/actions/runs?status=in_progress&per_page=100"], env)
-    runs = runs["workflow_runs"]
+    """Unfinished jobs of the in-progress and queued runs, counted up to the
+    cap; a run holds at least one, so that many runs needs no job read."""
+    runs = [
+        item
+        for status in ("in_progress", "queued")
+        for item in _api(
+            [f"repos/{repo}/actions/runs?status={status}&per_page=100"], env
+        )["workflow_runs"]
+    ]
     if len(runs) >= MAX_RUNNING_JOBS:
         return len(runs)
     total = 0
@@ -168,7 +199,7 @@ def toggle(node_id: str, *, sleep: Any = time.sleep) -> dict[str, Any]:
 CONVERTER = (
     "query($id: ID!) { node(id: $id) { ... on PullRequest {"
     " timelineItems(itemTypes: [CONVERT_TO_DRAFT_EVENT], last: 1)"
-    " { nodes { ... on ConvertToDraftEvent { actor { login } } } } } } }"
+    " { nodes { ... on ConvertToDraftEvent { actor { login } createdAt } } } } } }"
 )
 
 
@@ -177,8 +208,9 @@ def _login(value: Any) -> str:
     return str(value or "").casefold().removesuffix("[bot]")
 
 
-def _converter(node_id: str) -> str | None:
-    """Who made the newest conversion to draft, or None when unread."""
+def _converter(node_id: str) -> tuple[str, datetime] | None:
+    """Who made the newest conversion to draft and when (server time), or
+    None when unread."""
     proc = gh_capture(
         ["api", "graphql", "-f", f"query={CONVERTER}", "-f", f"id={node_id}"]
     )
@@ -186,8 +218,12 @@ def _converter(node_id: str) -> str | None:
         return None
     try:
         nodes = json.loads(proc.stdout)["data"]["node"]["timelineItems"]["nodes"]
-        return (nodes[-1].get("actor") or {}).get("login") if nodes else None
-    except (KeyError, TypeError, ValueError, AttributeError):
+        if not nodes:
+            return None
+        login = (nodes[-1].get("actor") or {}).get("login")
+        at = datetime.fromisoformat(str(nodes[-1]["createdAt"]))
+        return (str(login), at) if login and at.tzinfo else None
+    except (KeyError, TypeError, ValueError, AttributeError, IndexError):
         return None
 
 
@@ -199,8 +235,10 @@ def recover(
 ) -> list[dict[str, Any]]:
     """Mark ready each recently updated draft whose newest reasons comment by
     `identity` records a whole-review request at any head, when `identity`
-    also made its newest conversion to draft: a draft a person made stays
-    one. Two reads per such draft: its comments and that conversion."""
+    also made its newest conversion to draft (server time) within
+    `CONVERT_WINDOW` after one of those records: a draft a person made, or
+    one the lane made outside a toggle, stays one. Two reads per such draft:
+    its comments and that conversion."""
     now = now or datetime.now(UTC)
     out = []
     for pr in drafts:
@@ -235,9 +273,15 @@ def recover(
             ]
         ]
         newest = max(reasons, key=lambda c: str(c.get("created_at")), default=None)
-        if newest is None or RECORD_PREFIX not in str(newest.get("body") or ""):
+        stamps = [at for _, at in records((newest or {}).get("body"))]
+        if not stamps:
             continue
-        if _login(_converter(node_id)) != _login(identity):
+        converted = _converter(node_id)
+        if converted is None or _login(converted[0]) != _login(identity):
+            continue
+        if not any(
+            at - CONVERT_SKEW <= converted[1] <= at + CONVERT_WINDOW for at in stamps
+        ):
             continue
         out.append({"pr": number, "head": head, "ready": _graphql(READY, node_id)})
     return out
