@@ -400,7 +400,7 @@ head:
 | `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head |
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
 | `feedback-protected-path` | the PR changes nothing under `.github/` |
-| `head-moved` (pr-merge's `babysit-merge-verify-escalation` and `babysit-merge-risk`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
+| `head-moved` (pr-merge's `babysit-merge-verify-escalation`, `babysit-merge-risk` and `babysit-merge-shared-copy-escalation`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
 when a person commented, reviewed or left a review comment since that event (a bot account, such
@@ -630,7 +630,14 @@ that fails counts as a refusal.
   shallow or partial one) with no API read; a head the clone lacks is fetched by SHA. The shared-copy registry (`scripts/shared-copies.txt`) counts
   only for a pull request whose own changes since the merge base touch the registry or a canonical
   or copy path it registers at the base tip, since a pull request touching none of them merges
-  cleanly whatever the base registered; every other listed path counts for every pull request. Any
+  cleanly whatever the base registered; every other listed path counts for every pull request.
+  With the registry listed, a canonical the pull request carries (its canonical or a copy touched,
+  or a copy newly registered) that the base changed is refused as `shared-copy-sources-changed:`
+  instead of updated: an update leaves the copies the pull request generated from its own
+  canonical, so the fix is merging the base and running `scripts/sync-shared-copies.sh`. No lane
+  acts on that refusal, so the wrapper escalates it: one `<!-- babysit-merge-shared-copy-escalation -->`
+  comment naming the canonicals, the head and the fix, then the human-gated role label, both
+  unchanged by a rerun at the same head; the `head-moved` clear removes the label once the head moves. Any
   doubt, an update the API refused with a 4xx (its status and message recorded as `updateError`),
   or a Dependabot head enqueues as before. An update with no answer (a timeout, no status, a server
   error) may have landed, so it holds the old head instead. Empty or absent updates nothing.

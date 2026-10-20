@@ -66,9 +66,14 @@ const RESUME_KEY = /^<!-- pr-unblock resume-key=([0-9a-f]{40}|[0-9a-f]{64}) -->$
 const REASON = /^- Reason: `([a-z-]+)`$/m;
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
 const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ head=[0-9a-f]{40} -->$/;
-// babysit_merge.py's verifier-refusal escalation and reasons comment: the
-// marker on the first or second line, the next line naming `at head `<sha>``.
-const PR_MERGE_MARKERS = Object.freeze(["<!-- babysit-merge-verify-escalation -->", "<!-- babysit-merge-risk -->"]);
+// babysit_merge.py's verifier-refusal escalation, reasons comment and
+// shared-copy escalation: the marker on the first or second line, the next
+// line naming `at head `<sha>``.
+const PR_MERGE_MARKERS = Object.freeze([
+  "<!-- babysit-merge-verify-escalation -->",
+  "<!-- babysit-merge-risk -->",
+  "<!-- babysit-merge-shared-copy-escalation -->",
+]);
 const AT_HEAD = / at head `([^`]*)`/g;
 const HEAD_MOVED = "head-moved";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
