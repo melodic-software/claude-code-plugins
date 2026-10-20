@@ -47,19 +47,17 @@ suite_tools:         <read-only | the gated tools the cases request>
 same_model:          <yes | no | unknown | off> (tested <model>, judge <model>)
 estimate_usd:        roughly <n> (cases x runs x arms, plus judge calls)
 ceiling:             <n> USD | unlimited
-leftover_sandboxes:  <n> sandboxes (<total size> in <temp dir>) | unknown
+leftover_sandboxes:  <n> sandboxes (<total size> in <tmp>) | unknown
 tmp_free:            <free space on the temp dir's filesystem> | unknown
 ```
 
-### Leftover sandboxes
-
-Earlier runs leave `claude-eval-*` directories in the temp directory (`$TMPDIR`, else `/tmp`).
-Probe read-only: `find <temp dir> -maxdepth 1 -type d -name 'claude-eval-*'` for the count, `du -skc`
-over them for the size (the `total` line), `df -k <temp dir>` for `tmp_free`. An unreadable path
-reports `unknown`, never `0`: a non-zero `du` exit or a permission error means the total is partial,
-so report the size as `unknown` (or as `at least <total>`). Preflight removes nothing and does not
-block the run on either field. Above zero, print for the user to run `chmod -R u+w <temp dir>/claude-eval-*`, then `rm -rf <temp
-dir>/claude-eval-*`; subdirectories `chmod` cannot enter are the sandbox user's and need `sudo rm -rf`.
+**Leftover sandboxes:** earlier runs leave `claude-eval-*` directories in the temp directory `<tmp>`
+(`$TMPDIR`, else `/tmp`). Probe read-only: `find <tmp> -maxdepth 1 -type d -name 'claude-eval-*'`
+for the count, `du -skc` over them for the size (the `total` line), `df -k <tmp>` for `tmp_free`. An
+unreadable path reports `unknown`, never `0`; a non-zero `du` exit or a permission error means a
+partial total, so report the size as `unknown` or `at least <total>`. Preflight removes nothing and
+blocks on neither field. Above zero, print for the user `chmod -R u+w <tmp>/claude-eval-*`, then
+`rm -rf <tmp>/claude-eval-*`; what `chmod` cannot enter is the sandbox user's and needs `sudo rm -rf`.
 
 **Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read
 `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
@@ -119,11 +117,10 @@ ungranted tool is removed and reported on stderr as `not granted`.
 ### Worktree isolation
 
 Under Claude Code's worktree isolation a Bash guard can refuse the CLI; which session shapes it
-covers is in [records](reference/records.md#worktrees). It matters only when `run` or `init`
-invokes the CLI. Never retry, wrap, reroute, or otherwise bypass a refusal. Build the command with
-absolute paths: for `run`, an absolute `<target>` and `--json` path inside the worktree; for
-`init`, `cd <absolute plugin root> && claude plugin eval init --bare <name>`. Take the first route
-that fits:
+covers is in [records](reference/records.md#worktrees). It matters only when `run` or `init` invokes
+the CLI. Never retry, wrap, reroute, or otherwise bypass a refusal. Build the command with absolute
+paths: for `run`, an absolute `<target>` and `--json` path inside the worktree; for `init`,
+`cd <absolute plugin root> && claude plugin eval init --bare <name>`. Take the first route that fits:
 
 1. A `run` in a session entered with `EnterWorktree`: ask the user whether to leave the worktree
    for it. Only on a yes, `ExitWorktree` with `keep`, run it, then `EnterWorktree` back by the
