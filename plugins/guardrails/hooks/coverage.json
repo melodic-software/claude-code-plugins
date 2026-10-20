@@ -49,6 +49,21 @@
           "effect": "a comma list of family tokens the guard permits (credential-fill, gh-auth-token, env-echo, credential-file-read)"
         }
       ]
+    },
+    {
+      "hook": "hooks/block-fix-request-post.sh",
+      "event": "PreToolUse",
+      "matcher": "Bash|PowerShell",
+      "decision": "block",
+      "families": [],
+      "patterns": [],
+      "levers": [
+        {
+          "kind": "userConfig",
+          "name": "block_fix_request_post_enabled",
+          "effect": "false switches the guard off"
+        }
+      ]
     }
   ]
 }

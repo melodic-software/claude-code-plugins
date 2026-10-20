@@ -1,6 +1,6 @@
 {
   "name": "source-control",
-  "version": "1.12.1",
+  "version": "1.13.0",
   "description": "Git and GitHub delivery: /commit (convention-checked subject, Co-authored-by trailer, surgical staging), /pull-request (prep, create, CI monitoring, review triage, merge, CI logs), /babysit-prs (safe-by-default PR fleet loop, opt-in worker and autopilot tiers), /babysit-loop (merge lane; merge is human until the repo adopts it), /worktree, /resolve-conflicts (intent-first), /check, and /setup (layered source-control.md convention config; Conventional Commits by default).",
   "author": {
     "name": "Melodic Software",
@@ -243,6 +243,11 @@
       "type": "string",
       "title": "Lane instance ID",
       "description": "Writer identity for this machine's babysit-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: the sanitized lowercased hostname. Must match ^[a-z0-9][a-z0-9-]{0,31}$. It appears verbatim in tracker comments."
+    },
+    "lane_app_slug": {
+      "type": "string",
+      "title": "Lane GitHub app slug",
+      "description": "Slug of the GitHub App whose installation token this lane runs under; babysit-loop's telemetry upsert resolves its write identity as <slug>[bot]. Absent: the identity comes from the token's user. Must match ^[a-z0-9][a-z0-9-]*$."
     },
     "promotion_evidence_binding": {
       "type": "file",

@@ -40,11 +40,32 @@ assert_exit() {
 BEGIN='<!-- BEGIN GENERATED: convention-home -->'
 END='<!-- END GENERATED: convention-home -->'
 
-# mkrepo <name> — echo a fresh root with docs/conventions present
+# A fixed identity and no global config, so commits in the throwaway repos work anywhere;
+# an inherited GIT_DIR would otherwise send the fixture's writes to the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
+
+# mkrepo <name> — echo a fresh git root with docs/conventions present
 mkrepo() {
   local d="$TEST_TMPDIR/$1"
   mkdir -p "$d/docs/conventions"
+  git init -q "$d" >/dev/null 2>&1
   printf '%s' "$d"
+}
+
+# mkplain <name> — echo a fresh directory that is not inside a git work tree
+mkplain() {
+  local d="$TEST_TMPDIR/$1"
+  mkdir -p "$d/docs/conventions"
+  printf '%s' "$d"
+}
+
+# commit_all <root> — commit everything in the root, echo the 40-hex commit id
+commit_all() {
+  git -C "$1" add -A >/dev/null 2>&1
+  git -C "$1" commit -q -m t >/dev/null 2>&1
+  git -C "$1" rev-parse HEAD
 }
 
 # region <token-line...> — print a marked region whose body is the given lines
@@ -254,6 +275,165 @@ r="$(mkrepo bom-present)"
 run "$r"
 assert_exit "case 22b: same fixture with BOM immediately before BEGIN resolves" 0 "$RC"
 assert_eq "case 22b: with BOM prints the home" "docs/conventions" "$OUT"
+
+# --- Case 23: root classification: $HOME, an ancestor of it, or outside git -----
+r="$(mkrepo class-home)"
+{ region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
+OUT="$(HOME="$r" bash "$SCRIPT" --root "$r" 2>/dev/null)"; RC=0
+HOME="$r" bash "$SCRIPT" --root "$r" >/dev/null 2>&1 || RC=$?
+assert_exit "case 23a: a root at \$HOME is not applicable" 5 "$RC"
+assert_eq "case 23a: nothing on stdout" "" "$OUT"
+ERR="$(HOME="$r" bash "$SCRIPT" --root "$r" 2>&1 >/dev/null)"
+assert_contains "case 23a: says not applicable" "$ERR" "not applicable"
+
+mkdir -p "$r/deep/er"
+RC=0
+HOME="$r/deep/er" bash "$SCRIPT" --root "$r" >/dev/null 2>&1 || RC=$?
+assert_exit "case 23b: a root that is an ancestor of \$HOME is not applicable" 5 "$RC"
+
+RC=0
+HOME="$r/deep/er" bash "$SCRIPT" --root "$r/deep" >/dev/null 2>&1 || RC=$?
+assert_exit "case 23c: a root below an ancestor of \$HOME is still an ancestor" 5 "$RC"
+
+p="$(mkplain class-plain)"
+{ region "$(pointer docs/conventions)"; } >"$p/AGENTS.md"
+run "$p"
+assert_exit "case 23d: a root outside any git work tree is not applicable" 5 "$RC"
+assert_contains "case 23d: names the cause" "$ERR" "not inside a git work tree"
+
+RC=0
+HOME="$TEST_TMPDIR/elsewhere" bash "$SCRIPT" --root "$r" >/dev/null 2>&1 || RC=$?
+assert_exit "case 23e: a git root that is neither \$HOME nor its ancestor resolves" 0 "$RC"
+
+# --- Case 24: CLAUDE.md -> AGENTS.md (or the reverse) is one file, no duplicate -
+r="$(mkrepo symlink-claude)"
+{ region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
+ln -s AGENTS.md "$r/CLAUDE.md"
+run "$r"
+assert_exit "case 24a: CLAUDE.md -> AGENTS.md resolves" 0 "$RC"
+assert_eq "case 24a: prints the home" "docs/conventions" "$OUT"
+case "$ERR" in
+*duplicate:*) fail "case 24a: no duplicate line for a symlinked CLAUDE.md" "stderr: $ERR" ;;
+*) pass "case 24a: no duplicate line for a symlinked CLAUDE.md" ;;
+esac
+
+r="$(mkrepo symlink-agents)"
+{ region "$(pointer docs/conventions)"; } >"$r/CLAUDE.md"
+ln -s CLAUDE.md "$r/AGENTS.md"
+run "$r"
+assert_exit "case 24b: AGENTS.md -> CLAUDE.md resolves" 0 "$RC"
+case "$ERR" in
+*duplicate:*) fail "case 24b: no duplicate line for a symlinked AGENTS.md" "stderr: $ERR" ;;
+*) pass "case 24b: no duplicate line for a symlinked AGENTS.md" ;;
+esac
+
+r="$(mkrepo copy-claude)"
+{ region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
+cp "$r/AGENTS.md" "$r/CLAUDE.md"
+run "$r"
+assert_contains "case 24c: a real copy is still a duplicate" "$ERR" "duplicate:"
+
+# --- Case 25: --ref reads the committed file ------------------------------------
+r="$(mkrepo ref-sha)"
+printf 'x\n' >"$r/docs/conventions/x.md"
+{ region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
+sha="$(commit_all "$r")"
+git -C "$r" update-ref refs/remotes/origin/main "$sha"
+# The working tree now disagrees with the commit: the ref must win.
+{ region "Nothing is bound here."; } >"$r/AGENTS.md"
+OUT="$(bash "$SCRIPT" --root "$r" --ref "$sha" 2>/dev/null)"; RC=0
+bash "$SCRIPT" --root "$r" --ref "$sha" >/dev/null 2>&1 || RC=$?
+assert_exit "case 25a: a 40-hex ref reads the committed file" 0 "$RC"
+assert_eq "case 25a: prints the committed home" "docs/conventions" "$OUT"
+OUT="$(bash "$SCRIPT" --root "$r" --ref origin/main 2>/dev/null)"; RC=0
+bash "$SCRIPT" --root "$r" --ref origin/main >/dev/null 2>&1 || RC=$?
+assert_exit "case 25b: origin/<name> reads the committed file" 0 "$RC"
+assert_eq "case 25b: prints the committed home" "docs/conventions" "$OUT"
+run "$r"
+assert_exit "case 25c: without --ref the working tree is read" 1 "$RC"
+
+for bad in "HEAD" "main" "origin/../x" "origin/-x" "--upload-pack=x" "${sha:0:39}" "${sha}0" "$(printf '%s' "$sha" | tr 'a-f' 'A-F')" ""; do
+  RC=0
+  bash "$SCRIPT" --root "$r" --ref "$bad" >/dev/null 2>&1 || RC=$?
+  assert_exit "case 25d: ref shape [$bad] exits 2" 2 "$RC"
+done
+RC=0
+bash "$SCRIPT" --root "$r" --ref "$(printf '0%.0s' $(seq 1 40))" >/dev/null 2>&1 || RC=$?
+assert_exit "case 25e: a well-formed ref that is no commit exits 2" 2 "$RC"
+RC=0
+bash "$SCRIPT" --root "$r" --ref >/dev/null 2>&1 || RC=$?
+assert_exit "case 25f: --ref with no value exits 2" 2 "$RC"
+
+# A committed home that is missing at the ref is a FAIL even when the working tree has it.
+r="$(mkrepo ref-missing-home)"
+{ region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
+sha="$(commit_all "$r")"
+mkdir -p "$r/docs/conventions"
+printf 'x\n' >"$r/docs/conventions/x.md"
+RC=0
+bash "$SCRIPT" --root "$r" --ref "$sha" >/dev/null 2>&1 || RC=$?
+assert_exit "case 25g: a home directory absent at the ref exits 3" 3 "$RC"
+
+# --ref with --root below the toplevel reads that subdirectory's committed files.
+r="$(mkrepo ref-subdir)"
+mkdir -p "$r/sub/docs/conventions"
+printf 'x\n' >"$r/sub/docs/conventions/x.md"
+{ region "$(pointer docs/conventions)"; } >"$r/sub/AGENTS.md"
+sha="$(commit_all "$r")"
+OUT="$(bash "$SCRIPT" --root "$r/sub" --ref "$sha" 2>/dev/null)"; RC=0
+bash "$SCRIPT" --root "$r/sub" --ref "$sha" >/dev/null 2>&1 || RC=$?
+assert_exit "case 25h: --ref with a --root below the toplevel reads that directory's file" 0 "$RC"
+assert_eq "case 25h: prints the home" "docs/conventions" "$OUT"
+
+# --- Case 26: stdin `-` reads the region ---------------------------------------
+OUT="$({ region "$(pointer docs/conventions)"; } | bash "$SCRIPT" - 2>/dev/null)"; RC=0
+{ region "$(pointer docs/conventions)"; } | bash "$SCRIPT" - >/dev/null 2>&1 || RC=$?
+assert_exit "case 26a: stdin region resolves" 0 "$RC"
+assert_eq "case 26a: prints the home" "docs/conventions" "$OUT"
+RC=0
+printf 'No region.\n' | bash "$SCRIPT" - >/dev/null 2>&1 || RC=$?
+assert_exit "case 26b: stdin without a region exits 1" 1 "$RC"
+RC=0
+{ region "$(pointer docs/conventions)" "$(pointer docs/conventions)"; } | bash "$SCRIPT" - >/dev/null 2>&1 || RC=$?
+assert_exit "case 26c: stdin with two pointers exits 3" 3 "$RC"
+RC=0
+{ region "$(pointer docs/conventions)"; } | bash "$SCRIPT" - --root "$TEST_TMPDIR" >/dev/null 2>&1 || RC=$?
+assert_exit "case 26d: stdin with --root exits 2" 2 "$RC"
+
+# --- Case 27: a declined line has its own exit code ----------------------------
+r="$(mkrepo declined)"
+{ region "declined"; } >"$r/AGENTS.md"
+run "$r"
+assert_exit "case 27a: a declined region exits 4" 4 "$RC"
+assert_eq "case 27a: stdout empty" "" "$OUT"
+assert_contains "case 27a: says not to ask again" "$ERR" "do not ask again"
+
+r="$(mkrepo declined-padded)"
+{ region "  declined  "; } >"$r/AGENTS.md"
+run "$r"
+assert_exit "case 27b: surrounding whitespace is ignored" 4 "$RC"
+
+r="$(mkrepo declined-outside)"
+printf 'declined\n' >"$r/AGENTS.md"
+run "$r"
+assert_exit "case 27c: a declined line outside the region is prose" 1 "$RC"
+
+r="$(mkrepo declined-with-pointer)"
+{ region "declined" "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
+run "$r"
+assert_exit "case 27d: declined beside a pointer is a FAIL" 3 "$RC"
+
+# --- Case 28: the default root is the git toplevel, not CLAUDE_PROJECT_DIR ------
+r="$(mkrepo toplevel)"
+mkdir -p "$r/packages/app"
+{ region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
+OUT="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$r/packages/app" bash "$SCRIPT" 2>/dev/null)"; RC=0
+(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$r/packages/app" bash "$SCRIPT" >/dev/null 2>&1) || RC=$?
+assert_exit "case 28a: CLAUDE_PROJECT_DIR in a subdirectory reads the toplevel's file" 0 "$RC"
+assert_eq "case 28a: prints the toplevel's home" "docs/conventions" "$OUT"
+{ region "Not bound."; } >"$r/packages/app/AGENTS.md"
+OUT="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$r/packages/app" bash "$SCRIPT" 2>/dev/null)"
+assert_eq "case 28b: the subdirectory's own AGENTS.md is not consulted" "docs/conventions" "$OUT"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

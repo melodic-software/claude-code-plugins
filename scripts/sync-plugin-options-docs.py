@@ -20,6 +20,7 @@ the nuance. They sit next to each other in the plugin's own folder so they chang
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import sys
 
@@ -30,7 +31,12 @@ BEGIN = "<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run script
 LEGACY_BEGIN = "<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->"
 END = "<!-- END GENERATED: plugin options -->"
 
-REPO = pathlib.Path(__file__).resolve().parent.parent
+# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this script
+# (the pre-push hook runs a merge-base copy against the branch).
+REPO = pathlib.Path(
+    os.environ.get("CHECK_DATA_ROOT")
+    or pathlib.Path(__file__).resolve().parent.parent
+)
 PLUGINS = REPO / "plugins"
 
 # A placeholder, deliberately, not this repository's marketplace name. Plugin-facing docs are

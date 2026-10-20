@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/recipe-import/design/design-threads.md",
+            "content": "# Design threads\n"
+          }
+        }
+      ],
+      "why": "a design artifact is allowed"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "recipes/importer.py",
+            "content": "def import_recipe(url): ...\n"
+          }
+        }
+      ],
+      "why": "wrote code"
+    }
+  ]
+}

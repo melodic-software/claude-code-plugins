@@ -8,7 +8,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
-import { resolve, resolveGrant } from "./resolve.mjs";
+import { checkPatchRules, resolve, resolveGrant } from "./resolve.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -23,8 +23,10 @@ const FILES = {
   laneRules: json("./lane-rules.json"),
   effectGrants: json("./effect-grants.json"),
   activityRules: json("./activity-rules.json"),
+  trustedActors: json("../../standards/trusted-actors/trusted-actors.json"),
 };
-// A conflicting, ready, unlabeled PR that changed one Markdown file.
+// A conflicting, ready, unlabeled PR that changed one Markdown file; as an
+// issue, a listed human set it Small, Low and Known (the org's option ids).
 const FACTS = {
   event: "dispatch",
   changedPaths: ["docs/guide.md"],
@@ -33,6 +35,12 @@ const FACTS = {
   workClasses: [],
   mergeable: "conflicting",
   draft: false,
+  fieldValues: [
+    { field: 15462270, option: 27053568 },
+    { field: 48625720, option: 85127651 },
+    { field: 48625721, option: 85127654 },
+  ],
+  fieldSetters: { 15462270: 153232337, 48625720: 153232337, 48625721: 153232337 },
 };
 const selected = (lane, activity, facts = {}) =>
   resolve(FILES, {
@@ -273,6 +281,14 @@ test("live config: resolve-issue may run the changelog fragment check", () => {
   ]);
 });
 
+// #8310 (owner decision: option a): the run's own advisory check-affected over
+// its uncommitted work, which the runner's run-checks job never reruns.
+test("live config: resolve-issue self-checks its uncommitted work with check-affected", () => {
+  const leaf = selected("work-resolve-issue", "resolve-issue", ISSUE);
+  assert.deepEqual(leaf["self-checks"], ["scripts/check-affected.sh --uncommitted"]);
+  assert.ok(!leaf.checks.includes("scripts/check-affected.sh --uncommitted"), leaf.checks.join(" | "));
+});
+
 // #7597: the issue's done-when runs the can't-fail scan, a read-only checker.
 // #7685 and #7686: one test file at a time, and git mv and git rm, in the checkout.
 // #7840 (owner decision 2026-10-17): skill-quality's two checks; check-skill.sh
@@ -337,4 +353,20 @@ test("live config: fix-docs applies to a Markdown change and waits on needs-huma
 
 test("live config: fix-docs does not apply to a draft PR", () => {
   assert.equal(skipReason("pr-refine", "fix-docs", { draft: true }), "not-applicable");
+});
+
+// Each activity's applied-by lands with the phase that moves it to the read
+// runner, after the broker serves a reader that knows the field; until then
+// no live activity sets it.
+test("live config: no activity sets applied-by yet", () => {
+  const { activities } = parse(FILES.config);
+  assert.deepEqual(
+    Object.keys(activities).filter((name) => Object.hasOwn(activities[name], "applied-by")),
+    [],
+  );
+});
+
+test("live config: the shipped patch rules pass against the live activities", () => {
+  const rules = json("./patch-rules.json");
+  assert.equal(checkPatchRules(rules, json("./patch-rules.schema.json"), parse(FILES.config).activities), rules);
 });

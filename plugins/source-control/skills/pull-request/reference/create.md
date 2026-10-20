@@ -12,7 +12,7 @@
 
 ## 2.1 Pre-flight
 
-1. **Prep completed?** Prep produces no state file. Its outputs (verified findings + clean verify-gate results) live in conversation context. If neither has been run this session, suggest `/source-control:pull-request prep` first; in `full` mode this phase is preceded by prep automatically. Skip the review prompt for docs-only PRs (Phase 1.1 skips review/simplify).
+1. **Prep completed?** Prep produces no state file. Its outputs (verified findings + clean verify-gate results) live in conversation context. If neither has been run this session, suggest `/source-control:pull-request prep` first; in `full` mode this phase is preceded by prep automatically. Skip the review prompt for docs-only PRs (Phase 1.1 skips review/simplify); `ready` still reviews an instruction-surface diff ([definition](ready-for-review.md#docs-only-and-instruction-surfaces)).
 2. **Changes exist?** `git status --porcelain` must show changes or commits ahead of remote.
 3. **Not on the default branch?** If on it, suggest a branch/worktree.
 4. **Branch naming?** If the branch name doesn't fit the project's convention (common default: `<type>/<kebab-description>`; Claude Code's auto-created worktree branches may be named `worktree-*`), rename before push: `git branch -m <old> <type>/<description>`. Derive `<type>` from commit content (feat/fix/chore/etc.) and `<description>` from the commit subject. If no commits exist yet (empty branch), prompt the user for a branch name, since auto-derivation has no input without commits. Present the rename for awareness, not approval.

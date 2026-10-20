@@ -3,6 +3,20 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2] - 2026-10-20
+
+### Changed
+
+- `/verification:confirm` and `/verification:measure` gain a `## Next` section naming their successors.
+
+### Fixed
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- The shared settings checker behind `/verification:setup` validates string and object settings, and reports a setting whose schema shape it does not check instead of stopping with a JavaScript error.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.10.1] - 2026-10-18
 
 ### Fixed

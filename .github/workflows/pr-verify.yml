@@ -9,12 +9,16 @@ name: pr-verify
 # The verdict is not a check run and stays out of ci-status
 # (docs/conventions/pr-pipeline/README.md, "Verifier verdict").
 #
-# No pull request code runs here. The diff is fetched into a directory outside
-# the model's working directory, and the model reads it, the trusted PR text
-# and its linked issues as data with the Read tool alone. The job token can
-# only read. Every script and action comes from the main checkout in .base.
+# No pull request code runs here. The diff, the trusted PR text and the linked
+# issues are data files in pr-verify-data under the working directory, and the
+# model reads them with the Read tool alone: its rules allow that directory
+# and deny .base and every other tool. The judgment runs on ci-workflows'
+# run-claude-cli as the automations role, its API key first and its
+# subscription token after a credit stop. The job token can only read. Every
+# script and local action comes from the main checkout in .base; the Claude
+# actions are ci-workflows', pinned by SHA.
 #
-# Every action runs from the main checkout at ./.base. zizmor's
+# Every local action runs from the main checkout at ./.base. zizmor's
 # self-repository advice (`$/...`) is ignored on those lines, as in
 # pr-run-activity-read.yml.
 
@@ -98,8 +102,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
-          SPEC_FILE: ${{ runner.temp }}/pr-verify-data/spec.json
-          SPEC_TEXT_FILE: ${{ runner.temp }}/pr-verify-data/spec-text.json
+          SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
+          SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: |
           mkdir -p "$(dirname "$SPEC_FILE")"
@@ -130,7 +134,7 @@ jobs:
         with:
           pr-number: ${{ steps.pr.outputs.pr-number }}
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
-          output-path: ${{ runner.temp }}/pr-verify-data/context.json
+          output-path: ${{ github.workspace }}/pr-verify-data/context.json
           github-token: ${{ github.token }}
 
       # A blobless fetch of the two commits into its own repository outside
@@ -142,7 +146,7 @@ jobs:
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
-          DATA: ${{ runner.temp }}/pr-verify-data
+          DATA: ${{ github.workspace }}/pr-verify-data
           SRC: ${{ runner.temp }}/pr-verify-src
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
@@ -165,34 +169,11 @@ jobs:
           model-route: verify-pr
           output-path: ${{ runner.temp }}/pr-verify-models.json
 
-      - name: Build the prompt and arguments
-        id: prompt
+      # run-claude-cli refuses to run without these root-owned settings, which
+      # need sudo, so they are written before the runner is isolated.
+      - name: Apply the Claude managed settings
         if: steps.agree.outcome == 'success'
-        env:
-          DATA: ${{ runner.temp }}/pr-verify-data
-        run: |
-          [[ $DATA =~ ^/[A-Za-z0-9_./-]+$ ]] || { echo "::error::the data directory has a name a rule cannot carry"; exit 1; }
-          prompt=$(<.base/.github/scripts/pr-verify/prompt.md)
-          prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
-          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-          prompt=${prompt//PR_FILE/$DATA/pr.json}
-          prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
-          prompt=${prompt//SPEC_FILE/$DATA/spec.json}
-          schema='{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}'
-          # A rule path starting `//` is absolute. In agent mode the action
-          # adds no tool or MCP server of its own for these inputs
-          # (claude-code-action src/mcp/install-mcp-server.ts:114, :131, :177,
-          # :213 at the pinned SHA); the denials below hold if that changes.
-          denied="Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent"
-          denied="$denied,mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_ci,mcp__github_inline_comment"
-          args="--allowedTools \"Read(/$DATA/**)\" --disallowedTools \"$denied\" --json-schema '$schema'"
-          delimiter="prompt_$(openssl rand -hex 16)"
-          {
-            echo "claude-args=$args"
-            echo "prompt<<$delimiter"
-            printf '%s\n' "$prompt"
-            echo "$delimiter"
-          } >>"$GITHUB_OUTPUT"
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@34c8358f2d6c2551d7d462064ea46d403df0b7ac # v0.52.0
 
       - name: Isolate the runner
         if: steps.agree.outcome == 'success'
@@ -200,44 +181,106 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # The trigger gate admitted only listed actors, so the action's own
-      # actor check may pass the lanes App, which pushes the lane's PRs.
+      # Files, not step outputs: run-claude-cli reads both. A `default` model
+      # resolves to an empty model, which the launcher cannot pass. started-at
+      # lets the outcome step tell a step timeout from other failures.
+      - name: Write the prompt and schema
+        id: prompt
+        if: steps.agree.outcome == 'success'
+        env:
+          DATA: ${{ github.workspace }}/pr-verify-data
+          MODEL: ${{ steps.models.outputs.model }}
+          PROMPT_FILE: ${{ runner.temp }}/pr-verify-prompt.md
+          SCHEMA_FILE: ${{ runner.temp }}/pr-verify-schema.json
+        run: |
+          if [ -z "$MODEL" ]; then
+            echo "::error::the verify-pr profile's model is default, which run-claude-cli cannot pass; name an alias"
+            exit 1
+          fi
+          prompt=$(<.base/.github/scripts/pr-verify/prompt.md)
+          prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
+          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+          prompt=${prompt//PR_FILE/$DATA/pr.json}
+          prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
+          prompt=${prompt//SPEC_FILE/$DATA/spec.json}
+          printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
+          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      # continue-on-error keeps a launcher failure, which run-claude-cli
+      # reports by failing this step, from ending the job before the outcome
+      # step; "Fail without a verdict" carries the red. Two legs of
+      # leg-timeout-minutes and the CLI install fit in timeout-minutes, which
+      # the outcome step repeats, and that fits in the job's 30. One job is
+      # allowed: the model has Read alone and the job token can only read.
+      # Under dontAsk only the allow rule's directory is readable; the deny
+      # rules hold if the tools or the working directory change.
       - name: Judge the pull request
         id: judge
         if: steps.agree.outcome == 'success'
-        uses: anthropics/claude-code-action@f27be6b65a4652f08a2ba3cff79114829b588967 # v1.0.252
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d0fc3b14564383022ccc0559a5f96f3698dac39b # v0.53.0
         env:
-          # Strips the OAuth token and other credentials from any subprocess
-          # (code.claude.com/docs/en/env-vars, as of 2026-10-04; recheck as in
-          # pr-run-activity-read.yml).
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
-          # The action stops reading at the first result message, so no work
-          # may run in the background (pr-run-activity-read.yml).
+          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
-          claude_code_oauth_token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ github.token }}
-          allowed_bots: melodic-automation-lanes[bot]
-          prompt: ${{ steps.prompt.outputs.prompt }}
-          settings: ${{ steps.models.outputs.settings-json }}
-          claude_args: >-
-            --setting-sources user
-            --permission-mode dontAsk
-            ${{ steps.models.outputs.claude-args }}
-            ${{ steps.prompt.outputs.claude-args }}
+          lane: pr-verify
+          role: automations
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt.md
+          preamble: >-
+            You run unattended; return only the verdict the schema asks for;
+            nothing you write is posted.
+          api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+          subscription-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-verify-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          leg-timeout-minutes: "10"
 
-      # The structured output is untrusted model text: read through env and
-      # checked by the script, never interpolated into a command.
+      - name: Report the judgment's outcome
+        if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@34c8358f2d6c2551d7d462064ea46d403df0b7ac # v0.52.0
+        with:
+          outcome: ${{ steps.judge.outcome }}
+          execution-file: ${{ steps.judge.outputs.execution-file }}
+          lane: pr-verify
+          step-started-at: ${{ steps.prompt.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.judge.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.judge.outputs.lane-class }}
+
+      # The structured output, in the last result message of the execution
+      # file, is untrusted model text: read from the file and checked by the
+      # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
         if: steps.judge.outcome == 'success'
         env:
-          STRUCTURED_OUTPUT: ${{ steps.judge.outputs.structured_output }}
+          EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge.outputs.log-file }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
           HEAD_REF: ${{ steps.pr.outputs.head-ref }}
-          SPEC_FILE: ${{ runner.temp }}/pr-verify-data/spec.json
+          SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
@@ -261,3 +304,9 @@ jobs:
             jq '.summary |= gsub("`"; "'"'"'") | .notes |= map(gsub("`"; "'"'"'"))' "$VERDICT_FILE"
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Fail without a verdict
+        if: always() && steps.agree.outcome == 'success' && steps.verdict.outcome != 'success'
+        run: |
+          echo "::error::the judgment left no verdict for this head"
+          exit 1
