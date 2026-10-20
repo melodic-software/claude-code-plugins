@@ -26,15 +26,14 @@ name: pr-test-windows
 # run already ran its Windows steps, every commit reaches main through the
 # merge queue, and the scheduled run covers what landed together.
 #
-# `on.paths` still decides whether a run starts at all, because being outside
-# the required closure is also what makes it legal here: a workflow a path
-# filter never starts leaves no pending required check behind. The `paths`
-# list below is the union of the `shell`, `python` and `powershell` groups of
-# pr-require-checks.yml's detect-changes filter table, so a diff that touches none of them
-# (docs only, say) starts no run. Keep it in step with those three groups.
-# GitHub reads at most the first 300 changed files for a `paths` filter, so a
-# larger diff whose matching files fall past that point starts no run; accepted
-# for an informational lane, and the scheduled run covers it.
+# NO `on.paths` FILTER: THE SELECTION IS THE ONE GATE, AND IT FAILS OPEN. A
+# path list here drifted from the selection and failed closed: a change to
+# plugins/guardrails/hooks/exec-bash.mjs or a hooks.json selects Windows jobs
+# but matched no listed path, so no run started. The selector maps an
+# unclassified code file to its language's whole corpus; a docs-only diff, or a
+# data file no suite reads, selects nothing, so such a push costs only
+# `select-tests-windows` on Linux;
+# a Windows job skipped by its `if:` starts no runner.
 #
 # Draft pull requests run nothing: `select-tests-windows` gates on the draft flag and
 # every other job needs it, and `ready_for_review` starts the run when the
@@ -52,27 +51,6 @@ on:
     - cron: '17 9,16 * * *'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - .github/**
-      - scripts/**
-      - lib/**
-      - package.json
-      - package-lock.json
-      - pyproject.toml
-      - uv.lock
-      - requirements*.txt
-      - .node-version
-      - .python-version
-      - .shellcheckrc
-      - ruff.toml
-      - plugins/docs-naming/skills/generate-file-name-gate/**
-      - .claude/docs-naming.json
-      - "**/*.sh"
-      - "**/*.bash"
-      - "**/*.py"
-      - "**/*.ps1"
-      - "**/*.psm1"
-      - "**/*.psd1"
 
 permissions:
   contents: read

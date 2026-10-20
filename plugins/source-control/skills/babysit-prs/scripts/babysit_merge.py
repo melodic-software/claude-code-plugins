@@ -90,8 +90,9 @@ Contract enforced here (encoded as code, not convention):
   under `merge.dependabot.majors: hold` gets the same label and one upserted
   `<!-- babysit-merge-dependabot-major -->` comment, and a ready LOW pull request is
   enqueued at its pinned head after a second kill-switch read, an armed
-  auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment; a
-  later run that reads the queued entry back as merged at that head
+  auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment, unless
+  the base changed a `merge.check-inputs` path since its merge base, when its
+  branch is updated from the base (`update-branch`) instead; a later run that reads the queued entry back as merged at that head
   dispatches the full run. It refuses `--allow-dependency`, `--auto`,
   `--allow-unpinned-head`, `--stacked-prs` and `--allow-unprotected`. Absent
   the flag the gate is unchanged, except that plain `--merge` refuses at exit 10 when the token's
@@ -141,6 +142,7 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
 
+import babysit_check_inputs as check_inputs
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
@@ -3646,6 +3648,23 @@ def _graphql_write(query: str, node_id: str) -> bool:
     return proc.returncode == 0
 
 
+def update_error(proc: Any) -> dict[str, Any]:
+    """The status and message of a refused `update-branch` call: whether the
+    lane token may write a merge that brings in base workflow changes is
+    learned from these."""
+    message = ""
+    try:
+        body = json.loads(proc.stdout or "")
+        if isinstance(body, dict) and isinstance(body.get("message"), str):
+            message = body["message"]
+    except ValueError:
+        pass
+    return {
+        "status": gh_http_status(proc.stderr or ""),
+        "message": (message or (proc.stderr or "").strip())[:500],
+    }
+
+
 def unattended_enqueue(
     repo: str,
     number: int,
@@ -3736,7 +3755,8 @@ def unattended_enqueue(
     # lane a removal (or a removal and a non-human re-add) since the
     # eligibility read refuses; for the pr-merge lane a changed closing issue.
     eligible = inputs.get("eligibility")
-    if getattr(eligible, "dependabot", None) is not None:
+    eligible_dependabot = getattr(eligible, "dependabot", None)
+    if eligible_dependabot is not None:
         # The Dependabot class is read again whole: a human blocking comment
         # or a `ci-status` rerun since the first read refuses.
         opt_in = merge_policy.dependabot_eligibility(
@@ -3776,6 +3796,30 @@ def unattended_enqueue(
         for base, served in list(SHARED_RULES.items())
     ):
         return hold("the base branch's rules changed since the gate read them")
+    # A head green on an old base can fail the queue's merge with the base
+    # tip, and every entry built behind it fails too. When the base changed
+    # what the checks read since the merge base, the branch is updated from
+    # the base instead; a later run enqueues the new head once its checks
+    # pass. A Dependabot head is not written (its own rebases stop), and a
+    # doubtful read or refused update enqueues as before.
+    inputs_read = check_inputs.changed_since_merge_base(
+        inputs["config"].check_inputs, pin, branch
+    )
+    step["checkInputs"] = inputs_read
+    if inputs_read["state"] == "stale" and eligible_dependabot is None:
+        proc = gh_capture(
+            ["api", "-X", "PUT", f"repos/{repo}/pulls/{number}/update-branch"]
+            + ["-f", f"expected_head_sha={pin}"]
+        )
+        inputs_read["updated"] = proc.returncode == 0
+        if proc.returncode == 0:
+            return hold(
+                f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
+                f"{branch} since merge base {inputs_read['mergeBase']}; the branch "
+                "was updated from the base, so the new head is enqueued once its "
+                "checks pass"
+            )
+        inputs_read["updateError"] = update_error(proc)
     proc = gh_capture(
         ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
         + ["-f", f"body={postmerge.pin_comment(pin)}"]
