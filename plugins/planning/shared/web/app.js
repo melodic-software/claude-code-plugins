@@ -27,12 +27,18 @@
     if (!ui.ixOff || typeof ui.ixOff !== "object" || Array.isArray(ui.ixOff)) ui.ixOff = {}; // the Inbox's chips turned off, per tab
     // Unsent text saved as this tab last reloaded (a new version, or the person's own reload; at the end): answer drafts
     // and every composer kit field's (chat, Discussion, Ask Claude, Suggest, Pass), per question where it is per question.
+    // They belong to whoever wrote them (`who`), so they come back only once the server says who this page is and it
+    // is the same person: never into another identity's fields after Switch, or an owner tab opening the guest link.
     const UNSENT = "vf-unsent";
-    const unsent = (() => { try { const v = JSON.parse(sessionStorage.getItem(UNSENT) || "null"); sessionStorage.removeItem(UNSENT); return v; } catch { return null; } })();
-    if (unsent) {
-      Object.assign(ui.drafts, unsent.drafts || {}); ui.restoreCur = unsent.cur || "";
-      if (unsent.kit && typeof unsent.kit === "object") Object.assign(ui.kd, unsent.kit);
-      if (typeof unsent.chat === "string" && unsent.chat && !ui.kd.chat) ui.kd.chat = unsent.chat; // saved by a page before the kit
+    let unsent = (() => { try { const v = JSON.parse(sessionStorage.getItem(UNSENT) || "null"); sessionStorage.removeItem(UNSENT); return v; } catch { return null; } })();
+    const whoAmI = () => (Core.me.isOwner ? "owner" : Core.me.cid);
+    function restoreUnsent() {
+      if (!unsent || !Core.snapshot()?.me) return;
+      const v = unsent; unsent = null;
+      if (!v.who || v.who !== whoAmI()) return;
+      Object.assign(ui.drafts, v.drafts || {}); ui.restoreCur = v.cur || "";
+      if (v.kit && typeof v.kit === "object") Object.assign(ui.kd, v.kit);
+      for (const k of KITS) if (k.draftKey && !k.f.value) k.key = null; // shown again from the restored drafts
     }
     const smooth = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
     /** Ring an element briefly; the class comes off again so a reduced-motion ring (no animation) never lingers. */
@@ -540,10 +546,11 @@
     // field holds now (a question's): each key keeps its own, and every key's survives a reload (UNSENT).
     const KIT = new WeakMap(), KITS = new Set(), MOD_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "Cmd" : "Ctrl";
     let kitBooted = false; // fields made after start-up (list rows) paint their counter on input only
-    function composer(f, { send, counterFrom, escape, mentions, draftKey, verb = "send" } = {}) {
-      if (!(f.maxLength > 0)) f.maxLength = 2000;
+    // cut: false leaves the field without a maxLength (and so without a counter), for text whose send checks its length.
+    function composer(f, { send, counterFrom, escape, mentions, draftKey, verb = "send", cut = true } = {}) {
+      if (cut && !(f.maxLength > 0)) f.maxLength = 2000;
       const oneLine = f.tagName === "INPUT" || f.rows === 1;
-      const k = { f, send, escape, mentions, draftKey, oneLine, from: counterFrom ?? Math.ceil(f.maxLength * 0.75), key: null };
+      const k = { f, send, escape, mentions, draftKey, oneLine, from: cut ? counterFrom ?? Math.ceil(f.maxLength * 0.75) : Infinity, key: null };
       k.count = E("span", "vf-count-txt"); k.count.setAttribute("aria-live", "polite");
       k.hint = send && !oneLine ? E("span", "vf-hint", `${MOD_KEY} + Enter to ${verb}`) : null;
       if (mentions) for (const [a, v] of [["aria-autocomplete", "list"], ["aria-haspopup", "listbox"], ["aria-expanded", "false"]]) f.setAttribute(a, v);
@@ -558,7 +565,8 @@
     /** Each keyed field keeps what was typed under its last key and shows what its key holds now. */
     function kitSwap() {
       for (const k of KITS) {
-        if (!k.draftKey) { kitPaint(k); continue; }
+        // a list row made before start-up leaves the set once its row is gone
+        if (!k.draftKey) { if (k.f.isConnected) { k.seen = true; kitPaint(k); } else if (k.seen) KITS.delete(k); continue; }
         const key = k.draftKey();
         if (key !== k.key) {
           if (k.key !== null) { if (k.f.value) ui.kd[k.key] = k.f.value; else delete ui.kd[k.key]; }
@@ -585,11 +593,14 @@
       TYPED.el = e.target; TYPED.at = performance.now();
       const k = KIT.get(e.target); if (k) kitPaint(k);
     }, true);
-    // Runs first; an open @ list keeps its own keys (Enter and Tab pick, Escape closes it).
+    // Runs first; an open @ list keeps its own keys (Enter and Tab pick, Escape closes it), and Ctrl or Cmd + Enter
+    // closes it and sends.
     on(document, "keydown", e => {
       const k = KIT.get(e.target);
-      if (!k || e.isComposing || e.keyCode === 229 || ui.mention?.field === e.target) return;
-      if (e.key === "Enter" && k.send && !e.shiftKey && !e.altKey && (k.oneLine || e.ctrlKey || e.metaKey)) { e.preventDefault(); k.send(); }
+      if (!k || e.isComposing || e.keyCode === 229) return;
+      const send = e.key === "Enter" && k.send && !e.shiftKey && !e.altKey;
+      if (ui.mention?.field === e.target) { if (send && (e.ctrlKey || e.metaKey)) { e.preventDefault(); closeMention(); k.send(); } return; }
+      if (send && (k.oneLine || e.ctrlKey || e.metaKey)) { e.preventDefault(); k.send(); }
       else if (e.key === "Escape" && k.escape) { e.preventDefault(); e.stopPropagation(); k.escape(); }
     }, true);
 
@@ -2128,7 +2139,10 @@
         // A question that takes a pick (or a poll): the text is a comment on my pick. Without a pick (or on confirm) it is my own answer.
         const fields = savedPick(q, rec);
         if (!fields && commentFirst(q) && (q.format === "choice" || isFormat(q) || q.purpose === "poll")) {
-          // no pick yet: picks drafted on a pick-many question save with the comment; otherwise the comment waits for the pick
+          // no pick yet: picks drafted on a pick-many question save with the comment; otherwise the comment waits for the
+          // pick, and a phone's sheet closes so the options show
+          ui.drafts[qid] = ta.value; closeSheet();
+          if (phone.matches) ta.blur();
           if (q.format === "multi" && fmtSave.getAttribute("aria-disabled") !== "true") fmtSave.click();
           else flash("Pick first. Your comment goes in with your pick.");
           return;
@@ -2556,11 +2570,11 @@
       row.append(copyP, chat, paste, cancel);
       const form = E("form", "vf-selfform"); form.hidden = true;
       // the answer, plus up to 30 source lines of about 130 characters each (judgment)
-      const ta = E("textarea", "vf-ta"); ta.rows = 5; ta.id = `vf-self-ta-${++selfSeq}`; ta.maxLength = Connect.MAX_SUMMARY + 4000;
+      const ta = E("textarea", "vf-ta"); ta.rows = 5; ta.id = `vf-self-ta-${++selfSeq}`;
       const lab = E("label", "vf-asklabel", "Your Claude's answer"); lab.htmlFor = ta.id;
       const post = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Post answer"); post.type = "submit";
       const notNow = btn("vf-btn vf-btn-ghost vf-btn-sm", "Not now");
-      const sK = composer(ta, { send: () => form.requestSubmit(), escape: () => notNow.click(), verb: "post" });
+      const sK = composer(ta, { send: () => form.requestSubmit(), escape: () => notNow.click(), verb: "post", cut: false });
       const frow = E("div", "vf-acts"); frow.append(sK.count, sK.hint, post, notNow);
       form.append(lab, ta, E("p", "vf-meta", "Sources on the last lines, as \"Title - https://...\", show as links. Only you and the host see the answer until the host shares it."), frow);
       box.append(row, form);
@@ -4075,19 +4089,33 @@
     // Picking another option moves my pick (one vote per question); only Undo clears it. Pressing my own pick does nothing.
     // A comment rides along with a new pick; my own option's text does not (it was the option, not a comment).
     const keptComment = (q, rec) => (q.format === "choice" && !rec?.other ? rec?.text || "" : "");
-    /** The comment written before the first pick on a poll or pick-many question (follow-up 26), sent with that pick. */
-    const earlyComment = (q, rec) => (commentFirst(q) && !savedPick(q, rec) && !rec?.other ? (q.id === ui.cur ? ta.value : ui.drafts[q.id] || "").trim() : "");
-    function sentEarly(qid) {
-      delete ui.drafts[qid];
-      if (ui.cur === qid) { ui.dirty = false; ta.value = Core.myAnswer(qid); grow(ta); render(); }
+    /** The comment, and the files, written before the first pick on a poll or pick-many question (follow-up 26): what
+     *  that pick sends with it, or null. */
+    function earlyOf(q, rec) {
+      if (!commentFirst(q) || savedPick(q, rec) || rec?.other) return null;
+      const comment = (q.id === ui.cur ? ta.value : ui.drafts[q.id] || "").trim(), att = ui.attDraft[q.id];
+      if (!comment && !att?.length) return null;
+      return { comment, ...(att?.length ? { attachments: att.map(a => a.upload).filter(Boolean) } : {}) };
     }
+    /** Sent: the files leave the draft; the text does too, unless more was typed while the pick was on its way. */
+    function sentEarly(qid, sent) {
+      if (sent.attachments) delete ui.attDraft[qid];
+      if ((ui.cur === qid ? ta.value : ui.drafts[qid] || "").trim() === sent.comment) {
+        delete ui.drafts[qid];
+        if (ui.cur === qid) { ui.dirty = false; ta.value = Core.myAnswer(qid); grow(ta); }
+      }
+      render();
+    }
+    /** An early pick on the question in view waits while one of its files waits for the host (attWaits says so). */
+    const earlyWaits = (qid, early) => !!early?.attachments && qid === ui.cur && attWaits(cSlot);
     const pickOpt = (optId, qid = ui.cur) => {
       const rec = myRec(qid), q = qById(qid);
       if (!q || readOnly(q) || Core.lockOf(qid) || rec?.pick === optId) return;
       if (optionsOf(q).find(x => x.id === optId)?.other) return openOther(qid);
       const label = optionsOf(q).find(x => x.id === optId)?.label || "it";
-      const early = earlyComment(q, rec);
-      Core.pick(qid, optId, early || keptComment(q, rec)).then(() => { if (early) sentEarly(qid); announce(rec?.pick ? `Your choice moved to ${label}.` : `You picked ${label}.`); armAdvance(qid); }).catch(fail);
+      const early = earlyOf(q, rec);
+      if (earlyWaits(qid, early)) return;
+      Core.pickWith(qid, { option: optId }, early || { comment: keptComment(q, rec) }).then(() => { if (early) sentEarly(qid, early); announce(rec?.pick ? `Your choice moved to ${label}.` : `You picked ${label}.`); armAdvance(qid); }).catch(fail);
     };
     const clearPick = (qid = ui.cur) => {
       stopAdvance();
@@ -5719,7 +5747,7 @@
     /** Follow-up 29: the asker of an ask on a choice, pick-many or ranking question may make Claude's answer their own
      *  option (Something else), its text editable before they save it. */
     const canUseClaude = (x, q) => !!q && x.kind === "ask" && isMe(x.byCid) && !!x.summary && ["choice", "multi", "rank"].includes(q.format)
-      && !!otherOf(q) && !readOnly(q) && !Core.lockOf(q.id) && !Core.state.ended && !Core.state.youRemoved;
+      && !x.takenDown && !(x.own && !x.published) && !!otherOf(q) && !readOnly(q) && !Core.lockOf(q.id) && !Core.state.ended && !Core.state.youRemoved;
     async function useClaude(x, q) {
       if (!canUseClaude(x, q)) return;
       const rec = myRec(q.id), had = savedPick(q, rec);
@@ -5858,9 +5886,10 @@
       // The saved pick shows at once; a refusal puts the draft back.
       const draft = ui.fdraft[qid], ownDraft = ui.otherText[qid];
       delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
-      const early = own == null ? earlyComment(q, rec) : "";
-      Core.pickWith(qid, fields, own != null ? { other: own } : { comment: early || commentOf(rec) })
-        .then(() => { if (early) sentEarly(qid); flash(q.format === "multi" ? `Your picks are saved${early ? " with your comment" : ""}.` : `Your ranking is saved${early ? " with your comment" : ""}.`); })
+      const early = own == null ? earlyOf(q, rec) : null;
+      if (earlyWaits(qid, early)) return;
+      Core.pickWith(qid, fields, own != null ? { other: own } : early || { comment: commentOf(rec) })
+        .then(() => { if (early) sentEarly(qid, early); flash(q.format === "multi" ? `Your picks are saved${early?.comment ? " with your comment" : ""}.` : `Your ranking is saved${early?.comment ? " with your comment" : ""}.`); })
         .catch(e => { if (draft && !ui.fdraft[qid]) ui.fdraft[qid] = draft; if (ownDraft != null && ui.otherText[qid] == null) ui.otherText[qid] = ownDraft; fail(e); render(); });
     };
     fmtClear.onclick = () => {
@@ -5885,8 +5914,9 @@
         const rec = myRec(qid);
         delete ui.fdraft[qid];
         if (rec?.value === n) return render();
-        const early = earlyComment(q, rec);
-        Core.pickWith(qid, { value: n }, { comment: early || commentOf(rec) }).then(() => { if (early) sentEarly(qid); announce(`You chose ${n}.`); armAdvance(qid); }).catch(fail).finally(render);
+        const early = earlyOf(q, rec);
+        if (earlyWaits(qid, early)) return render();
+        Core.pickWith(qid, { value: n }, early || { comment: commentOf(rec) }).then(() => { if (early) sentEarly(qid, early); announce(`You chose ${n}.`); armAdvance(qid); }).catch(fail).finally(render);
       };
       if (now) save(); else FMT.timer = setTimeout(save, 450);
     }
@@ -6408,6 +6438,7 @@
 
     function render() {
       if (dead) return;
+      restoreUnsent();
       kitSwap();
       const S = Core.state, me = Core.me, s = S.settings, mod = Core.canModerate();
       // The rail keeps round order (S.questions); answered ones carry a mark instead of moving.
@@ -7184,10 +7215,13 @@
     const sendPrefsNow = () => { clearTimeout(PK.timer); flushPrefs(); };
     on(window, "pagehide", sendPrefsNow);
     // A reload, for a new version (core.js) or the person's own, keeps unsent text in this tab's sessionStorage.
+    // Switch (core.js askSwitch) reloads as someone else: this person's drafts are dropped, not saved for them.
     const saveUnsent = () => {
+      if (Core.switching || (!unsent && !Core.snapshot()?.me)) return;
       if (ui.cur) ui.drafts[ui.cur] = ta.value;
       const drafts = Object.fromEntries(Object.entries(ui.drafts).filter(([q, t]) => t && t !== Core.myAnswer(q)));
-      try { sessionStorage.setItem(UNSENT, JSON.stringify({ drafts, kit: kitStore(), cur: ui.cur })); } catch { /* storage off */ }
+      // drafts not restored yet (who this page is was still unknown) go back as they came
+      try { sessionStorage.setItem(UNSENT, JSON.stringify(unsent || { who: whoAmI(), drafts, kit: kitStore(), cur: ui.cur })); } catch { /* storage off */ }
     };
     on(window, "pagehide", saveUnsent);
     Core.onReload(() => { saveUnsent(); markSeen(ui.cur); sendPrefsNow(); });

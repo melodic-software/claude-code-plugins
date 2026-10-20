@@ -2,14 +2,17 @@
 // The composer kit and the follow-ups built on it, against `share.sh ensure-running` with the fake cloudflared:
 // unsent chat and Discussion text survives a reload; Ask Claude text belongs to the question it was typed on; the @
 // picker works in the Discussion and a comment edit, with Claude first where "@Claude" files a request (chat and
-// Discussion) and a picked person posted as a mention; Ctrl + Enter posts a comment, Enter sends chat, Escape cancels a
-// comment edit, the counter shows near the limit and the request edit field has its limit (follow-ups 22, 31, F1, F2,
-// B1, B3); a poll or pick-many comment goes in with the pick in one step (26); a field the person is not typing in
-// never pulls the page back when it repaints (28); and Claude's answer to an ask becomes its asker's own option on a
-// choice question, asking first when they had picked (29).
+// Discussion) and a picked person posted as a mention; Ctrl + Enter posts a comment, also with the @ list open, Enter
+// sends chat, Escape cancels a comment edit, the counter shows near the limit, the request edit field has its limit and
+// a pasted answer from one's own Claude is never cut (follow-ups 22, 31, F1, F2, B1, B3); a poll or pick-many comment,
+// and its files, go in with the pick in one step, on a phone too, keeping text typed while the pick is on its way
+// (26); a field the person is not typing in never pulls the page back when it repaints (28); Claude's answer to an ask
+// becomes its asker's own option on a choice question, asking first when they had picked, never once taken down or
+// while it is their own Claude's unshared answer (29); and unsent text comes back only to whoever wrote it.
 //   node plugins/planning/shared/tests/ui_composer.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from the brief (.work/brief-A.md) and the texts this suite writes, never from the page.
+// Expected values come from the brief (.work/brief-A.md), the review round (.work/review-round-1.md) and the texts this
+// suite writes, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs, openClaude } = require("./browser_harness");
 
@@ -36,7 +39,7 @@ async function main() {
     const ann = await rec.open(A.localUrl, DESK);
     await joinAs(ann, "Ann");
     const bo = await rec.open(A.localUrl, DESK);
-    await joinAs(bo, "Bo Lee");
+    const boPid = await joinAs(bo, "Bo Lee");
     await until(ann, () => Object.values(window.Core.state.people || {}).some(p => p.name === "Bo Lee"));
     const go = async (p, text) => { await p.locator(".vf-q", { hasText: text }).first().click(); return until(p, t => document.querySelector(".vf-qtext")?.textContent === t, text); };
     const openDisc = async p => { if ((await p.getAttribute(".vf-disc-head", "aria-expanded")) !== "true") await p.click(".vf-disc-head"); return until(p, () => !document.querySelector(".vf-disc-body").hidden); };
@@ -61,8 +64,19 @@ async function main() {
     ok("the comment box shows its send key", await ann.evaluate(() => [...document.querySelectorAll(".vf-disc-form .vf-hint")].some(h => /^(Ctrl|Cmd) \+ Enter to post$/.test(h.textContent))));
     await ann.keyboard.press("Control+Enter");
     ok("Ctrl + Enter posts the comment", await until(ann, () => (window.Core.state.discussions.Q1 || []).some(c => /for the idea/.test(c.text))), JSON.stringify(await comments(ann)));
-    ok("  and the picked person shows as a mention in it", await until(bo, () => [...document.querySelectorAll(".vf-cm-txt .vf-mention")].some(m => m.textContent.startsWith("@")))
-      || await until(ann, () => [...document.querySelectorAll(".vf-cm .vf-cm-txt .vf-mention")].length > 0));
+    ok("  and the picked person is stored as Bo's mention token in it", await until(ann, t => (window.Core.snapshot().discussions?.Q1 || []).some(c => c.text.includes(t)), `<@${boPid}>`),
+      JSON.stringify(await ann.evaluate(() => (window.Core.snapshot().discussions?.Q1 || []).map(c => c.text))));
+    ok("  and shows in it as a mention of Bo", await until(ann, () => [...document.querySelectorAll(".vf-disc-list .vf-cm-txt .vf-mention")].some(m => m.textContent.startsWith("@Bo"))),
+      await ann.evaluate(() => [...document.querySelectorAll(".vf-disc-list .vf-cm-txt")].map(t => t.innerHTML).join(" | ")));
+
+    // ---------- Ctrl + Enter with the @ list open closes it and posts ----------
+    await ann.waitForTimeout(1100);
+    await ann.fill(".vf-disc-ta", "Ping ");
+    await ann.keyboard.type("@B");
+    const opened = !!(await picker(ann));
+    await ann.keyboard.press("Control+Enter");
+    ok("Ctrl + Enter with the @ list open closes the list and posts the comment", opened && await until(ann, () => document.querySelector(".vf-mentions").hidden
+      && (window.Core.state.discussions.Q1 || []).some(c => c.text === "Ping @B")), JSON.stringify({ opened, list: await picker(ann), comments: await comments(ann) }));
 
     // ---------- the counter near the limit ----------
     await ann.waitForTimeout(1100);
@@ -159,12 +173,18 @@ async function main() {
     await small.click("#vf-ask-ta", { timeout: 5000 }).catch(() => {});
     await small.keyboard.type("Reading the question first");
     await small.waitForTimeout(1200);
-    const top = await small.evaluate(() => { const sc = document.getElementById("vf-ask-ta").closest(".vf-scroll"); sc.scrollTop = 0; return sc.scrollTop; });
+    // scrolled to the top, the field sits below what the scroller shows, so a pull back to it would move scrollTop
+    const top = await small.evaluate(() => {
+      const f = document.getElementById("vf-ask-ta"), sc = f.closest(".vf-scroll"); sc.scrollTop = 0;
+      const r = f.getBoundingClientRect(), S = sc.getBoundingClientRect();
+      return { top: sc.scrollTop, out: r.top >= S.bottom || r.bottom <= S.top };
+    });
+    ok("scrolled up to read, the Ask Claude field is out of view", top.top === 0 && top.out, JSON.stringify(top));
     await owner.evaluate(() => window.Core.chat("A message that repaints every page"));
     await until(small, () => (window.Core.state.chat || []).some(m => m.text === "A message that repaints every page"));
     await small.waitForTimeout(400);
     const after = await small.evaluate(() => ({ top: (document.getElementById("vf-ask-ta").closest(".vf-scroll")).scrollTop, focused: document.activeElement?.id }));
-    ok("scrolled up to read, a repaint leaves the page where the person put it, focus kept", top === 0 && after.top === 0 && after.focused === "vf-ask-ta", JSON.stringify(after));
+    ok("scrolled up to read, a repaint leaves the page where the person put it, focus kept", after.top === 0 && after.focused === "vf-ask-ta", JSON.stringify(after));
     await small.keyboard.type(" more");
     const typed = await small.evaluate(() => { const f = document.getElementById("vf-ask-ta"), r = f.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight; });
     ok("  and typing again brings the field back into view", typed);
@@ -214,6 +234,123 @@ async function main() {
     ok("  confirming opens his own option with Claude's answer", await until(bo, a => document.getElementById("vf-other")?.value === a, ANS2));
     await bo.click(".vf-other-save", { timeout: 5000 }).catch(() => {});
     ok("  and saving moves his pick to it", await until(owner, a => (window.Core.snapshot().cards?.Q3 || []).some(c => c.pick === "other" && c.text === a), ANS2));
+
+    // ---------- S3: no Use as my answer on an answer taken down, or on my own Claude's answer not yet shared ----------
+    const useHidden = (p, a) => until(p, t => [...document.querySelectorAll(".vf-res")].some(li => li.textContent.includes(t) && li.querySelector(".vf-res-use").hidden), a);
+    await owner.evaluate(id => window.Core.requestAct(id, "takedown"), rid2);
+    await until(bo, a => (window.Core.state.research.Q3 || []).some(x => x.summary === a && x.takenDown), ANS2, 10000);
+    ok("the asker gets no Use as my answer on an answer the host took down", await useHidden(bo, ANS2),
+      await bo.evaluate(a => [...document.querySelectorAll(".vf-res")].filter(li => li.textContent.includes(a)).map(li => li.querySelector(".vf-res-use").hidden).join(), ANS2));
+    const OWN = "My own Claude says Post.";
+    await ann.waitForTimeout(1100);
+    const ownId = await ann.evaluate(async a => {
+      const { id } = await window.Core.request("Q3", "ask", "Which carrier, per my own Claude?", undefined, "self");
+      await window.Core.myClaim(id);
+      await window.Core.myResult(id, { summary: a, sources: [], report: "", used: [], why: "Pasted back from my own Claude." });
+      return id;
+    }, OWN);
+    await until(ann, a => (window.Core.state.research.Q3 || []).some(x => x.summary === a && x.own && !x.published), OWN, 10000);
+    ok("  nor on her own Claude's answer the host has not shared", !!ownId && await useHidden(ann, OWN),
+      await ann.evaluate(a => [...document.querySelectorAll(".vf-res")].filter(li => li.textContent.includes(a)).map(li => li.querySelector(".vf-res-use").hidden).join(), OWN));
+
+    // ---------- C5: a pasted answer from my own Claude is never cut; Post says how much to shorten ----------
+    await ann.waitForTimeout(1100);
+    await ann.evaluate(() => window.Core.request("Q3", "ask", "A long one for my own Claude", undefined, "self"));
+    await ann.keyboard.press("Escape");
+    if (await ann.evaluate(() => document.querySelector(".vf-apform")?.offsetParent === null)) await ann.click(".vf-asktop");
+    const longItem = ann.locator(".vf-apreq", { hasText: "A long one for my own Claude" });
+    await longItem.locator(".vf-self-paste").click();
+    await longItem.locator(".vf-selfform textarea").focus();
+    await ann.keyboard.insertText("x".repeat(9000));
+    const kept = (await longItem.locator(".vf-selfform textarea").inputValue()).length;
+    await longItem.locator(".vf-selfform button[type=submit]").click();
+    ok("a pasted 9000-character answer from my own Claude stays whole, and Post asks to shorten it to 4000", kept === 9000
+      && await until(ann, () => /Shorten it to 4000 characters; it has 9000\./.test(document.querySelector(".vf-toast.vf-on span")?.textContent || "")), kept);
+    await ann.keyboard.press("Escape");
+
+    // ---------- 26: a comment typed while the pick is on its way stays (C3) ----------
+    const di = await rec.open(A.localUrl, DESK);
+    await joinAs(di, "Di");
+    await go(di, T.q4);
+    await di.fill("#vf-answer", "First thought");
+    let release, held = false;
+    const gate = new Promise(r => { release = r; });
+    await di.route("**/api/pick", async r => { held = true; await gate; await r.continue(); });
+    await di.locator(".vf-opt", { hasText: "Pizza" }).locator(".vf-optchoose").click();
+    for (let i = 0; i < 50 && !held; i++) await di.waitForTimeout(100);
+    await di.focus("#vf-answer");
+    await di.keyboard.press("End");
+    await di.keyboard.type(" and more");
+    release();
+    await until(owner, () => (window.Core.snapshot().cards?.Q4 || []).some(c => c.pick === "opt-1" && c.text === "First thought"));
+    await di.waitForTimeout(300);
+    await di.unroute("**/api/pick");
+    ok("text typed while the pick with its comment is on its way stays in the box", held && (await di.inputValue("#vf-answer")) === "First thought and more", `${held} ${await di.inputValue("#vf-answer")}`);
+
+    // ---------- 26 on a phone: Save before the pick closes the sheet and keeps the comment (C1) ----------
+    const PHONE = { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } };
+    const gus = await rec.open(A.localUrl, PHONE);
+    await joinAs(gus, "Gus");
+    await gus.locator(".vf-tab", { hasText: "Questions" }).click();
+    await gus.locator(".vf-q", { hasText: T.q4 }).first().click();
+    if (!(await gus.locator(".vf-qtext").isVisible())) await gus.locator(".vf-tab", { hasText: "Answer" }).click();
+    await until(gus, t => document.querySelector(".vf-qtext")?.textContent === t, T.q4);
+    await gus.locator("#vf-answer").tap();
+    const sheetOpen = await until(gus, () => !!document.querySelector(".vf-composer-sheet"));
+    await gus.keyboard.insertText("Typed on my phone");
+    await gus.locator(".vf-sheetsave").tap();
+    ok("on a phone, Save before the pick closes the sheet so the options show, the comment kept", sheetOpen && await until(gus, () => !document.querySelector(".vf-composer-sheet")
+      && document.getElementById("vf-answer").value === "Typed on my phone" && !!document.querySelector(".vf-opt .vf-optchoose")?.offsetParent),
+      JSON.stringify(await gus.evaluate(() => ({ sheet: !!document.querySelector(".vf-composer-sheet"), value: document.getElementById("vf-answer").value }))));
+    await gus.locator(".vf-opt", { hasText: "Sushi" }).locator(".vf-optchoose").tap({ timeout: 5000 }).catch(() => {});
+    ok("  and the pick takes the comment with it", await until(owner, () => (window.Core.snapshot().cards?.Q4 || []).some(c => c.pick === "opt-2" && c.text === "Typed on my phone")));
+
+    // ---------- 26: a file attached before the pick goes in with it (C2) ----------
+    await owner.evaluate(() => window.Core.saveSettings({ uploads: true }));
+    const fay = await rec.open(A.localUrl, DESK);
+    await joinAs(fay, "Fay");
+    await go(fay, T.q4);
+    await until(fay, () => !!document.querySelector(".vf-composer .vf-attach")?.offsetParent);
+    await fay.fill("#vf-answer", "With a photo of the menu");
+    await fay.evaluate(async () => {
+      const c = document.createElement("canvas"); c.width = 64; c.height = 40; c.getContext("2d").fillRect(0, 0, 64, 40);
+      const blob = await new Promise(r => c.toBlob(r, "image/png")), dt = new DataTransfer();
+      dt.items.add(new File([blob], "menu.png", { type: "image/png" }));
+      document.getElementById("vf-answer").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    });
+    await until(fay, () => (window.Core.snapshot().myUploads || []).length === 1, null, 10000);
+    const up = await fay.evaluate(() => window.Core.snapshot().myUploads[0].id);
+    await owner.evaluate(id => window.Core.uploadAct(id, "accept"), up);
+    await until(fay, id => (window.Core.snapshot().myUploads || []).some(u => u.id === id && u.status.kind === "done"), up, 30000);
+    await fay.locator(".vf-opt", { hasText: "Sushi" }).locator(".vf-optchoose").click();
+    ok("a file attached before the pick goes in with the pick and its comment", await until(owner, id => (window.Core.snapshot().cards?.Q4 || [])
+      .some(c => c.pick === "opt-2" && c.text === "With a photo of the menu" && (c.attachments || []).includes(id)), up),
+      JSON.stringify(await myCard(fay, "Q4")));
+
+    // ---------- S1: unsent text belongs to whoever wrote it ----------
+    const UNSENT_HOST = "The host's unsent line";
+    const hostTab = await rec.open(A.ownerUrl, DESK);
+    await until(hostTab, () => window.Core.snapshot()?.me?.role === "owner");
+    await hostTab.click(".vf-fab");
+    await hostTab.fill(".vf-minput", UNSENT_HOST);
+    await hostTab.goto(A.localUrl + "?as=guest");
+    await joinAs(hostTab, "Hal");
+    await hostTab.click(".vf-fab");
+    await hostTab.waitForTimeout(500);
+    ok("an owner tab that opens the guest link does not put the host's unsent chat in the guest's field", (await hostTab.inputValue(".vf-minput")) === "", await hostTab.inputValue(".vf-minput"));
+    const annSecret = await ann.evaluate(() => localStorage.getItem("secret")), boSecret = await bo.evaluate(() => localStorage.getItem("secret"));
+    const annTab = await rec.open(`${A.localUrl}#me=${annSecret}`, DESK);
+    await until(annTab, () => window.Core.snapshot()?.me?.name === "Ann");
+    await annTab.click(".vf-fab");
+    await annTab.fill(".vf-minput", "Ann's unsent line");
+    await annTab.evaluate(sec => { location.hash = "me=" + sec; }, boSecret);
+    await annTab.reload();
+    await until(annTab, () => !!document.querySelector("dialog.core-switch[open]"));
+    await annTab.click("dialog.core-switch button:text-is('Switch')");
+    await until(annTab, () => window.Core.snapshot()?.me?.name === "Bo Lee" && !!document.querySelector(".vf-chat"), null, 10000);
+    if (await annTab.evaluate(() => document.querySelector(".vf-chat").hidden)) await annTab.click(".vf-fab");
+    await annTab.waitForTimeout(500);
+    ok("  and Switch to another personal link leaves Ann's unsent chat behind", (await annTab.inputValue(".vf-minput")) === "", await annTab.inputValue(".vf-minput"));
 
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
     ok("no page error", errs.length === 0, errs.slice(0, 3).join(" | "));
