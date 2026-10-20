@@ -144,6 +144,7 @@ export async function runWatchCli(argv) {
   const temp = { dirs: {}, recorded: false, interrupted: false };
   const children = trackChildren(temp);
   // The signal handlers and the finally block share one cleanup, so it runs once.
+  /** @type {Promise<void> | null} */
   let cleanup = null;
   const cleanUpOnce = () => {
     cleanup ??= temp.recorded
