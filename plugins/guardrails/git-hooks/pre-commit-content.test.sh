@@ -3,7 +3,7 @@
 # a secret or machine-specific path on a line the commit adds blocks with
 # "<path>:<line>: <message>"; one on an unchanged line, in an unstaged change,
 # in a symlinked file, an ordinary binary, or under an exempt path does not;
-# a token in a file holding a NUL byte blocks; a staged
+# a token in a file holding a NUL byte, UTF-16LE text included, blocks; a staged
 # gitignored file is judged and an untracked one is not; --worktree covers uncommitted and untracked files; and the plugin's vendored
 # installer wires the entry, pattern libraries included, so `git commit` runs it.
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
@@ -160,6 +160,19 @@ expect "a token in a file holding a NUL byte blocks" "1|blob.bin:1: secret or cr
 $HINT" "$(check "$REPO")"
 expect "--worktree: a token in an untracked file holding a NUL byte blocks" 1 \
   "$(git -C "$REPO" rm -q --cached blob.bin && rc_of "$REPO" --worktree)"
+
+# UTF-16LE (a Windows .reg export, PowerShell `>` output) puts a NUL after
+# every ASCII byte.
+new_repo
+s="token=$FAKE_GHP"
+{
+  printf '\377\376'
+  for ((i = 0; i < ${#s}; i++)); do printf '%s\0' "${s:i:1}"; done
+  printf '\n\0'
+} >"$REPO/export.reg"
+git -C "$REPO" add export.reg
+expect "a token in a UTF-16LE file blocks" "1|export.reg:1: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
 
 new_repo
 printf '\211PNG\r\n\032\n\0\0\0\rIHDR\0\0\0\001' >"$REPO/image.png"

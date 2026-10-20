@@ -160,11 +160,21 @@ while IFS= read -r -d '' f; do
   (($(file_size "$f") <= MAX_BYTES)) || continue
   if is_binary "$f"; then
     # A NUL byte must not hide a secret: scan the whole raw content for the
-    # secret patterns, each NUL read as a space so line numbers hold. Path
-    # patterns are not judged here, so an ordinary binary still commits.
+    # secret patterns twice, each NUL read as a space, then each NUL deleted
+    # (UTF-16LE text puts one after every ASCII byte). Both keep newlines, so
+    # line numbers hold; the second pass reports only labels the first missed.
+    # Path patterns are not judged here, so an ordinary binary still commits.
     secret_exempt "$f" && continue
     text="$(file_text "$f" | tr '\0' ' '; printf x)"
-    secrets::scan_text "${text%x}" | secret_findings "$f" >>"$whole"
+    packed="$(file_text "$f" | tr -d '\0'; printf x)"
+    {
+      secrets::scan_text "${text%x}"
+      echo --
+      secrets::scan_text "${packed%x}"
+    } | awk '$0 == "--" { p2 = 1; next }
+      { l = $0; sub(/ \(line [0-9,]*\)$/, "", l) }
+      p2 && (l in seen) { next }
+      !p2 { seen[l] } { print }' | secret_findings "$f" >>"$whole"
     continue
   fi
   sink="$out"
