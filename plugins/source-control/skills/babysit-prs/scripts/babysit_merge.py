@@ -3953,6 +3953,16 @@ def unattended_enqueue(
         inputs["config"].check_inputs, pin, branch
     )
     step["checkInputs"] = inputs_read
+    # Updating merges the base's canonical but not the copies the pull request
+    # generated from its own, so the drift check fails until they are
+    # regenerated: refused, with the fix named, instead of updated.
+    if inputs_read.get("regenerate"):
+        return hold(
+            f"shared-copy-sources-changed:{','.join(inputs_read['regenerate'])} "
+            f"changed on {branch} since merge base {inputs_read['mergeBase']}; "
+            f"merge {branch} and run scripts/sync-shared-copies.sh, then the new "
+            "head is enqueued once its checks pass"
+        )
     if inputs_read["state"] == "stale" and eligible_dependabot is None:
         proc = gh_capture(
             ["api", "-X", "PUT", f"repos/{repo}/pulls/{number}/update-branch"]

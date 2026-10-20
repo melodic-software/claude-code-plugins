@@ -191,5 +191,84 @@ class ChangedSinceMergeBase(unittest.TestCase):
         self.assertEqual(self.read((), self.p), {"state": "off"})
 
 
+class SharedCopySources(unittest.TestCase):
+    """origin: main A registers lib/a.sh and lib/b.sh, each with one copy; a
+    pull request branches from A, then main changes a canonical or the
+    registry."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = pathlib.Path(tmp.name)
+        self.origin = self.tmp / "origin"
+        self.origin.mkdir()
+        git(self.origin, "init", "-q", "-b", "main")
+        git(self.origin, "config", "uploadpack.allowAnySHA1InWant", "true")
+        for path in ("lib/a.sh", "plugins/x/a.sh", "lib/b.sh", "plugins/x/b.sh"):
+            commit(self.origin, path, "v1\n")
+        self.a = commit(
+            self.origin, REGISTRY, "lib/a.sh plugins/x/a.sh\nlib/b.sh plugins/x/b.sh\n"
+        )
+        self.clone = self.tmp / "clone"
+
+    def pr(self, name: str, path: str, text: str = "pr\n") -> str:
+        git(self.origin, "checkout", "-q", "-b", name, self.a)
+        sha = commit(self.origin, path, text)
+        git(self.origin, "checkout", "-q", "main")
+        return sha
+
+    def read(self, head: str) -> dict:
+        if not self.clone.exists():
+            git(self.tmp, "clone", "-q", str(self.origin), str(self.clone))
+        return check_inputs.changed_since_merge_base(
+            (REGISTRY, ALLOWLIST), head, "main", [self.clone]
+        )
+
+    def test_a_carried_canonical_changed_on_main_needs_regenerating(self) -> None:
+        heads = (self.pr("copy", "plugins/x/a.sh"), self.pr("canon", "lib/a.sh"))
+        commit(self.origin, "lib/a.sh", "v2\n")
+        for head in heads:
+            with self.subTest(head=head):
+                out = self.read(head)
+                self.assertEqual(out["state"], "stale")
+                self.assertEqual(out["changed"], ["lib/a.sh"])
+                self.assertEqual(out["regenerate"], ["lib/a.sh"])
+
+    def test_a_pr_registering_a_copy_of_a_changed_canonical_needs_regenerating(
+        self,
+    ) -> None:
+        head = self.pr(
+            "add",
+            REGISTRY,
+            "lib/a.sh plugins/x/a.sh\nlib/b.sh plugins/x/b.sh\nlib/a.sh plugins/y/a.sh\n",
+        )
+        commit(self.origin, "lib/a.sh", "v2\n")
+        out = self.read(head)
+        self.assertEqual(out["state"], "stale")
+        self.assertEqual(out["regenerate"], ["lib/a.sh"])
+
+    def test_an_unrelated_canonical_changed_on_main_is_current(self) -> None:
+        head = self.pr("copy", "plugins/x/a.sh")
+        commit(self.origin, "lib/b.sh", "v2\n")
+        out = self.read(head)
+        self.assertEqual(out["state"], "current")
+        self.assertEqual(out["changed"], [])
+        self.assertNotIn("regenerate", out)
+
+    def test_a_registry_change_on_main_is_stale_for_a_pr_touching_a_listed_path(
+        self,
+    ) -> None:
+        head = self.pr("copy", "plugins/x/a.sh")
+        commit(
+            self.origin,
+            REGISTRY,
+            "lib/a.sh plugins/x/a.sh\nlib/b.sh plugins/x/b.sh\nlib/b.sh plugins/z/b.sh\n",
+        )
+        out = self.read(head)
+        self.assertEqual(out["state"], "stale")
+        self.assertEqual(out["changed"], [REGISTRY])
+        self.assertNotIn("regenerate", out)
+
+
 if __name__ == "__main__":
     unittest.main()

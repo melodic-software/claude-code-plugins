@@ -1749,6 +1749,21 @@ class CheckInputsChangedOnTheBase(Unattended):
             {"status": 403, "message": "Resource not accessible by integration"},
         )
 
+    def test_a_carried_canonical_changed_on_the_base_is_refused_not_updated(
+        self,
+    ) -> None:
+        # Updating merges the base's canonical but leaves the copies the PR
+        # generated from its own, so only a merge plus a regeneration clears it.
+        self.inputs_answer["changed"] = ["lib/a.sh"]
+        self.inputs_answer["regenerate"] = ["lib/a.sh"]
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+        (blocker,) = [b for b in out["blockers"] if "shared-copy-sources-changed:" in b]
+        self.assertIn("lib/a.sh", blocker)
+        self.assertIn(self.MERGE_BASE, blocker)
+        self.assertIn("scripts/sync-shared-copies.sh", blocker)
+
     def test_a_kill_switch_stop_writes_no_update(self) -> None:
         self.kill = [PROCEED, policy.KillSwitch(False, "disabled")]
         code, _ = self.run_main()
