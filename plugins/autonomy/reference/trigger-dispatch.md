@@ -201,7 +201,8 @@ executors, including SDK-embedded pull/drain daemons, and **vendor-hosted** exec
 whose merge policy caps at human-gated. The executor-class determination that gates merge
 policy is security-surface data (the security binding's `executor_class`), never a
 repo-local value. Other executor hosting configuration is deployment-owned per the hosting
-stance: this contract fixes only the isolation floor (L2+ for unattended execution),
+stance: this contract fixes only the isolation floor (the
+[unattended floor](guardrails/isolation-ladder.md#unattended-floor)),
 credential scoping, and the queue contract.
 
 Which host runs each local-lane stage (this machine, a local background session, or a cloud

@@ -18,7 +18,8 @@ document names substrate classes as marked examples only, never an instance list
   removed).
 - **`L2`: whole-process OS-enforced boundary with default-deny egress, credential
   protection, contained workspace host-writes, and policy nothing the run can install may
-  widen.** The minimum for any unattended run.
+  widen.** The minimum for any unattended run, except on the
+  [CI-lane surface](#ci-lanes-on-github-hosted-runners).
   Free-path substrate classes (marked examples, not an instance list): a whole-process
   OS-sandbox wrap; a container with a default-deny egress firewall.
 
@@ -66,15 +67,28 @@ trigger source cannot lower the required isolation level.
 
 ## Unattended floor
 
-`L2` is the uniform floor for any unattended run, regardless of work class; the matrix's
+`L2` is the uniform floor for any unattended run, regardless of work class, on every surface
+except the [CI-lane surface](#ci-lanes-on-github-hosted-runners); the matrix's
 min-isolation column sets per-class floors at or above it. Per-command sandboxing (`L1`) is
 not sufficient for unattended runs. It is an attended ergonomics tier, and treating it as an
 autonomy tier is non-conforming.
 
+## CI lanes on GitHub-hosted runners
+
+A CI lane on a GitHub-hosted runner may run unattended without default-deny egress while all five
+conditions of
+[ADR 0049](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md#decision)
+hold: trusted actors only, same-repository pull requests only, short-lived scoped credentials, a
+kill switch, and a fresh runner per job. The ADR defines each condition. A lane that fails any one
+of them is held to `L2` like every other surface. A self-operated runner, a local lane and every
+other surface keep `L2`, and `C5` work keeps `L3` on every surface.
+
 ## Fail-closed where L2 is unavailable
 
 Where no `L2`-capable substrate exists on an execution surface, autonomous dispatch is
-blocked for that surface and guided setup names the compliant paths. This rule is
+blocked for that surface and guided setup names the compliant paths. The
+[CI-lane surface](#ci-lanes-on-github-hosted-runners) is exempt only while all five of its
+conditions hold. This rule is
 fail-closed: silently degrading to a lower level is never conforming, because a silent degrade
 leaks the trust loop the ladder exists to protect.
 

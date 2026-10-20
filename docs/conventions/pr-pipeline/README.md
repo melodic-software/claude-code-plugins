@@ -546,9 +546,8 @@ human. Work classes are defined in
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
 - The work class comes from the linked issue's label and is re-checked against the diff. No class,
   or a class the diff contradicts, means no lane merge.
-- C5 always needs a human. C4 becomes promotable under
-  [ADR 0050](../../adr/0050-let-merge-authority-reach-c4-by-evidence-and-drop-the-vendor-hosted-cap.md),
-  but the schema adds no C4 rung until the autonomy plugin and loop-lane carry the matching change.
+- No rung reaches C4 or C5: `merge.rung` stops at `C3`, and C5 always needs a human. The pr-merge
+  lane reads no class and merges on the verifier verdict instead ([The pr-merge lane](#the-pr-merge-lane)).
 - A rung rises only through a merged change to the config file. Under `pr-merge` it falls
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
   through a repository variable that can only lower the rung, and a `needs-human` issue is filed.

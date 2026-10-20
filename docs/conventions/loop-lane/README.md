@@ -49,11 +49,15 @@ Merge authority is a configurable ladder with the safest rung shipped by default
 every PR except gate-proven C2-mechanical ones**. The exception is a *work-class* test, not an
 authorship test. A PR qualifies only when the item classifies C2 (mechanical), whether a bot, a
 human, or a worker authored it; bot authorship alone is never sufficient. C3 and unclassified items
-stay human-gated regardless of author, by default. **C4 (structural) and C5 (untrusted-provenance)
-stay human-gated unconditionally: no rung, no tracked config, and no invocation argument ever reaches
-them**, per the autonomy matrix's own promotion contract, under which they never promote:
-"human merge always; no evidence predicate exists for these cells"
+stay human-gated regardless of author, by default. **No rung, no tracked config, and no invocation
+argument reaches C4 (structural) or C5 (untrusted-provenance)**, per the autonomy matrix's own
+promotion contract, under which they never promote: "No merge rung reaches these cells, and no
+evidence predicate exists for them"
 ([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#suggested-default-predicates)).
+The pr-merge lane reads no class: it merges a pull request the lanes App opened for one closing
+issue on the verifier verdict at its head, and refuses fork pull requests, so C5 stays human there
+too ([the pr-merge lane](../pr-pipeline/README.md#the-pr-merge-lane),
+[`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#merge-authorities-that-read-no-class)).
 Higher rungs are opt-in per repository, up to full autonomy, where frontier-tier subagents resolve
 conflicts, answer review comments, and drive a PR to merge, and they are bounded by that C4/C5 floor
 regardless of rung name.
