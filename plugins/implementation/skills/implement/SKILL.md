@@ -188,6 +188,8 @@ Length is not a row. Code that parses a messy format, such as a transcript JSONL
 | **Plan-tagged fallback / execution-shape item** | The plan itself pre-tagged it as a contingency or execution-shape choice | If a fallback: surface to the user with `AskUserQuestion`, confirm/override/drop. If pre-approved execution shape: execute |
 | **Invented mid-implement** | Not in the plan at all; surfaced by an agent return, anomaly, or implementation discovery | Stop. Classify (briefed-via-other-phase / plan-fallback / pure-invention / scope-expansion). Surface to the user with category tag + `AskUserQuestion`, separately from plan-anticipated items |
 
+A worker's `discoveries:` entry is a finding, not a proposed action: grade it on the Step 3 ladder, report it to the user, and type it in `DEVIATIONS.md` as `/implementation:implement-dispatch` step 5 does (`discovery` or `plan-confirmed`). This table classifies only an action the run itself proposes, including one a discovery prompts.
+
 **Non-interactive runs** (nobody to answer `AskUserQuestion`): never ask, and never do an invented item. Append it to `DEVIATIONS.md` as a `human-decision` entry naming its category, and leave it for Step 5's fold-back.
 
 **Anti-pattern (canonical failure mode)**: batching invented follow-up actions with plan-anticipated items in one proposal. User pushback on the batch is structurally ambiguous. "drop both" reads as "drop all my proposals"; silent over-correction drops plan-anticipated work. Always separate categories at proposal time.
