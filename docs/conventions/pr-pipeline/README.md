@@ -1154,7 +1154,7 @@ REST calls.
 
 [`maintenance-monitor-signals.yml`](../../../.github/workflows/maintenance-monitor-signals.yml) runs
 every hour (and on a manual run from `main`) with no model. It reads the signals below over the last
-65 minutes and keeps one issue per key. Its scripts and tests are in
+65 minutes, counting a run in the window it completed in, and keeps one issue per key. Its scripts and tests are in
 [`.github/scripts/maintenance-monitor-signals/`](../../../.github/scripts/maintenance-monitor-signals/).
 
 | Signal | Fires when | Key |
@@ -1174,7 +1174,8 @@ The fingerprint changes only when the evidence does: the failure text, the run, 
 set, the incident status, the last merge, or the day for a ceiling. The newest issue for a key
 decides: open with the same fingerprint, nothing is written; open with a new one, a comment carries
 the evidence and the marker records it; closed as not planned, the key is muted; closed as completed,
-a new issue is filed only on new evidence, naming the old one. It files at most 8 issues a run,
+a new issue is filed only on new evidence, or for `main-red` on a failed run that started after the
+close, naming the old one. Issues of every age are read, so a quiet key stays open or muted. It files at most 8 issues a run,
 labeled `needs-triage` and `source: factory-monitor` where those labels exist, writes 1 s apart,
 and stops at 250 REST calls. A source it cannot read is listed in the step summary and the other
 signals still run.

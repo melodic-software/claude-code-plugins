@@ -100,3 +100,24 @@ test("the body and comment carry the evidence inside a text fence, and the comme
   assert.ok(comment.includes(runUrl));
   assert.match(comment, /```text\n/);
 });
+
+test("a main-red key closed as completed files again when main fails after the close, even with the same text", () => {
+  const red = (createdAt) =>
+    detect({
+      now,
+      windowStart,
+      mainRun: {
+        id: 77,
+        url: "https://github.com/o/r/actions/runs/77",
+        sha: "abc",
+        event: "schedule",
+        conclusion: "failure",
+        createdAt,
+        failedJobs: [{ name: "lint", conclusion: "failure", annotations: [{ level: "failure", message: "flaky 3" }] }],
+      },
+    })[0];
+  const closed = [issueFrom(red("2026-10-18T09:17:00Z"), 30, { state: "closed", state_reason: "completed", closed_at: "2026-10-18T12:00:00Z" })];
+  assert.deepEqual(planIssues({ findings: [red("2026-10-18T09:17:00Z")], existing: closed }).file, []);
+  const again = planIssues({ findings: [red("2026-10-19T16:17:00Z")], existing: closed });
+  assert.deepEqual(again.file.map((f) => f.recurrenceOf), [30]);
+});

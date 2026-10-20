@@ -53,7 +53,7 @@ export function planIssues({ findings, existing }) {
       else plan.update.push({ number: match.issue.number, finding });
     } else if (match?.issue.state_reason === "not_planned") {
       plan.skip.push({ key: finding.key, number: match.issue.number, reason: "muted" });
-    } else if (match && same) {
+    } else if (match && same && !(Date.parse(finding.observedAt) > Date.parse(match.issue.closed_at))) {
       plan.skip.push({ key: finding.key, number: match.issue.number, reason: "closed-unchanged" });
     } else if (plan.file.length >= MAX_NEW_ISSUES) {
       plan.skip.push({ key: finding.key, number: null, reason: "cap" });

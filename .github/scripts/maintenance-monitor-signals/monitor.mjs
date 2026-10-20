@@ -112,7 +112,7 @@ async function main(env = process.env) {
     ownRate: ownRate && { used: ownRate.used, limit: ownRate.limit, remaining: ownRate.remaining },
   });
   const findings = detect(data);
-  const existing = (await listFiled({ get, repo, now })).filter((i) => readMarker(i.body));
+  const existing = (await listFiled({ get, repo })).filter((i) => readMarker(i.body));
   const plan = planIssues({ findings, existing });
   const runUrl = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${repo}/actions/runs/${env.GITHUB_RUN_ID ?? 0}`;
 

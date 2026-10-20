@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { collect } from "./collect.mjs";
+import { collect, listFiled } from "./collect.mjs";
 
 const repo = "o/r";
 const now = new Date("2026-10-19T16:41:00Z");
@@ -16,6 +16,8 @@ const run = (id, extra = {}) => ({
   event: "schedule",
   head_branch: "main",
   head_repository: { full_name: repo },
+  created_at: "2026-10-19T15:50:00Z",
+  updated_at: "2026-10-19T16:00:00Z",
   ...extra,
 });
 const prMergeRun = (id, extra = {}) => run(id, { path: ".github/workflows/pr-merge.yml", ...extra });
@@ -264,4 +266,34 @@ test("failed runs from a fork head are skipped", async () => {
     [30],
   );
   assert.ok(!api.calls.some((p) => /runs\/3[23]\/jobs/.test(p)));
+});
+
+// GitHub's `created` range filter, applied the way the runs list applies it.
+const createdIn = (path, runs) => {
+  const m = /created=([^&.]+)\.\.([^&]+)/.exec(path);
+  return { workflow_runs: m ? runs.filter((r) => r.created_at >= m[1] && r.created_at <= m[2]) : runs };
+};
+
+test("a run created before the window that completed inside it is read; one completed before it is not", async () => {
+  const early = { created_at: "2026-10-19T14:50:00Z", updated_at: "2026-10-19T15:45:00Z" };
+  const stale = { created_at: "2026-10-19T14:00:00Z", updated_at: "2026-10-19T14:20:00Z" };
+  const api = fakeApi([
+    [/workflows\/pr-merge\.yml\/runs/, (path) => createdIn(path, [run(10, early), run(13, stale)])],
+    [/actions\/runs\?status=failure/, (path) => createdIn(path, [run(30, { name: "pr-unblock", ...early }), run(34, { name: "pr-unblock", ...stale })])],
+    ...routes(),
+  ]);
+  const data = await collect(input(api, { ownRate: null }));
+  assert.deepEqual(data.budgetReadings.map((r) => r.runId), [10]);
+  assert.deepEqual(data.failedRuns.map((r) => r.id), [30]);
+});
+
+test("listFiled keeps an issue the lane has not touched for over 30 days", async () => {
+  const old = { number: 7, updated_at: "2026-08-01T00:00:00Z", body: "x" };
+  const api = fakeApi([
+    [/\/issues\?/, (path) => {
+      const since = /since=([^&]+)/.exec(path)?.[1];
+      return since ? [old].filter((i) => i.updated_at >= since) : [old];
+    }],
+  ]);
+  assert.deepEqual((await listFiled({ get: api.get, repo, now })).map((i) => i.number), [7]);
 });

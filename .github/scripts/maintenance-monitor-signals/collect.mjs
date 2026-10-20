@@ -24,6 +24,9 @@ const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
 const TRUSTED_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const PR_MERGE_PATH = ".github/workflows/pr-merge.yml";
 const RUN_ID = /^[0-9]+$/;
+// A run is read in the window it completes in, so the list reaches back to
+// runs created this long before the window opened.
+const RUN_LOOKBACK_HOURS = 6;
 const iso = (date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 
 export async function collect({ get, getStatus, readArtifact, repo, now, windowStart, agentIdentity, ownRate = null }) {
@@ -45,7 +48,11 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
   const ownHead = (run) => run.head_repository?.full_name === repo;
   const trustedPrMerge = (run) => TRUSTED_EVENTS.has(run.event) && run.head_branch === "main" && ownHead(run);
   const failedJobs = (jobs) => jobs.filter((j) => ["failure", "timed_out"].includes(j.conclusion));
-  const window = `${iso(windowStart)}..${iso(now)}`;
+  const created = `${iso(new Date(windowStart.getTime() - RUN_LOOKBACK_HOURS * 3600_000))}..${iso(now)}`;
+  const completedInWindow = (run) => {
+    const at = Date.parse(run.updated_at);
+    return at >= windowStart.getTime() && at <= now.getTime();
+  };
   const data = { now, windowStart, gaps };
   const source = async (name, read) => {
     try {
@@ -56,10 +63,10 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
   };
 
   await source("pr-merge api budget", async () => {
-    const runs = (await get(`/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&status=completed&created=${window}&per_page=20`))
+    const runs = (await get(`/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&status=completed&created=${created}&per_page=50`))
       .workflow_runs;
     data.budgetReadings = [];
-    for (const run of runs.filter(trustedPrMerge).slice(0, LIMITS.prMergeRuns)) {
+    for (const run of runs.filter((r) => trustedPrMerge(r) && completedInWindow(r)).slice(0, LIMITS.prMergeRuns)) {
       const merge = (await jobsOf(run.id)).find((j) => j.name === "merge");
       if (!merge) continue;
       for (const a of await annotationsOf(merge.id)) {
@@ -86,9 +93,9 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
   }
 
   await source("failed runs", async () => {
-    const runs = (await get(`/repos/${repo}/actions/runs?status=failure&created=${window}&per_page=50`)).workflow_runs;
+    const runs = (await get(`/repos/${repo}/actions/runs?status=failure&created=${created}&per_page=100`)).workflow_runs;
     data.failedRuns = [];
-    for (const run of runs.filter((r) => !SKIP_FAILED_EVENTS.has(r.event) && ownHead(r)).slice(0, LIMITS.failedRuns)) {
+    for (const run of runs.filter((r) => !SKIP_FAILED_EVENTS.has(r.event) && ownHead(r) && completedInWindow(r)).slice(0, LIMITS.failedRuns)) {
       const annotations = [];
       for (const job of failedJobs(await jobsOf(run.id)).slice(0, LIMITS.failedJobsPerRun)) {
         for (const a of await annotationsOf(job.id)) annotations.push({ level: a.annotation_level, message: a.message });
@@ -113,7 +120,15 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
         jobs.push({ name: job.name, conclusion: job.conclusion, annotations });
       }
     }
-    data.mainRun = { id: run.id, url: run.html_url, sha: run.head_sha, event: run.event, conclusion: run.conclusion, failedJobs: jobs };
+    data.mainRun = {
+      id: run.id,
+      url: run.html_url,
+      sha: run.head_sha,
+      event: run.event,
+      conclusion: run.conclusion,
+      createdAt: run.created_at,
+      failedJobs: jobs,
+    };
   });
 
   await source("merge-queue ejections", async () => {
@@ -225,14 +240,15 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
   return data;
 }
 
-// Issues the lane filed: github-actions[bot]'s, any state, updated within 30
-// days. The caller keeps those carrying the marker.
-export async function listFiled({ get, repo, now }) {
-  const since = iso(new Date(now.getTime() - 30 * 24 * 3600_000));
+// Issues the lane filed: github-actions[bot]'s, any state and any age, newest
+// first. The lane writes nothing while evidence is unchanged, so an update-time
+// cutoff would drop a quiet open or muted key. The caller keeps those carrying
+// the marker.
+export async function listFiled({ get, repo }) {
   const out = [];
   for (let page = 1; page <= LIMITS.issuePages; page += 1) {
     const batch = await get(
-      `/repos/${repo}/issues?creator=${encodeURIComponent("github-actions[bot]")}&state=all&since=${since}&per_page=100&page=${page}`,
+      `/repos/${repo}/issues?creator=${encodeURIComponent("github-actions[bot]")}&state=all&sort=created&direction=desc&per_page=100&page=${page}`,
     );
     out.push(...batch.filter((i) => !i.pull_request));
     if (batch.length < 100) break;

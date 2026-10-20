@@ -1,8 +1,9 @@
 // The monitoring lane's signals: each detector reads the collected data and
 // returns findings, one per dedup key. No network. A finding is
-// {key, signal, title, area, summary, facts, fingerprint}: the key names the
-// issue, the fingerprint changes only when the evidence does, so an unchanged
-// recurrence updates nothing. Every text that came from a run, a PR or the
+// {key, signal, title, area, summary, facts, fingerprint, observedAt}: the key
+// names the issue, the fingerprint changes only when the evidence does, so an
+// unchanged recurrence updates nothing. observedAt, when set, is when the
+// evidence was produced: a key closed before then is a regression. Every text that came from a run, a PR or the
 // status page is made inert here (one line, no backticks) before it reaches
 // an issue.
 import { createHash } from "node:crypto";
@@ -30,8 +31,9 @@ const slug = (text) =>
 const day = (date) => date.toISOString().slice(0, 10);
 const pct = (used, limit) => `${((used / limit) * 100).toFixed(1)}%`;
 
-function finding({ key, signal, title, area, summary, facts, evidence }) {
+function finding({ key, signal, title, area, summary, facts, evidence, observedAt = null }) {
   return {
+    observedAt,
     key,
     signal,
     title: inert(title, 120),
@@ -166,6 +168,7 @@ export function mainRedFindings({ mainRun = null }) {
         summary: `${job.name} failed in the newest full run on main (${mainRun.event}) at ${String(mainRun.sha).slice(0, 12)}: ${mainRun.url}`,
         facts: [`flake class: ${flakeClass(job)}`, ...failures.map((a) => `failure: ${a.message}`)],
         evidence: [key, failures.map((a) => String(a.message).replace(/\d+/g, "N")).sort()],
+        observedAt: mainRun.createdAt ?? null,
       }),
     );
   }
