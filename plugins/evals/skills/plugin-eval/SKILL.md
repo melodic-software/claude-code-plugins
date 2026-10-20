@@ -51,7 +51,7 @@ leftover_sandboxes:  <n> sandboxes (<total size> in <tmp>) | unknown
 tmp_free:            <free space on the temp dir's filesystem> | unknown
 ```
 
-Preflight removes nothing and blocks on neither of the last two fields. When `leftover_sandboxes` is above zero, print `chmod -R u+w <tmp>/claude-eval-*` then `rm -rf <tmp>/claude-eval-*` for the user to run, and report an unreadable path as `unknown`, never `0`.
+Preflight removes nothing and blocks on neither of the last two fields. When `leftover_sandboxes` is above zero, print `chmod -R u+w <tmp>/claude-eval-*` then `rm -rf <tmp>/claude-eval-*` for the user to run, note that a directory `chmod` cannot enter still needs `sudo rm -rf`, and report an unreadable path as `unknown`, never `0`.
 
 **Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
 floor; nothing else is worth doing on a binary that cannot execute a case. `plugin eval is
