@@ -189,11 +189,14 @@ The bullets below are the steps.
   in prep no longer covers the commit that ships. Commit whatever the reviews changed first;
   nothing that edits the tree runs after the gate. When the repository ships
   `scripts/check-affected.sh`, run `scripts/check-affected.sh --tests` first as the
-  deterministic gate; exit 1 stops the flip.
+  deterministic gate; exit 1 stops the flip. Then record the result for the head the gate ran on:
+  `bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git rev-parse HEAD)" --result pass|fail`
+  (`skipped` when `--skip` removed `verify`). The record is what 2.5.4 reads: prose cannot stop
+  the flip, a script in the flip's own shell command can.
 
 Completion criterion, for each step that ran: any review evidence the plan asks for is linked,
 the findings of each review that ran are fixed or recorded, and the verify gate is clean on
-`git rev-parse HEAD`.
+`git rev-parse HEAD` and recorded for it.
 
 ## 2.5.4 Flip to ready
 
@@ -228,7 +231,9 @@ When nothing was pushed, skip the wait and flip as before.
 Then run the hold check of 2.5.1 again
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)),
 since a hold can land during the reviews; on any exit but 0, leave the PR in draft, report the
-check's output, and stop. Otherwise, when `--skip` removed a step, post the skip comment (see
+check's output, and stop. The flip's own shell command also runs `verify-gate.sh check` for the
+head being flipped and goes on only on exit 0: a `fail`, or no result recorded for that head (a
+commit after the gate voids it), refuses the flip and the PR stays a draft. Otherwise, when `--skip` removed a step, post the skip comment (see
 "Skip a step for this run"), then mark the PR ready
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#flip-to-ready)).
 

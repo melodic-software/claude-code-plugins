@@ -149,8 +149,14 @@ earlier draft one:
 ```bash
 RUNS_BEFORE=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
   --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
-gh pr ready "$PR_NUMBER"
+bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
+  gh pr ready "$PR_NUMBER"
 ```
+
+`verify-gate.sh check` exits 0 only when the verify step recorded `pass` (or `skipped`, for
+`--skip verify`) for exactly `HEAD_SHA`; exit 3 is a recorded failure and exit 2 a missing result.
+The `&&` keeps the refusal and the flip in one command, so a refused check cannot be followed by
+the flip. The same `&&` guards the cloud-session routes below.
 
 In a cloud session `gh pr ready` fails, because the flip is a GraphQL mutation. The proxy's REST
 route:
