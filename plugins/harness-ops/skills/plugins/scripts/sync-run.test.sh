@@ -830,6 +830,49 @@ assert_contains "misfire: the reason names the sibling worktree's path" \
   "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "updated \"$sibling\" instead"
 
 # ============================================================================
+# Case: the CLI says "already at the latest version" for a project record that
+# is still below the catalog (a linked worktree, #6713). That is a failure, not
+# a quiet no-op; a record already at the catalog stays a no-op.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+catalog_plugin "$case_dir" market1 beta 0.2.0
+ppath=$(norm_path "$case_dir")
+printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/.git"
+mkdir -p "$case_dir/main/.git/worktrees/wt"
+printf '../..\n' >"$case_dir/main/.git/worktrees/wt/commondir"
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"project\", \"projectPath\": \"$ppath\", \"installPath\": \"a\", \"version\": \"0.1.0\"}
+    ],
+    \"beta@market1\": [
+      {\"scope\": \"project\", \"projectPath\": \"$ppath\", \"installPath\": \"b\", \"version\": \"0.2.0\"}
+    ]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID="alpha@market1")
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "no-op update: a lagging record is a failed row" "alpha@market1" \
+  "$(jq -r '.marketplaces[0].in_repo.failed[0].id' <<<"$out")"
+assert_eq "no-op update: it is not an Updated row" "0" \
+  "$(jq -r '[.marketplaces[0].in_repo.updated[] | select(.id == "alpha@market1")] | length' <<<"$out")"
+assert_contains "no-op update: the reason names the record's version and the catalog's" \
+  "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "still at 0.1.0 and the catalog reads 0.2.0"
+assert_contains "no-op update: a linked worktree carries the uninstall label" \
+  "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "update ineffective; uninstall clears it"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID="beta@market1")
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal2")
+assert_eq "no-op update: a record already at the catalog is not a failure" "0" \
+  "$(jq -r '[.marketplaces[0].in_repo.failed[] | select(.id == "beta@market1")] | length' <<<"$out")"
+
+# ============================================================================
 # Case: an in-repo record for the plugin providing this skill is a self-update
 # too, and the stale-project-record rows carry a count PER PATH
 # ============================================================================

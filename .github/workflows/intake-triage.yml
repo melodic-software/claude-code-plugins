@@ -7,7 +7,8 @@ name: intake-triage
 # intake-triage.yml for the security model and inputs.
 #
 # workflow_dispatch triages one issue by number: issues a job's GITHUB_TOKEN
-# creates (the lane sweep's) start no issues run. The reusable admits a
+# creates (the lane sweep's) start no issues run, and intake-reenter.yml
+# sends back an answered needs-decision or needs-info issue. The reusable admits a
 # dispatch only from an actor whose id is in allowed-author-ids or
 # allowed-bot-sender-ids, and reads the issue from the API.
 on:
@@ -115,11 +116,14 @@ jobs:
           fi
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
 
+  # A dispatch asks for triage, so the born-triaged skip applies to an opened
+  # issue only: intake-reenter.yml dispatches an answered issue that was born
+  # triaged and may still carry a status label.
   intake-triage:
     needs: born-triaged
     if: >-
       ${{ !cancelled()
-      && needs.born-triaged.outputs.skip != 'true'
+      && (github.event_name == 'workflow_dispatch' || needs.born-triaged.outputs.skip != 'true')
       && needs.born-triaged.outputs.claude-args != '' }}
     permissions:
       contents: read # check out the default branch so the lane can read AGENTS.md

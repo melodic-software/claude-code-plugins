@@ -1,0 +1,7 @@
+# Personal layer that loosens every floor key.
+policy:
+  locked: other
+  ceiling: 20
+  audit: false
+  level: low
+  free: 2

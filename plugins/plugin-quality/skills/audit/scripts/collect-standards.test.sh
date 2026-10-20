@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/collect-standards.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+# The resolver applies a home only inside a git work tree.
+git init -q "$WORK" >/dev/null 2>&1
 
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"

@@ -49,7 +49,8 @@ load: and add: lines, then result: (and a note: when a new AGENTS.md does not or
 may not load yet) for apply.
   state   current | stale | no-line | no-block | missing-file | duplicate-line |
           unbalanced-markers | draft-marker | symlink
-  source  flag | bound | default
+  source  flag | bound | default | declined (the repository declined a convention home:
+          nothing to point at, so check and apply report it, write nothing and exit 0)
   load    missing-import <file> | may-not-load <file>   (add: <file>: <line to add>)
   result  written | created | unchanged | would-write | declined
 
@@ -146,9 +147,16 @@ if [[ -z "$CONV_PATH" ]]; then
       SOURCE=bound
       CONV_PATH="${home%/}/developer-experience.md"
       ;;
-    1)
+    1 | 5)
+      # 5: no home is applicable (the root is $HOME, an ancestor of it, or outside git).
       SOURCE=default
       CONV_PATH="$DEFAULT_PATH"
+      ;;
+    4)
+      printf 'file: AGENTS.md\nsource: declined\n'
+      printf 'note: the repository declined a convention home; there is no pointer line to check or write\n'
+      [[ "$CMD" == apply ]] && printf 'result: unchanged\n'
+      exit 0
       ;;
     3)
       cat "$RES_ERR" >&2

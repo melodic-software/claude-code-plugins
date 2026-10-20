@@ -22,6 +22,17 @@
         "disable": { "type": "array", "items": { "type": "string" } },
         "tags": { "type": "array", "items": { "type": "string" } }
       }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "locked": { "type": "string" },
+        "ceiling": { "type": "integer" },
+        "audit": { "type": ["boolean", "string"], "enum": [true, false, "report"] },
+        "level": { "type": "string", "enum": ["low", "medium", "high"] },
+        "free": { "type": "integer" }
+      }
     }
   }
 }

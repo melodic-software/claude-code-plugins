@@ -108,6 +108,20 @@ commit_all bogus
 expect "an unknown flag on a line the push adds blocks, at that line" "1|run.sh:3: $FLAG_FINDING" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
 
+# A changed file whose name git quotes has no entry in the range table: it is
+# judged whole instead of skipped. Windows refuses the name.
+new_repo
+if printf '#!/usr/bin/env bash\nfaketool --real\n' 2>/dev/null >"$REPO/a\"b.sh"; then
+  commit_all quoted-name
+  BASE="$(git -C "$REPO" rev-parse HEAD)"
+  printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/a\"b.sh"
+  commit_all quoted-bogus
+  expect "an unknown flag in a changed file whose name git quotes blocks" "1|a\"b.sh:1: ${FLAG_FINDING/in run.sh/in a\"b.sh}" \
+    "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
+else
+  echo "skip: this file system refuses a name holding a double quote"
+fi
+
 err="$(push_err refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$BASE")"
 expect "the failure names the decline route for this entry" yes \
   "$(grep -qF 'install.mjs decline --entry reference-verify' <<<"$err" && grep -qF '/guardrails:setup' <<<"$err" && echo yes)"
