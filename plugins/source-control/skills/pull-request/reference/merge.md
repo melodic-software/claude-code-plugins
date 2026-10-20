@@ -110,10 +110,11 @@ melodic-software, the base branch's live rules require `ci-status`, every check 
 head was read (the count matches the reported total) and both AI review lanes, matched by the exact
 names above, completed with success, and the PR reads `CLEAN` at the pinned head (it polls while
 the merge state reads `UNKNOWN`, as in 4.2). Only then does it
-print the pinned head. The merge itself is a separate single command, in the guarded shape that
-section gives: the checks and the merge in one command, with the PR number, repository and full
-head sha written literally and pinned with `--match-head-commit`. A failed guard is a hold; a merge
-the permission layer refuses in that shape waits for the user, never a retry in another shape.
+print the pinned head and the guarded merge command, with the PR number, repository and full head
+sha already filled in. Run that printed line as-is, alone, as one Bash command: never retype or
+edit it, chain anything before it, or put a variable, command substitution or loop in it. A failed
+guard is a hold; a merge the permission layer refuses in that shape waits for the user, never a
+retry in another shape.
 
 Behind a merge queue (claude-code-plugins) the queue sets the strategy, so pass no strategy flag.
 Never pass `--auto`, `--merge`/`-m` or `--rebase`/`-r`, and never `--admin` except in that

@@ -5,9 +5,9 @@
 //   done      opens a ready PR from the run's branch: the body starts
 //             `Closes #<issue>`, or `Refs: #<issue>` when the run reports
 //             `"link": "refs"` (a recorded decision keeps the issue open),
-//             which also holds the PR for a human and gives the issue the
-//             human-gated label and a refs-hold comment. The title is the
-//             run's Conventional Commits title, with any `#` or `/` a space
+//             which also gives the issue the human-gated label and a
+//             refs-hold comment. The title is the run's Conventional
+//             Commits title, with any `#` or `/` a space
 //             (else one built from the issue title), and the body carries
 //             the hold line when a human must merge it. The PR gets no label:
 //             the work class lives on the issue only. The merge gate reads no
@@ -148,7 +148,7 @@ const MAX_TEXT = 3000;
 const MAX_ITEMS = 20;
 const MAX_ITEM = 300;
 // GET /compare lists at most this many files, so a listing this long may
-// hide a hold path.
+// hide a denied path.
 const COMPARE_FILES_CAP = 300;
 
 // A limit stop with no reset time is taken to reset `limits.fallback-reset`
@@ -670,12 +670,13 @@ export function decide({
     });
   }
   const refs = outcome.link === "refs";
+  // A listing cut at the cap may hide a denied path, so it holds only while
+  // some path is denied.
   const hold =
-    refs ||
     humanMerge ||
     issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
-    changedFiles.length >= COMPARE_FILES_CAP ||
     holdPaths === null ||
+    (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
   // The sections of the PR body contract (.claude/rules/pr-body-contract.md),
   // in the org PR template's order, with the run's gaps above the work.
