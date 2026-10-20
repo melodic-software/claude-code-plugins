@@ -1,5 +1,44 @@
 # Changelog: session-flow plugin
 
+## [0.62.0] - 2026-10-20
+
+### Added
+
+- keep-going prints one environment snapshot block after inspecting real state and before any recovery action: account, 5-hour and 7-day windows, context zone, each off-thread item with its liveness verdict, the gap, and the stop's cause as evidence. A field with no reading says unknown and why.
+
+### Changed
+
+- keep-going's boundary now says the cause line is shown and never used to choose a recovery method.
+
+## [0.61.1] - 2026-10-20
+
+### Changed
+
+- The store gains `stop_hooks.wait_ms_total`, `wait_ms_p50`, `wait_ms_p90` and `time.active_gap_s`; the existing `ms_*` and `active_s` keys keep their meaning. The sweep's `hooks.stop_ms` and `time.active_s` read the new keys, are labeled heuristic, and have no threshold (report-only) until re-derived.
+- The `turn_duration` canaries are replaced by a record-timestamp canary and two invariant canaries (`invariant:active_over_wall`, `invariant:stop_wait_over_sum`); SKILL.md records the direct-parsing decision with a pointer to the sessions page.
+
+- The workflow skill's review step states the fresh-context reviewer preference in its own words and links the Claude Code best-practices section, with an as-of date and a recheck trigger.
+
+### Fixed
+
+- `audit-sessions` measures Stop-hook wait as the slowest hook per Stop run, not the sum of hooks that run in parallel, and active time from the gaps between a session's own records (each capped at 300 s), so a session never reports more active time than its wall clock and one without `turn_duration` records no longer reports 0.
+
+## [0.61.0] - 2026-10-20
+
+### Added
+
+- Two `/session-flow:handoff` eval cases, `ho-task-tools-recreate-calls` and `ho-no-task-tools-says-so`, one for each task-tool branch of the environment section (the Task tools, and neither the Task tools nor `TodoWrite`).
+
+- `running-retro` checkpoint finds skill-fit gaps with six detectors: a skill bypassed or overridden, the same rules re-typed into several briefs, a worker stalled or re-briefed for the same reason, a denial that forced a workaround, a verifier loop stopped by judgment, and the owner asking whether a skill exists. Each finding names its owning plugin and skill and cites its evidence. Before offering to file, the skill searches the owning plugin's open issues through `/work-items:track search`; skill-fit gaps are never auto-filed.
+- Eval case `rr-skill-fit-names-owner`.
+
+- `/session-flow:keep-going` lists the child process tree of each background shell and flags any child waiting on an interactive prompt or stdin, using the new `check-child-input-wait.py` (Linux through `/proc`, macOS through `ps`, Windows through PowerShell). A process the platform gives no signal for reports `unknown`, never "not waiting". Killing a flagged child stays behind the side-effect gate.
+- The shared off-thread reference lists "external CLI processes and their child trees" as a kind.
+
+### Fixed
+
+- `/session-flow:continue-in-background`: the dirty-tree gate reads the effective `worktree.bgIsolation` (managed, local, project, user settings files, in that order; a `--settings` value cannot be read and is reported as not covered). With `none` the background session edits the checkout directly, so the gate launches instead of refusing and the launch report warns that the session edits this checkout in place, alongside the user.
+
 ## [0.60.0] - 2026-10-20
 
 ### Added

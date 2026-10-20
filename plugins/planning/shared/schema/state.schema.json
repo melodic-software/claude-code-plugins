@@ -2,17 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state",
   "title": "Shared interview session file",
-  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements`, `reports`, `passes`, `lateActs` and a question's `for` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks). A mention in text a person wrote is stored as `<@pid>` (migrate.py MENTION), so it shows the person's current name.",
+  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements`, `reports`, `passes`, `lateActs` and a question's `for` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks). A mention in text a person wrote is stored as `<@pid>` (session.py MENTION), so it shows the person's current name.",
   "type": "object",
   "required": [
-    "schemaVersion", "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
+    "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
     "questions", "cards", "votes", "reactions", "locks", "suggestions", "suggestionVotes", "proposals",
     "chat", "requests", "results", "uploads", "annotations", "prefs", "notifications", "inboxSeen",
     "discussions", "discussionSeen", "mergeRequests", "aboutYou", "log"
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": {"enum": [6]},
     "pluginVersion": {"type": "string"},
     "writtenBy": {"type": "string"},
     "rev": {"type": "integer", "minimum": 0},
@@ -194,6 +193,7 @@
         "claudeTake": {"enum": ["answerFirst", "always"]},
         "approveJoins": {"description": "New joins wait for the owner's admit; absent is off.", "type": "boolean"},
         "reviewAnswers": {"description": "Every answer waits for the owner's Share. A new session writes it off; absent (a session from before it) is on.", "type": "boolean"},
+        "guestPopups": {"description": "The pop-ups a guest starts with, set by the owner; a guest's own popups pref wins. Absent, all three are on.", "type": "array", "maxItems": 3, "items": {"enum": ["request", "mention", "round"]}},
         "theme": {
           "type": "object",
           "required": ["mode", "accent"],
@@ -1020,6 +1020,8 @@
         "size": {"type": "integer", "minimum": 0},
         "thumb": {"type": "string"},
         "shown": {"const": true, "description": "The owner approved this guest's received picture: everyone who sees what carries it sees it."},
+        "draft": {"const": true, "description": "Offered from a form and not sent with anything yet: never shown under its question."},
+        "carried": {"const": true, "description": "A record has carried it: never shown under its question again, even once nothing carries it."},
         "chunks": {"type": "integer", "minimum": 0},
         "status": {
           "oneOf": [

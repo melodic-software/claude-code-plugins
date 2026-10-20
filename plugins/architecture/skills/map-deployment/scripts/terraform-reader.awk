@@ -349,6 +349,7 @@ function get(sc, pre, name, dflt) {
 function node(sc, id, type, name, ev) {
   printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"terraform\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
     jesc(id), jesc(S_env[sc]), jesc(name), jesc(type), jesc(ev) >> nodes
+  note_compute(S_env[sc], id, type)
 }
 
 function param(sc, c, k, v, sec, ev,    e, red, pk) {
@@ -608,5 +609,6 @@ END {
     if (a > b) { t = a; a = b; b = t }
     container_diffs(a, b, "terraform")
     param_port_diffs(a, b, "terraform")
+    node_diffs(a, b, "terraform")
   }
 }

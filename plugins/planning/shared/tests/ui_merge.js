@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The owner merges a person in a real browser, against `share.sh ensure-running` with the fake cloudflared: the
-// merge picker lists the owner first as "Me (owner)", so a second identity of the owner's own (opened on another
+// merge picker lists the owner first as "You", so a second identity of the owner's own (opened on another
 // device as "Admin 2") folds into the owner, its chat becoming the owner's and the person leaving the people list;
 // a merge the session refuses shows the session's own sentence, not a generic one.
 //   node plugins/planning/shared/tests/ui_merge.js
@@ -33,9 +33,9 @@ async function main() {
 
     // ---------- the picker offers the owner ----------
     await owner.locator(`.vf-hperson:has([data-pid="${twinPid}"]) .vf-hp-acts button`, { hasText: "Merge…" }).click();
-    ok("the merge picker lists the owner first, as \"Me (owner)\"", await until(owner, () => {
+    ok("the merge picker lists the owner first, as \"You\"", await until(owner, () => {
       const items = [...document.querySelectorAll(".vf-pcard .vf-merge-item")];
-      return items[0]?.dataset.k === "m:host" && items[0].querySelector(".core-avatar + span")?.textContent === "Me (owner)";
+      return items[0]?.dataset.k === "m:host" && items[0].querySelector(".core-avatar + span")?.textContent === "You";
     }), await owner.evaluate(() => [...document.querySelectorAll(".vf-pcard .vf-merge-item")].map(b => `${b.dataset.k}=${b.textContent}`).join(" | ")));
 
     // ---------- a refusal shows the session's sentence ----------

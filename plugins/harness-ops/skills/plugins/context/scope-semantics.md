@@ -220,6 +220,18 @@ because `converge`'s `(cd "<projectPath>" && …)` form cannot execute against a
 the condition is this skill's whole role here; reaping the record is not something it can or should
 do.
 
+### A projectPath that is a user home directory
+
+`fleet-state.sh` also annotates the same records and entries with `projectPathIsHome: true|false|null`.
+`true` means the `projectPath` is a user home: the current `$HOME`, `/home/<name>`, `/Users/<name>`,
+`C:\Users\<name>`, or the WSL view of a Windows home, `/mnt/<drive>/Users/<name>` (`Users` and the
+drive letter match case-insensitively). A project-scope install run from a home directory records
+that home as its `projectPath`, and the home's `.claude/settings.json` is the user-scope file, so a
+`-s project` command there would change user scope. Under a home (`/home/<name>/repos/app`) is an
+ordinary project and reads `false`. `converge` blocks such a row and runs nothing for it. `sync` drops
+the record's scope before comparing versions, so a divergence that exists only because of it is not
+counted as actionable, and lists the records in a `User-home project records` row.
+
 ## Where project-scope records come from, and why the skill cannot reap them
 
 The section above says the records cannot be reaped. This one says where they come from. Every claim

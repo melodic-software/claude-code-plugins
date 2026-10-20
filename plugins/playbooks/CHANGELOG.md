@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.23.6] - 2026-10-20
+
+### Changed
+
+- The Fable 5.1 model-adaptation chapter's Batching and Progress-and-closing-messages sections now state the playbook's own rule in its own words, with a pointer, as-of date and recheck trigger, instead of tracking the upstream guide's text.
+
 ## [0.23.5] - 2026-10-20
 
 ### Changed

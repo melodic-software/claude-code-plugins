@@ -198,6 +198,7 @@ class ProbeFixtureTests(unittest.TestCase):
                 data["comments"],
                 data["threads"],
                 is_human=is_human,
+                changed_paths=(),
             )
         )
 
@@ -254,6 +255,7 @@ class Base(unittest.TestCase):
         comments: list[dict[str, Any]] | None = None,
         threads: list[dict[str, Any]] | None = (),  # type: ignore[assignment]
         head_file: Any = fixed_head,
+        changed_paths: Any = (),
     ) -> dict[str, Any]:
         return by_lane(
             ev.bind(
@@ -263,6 +265,7 @@ class Base(unittest.TestCase):
                 list(threads) if threads is not None else None,
                 is_human=is_human,
                 head_file=head_file,
+                changed_paths=changed_paths,
             )
         )
 
@@ -285,6 +288,7 @@ class LostEvidenceTests(Base):
                 [],
                 is_human=is_human,
                 base_changed=True,
+                changed_paths=(),
             )
         )
         for lane in LANES:
@@ -308,13 +312,53 @@ class LostEvidenceTests(Base):
         self.assertEqual(result["claude-review"].open_findings, 0)
 
 
+class LaneSourceTests(Base):
+    """A pull request that changes what the review lanes run from its own
+    checkout ran its own copy on its pull_request event, so no lane binds on
+    its records."""
+
+    def bound(self, *paths: str) -> dict[str, Any]:
+        return self.bind([whole(lane, S) for lane in LANES], changed_paths=paths)
+
+    def test_a_change_to_the_security_lane_caller_binds_no_lane(self) -> None:
+        result = self.bound("app.py", ".github/workflows/pr-review-security-hosted.yml")
+        for lane in LANES:
+            self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_a_change_to_a_file_the_lane_runs_from_the_checkout(self) -> None:
+        for path in (
+            ".github/actions/resolve-config/action.yml",
+            ".github/scripts/pr-unblock/feedback-dispatch.mjs",
+            "plugins/review/skills/security-review/SKILL.md",
+            ".claude/settings.json",
+            "plugins/foo/.claude/rules/x.md",
+            ".mcp.json",
+            "plugins/foo/.mcp.json",
+        ):
+            with self.subTest(path):
+                result = self.bound(path)
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_unrelated_changes_bind_as_before(self) -> None:
+        result = self.bound("app.py", "docs/github/x.md", "plugins/reviewer/a.py")
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+            self.assertEqual(result[lane].open_findings, 0)
+
+    def test_unread_changed_files_bind_no_lane(self) -> None:
+        result = self.bind([whole(lane, S) for lane in LANES], changed_paths=None)
+        for lane in LANES:
+            self.assertUnbound(result[lane], "changed-files-unread")
+
+
 class RunSelectionTests(Base):
     def test_both_lanes_whole_reviews_bind(self) -> None:
         result = self.bind([whole(lane, S) for lane in LANES])
         self.assertEqual([r.bound for r in result.values()], [True, True])
 
     def test_result_has_one_entry_per_lane_in_order(self) -> None:
-        result = ev.bind(S, [], [], [], is_human=is_human)
+        result = ev.bind(S, [], [], [], is_human=is_human, changed_paths=())
         self.assertEqual([item.lane for item in result], list(LANES))
 
     def test_no_run_on_the_pinned_head(self) -> None:
@@ -1359,10 +1403,76 @@ class CleanWholeReviewTests(Base):
         self.assertEqual(result["claude-review"].open_findings, 1)
 
 
+class WholeReviewClearsTests(Base):
+    """`whole_review_clears`: the lane's open findings are all ones a clean
+    whole review of the head would close, and no review of the head has
+    reported a finding or been a whole one."""
+
+    SECURITY = CleanWholeReviewTests.SECURITY
+    CLEAN_INCREMENTAL = CleanWholeReviewTests.CLEAN_INCREMENTAL
+    LANES_BOT = CleanWholeReviewTests.LANES_BOT
+    chain = CleanWholeReviewTests.chain
+    security_thread = CleanWholeReviewTests.security_thread
+
+    def test_older_resolved_thread_under_a_clean_incremental_clears(self) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_INCREMENTAL, raised=0),
+            *self.chain("claude-security-review", self.CLEAN_INCREMENTAL),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        self.assertTrue(result["claude-security-review"].whole_review_clears)
+        # Nothing open: nothing to clear.
+        self.assertFalse(result["claude-review"].whole_review_clears)
+
+    def test_older_summary_finding_under_a_clean_incremental_clears(self) -> None:
+        runs = [
+            run("claude-review", S0, "findings=1 inline=0 scope=whole"),
+            run("claude-review", S, self.CLEAN_INCREMENTAL),
+        ]
+        result = self.bind(runs)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+        self.assertTrue(result["claude-review"].whole_review_clears)
+
+    def test_a_finding_reported_at_the_current_head_does_not_clear(self) -> None:
+        runs = [
+            run("claude-review", S0, "findings=1 inline=0 scope=whole"),
+            run(
+                "claude-review", S, f"findings=1 inline=0 scope=incremental since={S0}"
+            ),
+        ]
+        result = self.bind(runs)
+        self.assertEqual(result["claude-review"].open_findings, 2)
+        self.assertFalse(result["claude-review"].whole_review_clears)
+
+    def test_a_whole_review_already_at_the_head_does_not_clear(self) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_INCREMENTAL, raised=0),
+            *self.chain("claude-security-review", "findings=1 inline=0 scope=whole"),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        self.assertFalse(result["claude-security-review"].whole_review_clears)
+
+    def test_an_unresolved_thread_does_not_clear(self) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_INCREMENTAL, raised=0),
+            *self.chain("claude-security-review", self.CLEAN_INCREMENTAL),
+        ]
+        threads = [thread(self.SECURITY)]
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-security-review"].open_findings, 1)
+        self.assertFalse(result["claude-security-review"].whole_review_clears)
+
+    def test_unbound_never_clears(self) -> None:
+        result = self.bind([])
+        self.assertFalse(result["claude-review"].whole_review_clears)
+
+
 class FailClosedTests(Base):
     def test_garbage_input_never_raises(self) -> None:
         for runs in (None, [None], [{"attempts": "x"}], "runs", [{"id": 1}]):
-            result = ev.bind(S, runs, [None], [None], is_human=is_human)  # type: ignore[arg-type]
+            result = ev.bind(
+                S, runs, [None], [None], is_human=is_human, changed_paths=()
+            )  # type: ignore[arg-type]
             self.assertEqual(len(result), 2)
             for item in result:
                 self.assertFalse(item.bound)
@@ -1373,13 +1483,23 @@ class FailClosedTests(Base):
         import babysit_risk
 
         result = ev.bind(
-            S, [whole(lane, S) for lane in LANES], both_markers(), [], is_human=is_human
+            S,
+            [whole(lane, S) for lane in LANES],
+            both_markers(),
+            [],
+            is_human=is_human,
+            changed_paths=(),
         )
         self.assertTrue(all(isinstance(r, babysit_risk.LaneEvidence) for r in result))
 
     def test_pinned_head_must_be_a_full_sha(self) -> None:
         result = ev.bind(
-            "5e1f", [whole("claude-review", S)], both_markers(), [], is_human=is_human
+            "5e1f",
+            [whole("claude-review", S)],
+            both_markers(),
+            [],
+            is_human=is_human,
+            changed_paths=(),
         )
         for item in result:
             self.assertFalse(item.bound)
@@ -1395,6 +1515,7 @@ class FailClosedTests(Base):
             both_markers(),
             threads,
             is_human=boom,
+            changed_paths=(),
         )
         self.assertFalse(result[0].bound)
 

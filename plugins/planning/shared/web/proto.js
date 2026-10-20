@@ -67,13 +67,11 @@
   const current = q => variants(q).find(v => v.id === ui.variant) || variants(q)[0] || null;
   const notesOn = vid => (S().annotations || []).filter(a => a.qid === qid && a.variant === vid);
   const mine = () => Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.claude && !a.option);
-  const ago = ts => {
-    const s = Math.max(0, Math.round((S().serverTime || Date.now() / 1000) - ts));
-    return s < 60 ? "just now" : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : `${Math.floor(s / 86400)} d ago`;
-  };
   const say = text => { live.textContent = ""; requestAnimationFrame(() => { live.textContent = text; }); };
   function readOnly(q) {
     const r = (S().rounds || []).find(x => x.n === q.round);
+    if (S().youRemoved) return "The host removed you from this session.";
+    if (S().ended && !Core.me.isOwner) return "This session has ended.";
     if (Core.lockOf(qid)) return "Locked. The choice is decided.";
     if (!r) return "This question's round has not opened yet.";
     if (r.status === "sent" || r.status === "working") return "This round went to Claude, so picks wait for the next one.";
@@ -248,7 +246,7 @@
   // ---------- notes ----------
   function renderNotes(v) {
     const list = notesOn(v.id);
-    const key = JSON.stringify([v.id, ui.active, list.map(a => [a.id, a.text, a.name, a.cid, ago(a.ts)])]);
+    const key = JSON.stringify([v.id, ui.active, list.map(a => [a.id, a.text, a.name, a.cid, Core.since(a.ts)])]);
     notesH.textContent = `Notes on ${v.label} (${list.length})`;
     empty.textContent = "No notes on this variant yet. Turn on Annotate, then click the part you want to comment on.";
     empty.hidden = list.length > 0;
@@ -258,8 +256,8 @@
       const li = E("li", "vp-note" + (a.id === ui.active ? " vp-note-on" : ""));
       const b = btn("vp-note-btn");
       const head = E("span", "vp-note-head");
-      head.append(E("span", "vp-pin vp-pin-static", String(i + 1)), Core.avatar(a.cid, a.name, 20),
-        E("span", "vp-note-who", a.cid === Core.me.cid ? "You" : a.name), E("span", "vf-card-time", ago(a.ts)));
+      head.append(E("span", "vp-pin vp-pin-static", String(i + 1)), Core.avatar(a.cid, a.name, 22),
+        E("span", "vp-note-who", a.cid === Core.me.cid ? "You" : a.name), E("span", "vf-card-time", Core.since(a.ts)));
       b.append(head, E("span", "vp-note-text", a.text));
       b.setAttribute("aria-label", `Note ${i + 1} from ${a.cid === Core.me.cid ? "you" : a.name}: ${a.text}. Show it on the prototype.`);
       b.onclick = () => { ui.active = a.id; render(); send({ type: "focus", n: i + 1 }); };

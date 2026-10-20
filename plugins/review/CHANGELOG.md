@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.0] - 2026-10-20
+
+### Fixed
+
+- `/review:ratchet`: the vendored `suppression-scan.py` takes `--exclude <glob>` (repeatable) and `--exclude-from <file>`, so a suppression counter can skip the paths the team's audit scope excludes and stay equal to the audit report. Without them the count is unchanged.
+
 ## [0.48.0] - 2026-10-20
 
 ### Added

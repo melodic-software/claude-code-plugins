@@ -12,33 +12,250 @@ CASE_NUM=0
 # shellcheck source=lib/test-helpers.sh
 source "$SCRIPT_DIR/lib/test-helpers.sh"
 
+# shellcheck source=lib/run-marker.sh
+source "$SCRIPT_DIR/lib/run-marker.sh"
+
+# The guard gates only while a run-open marker is live for the payload's
+# session_id under CLAUDE_PLUGIN_DATA. Every case below sends SESSION_ID, and the
+# marker is opened once here; section 2.0 changes its state on purpose.
+TEST_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TEST_ROOT"' EXIT
+export CLAUDE_PLUGIN_DATA="$TEST_ROOT/data"
+SESSION_ID="sess-live"
+LIVE_MARKER=""
+run_marker_path_to LIVE_MARKER "$CLAUDE_PLUGIN_DATA" "$SESSION_ID"
+run_marker_write "$LIVE_MARKER"
+
 # guard_exit <command> [tool_name]. Omitting the tool defaults to Bash; passing
 # an explicit empty string sends an empty tool_name (`${2-…}`, not `${2:-…}`).
 guard_exit() {
-  jq -n --arg c "$1" --arg t "${2-Bash}" '{tool_name:$t, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
+  jq -n --arg c "$1" --arg t "${2-Bash}" --arg s "$SESSION_ID" '{tool_name:$t, session_id:$s, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?
 }
 
 # guard_exit_rawtool <json-tool-value> <command>. tool_name is sent as a raw JSON
 # value, so non-string payloads (null, a number) reach the guard as themselves.
 guard_exit_rawtool() {
-  jq -n --argjson t "$1" --arg c "$2" '{tool_name:$t, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
+  jq -n --argjson t "$1" --arg c "$2" --arg s "$SESSION_ID" '{tool_name:$t, session_id:$s, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?
 }
 
 # guard_exit_notool <command>. Payload with no tool_name key at all.
 guard_exit_notool() {
-  jq -n --arg c "$1" '{tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
+  jq -n --arg c "$1" --arg s "$SESSION_ID" '{session_id:$s, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
+  echo $?
+}
+
+# guard_exit_session <session-id> <command>. Bash payload for another session.
+guard_exit_session() {
+  jq -n --arg c "$2" --arg s "$1" '{tool_name:"Bash", session_id:$s, tool_input:{command:$c}}' | bash "$SCRIPT" >/dev/null 2>&1
   echo $?
 }
 
 SKILL_MD="$(cd "$SCRIPT_DIR/.." && pwd)/SKILL.md"
+MARKER_SCRIPT="$SCRIPT_DIR/clean-run-marker.sh"
 
 # --- 1. --help contract --------------------------------------------------------
 
 help_out=$(bash "$SCRIPT" --help 2>&1)
 assert_exit "--help exits 0" 0 $?
 assert_contains "--help names the ack prefix" "$help_out" "CLEAN_GUARD_ACK"
+
+# --- 2.0 Precision: destructive text inside a quoted argument is inert -------------
+# These ran as blocks before argv matching: `gh issue comment --body '... git
+# branch -D ...'` is the production false positive (#7333). The live marker is
+# open, so only the parse decides.
+
+for cmd in \
+  "gh issue comment 7333 --body 'cleanup ran git branch -D feature/x'" \
+  "gh issue create --title t --body \"run rm -rf build/ then git reset --hard\"" \
+  "gh issue comment 1 --body 'git push origin --delete x and git stash drop'" \
+  "gh pr comment 1 --body 'bash scripts/clean-caches.sh --apply'" \
+  "echo 'git clean -fdx'" \
+  "git commit -m 'drop git branch -D from the docs'" \
+  "gh issue create --body-file - <<'EOF'
+the body says git branch -D x and rm -rf build/
+EOF"; do
+  assert_exit "stays quiet on quoted text: $cmd" 0 "$(guard_exit "$cmd")"
+done
+
+for cmd in \
+  "bash -c 'rm -rf build'" \
+  "sh -c \"git clean -fdx\"" \
+  "bash -c 'echo hi; git branch -D x'"; do
+  assert_exit "blocks a shell -c operand: $cmd" 2 "$(guard_exit "$cmd")"
+done
+assert_exit "allows a shell -c operand that is benign" 0 "$(guard_exit "bash -c \"echo 'git branch -D'\"")"
+
+assert_exit "still blocks a real branch delete after a quiet comment" 2 \
+  "$(guard_exit "gh issue comment 1 --body 'x'; git branch -D feature/x")"
+
+# The parser comes from the generated copy of lib/hook-utils.sh. One direct call
+# shows it keeps a quoted argument as a single word, which is what the guard's
+# precision rests on.
+parsed_words="$(
+  # shellcheck source=hook-utils.sh
+  source "$SCRIPT_DIR/hook-utils.sh"
+  # shellcheck disable=SC2329  # invoked indirectly as the parser callback
+  report() { printf '%s|' "$#" "$5"; }
+  hook::bash_parse_segments "gh issue comment --body 'git branch -D x'" report
+)"
+assert_contains "generated hook-utils copy parses a quoted argument as one word" "$parsed_words" "5|git branch -D x|"
+
+# --- 2.1 Run-open marker scopes the guard -----------------------------------------
+
+rm -f "$LIVE_MARKER"
+assert_exit "no marker: git branch -D x is allowed" 0 "$(guard_exit "git branch -D x")"
+assert_exit "no marker: rm -rf is allowed" 0 "$(guard_exit "rm -rf build/")"
+assert_exit "no marker: PowerShell Remove-Item is allowed" 0 "$(guard_exit "Remove-Item -Recurse -Force obj" PowerShell)"
+
+run_marker_write "$LIVE_MARKER"
+assert_exit "live marker: git branch -D x is blocked" 2 "$(guard_exit "git branch -D x")"
+assert_exit "live marker: another session is not gated" 0 "$(guard_exit_session "sess-other" "git branch -D x")"
+assert_exit "live marker: unusable session id keeps the guard armed" 2 "$(guard_exit_session "../escape" "git branch -D x")"
+
+# Marker past the idle timeout: allowed, and the stale file is removed.
+printf '1\n' >"$LIVE_MARKER"
+assert_exit "stale marker: git branch -D x is allowed" 0 "$(guard_exit "git branch -D x")"
+if [[ -e "$LIVE_MARKER" ]]; then
+  fail "stale marker is removed" "removed" "present"
+else
+  pass "stale marker is removed"
+fi
+
+# A destructive or acknowledged call refreshes a live marker, so the timeout
+# counts from the last sign of run activity.
+nearly_idle=$(($(printf '%(%s)T' -1) - RUN_MARKER_IDLE_SECONDS + 60))
+printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
+assert_exit "nearly idle marker: still blocks" 2 "$(guard_exit "git branch -D x")"
+read -r refreshed <"$LIVE_MARKER"
+if ((refreshed >= $(printf '%(%s)T' -1) - 5)); then
+  pass "a blocked destructive call refreshes the marker"
+else
+  fail "a blocked destructive call refreshes the marker" "within 5s of now" "$refreshed"
+fi
+
+printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
+assert_exit "nearly idle marker: acknowledged call is allowed" 0 "$(guard_exit "CLEAN_GUARD_ACK=1 git branch -D x")"
+read -r refreshed <"$LIVE_MARKER"
+if ((refreshed >= $(printf '%(%s)T' -1) - 5)); then
+  pass "an acknowledged call refreshes the marker"
+else
+  fail "an acknowledged call refreshes the marker" "within 5s of now" "$refreshed"
+fi
+
+# Ordinary shell calls are not run activity: they leave the stamp alone, so a run
+# that skipped its close step still ages out while the session keeps working.
+printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
+assert_exit "nearly idle marker: ordinary call is allowed" 0 "$(guard_exit "git status")"
+read -r refreshed <"$LIVE_MARKER"
+if [[ "$refreshed" == "$nearly_idle" ]]; then
+  pass "an ordinary call does not refresh the marker"
+else
+  fail "an ordinary call does not refresh the marker" "$nearly_idle" "$refreshed"
+fi
+
+# Running one of the skill's own scripts is run activity: a dry-run refreshes
+# the stamp, so a long dry-run and confirmation phase keeps the run open.
+printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
+assert_exit "nearly idle marker: skill-script dry-run is allowed" 0 \
+  "$(guard_exit "bash /p/skills/clean/scripts/clean-caches.sh --dry-run --repo /r")"
+read -r refreshed <"$LIVE_MARKER"
+if ((refreshed >= $(printf '%(%s)T' -1) - 5)); then
+  pass "a skill-script dry-run refreshes the marker"
+else
+  fail "a skill-script dry-run refreshes the marker" "within 5s of now" "$refreshed"
+fi
+
+# A stale marker meeting a skill-script call means the run is still going (an
+# hour-long confirmation gate), so the apply stays gated instead of ageing out.
+printf '1\n' >"$LIVE_MARKER"
+assert_exit "stale marker: skill-script apply is still blocked" 2 \
+  "$(guard_exit "bash scripts/clean-caches.sh --apply --manifest /m")"
+assert_file_exists "stale marker: a skill-script call keeps the marker" "$LIVE_MARKER"
+
+# Only an invocation counts. A command that merely names a script (staging it,
+# grepping it, quoting it in a comment) is an ordinary call, and so is one behind
+# a wrapper, which the guard's command-position parsing does not resolve.
+mention_cmds=(
+  "git add plugins/repo-hygiene/skills/clean/scripts/clean-batch.sh"
+  "grep -n apply clean-batch.sh" # portability-ok: a test command string, never executed
+  "sudo bash scripts/clean-caches.sh --dry-run"
+)
+for cmd in "${mention_cmds[@]}"; do
+  printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
+  guard_exit "$cmd" >/dev/null
+  read -r refreshed <"$LIVE_MARKER"
+  if [[ "$refreshed" == "$nearly_idle" ]]; then
+    pass "a script mention does not refresh the marker: $cmd"
+  else
+    fail "a script mention does not refresh the marker: $cmd" "$nearly_idle" "$refreshed"
+  fi
+done
+
+printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
+guard_exit "bash -c 'bash scripts/clean-caches.sh --dry-run'" >/dev/null
+read -r refreshed <"$LIVE_MARKER"
+if ((refreshed >= $(printf '%(%s)T' -1) - 5)); then
+  pass "a skill-script dry-run inside bash -c refreshes the marker"
+else
+  fail "a skill-script dry-run inside bash -c refreshes the marker" "within 5s of now" "$refreshed"
+fi
+
+printf '1\n' >"$LIVE_MARKER"
+assert_exit "stale marker: a comment naming a script is allowed" 0 \
+  "$(guard_exit "gh issue comment 1 --body 'see clean-caches.sh'")"
+assert_file_absent "stale marker: a comment naming a script removes it" "$LIVE_MARKER"
+
+# An unreadable stamp keeps the guard armed.
+printf 'garbage\n' >"$LIVE_MARKER"
+assert_exit "unreadable marker: still blocks" 2 "$(guard_exit "git branch -D x")"
+
+# No resolvable data dir: armed, not silently inert.
+unresolved=$(
+  jq -n --arg s "$SESSION_ID" '{tool_name:"Bash", session_id:$s, tool_input:{command:"git branch -D x"}}' |
+    CLAUDE_PLUGIN_DATA="" bash "$SCRIPT" >/dev/null 2>&1
+  echo $?
+)
+assert_exit "unset CLAUDE_PLUGIN_DATA keeps the guard armed" 2 "$unresolved"
+no_session=$(
+  jq -n '{tool_name:"Bash", tool_input:{command:"git branch -D x"}}' | bash "$SCRIPT" >/dev/null 2>&1
+  echo $?
+)
+assert_exit "missing session_id keeps the guard armed" 2 "$no_session"
+run_marker_write "$LIVE_MARKER"
+
+# The marker script: mutating tiers arm the guard, the scan tiers never write.
+for tier in scan scan-batch; do
+  bash "$MARKER_SCRIPT" open --tier "$tier" --session "sess-$tier" --data-dir "$CLAUDE_PLUGIN_DATA" >/dev/null 2>&1
+  assert_exit "open --tier $tier exits 0" 0 $?
+  if [[ -e "$CLAUDE_PLUGIN_DATA/clean-run/sess-$tier.open" ]]; then
+    fail "open --tier $tier writes no marker" "absent" "present"
+  else
+    pass "open --tier $tier writes no marker"
+  fi
+done
+for tier in caches build git stash tree all caches-batch tree-batch; do
+  bash "$MARKER_SCRIPT" open --tier "$tier" --session "sess-$tier" --data-dir "$CLAUDE_PLUGIN_DATA" >/dev/null 2>&1
+  assert_exit "open --tier $tier exits 0" 0 $?
+  if [[ -e "$CLAUDE_PLUGIN_DATA/clean-run/sess-$tier.open" ]]; then
+    pass "open --tier $tier writes the marker"
+  else
+    fail "open --tier $tier writes the marker" "present" "absent"
+  fi
+done
+assert_exit "marker armed by the script gates the guard" 2 "$(guard_exit_session "sess-caches" "git branch -D x")"
+bash "$MARKER_SCRIPT" close --session "sess-caches" --data-dir "$CLAUDE_PLUGIN_DATA" >/dev/null 2>&1
+assert_exit "close exits 0" 0 $?
+assert_exit "closed run: the guard lets git branch -D x through" 0 "$(guard_exit_session "sess-caches" "git branch -D x")"
+bash "$MARKER_SCRIPT" close --session "sess-caches" --data-dir "$CLAUDE_PLUGIN_DATA" >/dev/null 2>&1
+assert_exit "close is idempotent" 0 $?
+bash "$MARKER_SCRIPT" open --tier caches --session "sess-x" --data-dir '${CLAUDE_PLUGIN_DATA}' >/dev/null 2>&1
+assert_exit "open refuses an unsubstituted data dir" 2 $?
+bash "$MARKER_SCRIPT" open --tier caches --session "../x" --data-dir "$CLAUDE_PLUGIN_DATA" >/dev/null 2>&1
+assert_exit "open refuses an unusable session id" 2 $?
+bash "$MARKER_SCRIPT" open --session "sess-x" --data-dir "$CLAUDE_PLUGIN_DATA" >/dev/null 2>&1
+assert_exit "open without --tier is a usage error" 2 $?
 
 # --- 2. Destructive commands blocked (exit 2) -----------------------------------
 
@@ -282,6 +499,11 @@ for cmd in \
   assert_exit "blocks: $cmd" 2 "$(guard_exit "$cmd")"
 done
 
+# A quoted backslash-separated script path reaches the parser with its
+# backslash intact, so only the backslash strip names the apply script.
+assert_exit "blocks a quoted backslash script path" 2 \
+  "$(guard_exit "bash 'scripts\\clean-caches.sh' --apply")"
+
 for cmd in \
   "bash scripts/clean-batch.sh --tier caches --dry-run --repo /d/repos/foo" \
   "bash scripts/remove-path.sh --dry-run /d/repos/foo" \
@@ -367,7 +589,7 @@ assert_exit "empty tool_input exits 0" 0 "$empty"
 # sandbox is verified functional first and the cases are skipped when it isn't.
 
 NOJQ_DIR="$(mktemp -d)"
-trap 'rm -rf "$NOJQ_DIR"' EXIT
+trap 'rm -rf "$TEST_ROOT" "$NOJQ_DIR"' EXIT
 for bin in bash cat grep sed; do
   ln -s "$(command -v "$bin")" "$NOJQ_DIR/$bin" 2>/dev/null || true
 done

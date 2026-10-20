@@ -3,6 +3,40 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.20.2] - 2026-10-20
+
+### Fixed
+
+- `/harness-ops:audit-performance` no longer counts `Edit(**/<dir>/*.<ext>)` and `Write(*.<ext>)` hook gates as firing on a file of another extension, and each `fan_out.hooks.projection` row now reports a `floor` and a `ceiling` beside its existing fields, with each extra copy of a settings-file handler and each upper-case extension gate counted toward the ceiling only (#6786).
+
+## [3.20.1] - 2026-10-20
+
+### Fixed
+
+- `/harness-ops:plugins converge` no longer treats a user home directory as a project path. `fleet-state.sh` marks each project or local record whose `projectPath` is `$HOME`, `/home/<name>`, `/Users/<name>`, `C:\Users\<name>` or the WSL view `/mnt/<drive>/Users/<name>` with `projectPathIsHome: true`. `converge` reports such a row as BLOCKED and emits no command for it, because that directory's `.claude/settings.json` is user settings and a project-scope uninstall there would remove user-scope enables. `sync` leaves those records out of its divergence count and lists them in a `User-home project records` row.
+
+## [3.20.0] - 2026-10-20
+
+### Changed
+
+- `/harness-ops:plugins sync` and `audit` now split the `Divergences:` count by what can be done about each part: actionable here, actionable elsewhere on the machine, in linked worktrees, and blocked (path not present). Only the actionable parts point at `converge`; the worktree part points at `/source-control:worktree audit` (if installed), and the blocked part points at the stale-records note. The digest's `divergences` object carries the new `actionable_here`, `actionable_elsewhere`, `in_worktrees` and `blocked` counts; `divergences[]` is not filtered, and a digest written before the split renders as it did.
+
+## [3.19.1] - 2026-10-20
+
+### Fixed
+
+- `/harness-ops:plugins converge` no longer defaults to uninstalling a project pin whose id is enabled in the tracked `.claude/settings.json`: it defaults to `update -s project` and offers uninstall only as a warned non-default. Each preview row states why its default was chosen. The check reads that one `enabledPlugins` key with the Read tool, the plugin's only sanctioned settings read, and is removed once `sync` takes over project pin updates (#7458).
+
+## [3.19.0] - 2026-10-20
+
+### Added
+
+- `audit-plugin-landscape` skill: an on-demand, read-only report on installed plugins and known marketplaces. `scripts/landscape_ages.py` batches `gh api` calls to give each one's last upstream commit date and flags 60+ days without a commit, an archived repository, a moved or renamed repository, and a missing source path; the skill groups overlapping plugins, lists alternatives with evidence, and recommends adopt, adapt or drop without filing issues or changing installed state.
+
+### Fixed
+
+- `/harness-ops:plugins sync` under `install_new: ask` no longer tells the model to offer every new catalog plugin in one batched multi-select, which the `AskUserQuestion` tool rejects for a gap of 1 and cannot hold for a gap over 4. The offer now goes in chunks of at most 4 options per question and 4 questions per call, with a further call past 16. Each chunk's question text is distinct, a chunk of 1 (a gap of 1, or the one left over from a gap of 5, 9, 13 and so on) is a single-select Install/Skip question, and an unanswered chunk counts as declined. The skill body, the install-enable context, the README and the `install_new` manifest description state the same rule, and three new evals cover a gap of 1, a gap over 4, and a leftover chunk of 1 in a further call past 16.
+
 ## [3.18.0] - 2026-10-20
 
 ### Added

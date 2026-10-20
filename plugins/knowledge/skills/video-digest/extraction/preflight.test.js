@@ -59,4 +59,34 @@ describe("preflight.mjs", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("unsubstituted placeholder");
   });
+
+  // A stub interpreter: an executable script that exits 0, so `-c "import faster_whisper"` passes.
+  function stubPython(name) {
+    const stub = path.join(sandbox(), name);
+    fs.writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    return stub;
+  }
+
+  it.skipIf(process.platform === "win32")(
+    "ignores a literal ${user_config...} --asr-python and probes the option's env value",
+    () => {
+      const stub = stubPython("env-python");
+      const result = runPreflight(["--asr-python", "${user_config.asr_python}"], {
+        CLAUDE_PLUGIN_OPTION_ASR_PYTHON: stub,
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain(`faster-whisper: available (via ${stub})`);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "prefers a real --asr-python over the option's env value",
+    () => {
+      const flag = stubPython("flag-python");
+      const env = stubPython("env-python");
+      const result = runPreflight(["--asr-python", flag], { CLAUDE_PLUGIN_OPTION_ASR_PYTHON: env });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain(`faster-whisper: available (via ${flag})`);
+    },
+  );
 });

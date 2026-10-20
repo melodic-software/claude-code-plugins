@@ -43,10 +43,10 @@
       "id": 4,
       "name": "does-not-diagnose-limit-type",
       "prompt": "keep going — was that a 5-hour limit or the weekly one that cut us off?",
-      "expected_output": "The skill does not try to classify the interruption type (short vs weekly limit vs crash) — the recovery is identical regardless — and instead runs the inventory / inspect / recover / reconcile flow.",
+      "expected_output": "The skill does not pick a recovery from the interruption type (short vs weekly limit vs crash) — the recovery is identical regardless — and runs the inventory / inspect / recover / reconcile flow. The snapshot's cause line may quote the evidence it found, without classifying beyond it.",
       "files": [],
       "expectations": [
-        "Does not attempt to diagnose or classify the interruption/limit type",
+        "Does not classify the limit type beyond the evidence it quotes, and does not use the type to choose a recovery",
         "Proceeds with the recovery flow that is the same regardless of cause",
         "Focuses on real-state inspection and continuation, not the interruption's origin"
       ]
@@ -203,13 +203,40 @@
       "id": 16,
       "name": "report-states-the-measured-gap-after-a-rate-limit-stop",
       "prompt": "keep going — we hit a rate limit and I was away for a while. The session transcript is at ~/.claude/projects/app/session.jsonl.",
-      "expected_output": "In step 2 the skill runs measure-stop-gap.py on the transcript instead of estimating how long the session was stopped, and the report states the measured gap (from the limit entry to now). It re-reads limit windows, leases, PR state and CI runs older than the gap rather than trusting remembered values. If the checker exits non-zero, the report says the gap is unknown and does not guess one.",
+      "expected_output": "In step 2 the skill runs measure-stop-gap.py on the transcript instead of estimating how long the session was stopped, and the environment snapshot's Gap field states the measured gap (from the limit entry to now). It re-reads limit windows, leases, PR state and CI runs older than the gap rather than trusting remembered values. If the checker exits non-zero, the report says the gap is unknown and does not guess one.",
       "files": [],
       "expectations": [
         "Runs measure-stop-gap.py on the session transcript during inspection rather than estimating the stop's length",
-        "The report states the gap length measured from the limit entry to now",
+        "The snapshot's Gap field states the gap length measured from the limit entry to now",
         "Re-reads limit windows, leases, PR state and CI runs older than the gap instead of trusting remembered state",
         "If the checker exits non-zero, reports the gap as unknown and does not invent a duration"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "snapshot-block-after-rate-limit-stop",
+      "prompt": "keep going — we hit the usage limit a while ago and I was away. rate-limit-guard and context-guard are both installed with mods on, and a background test run was left going. The session transcript is readable.",
+      "expected_output": "After inspecting real state and before any resume, restart or kill, the skill prints one environment snapshot block with every field: account (the operator's answer or an identity reading, else unknown with the reason), the 5-hour and 7-day windows with reset times from rate-limit-guard's status tool, the context zone from context-guard's status tool, the background test run with its liveness verdict, the measured gap, and the cause quoted as the limit message found. The recovery that follows is the same whatever the cause line says.",
+      "files": [],
+      "expectations": [
+        "Prints one snapshot block before any resume, restart or kill action",
+        "The block has every field: account, 5-hour and 7-day windows with reset times, context zone, each off-thread item with its liveness verdict, gap, and cause",
+        "Takes windows from rate-limit-guard's status tool, the zone from context-guard's status tool, and the gap from measure-stop-gap.py",
+        "The cause line quotes the evidence (the limit message) and the recovery method does not depend on it",
+        "A field it cannot read says unknown with the reason, and no value is guessed"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "snapshot-windows-unknown-without-rate-limit-guard",
+      "prompt": "keep going — we got cut off by a rate limit. rate-limit-guard is not installed in this setup.",
+      "expected_output": "The skill prints the environment snapshot before acting. The windows field reads unknown and gives the reason, that rate-limit-guard is not installed, instead of an invented window or reset time; the other fields come from their own sources.",
+      "files": [],
+      "expectations": [
+        "Prints the snapshot block before any recovery action",
+        "The windows field reads unknown and states that rate-limit-guard is not installed",
+        "Does not invent a window, usage percentage or reset time",
+        "The other fields are filled from their own sources or read unknown with a reason"
       ]
     }
   ]

@@ -3,6 +3,53 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.14.3] - 2026-10-20
+
+### Fixed
+
+- pr-merge refuses to enqueue a pull request carrying a shared-library canonical (the canonical or a copy it touches, or a copy it registers) that main changed since its merge base, and escalates it to a person with the human-gated role label and one comment naming the canonicals and the fix: merge main, run `scripts/sync-shared-copies.sh`, and push. An update from main alone left the pull request's copies stale, and the queue's copy-drift check failed ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [1.14.2] - 2026-10-20
+
+### Fixed
+
+- pr-merge counts the cap of two whole reviews per lane pull request from the lane identity's conversions to draft on the pull request timeline as well as from the reasons comment's record lines, so editing that comment, which the lane token can do, no longer resets the cap. An unread timeline requests no whole review.
+
+## [1.14.1] - 2026-10-20
+
+### Fixed
+
+- The pr-merge gate no longer enqueues a stale-input pull request at its old head after an `update-branch` call that got no answer. A timeout, a failure with no HTTP status, or a server error may have landed the update, so the gate now holds with `check-inputs-changed` and records `updated: null` and the `updateError`; only a 4xx refusal enqueues as before.
+- `merge.check-inputs` now reads only a full-history clone that is neither shallow nor partial. A blobless clone missing the base tip's `scripts/shared-copies.txt` read it as empty and answered `current` for a pull request it should have updated; it now answers `unknown`.
+
+## [1.14.0] - 2026-10-20
+
+### Added
+
+- pr-merge requests a whole review of a lane pull request held only by findings an incremental review cannot clear: it records the request in the reasons comment, then converts the pull request to a draft and marks it ready, once per head, at most twice per pull request and once per run, only while fewer than 35 jobs run or wait and both tokens have 30% of each rate-limit bucket left ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [1.13.3] - 2026-10-20
+
+### Fixed
+
+- `pull-request` monitor: a re-arm at the Monitor deadline no longer loses a check that finishes between the full iteration's checks read and the new watch's first poll. The iteration writes its checks snapshot to a file and the watch starts from it (`BASELINE_FILE` in the poll script), so such a check is emitted once and checks already finished at the read are not reported again. The first arming still only records the checks on its first poll. The snapshot comes from a snapshot run of the poll script itself (`SNAPSHOT_FILE`), so the watch and the snapshot share one format; the watch refuses a baseline file the script did not write (`BASELINE-UNREADABLE`, record-only, run a full scan) instead of re-emitting finished checks.
+
+## [1.13.2] - 2026-10-20
+
+### Fixed
+
+- Babysit review evidence no longer trusts review-lane records on a pull request that changes what the lanes run from its own checkout (anything under `.github/` or `plugins/review/`, a `.claude/` directory at any depth, or a `.mcp.json` at any depth): both lanes stay unbound, as they do when the changed-file list is unread or incomplete (#8552).
+
+## [1.13.1] - 2026-10-20
+
+### Changed
+
+- `pull-request` B2 states when a push needs a fresh AI review round: only when it changed reviewed content, and any conflict resolution in code counts. A push that only merged the default branch needs none when `git show --remerge-diff` of the merge is fully empty, with no paths excluded; an empty result does not detect semantic interaction with what the base brought in. The monitor applies the same test before waiting on lanes, readiness Gate 5 substitutes for an absent lane only when B2 says the push needs a fresh round, and B2 applies unchanged when the test cannot be computed ([#6632](https://github.com/melodic-software/claude-code-plugins/issues/6632)).
+
+### Fixed
+
+- `worktree` status and audit read PRs per worktree branch instead of one capped list of every PR, so older worktrees keep their PR and `superseded` rows are no longer hidden in repositories with many PRs. A failed lookup shows "PR lookup incomplete" rather than no PR.
+
 ## [1.13.0] - 2026-10-20
 
 ### Added

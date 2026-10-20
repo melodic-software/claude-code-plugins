@@ -306,7 +306,9 @@ function views(page, CFG) {
     "compare-formats": async () => { await mode("compare"); return page.evaluate(() => { const b = document.querySelector(".vf-board"); if (!b) return false; b.scrollLeft = b.scrollWidth; return true; }); },
     // the Inbox remembers its tab on the device, and "review" leaves it on Needs you: these start on Notifications
     "bell": async () => { if (!(await clickIn(".vf-bell"))) return false; await W(120); return clickIn(".vf-ixtabs .vf-seg-btn", "Notifications"); },
-    "bell-mute": async () => { await clickIn(".vf-bell"); await W(120); await clickIn(".vf-ixtabs .vf-seg-btn", "Notifications"); await W(120); return clickIn(".vf-mutebtn"); },
+    "bell-mute": async () => { await clickIn(".vf-bell"); await W(120); await clickIn(".vf-ixtabs .vf-seg-btn", "Notifications"); await W(120);
+      // from 1100 px the switches sit open beside the messages with no button (follow-up 51); below, the button opens them
+      return (await clickIn(".vf-mutebtn")) || page.evaluate(() => document.querySelector(".vf-ibside > .vf-mutebox")?.getClientRects().length > 0); },
     "mention": async () => {
       await gotoQ("Q9"); await page.click("#vf-answer"); await page.keyboard.type("Ask @");
       await W(150); return page.evaluate(() => !document.querySelector(".vf-mentions").hidden);

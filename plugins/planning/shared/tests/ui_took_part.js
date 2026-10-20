@@ -6,6 +6,8 @@
 // with undo, and a Pass on a poll shows no results; a question asked of a person (`for`) stays open for them after a
 // reaction, and their Pass needs a reason; the owner sets `for` from the question. Triage row 43: a late joiner lands on
 // the current round and the welcome card and the rail say what an earlier closed round still wants, with a link to it.
+// #7852: the Host view's row shows the behind count, and a Behind chip lists those people. Follow-up 52: a round pick
+// that hides rounds says so above the rail, with Show all.
 //   node plugins/planning/shared/tests/ui_took_part.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values (states, sentences, counts) come from triage rows 42 and 43, never from the page itself.
@@ -62,6 +64,21 @@ async function main() {
     ok("  his rail shows 2 open", (await bo.evaluate(() => [...document.querySelectorAll(".vf-q")].filter(b => !b.dataset.stat).length)) === 2, JSON.stringify(await bo.evaluate(rail)));
     ok("  and the Host view's behind count for Bo is 2 as well", await until(owner, pid => window.Core.snapshot()?.behind?.[pid] === 2, boPid, 10000),
       JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.behind)));
+    // #7852: the Host view shows that count on Bo's row, and a Behind chip lists exactly the people the server counts
+    const seg = async (page, label) => {
+      const sb = page.locator(".vf-bar .vf-seg-btn", { hasText: label }), more = page.locator(".vf-viewopts");
+      if (!(await sb.isVisible()) && (await more.isVisible())) await more.click();
+      await sb.click({ timeout: 5000 });
+    };
+    await seg(owner, "Host");
+    ok("  the Host view's row for Bo says 2 to answer this round", await until(owner, pid => /, 2 to answer this round/.test(document.querySelector(`.vf-hpeople [data-pid="${pid}"]`)?.closest("li")?.querySelector(".vf-hp-meta")?.textContent || ""), boPid, 10000),
+      await owner.evaluate(() => [...document.querySelectorAll(".vf-hp-meta")].map(m => m.textContent).join(" | ")));
+    await owner.locator(".vf-pfilters .vf-fchip", { hasText: "Behind" }).click();
+    const behindRows = await owner.evaluate(() => [...document.querySelectorAll(".vf-hpeople > li")].map(li => li.querySelector("[data-pid]")?.dataset.pid).sort().join());
+    const owing = await owner.evaluate(() => Object.entries(window.Core.snapshot().behind).filter(([, n]) => n > 0).map(([p]) => p).sort().join());
+    ok("  and the Behind chip shows only the people who still owe an answer", behindRows.includes(boPid) && behindRows === owing, `${behindRows} vs ${owing}`);
+    await owner.locator(".vf-pfilters .vf-fchip", { hasText: "All" }).click();
+    await seg(owner, "Focus");
 
     // ---------- the soft nudge ----------
     await cy.locator(".vf-q", { hasText: T.g }).first().click();
@@ -147,9 +164,18 @@ async function main() {
       const c = document.querySelector(".vf-round-cur > .vf-catchup");
       return !!c && !c.hidden && c.textContent.startsWith(l);
     }, line));
-    await maude.locator(".vf-orient .vf-catchup-go").click();
+    await maude.locator(".vf-orient .vf-catchup .vf-lbtn").click();
     ok("  Catch up on round 1 opens round 1's first open question", await until(maude, t => document.querySelector(".vf-qtext")?.textContent === t, T.g, 10000),
       await maude.evaluate(() => document.querySelector(".vf-qtext")?.textContent));
+
+    // ---------- follow-up 52: a filter that hides rounds says so in the rail ----------
+    const railNote = () => owner.evaluate(() => { const n = document.querySelector(".vf-railfilter"); return n && !n.hidden ? n.textContent : ""; });
+    ok("with no filter the rail says nothing about hidden questions", (await railNote()) === "", await railNote());
+    await owner.evaluate(() => window.Core.savePrefs({ round: "2" }));
+    ok("with only round 2 picked, the rail says round 1 is hidden, with Show all", await until(owner, () => document.querySelector(".vf-railfilter:not([hidden])")?.textContent === "Showing round 2 · 1 round hidden · Show all", null, 10000), await railNote());
+    await owner.locator(".vf-railfilter .vf-lbtn", { hasText: "Show all" }).click();
+    ok("  Show all brings every round back and the note goes", await until(owner, () => document.querySelector(".vf-railfilter").hidden && window.Core.state.me.prefs.round !== "2"
+      && [...document.querySelectorAll(".vf-round")].length === 2, null, 10000), await railNote());
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
