@@ -75,7 +75,8 @@ async function main() {
 
     // ---------- comment edit: the @ picker (people only) and Escape cancels ----------
     const mine = ann.locator(".vf-disc-list > .vf-cm", { hasText: "for the idea" });
-    await mine.locator(".vf-lbtn", { hasText: "Edit" }).click();
+    await mine.locator(".vf-cm-more").click();
+    await ann.locator(".vf-msgmenu [role=menuitem]", { hasText: "Edit" }).click();
     await until(ann, () => !document.querySelector(".vf-cm-edit")?.hidden);
     await ann.focus(".vf-cm-edit textarea");
     await ann.keyboard.press("End");

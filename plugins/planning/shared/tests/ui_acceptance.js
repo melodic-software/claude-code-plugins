@@ -296,7 +296,7 @@ async function main() {
     await railQ(cy, Q2T).click();
     await railQ(host, Q1T).click();
     await host.locator(".vf-round-cur .vf-send").click();
-    const sendAnyway = host.locator(".vf-confirm button", { hasText: "Send anyway" });
+    const sendAnyway = host.locator("dialog.vf-cdlg[open] button", { hasText: "Send anyway" });
     if (await sendAnyway.isVisible().catch(() => false)) await sendAnyway.click();
     ok("round lifecycle: after Send, guests see Waiting for Claude", await until(bo, () => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent === "Waiting for Claude"), await curStep(bo));
     const cancelBtn = host.locator(".vf-cancel-send").first();

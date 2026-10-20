@@ -74,6 +74,8 @@
   const say = text => { live.textContent = ""; requestAnimationFrame(() => { live.textContent = text; }); };
   function readOnly(q) {
     const r = (S().rounds || []).find(x => x.n === q.round);
+    if (S().youRemoved) return "The host removed you from this session.";
+    if (S().ended && !Core.me.isOwner) return "This session has ended.";
     if (Core.lockOf(qid)) return "Locked. The choice is decided.";
     if (!r) return "This question's round has not opened yet.";
     if (r.status === "sent" || r.status === "working") return "This round went to Claude, so picks wait for the next one.";

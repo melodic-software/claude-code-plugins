@@ -2820,11 +2820,13 @@ class TestSessionControls(SessionCase):
         self.act("set_prefs", self.ann, {"set": {"autoAdvance": None}})
         self.assertNotIn(self.ann, self.s.state["prefs"])
 
-    def test_popups_name_only_the_owners_inbox_kinds_and_belong_to_their_person(self):
+    def test_popups_name_only_pop_up_kinds_and_belong_to_their_person(self):
         self.assertEqual(self.act("set_prefs", HOST, {"set": {"popups": ["join", "share"]}})["prefs"], {"popups": ["join", "share"]})
         self.assertEqual(self.s.snapshot(self.ann)["me"]["prefs"], {})
         self.act("set_prefs", HOST, {"set": {"popups": []}})  # every kind off: the Inbox only
-        for bad in ("join", ["mention"], ["join"] * 7, ["join", "join"], [["join"]], [{}], [1]):
+        # Round 11: a guest's own switches, an answered request, a mention and a new round.
+        self.assertEqual(self.act("set_prefs", self.ann, {"set": {"popups": ["mention", "round"]}})["prefs"], {"popups": ["mention", "round"]})
+        for bad in ("join", ["reply"], ["join"] * 7, ["join", "join"], [["join"]], [{}], [1]):
             self.refused("bad-field", "set_prefs", HOST, {"set": {"popups": bad}})
 
     def test_title_is_1_to_80_and_goal_up_to_200(self):

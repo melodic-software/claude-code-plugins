@@ -622,6 +622,9 @@
 }
 .app .vf-share { inline-size: 340px; }
 .app .vf-pop-title { font-size: 13px; font-weight: 650; margin-block-end: 4px; }
+/* F11: the one close control; on a surface with no head row it sits in the top corner, clear of the title */
+.app .vf-pop > .vf-popx:first-child { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; z-index: 1; }
+.app .vf-pop:has(> .vf-popx:first-child) > .vf-pop-title { padding-inline-end: 44px; }
 .app .vf-pop-note { color: var(--faint); font-size: 12px; margin-block: 8px 2px; }
 .app .vf-settings .vf-pop-note { margin-block: 0 8px; }
 .app .vf-pop-who { display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px; }
@@ -940,6 +943,7 @@
 /* ---------- person card ---------- */
 .app .vf-pcard { inline-size: 288px; display: grid; gap: 10px; }
 .app .vf-pc-head { display: flex; align-items: center; gap: 10px; }
+.app .vf-pcard:has(> .vf-popx:first-child) > .vf-pc-head { padding-inline-end: 40px; }
 .app .vf-pc-who { display: grid; gap: 2px; min-width: 0; }
 .app .vf-pc-name { font-weight: 650; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app .vf-role { justify-self: start; font-size: 11px; font-weight: 650; padding: 1px 6px; border-radius: 4px; background: var(--raise); color: var(--muted); }
@@ -1074,6 +1078,7 @@
 .app .vf-settings { max-block-size: calc(100% - 16px); overflow: auto; }
 .app .vf-removed { display: grid; gap: 4px; padding-inline: 8px; }
 .app .vf-removed-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.app .vf-removed-name { flex: 1; min-inline-size: 0; }
 .app .vf-share-new { margin-block: 4px 0; padding: 6px 8px; border-radius: var(--r-sm); background: var(--review-soft); color: var(--text); font-size: 12px; font-weight: 600; }
 .app .vf-tbtn-alert { color: var(--text); border-color: color-mix(in oklch, var(--review) 60%, transparent); background: var(--review-soft); }
 .app .vf-rename { display: grid; gap: 6px; }
@@ -1821,14 +1826,7 @@
   .app .vf-upacts { grid-column: 1 / -1; justify-content: flex-start; }
   .app .vf-devicepop, .app .vf-citepop, .app .vf-menu { inline-size: min(340px, calc(100% - 16px)); }
 }
-/* tablet widths: the drawer would leave too little page, so it is a bottom sheet there too */
-@media (min-width: 721px) and (max-width: 1023px) {
-  .app .vf-drawer {
-    inset-block: auto 0; inset-inline: 0; inline-size: auto; block-size: 70%;
-    border-radius: var(--r-lg) var(--r-lg) 0 0; border-block-start: 1px solid var(--line-strong); transform-origin: bottom center;
-  }
-}
-@media (max-width: 1023px) and (prefers-reduced-motion: no-preference) {
+@media (max-width: 720px) and (prefers-reduced-motion: no-preference) {
   .app .vf-drawer:not([hidden]) { animation: vf-sheet 500ms var(--ease-drawer) both; }
 }
 @media (max-height: 560px) {
@@ -1987,21 +1985,27 @@
 .app .vf-ev-here { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; min-block-size: 24px; }
 .app .vf-ev-next { color: var(--faint); font-size: 13px; }
 .app .vf-ev > .vf-btn { justify-self: start; gap: 6px; }
+/* Approve new joins: a waiting person sees one centered card; the session's controls come with admission. */
+.app[data-waiting] :is(.vf-banner, .vf-rail, .vf-tabs, .vf-fab, .vf-chat, .vf-people, .vf-here, .vf-asktop, .vf-sharebtn, .vf-follow, .vf-inboxbtn, .vf-gear, .vf-introbtn) { display: none; }
+.app[data-waiting] .vf-body { grid-template-columns: minmax(0, 1fr); }
+.app[data-waiting] .vf-emptyv { display: grid; align-content: center; }
+.app[data-waiting] .vf-ev { text-align: center; justify-items: center; }
+.app .vf-ev-intro[hidden] { display: none; }
 
 /* ---------- Q86: More sheet (phones) ---------- */
 .app .vf-mslist { display: grid; padding: 4px 8px 12px; grid-template-columns: minmax(0, 1fr); }
-.app .vf-msitem {
+.app :is(.vf-msitem, .vf-hitem) {
   all: unset; box-sizing: border-box; cursor: pointer; inline-size: 100%;
   display: grid; grid-template-columns: 22px minmax(0, 1fr); grid-template-areas: "i l" ". d"; column-gap: 14px; align-items: center;
   min-block-size: 56px; padding: 8px 10px; border-radius: var(--r-md);
 }
-.app .vf-msitem:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.app .vf-msitem > .vf-i { grid-area: i; inline-size: 22px; block-size: 22px; color: var(--muted); }
+.app :is(.vf-msitem, .vf-hitem):focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.app :is(.vf-msitem, .vf-hitem) > .vf-i { grid-area: i; inline-size: 22px; block-size: 22px; color: var(--muted); }
 .app .vf-ms-l { grid-area: l; font-size: 15px; font-weight: 600; line-height: 22px; }
 .app .vf-ms-d { grid-area: d; font-size: 12.5px; color: var(--faint); }
 .app .vf-ms-d:empty { display: none; }
 @media (hover: hover) and (pointer: fine) {
-  .app .vf-msitem:hover { background: var(--raise); }
+  .app :is(.vf-msitem, .vf-hitem):hover { background: var(--raise); }
 }
 
 /* tablet widths: the bell and the theme button need the room, so Ask Claude keeps only its icon (and its name) */
@@ -2036,8 +2040,23 @@
 .app .vf-ixgroup { display: grid; gap: 8px; }
 .app .vf-ibempty { padding-block: 24px; text-align: center; }
 .app .vf-ibq { gap: 8px; grid-template-columns: minmax(0, 1fr); }
-.app .vf-ibq .vf-ibnav { justify-content: flex-start; }
-.app .vf-ibq .vf-ibnav[hidden] { display: none; }
+.app .vf-ibq .vf-acts > .vf-ibgo { margin-inline-end: auto; }
+/* Follow-up 51: Pop-ups and the switches sit after the messages; below 1100 px the button folds them away */
+.app .vf-ibside { display: grid; gap: 12px; align-content: start; }
+.app .vf-ibside[data-open="false"] > :is(.vf-ibpops, .vf-ibmuteh, .vf-mutebox) { display: none; }
+.app .vf-ibmuteh { display: none; }
+@media (min-width: 1100px) {
+  .app .vf-ibtop, .app .vf-ibscroll { padding-inline: max(24px, calc((100% - 1280px) / 2)); }
+  .app .vf-ibneeds:has(> .vf-ibrev:not([hidden])):has(> .vf-ibneedq:not([hidden])) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .app .vf-ibneeds > :is(.vf-ibempty, .vf-ibneedix) { grid-column: 1 / -1; }
+  .app .vf-ixnotes { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; column-gap: 32px; }
+  .app .vf-ixnotes > :not(.vf-ibside) { grid-column: 1; }
+  .app .vf-ibside { grid-column: 2; grid-row: 1 / span 6; position: sticky; top: 0; }
+  .app .vf-ibside > .vf-mutebtn { display: none; }
+  .app .vf-ibside[data-open] > :is(.vf-ibpops, .vf-mutebox) { display: grid; }
+  .app .vf-ibside[data-open] > .vf-ibmuteh { display: block; }
+  .app .vf-ibside .vf-sw-row { min-block-size: 32px; padding-block: 4px; }
+}
 .app .vf-ixlist { display: grid; gap: 6px; grid-template-columns: minmax(0, 1fr); }
 /* question line and status chip; what was asked and when; a reason or a wait under it; the unread dot in the gutter */
 .app .vf-ixitem {
@@ -2283,7 +2302,11 @@
 .app .vf-tour-h { margin: 2px 0 6px; font-size: 17px; line-height: 1.3; }
 .app .vf-tour-t { margin: 0 0 12px; overflow-wrap: anywhere; }
 .app .vf-tour-row .vf-btn { block-size: 44px; padding-inline: 14px; font-size: 14px; }
-.app .vf-help-tour { justify-self: start; margin-block: 4px 12px; }
+/* F12: Help lists More's rows, sized for a popover */
+.app .vf-helplist { padding: 0 0 8px; }
+.app .vf-helplist .vf-hitem { min-block-size: 40px; padding: 6px 8px; column-gap: 10px; grid-template-columns: 18px minmax(0, 1fr); }
+.app .vf-helplist .vf-hitem > .vf-i { inline-size: 18px; block-size: 18px; }
+.app .vf-helplist .vf-ms-l { font-size: 13.5px; line-height: 20px; }
 @media (prefers-reduced-motion: no-preference) {
   .app .vf-tour-ring { transition: translate 200ms var(--ease-out); }
 }
