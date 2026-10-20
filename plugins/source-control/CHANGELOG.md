@@ -3,6 +3,202 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.13.0] - 2026-10-20
+
+### Added
+
+- `landed-work.sh --merged-pr-proof` reads a branch's merged pull request (merged into the resolved base) and reports the branch `landed` when local HEAD equals or is an ancestor of the PR head, or every unpushed commit is in the PR's commit list. With the flag, which the worktree status procedure passes, squash-merged worktrees no longer come back `unknown` or `superseded`. A failed PR read keeps the prior verdict and names the read in the reason.
+
+- `merge.max-in-flight` (default 1) sets how many lane merges the unattended merge gate allows in flight: the agent identity's merge-queue entries plus its merged pull requests the post-merge check has not verified. `in_flight` refuses at the cap with the reason of the entry or merge that reached it, and refuses on an unknown enqueuer, an unreadable queue or a truncated history under any cap. After an enqueue, the entry dequeues itself when the identity's earlier entries plus the unverified merges already fill the cap. The post-merge check still charges every unverified merge whose commit a red run contains, so a breakage found with several in flight fails the check and files a demotion record for each.
+
+- `/source-control:pull-request ci --ci` is the pr-unblock lane's unattended fix for a pull request's failing checks. It reads the runner's context file as data, reproduces each failing check with the repository's own command, fixes the cause, reruns the check, and leaves the fix uncommitted for the runner to turn into a patch. It never weakens a test, suppresses a lint rule or edits a file under `.github/`; a check it cannot fix is reported with a named reason (`not-reproducible`, `flaky`, `protected-path`, `weaken-required` or `unfixed`).
+
+- `lane_app_slug` userConfig key: babysit-loop's telemetry upsert passes it as `--app-slug` on every write and `--read` call, so a lane under a GitHub App installation token resolves its `<slug>[bot]` write identity without the launch prompt supplying the slug. An empty or surviving `${user_config.…}` placeholder slug is treated as absent.
+
+- `write-changelog-fragments.sh` also writes a fragment for a convention listed in
+  `scripts/fragment-plugins.txt`: a listed name with no plugin and a
+  `docs/conventions/<name>/CHANGELOG.md`, when the change touches that directory.
+
+- `/source-control:worktree audit` reports, as an error, a registered worktree whose path lies inside a different repository's work tree, naming the owning repository, the containing repository and the remove command, and counts the `UNCLAIMED` worktrees outside the resolved worktree root (`worktree-claim.sh report --root`).
+
+- `merge.max-queue-ejections` (default 2, 1 to 20): the unattended merge gate no longer enqueues a head the merge queue has removed that many times for failed checks since the head last changed (a pushed commit or a force push). The merge-queue read takes the pull request's last 20 removal, commit and force-push timeline items; the refusal names the head, a push resets the count, and an unreadable timeline (or 20 items with no head change among them) refuses the enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment, upserted like the verifier escalation's, linking the failing `merge_group` runs.
+
+- Plugin-eval case `setup-writes-only-confirmed-change`: `/source-control:setup apply layer=team` runs in a scratch repository where the prompt confirms the team convention file and declines the personal overlay and the neutral convention file. Deterministic `file_exists` graders fail when either declined file appears in the workspace.
+
+- Both lanes read `merge.diff-check.floor-paths`, globs joined to the risk scorer's HIGH path floor while the floor applies. A diff touching one scores HIGH and waits for a human, where a denied path makes the pull request ineligible. `babysit_risk.RiskInput` gains `floor_paths`.
+- With the floor, a changed SKILL.md, agents/**/*.md or commands/**/*.md file is compared by content: the gate reads its base text at the base SHA (from its previous path on a rename or copy) and its head text at the head SHA, once per side, cached within the run (`babysit_merge_policy.with_capability_contents`, `ChangedFile.contents`). It scores HIGH as `high-capability` when the head frontmatter gains, loses or changes `hooks`, `allowed-tools`, `tools`, `disallowedTools`, `permissionMode`, `mcpServers`, `disable-model-invocation`, `context`, `agent`, `shell`, `skills` or `memory` against the base, read by one strict reader for both sides; when the head has a line holding a `!` backtick command the base lacks (an added, rewritten or swapped command) or more ```` ```! ```` blocks (anywhere on a line) than the base; when a changed line falls inside a ```` ```! ```` block in the head; when changed frontmatter has a shape the reader cannot follow (a BOM, a CR, a flow collection, a tag, an explicit or merge key, an anchor or alias, an indented or unkeyed line, a key indented under a plain-scalar value; a `|` or `>` block scalar's indented lines stay text); when either side cannot be read; and on a rename or copy into one of those paths. A removed file is not read.
+- `babysit_risk.FLOOR_ADDITIONS` holds `plugins/*/monitors/**` and `plugins/*/workflows/**`.
+- `merge.diff-check.high-path-floor` governs both lanes: `babysit_risk.RiskInput` gains `floor_extensions`, which gates `FLOOR_ADDITIONS`, `floor-paths`, the script scopes and the capability check, so with the switch off a local-lane pull request scores as before. The local lane still applies the rest of the fixed floor.
+- `merge.diff-check.floor-script-scopes` (globs): with the floor, a `.ps1` or `.cjs` file, or one with git mode 100755, inside one of them or at the repository top level scores HIGH as `high-script`. `babysit_risk.RiskInput` gains `floor_script_scopes`.
+- A floor-held pull request's reasons comment says a human merges it in person, never an agent or a lane; an unsafe-path hold does not say so.
+
+- `/source-control:worktree cleanup [<path>...] [--dry-run]` takes explicit worktree paths and runs the same classification and every Step 4 guard on exactly those worktrees, skipping the repository-wide inventory and root scan.
+- A bare `cleanup` in a session that created, entered or merged a PR from one worktree asks whether to clean that worktree or sweep the whole repository before inventorying, and says so up front when the scoped worktree is the session's own.
+
+- `babysit_risk.RiskInput` gains `declarations`: a plugin's `.claude-plugin/plugin.json`, `.mcp.json`, `.lsp.json`, `hooks/hooks.json` and `monitors/monitors.json` text at the base SHA (`babysit_risk.DECLARATION_FILES`), plus each config file a plugin.json `hooks`, `mcpServers`, `lspServers` or `monitors` string points at (`babysit_risk.declaration_pointers`). While the HIGH floor applies, every path they declare as run joins it: each `${CLAUDE_PLUGIN_ROOT}` reference and each `./` or `../` path, resolved against the plugin root, as the directory holding it (or the path itself at the plugin root, or the whole plugin for a bare root); in plugin.json only under those keys and `experimental.monitors`. A declaration or pointed file that cannot be read, an unrecognized declaration file, a plugin-root reference the reader cannot resolve (a `${CLAUDE_PLUGIN_ROOT:-...}` default, a trim, `$env:` or `%...%`), or a declared path outside its plugin scores HIGH as `high-path:**`.
+- A monitors file (`monitors/monitors.json`, or one a monitors key points at) is read as the documented monitors array or as an object; every other declaration must be an object.
+- `babysit_risk.HIGH_FLOOR` holds `plugins/*/bin/**`, whose files are on the Bash tool's PATH while the plugin is enabled, declared or not, and `**/.lsp.json`, beside `**/.mcp.json`.
+- Both lanes read the declarations at the base SHA (`babysit_merge_policy.declarations_at`, from a clone holding it, else the contents API) whenever the floor applies, so a pull request cannot drop its own declaration. From a clone holding the base every plugin's declarations are read; through the contents API only those of the plugins the pull request's changed files sit in, and none for a change outside every plugin. A base tree that cannot be listed holds the floor as HIGH.
+
+- The unattended merge gate updates a ready pull request from its base (`update-branch`, a merge)
+  instead of enqueuing it when the base changed a `merge.check-inputs` path since the pull
+  request's merge base, and enqueues the new head on a later run once its checks pass. The answer
+  comes from the local clone of the base, with no API read. The shared-copy registry counts only
+  for a pull request touching a path it registers. Any doubt, a refused update (its status and
+  message recorded as `updateError`), or a Dependabot head enqueues as before.
+
+- **`worktree audit` Step 2b runs the recreate-and-reap remedy through one script.** `scripts/reap-orphaned-plugin-records.sh` takes the individually confirmed paths and, for each in order, runs the chain Step 2b used to hand out (plain `mkdir`, the reap helper with `--dry-run` and then for real, removal of the path's `.claude`, `rmdir`). It stops at the first failure naming the path and step, and keeps every guard: an existing path is refused without reaping, the reap helper still checks its own cwd, and only the directory the script created is removed.
+
+### Changed
+
+- The unattended merge policy stops judging a pull request once the in-flight rule refuses it and it has no merge-queue entry of its own: the eligibility, promotion, risk-evidence, changed-files and verifier-verdict reads are skipped, and the refusal reads `in-flight:<reason>` as before. A pull request that is itself queued, a Dependabot pull request, or one whose queue read was not whole is still judged in full, so its own entry still leaves the queue on its own refusal. Its risk comment and verifier escalation wait for a run with no lane merge in flight. The merge-queue sweep runs in every gate process as before.
+
+- An autonomous merge (`babysit_merge.py --unattended`, which the pr-merge lane runs, or the `--autopilot-merge-tier` tier) holds a pull request carrying the tracker's human-gated role label (`needs-human` unless `.work-item-tracker.json` maps `human-gated` to another) as it holds one labeled `do-not-merge`: `evaluate` reports the label as a blocker, `entry_hold` dequeues a queued identity entry that gains it, and the pr-merge prefilter drops such a candidate before the gate (`--human-gated`, which `pr-merge.yml` resolves from the base `.work-item-tracker.json`). The gate resolves the label through the same `babysit_postmerge._role_label` read the verifier escalation uses (`human_gated_label`, shared across a run's gate processes), so the label the escalation adds is the one every hold reads. A tracker config read that fails for any reason but a 404 refuses the autonomous merge (and makes `entry_hold` dequeue) instead of holding on the default label, and is never shared with later gate processes; the escalation alone still falls back to `needs-human`. The workflow's read treats a missing, blank or non-string `human-gated` value as `needs-human`, as the gate does. An attended merge (no tier, no `--unattended`) still merges such a pull request, since that label asks for the person merging it; `do-not-merge` still holds every tier. A later escalation of an already-labeled pull request adds no second label or comment.
+
+- The post-merge check answers whether a run's head contains a lane merge with `git merge-base --is-ancestor` in a local full-history clone (the pr-merge lane's checkout of main) before the compare API. It asks only with two full SHAs, never in a shallow clone, ignores graft files and replace refs, and never lazy-fetches; a commit missing locally, a ref name, or a git failure falls back to the compare call as before, so every verdict is unchanged and a sweep makes far fewer API calls.
+
+- The pr-merge gate no longer reuses a shared post-merge answer that passes with a lane merge still unverified once that answer is over two minutes old (`SHARED_UNVERIFIED_MAX_AGE`, timed from its recorded `computedAt`): it runs the post-merge check again, as it already did on a new lane merge. Every recompute after a stale, new-merge, demotion or unreadable answer is written back (one refused only as bound to another identity, lane or floor is not overwritten) to the `--postmerge-result` file atomically in the same schema, so the next candidate reuses it; a failed write is logged and the verdict stands. What counts as verified, charged or refused is unchanged: only a passed verifying run clears the in-flight refusal.
+
+- The pr-merge gate checks a shared post-merge answer's binding (identity, self logins, lane, floor) before its age, so a candidate on another floor is refused as `floor-differs` and no longer replaces a stale run answer with its own recompute; the next main-floor candidate refreshes the run's answer and later ones reuse it. Every verdict is unchanged.
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+- The babysit-loop promotion-evidence reference names the post-merge-failure record that `post-merge-demotion-alert.yml` now files when a red full run covers no merge the agent identity enqueued. That record is not a gate-failure.
+
+- `pull-request` gains a `## Next` section naming the optional retro after the PR lifecycle ([#7972](https://github.com/melodic-software/claude-code-plugins/issues/7972)).
+
+- The pr-merge lane holds a Dependabot pull request with a major update, or an update whose version cannot be read (a SHA pin, marked `<name>(unreadable)`), or whose title and commit metadata disagree (marked `<name>(disagree)`), for a human under `merge.dependabot.majors: hold`, the default: the gate refuses it with `dependabot-major-held:<names>` even with the review activity's `verdict=merge` marker at its head, and escalates it once with a marked comment, whose first line is the `work-items:escalation` marker `/work-items:attend-queue` lists, and the tracker's human-gated role label. `merge.dependabot.majors: review` keeps the verdict merge. Non-major updates are unchanged.
+
+- In the pr-merge lane the gate reads the verifier verdict before the review evidence and the changed files. A verifier refusal now skips both, reports the `verify:` reason instead of `risk:<score>`, still dequeues the pull request's own entry, and leaves the risk comment to the first run the verifier passes.
+- A pr-merge run shares a FAIL verdict's run record across its gate processes for the whole run instead of two minutes: the record's origin rests only on fields a re-run keeps, and the branch check stays live.
+
+- `cleanup` Step 4b runs the landed-branch deletion and the current-worktree removal itself on Linux and macOS after the Step 4 confirmation and a passed stranded-work guard. It still emits them for the user on Windows or when a hook blocks the command.
+
+- The unattended merge gate reads the pipeline config and the git modes at a commit from a local full clone that holds it, and falls back to the contents and trees APIs only when no clone does. Within one gate process, a pull request's commit list and its commit count are read once per head and reused by the policy, the lane evidence, the verifier reader and the signature check; a list that does not end at that head is read again.
+
+- The pr-merge verdict reader accepts what earlier runs read (`carried-run-record`,
+  `carried-fail-head-ref` and `carried-on-branch` in the run cache) only on a FAIL's path and only
+  where the value counts the FAIL; any other answer is read from GitHub, so a poisoned cache entry
+  can add a refusal but never remove one. A PASS never reuses a judgment made on a FAIL's path.
+
+- `babysit_merge_skip.py` keys each pr-merge candidate on the inputs its refusal can depend on (head,
+  `updatedAt`, labels, base SHA, check rollup, reviews and threads, comments, closing issues, verdict
+  artifacts, the gate's config and code on the default branch, the rung cap), read with one GraphQL
+  query per 20 candidates and the artifact listing the gate's first candidate reuses. `filter` sets
+  aside a candidate whose `risk:MED`, `risk:HIGH` or listed `verify:` refusal stands on the same key
+  within the `merge.skip-unchanged` limits, never one in the merge queue; `record` stores each
+  gated refusal whose gate process left nothing to do. A skip only repeats a refusal. The verdict
+  reader gains `Reader.listing()`.
+
+### Removed
+
+- `resolve-promotion-evidence.mjs --inline` and its tests. No lane calls it: the pr-merge lane reads no promotion evidence. `promotion-evidence-resolution.md` no longer says it does.
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- `/source-control:pull-request ready` no longer flips right after a push: it waits up to 90 seconds for the push's CI run on the new head, so the draft-payload `synchronize` run cannot cancel the `ready_for_review` run and leave `ci-status` red. After the flip it confirms a new CI run exists for the head and, when none appears within 120 seconds, toggles draft and ready once and names the toggle in its report.
+
+- `/source-control:worktree cleanup` runs both keep/remove guards before it stops any process. Step 4a is now guard 1 (stranded work), guard 2 (carried files, plus the `worktree-claim.sh stale` proof for a locked row), then the file-lock release, the Workspace `down`, the reap and the removal, and Step 4b emits the branch deletion. A row any guard keeps has no side effects: its build servers, daemons and MCP or surface servers keep running.
+
+- `/source-control:worktree create` on a `fresh` base no longer leaves the new branch tracking `origin/<default>`: the helper passes `--no-track`, so the first `push-branch.sh` run sets `origin/<branch>`. `create.md` names `git branch --unset-upstream` as the repair for branches created before this fix.
+- The create block now runs to completion under zsh and leaves no temp files: `worktree-create.sh --remove-input-files` deletes the two rendered input files and their directory on every exit, so the block is the bare helper call with no `status=$?` and no `rm`.
+- `worktree-create.sh` exits 4 with `cannot load <lib>` when `worktree-root-resolve.sh` or `hooks/worktree-path-lib.sh` is missing, instead of failing later with an unrelated git error.
+- `create.md` says what to do when a settings file holding `worktree.baseRef` cannot be read: name the layer, assume `fresh`, and ask, or state the assumption when no user is present.
+
+- `/source-control:pull-request ready` waits for the push's CI runs and confirms the ready run without a hardcoded `ci.yml`: it counts the head commit's `pull_request` runs from every workflow and stops waiting once that count holds steady across two polls. In a repository with no `ci.yml` the wait always timed out and the draft and ready toggle fired, re-running the ready lanes a second time.
+
+- The merge gate's local read of the pipeline file's history ignores graft files and never lazy-fetches a missing commit, as the post-merge ancestry check already did, so a clone with a graft cannot move the post-merge floor. A partial clone, which lacks older blobs, leaves the read to the API as a shallow one does. A shared post-merge answer refused as `config-unreadable` no longer writes a recompute back over the run's answer.
+
+- `pr-merge.yml` passes the human-gated label to the prefilter as `--human-gated=<label>`, so a label starting with `-` cannot be read as another option. A test now runs the merge gate through the real `_role_label` read over a 502 and proves it refuses and caches nothing, and `reference/safety.md` names the human-gated label instead of the literal `needs-human`.
+
+- `gh-forge` eval fixture: origin is now `https://github.com/eval-fixture/app.git`, served from the local bare repository by a `git-remote-evalforge` helper, so `push-branch.sh` accepts it.
+
+- The worktree audit and status summaries now add the unpushed commits of every stranded-class row (`STRANDED`, `UNKNOWN`, `superseded`) to "commits at risk", so the stranded count and the commit figure agree.
+
+- The PR monitor's poll keeps its check baseline when a check read fails, so a failed first read no longer makes the next poll emit every check that had already finished.
+
+- The `comments --ci` review-thread tool's `check-paths` and `record` now also allow a file in the `plugins/<p>/` directory a kept thread's path sits in, except one under `hooks/`, `.claude-plugin/` or a `.claude/` directory, a `CLAUDE.md` or `AGENTS.md`, or a `.sh`, `.py`, `.mjs`, `.js` or `.ts` file, and a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in the same directory as a kept thread's path. `.github/` stays refused.
+
+- The unattended merge gate reads `merge.max-in-flight` at the default branch head, once per cache window shared by the run's gate processes and again uncached after an enqueue, instead of at each pull request's base, so a pull request whose base predates a cap change no longer runs at the old cap. When the head's config cannot be read, the base's value applies, and the room check after an enqueue keeps the lower of that and the cap the gate applied. The gate report's `inFlight` names the cap and where it was read.
+
+- The `pull-request-ready-hands-pr-to-explain-change` eval case loads under `claude plugin eval`: it lists a one-file `review-stub` plugin inside the case directory in place of `../../../review`, which the CLI refused as outside the containment root. The stub registers `/review:explain-change` so the hand-off resolves; the review plugin's source is not copied.
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- pr-merge's open-findings count takes summary findings and thread-less inline findings only from the review chain covering the pull request's current head, so a review of an earlier head outside that chain no longer keeps its findings open; whole reviews re-run at one head keep the most findings any of them reported. A thread an agent resolved closes once that chain reports no finding and the thread predates the covering review. Resolving a thread alone, or a clean review of another head, still closes nothing.
+
+- `babysit_postmerge.py --remediate` comments on an existing demotion record that names the same failing
+  run instead of filing a second one: `post-merge-demotion-alert.yml` keys its record on the run's head
+  SHA and this check on the merge commit, so one red run could leave two records, both holding the gate.
+- A red run that charges several lane merges files one record, not one per merge: the record lists every
+  merge the run charges and asks a human to pick the one to revert. Any open record holds the gate for all.
+- Its demotion record now says the unattended merge path stays at rung off while any demotion record is
+  open: fix main first, then close every open record directly; a new sighting of the same failure reopens its record.
+
+- `babysit_postmerge.py` counts a `github-actions[bot]` attempt 2 of a full run the pr-merge lane
+  dispatched when pr-merge.yml's own `pr-merge-rerun-<run id>-attempt-2` record backs it: an
+  artifact uploaded by a pr-merge.yml run of this repository's own copy of the file on the judged
+  branch. Green on that attempt is a flake; red is a failure. Without the
+  record, with a record for another run or attempt, or when a person started attempt 2, it still
+  reads red, except that a bot attempt 2 of a lane-dispatched run still in progress waits for its
+  record instead. A failed read of the record makes the verdict unreadable (exit 3).
+- Its report marks each red full run awaiting its re-run with `laneDispatched`, so pr-merge.yml's
+  post-merge-dispatch job knows which re-run is its to start.
+- A `pr-merge-dispatched-<id>` or `pr-merge-rerun-<id>-attempt-2` record now counts only when the
+  run that uploaded it was started by an event of the job that writes it (`schedule`,
+  `workflow_dispatch`, and `push` for the dispatch record), its `head_repository` is this
+  repository, and its `head_sha` is on the judged branch's tip as `refs/heads/` names it, never a
+  same-named tag. Before, a fork pull request from its own
+  `main` could add its own pr-merge.yml and upload either record, and a tag named like the branch
+  could too: a forged re-run record turned a red run into a flake, and a forged dispatch record
+  verified a merge and named a run for the lane to re-run.
+
+- `reap-project-plugin-records.sh` and the worktree audit's Step 2b now cover local-scope plugin install records for dead worktrees as well as project-scope ones. The reap uninstalls each record with its own scope (`-s project` or `-s local`, always `--keep-data`, never `-s user`), and the audit rows show each path's scopes.
+
+- `/source-control:pull-request ready` now runs the code and security reviews on a diff that touches an instruction surface (`AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, skill and agent bodies), which it used to skip as docs-only. `ready-for-review.md` defines the list once; the prep class table cites it, and the added-suppressions check keeps its file-type reading.
+
+- `pull-request comments --ci` now records `UNCERTAIN` with evidence, and edits nothing, when a
+  directed finding no longer shows in the current code, and treats a requested thread's `line` as
+  possibly stale, since a fix request can start a thread from a review of an earlier head.
+
+- The pr-merge lane escalates a `verify:fail` refusal (a counted verifier `fail` at the head) like the other refusals that need a human, once `merge.report-only` is false: one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, quoting as data up to 1500 characters of the newest head `fail` verdict's `summary` when its record can be read and names this pull request, then the tracker's human-gated role label. A rerun at the same head and refusal writes nothing, and a failed read of the record keeps a summary the comment already quotes. The verify report gains `headFail` (run id and artifact name).
+
+- `pull-request comments --ci` treats the `line` of every thread with a direction as possibly
+  stale, not only a fix request's, since a trusted reply after an escalation can now also start
+  work on a thread from a review of an earlier head.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+- `reap-project-plugin-records.sh` enters `--worktree-path` itself instead of requiring the caller's working directory to match it, so `/source-control:worktree cleanup` can run the reap from a worktree-isolated session where `cd` does not persist. The cwd-equality refusal is replaced by a refusal of a main working tree (its `.git` is a directory, or git reports its git dir equal to its common dir, as for `git init --separate-git-dir`), checked before the directory change, so the main checkout's records stay out of reach (#7132).
+
+- The pr-merge lane's verify escalation comment keeps the last fail summary it quoted when a verdict
+  record cannot be read, and carries it into a `verify:earlier-fail` escalation after a push, under
+  the head it was given at, so an intermittent download no longer rewrites the comment and the
+  reason is not lost. An earlier-fail whose last quote is a fail at this head stays `verify:fail`.
+
+- pull-request merge: the merge-after-AI-review script now prints the complete guarded merge
+  command, with the PR number, repository and head sha filled in, after its `merge-ready` line, and
+  the skill runs that line as-is. The guarded and admin merge templates now carry every clause the
+  auto-mode allow entries require: both accepted authors, the full changed-files pattern, and a
+  `NEUTRAL` review conclusion.
+- worktree cleanup: the deferred-removal note says the reap takes `--worktree-path` and enters the
+  candidate itself.
+
+- pull-request merge: the guarded merge template and the merge script's guard now carry the
+  auto-mode entry's scripts clause, `^scripts/(?!.+\.(txt|md)$)`, a denylist in place of the
+  executable-extension list, so a command printed by the script matches the entry.
+
+- The changelog fragment writer adds a later entry under the existing heading instead of repeating it, and writes nothing during a merge
+  (#7218).
+
+  It no longer edits fragments that came in from other branches.
+
+- The unattended merge gate escalates a MED or HIGH risk refusal that persists at one head: when the identity's `<!-- babysit-merge-risk -->` reasons comment read before the run already says the same score, reasons and head, and has stood unchanged for `merge.risk-escalation-minutes` (default 60; 0 is no minimum), the run rewrites that comment once to end with a line saying the refusal persisted and needs a person, then adds the tracker's human-gated role label through the escalation contract. The rewrite dates the comment beside the label, so the pr-pipeline head-moved clear can pair them and take the label off once the head moves. The minimum lets a review still running at the head, which scores MED, finish first. Changed reasons rewrite the comment and restart the time, and a LOW score at the head rewrites a refusal comment naming it (not an escalated one) to say the refusal no longer holds, so a later MED or HIGH with the same reasons starts its time afresh; a new head or a LOW score adds no label, report-only writes nothing, and no merge-gate run removes the label. The writes report gains `riskEscalation`.
+
+- `babysit_risk.HIGH_FLOOR` holds `plugins/*/scripts/**` and `plugins/*/skills/*/scripts/**`, the plugin and skill script directories that skills run through `!` lines and agents and workflows run by path. Its `scripts/**` entry matched only the repository root, so a pull request changing only such a script scored LOW.
+
 ## [1.12.1] - 2026-10-18
 
 ### Changed
