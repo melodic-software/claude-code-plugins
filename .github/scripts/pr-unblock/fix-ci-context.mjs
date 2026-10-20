@@ -39,7 +39,7 @@ export function countFixRounds(commits, appId) {
   ).length;
 }
 
-// The last lines of a job log, without the runner's timestamps or ANSI colour.
+// The last lines of a job log, without the runner's timestamps or ANSI color.
 export function logExcerpt(text) {
   const lines = String(text)
     .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
