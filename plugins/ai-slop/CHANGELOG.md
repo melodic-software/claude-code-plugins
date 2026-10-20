@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.4] - 2026-10-20
+
+### Fixed
+
+- `audit`: the effective-config line runs the detector alone, with no pipe into `head -40`, so it loads in a CI lane whose deny rules name `head`.
+
 ## [0.14.3] - 2026-10-20
 
 ### Fixed

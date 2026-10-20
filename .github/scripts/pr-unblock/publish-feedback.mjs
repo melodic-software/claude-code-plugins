@@ -104,7 +104,9 @@ export function parseRun(text) {
         typeof thread.path === "string" &&
         Array.isArray(thread.comment_ids) &&
         thread.comment_ids.length > 0 &&
-        thread.comment_ids.every((id) => Number.isSafeInteger(id) && id > 0),
+        thread.comment_ids.every((id) => Number.isSafeInteger(id) && id > 0) &&
+        (thread.named_paths === undefined ||
+          (Array.isArray(thread.named_paths) && thread.named_paths.every((path) => typeof path === "string"))),
       "run.json holds a malformed thread",
     );
   }
@@ -189,7 +191,7 @@ async function fixesLanded({ api, run, headSha, replies }) {
     files.length < LIMITS.files &&
     files.every((file) =>
       [file.filename, file.previous_filename].every(
-        (path) => path === undefined || inThreadScope(path, paths),
+        (path) => path === undefined || inThreadScope(path, paths, run.threads),
       ),
     );
   if (!inRange) {

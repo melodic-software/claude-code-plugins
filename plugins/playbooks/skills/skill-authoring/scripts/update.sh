@@ -8,8 +8,8 @@
 #
 # Modes:
 #   --check  (default) read-only: report upstream version + vendor SHA delta
-#   --apply  fetch latest upstream, replace vendor/upstream-skill.md verbatim, bump
-#            frontmatter metadata (upstream-version + synced). Does NOT
+#   --apply  fetch latest upstream, replace vendor/upstream-skill.md (self-update block stripped), bump
+#            frontmatter metadata (upstream-version, synced, upstream-sha). Does NOT
 #            rewrite the distilled SKILL.md body — integration is a manual,
 #            reviewed step (the update action is advisory).
 #
@@ -84,6 +84,27 @@ fetch_upstream() {
   printf '%s' "$out"
 }
 
+STRIP_MARKER='> upstream self-update instructions removed; we vendor a reviewed snapshot'
+
+# Intentional divergence from a verbatim copy: upstream embeds an "UPDATE CHECK"
+# blockquote telling an agent to curl a self-update into ~/.claude/skills/. That
+# is a remote-code supply-chain hook bypassing marketplace versioning, so the
+# vendored baseline never carries it. Both --apply (what is written) and --check
+# (what is compared) apply this same strip, so the block is not reported as
+# drift. Replaces the whole blockquote paragraph that opens with the marker
+# line, and normalizes CRLF to LF. scripts/update.test.sh fails if any
+# self-update or install instruction survives in vendor/.
+strip_upstream() {
+  local src="$1" dst="$2"
+  awk -v marker="$STRIP_MARKER" '
+    { sub(/\r$/, "") }
+    skip && /^>/ { next }
+    { skip = 0 }
+    /^>[[:space:]]*\*\*UPDATE CHECK/ { print marker; skip = 1; next }
+    { print }
+  ' "$src" >"$dst"
+}
+
 file_sha() {
   local path="$1"
   [[ -f "$path" ]] || return 0
@@ -101,6 +122,18 @@ replace_metadata_field() {
   mv "$tmp" "$FRONTMATTER_FILE"
 }
 
+# Set metadata.<field>, inserting it after metadata.synced when absent.
+set_metadata_field() {
+  local field="$1" value="$2" tmp="${TMPDIR_RUN}/skill.md.ins"
+  if [[ -n "$(local_metadata_field "$field")" ]]; then
+    replace_metadata_field "$field" "$value"
+    return
+  fi
+  awk -v line="  ${field}: ${value}" '{ print } /^[[:space:]]+synced:/ && !done { print line; done = 1 }' \
+    "$FRONTMATTER_FILE" >"$tmp"
+  mv "$tmp" "$FRONTMATTER_FILE"
+}
+
 run_check() {
   local local_ver upstream_md upstream_ver upstream_sha vendor_sha drift=0
 
@@ -111,6 +144,7 @@ run_check() {
     return 2
   }
   upstream_ver=$(upstream_version_from_file "$upstream_md")
+  strip_upstream "$upstream_md" "${TMPDIR_RUN}/upstream-stripped.md"
 
   log "local:     ${local_ver:-<unset>}"
   log "upstream:  ${upstream_ver:-<unset>}"
@@ -124,8 +158,8 @@ run_check() {
     log "→ version match"
   fi
 
-  section "vendor/upstream-skill.md SHA"
-  upstream_sha=$(file_sha "$upstream_md")
+  section "vendor/upstream-skill.md SHA (upstream after the self-update strip)"
+  upstream_sha=$(file_sha "${TMPDIR_RUN}/upstream-stripped.md")
   vendor_sha=$(file_sha "$VENDOR_FILE")
   log "vendor SHA256:   ${vendor_sha:-<missing>}"
   log "upstream SHA256: $upstream_sha"
@@ -164,27 +198,32 @@ run_apply() {
     return 2
   }
   upstream_ver=$(upstream_version_from_file "$upstream_md")
-  upstream_sha=$(file_sha "$upstream_md")
+  strip_upstream "$upstream_md" "${TMPDIR_RUN}/upstream-stripped.md"
+  upstream_sha=$(file_sha "${TMPDIR_RUN}/upstream-stripped.md")
   log "upstream version: ${upstream_ver:-<unset>}"
-  log "upstream SHA256:  $upstream_sha"
+  log "upstream SHA256 (stripped):  $upstream_sha"
 
   vendor_sha=$(file_sha "$VENDOR_FILE")
-  if [[ "$upstream_sha" == "$vendor_sha" && "$prev_ver" == "$upstream_ver" ]]; then
+  if [[ "$upstream_sha" == "$vendor_sha" && "$prev_ver" == "$upstream_ver" &&
+    "$(local_metadata_field "upstream-sha")" == "$vendor_sha" ]]; then
     log "Nothing to do — vendor + frontmatter already match upstream v${upstream_ver}."
     return 0
   fi
 
   section "Replace vendor/upstream-skill.md"
   mkdir -p "$(dirname "$VENDOR_FILE")"
-  cp "$upstream_md" "$VENDOR_FILE"
-  log "vendor/upstream-skill.md replaced ($(wc -c <"$VENDOR_FILE" | tr -d ' \r') bytes)"
+  cp "${TMPDIR_RUN}/upstream-stripped.md" "$VENDOR_FILE"
+  log "vendor/upstream-skill.md replaced ($(wc -c <"$VENDOR_FILE" | tr -d ' \r') bytes, self-update block stripped)"
 
   section "Bump frontmatter metadata"
   today=$(date -u +%Y-%m-%d)
   replace_metadata_field "upstream-version" "${upstream_ver:-$prev_ver}"
   replace_metadata_field "synced" "$today"
+  # upstream-sha: SHA256 of vendor/upstream-skill.md as committed (post-strip, LF).
+  set_metadata_field "upstream-sha" "$upstream_sha"
   log "metadata.upstream-version: ${prev_ver:-<unset>} → ${upstream_ver:-<unchanged>}"
   log "metadata.synced:           ${prev_synced:-<unset>} → $today"
+  log "metadata.upstream-sha:     $upstream_sha"
 
   section "Manual next steps"
   log "1. Diff the vendor baseline against prior HEAD to surface changed guidance:"
@@ -205,8 +244,8 @@ facing: run in a working-tree checkout of the plugin, not an installed copy.
   --check  (default) Read-only drift report: upstream frontmatter version +
            SHA delta vs vendor/upstream-skill.md. Exit 0 in sync, 1 drift, 2 prereq/network.
 
-  --apply  Fetch latest upstream, replace vendor/upstream-skill.md verbatim, bump
-           frontmatter metadata (upstream-version + synced). Distilled-body
+  --apply  Fetch latest upstream, replace vendor/upstream-skill.md (self-update block stripped), bump
+           frontmatter metadata (upstream-version, synced, upstream-sha). Distilled-body
            integration stays a manual step.
 
   --help   Show this message.

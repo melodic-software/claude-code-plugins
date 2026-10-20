@@ -397,6 +397,7 @@ function show(sc, p, dflt,    v) {
 function node(sc, id, type, name, ev) {
   printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"%s\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
     jesc(id), jesc(S_env[sc]), tool, jesc(name), jesc(type), jesc(ev) >> nodes
+  note_compute(S_env[sc], id, type)
 }
 
 function param(sc, c, k, v, sec, ev,    e, red, pk) {
@@ -505,5 +506,6 @@ function finish(    i, j, a, b, t) {
     if (a > b) { t = a; a = b; b = t }
     container_diffs(a, b, tool)
     param_port_diffs(a, b, tool)
+    node_diffs(a, b, tool)
   }
 }

@@ -20,7 +20,7 @@ Spend the first turn grounding yourself. Do NOT ask anything you can answer from
 - Read the project's `CLAUDE.md` and `AGENTS.md` if not already in context
 - `Glob` and `Grep` for any keywords from `$ARGUMENTS` against the repo
 - Look at `git log --oneline -20` for recent direction
-- Climb to the nearest domain-vocabulary file (e.g. `UBIQUITOUS-LANGUAGE.md`) if the project keeps one and the topic touches a module
+- Climb to the nearest domain-vocabulary file (e.g. `GLOSSARY.md`, or the name the domain-driven-design `glossary_file` setting sets, plus `GLOSSARY-MAP.md` in a multi-context repository) if the project keeps one and the topic touches a module
 - List the project's own rules files that govern the area
 - Note what the topic's memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) already contains (prior PLAN.md, PRD, design artifacts, exploration/research artifacts, ledgers)
 

@@ -44,23 +44,32 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
 repo=$(jq -er '.repository | select(test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))' "$threads_file") ||
   die 2 "the thread file names no repository"
 
-# Not under .github/ in any letter case, with no empty, . or .. segment, and
-# in a kept thread's scope: its path, a file in the plugins/<p>/ directory
-# it sits in (not under hooks/, .claude-plugin/ or a .claude/ directory, not
-# a CLAUDE.md or AGENTS.md, and not a .sh, .py, .mjs, .js or .ts file), or a
-# test file in its directory. The same rule as
+# Not under .github/ in any letter case, with no empty, . or .. segment, of
+# plain ASCII segments, and in a kept thread's scope: its path, a file in the
+# plugins/<p>/ directory it sits in that is no instruction path (CLAUDE.md,
+# AGENTS.md, .mcp.json, .lsp.json, .gitmodules, CODEOWNERS, a .claude or
+# .claude-plugin directory, a plugin's hooks, monitors or bin) and no script
+# or code file, a test file in its directory, or a path in its named_paths
+# (the files a write-access fix request named) in that same plugins/<p>/
+# directory that is no instruction path. The same rule as
 # .github/scripts/pr-unblock/thread-scope.mjs, which the promote step and
 # the reply job apply.
 allowed() {
   [[ ! ${1,,} =~ ^\.github(/|$) && ! $1 =~ (^|/)\.{0,2}(/|$) ]] &&
     jq -e --arg p "$1" '
       def dir: sub("[^/]*$"; "");
-      (if $p | test("^plugins/[^/]+/(hooks|\\.claude-plugin)/|\\.(sh|py|mjs|js|ts)$|(^|/)(claude|agents)\\.md$|(^|/)\\.claude/"; "i")
-       then null else first($p | capture("^(?<c>plugins/[^/]+/)").c) // null end) as $plugin
+      def plugin: first(capture("^(?<c>plugins/[^/]+/)").c) // null;
+      ($p | test("^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*$")) as $plain
+      | ($p | test("(^|/)((claude|agents)\\.md|\\.mcp\\.json|\\.lsp\\.json|\\.gitmodules|codeowners)$|(^|/)\\.claude(-plugin)?(/|$)|(^|/)plugins/[^/]+/(hooks|monitors|bin)(/|$)"; "i")) as $instruction
+      | (if $instruction or ($p | test("\\.(sh|bash|zsh|ps1|py|mjs|cjs|js|ts|mts|cts)$"; "i"))
+         then null else $p | plugin end) as $plugin
       | ($p | sub("^.*/"; "") | test("^(test_[^/]*\\.py|[^/]*_test\\.py|[^/]*\\.(test|spec)\\.[^/]+)$")) as $test
-      | any(.threads[].path; . == $p
-          or ($plugin != null and startswith($plugin))
-          or ($test and dir == ($p | dir)))' "$threads_file" >/dev/null
+      | (if $instruction then null else $p | plugin end) as $named
+      | $plain and any(.threads[]; .path as $t
+          | $t == $p
+          or ($plugin != null and ($t | startswith($plugin)))
+          or ($test and ($t | dir) == ($p | dir))
+          or ($named != null and ($t | plugin) == $named and any(.named_paths[]?; . == $p)))' "$threads_file" >/dev/null
 }
 
 cmd_list() {

@@ -3,6 +3,7 @@ ui_attach_paste.js 45
 ui_chat.js 66
 ui_chat_history.js 18
 ui_clientlog.js 3
+ui_composer.js 60
 ui_connect.js 16
 ui_discussion.js 13
 ui_formats.js 34
@@ -18,6 +19,7 @@ ui_lists.js 30
 ui_merge.js 12
 ui_moderation.js 15
 ui_personal_link.js 7
+ui_phone.js 4
 ui_presence.js 187
 ui_presence_dots.js 98
 ui_proto.js 14

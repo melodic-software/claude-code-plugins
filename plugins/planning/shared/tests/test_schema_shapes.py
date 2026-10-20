@@ -41,7 +41,7 @@ def wire_error(body, shape):
 
 
 def question(qid):
-    return copy.deepcopy(next(q for q in fixture("state-v6.json")["questions"] if q["id"] == qid))
+    return copy.deepcopy(next(q for q in fixture("state-full.json")["questions"] if q["id"] == qid))
 
 
 class TestSchemaDirectory(unittest.TestCase):
@@ -52,10 +52,10 @@ class TestSchemaDirectory(unittest.TestCase):
 
 class TestValidSamples(unittest.TestCase):
     def test_full_session_file_is_valid(self):
-        self.assertIsNone(schema.first_error(fixture("state-v6.json"), STATE))
+        self.assertIsNone(schema.first_error(fixture("state-full.json"), STATE))
 
     def test_every_event_kind_is_valid(self):
-        events = fixture("state-v6.json")["log"]["events"] + fixture("events-v1.json")
+        events = fixture("state-full.json")["log"]["events"] + fixture("events-v1.json")
         for event in events:
             self.assertIsNone(schema.first_error(event, EVENT), event["kind"])
         kinds = {e["kind"] for e in events}
@@ -79,7 +79,7 @@ class TestValidSamples(unittest.TestCase):
             self.assertIsNone(schema.first_error(fixture(name), OPS), name)
 
     def test_question_shape_fields_of_a_question_are_a_valid_shape(self):
-        q = fixture("state-v6.json")["questions"][0]
+        q = fixture("state-full.json")["questions"][0]
         shape = {k: v for k, v in q.items() if k in SHAPE["properties"]}
         self.assertIsNone(schema.first_error(shape, SHAPE))
 
@@ -92,7 +92,7 @@ class TestRefusedShapes(unittest.TestCase):
         self.assertIsNone(question_error(q))
 
     def test_recommendation_on_a_host_question(self):
-        q = fixture("state-v6.json")["questions"][0]
+        q = fixture("state-full.json")["questions"][0]
         self.assertIsNone(question_error(q))
         q["origin"] = {"kind": "host", "proposal": "P2", "by": "host"}
         self.assertIn("$.recommendation", question_error(q))
@@ -104,7 +104,7 @@ class TestRefusedShapes(unittest.TestCase):
         self.assertIsNone(question_error(q))
 
     def test_old_reaction_value_agree(self):
-        state = fixture("state-v6.json")
+        state = fixture("state-full.json")
         state["reactions"] = fixture("invalid-reaction-agree.json")
         self.assertIn(
             "'agree' is not one of ['thumbs', 'down', 'heart', 'idea']",
@@ -114,20 +114,14 @@ class TestRefusedShapes(unittest.TestCase):
         self.assertIsNone(schema.first_error(state, STATE))
 
     def test_a_reaction_held_as_one_value_not_a_list(self):
-        state = fixture("state-v6.json")
-        state["reactions"]["Q5"]["p:aB3dE5fG7hJ9:computer"]["kL1mN3pQ5rS7"] = "thumbs"  # the schemaVersion 1 shape
+        state = fixture("state-full.json")
+        state["reactions"]["Q5"]["p:aB3dE5fG7hJ9:computer"]["kL1mN3pQ5rS7"] = "thumbs"  # one value, as an earlier build held it
         self.assertIn("kL1mN3pQ5rS7", schema.first_error(state, STATE))
         state["reactions"]["Q5"]["p:aB3dE5fG7hJ9:computer"]["kL1mN3pQ5rS7"] = []
         self.assertIn("needs at least 1 items", schema.first_error(state, STATE))
 
-    def test_a_file_names_schema_version_3_where_mentions_are_pointers(self):
-        state = fixture("state-v6.json")
-        self.assertEqual(state["chat"][0]["text"], "Could we see both layouts at once, <@aB3dE5fG7hJ9>?")
-        state["schemaVersion"] = 2  # a v2 file holds "@Name" text: migrate.py brings it to the current version before the schema reads it
-        self.assertIn("$.schemaVersion", schema.first_error(state, STATE))
-
     def test_result_needs_published(self):
-        state = fixture("state-v6.json")
+        state = fixture("state-full.json")
         del state["results"]["Q1"][0]["published"]
         self.assertIn("missing required 'published'", schema.first_error(state, STATE))
 
@@ -146,7 +140,7 @@ class TestFormatsReactionsPresence(unittest.TestCase):
     """The amendment's shapes (Reactions and formats; Presence), each with a sample and a refusal."""
 
     def test_down_is_a_reaction_and_the_digest_counts_all_four(self):
-        state = fixture("state-v6.json")
+        state = fixture("state-full.json")
         self.assertEqual(state["reactions"]["Q5"]["p:kL1mN3pQ5rS7:phone"]["host"], ["down"])
         counts = {"thumbs": 0, "heart": 0, "idea": 0}
         self.assertIn("missing required 'down'", schema.first_error(counts, EVENT["$defs"]["reactionCounts"], "$", EVENT))
@@ -189,7 +183,7 @@ class TestFormatsReactionsPresence(unittest.TestCase):
                 self.assertIn("$.answerScope", question_error({**question(qid), "answerScope": "device"}))
 
     def test_a_disagreement_needs_a_reason_of_at_most_200_characters(self):
-        state = fixture("state-v6.json")
+        state = fixture("state-full.json")
         self.assertIsNone(schema.first_error(state, STATE))
         d = state["disagreements"]["Q8"][0]
         d["reason"] = "x" * 201
@@ -198,12 +192,12 @@ class TestFormatsReactionsPresence(unittest.TestCase):
         self.assertIn("missing required 'reason'", schema.first_error(state, STATE))
 
     def test_a_file_from_before_disagreements_is_still_valid(self):
-        state = fixture("state-v6.json")
+        state = fixture("state-full.json")
         del state["disagreements"]
         self.assertIsNone(schema.first_error(state, STATE))
 
     def test_a_report_holds_text_its_page_context_and_a_status_of_open_seen_or_resolved(self):
-        state = fixture("state-v6.json")
+        state = fixture("state-full.json")
         ctx = {"view": "focus", "device": "phone", "browser": "safari", "viewport": {"w": 390, "h": 844}, "errors": []}
         state["reports"] = {"F1": {"by": "host", "text": "Send does nothing", "ctx": ctx, "image": "reports/F1.png", "status": "open", "ts": 1.0}}
         state["session"]["seq"]["F"] = 1

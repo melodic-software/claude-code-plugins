@@ -146,7 +146,8 @@ activities:
     # Before the mint the runner checks the patch artifact and the head;
     # the script refuses the whole patch when any change is under .github/,
     # an agent instruction path (CLAUDE.md, AGENTS.md, .claude/ or
-    # .claude-plugin/, a plugin's hooks/, .mcp.json, .gitmodules, CODEOWNERS), a
+    # .claude-plugin/, a plugin's hooks/, monitors/ or bin/, .mcp.json,
+    # .lsp.json, .gitmodules, CODEOWNERS), a
     # symbolic link or a gitlink, and hands an empty, invalid or unappliable
     # patch to a person.
     prepare: apply-patch
@@ -186,10 +187,9 @@ activities:
     # the checkout or reaches the network hands the run that power, so list
     # one only when it limits that itself. Each script starts with GH_TOKEN
     # and GITHUB_TOKEN unset, but code it runs can still read the lane's
-    # push-capable token from an ancestor process's /proc/<pid>/environ.
-    # run-test-file.sh runs one test file inside the checkout
-    # (pytest, bash, node --test or the package's vitest), so the run can
-    # show a test it changed passing and failing when broken on purpose.
+    # push-capable token from any same-user process's /proc/<pid>/environ,
+    # so no script here runs checkout code: run-test-file.sh and
+    # check-skill.sh are left out, and the PR's own CI runs the tests.
     # git-mv-rm.sh renames and removes paths inside the checkout.
     # sync-shared-copies.sh regenerates registered shared-library copies
     # inside the checkout: it reads the registry and canonicals there and
@@ -198,32 +198,27 @@ activities:
     # or crosses a symbolic link, and from this copy refuses --check-bump,
     # which can reach the GitHub API.
     # check-evals-quality.sh reads evals.json files with bash and jq.
-    # check-skill.sh runs checkout code: each checked skill's
-    # scripts/*.test.sh and the checkout's markdownlint, with the network
-    # open and the token readable that way: the same power run-test-file.sh
-    # has.
     # new-changelog-fragment.sh writes .changes/<plugin>/<slug>.md in the
     # work tree it runs in, refusing a plugin name with a path in it and a
     # linked .changes directory (--carriers-of also makes and removes one
     # temp file); it runs no checkout code and reaches no network.
     verify-scripts:
       - plugins/testing/skills/audit/scripts/cant-fail-scan.sh
-      - scripts/run-test-file.sh
       - scripts/git-mv-rm.sh
-      - plugins/skill-quality/scripts/check-skill.sh
       - plugins/skill-quality/scripts/check-evals-quality.sh
       - scripts/sync-shared-copies.sh
       - scripts/new-changelog-fragment.sh
     # Lets the run read web pages, so it can check a fact against its source
-    # (for example a documented default on a vendor docs page) instead of
-    # trusting the issue's quote. It may search the web and read any site,
-    # through the research skills (/discovery:research and the like), and
-    # lists each page it read in its report. Off unless set here; `domains`
-    # can name sites instead of `any`. A page can try to steer the run, so a
-    # person still reviews every PR the run opens.
+    # (a documented default on a vendor docs page) instead of trusting the
+    # issue's quote. It may search the web and fetch the official docs for
+    # what this repository builds on: Claude Code, the Claude platform,
+    # GitHub, Node.js and Python. It lists each page it read in its report.
+    # A list, not `any`, keeps WebFetch off hosts anyone can write to and
+    # keeps the curl-based docs scripts denied. A page can try to steer the
+    # run, so a person still reviews every PR the run opens.
     web-access:
       enabled: true
-      domains: any
+      domains: [code.claude.com, platform.claude.com, docs.anthropic.com, docs.github.com, nodejs.org, docs.python.org]
     effect: mutate-branch
     gating: advisory
     # Reads the issue's title and body, which anyone can write, and its

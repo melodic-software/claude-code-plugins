@@ -572,6 +572,7 @@ class Unattended(unittest.TestCase):
         )
 
     def _lane_evidence(self, *args: Any) -> Any:
+        self.lane_args = args
         if self.lane_error is not None:
             raise self.lane_error
         return self.lanes, self.comments
@@ -1677,6 +1678,11 @@ class CheckInputsChangedOnTheBase(Unattended):
             self.config, check_inputs=("scripts/shared-copies.txt",)
         )
         self.update_code = 0
+        self.update_stdout = (
+            '{"message":"Resource not accessible by integration","status":"403"}'
+        )
+        self.update_stderr = "gh: Resource not accessible by integration (HTTP 403)"
+        self.update_failure: Exception | None = None
         self.inputs_reads: list[tuple[Any, ...]] = []
         self.inputs_answer: dict[str, Any] = {
             "state": "stale",
@@ -1688,13 +1694,12 @@ class CheckInputsChangedOnTheBase(Unattended):
     def _capture(self, args: list[str]) -> Any:
         if self.UPDATE in args:
             self.log.append("update-branch:" + args[-1])
+            if self.update_failure is not None:
+                raise self.update_failure
             if self.update_code == 0:
                 return subprocess.CompletedProcess(args, 0, "{}", "")
             return subprocess.CompletedProcess(
-                args,
-                self.update_code,
-                '{"message":"Resource not accessible by integration","status":"403"}',
-                "gh: Resource not accessible by integration (HTTP 403)",
+                args, self.update_code, self.update_stdout, self.update_stderr
             )
         return super()._capture(args)
 
@@ -1747,6 +1752,97 @@ class CheckInputsChangedOnTheBase(Unattended):
             read["updateError"],
             {"status": 403, "message": "Resource not accessible by integration"},
         )
+
+    SHARED_COPY_LABEL = (
+        f"write:api -X POST repos/owner/repo/issues/{PR}/labels -f labels[]=needs-human"
+    )
+
+    def refuse_shared_copy(self) -> tuple[int, dict[str, Any]]:
+        self.inputs_answer["changed"] = ["lib/a.sh"]
+        self.inputs_answer["regenerate"] = ["lib/a.sh"]
+        return self.run_main()
+
+    def test_a_carried_canonical_changed_on_the_base_is_refused_and_escalated(
+        self,
+    ) -> None:
+        # Updating merges the base's canonical but leaves the copies the PR
+        # generated from its own, so only a merge plus a regeneration clears
+        # it, and no lane acts on the refusal: a person is asked, once.
+        code, out = self.refuse_shared_copy()
+        self.assert_no_merge(code)
+        (comment,) = [e for e in self.log if "/issues/" in e and "/comments" in e]
+        self.assertEqual(self.log, [comment, self.SHARED_COPY_LABEL])
+        self.assertNotIn("update-branch", " ".join(self.log))
+        body = comment.split(" -f body=", 1)[1]
+        self.assertEqual(body.split("\n")[0], merge.SHARED_COPY_ESCALATION_MARKER)
+        self.assertIn(f" at head `{HEAD}`", body.split("\n")[1])
+        for text in (
+            "shared-copy-sources-changed:lib/a.sh",
+            "`lib/a.sh`",
+            self.MERGE_BASE,
+            "scripts/sync-shared-copies.sh",
+            "push",
+        ):
+            self.assertIn(text, body)
+        (blocker,) = [b for b in out["blockers"] if "shared-copy-sources-changed:" in b]
+        self.assertIn("lib/a.sh", blocker)
+        self.assertIn(self.MERGE_BASE, blocker)
+        self.assertIn("scripts/sync-shared-copies.sh", blocker)
+        self.assertEqual(
+            out["unattended"]["enqueue"]["escalation"],
+            {"label": "added", "comment": "created"},
+        )
+
+    def test_a_rerun_at_the_same_head_does_not_escalate_twice(self) -> None:
+        self.refuse_shared_copy()
+        body = self.log[0].split(" -f body=", 1)[1]
+        self.log = []
+        self.comments = [
+            {
+                "id": 81,
+                "user": {"login": IDENTITY, "type": "Bot"},
+                "created_at": "2026-10-12T10:00:00Z",
+                "updated_at": "2026-10-12T10:00:00Z",
+                "body": body,
+            }
+        ]
+        self.pr_labels = [{"name": "needs-human"}]
+        code, out = self.refuse_shared_copy()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+        self.assertEqual(
+            out["unattended"]["enqueue"]["escalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
+    def assert_held_after_update(self, code: int, out: Any) -> None:
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [f"update-branch:expected_head_sha={HEAD}"])
+        (blocker,) = [b for b in out["blockers"] if "check-inputs-changed:" in b]
+        self.assertIn("may have landed", blocker)
+
+    def test_an_update_that_times_out_holds(self) -> None:
+        # The update may have landed, so the old head is not pinned.
+        self.update_failure = RuntimeError("gh api timed out after 30s")
+        code, out = self.run_main()
+        self.assert_held_after_update(code, out)
+        read = out["unattended"]["enqueue"]["checkInputs"]
+        self.assertIsNone(read["updated"])
+        self.assertEqual(
+            read["updateError"],
+            {"status": None, "message": "gh api timed out after 30s"},
+        )
+
+    def test_an_update_with_no_status_or_a_server_error_holds(self) -> None:
+        for stderr in ("Post: context deadline exceeded", "gh: Bad gateway (HTTP 502)"):
+            with self.subTest(stderr=stderr):
+                self.log = []
+                self.update_code, self.update_stdout = 1, ""
+                self.update_stderr = stderr
+                code, out = self.run_main()
+                self.assert_held_after_update(code, out)
+                read = out["unattended"]["enqueue"]["checkInputs"]
+                self.assertIsNone(read["updated"])
 
     def test_a_kill_switch_stop_writes_no_update(self) -> None:
         self.kill = [PROCEED, policy.KillSwitch(False, "disabled")]
@@ -2117,6 +2213,26 @@ class FloorReadsCapabilityText(Unattended):
         self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
 
 
+class LaneEvidenceGetsTheChangedPaths(Unattended):
+    """The review evidence is bound against the diff's paths, both sides of
+    a rename, and against None when the file list is incomplete."""
+
+    def test_every_changed_path_reaches_the_lane_evidence(self) -> None:
+        moved = ChangedFile(
+            "docs/b.md", "docs/a.md", "renamed", 0, 0, True, "100644", "100644"
+        )
+        self.files = ((LOW_FILE, moved), True)
+        self.run_main(merge_flag=False)
+        self.assertEqual(
+            set(self.lane_args[-1]), {"docs/guide.md", "docs/b.md", "docs/a.md"}
+        )
+
+    def test_an_incomplete_file_list_passes_none(self) -> None:
+        self.files = ((LOW_FILE,), False)
+        self.run_main(merge_flag=False)
+        self.assertIsNone(self.lane_args[-1])
+
+
 class ReasonsComment(Unattended):
     """MED/HIGH on an eligible pull request: one upserted comment (T14, D15)."""
 
@@ -2218,7 +2334,7 @@ class ReasonsComment(Unattended):
             "created_at": "2026-10-12T10:00:00Z",
         }
         lanes = merge.review_evidence.bind(
-            HEAD, [running], [], [], is_human=lambda actor: False
+            HEAD, [running], [], [], is_human=lambda actor: False, changed_paths=()
         )
         self.assertEqual(lanes[0].unbound_reason, "run-not-success")
         self.lanes = lanes
@@ -2485,6 +2601,200 @@ class ReasonsComment(Unattended):
         self.assertNotIn("risk-comment:POST", self.log)
 
 
+# Held only by a finding a clean whole review of the head would close.
+CARRIED = (
+    LaneEvidence("claude-review", True, None, 1, True),
+    LaneEvidence("claude-security-review", True, None, 0),
+)
+
+
+class WholeReviewRequest(Unattended):
+    """A lane pull request held only by findings an incremental review cannot
+    clear gets one whole-review request per head: the record line in the
+    reasons comment first, then the draft toggle."""
+
+    WRITTEN = ReasonsComment.WRITTEN
+    earlier_sweep = ReasonsComment.earlier_sweep
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.now = self.WRITTEN + timedelta(hours=2)
+        self.lanes = CARRIED
+        self.limit: str | None = None
+        self.toggles: list[str] = []
+        self.lane_toggles: int | None = 0
+
+    def _toggle(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
+        self.log.append("toggle")
+        self.toggles.append(node_id)
+        return {"toggled": True}
+
+    def run_main(
+        self, *flags: str, merge_flag: bool = True
+    ) -> tuple[int, dict[str, Any]]:
+        with (
+            mock.patch.object(merge, "_now", return_value=self.now),
+            mock.patch.object(merge.whole_review, "limits", return_value=self.limit),
+            mock.patch.object(merge.whole_review, "toggle", side_effect=self._toggle),
+            mock.patch.object(
+                merge.whole_review, "lane_toggles", return_value=self.lane_toggles
+            ),
+        ):
+            return super().run_main(*flags, merge_flag=merge_flag)
+
+    def posted(self) -> str:
+        return next(
+            c.args[0][-1].removeprefix("body=")
+            for c in self.capture.call_args_list
+            if "babysit-merge-risk" in " ".join(c.args[0])
+        )
+
+    def test_records_then_toggles_once(self) -> None:
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, ["risk-comment:POST", "toggle"])
+        self.assertEqual(self.toggles, [self.node_id])
+        self.assertTrue(merge.whole_review.recorded(self.posted(), HEAD))
+        self.assertEqual(out["unattended"]["writes"]["wholeReview"], {"toggled": True})
+
+    def test_a_recorded_head_is_not_toggled_again_and_keeps_its_record(self) -> None:
+        self.run_main()
+        body = self.posted()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.now = self.WRITTEN + timedelta(minutes=10)
+        _, out = self.run_main()
+        self.assertEqual(self.log, [])
+        self.assertEqual(out["unattended"]["writes"]["riskComment"], "unchanged")
+
+    def test_the_record_survives_escalation(self) -> None:
+        self.run_main()
+        body = self.posted()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.now = self.WRITTEN + timedelta(hours=3)
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+        patched = next(
+            c.args[0][-1] for c in self.capture.call_args_list if "PATCH" in c.args[0]
+        )
+        self.assertTrue(merge.whole_review.recorded(patched, HEAD))
+        self.assertTrue(patched.endswith(merge.RISK_ESCALATION_LINE))
+
+    def test_a_record_at_an_older_head_does_not_stop_a_new_one(self) -> None:
+        self.run_main()
+        old = self.posted().replace(HEAD, "d" * 40)
+        self.setUp()
+        self.earlier_sweep(old)
+        self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH", "toggle"])
+
+    def two_toggles(self) -> str:
+        """A reasons comment recording whole reviews at two earlier heads."""
+        stamp = self.WRITTEN
+        return "\n".join(
+            [
+                f"{merge.RISK_MARKER}\nan earlier assessment",
+                "",
+                merge.whole_review.record_line("d" * 40, stamp),
+                merge.whole_review.record_line("e" * 40, stamp),
+            ]
+        )
+
+    def test_a_third_whole_review_is_never_toggled(self) -> None:
+        # The lane resolved its threads and pushed a trivial commit; the new
+        # head's clean incremental review would buy a third whole review.
+        self.earlier_sweep(self.two_toggles())
+        _, out = self.run_main()
+        self.assertNotIn("toggle", self.log)
+        self.assertEqual(
+            out["unattended"]["writes"]["wholeReview"],
+            {"toggled": False, "skipped": "toggle-cap:2"},
+        )
+        posted = self.posted()
+        for head in ("d" * 40, "e" * 40):
+            self.assertTrue(merge.whole_review.recorded(posted, head), head)
+
+    def test_deleted_records_do_not_reset_the_timeline_cap(self) -> None:
+        # The lane deleted the record lines from the reasons comment; its two
+        # conversions to draft stay on the timeline.
+        self.earlier_sweep(merge.whole_review.RECORD_RE.sub("", self.two_toggles()))
+        self.lane_toggles = 2
+        _, out = self.run_main()
+        self.assertNotIn("toggle", self.log)
+        self.assertEqual(
+            out["unattended"]["writes"]["wholeReview"],
+            {"toggled": False, "skipped": "toggle-cap:2"},
+        )
+        self.assertFalse(merge.whole_review.recorded(self.posted(), HEAD))
+
+    def test_an_unread_timeline_requests_nothing(self) -> None:
+        self.lane_toggles = None
+        _, out = self.run_main()
+        self.assertNotIn("toggle", self.log)
+        self.assertEqual(
+            out["unattended"]["writes"]["wholeReview"],
+            {"toggled": False, "skipped": "toggle-cap:unread"},
+        )
+
+    def test_every_record_is_kept_when_the_score_clears(self) -> None:
+        self.earlier_sweep(
+            self.two_toggles().replace(
+                "an earlier assessment",
+                f"Unattended merge: risk **MED** at head `{HEAD}`.",
+            )
+        )
+        self.lanes = BOUND
+        self.run_main()
+        cleared = self.posted()
+        self.assertTrue(cleared.startswith(merge.risk_cleared_body(HEAD)))
+        self.assertEqual(len(merge.whole_review.RECORD_RE.findall(cleared)), 2)
+
+    def test_an_escalated_comment_is_not_toggled(self) -> None:
+        self.run_main()
+        body = self.posted()
+        self.setUp()
+        self.earlier_sweep(
+            f"{merge.whole_review.RECORD_RE.sub('', body).rstrip()}"
+            f"\n\n{merge.RISK_ESCALATION_LINE}"
+        )
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+    def test_a_limit_writes_no_record_and_no_toggle(self) -> None:
+        self.limit = "running-jobs:40"
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:POST"])
+        self.assertFalse(merge.whole_review.recorded(self.posted(), HEAD))
+        self.assertEqual(
+            out["unattended"]["writes"]["wholeReview"],
+            {"toggled": False, "skipped": "running-jobs:40"},
+        )
+
+    def test_another_refusal_is_not_toggled(self) -> None:
+        self.lanes = (
+            CARRIED[0],
+            LaneEvidence("claude-security-review", False, "no-marker", None),
+        )
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+    def test_a_finding_at_the_head_is_not_toggled(self) -> None:
+        self.lanes = (LaneEvidence("claude-review", True, None, 1, False), CARRIED[1])
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+    def test_another_authors_pull_request_is_not_toggled(self) -> None:
+        self.pr_user = {"login": "someone", "type": "User"}
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+    def test_report_only_requests_nothing(self) -> None:
+        self.config = dataclasses.replace(self.config, report_only=True)
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+
 class HeadFile(unittest.TestCase):
     """`bind()`'s head-file reader proves a deletion, never a rename."""
 
@@ -2545,6 +2855,7 @@ class HeadPushers(unittest.TestCase):
                 IDENTITY,
                 frozenset(),
                 lambda login: "write",
+                (),
             )
 
     def test_an_unlinked_author_or_committer_is_unproven(self) -> None:
@@ -2625,7 +2936,7 @@ class CandidateReadsOnce(unittest.TestCase):
         ):
             pr = policy.pull_request("owner/repo", PR)
             merge._lane_evidence(
-                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write"
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", ()
             )
             reader = merge.verify_evidence.Reader("owner/repo", "main")
             self.assertEqual(

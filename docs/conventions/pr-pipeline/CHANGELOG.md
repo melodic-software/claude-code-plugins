@@ -1,5 +1,112 @@
 # Changelog for the PR pipeline convention
 
+## [2.20.3] - 2026-10-20
+
+### Fixed
+
+- `check-trusted-trigger` matches the re-runner by account id on every path instead of by login: it reads this run's own record (`GET /actions/runs/{run_id}`) and checks `triggering_actor.id` against the trusted-actor list, so a released login re-registered by someone else no longer passes. A failed or malformed read, or a record for another run or attempt, stops with `untrusted-rerunner`. The App-label re-runner must still be the listed lanes App or a listed human. `pr-unblock-dispatch.yml` now passes the job token to the gate so it can read its run.
+
+## [2.20.2] - 2026-10-20
+
+### Fixed
+
+- The lost-run reconciler pages through a day of pr-verify runs instead of failing when there are more than 100, says how many listings failed instead of "nothing lost", and explains an exit 1 in the act step.
+
+## [2.20.1] - 2026-10-20
+
+### Fixed
+
+- The finding-closure paragraph states that a finding any review of a head reported, whole or incremental, clears only by a new head (a fix) or a human resolution: each head on the covering chain counts the summary and thread-less inline findings any review of it reported, and a later clean review of the same head never clears one ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+- The code review, security review and intake triage callers now honor the lane kill switches. A `kill-switch` job ahead of each reusable call runs `check-kill-switch` on `CLAUDE_LANES_DISABLED` and `CLAUDE_LANES_REPO_DISABLED`, which fail closed, and the call runs only when it says proceed. The code review lane also stops when `CLAUDE_REVIEW_DISABLED` is `true`, and the security review lane when `CLAUDE_SECURITY_REVIEW_DISABLED` is `true`. Intake has no switch of its own. The pinned ci-workflows reusables still read none of these variables.
+
+## [2.20.0] - 2026-10-20
+
+### Added
+
+- address-feedback: a fix request by a trusted person with write access may name files to add to
+  its thread's scope. The select step reads each file-shaped word of the request outside fenced
+  code and quoted lines, from the repository root when it holds a `/` and from the thread path's
+  directory when it does not, and records it in the thread's `named_paths` when it is in the same
+  `plugins/<p>/` directory as the thread's path, in normal form, not under `.github/`, not an
+  instruction path, and a regular file at the gated head (ten per thread at most). The promote
+  step and the reply job accept changes to those files.
+
+### Fixed
+
+- A plugin's `.mcp.json`, `.gitmodules` or `CODEOWNERS` is no longer in the plugin-wide part of a
+  kept thread's scope.
+- The instruction paths `apply-ci-fix` and address-feedback refuse now also cover a `hooks`,
+  `.claude` or `.claude-plugin` segment with nothing after it, a plugin's `monitors/` and `bin/`,
+  and `.lsp.json`; a thread's plugin-wide scope also refuses `.bash`, `.zsh`, `.ps1`, `.cjs`,
+  `.mts` and `.cts` files and any path with a character outside ASCII letters, digits and `_@+.-`.
+- The address-feedback promote step moves the PR branch only when every path the lane branch
+  adds or changes is a regular file at its tip, not a symbolic link or gitlink.
+
+## [2.19.5] - 2026-10-20
+
+### Fixed
+
+- work-resolve-issue's `post-statuses.mjs` posts a resumed branch's `pipeline/*` statuses only while the branch ref still points at the tip run-checks checked; a branch that moved, or whose ref cannot be read, gets no status, as report-outcome already treats those check results.
+
+## [2.19.4] - 2026-10-20
+
+### Fixed
+
+- The Unattended merge section documents that pr-merge refuses, as `shared-copy-sources-changed:`, a pull request carrying a shared-library canonical that main changed since its merge base, escalates it with the human-gated role label and a `babysit-merge-shared-copy-escalation` comment, and that the fix is merging main and running `scripts/sync-shared-copies.sh`. The head-moved clear removes that label once the head moves ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [2.19.3] - 2026-10-20
+
+### Fixed
+
+- The review-threads round records the SHA-256 of the thread file before the model runs, and the branch move and the reply collection read the file only when it still matches; otherwise the PR branch is not moved and no replies are collected ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+- pr-merge's `gate-check` job writes a `pr-merge / gate` check only at a candidate's current pull request head: its read also fetches each pull request's head, and a row whose head differs, or whose pull request the read reports `NOT_FOUND`, is skipped with a logged reason instead of taking its commit from the summary artifact alone. A missing pull request skips only its own row; any other GraphQL error still leaves the read's candidates unwritten. The job gains `pull-requests: read` for that read.
+
+- pr-merge counts the cap of two whole reviews per lane pull request from the lane identity's conversions to draft on the pull request timeline as well as from the reasons comment's record lines, so editing that comment, which the lane token can do, no longer resets the cap. An unread timeline requests no whole review.
+
+## [2.19.2] - 2026-10-20
+
+### Changed
+
+- Write lanes deny the shell commands that can print a file or the environment (`echo`, `printf`, `cat`, `head`, `tail`, `grep`, `find`, `env`, `printenv`, `strings`, `od`, `xxd`, `diff`, `sed`, `awk`, `sort`, `cut`, `tr`, `base64`, `nl`, `tac`, `rev`, `uniq`, `fold`, `column`, `jq`, `xargs`, `more`, `less`) and `Read` of `/proc`; the skill reads files with `Read`, `Grep` and `Glob`. `resolve-issue` fetches only the Claude Code, Claude platform, GitHub, Node.js and Python docs hosts, and no longer runs `scripts/run-test-file.sh` or `check-skill.sh`; the pull request's CI runs the tests ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+## [2.19.1] - 2026-10-20
+
+### Fixed
+
+- pr-merge holds a stale-input pull request at its old head when the `update-branch` call gets no answer (a timeout, no HTTP status, or a server error), since the update may have landed; only a 4xx refusal enqueues as before. `merge.check-inputs` reads only a clone that is neither shallow nor partial ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [2.19.0] - 2026-10-20
+
+### Added
+
+- pr-merge requests a whole review of a lane pull request held only by findings an incremental review cannot clear: it records the request in the reasons comment, then converts the pull request to a draft and marks it ready, once per head, at most twice per pull request and once per run, only while fewer than 35 jobs run or wait and both tokens have 30% of each rate-limit bucket left ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [2.18.0] - 2026-10-20
+
+### Changed
+
+- pr-verify runs its model on the automations API key first and on the subscription token only after a key credit stop or when no key is set, as two jobs on run-claude-cli v0.54.0. A permission denial in either job yields no verdict. A key credit stop warns that the automations key needs rotating and leaves one lane record: the subscription job's, named for the stop, or the key job's as rate-limit when a denial on the key leg ends the run. Every ci-workflows action is pinned to v0.54.0.
+
+## [2.17.1] - 2026-10-20
+
+### Fixed
+
+- A resumed `work-resolve-issue` run that reports done with no commit of its own now opens its PR from the branch it resumed instead of stopping for a person. `run-checks` runs the activity's checks over that whole branch, and `report-outcome` opens the PR only when at least one check ran and none failed, the branch is still at the tip checked (the compare and the new PR use that SHA), `lane.json`'s `resume` equals the branch the run resumed, and every commit on it ahead of the default branch is the lanes App's. The PR body's Verification section records this, and the run's `pipeline/*` statuses go on that checked tip; otherwise the run still hands back.
+
+## [2.17.0] - 2026-10-20
+
+### Added
+
+- `intake-reenter.yml` sends an answered issue back to intake: a listed human's `**Decision recorded.**` comment on a `status: needs-decision` issue, or the author's or a listed human's reply on a `status: needs-info` issue, removes the status label, adds `needs-triage` and, for an issue from a listed human or the lanes App, dispatches `intake-triage.yml` once. It never adds `agent-ready`. A dispatched intake run no longer skips a born-triaged issue ([README.md, Stages](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#stages)).
+
+- The monitoring lane (`maintenance-monitor-signals.yml`, "The monitoring lane"): an hourly scripted job on the job token that reads eight factory signals and keeps one deduplicated issue per signal and key.
+
+### Changed
+
+- The finding-closure paragraph states the rule pr-merge applies: a clean whole review of the current head in the thread's own lane closes a resolved thread whoever resolved it, so a HIGH security finding needs the security lane's own clean whole review, and an incremental review never closes an unchanged thread.
+
 ## [2.16.0] - 2026-10-20
 
 ### Added

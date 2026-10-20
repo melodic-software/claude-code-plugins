@@ -3,6 +3,40 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.3] - 2026-10-20
+
+### Fixed
+
+- **`block-unresolved-pr-merge` fails closed when it cannot resolve the merge target (#8598).** A `gh pr merge` or REST merge whose repository or PR number came from a shell variable (`-R $R`, `$n` in a loop), `$(...)` or backticks used to run unchecked with a notice, so any variable skipped the thread, change-request and check gate. Those merges, and a bare `gh pr merge` whose current branch cannot be read or has no open PR, are now blocked with the fix: write `gh pr merge <number> -R owner/repo` literally. A Bash command whose text is merge-shaped (`pr merge`, a `pulls/.../merge` route, a merge mutation name) and holds any backtick, quoted or not, is blocked too, since a backtick substitution can change or hide the target the guard reads (pass a body that holds one with `--body-file`), and so is a `pr merge` or REST merge route continued with a backslash-newline (write the merge on one line), and so is a command holding more than one merge, of which only the first used to be checked: run each merge as its own command. A literal target is checked as before, whatever other flags (`--body`, `--match-head-commit`) take from a variable.
+
+## [0.55.2] - 2026-10-20
+
+### Fixed
+
+- **`run-guards.sh` no longer loses a deep guard's deny on a small stack (#7667).** A guard's `exit` ran the next guard from inside the `exit` call, on top of the finished guard's whole stack, so a guard that exited deep (`block-dangerous-git`'s alias walk at its 128-analysis cap) left too little stack for the rest of the chain; the process crashed after the deny was printed (exit 139 on Linux, exit 0 on Git Bash, which does not block the call). `exit` now records the status and unwinds the guard back to the dispatcher's loop, and after a deep exit the rest of the chain runs in a forked process, so a later guard that runs out of stack cannot take the verdict with it: a rest that reports nothing denies the call. Not covered: a stack so small that the first guard's own alias walk overflows it (under about 700 KB on Linux), which needs a smaller walk, not a dispatcher change.
+
+## [0.55.1] - 2026-10-20
+
+### Fixed
+
+- `block-dangerous-git` and `block-noncanonical-commit` cap how deep their git alias walk nests, sized to the process's stack, and deny past the cap. A long inline alias chain used to overflow a small stack (512 KB) and crash the guard with exit 139, which Claude Code lets through; it now exits 2 with the alias-chain deny. Without `/proc` (macOS, Git Bash) or with an unlimited stack the cap falls back to 25 levels, and no stack raises it past 409. The test overrides can only lower the cap.
+
+## [0.55.0] - 2026-10-20
+
+### Changed
+
+- The `reference-verify` pre-push entry reads pushed files through the shared check library's `checks_file_text` and `checks_regular_file` instead of its own copies; what it reports is unchanged.
+
+### Fixed
+
+- `pre-commit-content` decides a file is binary from a NUL byte in its content, not from `--numstat`, and reads the range diff with `--text`, so a tracked `-diff` attribute (`*.yml -diff`) no longer turns the content scan off for a text file.
+- `block-no-verify` allows `git config core.hooksPath .githooks` only at local scope and only while `.githooks/` holds the guardrails dispatcher; `--global`, `--system`, `--worktree` and `--file` are refused.
+- `reference-verify` verifies a changed file whose name git quotes (`"`, `\` or a control byte) in full instead of skipping it.
+- `block-no-verify` allows `git config core.hooksPath .githooks` only when `.githooks/` is a real directory and the dispatcher file it reads is a regular file, not a symlink, so a marker from outside the clone no longer counts.
+- The shared git-hook check library drops a file whose content holds a NUL byte in its first 8000 bytes from the changed-line ranges, so `reference-verify` never reads binary content as changed lines.
+
+- The `pre-commit-content` git hook no longer skips a staged file holding a NUL byte. It scans that file's whole raw content for the secret patterns and blocks on a match, so one NUL byte can no longer hide a token. A second pass with the NUL bytes removed catches a token in UTF-16LE text, such as a Windows `.reg` export or PowerShell `>` output. An ordinary binary with no match still commits, and such a file is not judged for machine-specific paths.
+
 ## [0.54.0] - 2026-10-20
 
 ### Added

@@ -155,9 +155,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
 3. [`check-kill-switch`](../../../.github/actions/check-kill-switch/README.md), then
    [`check-trusted-trigger`](../../../.github/actions/check-trusted-trigger/README.md). Neither has
    `continue-on-error`. A stop at either ends the job green with no token minted and no head
-   checked out; the check is neutral, with one exception. Both files pass
-   `github.triggering_actor`, so a re-run started by an account not on the list, by a denied
-   account, or with no triggering actor stops with `untrusted-rerunner`, and that check is a
+   checked out; the check is neutral, with one exception. The gate reads the re-runner's id from
+   the run's own record, so a re-run started by an account not on the list, by a denied account,
+   or with no readable triggering actor stops with `untrusted-rerunner`, and that check is a
    failure: a re-run cannot turn an earlier red check on the same SHA neutral. The write file also
    denies `AUTOMATION_LANES_APP_SENDER_ID`, so the lanes App bot as sender or `workflow_run` actor
    stops it with `bot-actor` (neutral) and one write activity never chains into the next. The read
@@ -378,12 +378,15 @@ each as its own command, and that the run inspects files with Read, Grep and Glo
 with Edit or Write, never with `cd`, `;`, `&&`, a pipe or an interpreter one-liner; when
 `git-mv-rm.sh` is listed, it names that wrapper for a rename or a removal.
 Any other arguments match, so a listed script that changes files or runs checkout code must limit
-itself, or hand the run a power it may hold. `resolve-issue` also lists skill-quality's
-`check-evals-quality.sh` (bash and jq over `evals.json` files) and `check-skill.sh`, which runs each
-checked skill's `scripts/*.test.sh` and the checkout's markdownlint: checkout code with the network
-open and the token readable from an ancestor process, the power `scripts/run-test-file.sh` has. It lists two that limit themselves, each refusing (exit 2) an argument that is absolute,
+itself, or hand the run a power it may hold. Code a listed script runs can read the token from
+any same-user process's `/proc/<pid>/environ`, so `resolve-issue` lists no script that runs
+checkout code: not `scripts/run-test-file.sh`, and not skill-quality's `check-skill.sh`, which runs
+each checked skill's `scripts/*.test.sh` and the checkout's markdownlint. It lists skill-quality's
+`check-evals-quality.sh` (bash and jq over `evals.json` files), and `scripts/git-mv-rm.sh`, which
+limits itself, refusing (exit 2) an argument that is absolute,
 has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
-a path that does not exist yet (`scripts/lib/checkout-path.sh`). `scripts/run-test-file.sh` takes
+a path that does not exist yet (`scripts/lib/checkout-path.sh`); `scripts/run-test-file.sh` does
+the same when an activity lists it. `scripts/run-test-file.sh` takes
 one test file and runs it by name, `test_*.py` under `python3 -m pytest`, `*.test.sh` under
 `bash`, `*.test.mjs` under `node --test`, each after `--`, and a `*.test.js` or `*.test.ts` file
 that imports `vitest` under `npx --no-install vitest run <absolute path>` from the nearest
@@ -404,13 +407,20 @@ change reaches the branch through `commit_files` and `delete_files`. `resolve-is
 `.changes/<plugin>/<slug>.md` files there, refuses a plugin name outside `[a-z0-9-]` and a linked
 `.changes` or `.changes/<plugin>`, and reads `--carriers-of` through its own copy's
 `sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry.
+Every activity whose effect is not `read`, and a read skill that hands on a patch, also gets
+`--disallowedTools` rules for the shell commands that can print a file or the environment,
+including read-only ones that run with no allow rule (`echo`, `printf`, `cat`, `head`, `tail`,
+`grep`, `find`, `env`, `printenv`, `strings`, `od`, `xxd`, `diff`, `sed`, `awk`, `sort`, `cut`,
+`tr`, `base64`, `nl`, `tac`, `rev`, `uniq`, `fold`, `column`, `jq`, `xargs`, `more`, `less`, each as
+`Bash(<command> *)`), and `Read(//proc/**)`; the skill reads files with `Read`, `Grep` and `Glob`.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
 (`WebFetch(domain:*)` for `any`), and `Skill` for `/discovery:read-docs`, `/discovery:research`,
 `/knowledge:docpage-digest` and `/knowledge:map-corpus`; installs the `discovery` and `knowledge`
 plugins from the base marketplace copy beside the skill's own; and says so in
-`--append-system-prompt`. For `any` only, it also copies `fetch-docs.sh`, `docs-cache.sh` and
+`--append-system-prompt`. With a domain list the prompt names the hosts and WebFetch as the way to
+read a page on them, since the docs scripts `/discovery:read-docs` runs stay denied. For `any` only, it also copies `fetch-docs.sh`, `docs-cache.sh` and
 `html2md.py` from the base `discovery` plugin to `$RUNNER_TEMP/lane-docs`, makes the copy
 read-only, denies `Edit` and `Write` on it (else the skill's bare `Edit` and `Write` could rewrite
 a script its rule then runs), allows `Bash(bash <copy>/fetch-docs.sh *)` and the same rule for
@@ -689,23 +699,34 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    `cancelled` or `timed_out`) still runs one more round, on those threads only; a
    round with no readable time grants none. Both escalations skip `awaiting-human` with nothing
    minted. Otherwise
-   it writes `$RUNNER_TEMP/lane-feedback/threads.json`.
+   it writes `$RUNNER_TEMP/lane-feedback/threads.json` and records its SHA-256 as a step output,
+   which the promote and collect steps check before they read the file: on a mismatch or no
+   recorded hash, the promote step does not move the PR branch and the collect step writes no
+   `run.json`.
 2. `collect-base-activity` makes that directory read-only and stages a wrapper over the base's
    `feedback-thread.sh` there. The skill keeps the commit tool and gets `Bash(<wrapper> *)`; Edit
    and Write are denied on the directory and on the tool's replies directory. The tool lists the
    kept threads, checks paths, and records a reply: it refuses a disposition file outside the
    scratch directory or off the template, and a `VALID` reply whose fix is not on the lane branch
    or whose lane branch changes a file outside every kept thread's scope or any `.github/` path.
-   A thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except
-   one under `hooks/`, `.claude-plugin/` or a `.claude/` directory, a `CLAUDE.md` or `AGENTS.md`,
-   or a `.sh`, `.py`, `.mjs`, `.js` or `.ts` file; and a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
-   directory. It posts nothing. The promote step then moves the PR branch only when every path the
+   Every path must be plain ASCII letters, digits and `_@+.-` in `/`-separated segments. A
+   thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except an
+   instruction path (the list `apply-ci-fix` refuses below) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
+   `.py`, `.mjs`, `.cjs`, `.js`, `.ts`, `.mts` or `.cts` file; a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
+   directory; and its `named_paths`. The select step sets those from the thread's fix requests by a
+   trusted person with write access: each file-shaped word outside fenced code and quoted lines,
+   read from the repository root when it holds a `/` and from the thread path's directory when it
+   does not, kept when it is in the thread path's `plugins/<p>/` directory, in normal form, not
+   under `.github/` and not an instruction path (the same list `apply-ci-fix` refuses below), and
+   a regular file, not a symbolic link or gitlink, at the gated head (ten per thread
+   at most). It posts nothing. The promote step then moves the PR branch only when every path the
    lane branch changes is in a kept thread's scope, none under `.github/`, in fewer than 300
    files, judged by a copy of the base's `thread-scope.mjs` taken before the head checkout and
-   imported only when its SHA-256 matches.
+   imported only when its SHA-256 matches, and every path it adds or changes is a regular file
+   (mode `100644` or `100755`) at the lane branch's tip.
 3. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
-   `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths and
-   comment ids, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
+   `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths,
+   comment ids and named paths, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
    uploads both as `feedback-replies-<run attempt>`. Its `feedback-round` output is then `true`,
    `feedback-run-sha256` is the SHA-256 of that `run.json`, and `feedback-run-attempt` is the
    attempt in the artifact's name.
@@ -918,7 +939,8 @@ passes the model job's `patch-state`, `patch-sha256`, `patch-attempt`, `head-sha
    head with `git diff-tree -r --no-renames`. A path under `.github/` (thread-scope.mjs's
    `isProtectedPath`, the rule the review-threads mode applies), or an agent instruction path at
    any depth and in any case (`CLAUDE.md`, `AGENTS.md`, a `.claude/` or `.claude-plugin/` directory,
-   a plugin's `hooks/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), escalates
+   a plugin's `hooks/`, `monitors/` or `bin/`, `.mcp.json`, `.lsp.json`, `.gitmodules`,
+   `CODEOWNERS`), escalates
    `ci-fix-protected-path` and pushes none of the patch, whatever the report escalated; a mode `120000` or `160000` on either side, or no change, escalates
    `ci-fix-invalid`. It then re-reads the pull request and its labels and stops uncommitted
    (`awaiting-human`) on a draft or a hold label, fails when `git/ref heads/<head ref>` is no
@@ -1283,10 +1305,15 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   base and each changed file with its line counts, from `GET /compare`. The skill commits to a new branch,
   `<lane>/issue-<n>-<run id>-<attempt>`, which is kept only when it holds commits. The skill's
   `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty, and on a resume the
-  resumed branch, which a `done` run that committed nothing names when it hands the issue to a person, since the runner checks only its own branch) are uploaded as the
+  resumed branch) are uploaded as the
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
   was minted.
-- `report-outcome` downloads that artifact. On `done` it opens a ready (not draft) PR from the branch whose
+- `report-outcome` downloads that artifact. A `done` run that committed nothing on a resume opens its PR from the
+  resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals
+  the `resume-branch` `issue-prior` output), every check passed and at least one ran, the branch is still at the tip
+  checked (the compare reads that SHA, and a new PR whose head is another commit is closed), and every commit on it ahead of the default branch is verified, authored by the lanes App
+  and committed by `web-flow`; the PR body's Verification section says so. Otherwise it hands the issue to a person,
+  naming the resumed branch. On `done` it opens a ready (not draft) PR from the branch whose
   body starts `Closes #<n>` (or `Refs: #<n>` when the outcome sets
   `"link": "refs"` because a recorded decision keeps the issue open), puts no label on it (the work class stays on the issue), and adds
   `Hold: a human merges this` for structural or untrusted-provenance work, for a diff that

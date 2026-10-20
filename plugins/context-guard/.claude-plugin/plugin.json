@@ -1,6 +1,6 @@
 {
   "name": "context-guard",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Per-session context-window observability. A mod writes each session's context-window figures to a snapshot file and shows the person a toast and a transcript line when the context zone (smart, acceptable or dumb, from bands in zones.json) worsens; with model_notices on (off by default) it also tells Claude the zone at each crossing, approach and compaction. /context-guard prints status and toggles an optional band row. It answers a status tool. A PostCompact hook leaves a marker.",
   "author": {
     "name": "Melodic Software",
@@ -25,7 +25,7 @@
     "model_notices": {
       "type": "boolean",
       "title": "Model notices",
-      "description": "Sends Claude one line when the session crosses into a worse context zone, approaches a boundary, or passes a zones.json threshold, and restates the zone after a compaction, a resume or a reload. Off by default; the toast, transcript line, band row, status tool and snapshot work either way.",
+      "description": "Sends Claude one line when the session enters a worse context zone, nears a boundary or passes a zones.json threshold, and restates the zone after a resume, reload or compaction (with no figures yet, says the reading is unavailable). Off by default; the rest of the plugin works either way.",
       "default": false
     },
     "zone_report_mode": {

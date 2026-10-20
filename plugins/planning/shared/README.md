@@ -13,14 +13,13 @@ and the session-bridge watcher. Python 3 standard library only.
 | `share.py` | The CLI: `ensure-running`, `stop`, `restart`, `status`, `url`, `list`, `apply`, `lease` |
 | `server.py` | One process, two 127.0.0.1 listeners: the guest listener (the page and `/api/*`) and the control listener (session-bridge). Routes, auth, caps, headers and the snapshot; no domain rules |
 | `session.py` | The domain rules over `state.json` (people, rounds, questions, votes, locks, proposals, requests, results, uploads, digest, ops) |
-| `migrate.py` | `schemaVersion` migrations, `(dict, ctx) -> dict`, including `0 -> 1` from the prototype's state file |
 | `tunnel.py` | cloudflared: start, address parse, reattach, adopt, exit detection, stop. The only file that names cloudflared |
 | `detached.py` | Processes that outlive their starter, and liveness and stop by pid, on Windows, macOS and Linux |
 | `session_bridge.py`, `watch.sh`, `wake.sh` | Generated copies of `lib/session-bridge/` (`scripts/sync-shared-copies.sh`); edit the canonical, never these |
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
-| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when `schemaVersion` or the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_migrate.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -33,8 +32,8 @@ Every command prints one JSON line on stdout and diagnostics on stderr. On Windo
 
 | Command | Args | Output |
 |---|---|---|
-| `ensure-running` | `[--open] [--defaults-file F] [--guest-port N] [--import STATE] [--adopt-tunnel PID URL]` | `{ok, guestUrl, localUrl, ownerLinkFile, shareChanged, resumed, tunnel, watch}`: starts or reuses the server and the tunnel. A new session's `state.json` comes from `defaults.json` (`{"settings": {...}}`, state.schema field names). `--guest-port` applies only when the session is created; later starts reuse the recorded ports. `--import` and `--adopt-tunnel`: see [Moving the prototype's session](#moving-the-prototypes-session) |
-| `stop` | `[--keep-tunnel]` | `{ok, stopped}`: ends the armed watcher, the server and cloudflared (an adopted cloudflared keeps running; see [Moving the prototype's session](#moving-the-prototypes-session)); keeps the ports and the state. `--keep-tunnel` keeps the guest link for the next start |
+| `ensure-running` | `[--open] [--defaults-file F] [--guest-port N] [--adopt-tunnel PID URL]` | `{ok, guestUrl, localUrl, ownerLinkFile, shareChanged, resumed, tunnel, watch}`: starts or reuses the server and the tunnel. A new session's `state.json` comes from `defaults.json` (`{"settings": {...}}`, state.schema field names). `--guest-port` applies only when the session is created; later starts reuse the recorded ports. `--adopt-tunnel`: see [Adopting a running cloudflared](#adopting-a-running-cloudflared) |
+| `stop` | `[--keep-tunnel]` | `{ok, stopped}`: ends the armed watcher, the server and cloudflared (an adopted cloudflared keeps running; see [Adopting a running cloudflared](#adopting-a-running-cloudflared)); keeps the ports and the state. `--keep-tunnel` keeps the guest link for the next start |
 | `restart` | | Stops and starts the server only, on the same ports, with the same control token: the tunnel, the guest link, the state and an armed watcher all survive. Open pages see the new build and reload |
 | `status` | | `{ok, running, tunnel, guestUrl, round, intro, people, queue, unhandled, lease}`; `intro` is true once "Why you're here" is set |
 | `url` | `[--owner]` | `{guestUrl}`, or `{ownerUrl}` (a credential, printed only on request) |
@@ -43,8 +42,8 @@ Every command prints one JSON line on stdout and diagnostics on stderr. On Windo
 | `lease` | `[--release]` | `{lease}` |
 | `logs` | `[--errors] [--since MINUTES]` | `{ok, lines}`: the newest 200 lines of `server.log` and its rotated files, oldest first; no server needed. `--errors` keeps refusals, server errors and client entries. See [Logs](#logs) |
 
-Exit codes: 0 done; 1 refused (bad arguments, a state file from a newer version, a failed
-migration, a `--guest-port`, `--import` or `--adopt-tunnel` on an existing session, an adopted pid
+Exit codes: 0 done; 1 refused (bad arguments, a state file that does not load, a `--guest-port`
+or `--adopt-tunnel` on an existing session, an adopted pid
 that is not a running cloudflared to the guest port); 2 a prerequisite is missing (Python 3, curl,
 cloudflared) or the server cannot start or be reached, a busy `--guest-port` included; 3 no tunnel
 address in time (the server keeps running on `localUrl`, `tunnel: "down"`).
@@ -57,62 +56,30 @@ the owner's view shows as "New guest link, share again"; the next `ensure-runnin
 cloudflared that is already running, without starting anything; it is then watched and restarted
 like one the server started.
 
-## Moving the prototype's session
-
-`ensure-running` needs cloudflared on PATH even with `--adopt-tunnel`: it exits 2 without one, and
-by then the prototype is already stopped. Check first, then stop the prototype (leaving its
-cloudflared running), then import:
+## Adopting a running cloudflared
 
 ```bash
-command -v cloudflared || { echo "cloudflared is not on PATH: fix PATH before stopping the prototype"; exit 1; }
-bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running \
-  --import '<prototype>/state-<port>.json' --guest-port <port> --adopt-tunnel <cloudflared pid> <tunnel URL>
+bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running --guest-port <port> --adopt-tunnel <cloudflared pid> <tunnel URL>
 ```
 
-Creates the session from the prototype's state file and refuses (exit 1) when `<data_dir>` holds
-one already. The flags may instead be `defaults.json` keys, `import`, `guestPort` and
-`adoptTunnel: {pid, url}`, which apply only when the session is created.
+Creates a session on `<port>` and records the running cloudflared as its tunnel, starting nothing, so
+the guest link stays the same; it is then watched like the server's own. The flags may instead be
+`defaults.json` keys, `guestPort` and `adoptTunnel: {pid, url}`, which apply only when the session
+is created. `ensure-running` needs cloudflared on PATH even so. `--adopt-tunnel` needs
+`--guest-port`, the port that cloudflared points at, and refuses (exit 1) a pid whose program file
+is not `cloudflared` (`cloudflared.exe` on Windows) or whose one `--url` is not
+`http://127.0.0.1:<port>` or `http://localhost:<port>`, or cannot be read. The session never
+signals an adopted cloudflared: `share.sh stop` drops its record and leaves it running; end it
+yourself (`kill <pid>`, or `Stop-Process -Id <pid>` on Windows) to close the link. If it exits, the
+server starts a cloudflared of its own (a new link), which `stop` ends like any other.
 
-- **State.** `migrate.py` maps the prototype's file (no `schemaVersion`) to version 1: people keep
-  their pid and name, guest secrets are stored as sha256 (a browser's secret still names the same
-  person), the owner token as its hash; questions, options, answers, picks, votes, Claude's cards,
-  locks, suggestions, chat, ideas (as proposals), requests, research (as published results),
-  merge requests, prefs, notifications, settings, title, goal, guest key and share URL carry over.
-  Each field with no counterpart, link that is not http(s), or asset name that is not an image
-  file name is dropped and named in `server.log`, never its value; records naming no known
-  question or person are counted per collection. A guest secret the prototype mapped to the host
-  (a join with the owner token, or a guest merged into the host) is dropped: only the owner link
-  carries owner identity, so that browser joins again. (Merging a guest into the owner in a running
-  session instead answers that browser 401 `merged-into-owner`; see [Moderation](#moderation).)
-  Uploads do not carry over yet. A round the
-  prototype had sent to Claude opens again. The original stays beside it as `state.v0.json`.
-  Each later step keeps the file it read as `state.v<N>.json`. Version 6 marks requests the owner discarded before
-  as cancelled and starts the owner's read marks of guests' requests Claude failed before, so an upgrade adds nothing
-  to Needs you. Version 3 stores mentions as
-  `<@pid>` (see Mentions under [Moderation](#moderation)): an "@Name" only one person holds now becomes theirs; then,
-  for a chat message with one "@Word" left and one mention notification about it to someone it
-  does not name already, Word becomes that person wherever Word names only them. Anything still
-  ambiguous keeps its "@Name" text.
-  Once the import works, delete the prototype's own state file or `chmod 600` it: it holds every
-  guest secret and the owner token in plain text.
-- **Owner link.** The prototype's owner token stays the owner's credential, so its owner link keeps
-  working; one shorter than 16 characters, or kept only on the prototype's command line, is
-  replaced (`url --owner` prints the new link).
-- **Assets.** The images its questions show are copied from the `assets/` folder beside the state
-  file.
-- **Tunnel.** The running cloudflared is recorded as the session's tunnel and nothing is started,
-  so the guest link stays the same; it is then watched like the server's own. `--adopt-tunnel`
-  needs `--guest-port`, the port that cloudflared points at, and refuses (exit 1) a pid whose
-  program file is not `cloudflared` (`cloudflared.exe` on Windows) or whose one `--url` is not
-  `http://127.0.0.1:<port>` or `http://localhost:<port>`, or cannot be read. The session never
-  signals an adopted cloudflared: `share.sh stop` drops its record and leaves it running, so the
-  prototype can take the same link back; end it yourself (`kill <pid>`, or `Stop-Process -Id <pid>`
-  on Windows) to close the link. If it exits, the server starts a cloudflared of its own (a new
-  link), which `stop` ends like any other.
-- **Open prototype pages.** In an imported session a poll of `GET /api/state` that carries an
-  identity header and no query string is a prototype page still open from before: it gets
-  `{schemaVersion, rev, outdated: true, title: "This page was updated: reload"}`, which the old
-  script shows as its title over an empty page. The plugin's page polls with `?since=<rev>`.
+## The state file is not versioned
+
+`state.json` holds the shape this build writes, with no version number and no migrations; the last
+versioned build wrote `schemaVersion` 7. On load that key is dropped and left out of the next
+write; a file below 7 is refused (`state-too-old`): start a new session, or restart it under the
+previous build first so it migrates to 7. To go back to an earlier build, add `"schemaVersion": 7`
+to `state.json` first. When a later build cannot read a session, start a new one and send its link.
 
 ## Ops
 
@@ -170,7 +137,8 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   a back, any reaction, a Disagree or a Pass. For a person the question is `for`, only an own card,
   a vote or back, or a Pass counts. A question still asks a person (`_owes`) while they have not
   taken part and it is `for` them or no one else has answered it; once one other person has, it is
-  optional for the rest. The Host view's `behind` and the page's counts count `_owes`; the digest's
+  optional for the rest. The Host view's `behind` (each guest's row says "N to answer this round", and a
+  Behind chip lists them) and the page's counts count `_owes`; the digest's
   `people.answered` counts who took part.
 - **Late acts.** A vote, back, reaction, Disagree or Pass on a closed round's question is stamped in
   `lateActs` (`{qid: {pid: {round, at}}}`), and the next digest's `late` lists what that person
@@ -231,7 +199,7 @@ the reader nears the top of the chat or presses "Load earlier messages", and rea
 message a notification or a reply quote points at.
 
 **Mentions.** People type "@Name" in chat, answers, comments, suggestions, proposals, notes and
-requests; the server stores each name of a person who is in as `<@pid>` (`migrate.tokenize`, longest
+requests; the server stores each name of a person who is in as `<@pid>` (`session.tokenize`, longest
 name first) and notifies that person once. The page sends the "@Name" it shows the same way, so a
 masked name still reaches its person. Every page turns `<@pid>` back into "@Name" as it shows that
 person's name now: masked like every name, a removed person's last name (the snapshot's
@@ -309,10 +277,13 @@ when sent. A guest's request, the owner's guest identity included, still waits f
 The owner's pop-ups are for a join, a request waiting for Run and a problem report alone (`HOST_URGENT` in
 `web/app.js`); everything else reaches the owner in the Inbox only. The Pop-ups switches at the top of the owner's
 Notifications tab turn each kind of item waiting on the owner (also answers to share, merge requests and requests
-Claude failed) on or off, kept as the owner's `popups` pref (`session.py` POPUP_KINDS); guests see no such section.
+Claude failed) on or off, kept as the owner's `popups` pref (`session.py` POPUP_KINDS). A guest's switches cover
+Claude answered my request, named or mentioned, and a new round, kept as their own `popups` pref; until they change
+them, the guest has the ones the owner turns on under Guests start with in the same tab (the `guestPopups` setting,
+all three when unset).
 Pop-ups that arrive while one shows become one with a count and Open Inbox ("3 requests wait on you"), and an item
 that stops waiting drops out of it. Such a pop-up stays until it is closed or opened, or nothing in it waits any more;
-every other toast goes after a few seconds. Guests' pop-ups are unchanged.
+every other toast goes after a few seconds.
 
 ## Discussion
 
@@ -653,8 +624,8 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 
 | Path | Writer | Mode | Holds |
 |---|---|---|---|
-| `state.json`, `state.v<N>.json` | server | 0600 | The session (`schema/state.schema.json`); the pre-migration copy. `state.v0.json`, the prototype's file, holds its guest secrets and owner token in plain text |
-| `defaults.json` | the skill | | Settings for a new session; `import`, `guestPort`, `adoptTunnel` for an imported one |
+| `state.json` | server | 0600 | The session (`schema/state.schema.json`) |
+| `defaults.json` | the skill | | Settings for a new session; `guestPort`, `adoptTunnel` to adopt a running cloudflared |
 | `ops.json` | Claude | | One apply; deleted when it lands |
 | `.shared-secrets.json` | server (made on first start) | 0600 | The control token, the owner token and `ownerAt`, when the owner token was issued |
 | `.owner-link` | server | 0600 | `http://127.0.0.1:<guest port>/#owner=<token>` |
@@ -672,9 +643,8 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `uploads/pending/<32 hex>`, `uploads/accepted/<yyyymmdd>-<upload id>.<ext>` | server | 0700 folders, 0600 files | An accepted upload's pieces so far; a received one (see [Uploads](#uploads)). Only a received picture is read back, as a data: URL from `GET /api/upload/image` |
 | `reports/<report id>[-<n>].<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot, and with `-<n>` the reporter's nth added one ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads one back, and Claude reads one only through the Read-only `upload-reader` agent |
 
-Every `GET /api/state` with identity carries `schemaVersion`, `rev` and `build` (a hash of the
-served web files); every answer carries `X-Shared-Build`. A page built for another version or
-build reloads itself. Its `ETag` moves with `rev`, presence and a 5-second clock tick (so an
+Every `GET /api/state` with identity carries `rev` and `build` (a hash of the served web files);
+every answer carries `X-Shared-Build`. A page built for another build reloads itself. Its `ETag` moves with `rev`, presence and a 5-second clock tick (so an
 offline or away person shows without a write); a heartbeat that changes nothing anyone sees moves
 nothing. A poll whose `If-None-Match` differs only in presence or the tick gets `{rev,
 presenceOnly: true, serverTime, presence, lastSeen}` (`wire.schema.json` `presenceOnly`), and the
@@ -718,8 +688,8 @@ page keeps the rest of its last snapshot.
 - **The log.** `server.log` writes the request path, and a failure's traceback on one line, with
   control characters escaped (`\x1b`, `\x0a`); never a header value, request body or upload
   ([Logs](#logs)).
-- **What a visitor reads.** Without identity, `/api/state` is `{title, ended, joinNeedsKey,
-  schemaVersion}` only; a removed person and an owner link from before a rotation read nothing.
+- **What a visitor reads.** Without identity, `/api/state` is `{title, ended,
+  joinNeedsKey}` only; a removed person and an owner link from before a rotation read nothing.
   An unshared result reaches only its asker (a Just me answer, one taken down, their own Claude's)
   and the owner.
 - **Guest text is data.** Answers, chat, proposals and requests reach Claude in the digest,
@@ -751,8 +721,8 @@ Where each token can be seen:
 
 | Token | Exposure paths |
 |---|---|
-| Owner token | `.shared-secrets.json` and `.owner-link` (0600); for an imported session, `state.v0.json` (0600) and the prototype's own state file; for 30 s after `--open`, the `.owner-open-<hex>.html` page (0600) the browser is handed, whose path, not the token, is on the opener's command line; the owner's browser (the link's fragment, never sent to the server, and its history; the tab's `sessionStorage` once a page took it out of the address bar); the transcript when the owner asks for `url --owner` |
-| Guest secret | The guest's browser storage and personal link (`#me=` fragment); for an imported session, `state.v0.json` (0600); the `X-Session-Secret` header, which Cloudflare's edge sees because the tunnel terminates TLS there |
+| Owner token | `.shared-secrets.json` and `.owner-link` (0600); for 30 s after `--open`, the `.owner-open-<hex>.html` page (0600) the browser is handed, whose path, not the token, is on the opener's command line; the owner's browser (the link's fragment, never sent to the server, and its history; the tab's `sessionStorage` once a page took it out of the address bar); the transcript when the owner asks for `url --owner` |
+| Guest secret | The guest's browser storage and personal link (`#me=` fragment); the `X-Session-Secret` header, which Cloudflare's edge sees because the tunnel terminates TLS there |
 | Watcher key | The guest's clipboard and their own Claude's context, where they paste it; the `X-Watcher-Key` header, which Cloudflare's edge sees. It reads and answers only that guest's own self requests |
 | Control token | `.shared-secrets.json`, `.shared-session.json`, `.shared-session.env` (0600); the `curl` command line `watch.sh` runs (the generated session-bridge watcher puts the header on argv). A command line is readable by other local users on Linux without `hidepid` and on macOS, not only by the same user; moving that token off argv is tracked in #7693 |
 
@@ -817,6 +787,7 @@ node plugins/planning/shared/tests/ui_advance.js
 node plugins/planning/shared/tests/ui_askbox.js
 node plugins/planning/shared/tests/ui_myreports.js
 node plugins/planning/shared/tests/ui_welcome.js
+node plugins/planning/shared/tests/ui_per_device.js
 node plugins/planning/shared/tests/ui_review.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
@@ -855,7 +826,14 @@ more, and another guest never holding it.
 `ui_welcome.js` checks the first-join welcome card: shown by default, its first line "Enter your name to join, then
 answer this round's questions.", the goal and Start here; a visible Skip that closes it and the tour offer at once
 (the `tour` pref says skipped); closed after a reload on that device (`localStorage`, per person); "Show the tour
-again" in the person's settings bringing both back; and a 44 px Skip on a 390x844 phone.
+again" in the person's settings bringing both back; a 44 px Skip on a 390x844 phone; on a return visit the goal in
+one closable line, closed for the rest of that tab's visit (`sessionStorage`); About you (tech comfort and a note)
+in the person's card, shown only on the owner's Host view; and in Instagram's in-app browser a banner to open the
+page in Safari, with Copy link, that never blocks the page.
+
+`ui_per_device.js` checks a question asked once per device (`answerScope: device`): the page sends the device kind
+with the answer, a person who answered on a computer is asked on their phone for that phone too, and the owner reads
+one card per device, each named with it.
 
 `ui_uploads.js` checks uploads with a 390x844 phone guest and a desktop owner: no upload control
 while Uploads is off, an offer held in the guest's browser, the owner's Accept, a chunked send
@@ -910,8 +888,8 @@ the views sharing data.
 
 `ui_journey.js` drives the page in Chromium against `ensure-running` on spare ports with the fake
 tunnel: the owner and a guest join, answer, vote, lock, pick, react and send a round; every state
-poll carries a query string; no page breaks the CSP; and a guest of an imported prototype session
-comes back as the same person, keeping its stored secret when its first heartbeats get a 429 or
+poll carries a query string; no page breaks the CSP; and a returning guest comes back as the same
+person, keeping its stored secret when its first heartbeats get a 429 or
 no answer. `ui_formats.js` covers, in a session past its first round, `multi`, `scale` and `rank`
 (keyboard, and touch on a 390x844 phone, whose Questions tab must take taps with two rounds
 listed), Something else on `choice`, `multi` and `rank`, Disagree, the `down` reaction and a

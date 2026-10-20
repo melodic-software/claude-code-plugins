@@ -3,6 +3,143 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.83.1] - 2026-10-20
+
+### Added
+
+- **Shared interview page: a question's background.** The `context` stored on a question now shows under its text.
+
+### Fixed
+
+- A shared-interview answer or other write sent from a second tab or device within a second of the same person's last one is sent again once a moment later, instead of being refused with "Wait a moment before sending again."
+
+- **Shared interview page: the QA sweep's 37 findings.** Counts on the welcome card and in the rail are per person, and the catch-up note sits in the round it is about; the welcome card no longer asks a joined guest for their name, and its first step names its round. The chat "Sent to Claude" marker sits under its bubble. Locked and read-only hints no longer point "above"; the Pass trigger hides while its form is open. The host reads "Waiting for you to run it" on their own queue. Claude's reports render headings, lists, bold and code instead of raw markdown, and drop the empty "via Claude" line. The question's Ask box and the Ask Claude panel share one layout, placeholder and "Run it on my own Claude" switch. Proposal actions keep one order, and a sheet's close button stays on its title row. Toolbars wrap instead of cutting chips, and phone tab rows fade at the cut edge. Attach is one square button everywhere, dialog buttons match the page's, and the attach dialog names what the file goes with and styles its file button. Pick formats share one results hint and one "Write your own" wording; a comment written before the picks rides with Save, with no second primary button. Report a problem puts its screenshot before Send. A renamed joiner ("Ivy 2") is told so, arriving in a later round shows no "Round 2 is here." toast, and a waiting guest stops sending a refused heartbeat and polls less often. Phone tap targets reach 44 px, avatars never draw initials below 9 px, the top bar title uses the free width, the chat button never covers the column, and the prototype tile and empty option feet no longer show blank boxes.
+- **Shared interview page: "Who must answer" stays on the question's column.** The panel kept the question's width at wide sizes; a new `column` rule in the alignment check holds every focus-view block to it.
+- **Shared interview page on phones.** A long saved answer wraps inside the folded field, the answer sheet's Save sits under the field in thumb reach, and the chat message and reaction menus open as bottom sheets clear of the home indicator.
+
+## [0.83.0] - 2026-10-20
+
+### Added
+
+- The interview surface has a `revising-by-claude` op: Claude marks a set of questions as being revised, with a reason, and the page shows "Claude is revising this: <reason>" on each question's rail card and detail pane. The mark informs only, so answering stays possible. A `revise` or `reply` of a question, or an explicit `clear`, removes it.
+- A revision that lands on the selected question while a choice is armed or a note is typed now shows the "Qn just changed: review" notice at once, instead of only when Save returns a 409.
+
+## [0.82.0] - 2026-10-20
+
+### Added
+
+- `tests/repin.sh <pin-label> <justification>` re-pins one digest pin of `interview-defenses.test.sh` in one attended command: it rewrites only that pin's sha256, adds the justification comment above the pin, reruns the test and prints PASS or FAIL. It refuses an unknown or ambiguous label and changes nothing when the digest already matches. It writes only when stdin and stdout are both terminals and the person answers y after seeing the old and new digest and the plugin's `git diff --stat`; any other run exits non-zero and writes nothing. The test's attended-only message names it.
+
+- **The interview page searches and jumps to a question.** A search box in the rail toolbar matches the question id, short title and title: typing words filters the rail, and typing a number then Enter opens that question (`100` opens Q100). It narrows within the Show filter, and the rail says when Show hides matches. A jump opens the group that holds the question. Selecting a question writes `#<id>` to the URL (replacing the hash, so Back still leaves the page), and loading or changing to `#Q100` selects Q100; an unknown id leaves the selection alone. (#5915)
+
+### Changed
+
+- **`/` now focuses the new search box, and `s` focuses the Show filter.** The keyboard sheet lists both. (#5915)
+- **A rail button's accessible name is its id, short title and state.** The needs chips, state chips and Claude preview move to its accessible description. (#5915)
+
+## [0.81.0] - 2026-10-20
+
+### Added
+
+- `round.sh supersede` and `round.sh resolve` (#6124): terminal commands that set an answered register row of a ledger to `superseded-by-plan` (taking its resolution as `was`, written `was plain::` or `was answer::` to record the row's form so `restore` gives it back byte for byte; a bare `was::` still loads) and clear it by `reconfirm` or `restore`. They escape through the exporter, back the ledger up, print the `check-open-questions.sh` verdict, and need no page. `/planning:plan` "Plan changes after the Brief" names them instead of describing the grammar.
+
+### Fixed
+
+- **Interview source links pin to a commit SHA.** The surface spoke's Source rule requires a repo-file link of the form `blob/<sha>/<path>`, and `round.py add`, `add-round`, `apply` and `revise` warn (without refusing) on a `blob/<branch>` link in a question's `facts`, naming the question.
+
+## [0.80.0] - 2026-10-20
+
+### Added
+
+- Shared interview page: the host sets which pop-ups guests start with under Guests start with in the Inbox's Notifications tab (the `guestPopups` setting); a guest's own switches win once changed.
+- Shared interview page: the Host view's people list shows how many of the open round's questions each guest still owes, and a Behind chip lists them.
+- Shared interview page: on a return visit a guest sees the session goal in one line they can close for the rest of that visit.
+- Shared interview page: in Facebook's, Instagram's or Messenger's in-app browser a guest gets a banner suggesting Safari or Chrome; Get your link opens the device panel with its Keep this private warning. It never blocks the page, and the owner never gets it.
+- Shared interview page: About you in a guest's own card (how comfortable they are with tech, and a note), shown only on the owner's Host view.
+- Shared interview page: after two minutes waiting for Claude or in "Claude is working", the round says for how long; while a round waits the owner reads that Claude may already be reading it.
+- Shared interview page: when a filter or round pick hides questions, the rail says so ("Showing round 2 · 1 round hidden") with Show all.
+
+### Changed
+
+- Shared interview: the session file is no longer versioned. `migrate.py`, the `schemaVersion` key, the prototype import (`ensure-running --import`, `server.py --initial-state`) and the prototype pages' reload banner are gone; a `schemaVersion` 7 is dropped on load, and a file below 7 is refused with a message to start a new session or migrate under the previous build first. To go back to an earlier build, add `"schemaVersion": 7` to `state.json`. A page still reloads when the build changes.
+- Interview skill, shared lane: `ack-round` goes in the same apply as the next `open-round` or `close-round`, and any question for the owner comes after it lands.
+
+### Fixed
+
+- Shared interview page: a question asked once per device (`answerScope: device`) now takes answers from the page, and a person who answered on another kind of device is asked for this one too. A touch device is a phone or a tablet by its screen's short side, so a phone turned to landscape stays a phone.
+
+## [0.79.0] - 2026-10-20
+
+### Added
+
+- Shared interview page: a guest waiting for the host to let them in sees one centered card with the session title, "Why you're here" and the wait, and nothing else of the session until admitted; the server's waiting refusal carries the title and intro.
+- Shared interview page: guests get their own Pop-ups switches in the Inbox's Notifications tab (Claude answered my request, a mention, a new round), all on until turned off.
+- Shared interview page: the full-screen Inbox uses two columns from 1100 px (Needs you side by side; Pop-ups and the notification switches in a sticky column beside the messages), and below that keeps the messages first with Pop-ups and the switches behind one "Pop-ups and notifications" button; "Show in Host view" sits in each row's own actions.
+- Shared interview page: the tour adds the Discussion, Ask Claude with @Claude, attaching a file and the Inbox for guests, and Share, Needs you (Run and Approve) and Send for the host.
+- Shared interview page: a guest's desktop Help has Settings, which opens their own card.
+- Shared interview page: the host's Pop-ups gain "Someone offers a file", off until switched on; on, a file a guest offers pops up for the host.
+
+### Changed
+
+- Shared interview page: every popover, panel and sheet opens through one surface model with one close x named for what it closes, one focus trap and one 720 px breakpoint, so the Ask Claude panel is a side drawer down to phone width.
+- Shared interview page: Help and More draw one menu model; chat messages and Discussion comments share one message menu (Reply, React, Propose as question, Ask Claude about this, Copy, and Edit, Delete or Hide where allowed), opened by ⋯ or a long press.
+- Shared interview page: person, proposal, request and result actions each come from one builder, with the same words and toasts in the person card, Host view, person view, Settings, Proposed, the queue, Later, the thread, Ask Claude and the Inbox; every Copy uses one copy path.
+- Shared interview page: sending a round with open questions, and declining a request, join or merge, ask first through the one confirm dialog.
+- Shared interview page: a toast is the result of the person's own action or a pop-up they switched on, and never a kind they muted; everything else from others waits in the Inbox.
+
+### Fixed
+
+- Shared interview page: the question's Ask Claude button no longer claims a menu it does not open.
+- Shared interview page: a prototype page reads as read-only for a guest once the session ends or they are removed.
+- Shared interview page: an answer's device badge names the browser in words, from the one device and browser source.
+
+## [0.78.1] - 2026-10-20
+
+### Changed
+
+- Shared session: Offer file in the attach picker attaches the offered file to the draft at once, as a pasted picture
+  does; the chip reads "Waiting for the host" and Send waits for it. The uploader's own file row shows the thumbnail
+  made in their browser.
+- Shared session: Report a problem and Your reports take a screenshot by picking or pasting it, shown as the same
+  attachment chip every other form uses.
+- Shared session: one time phrase everywhere ("just now", "5 min ago"), one avatar, name and time line whose avatar
+  opens the person card from the keyboard, "You" as the one self label, and one class each for the unread dot, inline
+  link button, counter and empty state.
+
+### Fixed
+
+- Shared session: a received picture offered on a question that nothing ever carried (from before attachments) shows
+  under that question: to everyone once the host approves it, and before then to the host (with Approve picture) and
+  its uploader (with Remove). Snapshots carry it in a new optional `questionPics` field. A form's unsent picture and
+  one a post carried, even one since cleared, deleted or hidden, never show there or read back to anyone else; new
+  uploads record this in optional `draft` and `carried` marks, and taking a pasted picture off a form removes it.
+  State files move to schemaVersion 7: the upgrade marks every older upload carried except an offer made before forms
+  attached pictures that nothing carries.
+- Shared session: times no longer read "now ago", and "You marked this round ready" goes by person, so someone else
+  with the same name no longer reads it.
+
+- The interview page's Activity panel lists under "Needs you" only what needs the user's input: a restatement to confirm, the finish, a Notes reply that asks them something, and a question that still waits on their answer. Added questions, recommendation revisions and other Notes replies move to the log, so they no longer raise the Activity badge, the notice, the toast or the hidden-tab title count. `round.py` marks a `revise` entry `revised`, a `reply` or `wait` entry `waits`, and a `note-reply` sent with `needsAnswer` `asks` ([#7751](https://github.com/melodic-software/claude-code-plugins/issues/7751)).
+
+## [0.78.0] - 2026-10-20
+
+### Added
+
+- Shared interview page: "Use as my answer" on Claude's answer to your own ask on a choice, pick-many or ranking question makes it your own option, editable before you save it, and asks first when you had already picked.
+- Shared interview page: on a poll or pick-many question you can write your comment, and attach files, before picking, and they go in with your pick in one step.
+
+### Changed
+
+- Shared interview page: every text field follows one composer kit: Enter sends chat and Ctrl or Cmd + Enter sends or saves elsewhere (with the hint shown), one near-the-limit counter, Escape cancels an inline edit, and the @ picker works in the Discussion, comment and request edits, the own-option box and the host's answer edit, listing Claude first in chat and the Discussion.
+- Shared interview page: unsent chat, Discussion, Ask Claude, Suggest and Pass text survives a reload for whoever wrote it (never after switching to another personal link), and Ask Claude, Suggest and Pass text stays with the question it was typed on.
+- Shared interview page: nobody can join or rename themselves as "Claude", which `@Claude` reserves for asking Claude.
+- Shared interview page: a text field no longer scrolls the page back to itself on a repaint while you scroll away to read; it follows you only while you type.
+
+## [0.77.1] - 2026-10-20
+
+### Fixed
+
+- The interview page names only fonts it can load under its same-origin CSP, so the declared IBM Plex and Newsreader faces no longer silently fall through. The side-panel tabs follow the WAI-ARIA tabs pattern: Left, Right, Home and End move between tabs and only the selected tab is in the tab order. The summary omits the Decisions table when no question is answered. The status pill shows a neutral Connecting state until the first connection attempt fails instead of flashing red.
+
 ## [0.77.0] - 2026-10-20
 
 ### Added

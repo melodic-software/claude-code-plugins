@@ -8,30 +8,9 @@ hosted server (`https://mcp.dometrain.com/mcp`) is closed-source and requires an
 
 ## Getting the MCP server
 
-Two supported setups. Pick one:
-
-| Your setup | Install | Result |
-|---|---|---|
-| No Dometrain MCP server yet | `dometrain` and [`dometrain-mcp`](../dometrain-mcp) | Zero setup beyond entering the key |
-| Your own user-scope `dometrain` server | `dometrain` only | Skills use your server; no duplicate-server warning |
-
-The skills find the tools by the `dometrain` server segment and tool name, so they work whether
-`dometrain-mcp` supplies the server or you configured your own.
-
-Installing `dometrain-mcp` next to your own server at the same URL produces a duplicate-server
-warning in `/plugin`. Install only `dometrain` in that case.
-
-- **Pointer**: when deciding whether a plugin server counts as a duplicate of one you configured,
-  fetch [Scope hierarchy and precedence](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence)
-  live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes how plugin servers are matched against configured
-  ones.
-
-### Adding your own server
-
-Register a user-scope HTTP server named `dometrain`. To read the key from `DOMETRAIN_API_KEY`, the
-variable Dometrain's own plugin reads:
+Register a user-scope HTTP server named `dometrain`. The skills find its tools by the `dometrain`
+server segment and tool name. To read the key from `DOMETRAIN_API_KEY`, the variable Dometrain's own
+plugin reads:
 
 ```shell
 claude mcp add-json dometrain \
@@ -39,9 +18,15 @@ claude mcp add-json dometrain \
   --scope user
 ```
 
-The [`dometrain-mcp` README](../dometrain-mcp/README.md#using-your-own-server-instead) has this
-recipe with its caveats and a `vault-exec` recipe for machines that resolve keys from a secret
-store.
+Claude Code expands the variable from its own environment at connect time, so a variable set after
+it started needs a new session. To resolve the key from a secret store instead, give the server a
+`headersHelper` script that prints the `Authorization` header as JSON.
+
+- **Pointer**: for the `headers` expansion and `headersHelper` contract, fetch
+  [MCP server configuration](https://code.claude.com/docs/en/mcp) live.
+- **As of**: 2026-10-20
+- **Recheck trigger**: that page changes how `headers` variables expand or how `headersHelper`
+  runs.
 
 ## Enabling
 
@@ -51,22 +36,6 @@ The plugin **installs disabled** (`defaultEnabled: false`). Enable it with
 Run `/dometrain:setup` to check that the MCP tools are available. The setup skill never reads or
 exposes the key and never calls a Dometrain tool during setup. See
 [Setup mechanism](#setup-mechanism) below for why.
-
-## Upgrading from 0.4.x
-
-Before 0.5.0 this plugin bundled the server and the `dometrain_api_key` option. Both moved to
-`dometrain-mcp`. To keep the bundled server, install `dometrain-mcp` and enter the key again there;
-the key stored for the old plugin does not move to the new one. A user-scope `dometrain` server
-needs no change. Permission rules written against `mcp__plugin_dometrain_dometrain__*` need the
-new prefix, `mcp__plugin_dometrain-mcp_dometrain__*`.
-
-- **Pointer**: when rewriting those rules, fetch
-  [Match MCP tools](https://code.claude.com/docs/en/hooks#match-mcp-tools) for the tool-name format
-  and [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
-  for where option values are stored, live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes the MCP tool-name format or where plugin option
-  values are kept.
 
 ## Dometrain's own official plugin, and why this one exists too
 
@@ -91,10 +60,8 @@ claude plugin install dometrain@dometrain
 - **As of**: 2026-10-10
 - **Recheck trigger**: the `--marketplace` row of `plugin install` changes.
 
-That plugin's `.mcp.json` authenticates via a shell environment variable
-(`${DOMETRAIN_API_KEY}`). This marketplace's `dometrain-mcp` offers the key entered once through
-Claude Code's **native masked `userConfig` prompt**, stored in secure credential storage, with no
-shell environment variable to export.
+That plugin bundles the server and authenticates through the `DOMETRAIN_API_KEY` shell variable.
+This plugin ships skills only and uses the user-scope server above.
 
 **Do not enable both `dometrain` plugins simultaneously.** Both share the identical plugin name
 (`"dometrain"`) in their respective `plugin.json` manifests. Install identity is

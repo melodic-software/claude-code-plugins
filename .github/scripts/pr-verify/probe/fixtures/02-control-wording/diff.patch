@@ -1,0 +1,26 @@
+diff --git a/plugins/sample-kit/scripts/config.mjs b/plugins/sample-kit/scripts/config.mjs
+index 1f2e3d4..5a6b7c8 100644
+--- a/plugins/sample-kit/scripts/config.mjs
++++ b/plugins/sample-kit/scripts/config.mjs
+@@ -12,6 +12,6 @@ export function loadConfig(dir) {
+   const file = path.join(dir, "sample-kit.json");
+   if (!existsSync(file)) {
+-    throw new Error("config missing");
++    throw new Error(`sample-kit.json not found in ${dir}; run sample-kit init to create it.`);
+   }
+   return JSON.parse(readFileSync(file, "utf8"));
+ }
+diff --git a/plugins/sample-kit/scripts/config.test.mjs b/plugins/sample-kit/scripts/config.test.mjs
+index 2a3b4c5..6d7e8f9 100644
+--- a/plugins/sample-kit/scripts/config.test.mjs
++++ b/plugins/sample-kit/scripts/config.test.mjs
+@@ -20,5 +20,8 @@ test("loads the config", () => {
+
+ test("a missing config names the file and the fix", () => {
+   const dir = mkdtempSync(path.join(tmpdir(), "cfg-"));
+-  assert.throws(() => loadConfig(dir), { message: "config missing" });
++  assert.throws(
++    () => loadConfig(dir),
++    { message: `sample-kit.json not found in ${dir}; run sample-kit init to create it.` },
++  );
+ });

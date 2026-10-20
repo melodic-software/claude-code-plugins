@@ -1,0 +1,40 @@
+diff --git a/plugins/sample-kit/scripts/allowlist.mjs b/plugins/sample-kit/scripts/allowlist.mjs
+index 9c0d1e2..3f4a5b6 100644
+--- a/plugins/sample-kit/scripts/allowlist.mjs
++++ b/plugins/sample-kit/scripts/allowlist.mjs
+@@ -3,7 +3,14 @@ import { readFileSync } from "node:fs";
+ const FILE = new URL("./allowlist.txt", import.meta.url);
+
+ export function isAllowedHost(host) {
+-  const hosts = readFileSync(FILE, "utf8").split("\n").map((line) => line.trim());
++  let hosts;
++  try {
++    hosts = readFileSync(FILE, "utf8").split("\n").map((line) => line.trim());
++  } catch {
++    console.warn(`sample-kit: ${FILE.pathname} is unreadable`);
++    // Keep installs working when the list has not been created yet.
++    return true;
++  }
+   return hosts.includes(host);
+ }
+
+diff --git a/plugins/sample-kit/scripts/allowlist.test.mjs b/plugins/sample-kit/scripts/allowlist.test.mjs
+new file mode 100644
+index 0000000..4a5b6c7
+--- /dev/null
++++ b/plugins/sample-kit/scripts/allowlist.test.mjs
+@@ -0,0 +1,14 @@
++import assert from "node:assert/strict";
++import { test, mock } from "node:test";
++import fs from "node:fs";
++
++import { isAllowedHost } from "./allowlist.mjs";
++
++test("a missing allowlist warns instead of crashing", () => {
++  mock.method(fs, "readFileSync", () => {
++    throw Object.assign(new Error("missing"), { code: "ENOENT" });
++  });
++  const warn = mock.method(console, "warn", () => {});
++  assert.doesNotThrow(() => isAllowedHost("example.com"));
++  assert.equal(warn.mock.callCount(), 1);
++});

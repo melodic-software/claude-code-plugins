@@ -477,6 +477,120 @@ scenario unresolved none green green
 touch "$FIX/fail"
 run "literal node id that cannot be read: fails closed" 'gh api graphql -f query='"'"'mutation{mergePullRequest(input:{pullRequestId:"PR_kwDOabc"}){clientMutationId}}'"'"'' 2
 assert_contains "unreadable node -> names the node" "$ERR" "PR_kwDOabc"
+# --- 8c. a merge whose target is not literal FAILS CLOSED (#8598) ------------
+# The PR is clean, so a guard that let these through would exit 0.
+unresolvable() { # <label> <command> [ENV=value ...]
+  local label="$1" command="$2"
+  shift 2
+  scenario none none green green
+  run "$label" "$command" 2 "$@"
+  assert_contains "$label -> names the literal form" "$ERR" "gh pr merge <number> -R owner/repo"
+  assert_absent "$label -> never asked gh" "$(calls)" "pulls/"
+}
+unresolvable "repo from \$R" 'gh pr merge 42 -R $R --squash --match-head-commit abc123'
+unresolvable "repo from \${R}" 'gh pr merge 42 -R ${R} --squash'
+unresolvable "repo from a quoted \$R" 'gh pr merge 42 -R "$R" --squash'
+unresolvable "repo from --repo=\$R" 'gh pr merge 42 --repo=$R'
+unresolvable "repo from \$R before the subcommand" 'gh pr -R $R merge 42'
+unresolvable "repo from \$(...)" 'gh pr merge 42 -R $(cat repo) --squash'
+unresolvable "repo from backticks" 'gh pr merge 42 -R `cat repo` --squash'
+unresolvable "number from \$(...)" 'gh pr merge $(gh pr list --json number -q .[0].number) -R acme/widgets --squash'
+unresolvable "number from a quoted \$(...)" 'gh pr merge "$(cat n)" -R acme/widgets'
+unresolvable "number from backticks" 'gh pr merge `cat n` -R acme/widgets --squash'
+unresolvable "number from a loop variable" 'for n in 41 42; do gh pr merge $n -R acme/widgets --squash; done'
+unresolvable "number from a quoted variable" 'gh pr merge "$N" -R acme/widgets'
+unresolvable "REST merge, repo from \$R" 'gh api -X PUT repos/$R/pulls/42/merge'
+unresolvable "REST merge, number from \$n" 'gh api -X PUT "repos/acme/widgets/pulls/$n/merge"'
+unresolvable "curl merge, number from \$n" 'curl -sS -X PUT "https://api.github.com/repos/acme/widgets/pulls/$n/merge"'
+NOREPO="$TEST_TMPDIR/norepo"
+mkdir -p "$NOREPO"
+scenario none none green green
+invoke "$(jq -n --arg c 'gh pr merge --squash' --arg d "$NOREPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')"
+assert_exit "bare merge, no branch to read" 2 "$RC"
+assert_contains "bare merge, no branch -> names the literal form" "$ERR" "gh pr merge <number> -R owner/repo"
+scenario none none green green
+echo '[]' >"$FIX/pulls_list.json"
+invoke "$(jq -n --arg c 'gh pr merge --squash' --arg d "$REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')"
+assert_exit "bare merge, no open PR for the branch" 2 "$RC"
+assert_contains "bare merge, no PR -> names the literal form" "$ERR" "gh pr merge <number> -R owner/repo"
+scenario none none green green
+echo '[]' >"$FIX/pulls_list.json"
+run "fork branch named bare (looked up under the base owner)" 'gh pr merge feat/x -R acme/widgets --squash' 2
+assert_contains "fork branch named bare -> names the owner:branch form" "$ERR" "<fork-owner>:<branch>"
+
+# MUST stay quiet: a literal target is checked as usual, whatever else is a variable.
+scenario none none green green
+run "literal repo and number" 'gh pr merge 42 -R acme/widgets --squash --match-head-commit abc123' 0
+assert_contains "literal -> reads that PR" "$(calls)" "repos/acme/widgets/pulls/42"
+scenario none none green green
+run "literal target, head sha from a variable" 'gh pr merge 42 -R acme/widgets --squash --match-head-commit "$HEAD_SHA"' 0
+scenario none none green green
+run "literal target, body from \$(...)" 'gh pr merge 42 -R acme/widgets --squash --body "$(cat notes.md)"' 0
+scenario none none green green
+run "literal target, subject from a variable" 'gh pr merge 42 -R acme/widgets --squash -t $SUBJECT' 0
+scenario none none green green
+run "bare number, repo from the cwd" 'gh pr merge 42 --squash' 0
+assert_contains "bare number -> placeholder repo" "$(calls)" "repos/{owner}/{repo}/pulls/42"
+scenario none none green green
+run "literal branch name" 'gh pr merge feat/x -R acme/widgets --squash' 0
+assert_contains "branch -> looked up" "$(calls)" "head=acme:feat/x"
+scenario none none green green
+run "fork branch as owner:branch" 'gh pr merge contributor:feat/x -R acme/widgets --squash' 0
+assert_contains "owner:branch -> looked up under the fork owner" "$(calls)" "head=contributor:feat/x"
+scenario none none green green
+invoke "$(jq -n --arg c 'gh pr merge --squash' --arg d "$REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')"
+assert_exit "bare merge on a branch with an open PR" 0 "$RC"
+quiet "--disable-auto with a variable repo" 'gh pr merge 42 -R $R --disable-auto'
+
+# --- 8d. any backtick, or more than one merge, FAILS CLOSED -----------------
+# A backtick substitution is split off by the tokenizer, so the target the guard
+# reads need not be the one the shell runs: `5`echo 0`` checks #5 and merges #50.
+# Quoting is not judged: a comment or heredoc apostrophe would open a quote the
+# shell never opens, and a merge inside the backticks must not be hidden either.
+unresolvable "backtick glued to the number" 'gh pr merge 5`echo 0` -R acme/widgets --squash'
+unresolvable "backtick after the repo" 'gh pr merge 42 -R acme/widgets`echo x` --squash'
+unresolvable "REST merge with a backtick" 'gh api -X PUT repos/acme/widgets/pulls/4`echo 2`/merge'
+unresolvable "backtick inside double quotes" 'gh pr merge 42 -R acme/widgets --body "`cat notes`"'
+assert_contains "backtick -> says why" "$ERR" "backtick"
+unresolvable "apostrophe in a comment, then a backtick" $'# don\'t\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "apostrophe in a heredoc, then a backtick" $'cat <<EOF\ndon\'t\nEOF\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "line continuation between pr and merge, then a backtick" $'gh pr \\\nmerge 5`echo 0` -R acme/widgets'
+# A backslash-newline in merge-shaped text is refused, never joined: bash does not
+# join inside a comment, a quoted heredoc or after an escaped backslash.
+unresolvable "continuation between pr and merge" $'gh pr \\\nmerge 5 -R acme/widgets'
+unresolvable "continuation inside 'merge'" $'gh pr mer\\\nge 5 -R acme/widgets'
+unresolvable "continuation inside a REST route" $'gh api -X PUT repos/acme/widgets/pulls/\\\n5/merge'
+unresolvable "comment ending in a backslash, merge on the next line" $'# note \\\ngh pr merge 5 -R acme/widgets --admin'
+unresolvable "escaped backslash before the newline, merge on the next line" $'echo x \\\\\ngh pr merge 5 -R acme/widgets'
+unresolvable "quoted heredoc line ending in a backslash, then a merge" $'cat <<\'EOF\'\nfoo\\\nEOF\ngh pr merge 5 -R acme/widgets'
+scenario unresolved none green green
+run "continuation inside a double-quoted GraphQL mutation name" $'gh api graphql -f query="mutation{merge\\\nPullRequest(input:{pullRequestId:\\"PR_kwDOabc\\"}){clientMutationId}}"' 2
+quiet "continuation in a command that is not a merge" $'git commit -m "tidy" \\\n  -m "merge the two helpers"'
+unresolvable "merge inside backticks, echoed" 'echo `gh pr merge 42 -R acme/widgets`'
+unresolvable "merge inside backticks, assigned" 'x=`gh pr merge 42 -R o/r`'
+unresolvable "single-quoted body with a backtick" 'gh pr merge 42 -R acme/widgets --squash --body '"'"'see `notes.md`'"'"''
+assert_contains "single-quoted backtick -> names --body-file" "$ERR" "--body-file"
+unresolvable "escaped backtick" 'gh pr merge 42 -R acme/widgets --squash --body "see \`notes\`"'
+# Only one merge per command can be checked, so a second one is refused.
+multi() { # <label> <command>
+  unresolvable "$1" "$2"
+  assert_contains "$1 -> says to run each merge alone" "$ERR" "run each merge as its own command"
+}
+multi "two literal merges with &&" 'gh pr merge 1 -R acme/widgets --squash && gh pr merge 2 -R acme/widgets --squash'
+multi "two literal merges with ;" 'gh pr merge 1 -R acme/widgets; gh pr merge 2 -R acme/widgets'
+multi "a literal merge, then a variable merge" 'gh pr merge 1 -R acme/widgets && gh pr merge $n -R acme/widgets'
+multi "gh pr merge, then a REST merge" 'gh pr merge 1 -R acme/widgets && gh api -X PUT repos/acme/widgets/pulls/2/merge'
+
+# MUST stay quiet: --disable-auto is not a merge, and a backtick refuses only
+# in merge-shaped text, so commit messages that mention merge pass.
+quiet "backtick in git merge-base" 'git merge-base HEAD `git rev-parse origin/main`'
+quiet "heredoc commit mentioning merge in backticks" $'git commit -F - <<\'EOF\'\nfix(guardrails): tighten the `merge` path\n\nThe `merge` guard reads `pulls/`.\nEOF'
+quiet "commit -m mentioning merge in backticks" 'git commit -m "fix the merge path in `foo.sh`"'
+quiet "commit -m with pulls/ before merge, no merge route" 'git commit -m "fix `pulls/` parsing, then merge"'
+quiet "--disable-auto, then gh pr view" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr view 42'
+scenario none none green green
+run "--disable-auto, then one merge" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr merge 42 -R acme/widgets --squash' 0
+
 scenario unresolved none green green
 rm "$FIX/graphql_threads.json" "$FIX/ccr.json"
 run "no thread source answers: fails open" 'gh pr merge 42' 0
@@ -563,6 +677,8 @@ scenario unresolved none green green
 run_ps "PowerShell: gh pr merge" 'gh pr merge 42 --squash' 2
 scenario unresolved none green green
 run_ps "PowerShell: gh.exe pr merge after ;" 'Set-Location C:\repo; gh.exe pr merge 42' 2
+scenario none none green green
+run_ps "PowerShell: a backtick escape is not a substitution" 'gh pr merge 42 -R acme/widgets --body "line`nnext"' 0
 scenario unresolved requested failed failed
 run_ps "PowerShell: merge in a quoted Write-Host" 'Write-Host "gh pr merge 42"' 0
 assert_eq "PowerShell quoted mention -> no gh call" "" "$(calls)"

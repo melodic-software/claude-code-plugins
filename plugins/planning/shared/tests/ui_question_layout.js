@@ -4,7 +4,8 @@
 // default, and opens by itself for the person whose request Claude just answered (not for someone with nothing new);
 // a Claude card reads "<Name> asked", the ask, a 1px line, "Claude", the answer, with ask and answer at one font size,
 // and a running request shows its progress line under "Claude"; in a row of option cards with 1- and 2-line labels and
-// 0 or 1 picks every "Choose" button's top is equal within 1 px at 1440 and 1024 wide.
+// 0 or 1 picks every "Choose" button's top is equal within 1 px at 1440 and 1024 wide; a question's stored context shows
+// right under its text, and a question without one shows none (F:30).
 //   node plugins/planning/shared/tests/ui_question_layout.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved spec (.work spec-question-screen.md: layout A, soft-rule cards, item 12 option
@@ -15,6 +16,7 @@ const { loadPlaywright, suite, recorder, until, joinAs, openClaude } = require("
 const CHOICE = "Which payment method should checkout offer first?", TEXT = "Where should the order summary sit?";
 const ASK = "How do the big shops place the order summary?", ANSWER = "Most keep it in a right column on desktop.";
 const ASK2 = "And on phones?", LOCKQ = "Which side should the totals sit on?";
+const CTX = "Today the summary sits under the form, so on phones the total is off screen until the last step.";
 const OPTS = [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "A wallet such as PayPal, Apple Pay or Google Pay, whichever the shopper already has" },
   { id: "opt-3", label: "Bank transfer" }, { id: "opt-4", label: "Pay later in three parts, with no interest for the first month" }];
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
@@ -42,7 +44,7 @@ async function main() {
   try {
     const A = await s.start("qlayout");
     s.apply(A.dir, [{ op: "set-title", title: "Question layout checks" }, { op: "open-round", questions: [
-      q("Q1", CHOICE, { kind: "choice", options: OPTS }), q("Q2", TEXT, { kind: "text" }), q("Q3", LOCKQ, { kind: "text" })] }]);
+      q("Q1", CHOICE, { kind: "choice", options: OPTS }), { ...q("Q2", TEXT, { kind: "text" }), context: CTX }, q("Q3", LOCKQ, { kind: "text" })] }]);
     const owner = await rec.open(A.ownerUrl);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     const ann = await rec.open(A.localUrl, { context: { viewport: { width: 1440, height: 900 } } });
@@ -58,6 +60,19 @@ async function main() {
       ok(`${w}x${h}: no Answers | Claude tabs or split exist`, n === 0, n);
     }
     await ann.setViewportSize({ width: 1440, height: 900 });
+
+    // ---------- F:30: the question's stored context, under its text ----------
+    const ctxOf = page => page.evaluate(() => {
+      const c = document.querySelector(".vf-qctx"), t = document.querySelector(".vf-qtext");
+      return { shown: !!c && !c.hidden && c.getClientRects().length > 0, text: c?.textContent.trim() || "",
+        under: !!c && !!t && c.getBoundingClientRect().top >= t.getBoundingClientRect().bottom - 1 };
+    });
+    await go(ann, TEXT);
+    const c2 = await ctxOf(ann);
+    ok("F:30: a question with a stored context shows it right under the question text", c2.shown && c2.text.startsWith(CTX) && c2.under, JSON.stringify(c2));
+    await go(ann, CHOICE);
+    const c1 = await ctxOf(ann);
+    ok("  and a question without one shows none", !c1.shown, JSON.stringify(c1));
 
     // ---------- (c) option cards: every Choose button in a row at one height ----------
     await go(ann, CHOICE);
@@ -121,7 +136,7 @@ async function main() {
         askFs: fs(askBox.querySelector(".vf-cbox")), ansFs: fs(ansBox.querySelector(".vf-cbox")),
         rule: getComputedStyle(askBox).borderBottomWidth, order: askBox.compareDocumentPosition(ansBox) === Node.DOCUMENT_POSITION_FOLLOWING };
     });
-    ok("the card reads \"Ann (you) asked\", the ask, a 1px line, then \"Claude\" and the answer", card.askLbl === "Ann (you) asked" && card.ansLbl === "Claude" && card.rule === "1px" && card.order, JSON.stringify(card));
+    ok("the card reads \"You asked\", the ask, a 1px line, then \"Claude\" and the answer", card.askLbl === "You asked" && card.ansLbl === "Claude" && card.rule === "1px" && card.order, JSON.stringify(card));
     ok("ask and answer text have the same computed font-size", card.askFs === card.ansFs, JSON.stringify(card));
     await ann.evaluate(t => window.Core.request("Q2", "ask", t), ASK2);
     const req2 = await owner.evaluate(async t => {

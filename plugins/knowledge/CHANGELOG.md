@@ -4,6 +4,41 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.27.0] - 2026-10-20
+
+### Added
+
+- `docpage-digest` has a `check-prose-terms.py` standing gate that fails a digest whose prose (outside fences) names pipeline vocabulary, `unit NN` or `SOURCES.md`, reporting file, section and term.
+
+### Changed
+
+- `docpage-digest`'s mechanism-only rule now covers every prose section, "Open questions for interview" included, and names skills, plugins and conventions visible in the digest agent's own session as consuming-org context.
+
+## [0.26.1] - 2026-10-20
+
+### Fixed
+
+- `video-digest` `run-watch.js` now removes its temp video, frame and sheet directories when SIGHUP, SIGINT or SIGTERM interrupts a watch before `watch.json` records them, then exits `129`, `130` or `143`. On POSIX the interrupt kills each child's whole process group, so a yt-dlp ffmpeg grandchild ends too; on Windows only direct children are killed. Cleanup runs once, and the handlers are removed when the run ends.
+
+## [0.26.0] - 2026-10-20
+
+### Added
+
+- `video-digest` has an `asr_python` option naming the Python interpreter that imports `faster_whisper`. ASR detection and the readiness check probe it before `python`, `python3` and `py`, so a venv works on a machine whose default Python refuses `pip install --user`. Unset, detection is unchanged. Nothing is installed.
+- `video-digest` Prerequisites carry a copyable `uv` venv recipe for faster-whisper, with the `av<19` pin, a pointer to the upstream fix, and a recheck trigger for the faster-whisper release that ships it. Every source's `run.mjs` invocation passes `--asr-python` when the option is set.
+
+### Fixed
+
+- The ASR runner script adds each existing `site-packages/nvidia/*/bin` directory as a DLL directory on Windows, so CUDA libraries installed as `nvidia-*` wheels load without PATH edits. It is a no-op elsewhere.
+
+## [0.25.1] - 2026-10-20
+
+### Fixed
+
+- video-digest's watch spine, Phase 9 and checklist template now run the corpus relayout before `close`, which removes the media the relayout copies, and the recommendations README template's Shards line names `research/findings/` so the relayout link check resolves it ([#7177](https://github.com/melodic-software/claude-code-plugins/issues/7177)).
+
+- `video-digest` `fetch-deck-attachments` now fetches only `https:` links whose host resolves to public addresses, follows redirects manually (up to 5 hops) and re-checks each hop, so loopback, private, link-local and unique-local targets from harvested links are skipped.
+
 ## [0.25.0] - 2026-10-20
 
 ### Added

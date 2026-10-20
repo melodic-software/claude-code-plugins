@@ -20,9 +20,12 @@ still respects a body hold and human comments, so never override one. The hold c
 `docs/conventions/loop-lane/README.md`.
 
 In this repository a small unrelated review fix in the same plugin as the PR also goes into the PR
-(shared version bump and CHANGELOG line, or shared changelog fragment for a plugin in
-`scripts/fragment-plugins.txt`); the rule itself is the scope test in
+(shared changelog fragment); the rule itself is the scope test in
 `plugins/source-control/reference/review-discipline.md`.
+
+One-off investigation tooling and raw data (benchmarks, spikes, evaluation harnesses, run logs)
+stay in the session scratchpad; commit only the conclusion, to the ADR, doc or skill that uses it.
+Commit a harness only when something re-runs it (a CI lane, a schedule, a skill action).
 
 ## When to stop and when to keep going
 

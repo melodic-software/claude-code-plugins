@@ -6,6 +6,7 @@ async page => { // the user journey in order on one page, no reload after phase 
   const PHASE = __PHASE__;
   const base = "http://127.0.0.1:__PORT__/";
   const state = async () => (await page.request.get(base + "api/state")).json();
+  const plainBeside = async re => { const a = (await state()).questions.activity, i = a.findIndex(e => re.test(e.text)), after = a.slice(i + 1); return i >= 0 && after.some(e => e.notes && !e.asks) && after.filter(e => e.asks).length === 1; }; // after the activity entry: a plain Notes reply and one that asks
   const events = async () => (await state()).responses.events;
   const last = async () => { const e = await events(); return e[e.length - 1]; };
   const sel = async () => page.evaluate(() => (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q || (document.querySelector('.sumbtn[aria-current="true"]') ? "summary" : null));
@@ -217,13 +218,14 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.waitForTimeout(900); // SSE brings the research result, round 2 and the Notes reply
 
     // on the summary
-    ok("the notice shows on the summary: Claude replied in Notes, with Open Notes and All activity", await sel() === "summary" && /Claude replied in Notes/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Open Notes" && (await text("#notice [data-allact]")) === "All activity", await text("#notice"));
+    ok("a Claude reply to your note goes to the log and raises no notice", !/Claude replied in Notes/.test(await text("#notice")) && (await state()).questions.activity.some(e => e.notes && !e.asks && /Note reply saved/.test(e.text)), await text("#notice"));
+    ok("the notice shows on the summary: Claude posted in Notes, with Open Notes and All activity", await sel() === "summary" && /Claude posted in Notes/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Open Notes" && (await text("#notice [data-allact]")) === "All activity", await text("#notice"));
     const acts = (await state()).questions.activity, newest = acts[acts.length - 1].text;
     ok("the hold and status are gone and the Claude line falls back to the newest entry", !/Pending research/.test(await text('.qbtn[data-q="Q3"]')) && await page.$eval("#pendBtn", el => el.hidden) && (await text("#claudeLine")).startsWith(newest), await text("#claudeLine"));
     ok("the header derives Round 2 · Interview", (await text("#roundLbl")) === "Round 2 · Interview", await text("#roundLbl"));
     await tap("#notice [data-go]", 300);
-    ok("Open shows Claude's reply in Notes", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && /Yes, on track/.test(document.getElementById("fbody").innerText)));
-    ok("the notice moves on to Round 2 added, and Go names the question it opens", /Round 2 added: Q6, Q7/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go to Q6", await text("#notice"));
+    ok("Open shows Claude's reply in Notes", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && /Yes, on track/.test(document.getElementById("fbody").innerText) && /retry count stay at three/.test(document.getElementById("fbody").innerText)));
+    ok("the notice moves on to the reply on Q3, not to Round 2 added, and Go names the question it opens", /replied on Q3/i.test(await text("#notice")) && !/Round 2 added/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go to Q3", await text("#notice"));
     // #7755: the timestamp and separator dot on Claude's blue note reach 4.5:1 in the light theme
     await page.emulateMedia({colorScheme: "light"}); await page.waitForTimeout(100);
     const noteRatios = await page.$$eval(".nmsg.claude .hl time, .nmsg.claude .hl .dot", els => els.map(el => {
@@ -244,13 +246,14 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.selectOption("#filter", "answered"); await page.waitForTimeout(200);
     const ansSecs = await page.$$eval(".rail-list .sec", els => els.map(el => ({c: el.dataset.collapsed, n: [...el.querySelectorAll(".qbtn")].filter(b => b.offsetParent).length})));
     ok("the Answered filter expands every group that holds a match and shows its questions", ansSecs.length > 0 && ansSecs.every(s => s.c === "false" && s.n > 0), JSON.stringify(ansSecs));
+    await page.selectOption("#filter", "open"); await page.waitForTimeout(200); // Open hides the answered Q3
     await tap("#railBtn", 200);
     await tap("#notice [data-go]", 400);
-    ok("Go resets the filter, shows the rail and says so", await page.$eval("#filter", el => el.value) === "all" && !(await page.$eval("#layout", el => el.classList.contains("norail"))) && /Showing all to reveal Q6/.test(await text("#toast")), await text("#toast"));
-    ok("Go selects Q6 and moves focus to its heading", await sel() === "Q6" && await focused() === "qhead", await sel() + " " + await focused());
+    ok("Go resets the filter, shows the rail and says so", await page.$eval("#filter", el => el.value) === "all" && !(await page.$eval("#layout", el => el.classList.contains("norail"))) && /Showing all to reveal Q3/.test(await text("#toast")), await text("#toast"));
+    ok("Go selects Q3 and moves focus to its heading", await sel() === "Q3" && await focused() === "qhead", await sel() + " " + await focused());
 
     // commitments, page side
-    await arm("a"); await tap("[data-save]", 700);
+    await pick("Q6"); await arm("a"); await tap("[data-save]", 700);
     ok("the header counts commitments on accepted questions only", (await text("#assumeCount")) === "5 to confirm", await text("#assumeCount"));
     const inView = s => page.$eval(s, el => { const r = el.getBoundingClientRect(), v = document.getElementById("dscroll").getBoundingClientRect(); return r.top >= v.top - 2 && r.top < v.bottom; }).catch(() => false);
     await pick("Q6");
@@ -275,7 +278,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the Claude line opens Activity, newest first with times and question links, and clears the badge", panel.open && panel.title === "Activity" && panel.first.includes(all[all.length - 1].text) && panel.times === all.length && panel.refs > 0 && panel.badge, JSON.stringify(panel).slice(0, 200));
     const split = await page.evaluate(() => { const log = document.getElementById("actLog"); return {needs: document.getElementById("actNeeds").textContent, log: log ? log.querySelector("summary").textContent : "", open: log ? log.open : null, inLog: log ? [...log.querySelectorAll("li")].map(li => li.textContent) : []}; });
     const nn = +/\((\d+)\)/.exec(split.needs)[1], nl = +/\((\d+)\)/.exec(split.log)[1];
-    ok("Activity splits Needs you from a collapsed Log that holds the ledger churn", nn > 0 && nn + nl === all.length && split.open === false && split.inLog.some(t => /Added a retry note to Q1/.test(t)) && !split.inLog.some(t => /Round 2 added/.test(t)), JSON.stringify(split).slice(0, 240));
+    ok("Activity splits Needs you from a collapsed Log that holds the ledger churn, the added round and the reply to your note", nn > 0 && nn + nl === all.length && split.open === false && split.inLog.some(t => /Added a retry note to Q1/.test(t)) && split.inLog.some(t => /Round 2 added/.test(t)) && split.inLog.some(t => /Note reply saved/.test(t)), JSON.stringify(split).slice(0, 240));
     const seen = await page.evaluate(() => Object.keys(localStorage).filter(k => /:actSeen$/.test(k)).map(k => localStorage.getItem(k)).join(""));
     ok("the seen marker stores no entry text", seen.length > 0 && !seen.includes("Round 2 added"), seen.slice(0, 120));
     ok("the seen marker keys each entry by its seq", all.every(e => Number.isInteger(e.seq)) && all.every(e => JSON.parse(seen).includes("s" + e.seq)), seen.slice(0, 120));
@@ -288,7 +291,7 @@ async page => { // the user journey in order on one page, no reload after phase 
   if (PHASE === 4) {
     await page.waitForTimeout(900); // SSE brings Claude's confirm-commitments and the restatement
     const nt4 = await text("#notice");
-    ok("a restatement to confirm keeps the notice over the Notes reply that followed it", /restated the shared understanding/i.test(nt4) && !/Claude replied in Notes/.test(nt4) && (await text("#notice [data-go]")) === "Go to the summary" && (await state()).questions.notes.length > 0, nt4);
+    ok("a restatement to confirm keeps the notice over the asking Notes reply that followed it", /restated the shared understanding/i.test(nt4) && !/Claude replied in Notes/.test(nt4) && (await text("#notice [data-go]")) === "Go to the summary" && (await state()).questions.notes.length > 0, nt4);
 
     // Claude-side confirmation and Confirm all
     ok("Claude's confirmation leaves Q2's list, shows its reason and lowers the count", !(await page.$('#toConfirm [data-cq="Q2"]')) && /Q2 \(Confirmed in the terminal\)/.test(await text("#byClaude")) && (await text("#assumeCount")) === "3 to confirm", (await text("#assumeCount")) + " / " + await text("#byClaude"));
@@ -445,10 +448,11 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("once an event waits on Claude the pill says Not listening: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
     await page.evaluate(b => { window.__badge7 = b; }, await badge());
   }
-  if (PHASE === 14) { // the shell added Q9; the user answers it with their own text
+  if (PHASE === 14) { // the shell added Q9 and posted a Notes reply that asks; the user answers Q9 with their own text
     await page.waitForSelector('.qbtn[data-q="Q9"]', {state: "attached", timeout: 5000});
     const nq = await page.evaluate(() => { const t = document.getElementById("needToast"); return {hidden: t.hidden, text: t.innerText}; });
-    ok("a new Needs-you entry raises a dismissible toast naming it", !nq.hidden && /Q9/.test(nq.text) && /Dismiss/.test(nq.text), JSON.stringify(nq));
+    ok("an added question goes to the log and raises no toast", !/Added Q9/.test(nq.text) && (await state()).questions.activity.some(e => e.added && !e.asks && /Added Q9/.test(e.text)), JSON.stringify(nq));
+    ok("a new Needs-you entry raises a dismissible toast naming it", !nq.hidden && /Claude posted in Notes/.test(nq.text) && /Dismiss/.test(nq.text), JSON.stringify(nq));
     await page.evaluate(() => {
       window.__np = {asked: 0, made: []};
       window.Notification = class { constructor(t, o) { window.__np.made.push((o || {}).body || t); } static permission = "default"; static requestPermission() { window.__np.asked++; window.Notification.permission = "granted"; return Promise.resolve("granted"); } };
@@ -465,9 +469,10 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the own answer on Q9 is saved from the page with the note still focused", own.id === "Q9" && own.kind === "own" && own.text === "what are the patterns?", JSON.stringify(own));
     await setHidden(true); // phase 15's revision lands on a hidden tab
   }
-  if (PHASE === 15) { // the shell revised Q9's recommendation in response to that own text
+  if (PHASE === 15) { // the shell revised Q9's recommendation in response to that own text, then posted a Notes reply that asks
     await page.waitForTimeout(900);
     ok("a Needs-you entry on a hidden tab raises the browser notification the user enabled", await page.evaluate(() => window.__np.made.length) >= 1, JSON.stringify(await page.evaluate(() => window.__np)));
+    ok("the revision on a hidden tab goes to the log and raises no notification", !(await page.evaluate(() => window.__np.made)).some(t => /Revised Q9/.test(t)), JSON.stringify(await page.evaluate(() => window.__np)));
     await setHidden(false); await page.waitForTimeout(900);
     await pick("Q9");
     ok("the revision sets the own answer aside: the rail reads Open and the card says the answer no longer counts", (await text('.qbtn[data-q="Q9"] .chip')) === "Open" && /Own answer: .*aside\. It no longer counts\./.test(await text("#cur")) && !(await page.$('[data-act="reopen"]')), (await text('.qbtn[data-q="Q9"] .chip')) + " / " + await text("#cur"));
@@ -588,7 +593,8 @@ async page => { // the user journey in order on one page, no reload after phase 
   if (PHASE === 9) { // the shell added one activity entry while the tab was hidden
     await page.waitForTimeout(900);
     const base = await text("#title");
-    ok("a Needs-you entry that lands while the tab is hidden prefixes the title with a count, and the log entry beside it adds none", await page.title() === "(1) " + base && (await state()).questions.activity.some(e => /again while the tab was hidden/.test(e.text)), await page.title());
+    ok("an asking Notes reply that lands while the tab is hidden prefixes the title with a count, and the log entry beside it adds none", await page.title() === "(1) " + base && (await state()).questions.activity.some(e => /again while the tab was hidden/.test(e.text)), await page.title());
+    ok("a plain Notes reply that lands while the tab is hidden adds no count", await page.title() === "(1) " + base && await plainBeside(/again while the tab was hidden/), await page.title());
     await setHidden(false); await page.waitForTimeout(200);
     ok("showing the tab again restores the plain title", await page.title() === base, await page.title());
     ok("a note with no reply target reads Claude posted in Notes", /Claude posted in Notes/.test(await text("#needToast")), await text("#needToast"));
@@ -604,6 +610,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.waitForFunction(b => document.title === "(1) " + b, base, {timeout: 15000}).catch(() => {});
     await page.waitForTimeout(1500); // keep the period in which mark-seen would run, so a late reset still fails
     ok("an open Activity panel marking entries seen does not hide the title count", await page.title() === "(1) " + base, await page.title());
+    ok("with the panel open a plain Notes reply adds no count", await page.title() === "(1) " + base && await plainBeside(/with the panel open/), await page.title());
     await setHidden(false); await page.waitForTimeout(200);
   }
   if (PHASE === 12) { // reload so the page loads already hidden: no visibilitychange fires
@@ -615,10 +622,11 @@ async page => { // the user journey in order on one page, no reload after phase 
     const base = await text("#title");
     await page.waitForFunction(b => document.title === "(1) " + b, base, {timeout: 15000}).catch(() => {});
     ok("activity landing on a page loaded hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
+    ok("on a page loaded hidden a plain Notes reply adds no count", await page.title() === "(1) " + base && await plainBeside(/after the page loaded hidden/), await page.title());
     await setHidden(false); await page.waitForTimeout(200);
     const sent = await post({kind: "note", text: "first note"});
     await page.request.get((await page.evaluate(() => location.origin)) + "/api/wait?after=0&timeout=1", {headers: {"X-Interview-Token": await token()}}); // delivers it: a wake is in flight
-    await page.waitForTimeout(300);
+    await until(() => /^Claude is working on /.test(document.getElementById("workLine").textContent), 5000); // the page has seen the delivery, the state queued() reads
     ok("the first note posted", sent.ok(), sent.status());
     await page.click("#title"); await page.keyboard.press("l"); await page.click("#flyClose").catch(() => {});
     await page.evaluate(() => document.querySelector('[data-panel="notes"]').click()); await page.waitForTimeout(300);
