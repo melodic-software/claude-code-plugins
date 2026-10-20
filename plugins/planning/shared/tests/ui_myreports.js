@@ -53,6 +53,7 @@ async function main() {
     ok("it says only Pia and the host see it", /Only you and the host see these\./.test(await pia.textContent(".vf-myreps")));
 
     // ---------- the owner's Seen shows as Seen by the host ----------
+    ok("the owner's page holds the report", await until(owner, () => !!(window.Core.snapshot()?.reports || [])[0]?.id));
     const fid = (await ownerReport())?.id;
     await owner.evaluate(id => window.Core.reportAct(id, "seen"), fid);
     ok("the owner's Seen shows as Seen by the host", await until(pia, () => document.querySelector(".vf-myreps .vf-myrep-status")?.textContent === "Seen by the host"), await status());

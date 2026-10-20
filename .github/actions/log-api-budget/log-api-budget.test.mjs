@@ -63,6 +63,56 @@ test("prints pr-merge's rate line per token and the cost since start", () => {
   }
 });
 
+// Readings from pr-merge run 39274021802's lane token: used rose 13 -> 328
+// while the reset moved earlier, 16:04:04Z -> 15:58:58Z. One window; 315 spent.
+const RUN_START_RESET = 1792425844;
+const RUN_END_RESET = 1792425538;
+
+function costAt({ start, end }) {
+  const dir = mkdtempSync(join(tmpdir(), "log-api-budget-"));
+  try {
+    run({ phase: "start", tokens: "lane l4ne", ...start, dir });
+    return run({ phase: "end", tokens: "lane l4ne", ...end, dir }).output;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("counts the cost when the reset moved earlier within one window", () => {
+  assert.equal(
+    costAt({ start: { used: 13, reset: RUN_START_RESET }, end: { used: 328, reset: RUN_END_RESET } }),
+    "costs=lane-cost=315\n",
+  );
+});
+
+test("counts the plain difference when the reset is unchanged", () => {
+  assert.equal(
+    costAt({ start: { used: 13, reset: RUN_START_RESET }, end: { used: 328, reset: RUN_START_RESET } }),
+    "costs=lane-cost=315\n",
+  );
+});
+
+test("reports unknown when the window rolled: reset an hour later and used lower", () => {
+  assert.equal(
+    costAt({ start: { used: 328, reset: RUN_START_RESET }, end: { used: 13, reset: RUN_START_RESET + 3600 } }),
+    "costs=lane-cost=unknown\n",
+  );
+});
+
+test("reports unknown when the reset moved later by an hour even though used rose", () => {
+  assert.equal(
+    costAt({ start: { used: 13, reset: RUN_START_RESET }, end: { used: 328, reset: RUN_START_RESET + 3600 } }),
+    "costs=lane-cost=unknown\n",
+  );
+});
+
+test("reports unknown when used went down at the same reset", () => {
+  assert.equal(
+    costAt({ start: { used: 328, reset: RUN_START_RESET }, end: { used: 13, reset: RUN_START_RESET } }),
+    "costs=lane-cost=unknown\n",
+  );
+});
+
 test("skips an entry with no token or a bad name, and still exits 0", () => {
   const dir = mkdtempSync(join(tmpdir(), "log-api-budget-"));
   try {

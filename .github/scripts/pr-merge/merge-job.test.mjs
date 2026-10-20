@@ -158,12 +158,16 @@ test("the API budget is logged through the shared action at mint and at job end,
 });
 
 // Runs the sweep-cost step with the end reading's costs and a summary of
-// `reached` gate verdicts beside one held candidate.
-const runSweepCost = (costs, reached) => {
+// `reached` gate verdicts and `skipped` carried ones beside one held candidate.
+const runSweepCost = (costs, reached, skipped = 0) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-cost-"));
   try {
     writeFileSync(join(dir, "held.json"), '[{"number": 9}]');
-    const rows = [{ pr: 9 }, ...Array.from({ length: reached }, (_, i) => ({ pr: i + 1 }))];
+    const rows = [
+      { pr: 9 },
+      ...Array.from({ length: reached }, (_, i) => ({ pr: i + 1 })),
+      ...Array.from({ length: skipped }, (_, i) => ({ pr: i + 20, carried: { skips: 1 } })),
+    ];
     writeFileSync(join(dir, "pr-merge-summary.json"), JSON.stringify(rows));
     const result = spawnSync("bash", ["-eo", "pipefail", "-c", runScript("Write the sweep cost")], {
       encoding: "utf8",
@@ -175,14 +179,14 @@ const runSweepCost = (costs, reached) => {
   }
 };
 
-test("the sweep cost names both tokens' spend, the candidates and those reached, in the log and the summary", () => {
-  const run = runSweepCost("lane-cost=312 github-token-cost=41", 3);
+test("the sweep cost names both tokens' spend, the candidates, those reached and those skipped, in the log and the summary", () => {
+  const run = runSweepCost("lane-cost=312 github-token-cost=41", 3, 2);
   assert.equal(run.status, 0);
-  const line = "sweep-cost=312 github-token-cost=41 candidates=5 reached=3\n";
+  const line = "sweep-cost=312 github-token-cost=41 candidates=5 reached=3 skipped=2\n";
   assert.equal(run.stdout, line);
   assert.equal(run.stepSummary, line);
   // A rolled window, or no end reading, reads unknown.
-  assert.equal(runSweepCost("lane-cost=unknown", 0).stdout, "sweep-cost=unknown github-token-cost=unknown candidates=5 reached=0\n");
+  assert.equal(runSweepCost("lane-cost=unknown", 0).stdout, "sweep-cost=unknown github-token-cost=unknown candidates=5 reached=0 skipped=0\n");
   const block = step("Write the sweep cost");
   assert.match(block, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
   assert.match(block, /COSTS: \$\{\{ steps\.budget-end\.outputs\.costs \}\}/);
@@ -390,8 +394,9 @@ test("the record step warns on refused re-runs and errors when the record was no
 });
 
 // Runs the gate step over three candidates with a fake clock: `date +%s`
-// answers each value of `clock` in turn (the first is the loop's start).
-const runBudgetedGate = (budget, clock) => {
+// answers each value of `clock` in turn (the first is the loop's start), and
+// `skipped` as the skip step's file when given.
+const runBudgetedGate = (budget, clock, skipped) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-budget-"));
   try {
     const bin = join(dir, "bin");
@@ -414,6 +419,7 @@ const runBudgetedGate = (budget, clock) => {
       join(dir, "candidates.json"),
       JSON.stringify([7, 3, 5].map((number) => ({ number, head: `h${number}`, updatedAt: "u" }))),
     );
+    if (skipped !== undefined) writeFileSync(join(dir, "skipped.json"), skipped);
     const result = spawnSync("bash", ["-c", runScript("Run the merge gate on each candidate")], {
       cwd: dir,
       encoding: "utf8",
@@ -472,6 +478,59 @@ test("with no budget, or an unreadable one, the gate checks every candidate", ()
   }
 });
 
+test("a skipped candidate's carried refusal is reported once, and one still listed is gated", () => {
+  const carried = (pr) => ({ pr, head: `h${pr}`, updatedAt: "u", exit: 10, reason: "risk:MED", carried: { skips: 1 } });
+  const run = runBudgetedGate("", [0, 0, 1, 2], JSON.stringify([carried(4), carried(7)]));
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(run.gated, ["o/r#7", "o/r#3", "o/r#5"]);
+  assert.deepEqual(
+    run.summary.map((row) => [row.pr, row.reason, "carried" in row]),
+    [
+      [4, "risk:MED", true],
+      [7, "verify:missing", false],
+      [3, "verify:missing", false],
+      [5, "verify:missing", false],
+    ],
+  );
+});
+
+test("a missing or malformed skip file adds no row and the gate still runs", () => {
+  for (const skipped of [undefined, "not json"]) {
+    const run = runBudgetedGate("", [0, 0, 1, 2], skipped);
+    assert.equal(run.status, 0, run.stderr);
+    assert.deepEqual(run.gated, ["o/r#7", "o/r#3", "o/r#5"]);
+    assert.deepEqual(run.summary.map((row) => row.pr), [7, 3, 5]);
+  }
+});
+
+test("the skip step runs just before the gate and its record between the carry and the save, neither able to fail the job", () => {
+  const names = steps.map((s) => s.name);
+  const at = (name) => names.indexOf(name);
+  assert.equal(at("Skip refusals whose inputs have not changed"), at("Run the merge gate on each candidate") - 1);
+  assert.ok(at("Record a failed lane merge") < at("Skip refusals whose inputs have not changed"));
+  assert.equal(at("Keep the refusals the next run may skip"), at("Keep the verdict reads that never change") + 1);
+  assert.equal(at("Save them for the next run"), at("Keep the refusals the next run may skip") + 1);
+  const filter = step("Skip refusals whose inputs have not changed");
+  assert.match(filter, /\n {8}continue-on-error: true\n/);
+  assert.match(filter, /\n {8}if: steps\.candidates\.outcome == 'success'\n/);
+  assert.match(filter, /GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}/);
+  assert.match(filter, /BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}/);
+  // The listing it reads is saved where the gate's first candidate looks.
+  const listing = "BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json\n";
+  assert.ok(filter.includes(listing) && step("Run the merge gate on each candidate").includes(listing));
+  assert.match(filter, /babysit_merge_skip\.py filter /);
+  assert.match(filter, /--store "\$RUNNER_TEMP\/pr-merge-carried\.json"/);
+  assert.match(filter, /MAX_MINUTES: \$\{\{ steps\.mode\.outputs\.skip-max-minutes \}\}/);
+  assert.match(filter, /MAX_SKIPS: \$\{\{ steps\.mode\.outputs\.skip-max-skips \}\}/);
+  assert.match(step("Read report-only"), /echo "skip-max-minutes=\$\(yq '\.merge\."skip-unchanged"\."max-minutes" \/\/ ""' "\$config"\)"/);
+  assert.match(step("Read report-only"), /echo "skip-max-skips=\$\(yq '\.merge\."skip-unchanged"\."max-skips" \/\/ ""' "\$config"\)"/);
+  const record = step("Keep the refusals the next run may skip");
+  assert.match(record, /\n {8}if: always\(\) && steps\.carry\.outputs\.carried == 'true'\n/);
+  assert.match(record, /\n {8}continue-on-error: true\n/);
+  assert.match(record, /babysit_merge_skip\.py record /);
+  assert.match(record, /--store "\$RUNNER_TEMP\/pr-merge-carried\.json"/);
+});
+
 test("the budget comes from the pipeline config, rotation runs before the gate, and the upload step runs under always()", () => {
   assert.match(step("Read report-only"), /echo "gate-budget-minutes=\$\(yq '\.merge\."gate-budget-minutes" \/\/ ""' "\$config"\)"/);
   assert.match(step("Run the merge gate on each candidate"), /BUDGET_MINUTES: \$\{\{ steps\.mode\.outputs\.gate-budget-minutes \}\}/);
@@ -485,6 +544,41 @@ test("the budget comes from the pipeline config, rotation runs before the gate, 
   assert.match(upload, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.match(upload, /\n {10}name: pr-merge-gate-cursor\n/);
+});
+
+// The main ruleset requires `ci-status` from the GitHub Actions app, the app
+// every GITHUB_TOKEN posts as, so a token with checks: write could pass it.
+// Only a job of its own, running nothing but the check writer, holds it.
+test("each candidate's check run is written by its own job, the only one holding checks: write", () => {
+  assert.match(job, /\n {6}checks: read\n/);
+  assert.equal(text.match(/\n {6}checks: write\n/g)?.length, 1);
+  const upload = step("Hand the gate's rows to the check writer");
+  assert.ok(steps.findIndex((s) => s.name === "Run the merge gate on each candidate") < steps.findIndex((s) => s.name === "Hand the gate's rows to the check writer"));
+  assert.match(upload, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped' && steps\.mode\.outputs\.report-only == 'false'\n/);
+  assert.match(upload, /\n {10}name: pr-merge-gate-rows\n {10}path: \$\{\{ runner\.temp \}\}\/pr-merge-summary\.json\n/);
+  assert.match(job, /\n {6}gate-rows: \$\{\{ steps\.rows\.outcome == 'success' \}\}\n/);
+
+  const writer = jobBlock("gate-check");
+  assert.match(writer, /^ {4}needs: \[merge\]\n/);
+  assert.match(writer, /\n {4}if: always\(\) && needs\.merge\.outputs\.gate-rows == 'true'\n/);
+  assert.match(writer, /\n {4}permissions:\n {6}contents: read[^\n]*\n(?: {6}#[^\n]*\n)* {6}checks: write\n {4}[a-z]/);
+  // Runs wait in line like the merge job's: never two writers at once, and a
+  // cancelled job would sit on PR heads as a CANCELLED check.
+  assert.match(writer, /\n {4}concurrency:\n {6}group: pr-merge-gate-check\n {6}queue: max\n/);
+  const writerSteps = stepsOf(writer);
+  assert.deepEqual(
+    writerSteps.map((s) => s.name),
+    ["Check out the default branch tip", "Set up Node", "Read the gate's rows", "Show each candidate's refusal as a check run"],
+  );
+  assert.match(writerSteps[0].block, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
+  for (const { name, block } of writerSteps.slice(2)) {
+    assert.match(block, /\n {8}continue-on-error: true\n/, name);
+  }
+  const show = writerSteps[3].block;
+  assert.match(show, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+  assert.match(show, /\n {10}SUMMARY_PATH: \$\{\{ runner\.temp \}\}\/rows\/pr-merge-summary\.json\n/);
+  assert.match(show, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/gate-check\.mjs\n/);
+  assert.equal(steps.find((s) => s.name === "Show each candidate's refusal as a check run"), undefined);
 });
 
 // #8399 (option B): a red attempt 1 of a full run the lane dispatched gets its

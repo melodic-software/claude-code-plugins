@@ -735,8 +735,14 @@ cat >"$proc_brief_full" <<'EOT'
 ### TLDR
 - x
 
+### Problem
+- x
+
 ### Goal
 x
+
+### Work size
+- x
 
 ### Constraints
 - x
@@ -766,6 +772,14 @@ expect_exit "--procedure --brief with every section -> 0" 0 --ledger "$proc_reti
 expect_exit "--procedure --brief missing Out-of-scope -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_short" --procedure
 if [[ "$(stderr_of --ledger "$proc_retired" --brief "$proc_brief_short" --procedure)" == *"out[- ]of[- ]scope"* ]]; then pass "--procedure names the missing Brief section"; else fail "--procedure names the missing Brief section"; fi
 expect_exit "Brief missing a section without --procedure -> 0" 0 --ledger "$proc_retired" --brief "$proc_brief_short"
+proc_brief_noproblem="$TMP/proc-brief-noproblem.md"
+grep -v -e '^### Problem' "$proc_brief_full" >"$proc_brief_noproblem"
+expect_exit "--procedure --brief missing Problem -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_noproblem" --procedure
+if [[ "$(stderr_of --ledger "$proc_retired" --brief "$proc_brief_noproblem" --procedure)" == *"'problem'"* ]]; then pass "--procedure names the missing Problem section"; else fail "--procedure names the missing Problem section"; fi
+proc_brief_nosize="$TMP/proc-brief-nosize.md"
+grep -v -e '^### Work size' "$proc_brief_full" >"$proc_brief_nosize"
+expect_exit "--procedure --brief missing Work size -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_nosize" --procedure
+if [[ "$(stderr_of --ledger "$proc_retired" --brief "$proc_brief_nosize" --procedure)" == *"work[- ]size"* ]]; then pass "--procedure names the missing Work size section"; else fail "--procedure names the missing Work size section"; fi
 proc_brief_plan="$TMP/proc-brief-plan.md"
 { cat "$proc_brief_short"; printf '\n### Out-of-scope\n- x\n'; } >"$proc_brief_plan"
 expect_exit "--procedure --brief section only under ## Plan -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_plan" --procedure

@@ -15,7 +15,7 @@ import re
 import secrets
 import time
 
-CURRENT = 5
+CURRENT = 6
 MIGRATIONS = {}
 
 PROTOTYPE_KEYS = frozenset({"questions", "answers", "ideas", "people", "secrets", "round"})
@@ -34,6 +34,7 @@ MIN_OWNER_TOKEN = 16  # the prototype's owner token is token_urlsafe(12): 16 cha
 MAX_URL = 2000
 URL = re.compile(r"https?://\S+", re.IGNORECASE)  # a link, as every v1 write route takes one
 IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")  # an image asset's file name
+NOT_SHARED = "The owner did not share the result."  # session.py: a discarded result's request fails with this reason
 OTHER_OPTION = {"id": "other", "label": "Something else…", "other": True}  # the server adds it to every choice question
 
 
@@ -878,3 +879,37 @@ def _v4_to_v5(doc, ctx):
 
 
 MIGRATIONS[4] = _v4_to_v5
+
+
+# -- 5 -> 6: the owner's Inbox waits on requests Claude failed -------------------------------------
+
+
+def _v5_to_v6(doc, ctx):
+    """A request failed with the discard sentence is one the owner discarded: mark it cancelled, so the reason (text
+    Claude also writes) never decides it again. A guest's request Claude failed before this version starts read
+    (inboxSeen host fail:<id>), so the upgrade itself adds nothing to the owner's Needs you."""
+    people, n_cancelled, seen = _dict(doc.get("people")), 0, {}
+    requests = []
+    for r in _list(doc.get("requests")):
+        st = _dict(_dict(r).get("status"))
+        if st.get("kind") == "failed" and st.get("reason") == NOT_SHARED and not st.get("cancelled"):
+            r = {**r, "status": {**st, "cancelled": True}}
+            n_cancelled += 1
+        elif (st.get("kind") == "failed" and not st.get("cancelled") and r.get("runner") == "host" and r.get("pid") != HOST
+              and _dict(_dict(people.get(r.get("pid"))).get("status")).get("kind") == "active" and isinstance(r.get("id"), str)):
+            seen["fail:" + r["id"]] = "open"
+        requests.append(r)
+    out = {**doc}
+    if "requests" in doc:
+        out["requests"] = requests
+    if seen:
+        inbox = {**_dict(doc.get("inboxSeen"))}
+        inbox[HOST] = {**_dict(inbox.get(HOST)), **seen}
+        out["inboxSeen"] = inbox
+        ctx.note(f"inbox: {len(seen)} requests Claude failed start read for the owner")
+    if n_cancelled:
+        ctx.note(f"requests: {n_cancelled} discarded ones marked cancelled")
+    return out
+
+
+MIGRATIONS[5] = _v5_to_v6
