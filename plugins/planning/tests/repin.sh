@@ -94,7 +94,7 @@ if [[ -z "$new" ]]; then
 fi
 
 if ! [[ -t 0 && -t 1 ]]; then
-  echo "$self: refusing to re-pin: stdin and stdout must both be a terminal. A person runs this after reading the diff; an unattended run reports the failing pin and stops." >&2
+  echo "$self: refusing to re-pin: stdin and stdout must both be a terminal. A person runs this in their own terminal after reading the diff; a Claude Code ! line has no terminal, and an unattended run reports the failing pin and stops." >&2
   exit 5
 fi
 echo "Pin: $(sed -n "${call_line}p" "$test_file" | tr -d "\\\\")"

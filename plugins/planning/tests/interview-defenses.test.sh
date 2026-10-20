@@ -103,7 +103,7 @@ FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 ATTENDED_ONLY="Recomputing a pin or digest is attended-only: an unattended run reports this pin and the git diff, then stops."
 # Appended to the digest-pin failures only: repin.sh rewrites a sha256 literal, so the exact-line
 # pins and the boundary failure have nothing for it to recompute.
-REPIN_HINT="After reading the diff, a person re-pins this digest with: bash plugins/planning/tests/repin.sh '<pin label text>' '<justification>'"
+REPIN_HINT="After reading the diff, a person re-pins this digest by running, in their own terminal (a Claude Code ! line has no terminal): bash plugins/planning/tests/repin.sh '<pin label text>' '<justification>'"
 PASS=0
 FAIL=0
 fail() {
