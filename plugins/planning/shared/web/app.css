@@ -295,7 +295,8 @@
 .app .vf-proprow.vf-has .vf-count { background: var(--brass); color: var(--on-brass); }
 .app .vf-myprop { padding: 4px 8px; color: var(--muted); font-size: 12px; }
 .app .vf-myprop::before { content: ""; display: inline-block; inline-size: 6px; block-size: 6px; border-radius: 50%; background: var(--brass); margin-inline-end: 8px; vertical-align: 1px; }
-.app .vf-railfoot > .vf-proprow:not([hidden]) + .vf-myprop { display: none; }
+/* a moderator reads every proposal, theirs too, in Proposed: the footer shows the count row alone, for the owner and a leader alike */
+.app .vf-railfoot > .vf-proprow:not([hidden]) + .vf-myprops { display: none; }
 .app .vf-q {
   inline-size: 100%; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; align-items: start;
   padding: 8px; min-block-size: 44px; border-radius: var(--r-sm); color: var(--muted);
@@ -714,6 +715,9 @@
   }
   .app .vf-panel .vf-tbtn { inline-size: 44px; block-size: 44px; }
   .app .vf-pp-head { flex-wrap: wrap; }
+  /* the close button stays on the title's row at the right, as on every sheet; the tools take their own row */
+  .app .vf-pp-head > .vf-pp-tools { order: 1; flex-basis: 100%; }
+  .app .vf-pp-head > .vf-pp-tools:empty { display: none; }
   .app .vf-keysbtn { display: none; }
 
   .app .vf-q { min-block-size: 52px; padding: 10px; }
@@ -1047,7 +1051,9 @@
 .app :is(.vf-myrep-add, .vf-myrep-adds)[hidden] { display: none; }
 .app .vf-myprops { display: grid; gap: 4px; padding: 4px 8px 2px; }
 .app .vf-mp { display: grid; gap: 1px; font-size: 12px; }
-.app .vf-mp-txt { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app .vf-mp-txt { color: var(--text); min-width: 0; }
+/* a guest's preview: two lines, cut with an ellipsis */
+.app .vf-mp-txt > .vf-clamp:not(.vf-exp) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-block-size: none; mask-image: none; }
 .app .vf-mp-stat { color: var(--muted); }
 .app .vf-mp[data-stat="notplaced"] .vf-mp-stat { color: var(--review); }
 .app .vf-why { margin-block-start: 6px; color: var(--muted); font-size: 12px; }
@@ -1166,18 +1172,18 @@
 .app .vf-asktop .vf-i { color: var(--claude); }
 
 /* ---------- toolbar ---------- */
+/* it wraps rather than scroll sideways under a hidden scrollbar, so no chip or button is ever cut off */
 .app .vf-toolbar {
-  display: flex; align-items: center; gap: 10px; padding: 6px 14px; min-width: 0;
-  border-block-end: 1px solid var(--line); overflow-x: auto; scrollbar-width: none;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 14px; min-width: 0;
+  border-block-end: 1px solid var(--line);
 }
-.app .vf-toolbar::-webkit-scrollbar { display: none; }
 .app .vf-selwrap { display: inline-flex; align-items: center; gap: 6px; flex: none; color: var(--faint); font-size: 12px; }
 .app .vf-select {
   font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text); background: var(--sunk);
   border: 1px solid var(--line-strong); border-radius: var(--r-sm); block-size: 28px; padding-inline: 8px 6px; cursor: pointer;
 }
 .app .vf-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.app .vf-chips { display: flex; gap: 4px; flex: none; }
+.app .vf-chips { display: flex; gap: 4px; flex: 0 1 auto; min-width: 0; }
 .app .vf-fchip {
   all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
   block-size: 28px; padding-inline: 10px; border-radius: var(--r-sm); border: 1px solid var(--line-strong);
@@ -1610,7 +1616,8 @@
 .app .vf-citeopt-s { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .app .vf-citebtn .vf-i { margin-inline-end: 4px; }
 .app .vf-crow > .vf-attach, .app .vf-crow > .vf-citebtn { flex: none; }
-.app .vf-crow > .vf-attach { inline-size: 30px; padding: 0; }
+/* Attach is one square icon button wherever it sits: the answer box, Discussion, chat, Ask Claude (44 px on a phone) */
+.app .vf-attach { --att: 32px; inline-size: var(--att); block-size: var(--att); padding: 0; border-radius: var(--r-sm); }
 .app .vf-attach .vf-i { margin: 0; }
 .app .vf-crow > .vf-count-txt { order: -1; }
 
@@ -1670,7 +1677,7 @@
    sheet scroll sideways */
 .app .vf-apscroll { flex: 1; padding: 8px 16px 16px; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 8px; overflow-x: hidden; }
 .app .vf-apform { gap: 8px; padding-block-end: 10px; border-block-end: 1px solid var(--line); }
-.app .vf-apq .vf-select { flex: 1; min-width: 0; max-inline-size: 100%; }
+.app .vf-apq .vf-select { flex: 1; min-width: 0; max-inline-size: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .app .vf-apq { display: flex; min-width: 0; }
 .app .vf-apform .vf-crow { margin: 0; }
 .app .vf-apreqs { gap: 6px; }
@@ -1680,7 +1687,7 @@
 .app .vf-qref-wrap { white-space: normal; overflow: visible; text-overflow: clip; text-align: start; overflow-wrap: anywhere; }
 .app .vf-apscroll > .vf-pop-sub { margin-block-start: 8px; }
 /* Connect your Claude (R2-12) */
-.app .vf-apself { padding-inline: 0; }
+.app :is(.vf-apself, .vf-askself) { padding-inline: 0; }
 .app .vf-apconnect { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding-block-end: 10px; border-block-end: 1px solid var(--line); }
 /* .vf-meta is one line elsewhere; these are sentences, and one unwrapped line made the Ask panel 912 px wide on a phone */
 .app .vf-apconnect .vf-pop-note, .app .vf-apconnect .vf-meta { margin: 0; }
@@ -1741,6 +1748,7 @@
 .app .vf-qitem[data-t="merge"], .app .vf-qitem[data-t="ready"] { border-color: color-mix(in oklch, var(--brass) 40%, transparent); }
 .app .vf-qitem .vf-pfrom { margin: 0; min-width: 0; }
 .app .vf-qitem .vf-acts { margin: 0; justify-content: flex-end; }
+.app .vf-pitem .vf-acts { justify-content: flex-end; }
 .app .vf-qitem .vf-cbox { margin: 0; }
 .app .vf-qextra:empty { display: none; }
 .app .vf-hpeople { gap: 2px; }
@@ -1812,11 +1820,11 @@
     transform-origin: bottom center;
   }
   .app .vf-drawer .vf-tbtn { inline-size: 44px; block-size: 44px; }
-  .app .vf-apmodes .vf-seg-btn { min-block-size: 40px; }
+  .app .vf-apmodes .vf-seg-btn { min-block-size: 44px; }
   .app .vf-pickbtn { min-block-size: 44px; }
   .app .vf-msgmore { inline-size: 36px; block-size: 36px; }
   .app .vf-citechip { min-block-size: 36px; }
-  .app .vf-crow > .vf-attach { inline-size: 44px; }
+  .app .vf-attach { --att: 44px; }
   .app .vf-hostv { padding: 12px 10px 24px; }
   .app .vf-hsec { padding: 12px; }
   .app .vf-tab { flex-direction: column; gap: 3px; }
@@ -2106,6 +2114,8 @@
   .app .vf-ixtabs .vf-seg-btn { min-block-size: 44px; flex: none; white-space: nowrap; }
   /* tabs and chips each keep one row that scrolls sideways, so the list starts high on the screen */
   .app .vf-ibtop :is(.vf-ixtabs, .vf-ibchips) { flex-wrap: nowrap; max-inline-size: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+  /* the cut edge fades, so a row that scrolls on reads as one; the end padding lets the last item clear the fade */
+  .app .vf-ibtop :is(.vf-ixtabs, .vf-ibchips) { padding-inline-end: 28px; mask-image: linear-gradient(to left, transparent, black 28px); }
   .app .vf-ibchips > .vf-btn { flex: none; }
   /* a request row's question and status each take a line of their own */
   .app .vf-inboxpage .vf-rhead2 { flex-wrap: wrap; row-gap: 4px; }
@@ -2146,7 +2156,6 @@
   }
   .app .vf-composer > .vf-crow > * { pointer-events: auto; }
   .app .vf-composer:not(:focus-within) > .vf-crow > :is(.vf-citebtn, .vf-btn-ghost:not(.vf-attach), .vf-count-txt) { display: none; }
-  .app .vf-composer > .vf-crow > .vf-attach { inline-size: 44px; block-size: 44px; padding: 0; border: 0; border-radius: 22px; background: transparent; }
   .app .vf-composer > .vf-crow > .vf-citebtn { block-size: 32px; }
   .app .vf-composer > .vf-crow > .vf-btn-ghost:not(.vf-attach, .vf-citebtn) { block-size: 32px; }
   .app .vf-composer .vf-sendbtn {
@@ -2194,7 +2203,6 @@
 .app .vf-dlg-title { font-size: 16px; font-weight: 700; line-height: 1.3; margin: 0 0 8px; overflow-wrap: anywhere; }
 .app .vf-dlg-body { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
 .app .vf-dlg-row { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-block-start: 18px; }
-.app .vf-dlg-row .vf-btn { block-size: 36px; padding-inline: 14px; font-size: 13px; }
 .app .vf-btn-danger-solid { background: var(--warn); color: oklch(0.99 0 none); }
 @media (hover: hover) and (pointer: fine) {
   .app .vf-btn-danger-solid:hover { background: color-mix(in oklch, var(--warn) 86%, black); }
@@ -2239,7 +2247,7 @@
 .app .vf-ref-file .vf-ref-lt > .vf-i { color: var(--muted); }
 .app .vf-ref-file[data-stat="done"] .vf-ref-dom { color: var(--ok); }
 .app .vf-ref-file:is([data-stat="declined"], [data-stat="failed"], [data-stat="gone"]) .vf-ref-dom { color: var(--review); }
-.app .vf-mform > .vf-attach { flex: none; align-self: center; }
+.app .vf-mform > .vf-attach { flex: none; align-self: center; inline-size: var(--att); block-size: var(--att); }
 .app .vf-chat > .vf-attdraft { padding-inline: 12px; }
 .app .vf-upthumb { padding: 0; overflow: hidden; cursor: zoom-in; }
 .app .vf-upthumb[hidden] { display: none; }
