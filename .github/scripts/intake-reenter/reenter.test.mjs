@@ -40,8 +40,9 @@ writeFileSync(
 
 // One issue with its comments. `editors` maps a comment id to its last
 // editor's id; `author` opened the issue; `gone` names labels GitHub answers 404 for on removal (a run
-// that already took them).
-function world({ labels, author = OWNER, state = "open", pullRequest = false, comments, editors = {}, gone = [] }) {
+// that already took them); `fail` names one `METHOD path` write that answers 500 once.
+function world({ labels, author = OWNER, state = "open", pullRequest = false, comments, editors = {}, gone = [], fail = null }) {
+  let failing = fail;
   const current = new Set(labels);
   const writes = [];
   const base = `/repos/${REPO}/issues/${NUMBER}`;
@@ -74,6 +75,10 @@ function world({ labels, author = OWNER, state = "open", pullRequest = false, co
       };
     }
     writes.push([method, path, body]);
+    if (failing === `${method} ${path}`) {
+      failing = null;
+      throw new GitHubError(500, `${method} ${path}`);
+    }
     const label = path.startsWith(`${base}/labels/`) ? decodeURIComponent(path.slice(`${base}/labels/`.length)) : null;
     if (method === "DELETE" && label !== null) {
       if (gone.includes(label) || !current.delete(label)) throw new GitHubError(404, `DELETE ${path}`);
@@ -208,6 +213,32 @@ test("a run that loses the status label to another run dispatches nothing", asyn
     w.writes.map(([method]) => method),
     ["DELETE"],
   );
+});
+
+const DISPATCH = `/repos/${REPO}/actions/workflows/intake-triage.yml/dispatches`;
+const failures = [
+  ["adding needs-triage", `POST /repos/${REPO}/issues/${NUMBER}/labels`],
+  ["removing needs-human", `DELETE /repos/${REPO}/issues/${NUMBER}/labels/needs-human`],
+  ["the dispatch", `POST ${DISPATCH}`],
+];
+
+for (const [name, fail] of failures) {
+  test(`a failed call to ${name} after the claim restores the labels, and a re-run dispatches once`, async () => {
+    const before = ["needs-human", "priority: medium", "status: needs-decision"];
+    const w = world({ labels: before, comments: [{ id: 1, user: OWNER, body: DECISION }], fail });
+    assert.equal(await run(w, 1), 1);
+    assert.deepEqual(w.labels(), before);
+    assert.equal(w.dispatches().length, name === "the dispatch" ? 1 : 0);
+    assert.equal(await run(w, 1), 0);
+    assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+    assert.equal(w.dispatches().length, name === "the dispatch" ? 2 : 1);
+  });
+}
+
+test("a failed dispatch keeps a needs-triage label the issue already had", async () => {
+  const w = world({ labels: ["status: needs-info", "needs-triage"], comments: [{ id: 1, user: OWNER, body: "Answer." }], fail: `POST ${DISPATCH}` });
+  assert.equal(await run(w, 1), 1);
+  assert.deepEqual(w.labels(), ["needs-triage", "status: needs-info"]);
 });
 
 test("never adds agent-ready", async () => {

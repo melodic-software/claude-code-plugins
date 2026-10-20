@@ -12,7 +12,8 @@
 // issue whose author intake admits (a listed human or the lanes App). Anything else
 // changes nothing. It never adds `agent-ready`. Removing the status label is
 // the claim: when GitHub answers 404 another run already took it, so a second
-// answer, or a racing run, dispatches nothing. Every fact is read from the API;
+// answer, or a racing run, dispatches nothing. When a later call fails, the
+// run puts the labels back and fails, so a re-run can take the claim again. Every fact is read from the API;
 // the event supplies only the issue and comment numbers.
 //
 // Environment:
@@ -82,6 +83,18 @@ async function removeLabel(github, base, name) {
   }
 }
 
+async function restore({ client, base, labels, addedTriage, log }) {
+  try {
+    if (addedTriage) {
+      await removeLabel(client, base, NEEDS_TRIAGE);
+    }
+    await client("POST", `${base}/labels`, { labels });
+    log(`intake-reenter: restored ${labels.join(", ")}; re-run the job to send the issue back to triage`);
+  } catch {
+    log(`::error title=intake-reenter::could not restore ${labels.join(", ")}; restore them by hand`);
+  }
+}
+
 export async function main({ env = process.env, github, log = console.log } = {}) {
   try {
     if (env.KILL_SWITCH !== "proceed") {
@@ -111,22 +124,31 @@ export async function main({ env = process.env, github, log = console.log } = {}
       log(`intake-reenter: ${status} is already gone; nothing dispatched`);
       return 0;
     }
-    await client("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
-    if (kind === "decision") {
-      await removeLabel(client, base, NEEDS_HUMAN);
+    // Past the claim, a failed call puts the labels back as they were, so a
+    // re-run of the job finds the issue parked and the answer is not lost.
+    const had = labelNames(issue);
+    let removedHuman = false;
+    try {
+      await client("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+      if (kind === "decision") {
+        removedHuman = await removeLabel(client, base, NEEDS_HUMAN);
+      }
+      // Intake admits an issue only from a listed human or the lanes App; any
+      // other issue waits in needs-triage for a person, so its author cannot
+      // start a model run with each reply.
+      const author = issue.user?.id;
+      if (!(humans.has(author) || (lanesAppId !== null && author === lanesAppId))) {
+        log(`intake-reenter: removed ${status}, added ${NEEDS_TRIAGE}; the author is not one intake admits, so nothing dispatched`);
+        return 0;
+      }
+      await client("POST", `/repos/${repository}/actions/workflows/${WORKFLOW}/dispatches`, {
+        ref: "main",
+        inputs: { "issue-number": String(issue.number) },
+      });
+    } catch (error) {
+      await restore({ client, base, labels: [status, ...(removedHuman ? [NEEDS_HUMAN] : [])], addedTriage: !had.includes(NEEDS_TRIAGE), log });
+      throw error;
     }
-    // Intake admits an issue only from a listed human or the lanes App; any
-    // other issue waits in needs-triage for a person, so its author cannot
-    // start a model run with each reply.
-    const author = issue.user?.id;
-    if (!(humans.has(author) || (lanesAppId !== null && author === lanesAppId))) {
-      log(`intake-reenter: removed ${status}, added ${NEEDS_TRIAGE}; the author is not one intake admits, so nothing dispatched`);
-      return 0;
-    }
-    await client("POST", `/repos/${repository}/actions/workflows/${WORKFLOW}/dispatches`, {
-      ref: "main",
-      inputs: { "issue-number": String(issue.number) },
-    });
     log(`intake-reenter: removed ${status}, added ${NEEDS_TRIAGE}, dispatched ${WORKFLOW}`);
     return 0;
   } catch (error) {
