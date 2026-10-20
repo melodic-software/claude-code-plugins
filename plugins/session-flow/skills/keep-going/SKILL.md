@@ -89,6 +89,18 @@ itself the thing this skill removes.
    gone (a crash, a restart, a closed terminal), its agent and task ids
    went with it: find the work by what it left behind, its branch, its
    PR, its worktree and commits, not by an id that no longer resolves.
+
+   **Measure the gap first.** Run
+   `python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/measure-stop-gap.py" "<session transcript path>"`
+   on this live, resumed session's transcript; a stopped transcript no
+   prompt has resumed yet is out of its scope. It prints JSON with the last assistant entry, the limit or error
+   entry (null when there is none), now, and the gap from the stop to
+   now (`gap`, `gap_seconds`); a transcript with no limit or error entry
+   measures from the last assistant entry. Exit `2` (missing, unreadable
+   or empty transcript, or no assistant entry) means the gap is unknown:
+   report it as unknown, never estimate it. State the gap in the report.
+   Anything remembered from before the stop and older than the gap is
+   re-read, not trusted: limit windows, leases, PR state and CI runs.
 3. **Goal alignment, before any recovery ACTION.** When the resume
    follows a `/session-flow:handoff`, read that file rather than trusting
    memory, and when the handoff's path was lost (a `/clear` without

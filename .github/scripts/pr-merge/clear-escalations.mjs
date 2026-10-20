@@ -14,9 +14,11 @@
 //   line names one of CHECKS. A later escalation adds no label event, so each
 //   one counts. Text anyone else writes, a marker included, is never read.
 // - No lanes App comment written or edited since then carries any other
-//   marker (pr-merge's own escalations, another lane's): unknown keeps it.
-// - No account but the lanes App commented or reviewed since the label went
-//   on: a person, or another bot asking for one, may want the lane to wait.
+//   marker (pr-merge's, another lane's): unknown keeps it.
+// - No person commented, reviewed, or left a review or commit comment since
+//   the label went on: they may want the lane to wait. Bot accounts (AI
+//   review, other lanes) are not someone speaking; an App marker is judged
+//   by the rule above instead.
 // - Every recorded reason no longer holds at the current head:
 //     workflow-staged          main changed nothing under .github/workflows/
 //                              since its merge base with the head, so merging
@@ -27,6 +29,16 @@
 //   A listing that may be cut short, or a mergeable state not yet computed,
 //   counts as the reason still holding.
 // Any other reason is decided by a person and is never cleared here.
+//
+// With no pr-unblock escalation since the label, a pr-merge escalation clears
+// as `head-moved` instead, but only when the marked lanes App comment written
+// last before the label is pr-merge's and came within PAIRED_MS of it, so a
+// label added for another reason is never read as pr-merge's. Then the
+// newest lanes App comment carrying each of
+// pr-merge's own markers (PR_MERGE_MARKERS) names, in its `at head `<sha>``,
+// a head that is not the PR's current one. pr-merge then judges the new head
+// and escalates again if its refusal still holds. A marker whose head does not
+// parse as 40-hex keeps the label, and so does any other marker, as above.
 //
 // Before the label comes off, the App posts one comment naming the cleared
 // reason and the head; a sweep that finds that comment for this escalation
@@ -54,6 +66,11 @@ const RESUME_KEY = /^<!-- pr-unblock resume-key=([0-9a-f]{40}|[0-9a-f]{64}) -->$
 const REASON = /^- Reason: `([a-z-]+)`$/m;
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
 const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ head=[0-9a-f]{40} -->$/;
+// babysit_merge.py's verifier-refusal escalation and reasons comment: the
+// marker on the first or second line, the next line naming `at head `<sha>``.
+const PR_MERGE_MARKERS = Object.freeze(["<!-- babysit-merge-verify-escalation -->", "<!-- babysit-merge-risk -->"]);
+const AT_HEAD = / at head `([^`]*)`/g;
+const HEAD_MOVED = "head-moved";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 // The compare API lists at most 300 files, the PR files API at most 3000.
@@ -98,8 +115,46 @@ function mergeable(pull) {
   return pull.mergeable === true && pull.mergeable_state !== "dirty" ? "GitHub reports no conflict with main" : null;
 }
 
+const keepNote = (label) => `To keep a person on it, add \`${label}\` back: a label a person adds is never removed.`;
+
 export const clearedComment = (reason, head, why, label) =>
-  `${clearedMarker(reason, head)}\nThe pr-unblock lane escalated this pull request as \`${reason.replaceAll(",", "`, `")}\`, and that no longer holds at \`${head}\`: ${why}. pr-merge removed \`${label}\`, so the lanes run on it again. To keep a person on it, add \`${label}\` back: a label a person adds is never removed.`;
+  reason === HEAD_MOVED
+    ? `${clearedMarker(reason, head)}\nThe pr-merge lane escalated this pull request, and its head has moved (\`${HEAD_MOVED}\`): ${why}. pr-merge removed \`${label}\` so it judges \`${head}\` afresh, and escalates again if its refusal still holds. ${keepNote(label)}`
+    : `${clearedMarker(reason, head)}\nThe pr-unblock lane escalated this pull request as \`${reason.replaceAll(",", "`, `")}\`, and that no longer holds at \`${head}\`: ${why}. pr-merge removed \`${label}\`, so the lanes run on it again. ${keepNote(label)}`;
+
+// The newest lanes App comment carrying each pr-merge marker, with the head it
+// names: null when that line names none, or more than one, as 40-hex.
+function prMergeEscalations(appComments) {
+  return PR_MERGE_MARKERS.flatMap((marker) => {
+    const newest = appComments.filter((item) => lines(item.body).slice(0, 2).includes(marker)).at(-1);
+    if (newest === undefined) {
+      return [];
+    }
+    const body = lines(newest.body);
+    const named = [...String(body[body.indexOf(marker) + 1] ?? "").matchAll(AT_HEAD)].map((match) => match[1]);
+    return [{ marker, head: named.length === 1 && SHA.test(named[0]) ? named[0] : null }];
+  });
+}
+
+// Whether the lanes App comment written last at or before `since` that carries
+// any marker other than this script's own is pr-merge's alone, and was written
+// within PAIRED_MS of it: pr-merge writes its comment, then the label. A
+// comment's writes are its creation and its last edit; a tie fails closed.
+function pairedWithPrMerge(appComments, since) {
+  let newest = -Infinity;
+  let ours = false;
+  for (const item of appComments) {
+    const markers = lines(item.body).filter((line) => line.includes("<!--") && !CLEARED.test(line));
+    const at = Math.max(...[item.created_at, item.updated_at].map(Date.parse).filter((time) => time <= since));
+    if (markers.length === 0 || at < newest) {
+      continue;
+    }
+    const mine = markers.every((line) => PR_MERGE_MARKERS.includes(line));
+    ours = at > newest ? mine : ours && mine;
+    newest = at;
+  }
+  return ours && since - newest <= PAIRED_MS;
+}
 
 // When a timeline item was written, and by whom, for a comment or review.
 function spoken(item) {
@@ -125,34 +180,38 @@ async function verdict({ github, repo, number, label, bot, mainSha }) {
   const since = Date.parse(labeled.created_at);
   // Every escalation since the label went on: a later one posts no new label
   // event, so each reason it recorded must have cleared.
-  const escalations = timeline
-    .filter((item) => item.event === "commented" && isApp(item.user, bot))
+  const appComments = timeline.filter((item) => item.event === "commented" && isApp(item.user, bot));
+  const escalations = appComments
     .map((item) => ({ body: lines(item.body), at: Date.parse(item.created_at) }))
     .filter(({ body, at }) => body[0] === ESCALATION && RESUME_KEY.test(body[1] ?? "") && at >= since);
-  if (escalations.length === 0 || !(escalations[0].at - since <= PAIRED_MS)) {
-    return { reason: `no pr-unblock escalation by the lanes App right after it added ${label}` };
+  const merged = escalations.length === 0 && pairedWithPrMerge(appComments, since) ? prMergeEscalations(appComments) : [];
+  let reasons = [];
+  if (merged.length === 0) {
+    if (escalations.length === 0 || !(escalations[0].at - since <= PAIRED_MS)) {
+      return { reason: `no pr-unblock escalation by the lanes App right after it added ${label}` };
+    }
+    reasons = [...new Set(escalations.map(({ body }) => REASON.exec(body.join("\n"))?.[1]))];
+    const decided = reasons.find((reason) => !Object.hasOwn(CHECKS, reason ?? ""));
+    if (reasons.length === 0 || decided !== undefined || reasons.includes(undefined)) {
+      return { reason: `an escalation reason since the label (${decided ?? "none"}) is one a person decides` };
+    }
   }
-  const reasons = [...new Set(escalations.map(({ body }) => REASON.exec(body.join("\n"))?.[1]))];
-  const decided = reasons.find((reason) => !Object.hasOwn(CHECKS, reason ?? ""));
-  if (reasons.length === 0 || decided !== undefined || reasons.includes(undefined)) {
-    return { reason: `an escalation reason since the label (${decided ?? "none"}) is one a person decides` };
-  }
-  // The App also escalates for other lanes (pr-merge's babysit-merge-*
-  // markers, a work-items:escalation from another lane) without adding the
-  // label again. Any marker on an App comment written or edited since the
-  // label that is not pr-unblock's escalation or this script's own keeps it,
-  // so a marker this script does not know fails closed.
-  const foreign = timeline
-    .filter((item) => item.event === "commented" && isApp(item.user, bot))
+  // The App also escalates for other lanes (a work-items:escalation from
+  // another lane, a pr-merge marker this script does not judge) without adding
+  // the label again. Any marker on an App comment written or edited since the
+  // label that is not the escalation being judged or this script's own keeps
+  // it, so a marker this script does not know fails closed.
+  const known = merged.length > 0 ? (line) => PR_MERGE_MARKERS.includes(line) : (line) => line === ESCALATION || RESUME_KEY.test(line);
+  const foreign = appComments
     .filter((item) => !(Date.parse(item.created_at) < since) || !(Date.parse(item.updated_at ?? item.created_at) < since))
     .flatMap((item) => lines(item.body).filter((line) => line.includes("<!--")))
-    .find((line) => line !== ESCALATION && !RESUME_KEY.test(line) && !CLEARED.test(line));
+    .find((line) => !known(line) && !CLEARED.test(line));
   if (foreign !== undefined) {
     return { reason: `a lanes App comment since ${label} went on carries another marker: ${foreign.slice(0, 120)}` };
   }
-  // Only the lanes App's own comments are exempt: a person, or another bot
-  // asking for a person, keeps the label.
-  const speaker = timeline.flatMap(spoken).find(({ user, at }) => !(at <= since) && !isApp(user, bot));
+  // Only a person speaking keeps the label; an account GitHub marks Bot does
+  // not. An unknown author counts as a person.
+  const speaker = timeline.flatMap(spoken).find(({ user, at }) => !(at <= since) && user?.type !== "Bot");
   if (speaker !== undefined) {
     return { reason: `${speaker.user?.login ?? "an account"} commented or reviewed after ${label} went on` };
   }
@@ -164,12 +223,24 @@ async function verdict({ github, repo, number, label, bot, mainSha }) {
     return { reason: `${label} is no longer on it` };
   }
   const why = [];
-  for (const reason of reasons) {
-    const cleared = await CHECKS[reason]({ github, repo, pull, mainSha });
-    if (cleared === null) {
-      return { reason: `${reason} still holds at ${pull.head.sha}` };
+  if (merged.length > 0) {
+    const unread = merged.find(({ head }) => head === null);
+    if (unread !== undefined) {
+      return { reason: `the pr-merge comment carrying ${unread.marker} names no head this script can read` };
     }
-    why.push(cleared);
+    if (merged.some(({ head }) => head === pull.head.sha)) {
+      return { reason: `a pr-merge escalation names the current head ${pull.head.sha}` };
+    }
+    reasons = [HEAD_MOVED];
+    why.push(`its escalation names head \`${[...new Set(merged.map(({ head }) => head))].join("`, `")}\`, and the head is now \`${pull.head.sha}\``);
+  } else {
+    for (const reason of reasons) {
+      const cleared = await CHECKS[reason]({ github, repo, pull, mainSha });
+      if (cleared === null) {
+        return { reason: `${reason} still holds at ${pull.head.sha}` };
+      }
+      why.push(cleared);
+    }
   }
   const recorded = reasons.join(",");
   const marker = clearedMarker(recorded, pull.head.sha);

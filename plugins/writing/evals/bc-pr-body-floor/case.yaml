@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: bc-pr-body-floor
+graders:
+  - name: closes-line
+    type: regex
+    pattern: '^[ \t>]*(?:\*\*|__)?(?:Closes|Fixes|Resolves)\s+#482\b'
+    flags: im
+    target: last_message
+  - name: named-sections
+    type: regex
+    pattern: '^(?=[\s\S]*^[ \t>]*#{1,6}[ \t]*Summary\b)(?=[\s\S]*^[ \t>]*#{1,6}[ \t]*Fix\b)(?=[\s\S]*^[ \t>]*#{1,6}[ \t]*Verification\b)(?=[\s\S]*^[ \t>]*#{1,6}[ \t]*Related\b)'
+    flags: im
+    target: last_message
+  - name: irreversible-warning
+    type: regex
+    pattern: 'discount_overrides[\s\S]{0,300}?(?:irreversible|irreversibly|cannot be (?:undone|reversed|rolled back)|can''t be (?:undone|reversed|rolled back)|no rollback|not reversible|permanent|permanently|gone for good)|(?:irreversible|irreversibly|cannot be undone|no rollback|permanent|permanently)[\s\S]{0,200}?discount_overrides'
+    flags: i
+    target: last_message
+  - name: facts-kept
+    type: regex
+    pattern: '^(?=[\s\S]*\b15[- ]?min(?:ute)?s?\b)(?=[\s\S]*(?:2026-10-14|Oct(?:ober)?\.? 14\b))(?=[\s\S]*Marta Quell)(?=[\s\S]*\b410\s?ms\b)(?=[\s\S]*\b120\s?ms\b)(?=[\s\S]*#455\b)'
+    flags: i
+    target: last_message
+  - name: asks-kept
+    type: regex
+    pattern: '^(?=[\s\S]*\b(?:backup|snapshot)\b)(?=[\s\S]*\bbilling\b[\s\S]{0,200}?\b(?:review|reviews|sign-?off|signs off|approve|approval)\b|[\s\S]*\b(?:review|reviews|sign-?off|approve|approval)\b[\s\S]{0,200}?\bbilling\b)'
+    flags: i
+    target: last_message
+  - name: counts-reported
+    type: regex
+    pattern: '^(?=[\s\S]*\bwords?\b)[\s\S]*?(?:\bbefore\b[^\n]{0,40}?\b\d{2,4}\b[\s\S]{0,160}?\bafter\b[^\n]{0,40}?\b\d{2,4}\b(?!\s*ms)|\b\d{2,4}\s*(?:words?\s*)?\(?before\b[\s\S]{0,120}?\b\d{2,4}\s*(?:words?\s*)?\(?after\b|\b\d{2,4}\s*words?\s*(?:->|→|to)\s*\d{2,4}\s*words?|\bbefore\b[^\n]*\n[^\n]*\n[^\n]*\b\d{2,4}\b[^\n]*\n[^\n]*\bafter\b[^\n]*\b\d{2,4}\b|\bbefore\b[^\n]*\b\d{2,4}\b[^\n]*\n[^\n]*\bafter\b[^\n]*\b\d{2,4}\b|\b(?:original|draft)\b[^\n]{0,40}?\b\d{2,4}\b[\s\S]{0,120}?\b(?:rewrite|rewritten|reshaped|revised|new)\b[^\n]{0,40}?\b\d{2,4}\b)'
+    flags: i
+    target: last_message
