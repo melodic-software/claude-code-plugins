@@ -10,9 +10,12 @@
 #
 # test-scope: plugins/planning/tests/repin.sh
 set -uo pipefail
-# The stand-in lives in a temporary git repository; an inherited GIT_DIR, GIT_WORK_TREE or
-# GIT_CONFIG would point its git commands at the caller's repository instead.
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+# The stand-in lives in a temporary git repository. Run from a git hook, inherited
+# repository-local variables (GIT_INDEX_FILE among them) would point its git commands at the
+# caller's repository instead. CALLER_INDEX keeps the caller's index path for the check below.
+CALLER_INDEX="${GIT_INDEX_FILE:-}"
+# shellcheck disable=SC2046 # one word per variable name is intended
+unset $(git rev-parse --local-env-vars)
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPIN="$HERE/repin.sh"
@@ -34,6 +37,9 @@ trap 'rm -rf "$WORK"' EXIT
 sha_of() {
   if command -v sha256sum >/dev/null 2>&1; then sha256sum <"$1" | cut -d' ' -f1; else shasum -a 256 <"$1" | cut -d' ' -f1; fi
 }
+
+CALLER_INDEX_SHA=""
+[[ -f "$CALLER_INDEX" ]] && CALLER_INDEX_SHA="$(sha_of "$CALLER_INDEX")"
 
 printf 'alpha\n' >"$WORK/alpha.txt"
 printf 'beta\n' >"$WORK/beta.txt"
@@ -173,6 +179,11 @@ if [[ $rc -eq 2 ]]; then ok "missing justification: exit 2"; else fail "missing 
 out="$(run_repin --test-file "$t" 'alpha file' $'two\nlines')"
 rc=$?
 if [[ $rc -eq 2 ]]; then ok "multi-line justification: exit 2"; else fail "multi-line justification: expected exit 2, got $rc: $out"; fi
+
+# --- the caller's index is untouched -----------------------------------------------------
+if [[ -n "$CALLER_INDEX_SHA" ]]; then
+  if [[ "$(sha_of "$CALLER_INDEX")" == "$CALLER_INDEX_SHA" ]]; then ok "caller's GIT_INDEX_FILE untouched"; else fail "the fixture wrote to the caller's index $CALLER_INDEX"; fi
+fi
 
 echo
 echo "passed: $PASS, failed: $FAIL"
