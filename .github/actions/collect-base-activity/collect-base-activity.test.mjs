@@ -1095,6 +1095,23 @@ test("a docs script copy path a rule cannot carry fails the stage", () => {
   assert.ok(wrapperRules(allowed).length === 0, allowed.join(" | "));
 });
 
+// With a domain list the docs scripts stay denied, so the prompt names
+// WebFetch on the listed hosts as the way to read a page, not read-docs.
+test("web-access with a domain list tells the run to read the listed hosts with WebFetch", () => {
+  const { status, args } = withWebAccess({ enabled: true, domains: ["code.claude.com", "docs.github.com"] });
+  assert.equal(status, 0);
+  assert.ok(args.includes("read pages only on these hosts: code.claude.com docs.github.com."), args);
+  assert.ok(args.includes("read a page on one of those hosts with WebFetch"), args);
+  assert.ok(!args.includes("read each external source through /discovery:read-docs"), args);
+});
+
+test("web-access with any domain points the run at the research skills", () => {
+  const { status, args } = withWebAccess({ enabled: true, domains: "any" });
+  assert.equal(status, 0);
+  assert.ok(args.includes("read each external source through /discovery:read-docs"), args);
+  assert.ok(!args.includes("read pages only on these hosts"), args);
+});
+
 test("web-access with a domain list allows a fetch to those domains only", () => {
   const { status, allowed, denied } = withWebAccess({ enabled: true, domains: ["code.claude.com", "*.github.com"] });
   assert.equal(status, 0);

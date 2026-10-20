@@ -261,6 +261,10 @@ runs:
                   [[ $domain =~ $host ]] || fail "web-access: a domain is not a host name"
                   allowed="$allowed,WebFetch(domain:$domain)"
                 done <<<"$domains"
+                # The docs scripts stay denied here, so /discovery:read-docs
+                # cannot run its lookup: the run reads a listed host's page
+                # with WebFetch itself.
+                web_hosts=$(paste -sd ' ' <<<"$domains")
               fi
               allowed="$allowed,WebSearch,Skill(discovery:read-docs),Skill(discovery:research),Skill(knowledge:docpage-digest),Skill(knowledge:map-corpus)"
               plugins="$plugins"$'\n'"discovery@$marketplace"$'\n'"knowledge@$marketplace"
@@ -268,7 +272,11 @@ runs:
               if [ -d "$DOCS_DIR" ]; then
                 disallowed="Edit(/$DOCS_DIR/**),Write(/$DOCS_DIR/**)"
               fi
-              system_prompt="$system_prompt This run may read web pages: read each external source through /discovery:read-docs, /discovery:research, /knowledge:docpage-digest or /knowledge:map-corpus."
+              if [ -n "${web_hosts:-}" ]; then
+                system_prompt="$system_prompt This run may search the web and read pages only on these hosts: $web_hosts. The docs scripts /discovery:read-docs runs are not available in this run, so read a page on one of those hosts with WebFetch, and cite each page you read."
+              else
+                system_prompt="$system_prompt This run may read web pages: read each external source through /discovery:read-docs, /discovery:research, /knowledge:docpage-digest or /knowledge:map-corpus."
+              fi
             fi
             # The activity's checks run from a base copy outside the working
             # directory, which the skill cannot edit, against the checkout,

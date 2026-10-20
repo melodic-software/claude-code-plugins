@@ -419,7 +419,8 @@ runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
 (`WebFetch(domain:*)` for `any`), and `Skill` for `/discovery:read-docs`, `/discovery:research`,
 `/knowledge:docpage-digest` and `/knowledge:map-corpus`; installs the `discovery` and `knowledge`
 plugins from the base marketplace copy beside the skill's own; and says so in
-`--append-system-prompt`. For `any` only, it also copies `fetch-docs.sh`, `docs-cache.sh` and
+`--append-system-prompt`. With a domain list the prompt names the hosts and WebFetch as the way to
+read a page on them, since the docs scripts `/discovery:read-docs` runs stay denied. For `any` only, it also copies `fetch-docs.sh`, `docs-cache.sh` and
 `html2md.py` from the base `discovery` plugin to `$RUNNER_TEMP/lane-docs`, makes the copy
 read-only, denies `Edit` and `Write` on it (else the skill's bare `Edit` and `Write` could rewrite
 a script its rule then runs), allows `Bash(bash <copy>/fetch-docs.sh *)` and the same rule for
