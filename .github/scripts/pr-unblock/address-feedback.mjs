@@ -302,7 +302,7 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
     const id = comment.authorId;
     const human = isHuman(comment);
     if (i > last) {
-      // NaN compares false, so an unparseable time leaves the thread alone.
+      // NaN compares false, so an unparsable time leaves the thread alone.
       if (!human || !(Date.parse(comment.createdAt ?? "") > escalatedAt)) {
         return null;
       }
