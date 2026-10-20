@@ -693,6 +693,10 @@ is_exclude_pathspec() {
 # legitimate command measured spends single digits.
 HOOK_ALIAS_WORK_MAX=128
 
+# The work budget bounds time, not stack, so the walk's nesting depth has its own
+# cap, sized to the process's stack (guard::alias_depth_max).
+guard::alias_depth_max "$HOOK_ALIAS_WORK_MAX"
+
 # Call as: alias_reexpand_admit <kind> <state-word>... — returns 1 when this
 # exact state was already analyzed, and never returns at all when the traversal
 # budget is exhausted: the guard could not finish deciding, so it fails CLOSED
@@ -794,6 +798,16 @@ check_segment() {
     # the recursion so sibling segments and unwound hops start clean.
     saved_seen=(${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"})
     saved_base="${HOOK_EFFECTIVE_BASE-}"
+    # Hard depth cap: bash recurses on the C stack, so a deep walk crashes the
+    # process (SIGSEGV, exit 139 — not a block) on a small stack before the
+    # work budget below stops it. Past the cap the guard cannot finish deciding,
+    # so it denies, as it does for an exhausted budget.
+    if ((HOOK_ALIAS_DEPTH >= HOOK_ALIAS_DEPTH_MAX)); then
+      guard::refuse_alias_chain
+      emit_tel "blocked" "alias-depth-cap"
+      exit 2
+    fi
+    ((++HOOK_ALIAS_DEPTH))
     HOOK_ALIAS_SEEN+=("$sub")
     for exp in ${HOOK_GITINV_ALIAS_EXPS[@]+"${HOOK_GITINV_ALIAS_EXPS[@]}"}; do
       [[ -n "$exp" ]] || continue
@@ -854,6 +868,7 @@ check_segment() {
         alias_reexpand_admit git "${nextw[@]}" && check_segment "${nextw[@]}"
       fi
     done
+    ((--HOOK_ALIAS_DEPTH))
     HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"})
     HOOK_EFFECTIVE_BASE="$saved_base"
   fi
@@ -1483,6 +1498,7 @@ fi
 # and would reset it) and save/restored around each recursion; a multi-command
 # line runs check_segment once per top-level segment, each starting from empty.
 HOOK_ALIAS_SEEN=()
+HOOK_ALIAS_DEPTH=0
 
 # Directory the tool call runs in, and therefore the base every width probe is
 # measured from. A `!` shell alias relocates it mid-parse, so it is save/restored

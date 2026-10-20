@@ -688,6 +688,9 @@ persisted_alias_expansions() {
 # fail-closed posture for that edge. Accepted residual; revisit with an
 # in-hook wall-clock check if it is ever observed in a session record.
 HOOK_ALIAS_WORK_MAX=128
+# The work budget bounds time, not stack, so the walk's nesting depth has its own
+# cap, sized to the process's stack (guard::alias_depth_max).
+guard::alias_depth_max "$HOOK_ALIAS_WORK_MAX"
 
 # Call as: alias_reexpand_admit <kind> <state-word>... — returns 1 when this
 # exact state was already analyzed, and never returns at all when the traversal
@@ -799,6 +802,14 @@ check_segment() {
     saved_seen=(${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"})
     saved_shell_seen=(${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"})
     saved_base="${HOOK_EFFECTIVE_BASE-}"
+    # Hard depth cap (guard::alias_depth_max): past it the guard cannot finish
+    # deciding on this stack, so it denies, as it does for an exhausted budget.
+    if ((HOOK_ALIAS_DEPTH >= HOOK_ALIAS_DEPTH_MAX)); then
+      guard::refuse_alias_chain
+      emit_tel "blocked" "alias-depth-cap"
+      exit 2
+    fi
+    ((++HOOK_ALIAS_DEPTH))
     HOOK_ALIAS_SEEN+=("$sub")
     if [[ "$HOOK_GITINV_ALIAS_TERM" == "inline" ]]; then
       # Inline alias (-c/--config): each spelling's expansion is literally present. Re-check
@@ -909,6 +920,7 @@ check_segment() {
         fi
       done
     fi
+    ((--HOOK_ALIAS_DEPTH))
     HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"})
     HOOK_SHELL_ALIAS_SEEN=(${saved_shell_seen[@]+"${saved_shell_seen[@]}"})
     HOOK_EFFECTIVE_BASE="$saved_base"
@@ -1077,6 +1089,7 @@ fi
 # bodies never shrink) on one analysis path; same lifecycle.
 HOOK_ALIAS_SEEN=()
 HOOK_SHELL_ALIAS_SEEN=()
+HOOK_ALIAS_DEPTH=0
 
 # Directory a `!` shell-alias body would run from — the payload cwd at the top
 # level, then each `!` reparse's own repository as the walk descends.
