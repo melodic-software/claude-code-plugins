@@ -336,9 +336,10 @@ lanes:
 
 # The model, effort and turn budget of every model run (README.md, Models).
 # Aliases only, never full model IDs. `default` passes no --model, so the
-# account's default model runs. No profile sets effort, so each run keeps its
-# model's default effort. Every skill activity takes default-profile;
-# pr-verify.yml's judgment routes as verify-pr.
+# account's default model runs. A profile with no effort keeps its model's
+# default effort. A role profile names a multi-agent role in place of a model.
+# A skill activity with no route takes default-profile; pr-verify.yml's
+# judgment routes as verify-pr.
 models:
   profiles:
     standard: { model: default, max-turns: 75 }
@@ -346,8 +347,16 @@ models:
     pr-review: { model: sonnet, effort: high, max-turns: 75 }
     triage: { model: sonnet, effort: medium, max-turns: 30 }
     summary: { model: sonnet, effort: medium, max-turns: 10 }
+    # A worker on code at the verifier's effort, from the multi-agent role map;
+    # the turn budget standard gave.
+    code-fix:
+      role: worker
+      workload: code
+      effort-role: verifier
+      max-turns: 75
   default-profile: standard
   routes:
+    fix-ci: code-fix
     verify-pr: review
     review-code: pr-review
     review-security: pr-review

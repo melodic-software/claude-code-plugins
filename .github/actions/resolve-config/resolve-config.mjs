@@ -36,6 +36,8 @@ const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
 const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
+// The multi-agent role map a role profile resolves through.
+const ROLE_MAP_PATH = "plugins/multi-agent/reference/defaults.yaml";
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -226,7 +228,7 @@ function modelOutputs(models) {
     "settings-json": modelSettings(models),
     "max-turns": String(models["max-turns"]),
     // run-claude-cli inputs: `default` has no --model to pass, so it is empty
-    // and the caller fails on it.
+    // and the caller fails on it. A role profile always resolves an alias.
     model: models.model === "default" ? "" : models.model,
     effort: models.effort ?? "",
   };
@@ -256,6 +258,7 @@ function outputsFor({ lane, selected }) {
     issues: selected.grant.issues,
     // Only a read grant cannot commit; any other value keeps the signed-commit check.
     "can-commit": String(selected.grant.contents !== "read"),
+    ...(selected["applied-by"]?.patch === undefined ? {} : { "applied-by-patch": selected["applied-by"].patch }),
     ...(selected.prepare === undefined ? {} : { prepare: selected.prepare }),
     ...(selected["issue-dimensions"] === undefined
       ? {}
@@ -285,6 +288,7 @@ function filesUnderBase(basePath, configPath, readRules = readOwn) {
     vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
     codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
     trustedActors: readJsonUnderBase(basePath, TRUSTED_ACTORS_PATH),
+    roleMap: readUnderBase(basePath, ROLE_MAP_PATH),
     laneRules: readRules("./lane-rules.json"),
     effectGrants: readRules("./effect-grants.json"),
     activityRules: readRules("./activity-rules.json"),

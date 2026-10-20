@@ -682,16 +682,63 @@ function grantFor(effectGrants, effect) {
   return Object.freeze({ ...row });
 }
 
+// The owner's model for a role route that resolves to no alias: CI has no
+// session, so `inherit`, a missing role map or role, and any value that is not
+// an alias (`default`, a model ID) all run on it.
+const FALLBACK_MODEL = "opus";
+const ROUTED_ALIASES = new Set(["best", "fable", "haiku", "opus", "sonnet"]);
+const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
+
+// The multi-agent role map (plugins/multi-agent/reference/defaults.yaml) as
+// data, or null when its text is absent or does not parse.
+function roleMapOf(text) {
+  if (typeof text !== "string") {
+    return null;
+  }
+  const document = parseDocument(text, { maxAliasCount: 0, merge: false, uniqueKeys: true });
+  if (document.errors.length > 0) {
+    return null;
+  }
+  const map = document.toJS({ maxAliasCount: 0 });
+  return isObject(map?.roles) ? map : null;
+}
+
+const roleOf = (roleMap, name) =>
+  roleMap !== null && Object.hasOwn(roleMap.roles, name) && isObject(roleMap.roles[name])
+    ? roleMap.roles[name]
+    : {};
+
+// A role profile's model and effort from the role map: the workload's value
+// over the role's own, `effort-role` naming the role whose effort applies.
+function roleModels(values, roleMapText) {
+  const roleMap = roleMapOf(roleMapText);
+  const role = roleOf(roleMap, values.role);
+  const workload = isObject(role.workloads) && isObject(role.workloads[values.workload])
+    ? role.workloads[values.workload]
+    : {};
+  const model = workload.model ?? role.model;
+  const effortRole = values["effort-role"] === undefined ? undefined : roleOf(roleMap, values["effort-role"]);
+  const effort = effortRole === undefined ? (workload.effort ?? role.effort) : effortRole.effort;
+  return {
+    role: values.role,
+    ...(values.workload === undefined ? {} : { workload: values.workload }),
+    model: ROUTED_ALIASES.has(model) ? model : FALLBACK_MODEL,
+    effort: EFFORTS.has(effort) ? effort : null,
+  };
+}
+
 // The profile a route takes, with every default applied: its route's profile,
-// else default-profile; the built-in one when the config has no `models`.
-function routeModels(models = BUILTIN_MODELS, route) {
+// else default-profile; the built-in one when the config has no `models`. A
+// role profile takes its model and effort from the role map.
+function routeModels(models = BUILTIN_MODELS, route, roleMapText) {
   const routes = models.routes ?? {};
   const profile = Object.hasOwn(routes, route) ? routes[route] : models["default-profile"];
   const values = models.profiles[profile];
   return {
     profile,
-    model: values.model,
-    effort: values.effort ?? null,
+    ...(values.role === undefined
+      ? { model: values.model, effort: values.effort ?? null }
+      : roleModels(values, roleMapText)),
     "subagent-model": values["subagent-model"] ?? "inherit",
     "max-turns": values["max-turns"],
   };
@@ -726,12 +773,12 @@ export function resolveRoute(files, { route, configPath }) {
       `\`${route}\` is not a run route; one of ${[...RUN_ROUTES].join(", ")} is required`,
     );
   }
-  return routeModels(loadConfig(files, { configPath }).models, route);
+  return routeModels(loadConfig(files, { configPath }).models, route, files.roleMap);
 }
 
 function resolveSlot(
   { name, activity, predicate, predicates, enabled, needs },
-  { effectGrants, codeowners, trustedActors },
+  { effectGrants, codeowners, trustedActors, roleMap },
   facts,
   decided,
   models,
@@ -769,7 +816,7 @@ function resolveSlot(
     }
   }
   const kind = activity.skill === undefined ? "script" : "skill";
-  let runModels = kind === "skill" ? routeModels(models, name) : null;
+  let runModels = kind === "skill" ? routeModels(models, name, roleMap) : null;
   let sizing = {};
   if (dimensionedBy(activity, models)) {
     const config = models["issue-dimensions"];
