@@ -95,7 +95,7 @@ async page => {
     ok("AC16: i focuses the note", (await focused()) === "note" && (await page.inputValue("#note")) === "");
     await page.keyboard.press("Escape");
     await page.keyboard.press("/");
-    ok("AC16: / focuses the filter", (await focused()) === "filter");
+    ok("#5915: / focuses the search box", (await focused()) === "search");
     await page.click("main.detail h3");
     const n1 = (await events()).length;
     await page.keyboard.press("r"); await page.waitForTimeout(400);
@@ -110,6 +110,29 @@ async page => {
     ok("Ctrl+Enter saves nothing behind the open ? sheet", armedBehind && (await events()).length === n1 && await page.evaluate(() => document.getElementById("keysDlg").open), "armed " + armedBehind);
     await page.keyboard.press("Escape"); await page.waitForTimeout(150);
     ok("AC16: Esc closes the sheet", await page.evaluate(() => !document.getElementById("keysDlg").open));
+    // #5915: the Show filter key, search and jump, the URL hash, and the rail button's accessible name
+    await page.click("main.detail h3"); await page.keyboard.press("s");
+    ok("#5915: s focuses the Show filter", (await focused()) === "filter");
+    await page.keyboard.press("Escape");
+    await page.click("#search"); await page.keyboard.type("1"); await page.keyboard.press("Enter"); await page.waitForTimeout(250);
+    ok("#5915: typing 1 then Enter selects Q1", (await sel()) === "Q1", await sel());
+    ok("#5915: selecting a question writes its id to the URL hash", (await page.evaluate(() => location.hash)) === "#Q1", await page.evaluate(() => location.hash));
+    const q1 = (await state()).questions.questions.find(x => x.id === "Q1"), short1 = q1.short || q1.title, total = (await page.$$(".rail-list .qbtn")).length;
+    await page.fill("#search", short1); await page.waitForTimeout(250);
+    const hits = await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q));
+    ok("#5915: words filter the rail to the questions that contain them", hits.includes("Q1") && hits.length < total, hits.join(",") + " of " + total);
+    await page.fill("#search", "zzzz-no-such-word"); await page.waitForTimeout(250);
+    ok("#5915: a search that matches nothing says so in the rail", /No questions match/.test(await page.textContent("#railList")));
+    await page.fill("#search", ""); await page.waitForTimeout(150);
+    await page.evaluate(() => { location.hash = "#P1"; }); await page.waitForTimeout(300);
+    const viaHash = await sel();
+    await page.evaluate(() => { location.hash = "#NO-SUCH-ID"; }); await page.waitForTimeout(300);
+    ok("#5915: a hashchange selects the named question, and an unknown id leaves the selection alone", viaHash === "P1" && (await sel()) === "P1", viaHash + " then " + await sel());
+    const nm = await page.$eval('.qbtn[data-q="Q1"]', el => ({label: el.getAttribute("aria-label"), desc: (document.getElementById(el.getAttribute("aria-describedby")) || {}).textContent || ""}));
+    ok("#5915: a rail button's accessible name is its id, short title and state", nm.label.startsWith("Q1, ") && nm.label.includes(short1) && /, Accepted/.test(nm.label) && !/needs/.test(nm.label), nm.label);
+    ok("#5915: the rest of the card is the button's accessible description", /Accepted/.test(nm.desc), nm.desc);
+    await page.goto(base + "?load=1#Q3"); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(500);
+    ok("#5915: loading the page with #Q3 selects Q3", (await sel()) === "Q3", await sel());
     // Hedged: accept with a required condition note; its commitments count like an accept's
     await pick("Q3"); await page.click("main.detail h3");
     await page.keyboard.press("h");

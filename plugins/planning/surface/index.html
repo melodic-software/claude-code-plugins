@@ -108,7 +108,10 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
 .trow{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12.5px;color:var(--muted)}
 .trow select{font:12.5px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--edge);border-radius:5px;padding:3px 4px}
+.trow.srch label{display:flex;flex:1;gap:6px;align-items:center}
+.trow input[type="search"]{flex:1;min-width:0;font:12.5px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--edge);border-radius:5px;padding:3px 6px}
 .order-note{font:500 11.5px/1.3 var(--mono);color:var(--faint)}
+.qmore{display:contents}
 .rail-list{overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:12px;padding:2px 6px 24px 2px}
 .sumbtn{width:100%;text-align:left;border:1px dashed var(--line-strong);border-radius:6px;background:transparent;padding:7px 10px;font:500 13px var(--sans);cursor:pointer;color:var(--muted)}
 .sumbtn[aria-current="true"]{border-style:solid;border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
@@ -432,8 +435,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         <div class="seg" role="group" aria-label="View">
           <button data-view="groups">Groups</button><button data-view="rounds">Rounds</button><button data-view="tree">Tree</button>
         </div>
+        <div class="trow srch">
+          <label>Search <input type="search" id="search" placeholder="Number or words" autocomplete="off" aria-keyshortcuts="/" aria-describedby="searchNote"></label>
+        </div>
+        <div class="order-note" id="searchNote" role="status" aria-live="polite"></div>
         <div class="trow">
-          <label>Show <select id="filter" aria-keyshortcuts="/"><option value="all">All</option><option value="open">Open</option><option value="review">Review</option><option value="pending">Pending</option><option value="answered">Answered</option></select></label>
+          <label>Show <select id="filter" aria-keyshortcuts="s"><option value="all">All</option><option value="open">Open</option><option value="review">Review</option><option value="pending">Pending</option><option value="answered">Answered</option></select></label>
           <span class="order-note" id="orderNote"></span>
         </div>
       </div>
@@ -524,12 +531,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     ["a", "Arm Rec; on a stale question with a decision, Reconfirm it (the first row), except an accept whose recommendation changed since"], ["o", "Arm Own answer and focus the note"], ["d", "Arm Defer"], ["h", "Arm Hedged (accept with a condition) and focus the note"], ["r", "Reopen"], ["i", "Focus the note"],
     ["Esc", "Leave the note and keep the draft; again to close the panel"], ["n / Shift+N", "Next / previous item needing you"], ["j / k, Alt+Down / Alt+Up", "Next / previous question"],
     ["[", "Hide or show the question list"], ["v / m / l / ,", "Visuals / Notes to Claude / Activity / Settings"], ["f", "Full-screen visual"], ["Left / Right", "Previous / next image in a gallery, while the visuals panel or full screen has focus"], ["w", "Summary and wrap-up"],
-    ["u", "Undo, during the undo window"], ["/", "Filter"], ["?", "This sheet"]];
+    ["u", "Undo, during the undo window"], ["/", "Search the questions: Enter jumps to a number (100 opens Q100), words filter the list"], ["s", "Filter: the Show list"], ["?", "This sheet"]];
   const LOADED_AT = Date.now();
 
   const S = {doc: {meta: {}, groups: [], questions: [], visuals: [], notes: []}, resp: {seq: 0, responses: {}, history: {}, events: []},
     listener: {state: "idle"}, online: false, session: "", sel: null, pick: new Set(), busy: false, toast: "", toastBad: false, toastUndo: false,
-    view: "groups", filter: "all", fly: null, pinned: false, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
+    view: "groups", filter: "all", search: "", fly: null, pinned: false, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
     instance: "", restarted: false, finished: null, need: null, actKeys: null,
     armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
@@ -698,7 +705,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     S.doc.questions.forEach(q => { const n = (max[q.stage || ""] || 0) - (q.round || 1); if (n > 0 && needsYou(q)) out[q.id] = n; });
     return out;
   }
-  function passes(q){
+  const searchTerm = () => S.search.trim().toLowerCase();
+  const matchesSearch = q => { const t = searchTerm(); return !t || [q.id, q.short, q.title].some(v => String(v ?? "").toLowerCase().includes(t)); };
+  const clearSearch = () => { S.search = ""; $("search").value = ""; };
+  const filtering = () => S.filter !== "all" || !!searchTerm();
+  const passes = q => passesShow(q) && matchesSearch(q);
+  function passesShow(q){
     const st = stateOf(q);
     return S.filter === "all" || (S.filter === "open" && needsYou(q) && !isAnswered(st)) || (S.filter === "review" && needsYou(q) && isAnswered(st)) || (S.filter === "pending" && (st === "wait" || st === "need" || q.state === "upstream-pending" || waitingReply(q))) || (S.filter === "answered" && isAnswered(st));
   }
@@ -791,20 +803,22 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const met = p => '<span class="metmark" role="img" aria-label="' + (gone(p) ? "left the path" : "answered") + '" title="' + (gone(p) ? "Left the path" : "Answered") + '">\u2713</span>';
     const needs = upOf(q).length ? '<span class="needsrow">' + upOf(q).map(p => '<span class="needs' + (parentMet(p) ? " met" : " unmet") + '">needs ' + esc(p + gone(p)) + (parentMet(p) ? met(p) : "") + "</span>").join("") + "</span>" : "";
     const lc = latestClaude(q), dot = fresh && fresh.has(q.id) && S.sel !== q.id;
-    return '<button class="qbtn st-' + esc(st) + (st === "sup" || q.offPath ? " dim" : up ? " waiting" : "") + (st === "arch" ? " archived" : "") + '" data-q="' + esc(q.id) + '" aria-current="' + (S.sel === q.id) + '">' +
-      '<span class="qid" title="' + esc(q.id) + '">' + esc(q.id) + '</span><span class="qbody"><span class="qtitle">' + esc(String(q.short || q.title).replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+\)/g, "$1")) + "</span>" + needs +
-      '<span class="qmeta">' + chips.join("") + "</span>" + (lc ? '<span class="qprev">Claude: ' + esc(trunc(firstLine(lc.text), 100)) + "</span>" : "") + "</span>" +
+    const ttl = String(q.short || q.title).replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+\)/g, "$1"), name = q.id + ", " + ttl + ", " + (st === "open" && blocked(q) ? "open, blocked" : LABEL[st]) + (dot ? ", updated" : ""); // the name is id, short title and state; the chips and preview are its description
+    return '<button class="qbtn st-' + esc(st) + (st === "sup" || q.offPath ? " dim" : up ? " waiting" : "") + (st === "arch" ? " archived" : "") + '" data-q="' + esc(q.id) + '" aria-current="' + (S.sel === q.id) + '" aria-label="' + esc(name) + '" aria-describedby="qd-' + esc(q.id) + '">' +
+      '<span class="qid" title="' + esc(q.id) + '">' + esc(q.id) + '</span><span class="qbody"><span class="qtitle">' + esc(ttl) + '</span><span class="qmore" id="qd-' + esc(q.id) + '">' + needs +
+      '<span class="qmeta">' + chips.join("") + "</span>" + (lc ? '<span class="qprev">Claude: ' + esc(trunc(firstLine(lc.text), 100)) + "</span>" : "") + "</span></span>" +
       (dot ? '<span class="newdot" title="Changed by Claude"></span><span class="vh">, updated</span>' : "") + "</button>";
   }
-  function treeHtml(clickable){
+  function treeHtml(clickable, fly){ // fly: the Map panel's copy, whose description ids must not repeat the rail's
     const t = treeData(), on = pathOf(t, S.sel), seen = new Set(), fresh = unseenIds();
     const node = id => {
       if (seen.has(id)) return ""; seen.add(id);
       const q = Q[id], kids = (t.kids[id] || []).map(node).join("");
-      if (!passes(q) && S.filter !== "all") return kids; // a filtered-out node drops out and its matching descendants move up a level
+      if (!passes(q) && filtering()) return kids; // a filtered-out node drops out and its matching descendants move up a level
       let h = railItem(q, null, {}, fresh);
       h = h.replace('class="qbtn', 'class="qbtn' + (on.has(id) && S.sel && S.sel !== SUMMARY ? " onpath" : ""));
       if (!clickable) h = h.replace("<button", '<button tabindex="-1"');
+      if (fly) h = h.replace(/(id|aria-describedby)="qd-/g, '$1="fqd-');
       const also = (t.extra[id] || []).length ? '<div class="also">also after ' + t.extra[id].map(esc).join(", ") + "</div>" : "";
       return "<li>" + h + also + (kids ? '<ul class="tree">' + kids + "</ul>" : "") + "</li>";
     };
@@ -823,8 +837,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       const {secs, carry} = sections(), op = opened(), fresh = unseenIds();
       for (const s of secs) {
         const items = s.items.filter(passes);
-        if (!items.length && S.filter !== "all") continue;
-        const o = lsGet("col:" + s.key, null), coll = s.collapsed && !(S.filter !== "all" && !(o && o.d === s.done)); // a filter opens a section with no applicable stored toggle that holds a match
+        if (!items.length && filtering()) continue;
+        const o = lsGet("col:" + s.key, null), coll = s.collapsed && !(filtering() && !(o && o.d === s.done)); // a filter opens a section with no applicable stored toggle that holds a match
         const elig = s.items.filter(q => s.gid ? eligible(q) : op.has(q.id) && eligible(q)), picked = s.gid ? elig.filter(q => S.pick.has(q.id)) : [], aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
         html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + coll + '" data-dflt="' + s.done + '">' +
           '<div class="sec-top"><button class="sec-h" aria-expanded="' + !coll + '"><span class="caret">&#9662;</span><h2>' + esc(s.title) + '</h2><span class="cnt">' + s.open + " open / " + s.items.length + (s.review ? ", " + s.review + " to review" : "") + "</span></button>" +
@@ -836,7 +850,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
           '<ul class="qlist">' + (items.length ? items.map(q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + railItem(q, s, carry, fresh) + "</li>"; }).join("") : '<li class="empty">None.</li>') + "</ul></div>";
       }
     }
-    if (S.filter !== "all" && !railOrder().length) html += '<p class="empty">No questions match this filter.' + (S.filter === "pending" ? " Pending means waiting on research, on another person's answer, on an earlier question, or on Claude's reply." : "") + "</p>";
+    const hiddenByShow = searchTerm() && S.filter !== "all" ? S.doc.questions.filter(q => matchesSearch(q) && !passesShow(q)).length : 0; // the Show filter and the search both apply, so say when Show hides matches
+    $("searchNote").textContent = hiddenByShow ? hiddenByShow + (hiddenByShow === 1 ? " match is" : " matches are") + " hidden by Show: " + $("filter").selectedOptions[0].textContent + "." : "";
+    if (filtering() && !railOrder().length) html += '<p class="empty">' + (searchTerm() ? "No questions match " + esc('"' + S.search.trim() + '"') + (S.filter !== "all" ? " with this filter" : "") : "No questions match this filter") + "." + (S.filter === "pending" ? " Pending means waiting on research, on another person's answer, on an earlier question, or on Claude's reply." : "") + "</p>";
     list.innerHTML = html;
     list.scrollTop = top;
     (flashIds || []).forEach(id => list.querySelectorAll('.qbtn[data-q="' + CSS.escape(id) + '"]').forEach(el => el.classList.add("flash")));
@@ -1492,7 +1508,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const tabBtn = x => '<button data-vtab="' + esc(x.id) + '" aria-selected="' + (x.id === S.vtab) + '"' + (x.tip ? ' title="' + esc(x.tip) + '"' : "") + ">" + esc(x.title) + "</button>";
     let h = vgs.map(g => '<div class="tgroup"' + (g.group ? ' role="group" aria-label="' + esc(g.group) + '"' : "") + ">" + (g.group ? '<div class="tgh">' + esc(g.group) + "</div>" : "") + '<div class="tabs">' + g.tabs.map(tabBtn).join("") + "</div></div>").join("") +
       '<div class="tgroup"><div class="tabs">' + tail.map(tabBtn).join("") + "</div></div>";
-    if (t.id === "map") { body.innerHTML = h + '<div class="fscope">Questions by depends and follow-up links. The current path is outlined.</div>' + treeHtml(true); return; }
+    if (t.id === "map") { body.innerHTML = h + '<div class="fscope">Questions by depends and follow-up links. The current path is outlined.</div>' + treeHtml(true, true); return; }
     if (t.imgs) { body.innerHTML = h + galBody(t.imgs); return; }
     const vb = visualBody(t.v);
     h += '<div class="fscope">From ' + esc(t.v.where) + "</div>" + (vb.cap || "") + (vb.md || vb.html || frameTag(vb, t.v.title || t.v.id)) +
@@ -1602,6 +1618,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (id !== SUMMARY && !Q[id]) return;
     if (S.sel !== id) { S.armed = null; S.vtab = null; S.revSeen = lsGet("revSeen", {})[id]; if (!S.undo) { S.toast = ""; S.toastBad = false; renderToast(); } } // a toast speaks for the view it was raised on
     S.sel = id; lsSet("sel", id);
+    try { history.replaceState(null, "", location.pathname + location.search + (id === SUMMARY ? "" : "#" + encodeURIComponent(id))); } catch (e) {} // replace, so Back leaves the page rather than walking the questions
     if (id !== SUMMARY) {
       markSeen(e => (e.ids || []).includes(id));
       const op = opened(); if (!op.has(id)) { op.add(id); lsSet("opened", [...op]); }
@@ -1615,13 +1632,35 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t === SUMMARY) { markSeen(isRestate); select(SUMMARY, {animate: true}); const r = $("restate"); if (r) r.scrollIntoView({block: "start"}); focusHead(); return; }
     if (!Q[t]) return;
     const hidden = !passes(Q[t]) || S.railHidden;
-    if (!passes(Q[t])) { S.filter = "all"; lsSet("filter", "all"); }
+    if (!passes(Q[t])) { S.filter = "all"; lsSet("filter", "all"); clearSearch(); }
     if (S.railHidden) { S.railHidden = false; lsSet("railHidden", false); }
     const s = S.view === "tree" ? null : sections().secs.find(x => x.items.some(q => q.id === t));
     if (s) lsSet("col:" + s.key, {c: false, d: s.done});
     select(t, {animate: true}); renderFly();
     if (hidden) toast("Showing all to reveal " + t + ".");
     focusHead();
+  }
+  function hashId(){ // the question the URL hash names (#Q100), else null: an unknown id leaves the selection alone
+    let h = location.hash.slice(1); try { h = decodeURIComponent(h); } catch (e) {}
+    const k = h.toLowerCase(); return Object.keys(Q).find(id => id.toLowerCase() === k) || null;
+  }
+  function searchTarget(){ // Enter in the search box: an exact id, else a bare number (100 is Q100), else the first match in the rail
+    const t = S.search.trim(), low = t.toLowerCase(), ids = Object.keys(Q).sort(idCmp);
+    if (!t) return null;
+    const exact = ids.find(id => id.toLowerCase() === low); if (exact) return exact;
+    if (/^\d+$/.test(t)) { const n = String(+t), byNum = ids.find(id => id.toLowerCase() === "q" + n) || ids.find(id => id.replace(/^\D+/, "").replace(/^0+(?=\d)/, "") === n); if (byNum) return byNum; }
+    return railOrder()[0] || null;
+  }
+  function searchJump(){
+    const id = searchTarget();
+    if (!id) { if (S.search.trim()) toast("No question matches " + JSON.stringify(S.search.trim()) + ".", true); return; }
+    const hidden = !passesShow(Q[id]);
+    if (!matchesSearch(Q[id])) clearSearch(); // a zero-padded number reaches a question the text does not match
+    if (hidden) { S.filter = "all"; lsSet("filter", "all"); }
+    const sec = S.view === "tree" ? null : sections().secs.find(x => x.items.some(q => q.id === id));
+    if (sec) lsSet("col:" + sec.key, {c: false, d: sec.done}); // open the group that holds the target
+    select(id, {animate: true});
+    if (hidden) toast("Showing all to reveal " + id + ".");
   }
   function step(dir){
     const order = railOrder(); if (!order.length) return;
@@ -1815,7 +1854,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       }
       if (fresh.length && !typing) { // go to the first dependent this save made stale, where the filter shows it
         S.staleQ = fresh.slice(1);
-        if (!passes(Q[fresh[0]])) { S.filter = "review"; lsSet("filter", S.filter); }
+        if (!passes(Q[fresh[0]])) { S.filter = "review"; lsSet("filter", S.filter); clearSearch(); }
         select(fresh[0], {animate: true}); toast("Saved " + q.id + "." + sm + " Now " + fresh[0] + "." + queued(), false, true); return;
       }
       const nxt = nextNeeding(1), done = allDone();
@@ -1985,8 +2024,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       S.fly = lsGet("fly", null); if (!["visuals", "notes", "activity", "settings"].includes(S.fly)) S.fly = null;
       S.pinned = lsGet("pinned", false); S.railHidden = lsGet("railHidden", false); S.noteSeen = lsGet("noteSeen", 0);
       if (lsGet("actSeen", null) === null) markSeen(); // a new browser starts with everything seen
-      const saved = lsGet("sel", null);
-      const pick = saved === SUMMARY || (saved && Q[saved]) ? saved : allDone() ? SUMMARY : firstNeeding();
+      const saved = lsGet("sel", null), hid = hashId();
+      if (hid && !passes(Q[hid])) { S.filter = "all"; lsSet("filter", "all"); } // a link opens its question even when Show hides it
+      const hsec = hid && S.view !== "tree" ? sections().secs.find(x => x.items.some(q => q.id === hid)) : null;
+      if (hsec) lsSet("col:" + hsec.key, {c: false, d: hsec.done}); // open the group that holds the linked question
+      const pick = hid || (saved === SUMMARY || (saved && Q[saved]) ? saved : allDone() ? SUMMARY : firstNeeding());
       if (pick) select(pick); else { renderRail(); renderDetail(); }
       if (document.hidden) S.hiddenBase = arrivalKeys(); // a tab opened in the background fires no visibilitychange
       renderHeader(); renderFly(); showFinish();
@@ -2072,7 +2114,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const go = t.closest("[data-go]"); if (go) { goTo(go.dataset.go); return; }
     if (t.closest("[data-allact], #claudeLine, #workLine")) { showFly("activity"); return; }
     if (t.closest("#meterText")) { const n = nextNeeding(1); if (n) select(n, {animate: true}); else select(SUMMARY, {animate: true}); return; }
-    if (t.closest("#pendBtn, #revBtn")) { S.filter = t.closest("#revBtn") ? "review" : "pending"; lsSet("filter", S.filter); S.railHidden = false; lsSet("railHidden", false); renderFly(); renderRail(); return; }
+    if (t.closest("#pendBtn, #revBtn")) { S.filter = t.closest("#revBtn") ? "review" : "pending"; lsSet("filter", S.filter); clearSearch(); S.railHidden = false; lsSet("railHidden", false); renderFly(); renderRail(); return; }
     const tc = t.closest("#assumeCount, [data-toconfirm]"); // the list, or one question's entries in it
     if (tc) { select(SUMMARY, {animate: true}); const c = $("tc-" + (tc.dataset.toconfirm || "")) || $("toConfirm"); if (c) c.scrollIntoView({block: "start"}); return; }
     if (t.closest("[data-again]")) { const r = document.querySelector('#choices input[type="radio"]'); if (r) r.focus(); return; }
@@ -2138,6 +2180,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   document.addEventListener("toggle", e => { if (e.target.id === "more") lsSet("moreOpen", e.target.open); else if (e.target.id === "src") lsSet("srcOpen", e.target.open); }, true);
   document.addEventListener("input", e => {
     if (e.target.id === "note") { if (S.sel && Q[S.sel]) lsSet("draft:" + S.sel, e.target.value); grow(e.target); renderAnswer(); }
+    else if (e.target.id === "search") { S.search = e.target.value; renderRail(); }
     else if (e.target.id === "noteText") { lsSet("noteDraft", e.target.value); grow(e.target); }
     else if (e.target.id === "offText") S.offDraft = e.target.value;
     else if (e.target.id === "looseReply") S.looseDraft = e.target.value;
@@ -2181,6 +2224,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       if (S.fly && !S.pinned) showFly(null);
       return;
     }
+    if (e.key === "Enter" && e.target.id === "search" && !e.ctrlKey && !e.metaKey && !modal && !fullScreen) { e.preventDefault(); searchJump(); return; }
     if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && e.target.closest && e.target.closest("[data-submit]")) { e.preventDefault(); return; } // dictation: plain Enter never submits
     const flip = (e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey ? (e.key === "ArrowRight" ? 1 : -1) : 0;
     if (flip && (fullScreen || (S.fly === "visuals" && $("fly").contains(document.activeElement))) && !(e.target.closest && e.target.closest("select")) && curGallery()) { e.preventDefault(); galFlip(flip); return; }
@@ -2198,7 +2242,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else if (k === "j") step(1); else if (k === "k") step(-1);
     else if (k === "n" || k === "N") { const n = nextNeeding(k === "N" ? -1 : 1); if (n) select(n, {animate: true}); else if (k === "n" && allDone()) select(SUMMARY, {animate: true}); }
     else if (k === "i") $("note").focus();
-    else if (k === "/") $("filter").focus();
+    else if (k === "/") $("search").focus();
+    else if (k === "s") $("filter").focus();
     else if (k === "?") openSheet();
     else if (k === "u") doUndo();
     else if (k === "w") select(SUMMARY, {animate: true});
@@ -2208,6 +2253,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else return;
     e.preventDefault(); // a key that moved focus into a text box must not type itself there
   });
+  window.addEventListener("hashchange", () => { const id = hashId(); if (S.loaded && id && id !== S.sel) goTo(id); });
   window.addEventListener("resize", () => grow($("note")));
   let wasUnheard = false;
   setInterval(() => { if (!S.loaded) return; renderHeader(); const u = unheard(); if (u !== wasUnheard) { wasUnheard = u; renderRail(); renderHeader(); } }, 2000); // unheard() turns true as time passes, so the header is redrawn after the rail on the tick it flips
