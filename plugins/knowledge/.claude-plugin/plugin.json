@@ -1,6 +1,6 @@
 {
   "name": "knowledge",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "description": "Ingests external knowledge into synthesized artifacts: book-distill (PDF or EPUB into author-attributed reference files), video-digest (one YouTube or X video: transcript, links, repo applicability), course-digest (Dometrain and Teachable courses into recommendations), docpage-digest (one documentation page into a verified knowledge slice), and map-corpus (a multi-resource corpus into a classified link map and an approved docpage-digest queue). setup sets where artifacts land.",
   "author": {
     "name": "Melodic Software",
@@ -65,6 +65,12 @@
       "default": 1,
       "min": 1,
       "max": 3
+    },
+    "asr_python": {
+      "type": "string",
+      "title": "Python interpreter for faster-whisper",
+      "description": "Path to the Python interpreter that imports faster_whisper, probed before python, python3 and py on PATH (video-digest's optional ASR rung). Use it when the default Python refuses pip install --user. Empty by default. Nothing is installed.",
+      "default": ""
     }
   }
 }

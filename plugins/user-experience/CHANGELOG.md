@@ -3,6 +3,30 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2] - 2026-10-20
+
+### Fixed
+
+- Team settings now resolve a `research_paths`, `persona_paths` or `output_home` entry that does not exist yet through its deepest existing ancestor before the root, dot and outside-the-project checks, so a committed link to the project root can no longer carry `rootlink/.claude` or `rootlink/.github/workflows` into a dot directory. `rootlink/new` stays allowed.
+
+## [0.2.1] - 2026-10-20
+
+### Changed
+
+- The plugin moves to changelog-fragment releases.
+
+- `scripts/detect.mjs` now reads the team file through a generated copy of the shared
+  resolver `lib/config-cascade.mjs` (ADR 0075), as `user-interface` does. The detection output for
+  a team file at the convention home is unchanged, and `--team FILE` still replaces the resolved
+  team file. The resolver also applies a `user-experience.local.yaml` beside the team file over its
+  keys, refuses a team file that is a symlink (the file is then skipped as unreadable), and reports
+  a rejected value as a warning; a warning for a local value names the local file. Only the team
+  file sets `version`.
+
+### Fixed
+
+- Team settings now drop a `research_paths`, `persona_paths` or `output_home` entry whose first path segment starts with a dot (`.env`, `.aws/credentials`, `.ssh/x`, `.claude-notes/ux`), as written and through symlinks, with a warning. `.claude` and `.git` stay dropped.
+
 ## [0.2.0] - 2026-10-20
 
 ### Added

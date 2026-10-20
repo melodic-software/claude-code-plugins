@@ -626,7 +626,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     await setHidden(false); await page.waitForTimeout(200);
     const sent = await post({kind: "note", text: "first note"});
     await page.request.get((await page.evaluate(() => location.origin)) + "/api/wait?after=0&timeout=1", {headers: {"X-Interview-Token": await token()}}); // delivers it: a wake is in flight
-    await page.waitForTimeout(300);
+    await until(() => /^Claude is working on /.test(document.getElementById("workLine").textContent), 5000); // the page has seen the delivery, the state queued() reads
     ok("the first note posted", sent.ok(), sent.status());
     await page.click("#title"); await page.keyboard.press("l"); await page.click("#flyClose").catch(() => {});
     await page.evaluate(() => document.querySelector('[data-panel="notes"]').click()); await page.waitForTimeout(300);

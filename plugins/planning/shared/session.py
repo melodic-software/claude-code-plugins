@@ -556,6 +556,14 @@ def _body(body):
     return body
 
 
+def _person_name(body, *, empty_ok=False):
+    """A person's name; "Claude" (any case) is refused, since "@Claude" asks Claude and must never name a person."""
+    name = _text(body, "name", limit=MAX_NAME, empty_ok=empty_ok)
+    if name.casefold() == "claude":
+        raise DomainError(400, "reserved-name", "Claude is the AI's name in this session; pick another name.", field="name")
+    return name
+
+
 def _text(body, field, *, limit=MAX_TEXT, empty_ok=False, optional=False):
     """A trimmed string of 1..limit characters (0.. with empty_ok); refused when longer, never cut."""
     v = _body(body).get(field)
@@ -1251,7 +1259,7 @@ class Session:
     def join(self, pid, body, *, address=""):
         """POST /api/join: `pid` is HOST when the request carried a valid owner token, else None."""
         body = _body(body)
-        name = _text(body, "name", limit=MAX_NAME, empty_ok=True)
+        name = _person_name(body, empty_ok=True)
         key = body.get("key") if isinstance(body.get("key"), str) else ""
         device = _choice(body, "device", DEVICES, optional=True)
         browser = body.get("browser")
@@ -1484,7 +1492,7 @@ class Session:
             return {"pid": pid, "name": person["name"], "role": person["role"], "trusted": person["trusted"]}
 
     def rename(self, pid, body):
-        name = _text(body, "name", limit=MAX_NAME)
+        name = _person_name(body)
         with self._write_as(pid, "rename") as st:
             st["people"][pid]["name"] = self._unique_name(name, pid)
             return {"name": st["people"][pid]["name"]}

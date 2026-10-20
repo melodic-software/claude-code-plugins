@@ -720,13 +720,15 @@ refusal comment naming that head, unless it is escalated, to say the refusal no 
 later refusal at the head starts its time afresh. The merge gate never removes the label; the
 `head-moved` clear above removes it once the head moves, and otherwise a person does.
 
-Finding closure (owner decision, #8450): a clean newer review on the current head closes a review
-finding whoever resolved its thread, and a HIGH security finding also needs the security review lane
-clean on that head. The gate does not apply that rule yet
-([#8478](https://github.com/melodic-software/claude-code-plugins/issues/8478)): today a resolved
-thread closes only when a human resolved it, the whole review chain covering the head reports no
-finding, or it is outdated with none of its flagged lines left at the head (`_open_findings` in
-`babysit_review_evidence.py`).
+Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
+current head closes a review finding whoever resolved its thread, and a HIGH security finding also
+needs the security review lane's own clean whole review of that head. The gate applies it per lane
+(`_open_findings` in `babysit_review_evidence.py`): a resolved thread closes when it was opened
+before that review's job completed and the review chain covering the head, here the whole review
+alone, reports no finding. An incremental review reads only what changed since the last review, so
+it never closes an unchanged thread: a lane that resolved an unfixed finding and pushed an unrelated
+commit leaves it open. A resolved thread also closes when a human resolved it, or when it is
+outdated with none of its flagged lines left at the head; an unresolved thread stays open.
 
 While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
 no full CI run either; its summary says whether it would have.
@@ -1256,11 +1258,13 @@ is `split`, and Uncertainty Known, Knowable and Unknown map to `run`, `research-
 Each Claude lane's runs are paid by one funding role: `reviews`, `automations` or `issue-lane`. A
 lane on ci-workflows' `run-claude-cli` action passes its role with the role's two secrets,
 `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` (role upper-snake, so `issue-lane`
-gives `ISSUE_LANE_`); the action tries the key first and the subscription token only after a
-credit stop. Each lane's workflow names its role as a literal, and the runner policy admits it; no
-config key records it. `intake`, `pr-unblock`, `fix-ci`, `pr-verify` and `pr-refine` take
-`automations`; `claude-review` and `claude-security-review` take `reviews`; `work-resolve-issue`
-takes `issue-lane`.
+gives `ISSUE_LANE_`); the key runs first and the subscription token only after a credit stop.
+`pr-verify` holds one credential per job: `check-intent` runs on the key, and
+`check-intent-subscription` runs on the token, on a new runner, only after `check-intent`'s credit
+stop with no permission denial or when the key is empty. Each lane's workflow names its role as a
+literal, and the runner policy admits it; no config key records it. `intake`, `pr-unblock`,
+`fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
+`claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
 
 `intake` and `pr-verify` run on `run-claude-cli` today. Every other lane runs claude-code-action
 with its role's OAuth token alone until it moves there, and it never gets an API key, since

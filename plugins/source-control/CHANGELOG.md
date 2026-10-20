@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.13.2] - 2026-10-20
+
+### Fixed
+
+- Babysit review evidence no longer trusts review-lane records on a pull request that changes what the lanes run from its own checkout (anything under `.github/` or `plugins/review/`, a `.claude/` directory at any depth, or a `.mcp.json` at any depth): both lanes stay unbound, as they do when the changed-file list is unread or incomplete (#8552).
+
+## [1.13.1] - 2026-10-20
+
+### Changed
+
+- `pull-request` B2 states when a push needs a fresh AI review round: only when it changed reviewed content, and any conflict resolution in code counts. A push that only merged the default branch needs none when `git show --remerge-diff` of the merge is fully empty, with no paths excluded; an empty result does not detect semantic interaction with what the base brought in. The monitor applies the same test before waiting on lanes, readiness Gate 5 substitutes for an absent lane only when B2 says the push needs a fresh round, and B2 applies unchanged when the test cannot be computed ([#6632](https://github.com/melodic-software/claude-code-plugins/issues/6632)).
+
+### Fixed
+
+- `worktree` status and audit read PRs per worktree branch instead of one capped list of every PR, so older worktrees keep their PR and `superseded` rows are no longer hidden in repositories with many PRs. A failed lookup shows "PR lookup incomplete" rather than no PR.
+
 ## [1.13.0] - 2026-10-20
 
 ### Added

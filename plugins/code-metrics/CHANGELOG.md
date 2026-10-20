@@ -3,6 +3,18 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1] - 2026-10-20
+
+### Fixed
+
+- The YAML subset reader no longer ends a double-quoted string at a backslash-escaped quote: `x: ["a\",b", c]` now reads as two items, `a",b` and `c`, as the shared `lib/yaml-subset.mjs` reads it, and a `#` comment after such a string is found correctly. The reader stays its own implementation because the plugin requires Python and treats Node as optional.
+
+## [0.7.0] - 2026-10-20
+
+### Fixed
+
+- `/code-metrics:audit-suppressions`: the frozen count can now match the report. The bundled `suppression-scan.py` takes `--exclude <glob>` (repeatable) and `--exclude-from <file>`, so a caller passes the resolved paths and its `scope.exclude` globs and `--count` skips the same files the report does. Without them the output is unchanged. The skill's "Freezing the count" section shows how, and a test drives the audit over a fixture with suppressions in `scope.exclude` paths and checks `--count` given those globs returns the report's counts.
+
 ## [0.6.3] - 2026-10-20
 
 ### Fixed

@@ -133,7 +133,7 @@ jobs:
   # the merge gate like any failing check. This is the lane's only `statuses: write` grant, on the job's own
   # GITHUB_TOKEN, and it runs only scripts from the default branch tip.
   report-statuses:
-    needs: [resolve-issue, report-outcome]
+    needs: [resolve-issue, run-checks, report-outcome]
     if: >-
       ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
       || needs.resolve-issue.outputs.reuse-branch != '') }}
@@ -170,6 +170,8 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           WORK_OUTCOME_DIR: ${{ runner.temp }}/work-outcome
           REUSE_BRANCH: ${{ needs.resolve-issue.outputs.reuse-branch }}
+          RESUME_BRANCH: ${{ needs.resolve-issue.outputs.resume-branch }}
+          RUNNER_CHECKS: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
           RESOLVE_RESULT: ${{ needs.resolve-issue.result }}
           REPORT_RESULT: ${{ needs.report-outcome.result }}
         run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
@@ -229,13 +231,15 @@ jobs:
           path: ${{ runner.temp }}/work-outcome
 
       # The branch report-outcome opens the PR from: the reuse branch, else
-      # the one lane.json names, which must be this run's own.
+      # the one lane.json names, which must be this run's own, else the
+      # branch a resumed run continued.
       - name: Pick the lane branch
         id: branch
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           RUN_ID: ${{ github.run_id }}
           REUSE_BRANCH: ${{ needs.resolve-issue.outputs.reuse-branch }}
+          RESUME_BRANCH: ${{ needs.resolve-issue.outputs.resume-branch }}
           LANE_FILE: ${{ runner.temp }}/work-outcome/lane.json
         run: |
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $RUN_ID =~ ^[1-9][0-9]*$ ]] || exit 1
@@ -246,6 +250,21 @@ jobs:
               branch=$(jq -r '.branch | strings' "$LANE_FILE" 2>/dev/null) || branch=""
             fi
             shape="^work-resolve-issue/issue-$ISSUE_NUMBER-$RUN_ID-[1-9][0-9]*$"
+            # A resumed run that committed nothing kept no branch, so its work
+            # is the branch it resumed: that whole branch is checked. lane.json
+            # can be rewritten by code the model started, so its resume must
+            # equal the branch issue-prior chose before the mint.
+            # report-outcome counts the results only when every commit on it
+            # ahead of the default branch is the lanes App's.
+            if [ -z "$branch" ] && [ -n "$RESUME_BRANCH" ] && [ -f "$LANE_FILE" ]; then
+              resume=$(jq -r '.resume | strings' "$LANE_FILE" 2>/dev/null) || resume=""
+              if [ "$resume" = "$RESUME_BRANCH" ]; then
+                branch=$RESUME_BRANCH
+                shape="^work-resolve-issue/issue-$ISSUE_NUMBER-[1-9][0-9]*-[1-9][0-9]*$"
+              else
+                echo "lane.json's resume is not the branch this run resumed"
+              fi
+            fi
           fi
           if ! [[ $branch =~ $shape ]]; then
             echo "No lane branch of this run to check"

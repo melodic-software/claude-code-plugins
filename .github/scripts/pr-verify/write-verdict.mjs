@@ -124,9 +124,7 @@ export function structuredOutput(messages) {
   return result.structured_output;
 }
 
-// The execution file is the last leg's alone, so a denial on an earlier leg
-// (the key leg, before a credit stop) shows only in run-claude-cli's log, one
-// object per leg.
+// run-claude-cli's log, one object per leg, counts every leg's denials.
 export function earlierDenials(logText) {
   const total = logText
     .split("\n")
@@ -135,6 +133,25 @@ export function earlierDenials(logText) {
   if (total > 0) {
     throw new Error(`the run's legs hit ${total} permission denial(s)`);
   }
+}
+
+// After the key leg's credit stop the subscription job judges on a new VM
+// that cannot read this leg's log, so the key job records here whether the
+// leg was free of denials; the subscription job runs only on clean=true.
+export function checkKeyLeg(env = process.env) {
+  for (const key of ["LOG_FILE", "GITHUB_OUTPUT"]) {
+    if (!env[key]) {
+      throw new Error(`${key} is not set`);
+    }
+  }
+  let logText;
+  try {
+    logText = readFileSync(env.LOG_FILE, "utf8");
+  } catch {
+    throw new Error("the run log is unreadable");
+  }
+  earlierDenials(logText);
+  appendFileSync(env.GITHUB_OUTPUT, "clean=true\n");
 }
 
 export const artifactName =(verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
@@ -193,7 +210,11 @@ export function main(env = process.env) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    main();
+    if (process.argv[2] === "check-key-leg") {
+      checkKeyLeg();
+    } else {
+      main();
+    }
   } catch (error) {
     console.log(`::error::no verdict: ${error.message}`);
     process.exitCode = 1;

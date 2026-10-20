@@ -123,15 +123,44 @@ fallback), then:
    just-written one AND any prior sessions' (this skill never commits them; they are
    session-chain artifacts, part of the launch rather than disqualifying dirty state; the
    background session starts in this working directory, so it reads the handoff file before any
-   edit moves it into a worktree). We treat a background session as editing in an isolated
-   worktree, a fresh checkout, so OTHER uncommitted changes in this checkout would NOT carry
-   into the launched agent's edits (pointer, for when isolation applies and when it is skipped:
-   <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of 2026-10-11;
-   recheck trigger: that section changes when a session is isolated). Any
+   edit moves it into a worktree). Before judging other changes, read the effective
+   `worktree.bgIsolation` (below). Unless it is `none`, we treat a background session as editing
+   in an isolated worktree, a fresh checkout, so OTHER uncommitted changes in this checkout would
+   NOT carry into the launched agent's edits (pointer, for when isolation applies and when it is
+   skipped: <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of
+   2026-10-18; recheck trigger: that section changes when a session is isolated). Any
    such changes → do NOT launch: report why and fall back to the standard `/clear`-then-paste
    instruction (same checkout, dirty state intact), noting the user can commit or stash and
    re-run `/session-flow:continue-in-background`. Exception: launch anyway when the current session already
    runs inside a linked git worktree, where isolation is skipped per the same page.
+
+   **`worktree.bgIsolation`.** Read it with `jq` from the settings files, first file that sets
+   it wins across tiers: managed settings (the managed settings file and its `managed-settings.d`
+   drop-in directory, where they exist on this machine), then the project's
+   `.claude/settings.local.json` and `.claude/settings.json`, then `~/.claude/settings.json`.
+   Within the managed tier, do not assume first match: read the file-versus-drop-in and
+   drop-in-versus-drop-in order, and where each lives, from the managed settings pointers
+   below, and apply it. Managed settings delivered another way, or from a location this
+   read cannot find, are not covered: say so in the launch report. A `--settings` value cannot be
+   read from files either, so whenever a launch report is written, say the read covered the files
+   only. `none` is the value that turns isolation off; the pointer says what it does. When the value is `none`,
+   the "would NOT carry" refusal does not apply, since the launched session sees the uncommitted
+   changes: launch, and state in the launch report that the background session edits this
+   checkout in place, alongside the user, so both may touch the same files at once; this holds
+   inside a linked worktree too. Any other
+   result, including a file that does not parse, leaves the gate above unchanged. The `--cloud`
+   variant below ignores this setting. Pointers:
+   <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of 2026-10-18;
+   recheck trigger: that section changes what `worktree.bgIsolation` does or its accepted values.
+   Settings precedence (tier order): <https://code.claude.com/docs/en/settings#settings-precedence>;
+   as of 2026-10-18; recheck trigger: that section changes the tier order. Managed file locations:
+   <https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy>; as of
+   2026-10-18; recheck trigger: that section changes where the managed file or drop-in directory
+   lives. Managed file and drop-in merging:
+   <https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources>
+   and <https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams>;
+   as of 2026-10-18; recheck trigger: either section changes how the file and its drop-ins merge
+   or their order.
 2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
    First write the prompt, exactly as emitted between the rails, to a temporary file with the
    Write tool (full path: the between-rails lines of the resume region of the
@@ -192,7 +221,7 @@ change, because this skill launches a cloud session only from a clean checkout w
 matches its remote:
 
 1. **Only pushed work reaches it.** Launch only when `git status --porcelain -uall` lists nothing
-   but save-point files (the linked-worktree exception does not apply), `git fetch --quiet` then
+   but save-point files (neither the linked-worktree exception nor `worktree.bgIsolation: none` applies), `git fetch --quiet` then
    succeeds, and `git rev-parse HEAD` equals `git rev-parse @{upstream}`; the fetch keeps a stale
    tracking ref from passing the check. No upstream, a failed command, or any other result → no
    launch; fall back as the dirty case does and name commit-and-push as the fix. Upstream can
@@ -287,7 +316,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   launch command. No purpose given → nothing to tick
 - [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
-  location; other uncommitted changes without the linked-worktree exception → no launch, reason
+  location; effective `worktree.bgIsolation` read before judging other changes, and `none` → launch with the
+  edits-this-checkout-in-place warning in the report (`--settings` tier named as not covered);
+  otherwise other uncommitted changes without the linked-worktree exception → no launch, reason
   reported, fallback to `/clear`-then-paste. Positively identified as not a git repository AND no
   `WorktreeCreate` hook configured → launch, that reading stated in the report; any other
   `rev-parse` result, failing or `false`, and any hook whose absence is not established → state

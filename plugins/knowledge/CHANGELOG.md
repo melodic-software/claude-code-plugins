@@ -4,6 +4,25 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.26.0] - 2026-10-20
+
+### Added
+
+- `video-digest` has an `asr_python` option naming the Python interpreter that imports `faster_whisper`. ASR detection and the readiness check probe it before `python`, `python3` and `py`, so a venv works on a machine whose default Python refuses `pip install --user`. Unset, detection is unchanged. Nothing is installed.
+- `video-digest` Prerequisites carry a copyable `uv` venv recipe for faster-whisper, with the `av<19` pin, a pointer to the upstream fix, and a recheck trigger for the faster-whisper release that ships it. Every source's `run.mjs` invocation passes `--asr-python` when the option is set.
+
+### Fixed
+
+- The ASR runner script adds each existing `site-packages/nvidia/*/bin` directory as a DLL directory on Windows, so CUDA libraries installed as `nvidia-*` wheels load without PATH edits. It is a no-op elsewhere.
+
+## [0.25.1] - 2026-10-20
+
+### Fixed
+
+- video-digest's watch spine, Phase 9 and checklist template now run the corpus relayout before `close`, which removes the media the relayout copies, and the recommendations README template's Shards line names `research/findings/` so the relayout link check resolves it ([#7177](https://github.com/melodic-software/claude-code-plugins/issues/7177)).
+
+- `video-digest` `fetch-deck-attachments` now fetches only `https:` links whose host resolves to public addresses, follows redirects manually (up to 5 hops) and re-checks each hop, so loopback, private, link-local and unique-local targets from harvested links are skipped.
+
 ## [0.25.0] - 2026-10-20
 
 ### Added

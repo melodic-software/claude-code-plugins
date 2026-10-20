@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [2.17.1] - 2026-10-20
+
+### Fixed
+
+- A resumed `work-resolve-issue` run that reports done with no commit of its own now opens its PR from the branch it resumed instead of stopping for a person. `run-checks` runs the activity's checks over that whole branch, and `report-outcome` opens the PR only when at least one check ran and none failed, the branch is still at the tip checked (the compare and the new PR use that SHA), `lane.json`'s `resume` equals the branch the run resumed, and every commit on it ahead of the default branch is the lanes App's. The PR body's Verification section records this, and the run's `pipeline/*` statuses go on that checked tip; otherwise the run still hands back.
+
+## [2.17.0] - 2026-10-20
+
+### Added
+
+- `intake-reenter.yml` sends an answered issue back to intake: a listed human's `**Decision recorded.**` comment on a `status: needs-decision` issue, or the author's or a listed human's reply on a `status: needs-info` issue, removes the status label, adds `needs-triage` and, for an issue from a listed human or the lanes App, dispatches `intake-triage.yml` once. It never adds `agent-ready`. A dispatched intake run no longer skips a born-triaged issue ([README.md, Stages](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#stages)).
+
+- The monitoring lane (`maintenance-monitor-signals.yml`, "The monitoring lane"): an hourly scripted job on the job token that reads eight factory signals and keeps one deduplicated issue per signal and key.
+
+### Changed
+
+- The finding-closure paragraph states the rule pr-merge applies: a clean whole review of the current head in the thread's own lane closes a resolved thread whoever resolved it, so a HIGH security finding needs the security lane's own clean whole review, and an incremental review never closes an unchanged thread.
+
 ## [2.16.0] - 2026-10-20
 
 ### Added

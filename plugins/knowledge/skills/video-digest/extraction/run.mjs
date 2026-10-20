@@ -27,7 +27,7 @@
  *
  * Usage: node run.mjs [--data-dir <dir>] [--work-root <dir>] [--js-runtimes <v>]
  *   [--cookies-file <path>] [--cookies-from-browser <name>] [--max-concurrent-acquires <n>]
- *   [--acquire-phase-gap <sec>] <relative-script.js> [args…]
+ *   [--acquire-phase-gap <sec>] [--asr-python <path>] <relative-script.js> [args…]
  */
 import { spawnSync } from "node:child_process";
 import os from "node:os";
@@ -42,7 +42,7 @@ let parsed;
 const usage =
   "Usage: node run.mjs [--data-dir <dir>] [--work-root <dir>] [--js-runtimes <v>] [--cookies-file <path>] " +
   "[--cookies-from-browser <name>] [--max-concurrent-acquires <n>] " +
-  "[--acquire-phase-gap <sec>] <relative-script.js> [args…]\n";
+  "[--acquire-phase-gap <sec>] [--asr-python <path>] <relative-script.js> [args…]\n";
 
 try {
   parsed = parseRunArgs(process.argv.slice(2));
