@@ -737,8 +737,10 @@ of that head reported a finding or was whole, and no lane thread is unresolved),
 `Whole review requested at head` line into its reasons comment, then converts the pull request to a
 draft and marks it ready with the lane token, so `ready_for_review` runs both review lanes whole.
 That event also re-runs `pr-require-checks.yml`, `pr-test-windows.yml` and pr-merge itself. The
-line, stamped with the time it was written, is kept on every rewrite, so a head is toggled once and a pull
-request at most twice; past that it waits for a person. A run toggles at most one
+line, stamped with the time it was written, is kept on every rewrite, so a head is toggled once. A pull
+request is toggled at most twice, counted from those lines and from the lane token's conversions to draft on
+its timeline, which the lane token cannot delete as it can edit the comment; past that, or with the timeline
+unread, it waits for a person. A run toggles at most one
 pull request, and only while fewer than 35 jobs are running or queued and the lane token and the job token
 each have 30% of every rate-limit bucket's hourly limit left; an escalated comment is not toggled. Each toggle logs
 `::notice::pr-merge whole-review-toggle pr=<n> head=<sha>`. A draft a run left between the two
