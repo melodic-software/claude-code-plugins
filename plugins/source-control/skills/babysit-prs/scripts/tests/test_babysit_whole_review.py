@@ -74,8 +74,8 @@ class Limits(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.spent = os.path.join(tmp.name, "spent")
-        self.lane_left = 5000
-        self.job_left = 5000
+        self.lane_left = self.job_left = 5000
+        self.lane_limit = self.job_limit = 5000
         self.runs: list[dict[str, Any]] = [{"id": 1}, {"id": 2}]
         self.queued: list[dict[str, Any]] = []
         self.jobs = {1: ["in_progress", "completed"], 2: ["queued"]}
@@ -86,11 +86,12 @@ class Limits(unittest.TestCase):
         self.calls.append(endpoint)
         if endpoint == "rate_limit":
             left = self.job_left if env_overrides else self.lane_left
+            limit = self.job_limit if env_overrides else self.lane_limit
             return done(
                 {
                     "resources": {
-                        "core": {"remaining": left},
-                        "graphql": {"remaining": 5000},
+                        "core": {"remaining": left, "limit": limit},
+                        "graphql": {"remaining": 5000, "limit": 5000},
                     }
                 }
             )
@@ -115,18 +116,23 @@ class Limits(unittest.TestCase):
         self.assertIsNone(self.limits())
         self.assertEqual(self.limits(), "sweep-limit")
 
-    def test_exactly_the_minimum_remaining_is_allowed(self) -> None:
-        self.lane_left = self.job_left = wr.MIN_REMAINING
+    def test_exactly_thirty_percent_of_5000_is_allowed(self) -> None:
+        self.lane_left = self.job_left = 1500
         self.assertIsNone(self.limits())
 
     def test_a_refusal_also_spends_the_sweep(self) -> None:
         self.lane_left = 1499
-        self.assertEqual(self.limits(), "rate-limit:lane:1499")
+        self.assertEqual(self.limits(), "rate-limit:lane:core:1499/5000")
         self.assertEqual(self.limits(), "sweep-limit")
 
-    def test_the_job_token_bucket(self) -> None:
-        self.job_left = 100
-        self.assertEqual(self.limits(), "rate-limit:job:100")
+    def test_a_1000_call_job_token_with_400_left_is_allowed(self) -> None:
+        # GITHUB_TOKEN outside Enterprise Cloud: 1,000 calls an hour.
+        self.job_limit, self.job_left = 1000, 400
+        self.assertIsNone(self.limits())
+
+    def test_a_1000_call_job_token_with_200_left_is_refused(self) -> None:
+        self.job_limit, self.job_left = 1000, 200
+        self.assertEqual(self.limits(), "rate-limit:job:core:200/1000")
 
     def test_running_jobs_at_the_cap(self) -> None:
         self.jobs = {1: ["in_progress"] * 30, 2: ["queued"] * 5}

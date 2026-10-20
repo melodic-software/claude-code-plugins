@@ -14,7 +14,8 @@ token's events start workflows; GITHUB_TOKEN's do not). Bounds:
   `limits` claims the `SPENT_ENV` file, whatever its answer; with no
   `SPENT_ENV` (the local babysit loop) nothing is requested;
 - only while fewer than `MAX_RUNNING_JOBS` jobs run in the repository and
-  both the lane token and the job's own token have `MIN_REMAINING` calls left.
+  both the lane token and the job's own token have `MIN_SHARE` of each
+  bucket's hourly limit left.
 
 `recover` marks ready a draft the toggle left behind (the run ended between
 its two writes), only when the lane identity made its newest conversion to
@@ -54,7 +55,9 @@ SPENT_ENV = "BABYSIT_WHOLE_REVIEW_SPENT"
 # The job's own token (GITHUB_TOKEN), which also reads the runs.
 JOB_TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 MAX_RUNNING_JOBS = 35
-MIN_REMAINING = 1500
+# The share of each rate-limit bucket that must be left: 1,500 of 5,000, 300
+# of GITHUB_TOKEN's 1,000 outside GitHub Enterprise Cloud.
+MIN_SHARE = 0.3
 READY_TRIES = 3
 RECOVER_HOURS = 24
 FINDING_CODES = frozenset(code for code, _ in babysit_risk.LANES.values())
@@ -119,12 +122,16 @@ def _api(args: list[str], env: Mapping[str, str] | None = None) -> Any:
     return json.loads(proc.stdout or "null")
 
 
-def _remaining(env: Mapping[str, str] | None) -> int:
-    # GET /rate_limit does not count against the limit it reports.
+def _short_bucket(env: Mapping[str, str] | None) -> str | None:
+    """`bucket:remaining/limit` for the first bucket under `MIN_SHARE` of its
+    limit, else None. GET /rate_limit does not count against any bucket."""
     resources = _api(["rate_limit"], env)["resources"]
-    return min(
-        int(resources["core"]["remaining"]), int(resources["graphql"]["remaining"])
-    )
+    for bucket in ("core", "graphql"):
+        left = int(resources[bucket]["remaining"])
+        limit = int(resources[bucket]["limit"])
+        if left < MIN_SHARE * limit:
+            return f"{bucket}:{left}/{limit}"
+    return None
 
 
 def _running_jobs(repo: str, env: Mapping[str, str]) -> int:
@@ -168,9 +175,9 @@ def limits(repo: str) -> str | None:
     job = {"GH_TOKEN": token}
     try:
         for name, env in (("lane", None), ("job", job)):
-            left = _remaining(env)
-            if left < MIN_REMAINING:
-                return f"rate-limit:{name}:{left}"
+            short = _short_bucket(env)
+            if short is not None:
+                return f"rate-limit:{name}:{short}"
         running = _running_jobs(repo, job)
     except (RuntimeError, KeyError, TypeError, ValueError) as exc:
         return f"limits-unread: {exc}"

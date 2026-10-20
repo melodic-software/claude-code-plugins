@@ -739,7 +739,7 @@ That event also re-runs `pr-require-checks.yml`, `pr-test-windows.yml` and pr-me
 line, stamped with the time it was written, is kept on every rewrite, so a head is toggled once and a pull
 request at most twice; past that it waits for a person. A run toggles at most one
 pull request, and only while fewer than 35 jobs are running or queued and the lane token and the job token
-each have 1,500 calls left; an escalated comment is not toggled. Each toggle logs
+each have 30% of every rate-limit bucket's hourly limit left; an escalated comment is not toggled. Each toggle logs
 `::notice::pr-merge whole-review-toggle pr=<n> head=<sha>`. A draft a run left between the two
 writes is marked ready by the next run, only when the lane token made its newest conversion to draft within ten minutes after a record's time;
 a draft a person made stays one.
