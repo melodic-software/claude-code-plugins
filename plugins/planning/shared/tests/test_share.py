@@ -506,7 +506,7 @@ class TestRestart(Running):
 
 
 class TestRestartFromE27acc5(ShareCase):
-    """A state.json e27acc5's session.py wrote (tests/fixtures/state-written-e27acc5.json; Ann's secret is tok0003x32)
+    """A state.json written by e27acc5, rewritten to the current shape (tests/fixtures/state-written-e27acc5.json; Ann's secret is tok0003x32)
     starts, survives `share.sh restart` as it was, and then takes an upload: its keys are all optional."""
 
     def test_a_state_e27acc5_wrote_survives_restart_and_takes_an_upload(self):

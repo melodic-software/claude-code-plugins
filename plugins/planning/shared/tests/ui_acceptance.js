@@ -301,6 +301,13 @@ async function main() {
     ok("round lifecycle: after Send, guests see Waiting for Claude", await until(bo, () => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent === "Waiting for Claude"), await curStep(bo));
     const cancelBtn = host.locator(".vf-cancel-send").first();
     ok("round lifecycle: the owner gets Cancel while it waits", await cancelBtn.waitFor({ timeout: 8000 }).then(() => true, () => false));
+    // Follow-up 33 review: Claude acks and opens the next round in one apply, so while it waits it may already be reading
+    ok("round lifecycle: while it waits the owner reads that Claude may already be reading it and Cancel still works", await until(host, () =>
+      /Claude may already be reading it; you can still cancel\./.test(document.querySelector(".vf-next .vf-step-note")?.textContent || "")), await host.evaluate(() => document.querySelector(".vf-next .vf-step-note")?.textContent));
+    const waitLater = async route => { const r = await route.fetch(); const j = await r.json().catch(() => null); return j?.serverTime ? route.fulfill({ response: r, json: { ...j, serverTime: j.serverTime + 300 } }) : route.fulfill({ response: r }); };
+    await bo.route("**/api/state?*", waitLater);
+    ok("round lifecycle: five minutes after Send, the step says how long it has waited", await until(bo, () => /^Waiting for Claude · 5 min$/.test(document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent || ""), null, 15000), await curStep(bo));
+    await bo.unroute("**/api/state?*", waitLater);
     await cancelBtn.click();
     await host.locator("dialog[open] button", { hasText: "Cancel sending" }).click();
     ok("round lifecycle: Cancel works, and guests see the round open again", await toastHas(bo, /cancelled\. It is open again/)

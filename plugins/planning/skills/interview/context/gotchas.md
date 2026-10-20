@@ -56,6 +56,8 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **A pause after `ack-round`:** once it lands, the page shows Claude is working and the owner can no longer cancel, so a question to the owner before the next `open-round` leaves everyone waiting. Apply `ack-round` with `open-round` or `close-round` in one apply, and ask the owner after it lands.
 
+- **A cancel that beats that apply:** the owner can still cancel a sent round, and then the whole apply fails with `wrong-status` and lands nothing. Re-read `share.sh status` and the events (a `round-cancelled` follows) before preparing again; never retry the same apply.
+
 - **A placement missing:** every pending proposal needs exactly one placement in the `open-round` or `close-round`; a missing or doubled one refuses the whole apply.
 
 - **An asset id used in the apply that creates it:** `add-asset` returns the id; the round using it goes in the next apply.

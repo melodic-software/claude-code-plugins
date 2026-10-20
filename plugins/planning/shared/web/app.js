@@ -847,10 +847,13 @@
     }
     /** Follow-up 33: how long Claude has been working on the round, once that is long enough to wonder ("" before). */
     const WORKING_SHOWN_AFTER = 120; // judgment: seconds before the page says how long Claude has been working
-    const workingFor = R => (R.status === "working" && R.ackAt && (Core.state.serverTime || Date.now() / 1000) - R.ackAt >= WORKING_SHOWN_AFTER ? Core.span(R.ackAt) : "");
+    // Claude acks and opens the next round in one apply, so a round mostly waits in "sent": that wait counts from sentAt.
+    const longFor = ts => (ts && (Core.state.serverTime || Date.now() / 1000) - ts >= WORKING_SHOWN_AFTER ? Core.span(ts) : "");
+    const workingFor = R => (R.status === "working" ? longFor(R.ackAt) : "");
+    const waitingFor = R => (R.status === "sent" ? longFor(R.sentAt) : "");
     function fillStepper(ol, R) {
-      const st2 = R.status === "working" ? 1 : 0, n = R.current + 1, took = workingFor(R);
-      const labels = ["Waiting for Claude", took ? `Claude is working · ${took}` : "Claude is working", `Round ${n} is here`];
+      const st2 = R.status === "working" ? 1 : 0, n = R.current + 1, took = workingFor(R), waited = waitingFor(R);
+      const labels = [waited ? `Waiting for Claude · ${waited}` : "Waiting for Claude", took ? `Claude is working · ${took}` : "Claude is working", `Round ${n} is here`];
       ol._items.forEach((li, i) => {
         li.lastChild.textContent = labels[i];
         li.dataset.state = i < st2 ? "done" : i === st2 ? "now" : "todo";
@@ -6517,7 +6520,7 @@
       hRoundName.textContent = `Round ${n}: ${sent ? (R.status === "working" ? `Claude is working on it${workingFor(R) ? ` · ${workingFor(R)}` : ""}` : "waiting for Claude") : `${decided} of ${rq.length} decided`}`;
       hSteps.hidden = !sent; if (sent) fillStepper(hSteps, R);
       const props = S.ideas.filter(i => i.status === "new").length;
-      hRoundNote.textContent = sent ? (R.status === "working" ? "If Claude stopped responding, you can reset the round. Otherwise message Claude in the terminal." : "You can still cancel sending until Claude picks it up.")
+      hRoundNote.textContent = sent ? (R.status === "working" ? "If Claude stopped responding, you can reset the round. Otherwise message Claude in the terminal." : "Claude may already be reading it. You can still cancel.")
         : `${props} proposal${props === 1 ? "" : "s"} go${props === 1 ? "es" : ""} with it. ${R.ready ? `${youOr(R.ready.cid, R.ready.by)} marked it ready.` : ""}`.trim();
       hSend.hidden = !mod || sent || !!S.ended;
       hSend.textContent = owner ? "Send round to Claude" : R.ready ? "Marked ready: undo" : "Mark round ready";
@@ -6778,8 +6781,10 @@
         : S.ended ? [me.isOwner ? "You ended this session. Guests see it read-only, with the final tree." : "This session has ended. Here is what it decided.",
           me.isOwner ? ["Reopen", () => Core.endSession(false).catch(fail)] : ["Show the tree", () => setMode("tree")]]
         : reshare ? ["New guest link, share again: the old link no longer works.", ["Share", () => openSurface(sharePop, shareBtn.offsetParent ? shareBtn : bannerAct)]]
-        : inApp && !ui.inAppDone ? [`You are in ${inApp.app}'s browser. For pictures, pop-ups and staying signed in, open this page in ${inApp.open}: copy the link, then paste it there.`,
-          ["Copy link", () => { ui.inAppDone = true; copyOut(Core.personalLink() || Core.guestLink(), `Link copied. Paste it into ${inApp.open}.`, "This page's link", bannerAct); render(); }]]
+        // never the owner's: their link is the owner credential. A guest's link signs them in, so it opens the device
+        // panel with its "Keep this private" warning rather than going to the clipboard unannounced.
+        : inApp && !me.isOwner && !ui.inAppDone ? [`You are in ${inApp.app}'s browser. For pictures, pop-ups and staying signed in, open this page in ${inApp.open}: copy your link, then paste it there.`,
+          ["Get your link", () => { ui.inAppDone = true; render(); openDevice(); }]]
         : null;
       banner.hidden = !bn;
       if (bn) {
@@ -6867,7 +6872,7 @@
       if (preparing) fillStepper(railSteps, R);
       stepNote.hidden = !preparing;
       stepNote.textContent = R.status === "working" ? (me.isOwner ? "If Claude stopped responding, reset the round from the Host view." : "The host can message Claude in the terminal.")
-        : `Sent ${sentAgo}.${me.isOwner ? " You can cancel until Claude picks it up." : ""}`;
+        : `Sent ${sentAgo}.${me.isOwner ? " Claude may already be reading it; you can still cancel." : ""}`;
       cancelSend.hidden = !((R.status === "sent" || R.status === "preparing") && me.isOwner);
 
       // proposed
@@ -7011,7 +7016,7 @@
       introBtn.hidden = !S.intro && !me.isOwner; menuShow("intro", !introBtn.hidden);
       // a return visit: this person had been here before this page opened (the welcome seen, or something answered)
       if (ui.returning == null && S.me) ui.returning = !!store.get(WELCOME_SEEN(), false) || S.questions.some(x => ["answered", "took"].includes(myState(x.id)));
-      goalBack.hidden = !q || me.isOwner || !!S.youWaiting || !S.goal || !ui.returning || !orient.hidden || !!S.ended || goalHidden() === S.goal;
+      goalBack.hidden = !q || me.isOwner || !!S.youWaiting || !!S.youRemoved || !S.goal || !ui.returning || !orient.hidden || !!S.ended || goalHidden() === S.goal;
       if (!goalBack.hidden) goalBackTxt.textContent = `Goal: ${S.goal}`;
       if (!orient.hidden) {
         const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];

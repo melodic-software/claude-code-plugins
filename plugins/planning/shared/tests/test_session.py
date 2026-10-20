@@ -303,6 +303,19 @@ class TestPersistence(SessionCase):
         self.assertEqual({k: v for k, v in doc.items() if k not in ("rev", "session", "log")}, {k: v for k, v in kept.items() if k not in ("rev", "session", "log")})
         self.assertEqual(sorted(p.name for p in self.tmp.iterdir()), ["assets", "state.json"])
 
+    def test_a_file_below_schema_version_7_is_refused_and_left_as_it_was(self):
+        # review: a file from before the last versioned build needs its migrations, which this build no longer has
+        doc = self.disk()
+        doc["schemaVersion"] = 6
+        self.path.write_text(json.dumps(doc), encoding="utf-8")
+        before = self.path.read_bytes()
+        with self.assertRaises(session.DomainError) as ctx:
+            session.Session.load(self.path, clock=self.clock, ids=self.ids)
+        self.assertEqual(ctx.exception.code, "state-too-old")
+        self.assertIn("schemaVersion 6", ctx.exception.message)
+        self.assertIn("Start a new session, or restart it under the previous build", ctx.exception.message)
+        self.assertEqual(self.path.read_bytes(), before)
+
     def test_any_schema_version_an_earlier_build_wrote_is_dropped(self):
         doc = self.disk()
         doc["schemaVersion"] = 99
@@ -904,6 +917,15 @@ class TestRounds(SessionCase):
         self.send()
         self.apply({"op": "ack-round", "round": 1}, {"op": "open-round", "questions": [text_q("Q2")]})
         self.assertEqual((self.round_status(1), self.round_status(2)), ("closed", "open"))
+
+    def test_a_cancel_before_that_apply_refuses_all_of_it(self):
+        # gotchas.md: the owner cancels a sent round first; the combined apply then lands nothing
+        self.open_round(text_q("Q1"))
+        self.send()
+        self.act("cancel_round", HOST, {})
+        before = self.disk()
+        self.refused_ops("wrong-status", {"op": "ack-round", "round": 1}, {"op": "open-round", "questions": [text_q("Q2")]})
+        self.assertEqual((self.round_status(1), len(self.s.state["rounds"]), self.disk()), ("open", 1, before))
 
     def test_open_round_from_working_closes_it_and_opens_the_next(self):
         self.open_round(text_q("Q1"))
@@ -4357,7 +4379,7 @@ class TestFixtureTokenHashes(unittest.TestCase):
 
 
 class StateFixtureCase(unittest.TestCase):
-    """A state an earlier build's session.py wrote, in the shape this build reads (fixtures/state-written-<build>.json),
+    """A state written by an earlier build, rewritten to the current shape (fixtures/state-written-<build>.json),
     loads unchanged."""
 
     def load(self, name):
@@ -4374,8 +4396,9 @@ class StateFixtureCase(unittest.TestCase):
 
 
 class TestStateFrom0bbffb3(StateFixtureCase):
-    """state.json files the 0bbffb3 build wrote load unchanged and take the Phase 4c writes. The
-    fixtures are that build's state-sample.json and a state its session.py wrote (state-written-0bbffb3.json)."""
+    """state.json files written by 0bbffb3 load unchanged and take the Phase 4c writes. The
+    fixtures are that build's sample (state-sample.json) and a state it wrote (state-written-0bbffb3.json), both rewritten to
+    the current shape."""
 
     def test_state_v1_fixture_from_0bbffb3_loads_unchanged(self):
         s = self.load("state-sample.json")
@@ -4578,7 +4601,7 @@ class TestWaitingList(SessionCase):
 
 
 class TestStateFrom3153973(StateFixtureCase):
-    """A state the 3153973 build's session.py wrote (state-written-3153973.json: an intro, a hidden
+    """A state written by 3153973, rewritten to the current shape (state-written-3153973.json: an intro, a hidden
     card, an owner-edited card with author versions after it, a hidden multi pick, a lock, chat
     reactions and a waiting join) loads unchanged and takes the review fixes' writes."""
 
@@ -4605,7 +4628,7 @@ class TestStateFrom3153973(StateFixtureCase):
 
 
 class TestStateFrom6579f21(StateFixtureCase):
-    """state.json files the 6579f21 build wrote, which took rects of any size, load unchanged; the
+    """state.json files written by 6579f21, rewritten to the current shape, which took rects of any size, load unchanged; the
     percent rule refuses only new rects. state-written-6579f21.json holds a pixel-sized confirm rect
     (x 40, y 700, w 300, h 60) and image reference rect, written by that build's session.py."""
 
@@ -4630,7 +4653,7 @@ class TestStateFrom6579f21(StateFixtureCase):
 
 
 class TestStateFrom3f9006c(StateFixtureCase):
-    """state-written-3f9006c.json was written by 3f9006c's own session.py, which took any selector up to 500
+    """state-written-3f9006c.json was written by 3f9006c, rewritten to the current shape, which took any selector up to 500
     characters: its note A1 is pinned at "#pay". It loads unchanged, its note still shows, and new notes follow
     the element-path rule."""
 
@@ -4652,7 +4675,7 @@ class TestStateFrom3f9006c(StateFixtureCase):
 
 
 class TestStateFromf6f1318(StateFixtureCase):
-    """state-written-f6f1318.json was written by f6f1318's own session.py: three notes on prototype Q1 (A1 on a
+    """state-written-f6f1318.json was written by f6f1318, rewritten to the current shape: three notes on prototype Q1 (A1 on a
     button's path, A2 on "html", A3 on "img") and round 1 sent, its digest naming each note's element. It loads
     unchanged and takes new notes; the earlier builds' files still load."""
 
@@ -4678,7 +4701,7 @@ class TestStateFromf6f1318(StateFixtureCase):
 
 
 class TestStateFrom08ff888(StateFixtureCase):
-    """state-written-08ff888.json was written by 08ff888's own session.py: Ann (tok0002x9) has host request R1
+    """state-written-08ff888.json was written by 08ff888, rewritten to the current shape: Ann (tok0002x9) has host request R1
     pending and self request R2 answered by her own Claude (result X1, "The address step."), Bo (tok0004x9) has
     self request R3 pending, and round 1 is sent with a digest whose results carry no `from`. It loads unchanged
     and takes the Phase 8 writes."""
@@ -4699,7 +4722,7 @@ class TestStateFrom08ff888(StateFixtureCase):
 
 
 class TestStateFrom740e8da(StateFixtureCase):
-    """state-written-740e8da.json was written by 740e8da's own session.py: Ann (tok0002x9) and Dee (tok0006x9) each had
+    """state-written-740e8da.json was written by 740e8da, rewritten to the current shape: Ann (tok0002x9) and Dee (tok0006x9) each had
     a self request answered by their own Claude and shown at once (X1 "The address step.", X2 "Dee's Claude says
     shipping."), Bo (tok0004x9) has self request R3 running and R4 pending, round 1 is sent, and then the owner removed
     Dee. It loads unchanged: Ann's shown result stays shown, Dee's leaves every view, and new writes take the fixes."""
@@ -4721,7 +4744,7 @@ class TestStateFrom740e8da(StateFixtureCase):
 
 
 class TestStateFrom62d8520(StateFixtureCase):
-    """state-written-62d8520.json was written by 62d8520's own session.py: Ann (tok0002x9) holds watcher key
+    """state-written-62d8520.json was written by 62d8520, rewritten to the current shape: Ann (tok0002x9) holds watcher key
     tok0006x32 and an unshared result X1 from her own Claude ("The address step."); Bo (tok0004x9) took watcher key
     tok0007x32 and was then removed, which that build left in credentials.watchers; round 1 is sent with no results
     in its digest. It loads unchanged; restoring Bo does not revive his key, and X1 shared now reaches round 2's
@@ -5718,7 +5741,7 @@ class TestUploadHardening(UploadCase):
 
 
 class TestStateFromB5ed34f(StateFixtureCase):
-    """state-written-b5ed34f.json was written by b5ed34f's own session.py: Ann (tok0002x9) offered shot.png with a
+    """state-written-b5ed34f.json was written by b5ed34f, rewritten to the current shape: Ann (tok0002x9) offered shot.png with a
     preview, sent funnel.pdf (U2, done, on her Q1 answer) and withdrew one; Bo (tok0004x9) is sending plan.pdf (U3,
     one piece in), has notes.txt accepted (U4) and one declined; one failed; the owner's brief.md is accepted. It
     loads unchanged, and every record in it stays valid under the hardened rules."""
@@ -5733,7 +5756,7 @@ class TestStateFromB5ed34f(StateFixtureCase):
 
 
 class TestStateFromE27acc5(StateFixtureCase):
-    """state-written-e27acc5.json was written by e27acc5's own session.py (uploads off, no upload ever): Ann
+    """state-written-e27acc5.json was written by e27acc5, rewritten to the current shape (uploads off, no upload ever): Ann
     (tok0002x9) answered Q1, Bo (tok0004x9) picked Google Pay on Q2 with a comment and answered Q1. It loads unchanged;
     with uploads on, Ann's file goes through and her answer carries it."""
 

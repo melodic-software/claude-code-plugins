@@ -292,6 +292,7 @@ OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups"
 # guestPopups: the pop-ups a guest starts with (round 11), set by the owner; a guest's own `popups` pref wins. Absent,
 # all of GUEST_POPUPS are on.
 GUEST_POPUPS = ("request", "mention", "round")
+LAST_SCHEMA_VERSION = 7  # the last versioned build's file; an older one needs that build's migrations first
 # reviewAnswers: every answer waits for the owner's Share. A new session writes it off; a state file from before it lacks
 # it and so keeps that review-first behavior.
 SETTING_VALUES = {
@@ -1121,8 +1122,8 @@ class Session:
 
     @classmethod
     def load(cls, path, *, plugin_version="", clock=time.time, ids=None, validate_writes=False, assets_dir=None):
-        """Parse state.json once. The shape is not versioned: a `schemaVersion` an earlier build wrote is dropped,
-        and the next write leaves it out."""
+        """Parse state.json once. The shape is no longer versioned: the `schemaVersion` the last versioned build wrote
+        (7) is dropped and the next write leaves it out; a file below 7 needs that build's migrations, so it is refused."""
         path = Path(path)
         raw = path.read_text(encoding="utf-8")
         try:
@@ -1131,7 +1132,10 @@ class Session:
             raise DomainError(500, "state-invalid", f"{path.name} is not JSON: {exc}") from exc
         if not isinstance(doc, dict):
             raise DomainError(500, "state-invalid", f"{path.name} is not a JSON object.")
-        doc.pop("schemaVersion", None)
+        version = doc.pop("schemaVersion", None)
+        if _is_int(version) and version < LAST_SCHEMA_VERSION:
+            raise DomainError(500, "state-too-old", f"{path.name} is at schemaVersion {version}, from before this build; it reads only "
+                              f"{LAST_SCHEMA_VERSION}. Start a new session, or restart it under the previous build first so it migrates to {LAST_SCHEMA_VERSION}.")
         err = document_error(doc)
         if err:
             raise DomainError(500, "state-invalid", f"{path.name}: {err}")

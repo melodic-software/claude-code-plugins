@@ -1366,21 +1366,6 @@ class TestClientLog(LogCase):
         self.assertIn("entry-19", (d / "server.log").read_text(encoding="utf-8"))
 
 
-class TestStatePoll(unittest.TestCase):
-    def test_a_poll_with_no_query_string_gets_the_full_snapshot_beside_a_prototype_file(self):
-        """The live session was imported from the prototype, so state.v0.json sits beside its state.json; a poll
-        without a query string is answered like any other, with no reload banner."""
-        d = tmpdir(self)
-        app = server.App(d, watch_tunnel=False)
-        app.shutdown()
-        detached.write_private(d / "state.v0.json", "{}\n")
-        app = server.App(d, watch_tunnel=False)
-        app.serve()
-        self.addCleanup(app.shutdown)
-        code, _, out = call(app.guest_port, "GET", "/api/state", headers={"X-Owner-Token": app.secrets["owner"]})
-        self.assertEqual((code, out["me"]["role"], "outdated" in out), (200, "owner", False))
-
-
 class TestTunnelWatch(unittest.TestCase):
     def test_an_exited_tunnel_is_restarted_with_a_new_link_the_owner_sees(self):
         d = tmpdir(self)

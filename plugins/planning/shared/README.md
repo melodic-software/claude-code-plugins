@@ -75,9 +75,11 @@ server starts a cloudflared of its own (a new link), which `stop` ends like any 
 
 ## The state file is not versioned
 
-`state.json` holds the shape this build writes, with no version number and no migrations: the
-feature is unreleased. A `schemaVersion` key an earlier build wrote is dropped on load and left out
-of the next write. When a later build cannot read a session, start a new one and send its link.
+`state.json` holds the shape this build writes, with no version number and no migrations; the last
+versioned build wrote `schemaVersion` 7. On load that key is dropped and left out of the next
+write; a file below 7 is refused (`state-too-old`): start a new session, or restart it under the
+previous build first so it migrates to 7. To go back to an earlier build, add `"schemaVersion": 7`
+to `state.json` first. When a later build cannot read a session, start a new one and send its link.
 
 ## Ops
 

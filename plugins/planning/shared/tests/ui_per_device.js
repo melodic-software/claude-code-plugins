@@ -2,7 +2,7 @@
 // A question asked once per device (answerScope "device", follow-up 47), against `share.sh ensure-running` with the
 // fake cloudflared: a guest answers it on a computer, opens the session on a phone with their personal link, sees that
 // they answered on their computer and are asked for this phone too, and answers again; the owner then reads one card
-// per device, each named with its device.
+// per device, each named with its device. A phone turned to landscape is still the phone; a tablet is its own device.
 //   node plugins/planning/shared/tests/ui_per_device.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from Q94 (one answer per device, a prompt on a new device) and the texts this suite writes,
@@ -48,9 +48,27 @@ async function main() {
       return mine === "computer:My laptop, mostly.|phone:On the bus, my phone.";
     }, annPid, 10000), JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.cards?.Q1)));
     ok("  and the prompt goes", await until(phone, () => document.querySelector(".vf-devnote").hidden, null, 10000));
+    // The review: a phone turned to landscape (844x390) is still the phone, so it edits that card, never adds one.
+    const land = await rec.open(link.replace(/^https?:\/\/[^/]+\//, A.localUrl), { context: { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true } });
+    await until(land, pid => window.Core.snapshot()?.me?.pid === pid, annPid, 10000);
+    ok("a phone in landscape is still her phone: its answer is in the box and nothing asks again", await until(land, () => document.getElementById("vf-answer").value === "On the bus, my phone."
+      && document.querySelector(".vf-devnote").hidden, null, 10000), JSON.stringify(await land.evaluate(() => [document.getElementById("vf-answer").value, window.Core.thisDevice()])));
+    await land.evaluate(() => window.Core.answerCiting("Q1", "On the bus, phone sideways.", []));
+    ok("  and answering there edits the phone card, still two cards", await until(owner, pid => {
+      const mine = (window.Core.snapshot()?.cards?.Q1 || []).filter(c => c.pid === pid).map(c => `${c.device}:${c.text}`).sort().join("|");
+      return mine === "computer:My laptop, mostly.|phone:On the bus, phone sideways.";
+    }, annPid, 10000), JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.cards?.Q1)));
+    // A tablet (820x1180, touch) is its own device: it is asked for an answer and adds a third card.
+    const tab = await rec.open(link.replace(/^https?:\/\/[^/]+\//, A.localUrl), { context: { viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true } });
+    await until(tab, pid => window.Core.snapshot()?.me?.pid === pid, annPid, 10000);
+    ok("a tablet is asked for its own answer", await until(tab, () => /^You answered this on your (computer and phone|phone and computer)\. It asks for one answer per device: answer for this tablet too\.$/.test(document.querySelector(".vf-devnote:not([hidden])")?.textContent || ""), null, 10000),
+      await tab.evaluate(() => document.querySelector(".vf-devnote")?.textContent || ""));
+    await tab.evaluate(() => window.Core.answerCiting("Q1", "Reading on the sofa.", []));
+    ok("  and its answer is a third card", await until(owner, pid => (window.Core.snapshot()?.cards?.Q1 || []).filter(c => c.pid === pid).map(c => c.device).sort().join() === "computer,phone,tablet", annPid, 10000),
+      JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.cards?.Q1)));
     ok("the owner reads one card per device, each named with its device", await until(owner, () => {
       const names = [...document.querySelectorAll(".vf-alist .vf-card")].map(c => c.textContent);
-      return names.some(t => t.includes("Ann, computer") && t.includes("My laptop")) && names.some(t => t.includes("Ann, phone") && t.includes("On the bus"));
+      return names.some(t => t.includes("Ann, computer") && t.includes("My laptop")) && names.some(t => t.includes("Ann, phone") && t.includes("On the bus")) && names.some(t => t.includes("Ann, tablet"));
     }, null, 10000), await owner.evaluate(() => [...document.querySelectorAll(".vf-alist .vf-card")].map(c => c.textContent.slice(0, 60)).join(" | ")));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);

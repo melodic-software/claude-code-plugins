@@ -694,7 +694,8 @@
 
   // ---------- where an answer was made (Q99): the view, and the device, never more ----------
   const BROWSERS = [[/SamsungBrowser\//, "samsung"], [/Edg\//, "edge"], [/(FBAN|FBAV|Instagram|Line\/|; wv\))/, "in-app"], [/Firefox\/|FxiOS\//, "firefox"], [/Chrome\/|CriOS\//, "chrome"], [/Safari\//, "safari"]];
-  const deviceKind = () => (matchMedia("(pointer: coarse)").matches ? (matchMedia("(max-width: 720px)").matches ? "phone" : "tablet") : "computer");
+  // A touch screen's short side, which a rotation leaves alone, tells a phone from a tablet: a phone in landscape is still a phone.
+  const deviceKind = () => (matchMedia("(pointer: coarse)").matches ? (Math.min(screen.width, screen.height) < 600 ? "phone" : "tablet") : "computer");
   const browserKind = () => BROWSERS.find(([re]) => re.test(navigator.userAgent))?.[1] || "other";
   /** A question asked once per device (answerScope device) takes the device kind with each answer and pick. */
   const scopeOf = qid => (Core.state.questions.find(q => q.id === qid)?.answerScope === "device" ? { device: deviceKind() } : {});
@@ -702,7 +703,7 @@
    *  instead; null in any other browser. */
   Core.inApp = () => {
     const ua = navigator.userAgent;
-    const app = /Instagram/.test(ua) ? "Instagram" : /Messenger|FB_IAB\/MESSENGER|FBAN\/MessengerForiOS/i.test(ua) ? "Messenger" : /FBAN|FBAV|FB_IAB/.test(ua) ? "Facebook" : "";
+    const app = /Instagram/.test(ua) ? "Instagram" : /Messenger|FB_IAB\/MESSENGER|FB_IAB\/Orca-Android|FBAN\/MessengerForiOS/i.test(ua) ? "Messenger" : /FBAN|FBAV|FB_IAB/.test(ua) ? "Facebook" : "";
     return app ? { app, open: /iPhone|iPad|iPod/.test(ua) ? "Safari" : "Chrome" } : null;
   };
   function where() {

@@ -69,6 +69,12 @@ async function main() {
     const ann2 = await ann.context().newPage();
     await ann2.goto(ann.url());
     ok("  a new visit shows it again", await until(ann2, g => document.querySelector(".vf-goalback-t")?.textContent === `Goal: ${g}` && !document.querySelector(".vf-goalback").hidden, GOAL, 10000), await goalLine(ann2));
+    // review: a removed person reads the session without the goal line
+    const annPid = await ann.evaluate(() => window.Core.me.cid);
+    await owner.evaluate(p => window.Core.removePerson(p, true), annPid);
+    ok("  a removed person never sees it", await until(ann2, () => window.Core.state.youRemoved === true && document.querySelector(".vf-goalback").hidden, null, 10000), await goalLine(ann2));
+    await owner.evaluate(p => window.Core.removePerson(p, false), annPid);
+    await until(ann, () => !window.Core.state.youRemoved, null, 10000);
     await ann2.close();
 
     // ---------- Show the tour again ----------
@@ -105,11 +111,21 @@ async function main() {
     const ig = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, userAgent: IG_UA } });
     const banner = () => ig.evaluate(() => { const b = document.querySelector(".vf-banner"); return b && !b.hidden ? b.querySelector(".vf-banner-txt").textContent + " | " + b.querySelector("button").textContent : ""; });
     await joinAs(ig, "Ig");
-    ok("in Instagram's browser a banner says to open the page in Safari, with Copy link", await until(ig, () => /in Instagram's browser.*open this page in Safari/.test(document.querySelector(".vf-banner:not([hidden]) .vf-banner-txt")?.textContent || "")
-      && document.querySelector(".vf-banner button").textContent === "Copy link"), await banner());
+    ok("in Instagram's browser a banner says to open the page in Safari, with Get your link", await until(ig, () => /in Instagram's browser.*open this page in Safari/.test(document.querySelector(".vf-banner:not([hidden]) .vf-banner-txt")?.textContent || "")
+      && document.querySelector(".vf-banner button").textContent === "Get your link"), await banner());
     ok("  and the page still works under it: the question and the answer box are there", await ig.evaluate(() => !!document.querySelector(".vf-qtext")?.textContent && !document.getElementById("vf-answer").disabled));
-    await ig.locator(".vf-banner button", { hasText: "Copy link" }).tap();
-    ok("  Copy link closes it", await until(ig, () => document.querySelector(".vf-banner").hidden), await banner());
+    await ig.locator(".vf-banner button", { hasText: "Get your link" }).tap();
+    ok("  Get your link opens the device panel with its Keep this private warning, nothing copied unannounced, and the banner goes", await until(ig, () => document.querySelector(".vf-banner").hidden
+      && !document.querySelector(".vf-devicepop").hidden && /^Keep this private: anyone with this link can answer, vote and chat as you\.$/.test(document.querySelector(".vf-devicepop").textContent.match(/Keep this private[^]*?you\./)?.[0] || "")), await banner());
+    const igOwner = await rec.open(A.ownerUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, userAgent: IG_UA } });
+    await until(igOwner, () => window.Core.snapshot()?.me?.role === "owner", null, 10000);
+    await igOwner.waitForTimeout(1000);
+    ok("  the owner in Instagram's browser never gets it: their link is the owner credential", await igOwner.evaluate(() => !/browser\. For pictures/.test(document.querySelector(".vf-banner:not([hidden])")?.textContent || "")));
+    const ORCA_UA = "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/124.0.0.0 Mobile Safari/537.36 [FB_IAB/Orca-Android;FBAV/455.0.0.36.106;]";
+    const orca = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, userAgent: ORCA_UA } });
+    await joinAs(orca, "Orca");
+    ok("  Messenger on Android is named Messenger, with Chrome", await until(orca, () => /in Messenger's browser.*open this page in Chrome/.test(document.querySelector(".vf-banner:not([hidden]) .vf-banner-txt")?.textContent || ""), null, 10000),
+      await orca.evaluate(() => document.querySelector(".vf-banner .vf-banner-txt")?.textContent));
     ok("  a regular browser never gets it", await pia.evaluate(() => !/in-app|browser\. For pictures/.test(document.querySelector(".vf-banner:not([hidden])")?.textContent || "")));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
