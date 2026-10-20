@@ -2949,7 +2949,8 @@ class TestLease(WaitCase):
     @classmethod
     def prepare(cls):
         (cls.dir / "settings.json").write_text(
-            json.dumps({"leaseTimeout": 5}), encoding="utf-8"
+            json.dumps({"leaseTimeout": 5, "settleQuiet": FAST_QUIET, "settleBurst": FAST_BURST}),
+            encoding="utf-8",
         )
 
     def wait_as(self, watcher, timeout=1):
