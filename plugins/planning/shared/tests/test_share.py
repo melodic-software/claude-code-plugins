@@ -49,7 +49,8 @@ class Running(ShareCase):
         return share(self.d, "apply", "--file", str(f))
 
     def join(self, name):
-        code, _, out = call(self.guest_port(), "POST", "/api/join", {"name": name, "device": "computer"})
+        key = json.loads((self.d / "state.json").read_text(encoding="utf-8"))["session"]["guestKey"]
+        code, _, out = call(self.guest_port(), "POST", "/api/join", {"name": name, "device": "computer", "key": key})
         self.assertEqual(code, 200, out)
         return {"X-Session-Secret": out["secret"]}
 
@@ -91,7 +92,7 @@ class TestEnsureRunning(Running):
     def test_it_answers_the_contract_fields(self):
         out = self.first
         self.assertEqual(sorted(out), ENSURE_KEYS)
-        self.assertRegex(out["guestUrl"], r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/$")
+        self.assertRegex(out["guestUrl"], r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/#join=[A-Za-z0-9_-]{12}$")
         self.assertEqual(out["localUrl"], f"http://127.0.0.1:{self.guest_port()}/")
         self.assertEqual((out["tunnel"], out["resumed"], out["shareChanged"]), ("quick", False, False))
         # share.py resolves --dir; a Windows temp folder may be named in its 8.3 short form.
@@ -181,7 +182,7 @@ class TestStopStatusUrl(Running):
         owner = {"X-Owner-Token": self.owner_token()}
         _, _, out = call(self.guest_port(), "POST", "/api/link/guest", {}, owner)
         _, url, _ = share(self.d, "url")
-        self.assertEqual(url["guestUrl"], self.first["guestUrl"] + "#join=" + out["guestKey"])
+        self.assertEqual(url["guestUrl"], self.first["guestUrl"].split("#")[0] + "#join=" + out["guestKey"])
 
     def test_list_finds_every_session_under_the_root(self):
         other = self.root / "topic" / "shared" / "designer"
@@ -534,7 +535,7 @@ class TestTunnelRestart(Running):
         cf = tunnel.read(self.d)
         detached.stop(cf["pid"], cf["marker"])
         new = wait_for(lambda: (u := share(self.d, "url")[1]["guestUrl"]) != self.first["guestUrl"] and u, seconds=30, step=0.5)
-        self.assertRegex(new, r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/$")
+        self.assertRegex(new, r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/#join=[A-Za-z0-9_-]{12}$")
         code, out, _ = share(self.d, "ensure-running")
         self.assertEqual((code, out["guestUrl"], out["shareChanged"]), (0, new, True))
         _, _, snap = call(self.guest_port(), "GET", "/api/state", headers={"X-Owner-Token": self.owner_token()})

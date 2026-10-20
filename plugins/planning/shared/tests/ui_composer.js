@@ -423,7 +423,7 @@ async function main() {
     await until(hostTab, () => window.Core.snapshot()?.me?.role === "owner");
     await hostTab.click(".vf-fab");
     await hostTab.fill(".vf-minput", UNSENT_HOST);
-    await hostTab.goto(A.localUrl + "?as=guest");
+    await hostTab.goto(`${A.localUrl}?as=guest#join=${A.guestKey}`);
     await joinAs(hostTab, "Hal");
     await hostTab.click(".vf-fab");
     await hostTab.waitForTimeout(500);

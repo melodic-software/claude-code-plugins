@@ -661,6 +661,16 @@ page keeps the rest of its last snapshot.
   body field or a URL query; a pid in a body is ignored. Owner routes need `X-Owner-Token`
   itself. `state.json` keeps only sha256 hashes. Custom headers force a CORS preflight that is
   never answered.
+- **Joining.** A new session issues a guest key, so its first guest link already ends in
+  `#join=<key>` and a join without the key gets 403 `bad-guest-key`. A session saved before
+  sessions had one keeps an empty key, and with it a link that needs none, until the owner presses
+  New guest link; nothing changes it on its own.
+- **Assets.** `/assets/*` answers only a joined person or the owner: the identity headers, or the
+  asset cookie every `/api/state` answer with identity sets, since an `<img>` or a frame sends no
+  header. The cookie holds the pid, an expiry 15 minutes ahead and an HMAC under a key each server
+  start makes (`HttpOnly`, `SameSite=Strict`, `Path=/assets/`, `Secure` through the tunnel, named
+  for the guest port). Each poll renews it; a removed or waiting person's cookie reads nothing (403),
+  and without either credential the answer is 401.
 - **Requests.** JSON POSTs only (415), the 32 KB body cap checked before reading (413), and the
   whole body within 10 s (408). A request other than a POST that carries a body
   (`Content-Length` above 0 or any `Transfer-Encoding`) gets 400 and its connection closes. A

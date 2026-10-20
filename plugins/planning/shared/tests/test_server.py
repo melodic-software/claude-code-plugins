@@ -88,7 +88,7 @@ class ServerCase(unittest.TestCase):
 
     def join(self, name, ip=None):
         h = {"CF-Connecting-IP": ip} if ip else {}
-        code, _, out = self.post("/api/join", {"name": name, "device": "computer"}, h)
+        code, _, out = self.post("/api/join", {"name": name, "device": "computer", "key": self.app.session.state["session"]["guestKey"]}, h)
         self.assertEqual(code, 200, out)
         return out["pid"], {"X-Session-Secret": out["secret"]}
 
@@ -182,7 +182,7 @@ class TestAuthClasses(ServerCase):
         self.assertEqual((code, out["error"]), (401, "unknown-session"))
 
     def test_join_is_public(self):
-        code, _, out = self.post("/api/join", {"name": "Cy", "device": "phone"})
+        code, _, out = self.post("/api/join", {"name": "Cy", "device": "phone", "key": self.app.session.state["session"]["guestKey"]})
         self.assertEqual(code, 200)
         self.assertEqual(sorted(out), ["name", "ok", "pid", "secret"])
 
@@ -271,12 +271,12 @@ class TestHeadersAndCaps(ServerCase):
         (self.d / "assets").mkdir()
         (self.d / "assets" / "0123456789abcdef.png").write_bytes(PNG)
         (self.d / "assets" / "fedcba9876543210.html").write_text("<html></html>", encoding="utf-8")
-        code, h, body = self.get("/assets/0123456789abcdef.png")
+        code, h, body = self.get("/assets/0123456789abcdef.png", self.owner)
         self.assertEqual((code, h["Content-Type"], h["Content-Security-Policy"], h["Content-Disposition"], body), (200, "image/png", "sandbox", "inline", PNG))
-        _, h, _ = self.get("/assets/fedcba9876543210.html")
+        _, h, _ = self.get("/assets/fedcba9876543210.html", self.owner)
         self.assertEqual(h["Content-Security-Policy"], HTML_ASSET_CSP)
         self.assertNotIn("allow-same-origin", h["Content-Security-Policy"])
-        code, _, _ = self.get("/assets/0123456789abcdef.exe")
+        code, _, _ = self.get("/assets/0123456789abcdef.exe", self.owner)
         self.assertEqual(code, 404)
 
     def test_a_non_json_post_is_415(self):
@@ -369,10 +369,81 @@ class TestJoinLimit(ServerCase):
     def test_the_join_limit_keys_on_cf_connecting_ip_and_ignores_x_forwarded_for(self):
         for i in range(session.JOINS_PER_WINDOW):
             self.join(f"P{i}", ip="198.51.100.7")
-        code, _, out = self.post("/api/join", {"name": "Late"}, {"CF-Connecting-IP": "198.51.100.7", "X-Forwarded-For": "192.0.2.1"})
+        code, _, out = self.post("/api/join", {"name": "Late", "key": self.app.session.state["session"]["guestKey"]}, {"CF-Connecting-IP": "198.51.100.7", "X-Forwarded-For": "192.0.2.1"})
         self.assertEqual((code, out["error"]), (429, "join-rate"))
-        code, _, _ = self.post("/api/join", {"name": "Other"}, {"CF-Connecting-IP": "198.51.100.8"})
+        code, _, _ = self.post("/api/join", {"name": "Other", "key": self.app.session.state["session"]["guestKey"]}, {"CF-Connecting-IP": "198.51.100.8"})
         self.assertEqual(code, 200)
+
+
+class TestGuestKey(ServerCase):
+    def test_a_new_session_refuses_a_join_without_its_guest_key(self):
+        self.assertTrue(self.get("/api/state")[2]["joinNeedsKey"])
+        code, _, out = self.post("/api/join", {"name": "No key"})
+        self.assertEqual((code, out["error"]), (403, "bad-guest-key"))
+
+    def test_a_keyless_session_from_before_stays_keyless_across_a_restart(self):
+        self.app.shutdown()
+        doc = json.loads((self.d / server.STATE).read_text(encoding="utf-8"))
+        doc["session"]["guestKey"] = ""
+        (self.d / server.STATE).write_text(json.dumps(doc), encoding="utf-8")
+        app = server.App(self.d, watch_tunnel=False)
+        app.serve()
+        self.addCleanup(app.shutdown)
+        code, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+        self.assertEqual(code, 200, out)
+        self.assertEqual(app.session.state["session"]["guestKey"], "")
+
+
+class TestAssetAccess(ServerCase):
+    def setUp(self):
+        super().setUp()
+        (self.d / "assets").mkdir()
+        (self.d / "assets" / "0123456789abcdef.png").write_bytes(PNG)
+        self.pid, self.guest = self.join("Ann")
+
+    def png(self, headers=None):
+        code, _, body = self.get("/assets/0123456789abcdef.png", headers)
+        return code, body if code == 200 else body["error"]
+
+    def cookie(self, headers):
+        """The asset cookie a state read sets, as a Cookie header, and its attributes."""
+        _, h, _ = self.get("/api/state", headers)
+        pair, *attrs = h["Set-Cookie"].split("; ")
+        return {"Cookie": pair}, attrs
+
+    def test_an_asset_needs_a_person_or_the_owner(self):
+        self.assertEqual(self.png(), (401, "unknown-session"))
+        self.assertEqual(self.png({"X-Session-Secret": "forged"}), (401, "unknown-session"))
+        self.assertEqual(self.png(self.guest), (200, PNG))
+        self.assertEqual(self.png(self.owner), (200, PNG))
+
+    def test_a_state_read_sets_an_asset_cookie_that_reads_assets_only_while_the_person_may(self):
+        cookie, attrs = self.cookie(self.guest)
+        self.assertEqual(attrs, ["Path=/assets/", f"Max-Age={server.ASSET_COOKIE_SECONDS}", "HttpOnly", "SameSite=Strict"])
+        self.assertEqual(self.png(cookie), (200, PNG))
+        self.assertEqual(self.png(self.cookie(self.owner)[0]), (200, PNG))
+        code, _, out = self.post("/api/person/remove", {"pid": self.pid, "on": True}, self.owner)
+        self.assertEqual(code, 200, out)
+        self.assertEqual(self.png(cookie), (403, "removed"))
+
+    def test_an_anonymous_state_read_sets_no_cookie(self):
+        self.assertNotIn("Set-Cookie", self.get("/api/state")[1])
+
+    def test_a_forged_expired_or_other_session_cookie_reads_nothing(self):
+        cookie, _ = self.cookie(self.guest)
+        name, value = cookie["Cookie"].split("=", 1)
+        pid, exp, sig = value.split(".")
+        forged = {
+            "another pid": f"{name}=host.{exp}.{sig}",
+            "a later expiry": f"{name}={pid}.{int(exp) + 1}.{sig}",
+            "another port's name": f"shared-assets-1={value}",
+        }
+        for what, c in forged.items():
+            with self.subTest(what):
+                self.assertEqual(self.png({"Cookie": c}), (401, "unknown-session"))
+        with mock.patch.object(server, "ASSET_COOKIE_SECONDS", -1):
+            expired, _ = self.cookie(self.guest)
+        self.assertEqual(self.png(expired), (401, "unknown-session"))
 
 
 class TestRateKeys(ServerCase):
@@ -1019,7 +1090,7 @@ class TestControl(ServerCase):
         code, _, out = self.ops({"op": "add-asset", "path": str(src), "scale": 2})
         self.assertEqual(code, 200, out)
         aid = out["results"][0]["id"]
-        code, h, body = self.get(f"/assets/{aid}")
+        code, h, body = self.get(f"/assets/{aid}", self.owner)
         self.assertEqual((code, body, h["Content-Security-Policy"]), (200, PNG, "sandbox"))
 
     def test_the_ping_reports_the_guest_port_and_build(self):
@@ -1325,7 +1396,7 @@ class TestClientLog(LogCase):
             app = server.App(d, watch_tunnel=False)
             app.serve()
             self.addCleanup(app.shutdown)
-            _, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+            _, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer", "key": app.session.state["session"]["guestKey"]})
             guest = {"X-Session-Secret": out["secret"]}
 
             def log():
@@ -1356,7 +1427,7 @@ class TestClientLog(LogCase):
             app = server.App(d, watch_tunnel=False)
             app.serve()
             self.addCleanup(app.shutdown)
-            code, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+            code, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer", "key": app.session.state["session"]["guestKey"]})
             guest = {"X-Session-Secret": out["secret"]}
             for i in range(20):
                 call(app.guest_port, "POST", "/api/client-log", {"kind": "error", "message": f"entry-{i:02d}"}, guest)
@@ -1446,7 +1517,7 @@ class TestModerationRoutes(ServerCase):
         code, _, out = self.post("/api/session/settings", {"approveJoins": True}, self.owner)
         self.assertEqual(code, 200, out)
         self.post("/api/session/intro", {"intro": "Why we meet."}, self.owner)
-        code, _, out = self.post("/api/join", {"name": "Jib"})
+        code, _, out = self.post("/api/join", {"name": "Jib", "key": self.app.session.state["session"]["guestKey"]})
         self.assertEqual((code, out["waiting"]), (200, True))
         jib = {"X-Session-Secret": out["secret"]}
         code, _, err = self.get("/api/state?since=0", jib)
@@ -1528,19 +1599,19 @@ class TestPrototypePage(ServerCase):
         self.assertEqual((code, h["Content-Type"]), (200, "text/javascript; charset=utf-8"))
 
     def test_an_html_variant_is_sandboxed_and_framable_by_the_session_only(self):
-        code, h, body = self.get(f"/assets/{self.html}")
+        code, h, body = self.get(f"/assets/{self.html}", self.guest)
         self.assertEqual((code, h["Content-Security-Policy"], h["X-Frame-Options"], body), (200, HTML_ASSET_CSP, "SAMEORIGIN", self.VARIANT_HTML))
         self.assertNotIn("allow-same-origin", h["Content-Security-Policy"])
-        code, h, _ = self.get(f"/assets/{self.png}?pin=1")
+        code, h, _ = self.get(f"/assets/{self.png}?pin=1", self.guest)
         self.assertEqual((code, h["Content-Security-Policy"], h["X-Frame-Options"]), (200, "sandbox", "DENY"))
 
     def test_pin_1_appends_the_pin_helper_as_the_one_inline_script(self):
-        _, h, body = self.get(f"/assets/{self.html}?pin=1")
+        _, h, body = self.get(f"/assets/{self.html}?pin=1", self.guest)
         self.assertEqual(h["Content-Security-Policy"], HTML_ASSET_CSP)
         self.assertTrue(body.startswith(self.VARIANT_HTML))
         helper = (server.WEB / "proto-pin.js").read_bytes()
         self.assertEqual(body[len(self.VARIANT_HTML):], b"\n<script>" + helper + b"</script>\n")
-        self.assertEqual(self.get(f"/assets/{self.png}?pin=1")[2], PNG)
+        self.assertEqual(self.get(f"/assets/{self.png}?pin=1", self.guest)[2], PNG)
 
     def test_a_pin_helper_that_could_end_or_hide_its_script_element_is_refused(self):
         for text in ("x</script>", "x</SCRIPT >", "x<!-- y", "x<script>", "x<ScRiPt src=a>"):
