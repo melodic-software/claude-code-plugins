@@ -1851,7 +1851,9 @@ def project_fan_out(entries: list[dict]) -> dict:
             "matcher Python cannot compile, or whose extension gate is narrowed by a directory "
             "or multi-dot suffix is counted as firing and appears in "
             "`fire_always_unclassified`, as is each extra copy of a settings-file handler; "
-            "`floor` is `fires` minus those rows, the count known to fire. A `Write(...)` gate is decided "
+            "`floor` is `fires` minus those rows, the count known to fire for an edit inside each "
+            "handler's project anchor; an edit outside an anchor can fire fewer (HOOK_ANCHOR_NOTE). "
+            "A `Write(...)` gate is decided "
             "by extension like an `Edit(...)` gate, and counts toward the floor only on the "
             "`Write` tool."
         ),
