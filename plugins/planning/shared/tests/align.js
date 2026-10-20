@@ -2,7 +2,7 @@
 // Page alignment check: seeds a varied session and an empty one through `share.sh ensure-running` (fake cloudflared,
 // spare ports), then opens every view below at each size and theme and checks the page: no mention token (<@pid>) in
 // its text, attributes or fields, and the geometry: no page scroll,
-// no horizontal overflow, no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
+// no horizontal overflow, the focus view's blocks on the question's column (column), no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
 // place, the phone tab bar, choice and confirm controls above the fold, and icon-only buttons with the icon centered
 // on the button within 0.5 px (icon-center).
 //   node plugins/planning/shared/tests/align.js
@@ -251,6 +251,8 @@ function views(page, CFG) {
   let guests = 0;
   return {
     "focus-q1-short": () => gotoQ("Q1"),
+    // O113: the owner's "Who must answer" panel, open; the column rule holds it to the question's width
+    "for-panel": async () => { await gotoQ("Q1"); if (!(await clickIn(".vf-forbtn"))) return false; await W(120); return page.evaluate(() => !document.querySelector(".vf-forbox").hidden); },
     "focus-q3-longword": () => gotoQ("Q3"),
     "focus-q4-locked": () => gotoQ("Q4"),
     "focus-q5-emoji": () => gotoQ("Q5"),
@@ -405,6 +407,18 @@ const check = (page, theme) => page.evaluate(theme => {
       if (pcs.overflowX === "visible" && pcs.display !== "inline" && (r.right > pr.right + bleedR + T || r.left < pr.left - bleedL - T)) {
         fail("overflow", `${name(el)} x ${r.left.toFixed(1)}..${r.right.toFixed(1)} sticks out of parent ${name(p)} x ${pr.left.toFixed(1)}..${pr.right.toFixed(1)}`);
       }
+    }
+  }
+
+  // 2b. The focus view's column (O113): each block beside the question text spans the question text's width and place.
+  const qt = document.querySelector(".vf-focus .vf-qtext");
+  if (qt && vis(qt)) {
+    const qr = qt.getBoundingClientRect();
+    for (const el of qt.parentElement.children) {
+      const cs = getComputedStyle(el);
+      if (el === qt || !vis(el) || cs.display.startsWith("inline") || cs.position !== "static") continue;
+      const r = el.getBoundingClientRect();
+      if (Math.abs(r.left - qr.left) > 1 || Math.abs(r.right - qr.right) > 1) fail("column", `${name(el)} x ${r.left.toFixed(1)}..${r.right.toFixed(1)} is not on the question's column x ${qr.left.toFixed(1)}..${qr.right.toFixed(1)}`);
     }
   }
 

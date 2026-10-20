@@ -137,6 +137,7 @@
         out.format = "scale"; out.min = f.min; out.max = f.max; out.labels = f.labels || {};
         out.options = Array.from({ length: f.max - f.min + 1 }, (_, i) => ({ id: String(f.min + i), label: String(f.min + i) }));
       }
+      if (q.context) out.context = plain(q.context); // a mention in it reads as @Name, as the question's text does
       out.formatKind = f.kind;
       out.needsReview = flag ? { because: flag.because, ts: flag.at, ...(flag.why?.suggestion ? { suggestion: flag.why.suggestion } : {}) } : null;
       if (!flag) delete out.needsReview;

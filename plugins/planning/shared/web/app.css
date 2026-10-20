@@ -397,6 +397,7 @@
 .app .vf-qfrom { color: var(--accent-text); }
 .app .vf-qtext { font-size: clamp(22px, 2.3vw, 29px); line-height: 1.22; font-weight: 650; letter-spacing: -0.022em; text-wrap: balance; overflow-wrap: anywhere; }
 .app .vf-qtext:focus { outline: none; }
+.app .vf-qctx { margin-block: 8px 4px; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .app .vf-onit { display: flex; align-items: center; gap: 8px; margin-block: 12px 24px; color: var(--muted); font-size: 12px; min-block-size: 20px; }
 .app .vf-qonit { display: none; }
 
@@ -1127,6 +1128,12 @@
     border-radius: var(--r-lg) var(--r-lg) 0 0; border-block-end: 0; padding: 12px 16px max(12px, env(safe-area-inset-bottom));
     transform-origin: bottom center;
   }
+  /* menus are bottom sheets in thumb reach, clear of the home indicator (O114), over the chat sheet they open from */
+  .app .vf-pop:is(.vf-msgmenu, .vf-reactpop) {
+    inset-inline: 0; inset-block-end: 0; inline-size: auto; max-block-size: 86%; overflow-y: auto; z-index: 46;
+    border-radius: var(--r-lg) var(--r-lg) 0 0; border-block-end: 0; padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+    transform-origin: bottom center;
+  }
 }
 
 /* ---------- short viewports (about 560px tall or less, such as 200% zoom): answers stay visible ---------- */
@@ -1343,7 +1350,9 @@
 .app .vf-fmtres-bar > span { display: block; block-size: 100%; inline-size: 0; background: var(--accent); }
 /* Disagree on decide questions: the reason form and the reasons given */
 .app .vf-disform { display: grid; gap: 6px; margin-block-start: 8px; }
-.app .vf-forbox { margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 13px; }
+/* margin-block only: the column's margin-inline auto keeps it the question's width and place (O113); min-inline-size 0
+   undoes a fieldset's min-content, so a long list of names wraps instead of widening it */
+.app .vf-forbox { margin-block: 0 10px; min-inline-size: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 13px; }
 .app .vf-forbox[hidden], .app .vf-forchip[hidden], .app .vf-forbtn[hidden] { display: none; }
 .app .vf-forbox legend { padding-inline: 4px; color: var(--muted); }
 .app .vf-forlist { display: flex; flex-wrap: wrap; gap: 4px 14px; }
@@ -2164,7 +2173,8 @@
   .app .vf-composer > .vf-ta {
     min-block-size: 44px; border-radius: 22px; padding: 9px 50px 9px 46px; line-height: 24px;
   }
-  .app .vf-composer:not(:focus-within) > .vf-ta { block-size: 44px !important; white-space: nowrap; text-overflow: ellipsis; } /* reason: overrides grow()'s inline height while folded */
+  /* folded to one line, a long saved answer wraps inside the field and never runs under the send button (O114) */
+  .app .vf-composer:not(:focus-within) > .vf-ta { block-size: 44px !important; overflow: hidden !important; } /* reason: overrides grow()'s inline height and overflow while folded */
   .app .vf-composer:not(:focus-within) > .vf-ta::placeholder { white-space: nowrap; text-overflow: ellipsis; }
   .app .vf-composer-locked > .vf-ta { padding-inline: 16px; }
   .app .vf-composer:focus-within > .vf-ta { padding-block-end: 46px; padding-inline-start: 14px; }
@@ -2377,7 +2387,7 @@
   .app .vf-orient-h { font-size: 16px; }
   .app .vf-orient-row .vf-btn { flex: 1 1 auto; }
 }
-.app .vf-sheethead { display: none; }
+.app :is(.vf-sheethead, .vf-sheetsave) { display: none; }
 .app[data-sheet] .vf-mentions { z-index: 85; }
 .app .vf-bubble { white-space: break-spaces; } /* a space at a line end wraps instead of hanging past the bubble */
 /* A long unbroken word in a report must not widen the reader past the screen. */
@@ -2391,7 +2401,7 @@
   .app .vf-pcolors { grid-template-columns: repeat(5, 44px); }
   .app .vf-pcolor { inline-size: 44px; block-size: 44px; }
   .app .vf-mnew { block-size: 44px; border-radius: 22px; }
-  /* Triage 18: writing on a phone opens a full-height sheet over the visual viewport: Cancel and Save on top. */
+  /* Triage 18: writing on a phone opens a full-height sheet over the visual viewport: Cancel on top, Save under the field. */
   .app .vf-scroll > .vf-composer.vf-composer-sheet {
     position: fixed; z-index: 80; inset-inline: 0; inset-block-start: var(--vv-top, 0px); block-size: var(--vv-h, 100dvh);
     margin: 0; padding: env(safe-area-inset-top) 12px max(12px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px;
@@ -2407,6 +2417,7 @@
   }
   .app .vf-scroll > .vf-composer-sheet > .vf-crow { position: static; block-size: auto; margin: 0; pointer-events: auto; }
   .app .vf-composer-sheet .vf-sendbtn { display: none; }
+  .app .vf-composer-sheet .vf-sheetsave { display: inline-flex; margin-inline-start: auto; block-size: 44px; padding-inline: 22px; font-size: 15px; }
 }
 
 /* ---------- Phase 4c: why you're here, moderation, chat reactions ---------- */

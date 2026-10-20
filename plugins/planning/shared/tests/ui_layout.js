@@ -565,10 +565,11 @@ async function main() {
       const save = document.querySelector(".vf-sheetsave").getBoundingClientRect(), cancel = [...document.querySelectorAll(".vf-sheethead button")].find(b => b.textContent === "Cancel").getBoundingClientRect();
       const vv = visualViewport;
       return { full: c.top <= vv.offsetTop + 1 && c.bottom >= vv.offsetTop + vv.height - 1 && c.left <= 0 && c.right >= innerWidth - 1,
-        onTop: save.bottom <= t.top && cancel.bottom <= t.top, tall: t.height >= vv.height / 2, value: document.querySelector("#vf-answer").value };
+        cancelTop: cancel.bottom <= t.top, saveLow: save.top >= t.bottom - 1 && save.bottom <= vv.offsetTop + vv.height + 1 && save.height >= 44,
+        tall: t.height >= vv.height / 2, value: document.querySelector("#vf-answer").value };
     });
-    ok("390x844: editing a saved answer opens a full-height sheet, text pre-filled, Cancel and Save above the field",
-      sheet && geo.full && geo.onTop && geo.tall && geo.value === "Below the total.", JSON.stringify(geo));
+    ok("390x844: editing a saved answer opens a full-height sheet, text pre-filled, Cancel above the field and a 44 px Save under it, in thumb reach (O114)",
+      sheet && geo.full && geo.cancelTop && geo.saveLow && geo.tall && geo.value === "Below the total.", JSON.stringify(geo));
     await pia.keyboard.insertText(" Always.");
     await pia.locator(".vf-sheethead button", { hasText: "Cancel" }).tap();
     ok("390x844: Cancel closes the sheet and keeps the saved answer", await until(pia, () => !document.querySelector(".vf-composer-sheet") && document.querySelector("#vf-answer").value === "Below the total."));
