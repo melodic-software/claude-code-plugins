@@ -261,8 +261,15 @@ if bwrap --bind / / --dev /dev true 2>/dev/null; then
   check "--uncommitted skips untracked and tracked device nodes and still checks the regular file beside it" \
     '[[ $RC == 1 && $ERR == *"new-tool starts with #!"* && $ERR != *"can only add regular files"* ]]'
   rm -f "$repo/.bash_profile"
+  # The lane's sandbox can leave .git read-only; the snapshot must not write there.
+  RC=0
+  OUT="$(cd "$repo" && bwrap --bind / / --dev /dev --ro-bind "$repo/.git" "$repo/.git" \
+    bash scripts/check-affected.sh --uncommitted --base base 2>"$tmp/err")" || RC=$?
+  ERR="$(cat "$tmp/err")"
+  check "--uncommitted runs the checks with a read-only .git" \
+    '[[ $RC == 1 && $ERR == *"new-tool starts with #!"* && $ERR != *"Read-only file system"* ]]'
 else
-  ok "SKIP device-node case (bwrap cannot start here)"
+  ok "SKIP device-node and read-only .git cases (bwrap cannot start here)"
 fi
 rm -rf "$repo/new-tool"
 check "--uncommitted leaves HEAD, the index and the worktree list as they were" '[[ $(state) == "$before" ]]'

@@ -1156,12 +1156,12 @@
     // "Something else…": the person's own option, written here; it becomes a card others can back.
     const otherBox = E("div", "vf-otherbox");
     const otherLbl = E("label", "vf-otherlbl", "Your own option"); otherLbl.htmlFor = "vf-other";
-    const otherTa = E("textarea", "vf-ta vf-other-ta"); otherTa.id = "vf-other"; otherTa.rows = 2; otherTa.maxLength = 2000;
+    const otherTa = E("textarea", "vf-ta vf-other-ta"); otherTa.id = "vf-other"; otherTa.rows = 2;
     otherTa.placeholder = "Say what you would pick instead";
     const otherRow = E("div", "vf-crow");
     const otherCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
     const otherSave = btn("vf-btn vf-btn-primary vf-btn-sm vf-other-save", "Add my option");
-    const otherK = composer(otherTa, { send: () => (otherSave.hidden ? fmtSave : otherSave).click(), escape: () => otherCancel.click(), mentions: true, verb: "save" });
+    const otherK = composer(otherTa, { send: () => (otherSave.hidden ? fmtSave : otherSave).click(), escape: () => otherCancel.click(), mentions: true, verb: "save", cut: false });
     otherRow.append(otherK.count, otherK.hint, otherCancel, otherSave);
     otherBox.append(otherLbl, otherTa, otherRow);
     const fmtActs = E("div", "vf-fmtacts");
@@ -5744,6 +5744,16 @@
       if (q.format === "scale") return d?.value ?? rec?.value ?? null;
       return null;
     }
+    // An own option takes MAX_OWN characters (session.py MAX_TEXT). The box never cuts what is put in it (Claude's answer
+    // may be longer); saving says how much to shorten.
+    const MAX_OWN = 2000;
+    function ownTooLong(text) {
+      if (text.length <= MAX_OWN) return false;
+      flash(`Shorten your own option to ${MAX_OWN} characters; it has ${text.length}.`); otherTa.focus();
+      return true;
+    }
+    /** What a question's drafts held before Use as my answer changed them, put back by Cancel. */
+    const useBefore = {};
     const ownText = (q, rec = myRec(q.id)) => ui.otherText[q.id] ?? (rec?.other ? rec.text : "");
     const ownChanged = (q, rec) => (ui.otherText[q.id] ?? null) !== null && ui.otherText[q.id].trim() !== (rec?.other ? rec.text : "");
     /** Choosing "Something else…" opens the box for my own option (with what I wrote before, if I did). */
@@ -5771,6 +5781,8 @@
       const qid = ui.cur, q = qById(qid), text = otherTa.value.trim();
       if (!q) return;
       if (!text) { otherTa.focus(); return flash("Write your own option first."); }
+      if (ownTooLong(text)) return;
+      delete useBefore[qid];
       if (q.format === "rank") {
         ui.otherText[qid] = text;
         const cur = draftOf(q);
@@ -5797,16 +5809,25 @@
           : `Claude's answer becomes your ${q.format === "multi" ? "only pick" : "pick"}, as your own option. You can edit its text before you save it.` }))) return;
       if (ui.cur !== q.id) select(q.id, { manual: true });
       setMode("focus");
-      ui.otherText[q.id] = x.summary.slice(0, otherTa.maxLength);
+      useBefore[q.id] = { fdraft: ui.fdraft[q.id], otherText: ui.otherText[q.id] };
+      ui.otherText[q.id] = x.summary;
       if (q.format === "multi") ui.fdraft[q.id] = { options: ["other"] };
       if (q.format === "rank") ui.fdraft[q.id] = { order: ["other", ...draftOf(q).filter(o => o !== "other")] };
       openOther(q.id);
       otherTa.setSelectionRange(otherTa.value.length, otherTa.value.length);
-      announce("Claude's answer is in your own option. Edit it if you like, then save it.");
+      announce(x.summary.length > MAX_OWN ? `Claude's answer is in your own option. Shorten it to ${MAX_OWN} characters (it has ${x.summary.length}), then save it.`
+        : "Claude's answer is in your own option. Edit it if you like, then save it.");
     }
     otherCancel.onclick = () => {
       const qid = ui.cur, q = qById(qid);
       if (!q) return;
+      const before = useBefore[qid]; delete useBefore[qid];
+      if (before) { // Use as my answer, cancelled: the picks, order and own text go back to what they were
+        if (before.fdraft === undefined) delete ui.fdraft[qid]; else ui.fdraft[qid] = before.fdraft;
+        if (before.otherText === undefined) delete ui.otherText[qid]; else ui.otherText[qid] = before.otherText;
+        ui.otherOpen[qid] = false; otherBox._q = null;
+        return render();
+      }
       if (q.format === "multi") ui.fdraft[qid] = { options: draftOf(q).filter(o => o !== "other") };
       delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
       render();
@@ -5923,12 +5944,14 @@
       }
       const list = draftOf(q, rec), own = list.includes("other") ? ownText(q, rec).trim() : null;
       if (own === "") { openOther(qid); return flash("Write your own option first."); }
+      if (own != null && ownTooLong(own)) return;
       const fields = q.format === "multi" ? { options: list } : { order: list };
-      // The saved pick shows at once; a refusal puts the draft back.
-      const draft = ui.fdraft[qid], ownDraft = ui.otherText[qid];
-      delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
+      // A file still waiting for the host holds the save back, the picks kept as drafted.
       const early = own == null ? earlyOf(q, rec) : null;
       if (earlyWaits(qid, early)) return;
+      // The saved pick shows at once; a refusal puts the draft back.
+      const draft = ui.fdraft[qid], ownDraft = ui.otherText[qid];
+      delete useBefore[qid]; delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
       Core.pickWith(qid, fields, own != null ? { other: own } : early || { comment: commentOf(rec) })
         .then(() => { if (early) sentEarly(qid, early); flash(q.format === "multi" ? `Your picks are saved${early?.comment ? " with your comment" : ""}.` : `Your ranking is saved${early?.comment ? " with your comment" : ""}.`); })
         .catch(e => { if (draft && !ui.fdraft[qid]) ui.fdraft[qid] = draft; if (ownDraft != null && ui.otherText[qid] == null) ui.otherText[qid] = ownDraft; fail(e); render(); });
@@ -5953,10 +5976,10 @@
       clearTimeout(FMT.timer);
       const save = () => {
         const rec = myRec(qid);
-        delete ui.fdraft[qid];
-        if (rec?.value === n) return render();
+        if (rec?.value === n) { delete ui.fdraft[qid]; return render(); }
         const early = earlyOf(q, rec);
-        if (earlyWaits(qid, early)) return render();
+        if (earlyWaits(qid, early)) return render(); // the value stays drafted until its file is ready
+        delete ui.fdraft[qid];
         Core.pickWith(qid, { value: n }, early || { comment: commentOf(rec) }).then(() => { if (early) sentEarly(qid, early); announce(`You chose ${n}.`); armAdvance(qid); }).catch(fail).finally(render);
       };
       if (now) save(); else FMT.timer = setTimeout(save, 450);

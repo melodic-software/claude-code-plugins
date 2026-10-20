@@ -2,7 +2,8 @@
 # Contract tests for the guardrails pre-commit entry (git-hooks/pre-commit-content.sh):
 # a secret or machine-specific path on a line the commit adds blocks with
 # "<path>:<line>: <message>"; one on an unchanged line, in an unstaged change,
-# in a symlinked or binary file, or under an exempt path does not; a staged
+# in a symlinked file, an ordinary binary, or under an exempt path does not;
+# a token in a file holding a NUL byte, UTF-16LE text included, blocks; a staged
 # gitignored file is judged and an untracked one is not; --worktree covers uncommitted and untracked files; and the plugin's vendored
 # installer wires the entry, pattern libraries included, so `git commit` runs it.
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
@@ -97,6 +98,31 @@ printf 'brand new token=%s\n' "$FAKE_GHP" >"$REPO/new.txt"
 git -C "$REPO" add new.txt
 expect "a new file is judged whole" 1 "$(rc_of "$REPO")"
 
+# A tracked `-diff` attribute makes numstat call a text file binary and the diff
+# print no hunks; the bytes decide, so the token is still found.
+new_repo
+printf '*.yml -diff\n' >"$REPO/.gitattributes"
+printf 'key: value\ntoken: %s\n' "$FAKE_GHP" >"$REPO/ci.yml"
+git -C "$REPO" add .gitattributes ci.yml
+expect "a token in a .yml file under a -diff attribute blocks, naming that line" "1|ci.yml:2: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+new_repo
+printf '*.yml -diff\n' >"$REPO/.gitattributes"
+printf 'key: value\n' >"$REPO/ci.yml"
+git -C "$REPO" add .gitattributes ci.yml
+git -C "$REPO" commit -q -m attrs --no-verify
+printf 'key: value\nother: %s\n' "$FAKE_GHP" >"$REPO/ci.yml"
+git -C "$REPO" add ci.yml
+expect "a token added to a changed -diff file blocks, naming that line" "1|ci.yml:2: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+new_repo
+printf 'MZ\0token=%s\n' "$FAKE_GHP" >"$REPO/blob.bin"
+git -C "$REPO" add blob.bin
+expect "a token in a file holding a NUL byte blocks" "1|blob.bin:1: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+expect "--worktree: a token in an untracked file holding a NUL byte blocks" 1 \
+  "$(git -C "$REPO" rm -q --cached blob.bin && rc_of "$REPO" --worktree)"
+
 # Git quotes a name holding `"` whatever core.quotePath says. Windows refuses
 # the name, so the case runs where the file system takes it.
 new_repo
@@ -152,10 +178,23 @@ ln -s "token=$FAKE_GHP" "$REPO/link.txt"
 git -C "$REPO" add link.txt
 expect "a symbolic link is not judged" "0|" "$(check "$REPO")"
 
+# UTF-16LE (a Windows .reg export, PowerShell `>` output) puts a NUL after
+# every ASCII byte.
 new_repo
-printf 'token=%s\0binary\n' "$FAKE_GHP" >"$REPO/blob.bin"
-git -C "$REPO" add blob.bin
-expect "a file git calls binary is not judged" "0|" "$(check "$REPO")"
+s="token=$FAKE_GHP"
+{
+  printf '\377\376'
+  for ((i = 0; i < ${#s}; i++)); do printf '%s\0' "${s:i:1}"; done
+  printf '\n\0'
+} >"$REPO/export.reg"
+git -C "$REPO" add export.reg
+expect "a token in a UTF-16LE file blocks" "1|export.reg:1: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+
+new_repo
+printf '\211PNG\r\n\032\n\0\0\0\rIHDR\0\0\0\001' >"$REPO/image.png"
+git -C "$REPO" add image.png
+expect "an ordinary binary with no secret still passes" "0|" "$(check "$REPO")"
 
 new_repo
 printf 'line one\nline two\ntoken=%s\n' "$FAKE_GHP" >"$REPO/notes.md"

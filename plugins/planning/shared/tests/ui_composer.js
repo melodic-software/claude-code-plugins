@@ -6,8 +6,8 @@
 // sends chat, Escape cancels a comment edit, the counter shows near the limit, the request edit field has its limit and
 // a pasted answer from one's own Claude is never cut (follow-ups 22, 31, F1, F2, B1, B3); a poll or pick-many comment,
 // and its files, go in with the pick in one step, on a phone too, keeping text typed while the pick is on its way
-// (26); a field the person is not typing in never pulls the page back when it repaints (28); Claude's answer to an ask
-// becomes its asker's own option on a choice question, asking first when they had picked, never once taken down or
+// (26), a save held back by a file still waiting for the host keeping the picks; a field the person is not typing in never pulls the page back when it repaints (28); Claude's answer to an ask
+// becomes its asker's own option on a choice question, asking first when they had picked, Cancel putting the picks back, never cutting a long answer, never once taken down or
 // while it is their own Claude's unshared answer (29); and unsent text comes back only to whoever wrote it.
 //   node plugins/planning/shared/tests/ui_composer.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
@@ -17,7 +17,7 @@
 const { loadPlaywright, suite, recorder, until, joinAs, openClaude } = require("./browser_harness");
 
 const T = { q1: "Where should the order summary sit?", q2: "Which default should the cart use?", q3: "Which carrier should we use?",
-  q4: "Which lunch spot this Friday?", q5: "Which payment methods should checkout offer?" };
+  q4: "Which lunch spot this Friday?", q5: "Which payment methods should checkout offer?", q6: "Rank the delivery options" };
 const q = (id, text, format, purpose = "decide") => ({ id, text, alternatives: [], dependsOn: [], purpose, format });
 const choice = labels => ({ kind: "choice", options: labels.map((label, i) => ({ id: `opt-${i + 1}`, label })) });
 const DESK = { context: { viewport: { width: 1400, height: 900 } } };
@@ -33,6 +33,7 @@ async function main() {
     s.apply(A.dir, [{ op: "set-title", title: "Composer checks" }, { op: "open-round", questions: [
       q("Q1", T.q1, { kind: "text" }), q("Q2", T.q2, { kind: "text" }), q("Q3", T.q3, choice(["Post", "Courier"])),
       q("Q4", T.q4, choice(["Pizza", "Sushi"]), "poll"), q("Q5", T.q5, { kind: "multi", options: [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "PayPal" }] }),
+      q("Q6", T.q6, { kind: "rank", options: [{ id: "opt-1", label: "Fast" }, { id: "opt-2", label: "Cheap" }, { id: "opt-3", label: "Green" }] }),
     ] }]);
     const owner = await rec.open(A.ownerUrl, DESK);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
@@ -326,6 +327,90 @@ async function main() {
     ok("a file attached before the pick goes in with the pick and its comment", await until(owner, id => (window.Core.snapshot().cards?.Q4 || [])
       .some(c => c.pick === "opt-2" && c.text === "With a photo of the menu" && (c.attachments || []).includes(id)), up),
       JSON.stringify(await myCard(fay, "Q4")));
+
+    // ---------- a pick-many save held back by a file still waiting for the host keeps the picks drafted ----------
+    const hy = await rec.open(A.localUrl, DESK);
+    await joinAs(hy, "Hy");
+    await go(hy, T.q5);
+    await until(hy, () => !!document.querySelector(".vf-composer .vf-attach")?.offsetParent);
+    await hy.fill("#vf-answer", "Card first");
+    await hy.evaluate(async () => {
+      const c = document.createElement("canvas"); c.width = 64; c.height = 40; c.getContext("2d").fillRect(0, 0, 64, 40);
+      const blob = await new Promise(r => c.toBlob(r, "image/png")), dt = new DataTransfer();
+      dt.items.add(new File([blob], "cards.png", { type: "image/png" }));
+      document.getElementById("vf-answer").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    });
+    await until(hy, () => (window.Core.snapshot().myUploads || []).length === 1, null, 10000);
+    for (const label of ["Card", "PayPal"]) await hy.locator(".vf-check-row", { hasText: label }).locator("input").check();
+    const picksSent = [];
+    hy.on("request", r => { if (new URL(r.url()).pathname === "/api/pick") picksSent.push(r.url()); });
+    await hy.click(".vf-fmt-save");
+    const waitSaid = await until(hy, () => /is waiting for the host/.test(document.querySelector(".vf-toast.vf-on span")?.textContent || ""));
+    await hy.waitForTimeout(2000); // a poll or two repaint the page
+    const checked = () => hy.evaluate(() => [...document.querySelectorAll(".vf-check-row")].filter(r => r.querySelector("input")?.checked).map(r => r.textContent.trim()));
+    const heldPicks = await checked();
+    ok("Save my picks held back by a file waiting for the host sends nothing and keeps both picks checked", waitSaid && picksSent.length === 0
+      && heldPicks.length === 2 && heldPicks.some(t => t.includes("Card")) && heldPicks.some(t => t.includes("PayPal")), JSON.stringify({ waitSaid, sent: picksSent.length, heldPicks }));
+    const hyUp = await hy.evaluate(() => window.Core.snapshot().myUploads[0].id);
+    await owner.evaluate(id => window.Core.uploadAct(id, "accept"), hyUp);
+    await until(hy, id => (window.Core.snapshot().myUploads || []).some(u => u.id === id && u.status.kind === "done"), hyUp, 30000);
+    await hy.click(".vf-fmt-save");
+    ok("  once the host accepts the file, Save sends those picks with the comment and the file", await until(owner, id => (window.Core.snapshot().cards?.Q5 || [])
+      .some(c => JSON.stringify(c.picks) === '["opt-1","opt-2"]' && c.text === "Card first" && (c.attachments || []).includes(id)), hyUp), JSON.stringify(await myCard(hy, "Q5")));
+
+    // ---------- 29: Use as my answer never cuts Claude's answer, and Cancel after Replace puts the picks back ----------
+    const jo = await rec.open(A.localUrl, DESK);
+    const joPid = await joinAs(jo, "Jo");
+    const askAndAnswer = async (qid, ask, summary) => {
+      await jo.waitForTimeout(1100);
+      await jo.evaluate(([qq, t]) => window.Core.request(qq, "ask", t), [qid, ask]);
+      const id = await owner.evaluate(async t => {
+        for (let i = 0; i < 50 && !(window.Core.state.requests || []).some(r => r.text === t); i++) await new Promise(r => setTimeout(r, 100));
+        return (window.Core.state.requests || []).find(r => r.text === t)?.id;
+      }, ask);
+      await owner.evaluate(i => window.Core.requestAct(i, "run"), id);
+      s.apply(A.dir, [{ op: "result", qid, request: id, kind: "ask", summary, sources: [], report: "", used: [], why: "" }]);
+      await until(jo, ([qq, a]) => (window.Core.state.research[qq] || []).some(x => x.summary === a), [qid, summary], 10000);
+      await openClaude(jo);
+    };
+    const useAndReplace = async head => {
+      await jo.locator(".vf-res", { hasText: head }).locator(".vf-res-use button").click({ timeout: 5000 }).catch(() => {});
+      await until(jo, () => document.querySelector("dialog.vf-cdlg")?.open);
+      await jo.click("dialog.vf-cdlg[open] .vf-btn-primary", { timeout: 5000 }).catch(() => {});
+      return until(jo, () => !!document.getElementById("vf-other")?.offsetParent);
+    };
+    const saveLive = () => jo.evaluate(() => document.querySelector(".vf-fmt-save").getAttribute("aria-disabled") !== "true");
+    // pick-many: Card saved, then a 2100-character answer
+    await go(jo, T.q5);
+    await jo.locator(".vf-check-row", { hasText: "Card" }).locator("input").check();
+    await jo.click(".vf-fmt-save");
+    await until(owner, p => (window.Core.snapshot().cards?.Q5 || []).some(c => c.pid === p && JSON.stringify(c.picks) === '["opt-1"]'), joPid);
+    const LONG_HEAD = "Card only: most shoppers here pay that way.", LONG = (LONG_HEAD + " " + "Details follow. ".repeat(128)).trim();
+    await askAndAnswer("Q5", "Which payment method do shoppers here use?", LONG);
+    const boxOpen = await useAndReplace(LONG_HEAD);
+    const inBox = await jo.inputValue("#vf-other");
+    ok(`Use as my answer puts all of a ${LONG.length}-character answer in the own option, uncut`, boxOpen && LONG.length > 2000 && inBox === LONG, `${boxOpen} ${inBox.length}`);
+    await jo.click(".vf-fmt-save");
+    ok("  and saving it asks to shorten it to 2000 characters, sending nothing", await until(jo, n => document.querySelector(".vf-toast.vf-on span")?.textContent === `Shorten your own option to 2000 characters; it has ${n}.`, LONG.length)
+      && !((await myCard(jo, "Q5"))?.picks || []).includes("other"), await jo.evaluate(() => document.querySelector(".vf-toast.vf-on span")?.textContent));
+    await jo.locator(".vf-otherbox button", { hasText: "Cancel" }).click();
+    await jo.waitForTimeout(300);
+    const multiBack = await jo.evaluate(() => [...document.querySelectorAll(".vf-check-row")].filter(r => r.querySelector("input")?.checked).map(r => r.textContent.trim()));
+    ok("on a pick-many question, Cancel after Replace brings back the saved pick, with Save not live", multiBack.length === 1 && multiBack[0].includes("Card") && !(await saveLive())
+      && await jo.evaluate(() => document.querySelector(".vf-otherbox").hidden), JSON.stringify({ multiBack, live: await saveLive() }));
+    // ranking: Fast, Cheap, Green saved, then Claude's answer
+    await go(jo, T.q6);
+    await until(jo, () => document.querySelectorAll(".vf-rank-item").length === 3);
+    await jo.click(".vf-fmt-save");
+    await until(owner, p => (window.Core.snapshot().cards?.Q6 || []).some(c => c.pid === p && JSON.stringify(c.order) === '["opt-1","opt-2","opt-3"]'), joPid);
+    const RANK_ANS = "Green first: most buyers here ask for it.";
+    await askAndAnswer("Q6", "Which delivery option do buyers here prefer?", RANK_ANS);
+    await useAndReplace(RANK_ANS);
+    await jo.locator(".vf-otherbox button", { hasText: "Cancel" }).click();
+    await jo.waitForTimeout(300);
+    const rankBack = await jo.evaluate(() => [...document.querySelectorAll(".vf-rank-item .vf-rank-l")].map(x => x.textContent).join(","));
+    ok("on a ranking, Cancel after Replace brings back the saved order without the own option, with Save not live", rankBack === "Fast,Cheap,Green" && !(await saveLive()),
+      JSON.stringify({ rankBack, live: await saveLive() }));
 
     // ---------- S1: unsent text belongs to whoever wrote it ----------
     const UNSENT_HOST = "The host's unsent line";

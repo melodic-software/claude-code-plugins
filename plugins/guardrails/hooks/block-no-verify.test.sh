@@ -948,8 +948,40 @@ expect_both "checks.skipmissing beside --no-verify (blocked)" 2 \
 # exactly that command per clone), is allowed; reading or unsetting the key is.
 expect_both "git config core.hooksPath /tmp/x (blocked)" 2 \
   --command "git config core.hooksPath /tmp/x"
-expect_both "git config core.hooksPath .githooks (allowed)" 0 \
-  --command "git config core.hooksPath .githooks"
+HP_REPO="$TEST_TMPDIR/hookspath-repo"
+HP_BARE="$TEST_TMPDIR/hookspath-bare"
+git init -q "$HP_REPO"
+git init -q "$HP_BARE"
+mkdir -p "$HP_REPO/.githooks"
+printf '#!/bin/sh\n# checks-dispatcher v1\n' >"$HP_REPO/.githooks/pre-commit"
+expect_both "git config core.hooksPath .githooks (local, dispatcher present, allowed)" 0 \
+  --chdir "$HP_REPO" --command "git config core.hooksPath .githooks"
+expect_both "git config --local core.hooksPath .githooks (dispatcher present, allowed)" 0 \
+  --chdir "$HP_REPO" --command "git config --local core.hooksPath .githooks"
+expect_both "git config --global core.hooksPath .githooks (blocked: global scope)" 2 \
+  --chdir "$HP_REPO" --command "git config --global core.hooksPath .githooks"
+expect_both "git config --system core.hooksPath .githooks (blocked: system scope)" 2 \
+  --chdir "$HP_REPO" --command "git config --system core.hooksPath .githooks"
+expect_both "git config --worktree core.hooksPath .githooks (blocked: worktree scope)" 2 \
+  --chdir "$HP_REPO" --command "git config --worktree core.hooksPath .githooks"
+expect_both "git config --file=x core.hooksPath .githooks (blocked: other file)" 2 \
+  --chdir "$HP_REPO" --command "git config --file=$HP_BARE/cfg core.hooksPath .githooks"
+expect_both "git -C repo config core.hooksPath .githooks (blocked: other repository)" 2 \
+  --chdir "$HP_REPO" --command "git -C $HP_BARE config core.hooksPath .githooks"
+expect_both "git config core.hooksPath .githooks (blocked: no dispatcher in .githooks)" 2 \
+  --chdir "$HP_BARE" --command "git config core.hooksPath .githooks"
+# A symlink lets the marker live outside the clone, so it never counts.
+HP_DIRLINK="$TEST_TMPDIR/hookspath-dirlink"
+HP_FILELINK="$TEST_TMPDIR/hookspath-filelink"
+git init -q "$HP_DIRLINK"
+git init -q "$HP_FILELINK"
+ln -s "$HP_REPO/.githooks" "$HP_DIRLINK/.githooks"
+mkdir -p "$HP_FILELINK/.githooks"
+ln -s "$HP_REPO/.githooks/pre-commit" "$HP_FILELINK/.githooks/pre-commit"
+expect_both "git config core.hooksPath .githooks (blocked: .githooks is a symlink)" 2 \
+  --chdir "$HP_DIRLINK" --command "git config core.hooksPath .githooks"
+expect_both "git config core.hooksPath .githooks (blocked: dispatcher file is a symlink)" 2 \
+  --chdir "$HP_FILELINK" --command "git config core.hooksPath .githooks"
 expect_both "git config --local core.hookspath /dev/null (blocked)" 2 \
   --command "git config --local core.hookspath /dev/null"
 expect_both "git config --global core.hooksPath ~/hooks (blocked)" 2 \

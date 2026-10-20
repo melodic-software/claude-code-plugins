@@ -19,7 +19,12 @@ current harness exposes:
 - dynamic workflows;
 - spawned subagents;
 - nested agents: the subagents a subagent spawned in turn, and the agents running
-  inside a dynamic workflow.
+  inside a dynamic workflow;
+- external CLI processes and their child trees: a background shell's children,
+  elevated ones included, can sit on a `[y/N]` question or on stdin while the
+  shell itself looks alive. List the tree and each process's input-wait verdict
+  with `keep-going`'s `check-child-input-wait.py`; a process the platform gives
+  no signal for is `unknown`, never "not waiting".
 
 Treat that list as **examples of the kinds** to look for, not a fixed
 catalogue. The tool surface evolves; the specific tools that hold off-thread

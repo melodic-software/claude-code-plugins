@@ -469,6 +469,10 @@ const checkFailures = (checks) =>
     ? [{ what: "The runner's check results are missing, unreadable or for another tip of the branch.", required: true }]
     : checks.results.filter(({ exit }) => exit !== 0).map(({ check, exit }) => ({ what: `${check} failed (exit ${exit})`, required: true }));
 
+// The gate a resumed branch passes before its PR opens and its statuses are
+// posted: at least one check ran and none failed.
+export const checksPassed = (checks) => Boolean(checks?.results.length) && !checkFailures(checks).length;
+
 // The runner's check results as the PR body's Verification section shows them.
 const checkLines = (checks) =>
   checks === null
@@ -610,12 +614,42 @@ export function decide({
     const restart = turnCapRestarts < limits["turn-cap-restarts"];
     return turnCapPlan({ issueNumber, branch, cap: turnCap.cap, restart, humanLabel, runId, runUrl, onResumed });
   }
-  // A resumed run that committed nothing of its own: the runner checked no
-  // branch of this run, so the earlier run's work goes to a person unopened.
+  // A resumed run that committed nothing of its own: its work is the
+  // resumed branch's. main passes checks for that branch only once run-checks
+  // checked it at its current tip and every commit on it ahead of the default
+  // branch is the lanes App's; then the PR opens from it when at least one
+  // check ran and none failed. Otherwise a person gets it unopened.
+  const resumedChecked = checksPassed(checks);
+  if (outcome.exit === "done" && !branch && resumed && resumedChecked) {
+    // `tip`: main opens the PR only at the tip the runner checked.
+    const plan = decide({
+      outcome: {
+        ...outcome,
+        verification: [
+          `This run resumed \`${resumed}\` and made no commit of its own; the runner checked that whole branch at ${checks.tip}, and every commit on it ahead of the default branch is the lanes App's.`,
+          ...outcome.verification,
+        ],
+      },
+      issueNumber,
+      issueLabels,
+      issueTitle,
+      branch: resumed,
+      changedFiles,
+      holdPaths,
+      humanMerge,
+      humanLabel,
+      runUrl,
+      limits,
+      now,
+      runId,
+      checks,
+    });
+    return plan.action === "open-pr" ? { ...plan, tip: checks.tip } : plan;
+  }
   if (outcome.exit === "done" && !branch && resumed) {
     return handBack({
       outcome: stopped(
-        `The run resumed \`${resumed}\` and reported done with no new commit. The earlier run's work is on that branch, which the runner did not check, so no PR was opened.`,
+        `The run resumed \`${resumed}\` and reported done with no new commit. The earlier run's work is on that branch, and the runner's checks did not pass over that whole branch, so no PR was opened.`,
       ),
       issueNumber,
       branch: resumed,
@@ -752,6 +786,20 @@ export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding"]);
 const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);
 export const isLaneBranch = (name, issueNumber) => laneBranch(issueNumber).test(name ?? "");
 
+// A commit the lanes App made through the API: verified, authored by the App
+// and committed by web-flow (a branch name proves nothing about who pushed to
+// it, and anyone can sign a commit naming the App's address as author).
+const laneCommit = (commit, bot) =>
+  commit?.commit?.verification?.verified === true && commit.author?.login === bot && commit.committer?.login === "web-flow";
+// A resume carries every commit ahead of the default branch into the next PR,
+// so each of them, not only the tip, must be the lanes App's. A listing cut
+// short (null) passes none.
+// A GET /compare answer's commits, or null when the listing (at most 250) is
+// cut short.
+export const listedCommits = (comparison) =>
+  Array.isArray(comparison?.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
+export const allLaneCommits = (commits, bot) => Array.isArray(commits) && commits.length > 0 && commits.every((commit) => laneCommit(commit, bot));
+
 export function readBranch(dir, issueNumber, key = "branch") {
   try {
     const branch = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"))?.[key];
@@ -812,16 +860,13 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   }
   const reported = ({ match, tipAt }) =>
     markers.some((marker) => marker.run === match[1] || (marker.run === "" && !(marker.at <= tipAt)));
-  const laneTip = ({ tip }) =>
-    tip?.commit?.verification?.verified === true && tip.author?.login === bot && tip.committer?.login === "web-flow";
+  const laneTip = ({ tip }) => laneCommit(tip, bot);
   const usable = (branch) => branch.aheadBy > 0 && laneTip(branch) && !branch.pulls.some(byBot);
   const reuse = lane.find((branch) => usable(branch) && !reported(branch));
   if (reuse) {
     return { action: "reuse", branch: reuse.name };
   }
-  // A resume carries every commit ahead of the default branch into the next
-  // PR, so each of them, not only the tip, must be the lanes App's.
-  const allLane = ({ commits }) => Array.isArray(commits) && commits.length > 0 && commits.every((commit) => laneTip({ tip: commit }));
+  const allLane = ({ commits }) => allLaneCommits(commits, bot);
   // Newest marker first. A resumable marker for a resumed run that kept no
   // branch of its own (`branch=resumed`) left the work on the run before it,
   // so it is passed over. The first other marker decides: a resumable one
@@ -1104,7 +1149,11 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // branch; decide() marks it so, and hands a done run back naming the
     // resumed branch.
     const resumed = branch ? "" : readBranch(dir, issueNumber, "resume");
-    const checked = readChecks(env.RUNNER_CHECKS ?? "", { branch });
+    // run-checks checks the resumed branch when this run kept none of its own,
+    // and only when lane.json's resume (rewritable) equals the branch
+    // issue-prior chose before the mint, so results naming it vouch for it.
+    const checkedBranch = branch || resumed;
+    const checked = readChecks(env.RUNNER_CHECKS ?? "", { branch: checkedBranch });
     const limit = readLimit(dir);
     const turnCap = readTurnCap(dir);
     const funding = readFunding(dir);
@@ -1130,25 +1179,39 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // tip they checked; a tip that cannot be read counts as no results.
     // run-checks checks only this run's own lane branch (or the reuse branch),
     // so results for another run's branch were not written by it.
-    const ownBranch = reuse !== "" || laneBranch(issueNumber).exec(branch)?.[1] === env.GITHUB_RUN_ID;
-    let checks = branch && ownBranch && (unreported || outcome?.exit === "done") ? checked : null;
+    // A resumed branch is the earlier run's, named by lane.json (rewritable),
+    // so its results count only once every commit on it is the App's (below).
+    const ownBranch = reuse !== "" || resumed !== "" || laneBranch(issueNumber).exec(branch)?.[1] === env.GITHUB_RUN_ID;
+    let checks = checkedBranch && ownBranch && (unreported || outcome?.exit === "done") ? checked : null;
     if (checks) {
-      const ref = branch.split("/").map(encodeURIComponent).join("/");
+      const ref = checkedBranch.split("/").map(encodeURIComponent).join("/");
       const tip = await github("GET", `${repo}/git/ref/heads/${ref}`).then((answer) => answer?.object?.sha, () => "");
       if (tip !== checks.tip) {
-        console.log(`report-outcome: ${branch} is not at the tip the runner checked, so its check results do not count`);
+        console.log(`report-outcome: ${checkedBranch} is not at the tip the runner checked, so its check results do not count`);
         checks = null;
       }
     }
     let base = "";
-    const compare = async () => {
+    let commits = null;
+    const compare = async (head = branch) => {
       base = (await github("GET", repo)).default_branch;
-      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(branch)}`);
+      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
+      // The listing holds at most 250 commits; one cut short lists none.
+      commits = listedCommits(comparison);
       return (comparison.files ?? []).flatMap((file) =>
         file.previous_filename ? [file.filename, file.previous_filename] : [file.filename],
       );
     };
-    const changedFiles = outcome?.exit === "done" && branch ? await compare() : [];
+    const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+    let changedFiles = outcome?.exit === "done" && branch ? await compare() : [];
+    if (outcome?.exit === "done" && resumed && checks) {
+      // By the checked SHA: the name can move after the tip check above.
+      changedFiles = await compare(checks.tip);
+      if (!allLaneCommits(commits, bot)) {
+        console.log(`report-outcome: ${resumed} holds a commit that is not the lanes App's, so its check results do not count`);
+        checks = null;
+      }
+    }
     const resolvedPath = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
     const holdPaths = readHoldPaths(resolvedPath);
     // A reuse whose outcome cannot be read never takes the limit record: the
@@ -1156,7 +1219,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // file list is only text, so a failed compare never blocks the PR.
     const issueTitle = typeof issue.title === "string" ? issue.title : "";
     const issueLabels = (issue.labels ?? []).map((label) => label.name);
-    const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
     // A labeler that cannot be read holds the PR, like an unreadable denied-path list.
     const humanMerge =
       !unreported &&
@@ -1184,7 +1246,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           runId,
         })
       : 0;
-    const plan = unreported
+    const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
+    let plan = unreported
       ? reusePlan({
           issueNumber,
           issueTitle,
@@ -1206,7 +1269,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           changedFiles,
           holdPaths,
           humanMerge,
-          humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
+          humanLabel,
           runUrl,
           limit,
           turnCap,
@@ -1264,13 +1327,30 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           base: base || (await github("GET", repo)).default_branch,
           draft: false,
         }));
-      console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
-      if (plan.refsHold) {
-        // The label first, so a failed comment still leaves the issue with a person.
-        await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: [plan.refsHold] });
-        await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: refsHoldComment(pull.number, plan.refsHold) });
+      // A plan with a tip opens only at it: a PR whose head moved off the
+      // checked tip is closed, and the issue goes to a person.
+      if (plan.tip && pull.head?.sha !== plan.tip) {
+        await github("PATCH", `${repo}/pulls/${pull.number}`, { state: "closed" });
+        console.log(`report-outcome: closed PR #${pull.number}: its head is not ${plan.tip}, the tip the runner checked`);
+        plan = handBack({
+          outcome: stopped(
+            `The PR from \`${plan.branch}\` opened at a head other than ${plan.tip}, the tip the runner checked, so it was closed.`,
+          ),
+          issueNumber,
+          branch: plan.branch,
+          humanLabel,
+          runUrl,
+          runId,
+        });
+      } else {
+        console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
+        if (plan.refsHold) {
+          // The label first, so a failed comment still leaves the issue with a person.
+          await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: [plan.refsHold] });
+          await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: refsHoldComment(pull.number, plan.refsHold) });
+        }
+        return 0;
       }
-      return 0;
     }
     // The label first, so a failed comment still leaves the issue with a person.
     await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: plan.addLabels });

@@ -45,7 +45,7 @@ What the model still owns, because the script cannot:
 - **The `install_new` policy.** The `user_config.install_new` placeholder substitutes only when Claude Code
   renders SKILL.md; a `context/*.md` spoke is read raw. SKILL.md's "Configured value" line is the
   rendered value, and the model passes it as `--install-new`. On `ask` with a non-empty install gap
-  the script reports the gap and STOPS before Step 4, because only the model can run the batched
+  the script reports the gap and STOPS before Step 4, because only the model can run the chunked
   prompt; it then re-enters with `--only-install <ids> --run-dir <the digest's run_dir>`, which
   performs Step 4, Step 5, and, when this pass skipped it, Step 5b against the same run journal
   and re-emits the digest.
@@ -696,7 +696,7 @@ the user-scope `enabledPlugins` map, so `pre-install.<mp>.json` is stale by the 
 cannot stand in for `pre-enable.<mp>.json`. The two are never collapsed.
 
 **Step 4 stops for the `ask` policy.** When `install_new` renders as `ask` and the install gap is
-non-empty, the script reports the gap and issues no install: the batched prompt belongs to the
+non-empty, the script reports the gap and issues no install: the chunked prompt belongs to the
 model, which runs it and re-enters with `--only-install <the chosen ids>` against the same run
 directory. The digest says so in `stopped_before_install`, so a gap left unresolved is a reported
 state rather than a silent skip. Under `all` the gap is installed; under `none` it is reported and
