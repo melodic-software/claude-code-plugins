@@ -18,7 +18,8 @@
 # index (the work tree with --worktree). Every staged path is judged, a
 # force-added gitignored one included; --worktree leaves out untracked
 # gitignored files. Skipped: symbolic links, submodules and files over 1 MiB.
-# A file git calls binary is judged whole for secrets only. The two
+# A file holding a NUL byte (whatever a `-diff` attribute says) is judged
+# whole for secrets only. The two
 # guards' path exemptions apply (tests/fixtures for secrets only).
 #
 # Findings print as "<path>:<line>: <message>" on stderr and exit 1. The
@@ -94,28 +95,6 @@ index_mode() {
   printf '%s' "${entry%% *}"
 }
 
-# file_text <path>: what the commit would hold, on stdout.
-file_text() {
-  if [[ "$CHECKS_MODE" == worktree ]]; then
-    cat -- "$1"
-  else
-    git show ":$1" 2>/dev/null
-  fi
-}
-
-is_binary() {
-  local stat
-  if [[ "$CHECKS_MODE" == worktree ]]; then
-    git ls-files --error-unmatch -- ":(literal)$1" >/dev/null 2>&1 || {
-      grep -Iq . -- "$1" 2>/dev/null && return 1
-      [[ -s "$1" ]]
-      return
-    }
-  fi
-  stat="$(checks_diff --numstat -- "$1" 2>/dev/null)"
-  [[ "$stat" == "-	-	"* ]]
-}
-
 file_size() {
   if [[ "$CHECKS_MODE" == worktree ]]; then
     wc -c <"$1" | tr -d ' '
@@ -158,15 +137,15 @@ while IFS= read -r -d '' f; do
     esac
   fi
   (($(file_size "$f") <= MAX_BYTES)) || continue
-  if is_binary "$f"; then
+  if checks_has_nul "$f"; then
     # A NUL byte must not hide a secret: scan the whole raw content for the
     # secret patterns twice, each NUL read as a space, then each NUL deleted
     # (UTF-16LE text puts one after every ASCII byte). Both keep newlines, so
     # line numbers hold; the second pass reports only labels the first missed.
     # Path patterns are not judged here, so an ordinary binary still commits.
     secret_exempt "$f" && continue
-    text="$(file_text "$f" | tr '\0' ' '; printf x)"
-    packed="$(file_text "$f" | tr -d '\0'; printf x)"
+    text="$(checks_file_text "$f" | tr '\0' ' '; printf x)"
+    packed="$(checks_file_text "$f" | tr -d '\0'; printf x)"
     {
       secrets::scan_text "${text%x}"
       echo --
@@ -181,10 +160,10 @@ while IFS= read -r -d '' f; do
   if [[ "$f" == *[\"\\[:cntrl:]]* ]]; then
     # Git quotes such a name whatever core.quotePath says, so the range table
     # holds no entry for it: the file is judged whole, past the range filter.
-    text="$(file_text "$f"; printf x)"
+    text="$(checks_file_text "$f"; printf x)"
     sink="$whole"
   else
-    text="$(file_text "$f" | added_only "$f"; printf x)"
+    text="$(checks_file_text "$f" | added_only "$f"; printf x)"
   fi
   text="${text%x}"
   [[ -n "${text//[[:space:]]/}" ]] || continue

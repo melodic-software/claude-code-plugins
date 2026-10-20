@@ -14,9 +14,9 @@
   --ok:#2d7a4b; --ok-ink:#25663e; --ok-soft:#e3f2e8; --chg:#9a5b00; --chg-soft:#fbefd9;
   --def:#62489a; --def-soft:#eee8f8; --wait:#5f6878; --wait-soft:#eceef1;
   --warn:#a3382b; --warn-soft:#fbe7e4; --res:#0f766e; --res-soft:#dcf2ef;
-  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
-  --display:"Newsreader",Georgia,"Times New Roman",serif;
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,Consolas,monospace;
+  --display:Georgia,"Times New Roman",serif;
   --rail-w:310px; --fly-w:440px; --strip-w:42px; --min-text:14px;
   --pad:18px; --gap:14px;
 }
@@ -80,6 +80,7 @@ h1{font:600 26px/1.1 var(--display);margin:6px 0 0;text-wrap:balance}
 .pill.listening{color:var(--ok);border-color:var(--ok);background:var(--ok-soft)}
 .pill.listening::before,.pill.working::before{animation:pulse 1.6s ease-in-out infinite}
 .pill.reading,.pill.working{color:var(--chg);border-color:var(--chg);background:var(--chg-soft)}
+.pill.connecting{color:var(--wait);background:var(--wait-soft)}
 .pill.idle{color:var(--wait);background:var(--wait-soft)}
 .pill.offline{color:var(--warn);border-color:var(--warn);background:var(--warn-soft)}
 @keyframes pulse{50%{opacity:.35}}
@@ -416,7 +417,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       </div>
     </div>
     <div class="hrow2">
-      <span class="pill offline" id="pill" aria-live="off">Connecting</span>
+      <span class="pill connecting" id="pill" aria-live="off">Connecting</span>
       <span class="ctx" id="ctxBadge" title="Context used" hidden></span>
       <button class="cline" id="claudeLine" aria-live="polite" title="Open the Activity panel (l)" hidden><span id="clText"></span><span class="age" id="clAge" aria-hidden="true"></span></button>
       <button class="cline wline" id="workLine" aria-live="polite" title="Open the Activity panel (l)" hidden></button>
@@ -871,6 +872,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const closedWhy = () => S.restarted ? "The server restarted. Reload this page to keep answering; your draft is kept." : S.finished ? "The interview is finished. Answers are no longer saved." : "Not connected. Your draft is kept; Save returns when the server is back.";
   function conn(){ // the connection dot's one word; offline says why
     if (S.restarted) return ["offline", "Server restarted: reload"];
+    if (!S.online && !S.finished && !S.connFailed) return ["connecting", "Connecting"]; // neutral until a connection attempt has failed
     if (!S.online) return S.finished ? ["rest", "Interview finished: server stopped"] : ["offline", "Connection lost: check the terminal"];
     if (S.finished) return ["rest", "Finished"];
     if (unheard()) return pending().length ? ["idle", neverPolled() ? FIRST_WAKE : "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
@@ -1371,8 +1373,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (held.length) h += '<section class="blk" id="personHeld"><h4>Someone else decides</h4><p>' + held.map(q => refHtml(q.id) + " " + esc(trunc(decisionOf(q).text.slice(PERSON.length), 80))).join("; ") + '</p><p class="kbd">At wrap-up Claude may suggest a questionnaire for that person to fill in.</p></section>';
     setHtml($("sumTop"), h); setHtml($("uBox"), uBoxHtml()); setHtml($("cBox"), cBoxHtml());
     const ta = $("offText"); if (ta && document.activeElement !== ta && ta.value !== (S.offDraft || "")) ta.value = S.offDraft || "";
-    h = '<section class="blk"><h4>Decisions</h4><div class="sumwrap"><table class="sum"><thead><tr><th>Question</th><th>Decision</th><th>Decided</th></tr></thead><tbody>' +
-      l.filter(q => isAnswered(stateOf(q))).map(q => { const d = decisionOf(q) || {}, [what, note] = decidedText(q, d); return "<tr><td>" + refHtml(q.id) + '</td><td class="dec">' + esc(LABEL[d.decision] || "") + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.src === "terminal" ? ", terminal" : "") + "</td><td>" + esc(trunc(what, 200)) + (note ? '<span class="kbd">Note: ' + esc(trunc(note, 160)) + "</span>" : "") + "</td></tr>"; }).join("") +
+    const answered = l.filter(q => isAnswered(stateOf(q)));
+    h = !answered.length ? "" : '<section class="blk"><h4>Decisions</h4><div class="sumwrap"><table class="sum"><thead><tr><th>Question</th><th>Decision</th><th>Decided</th></tr></thead><tbody>' +
+      answered.map(q => { const d = decisionOf(q) || {}, [what, note] = decidedText(q, d); return "<tr><td>" + refHtml(q.id) + '</td><td class="dec">' + esc(LABEL[d.decision] || "") + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.src === "terminal" ? ", terminal" : "") + "</td><td>" + esc(trunc(what, 200)) + (note ? '<span class="kbd">Note: ' + esc(trunc(note, 160)) + "</span>" : "") + "</td></tr>"; }).join("") +
       "</tbody></table></div></section>";
     const le = looseEnds();
     h += '<section class="blk"><h4>Loose ends</h4>' + (le.length ? '<ul class="loose">' + le.map(x => "<li>" + x + "</li>").join("") + "</ul>" : '<p class="empty">None.</p>') + "</section>";
@@ -1478,7 +1481,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("pinBtn").setAttribute("aria-pressed", String(S.pinned)); $("pinBtn").textContent = S.pinned ? "Unpin" : "Pin";
     if (!open) return;
     const q = S.sel !== SUMMARY ? Q[S.sel] : null, body = $("fbody");
-    $("tabs").innerHTML = [["visuals", "Visuals"], ["notes", "Notes to Claude"], ["activity", "Activity"], ["settings", "Settings"]].map(([k, t]) => '<button role="tab" data-panel="' + k + '" aria-selected="' + (S.fly === k) + '">' + t + "</button>").join("");
+    $("tabs").innerHTML = [["visuals", "Visuals"], ["notes", "Notes to Claude"], ["activity", "Activity"], ["settings", "Settings"]].map(([k, t]) => '<button role="tab" data-panel="' + k + '" aria-selected="' + (S.fly === k) + '" tabindex="' + (S.fly === k ? 0 : -1) + '">'+ t + "</button>").join("");
     if (S.fly === "notes") { $("flyTitle").textContent = "Notes to Claude"; renderNotes(body); return; }
     if (S.fly === "activity") { $("flyTitle").textContent = "Activity"; renderActivity(body); return; }
     if (S.fly === "settings") { $("flyTitle").textContent = "Settings"; renderSettings(body); return; }
@@ -2023,6 +2026,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   // shorten it with ?silentMs=<1000 to 35000>, never lengthen it.
   const SILENT_MS = (() => { const v = Number(new URLSearchParams(location.search).get("silentMs")); return Number.isInteger(v) && v >= 1000 && v <= 35000 ? v : 35000; })();
   function setOnline(v){
+    if (!v && !S.connFailed) { S.connFailed = true; renderHeader(); } // the first failed attempt ends the neutral Connecting state
     if (S.online === v) return;
     S.online = v; renderHeader();
     if (!S.loaded) return;
@@ -2148,6 +2152,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     note.focus(); note.setSelectionRange(note.value.length, note.value.length);
     renderAnswer();
   });
+  document.addEventListener("keydown", e => { // WAI-ARIA tabs: arrows and Home/End move between the side-panel tabs
+    const t = e.target.closest && e.target.closest('#tabs [role="tab"]');
+    if (!t || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    const all = [...document.querySelectorAll('#tabs [role="tab"]')], i = all.indexOf(t);
+    const j = e.key === "ArrowRight" ? (i + 1) % all.length : e.key === "ArrowLeft" ? (i - 1 + all.length) % all.length : e.key === "Home" ? 0 : e.key === "End" ? all.length - 1 : -1;
+    if (j < 0) return;
+    e.preventDefault(); e.stopPropagation(); showFly(all[j].dataset.panel);
+    const sel = document.querySelector('#tabs [role="tab"][aria-selected="true"]'); if (sel) sel.focus();
+  }, true);
   document.addEventListener("keydown", e => {
     if (e.isComposing || e.keyCode === 229) return; // IME composition, including Safari
     const inText = textFocused();

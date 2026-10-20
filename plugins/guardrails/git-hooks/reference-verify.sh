@@ -129,7 +129,10 @@ check_range() {
   while IFS= read -r -d '' f; do
     verified_type "$f" || continue
     regular_file "$f" || continue
-    if [[ "$renamed" != *$'\n'"$f"$'\n'* ]] && is_new "$f"; then
+    # Git quotes a name holding a quote, a backslash or a control byte whatever
+    # core.quotePath says, so the range table has no entry for it: such a file
+    # is judged whole, as a new one is.
+    if [[ "$f" == *[\"\\[:cntrl:]]* ]] || { [[ "$renamed" != *$'\n'"$f"$'\n'* ]] && is_new "$f"; }; then
       text="$(
         file_text "$f"
         printf x

@@ -38,7 +38,7 @@ A pull request is GitHub's change request; this file uses its terms.
 | Mergeability | `gh pr view <N> --json mergeable`; `CONFLICTING` means GitHub runs no workflows until the base is integrated |
 | The PR for a branch | `gh pr list --head <branch> --json number,title,state` |
 | Whether a branch's PR merged (worktree cleanup) | `gh pr list --state merged --head <branch>`; a non-empty result means merged |
-| Every PR, one batched read for worktree cross-reference | `gh pr list --state all --json number,title,state,headRefName` |
+| PRs for worktree cross-reference (one call per worktree branch, all states) | `gh pr list --head <branch> --state all --json number,title,state,headRefName`; a PR whose head is `<branch>` is a match, and a failed call marks that branch's PR lookup incomplete |
 | Your own open PRs here | `gh pr list --state open --author "@me" --json number` |
 | Your own open PRs across an owner | `gh search prs --state open --author @me --owner <owner> --json repository` |
 

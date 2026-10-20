@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.10] - 2026-10-20
+
+### Fixed
+
+- `check-stamps.sh --trigger-less` now counts an inline `recheck when <condition>` clause and a `Recheck:` label (bold or plain) followed by a condition as a stated recheck trigger, so such files are no longer reported as `rule-trigger-less-stamp`. A bare `recheck` with no condition still does not count.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.11.9] - 2026-10-16
 
 ### Fixed

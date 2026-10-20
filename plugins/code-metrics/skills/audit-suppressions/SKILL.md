@@ -118,10 +118,19 @@ When `/review:ratchet` is among the available skills, it can hold that count as 
 vendors a copy of the scanner into the repository and ratchets the `suppressions` or `unjustified`
 field. Without it, keep the `--json` document and compare counts by hand.
 
-The frozen count reads no configuration: with no path it scans every tracked and untracked,
-not-ignored file in the repository, so files under `scope.exclude` count, and
-`suppressions.correctness_rules` marks nothing. It can therefore exceed what `--all` reports. To
-freeze the audit's own scope, pass the paths to count, or compare `--all --json` counts.
+The scanner reads no configuration: with no path it scans every tracked and untracked,
+not-ignored file in the repository, and `suppressions.correctness_rules` marks nothing. The caller
+passes the audit's resolved scope, so the frozen count and the report count the same files: name
+the paths to count and give each `scope.exclude` glob with `--exclude <glob>` (repeatable), or
+list the globs one per line in a file for `--exclude-from <file>`:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/suppression-scan.py" --count \
+  --exclude 'vendor/' --exclude '**/generated/**' src/ tools/
+```
+
+A glob matches the repository-relative path in the same gitignore dialect `scope.exclude` uses. With
+no `--exclude` the count is unchanged and includes any path `scope.exclude` would drop.
 
 ## Upstream syntax
 
