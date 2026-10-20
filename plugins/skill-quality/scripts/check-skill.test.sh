@@ -1341,14 +1341,16 @@ Vendor-backed fixture for the sha-paired sync exception.
 None known.
 '
 }
+# sha256sum where present, else shasum -a 256 (macOS without coreutils), as check 8 does.
+sha256_of() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi | awk '{print $1}'; }
 mkdir -p "$SKILLS/vendor-skill-sha/vendor"
 printf 'v1\n' >"$SKILLS/vendor-skill-sha/vendor/UPSTREAM.txt"
 printf '{}\n' >"$SKILLS/vendor-skill-sha/vendor/.markdownlint-cli2.jsonc" # dotfile: left out of the hash
-vendor_sha_fixture "$(printf 'v1\n' | sha256sum | awk '{print $1}')"
+vendor_sha_fixture "$(printf 'v1\n' | sha256_of)"
 git -C "$TMP" add -A
 git -C "$TMP" commit -qm 'add vendor-skill-sha'
 printf 'v1 republished\n' >"$SKILLS/vendor-skill-sha/vendor/UPSTREAM.txt"
-good_sha="$(printf 'v1 republished\n' | sha256sum | awk '{print $1}')"
+good_sha="$(printf 'v1 republished\n' | sha256_of)"
 vendor_sha_fixture "$good_sha"
 out="$(run vendor-skill-sha 2>&1)"
 rc=$?
@@ -1357,7 +1359,7 @@ if [[ $rc -eq 0 ]] && grep -q 'upstream-sha bump matching' <<<"$out" && ! grep -
 else
   fail "sha-paired vendor/ diff should pass (rc=$rc): $out"
 fi
-bad_sha="$(printf 'something else\n' | sha256sum | awk '{print $1}')"
+bad_sha="$(printf 'something else\n' | sha256_of)"
 vendor_sha_fixture "$bad_sha"
 out="$(run vendor-skill-sha 2>&1)"
 rc=$?
