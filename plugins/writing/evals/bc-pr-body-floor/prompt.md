@@ -17,7 +17,7 @@ So basically, after a fair amount of back and forth over the last couple of week
 
 ## Fix
 
-What this change actually does is it adds a new `TierDiscountCache` class that is responsible for loading discounts from the `tier_discounts` table and holding them in memory. It is important to note that the migration included in this PR drops the old `discount_overrides` column from the `accounts` table, and this cannot be undone: once it runs in production, the data in that column is gone for good and there is no rollback path. Please make sure a backup snapshot exists before deploying.
+What this change actually does is it adds a new `TierDiscountCache` class that is responsible for loading discounts from the `tier_discounts` table and holding them in memory. It is important to note that the migration included in this PR drops the old `discount_overrides` column from the `accounts` table, and this cannot be undone: once it runs in production, the data in that column is gone for good and there is no rollback path. Please make sure a backup snapshot exists before deploying. <!-- ai-slop-ignore: deliberately wordy draft the eval feeds to be-concise -->
 
 ## Verification
 
