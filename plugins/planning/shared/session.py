@@ -88,7 +88,9 @@ INBOX_MARKS = ("waiting", "running", "answered", "unshared", "shared", "declined
 INBOX_STATUS = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}  # a request's Inbox status; done is answered, shared or unshared
 NOT_SHARED = migrate.NOT_SHARED  # a discarded result's request fails with this reason
 NOTIFY_SHOWN = 100
-POPUP_KINDS = ("join", "run", "report", "share", "merge", "fail")  # the owner's Inbox items that may pop up (web/app.js HOST_URGENT)
+# What may pop up the moment it happens (web/app.js POPUP_KINDS, GUEST_POPUPS): the owner's Inbox items and
+# offered files, and a guest's answered request, mention and new round.
+POPUP_KINDS = ("join", "run", "report", "share", "merge", "fail", "upload", "request", "mention", "round")
 MAX_COMMENTS = 200  # judgment: Discussion comments kept on one question; at the cap a new one is refused, none dropped
 MAX_ALL_COMMENTS = 2000  # judgment: comments across the session, as MAX_CHAT; at the cap a new one is refused
 MAX_MY_COMMENTS = 30  # judgment: comments one person keeps on one question, as MAX_MY_NOTES; their hidden ones count too
@@ -1183,8 +1185,9 @@ class Session:
             raise DomainError(401, "unknown-session", "Join the session again.")
         if person["status"]["kind"] == "removed":
             raise DomainError(403, "removed", "The owner removed you from this session.")
-        if person["status"]["kind"] == "waiting":
-            raise DomainError(403, "waiting", "The host has not let you in yet.")
+        if person["status"]["kind"] == "waiting":  # the waiting page shows the title and intro, nothing else
+            sess = self.state["session"]
+            raise DomainError(403, "waiting", "The host has not let you in yet.", title=sess["title"], intro=sess.get("intro", ""))
         return person
 
     def _ended(self):

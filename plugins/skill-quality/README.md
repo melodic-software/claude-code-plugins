@@ -87,6 +87,14 @@ the reviewer to confirm the description still names that intent, or to restore t
 - `markdownlint-cli2` clean (advisory-skips when `npx` is absent).
 - `scripts/*.test.sh` pass where present.
 - Vendored `vendor/` byte-identical vs `HEAD`; stale-tracking metadata keys preserved; sync age.
+  A `vendor/` change passes only when the same change bumps `metadata.upstream-version`, or bumps
+  `metadata.upstream-sha` to the content hash the check recomputes offline: SHA-256 of the one file
+  under `vendor/` (dotfiles left out) with CR bytes removed, or, with several files, SHA-256 of their
+  `<sha>  <path under vendor/>` lines sorted bytewise. A sync script writes that hash of the files
+  as committed, after any stripping. A sha bump that does not match fails, naming both hashes.
+  The hash proves `vendor/` matches its recorded value, not that it came from upstream: anyone
+  editing `vendor/` can recompute it. It catches an accidental unpaired edit, not a deliberate one;
+  provenance rests on reviewing the diff and on the skill's own content tests.
 - Gotchas surface present; `description` carries `Use when` phrasing; no committed cache artifacts;
   action-router skills without evals WARN (FAIL with `--require-evals` for any shape unless a recorded skip exists in `scripts/evals-warrant-exemptions.txt`); companion spoke
   dirs are referenced.
