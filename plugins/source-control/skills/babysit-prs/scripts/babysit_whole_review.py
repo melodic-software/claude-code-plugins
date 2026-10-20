@@ -129,7 +129,8 @@ def _short_bucket(env: Mapping[str, str] | None) -> str | None:
     for bucket in ("core", "graphql"):
         left = int(resources[bucket]["remaining"])
         limit = int(resources[bucket]["limit"])
-        if left < MIN_SHARE * limit:
+        # A limit of zero or less is no budget to judge against, so it refuses.
+        if limit <= 0 or left < MIN_SHARE * limit:
             return f"{bucket}:{left}/{limit}"
     return None
 

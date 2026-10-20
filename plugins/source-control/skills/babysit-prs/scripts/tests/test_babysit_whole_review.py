@@ -159,6 +159,10 @@ class Limits(unittest.TestCase):
             "job-token-missing",
         )
 
+    def test_a_zero_limit_refuses(self) -> None:
+        self.job_limit, self.job_left = 0, 0
+        self.assertEqual(self.limits(), "rate-limit:job:core:0/0")
+
     def test_an_unreadable_limit_refuses(self) -> None:
         with (
             mock.patch.dict(
