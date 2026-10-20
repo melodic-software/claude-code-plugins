@@ -2740,6 +2740,13 @@ def queued_entry_hold(
 # --- The unattended path ------------------------------------------------------------------------
 
 RISK_MARKER = "<!-- babysit-merge-risk -->"
+# Appended to the reasons comment when its refusal persisted: the rewrite
+# stamps the comment beside the label it explains, which the head-moved
+# clear (clear-escalations.mjs) needs to pair them.
+RISK_ESCALATION_LINE = (
+    "This refusal has stood unchanged at this head, so a person is needed: "
+    "the pr-merge lane added the human-gated label."
+)
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
 # The most of a verdict's summary a verify:fail escalation quotes (judgment).
 VERIFY_SUMMARY_MAX = 1500
@@ -3490,7 +3497,8 @@ def unattended_writes(
     (`risk:<score>`). Then the reasons comment for an eligible
     MED or HIGH pull request on a path not stopped, escalated (`escalate`)
     when the comment read before this run already says the same and has for
-    `merge.risk-escalation-minutes` (`_stood_unchanged`), and the escalation
+    `merge.risk-escalation-minutes` (`_stood_unchanged`), the comment first
+    rewritten to end with `RISK_ESCALATION_LINE` (once), and the escalation
     (`escalate_verify`) for a verifier refusal that needs a human, or for a
     Dependabot update held under `merge.dependabot.majors: hold`, keyed on the
     eligibility reason. Nothing is written before
@@ -3596,9 +3604,13 @@ def unattended_writes(
                 else merge_policy.RISK_ESCALATION_MINUTES
             )
             prior = _newest_marker_comment(comments, identity, RISK_MARKER)
-            if prior is not None and _stood_unchanged(prior, body, minutes):
+            escalated = f"{body}\n\n{RISK_ESCALATION_LINE}"
+            if prior is not None and (
+                str(prior.get("body") or "") == escalated
+                or _stood_unchanged(prior, body, minutes)
+            ):
                 escalation = escalate(
-                    repo, number, identity, body, RISK_MARKER,
+                    repo, number, identity, escalated, RISK_MARKER,
                     {**inputs, "comments": comments},
                 )  # fmt: skip
                 report["riskComment"] = escalation["comment"]

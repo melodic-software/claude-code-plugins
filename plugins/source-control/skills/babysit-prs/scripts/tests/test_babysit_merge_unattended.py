@@ -2246,11 +2246,59 @@ class ReasonsComment(Unattended):
         self.now = self.WRITTEN + timedelta(minutes=61)
         self.lanes = UNBOUND
         _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "added", "comment": "updated"},
+        )
+
+    def patched_body(self) -> str:
+        """The body this run's PATCH of the reasons comment wrote."""
+        patches = [
+            c.args[0][-1].removeprefix("body=")
+            for c in self.capture.call_args_list
+            if "PATCH" in c.args[0] and "/issues/comments/" in " ".join(c.args[0])
+        ]
+        self.assertEqual(len(patches), 1)
+        return patches[0]
+
+    def test_escalating_rewrites_the_comment_before_the_label(self) -> None:
+        # The rewrite stamps the comment's updated_at beside the label, so
+        # the head-moved clear pairs the two.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.lanes = UNBOUND
+        self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        patched = self.patched_body()
+        self.assertEqual(patched.split("\n")[:2], body.split("\n")[:2])
+        self.assertTrue(patched.startswith(body))
+        self.assertEqual(patched.count(merge.RISK_ESCALATION_LINE), 1)
+        self.assertTrue(patched.endswith(merge.RISK_ESCALATION_LINE))
+
+    def test_an_escalated_comment_is_not_extended_again(self) -> None:
+        # A rerun after a failed label write retries only the label.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
+        self.lanes = UNBOUND
+        _, out = self.run_main()
         self.assertEqual(self.log, [self.LABEL])
         self.assertEqual(
             out["unattended"]["writes"]["riskEscalation"],
             {"label": "added", "comment": "unchanged"},
         )
+
+    def test_an_escalated_comment_at_a_new_head_drops_the_line(self) -> None:
+        old = self.body().replace(HEAD, "d" * 40)
+        self.setUp()
+        self.earlier_sweep(f"{old}\n\n{merge.RISK_ESCALATION_LINE}")
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH"])
+        self.assertNotIn(merge.RISK_ESCALATION_LINE, self.patched_body())
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
 
     def test_a_recent_rewrite_of_the_reasons_resets_the_age(self) -> None:
         # Written two hours ago, its reasons rewritten ten minutes ago.
@@ -2270,7 +2318,7 @@ class ReasonsComment(Unattended):
         self.now = self.WRITTEN + timedelta(minutes=1)
         self.lanes = UNBOUND
         self.run_main()
-        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
 
     def test_another_bot_accounts_marker_is_not_an_earlier_sweep(self) -> None:
         body = self.body()
@@ -2288,7 +2336,7 @@ class ReasonsComment(Unattended):
 
     def test_a_second_sweep_at_the_same_head_adds_the_human_gated_label(self) -> None:
         # A MED or HIGH refusal on two sweeps at one head is
-        # labeled, the reasons comment unchanged.
+        # labeled, the reasons comment first extended to say so.
         for name, files in (
             ("MED", ((LOW_FILE,), True)),
             ("HIGH", ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)),
@@ -2303,10 +2351,10 @@ class ReasonsComment(Unattended):
                 self.earlier_sweep(body)
                 _, out = self.run_main()
                 self.assertEqual(out["unattended"]["risk"]["score"], name)
-                self.assertEqual(self.log, [self.LABEL])
+                self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
                 self.assertEqual(
                     out["unattended"]["writes"]["riskEscalation"],
-                    {"label": "added", "comment": "unchanged"},
+                    {"label": "added", "comment": "updated"},
                 )
 
     def test_changed_reasons_at_the_same_head_rewrite_without_a_label(
@@ -2322,7 +2370,7 @@ class ReasonsComment(Unattended):
     def test_a_same_head_rerun_with_the_label_writes_nothing(self) -> None:
         body = self.body()
         self.setUp()
-        self.earlier_sweep(body)
+        self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
         self.pr_labels = [{"name": "Needs-Human"}]
         self.lanes = UNBOUND
         _, out = self.run_main()

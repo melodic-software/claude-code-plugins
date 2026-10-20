@@ -696,8 +696,10 @@ naming the score, the reasons and the head. While `merge.report-only` is false, 
 lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
 least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
 minimum) escalates the refusal ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
+rewrites that comment once to end with a line saying the refusal persisted and needs a person, then
 adds the tracker's human-gated role label when no label matches it ignoring case, so the pull
-request leaves the WIP count and reaches the attended queue. The minimum lets a review still
+request leaves the WIP count and reaches the attended queue. The rewrite dates the comment beside
+the label, which the head-moved clear needs to pair them. The minimum lets a review still
 running at the head, which scores MED, finish first. Changed reasons rewrite the comment and
 restart the time; a new head, or a score back at LOW, writes no label, and only a human removes it.
 

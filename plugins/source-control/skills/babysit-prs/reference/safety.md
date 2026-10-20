@@ -1025,8 +1025,9 @@ unpromoted for its class, on a base that is not the default branch, or scored ME
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
 head change. When the identity's comment read before this run already says the same (score,
 reasons and head) and has for at least `merge.risk-escalation-minutes` (default 60, timed from its
-last change; 0 is no minimum), the refusal persisted: the tracker's human-gated role label is added
-through the escalation contract unless a label matches it ignoring case. The minimum lets a review
+last change; 0 is no minimum), the refusal persisted: the comment is rewritten once to end with
+`RISK_ESCALATION_LINE`, then the tracker's human-gated role label is added through the escalation
+contract unless a label matches it ignoring case. The minimum lets a review
 still running at the head, which scores MED, finish first. Changed reasons rewrite the comment and
 restart the time; a new head or a LOW score adds no label, and no run removes it. A pull request
 whose reads stopped at the in-flight refusal (step 3) gets neither that comment nor the verifier escalation in that run: it is not queued, so no entry of its own
