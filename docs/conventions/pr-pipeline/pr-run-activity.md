@@ -971,7 +971,7 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
 
 1. Before the mint, the write file downloads `patch-<lane>-<patch-activity>-<patch-attempt>`
    and the model job's reply, and runs the script's `select` with no token. A gated head other
-   than `patch-head-sha` skips `superseded-sha`. An `empty` patch escalates `ci-fix-empty`
+   than `patch-head-sha` skips `superseded-sha` (the row's `skip-moved-head`), and the script checks it again. An `empty` patch escalates `ci-fix-empty`
    (`ci-fix-escalated` when the report escalated a check). A `patch-state` other than `written`
    or `empty`, or an artifact that is not exactly one regular `patch.diff` of at most 1 MiB with
    that SHA-256 and no credential shape, escalates `ci-fix-invalid`. Each skips `awaiting-human`

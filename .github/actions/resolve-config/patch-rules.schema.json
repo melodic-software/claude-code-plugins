@@ -90,6 +90,11 @@
           "enum": [null, "ci-escalations"],
           "description": "The producer report apply-patch reads; ci-escalations: the checks the model escalated."
         },
+        "skip-moved-head": {
+          "type": "boolean",
+          "default": false,
+          "description": "true: a PR head that moved since the producer's run skips superseded-sha, before the mint and again before the push; false: the patch takes the moved tip with --3way when the moved commits touch no patched path."
+        },
         "escalations": {
           "type": "array",
           "minItems": 1,

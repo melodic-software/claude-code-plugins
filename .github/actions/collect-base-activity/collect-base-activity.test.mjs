@@ -1273,7 +1273,7 @@ test("run-claude-cli: a ci-context skill gets Bash, Edit and Write, the staged c
   for (const rule of ["Skill(source-control:pull-request)", "Bash", "Edit", "Write", "Agent", "Grep", "Glob"]) {
     assert.ok(run.allowedTools.includes(rule), `${rule} in ${run.allowedTools.join(" | ")}`);
   }
-  for (const rule of ["WebFetch", "WebSearch", "Edit(./.lane/ci/**)", "Write(./.lane/ci/**)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)", "Read(//proc/**)"]) {
+  for (const rule of ["WebFetch", "WebSearch", "Edit(./.lane/ci/**)", "Write(./.lane/ci/**)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)", "Edit(./.lane/trusted-context.json)", "Write(./.lane/trusted-context.json)", "Read(//proc/**)"]) {
     assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   }
   assert.equal(run.pluginDirs, ".lane/plugins/source-control");

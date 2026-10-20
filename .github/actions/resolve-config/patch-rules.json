@@ -6,6 +6,7 @@
     "requires": [],
     "commit": { "parents": ["head"], "message": "Fix failing CI checks on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": "ci-escalations",
+    "skip-moved-head": true,
     "escalations": ["ci-fix-empty", "ci-fix-escalated", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-protected-path"]
   },
   "review-threads": {

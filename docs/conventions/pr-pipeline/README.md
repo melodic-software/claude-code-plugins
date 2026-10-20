@@ -439,6 +439,7 @@ each row to these keys:
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`. |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
+| `skip-moved-head` | Optional; `true` (`ci-context`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
 Every row refuses `.github/**` in any case and through any `..` segment, `.claude/**` at any depth,

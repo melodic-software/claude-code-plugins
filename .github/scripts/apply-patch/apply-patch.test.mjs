@@ -250,27 +250,40 @@ test("a patch over max-files is refused", async (t) => {
   assert.deepEqual(api.calls, []);
 });
 
-// The paths thread-scope.mjs reads as instructions or ownership, which fix-ci's
-// earlier push script refused: the ci-context row keeps them refused, and the
-// other PR rows still admit them.
+// The owner's 2026-10-18 path list: agent instructions, plugin hooks and
+// manifests, MCP config, submodules and code owners, at any depth and in any
+// case, with the refusals the ci-context row names for each. The other PR rows
+// admit those the universal set does not refuse.
 const INSTRUCTION_PATHS = [
-  "CLAUDE.md",
-  "plugins/p/AGENTS.md",
-  "plugins/p/.claude-plugin/plugin.json",
-  "plugins/p/hooks/hooks.json",
-  "plugins/p/monitors/m.json",
-  "plugins/p/bin/tool",
-  "plugins/p/.lsp.json",
-  "plugins/p/.mcp.json",
-  "docs/CODEOWNERS",
+  ["CLAUDE.md", ["instruction-path"]],
+  ["AGENTS.md", ["instruction-path"]],
+  ["plugins/p/skills/s/CLAUDE.md", ["instruction-path"]],
+  ["docs/Agents.MD", ["instruction-path"]],
+  [".claude/settings.json", ["claude", "settings", "instruction-path"]],
+  ["plugins/p/.claude/rules/r.md", ["claude", "instruction-path"]],
+  [".CLAUDE/x.md", ["claude", "instruction-path"]],
+  ["plugins/p/hooks/hooks.json", ["instruction-path"]],
+  ["plugins/p/Hooks/run.mjs", ["instruction-path"]],
+  ["plugins/p/.claude-plugin/plugin.json", ["instruction-path"]],
+  [".claude-plugin/marketplace.json", ["instruction-path"]],
+  ["vendor/m/.Claude-Plugin/marketplace.json", ["instruction-path"]],
+  [".mcp.json", ["mcp-config", "instruction-path"]],
+  ["plugins/p/.MCP.json", ["instruction-path"]],
+  [".gitmodules", ["gitmodules", "instruction-path"]],
+  ["CODEOWNERS", ["instruction-path"]],
+  ["docs/CODEOWNERS", ["instruction-path"]],
+  ["docs/codeowners", ["instruction-path"]],
 ];
 
-test("the ci-context row refuses every instruction path, and the default row admits them", () => {
-  for (const path of INSTRUCTION_PATHS) {
-    assert.deepEqual(refusalsOf(entry(path), row("ci-context").refuse), ["instruction-path"], path);
-    assert.deepEqual(refusalsOf(entry(path), row("default").refuse), [], path);
+test("the ci-context row refuses every instruction path, and the default row admits those the universal set does not refuse", () => {
+  assert.equal(INSTRUCTION_PATHS.length, 18);
+  for (const [path, refusals] of INSTRUCTION_PATHS) {
+    assert.deepEqual(refusalsOf(entry(path), row("ci-context").refuse).sort(), [...refusals].sort(), path);
+    assert.deepEqual(refusalsOf(entry(path), row("default").refuse).sort(), refusals.filter((name) => name !== "instruction-path").sort(), path);
   }
-  assert.deepEqual(refusalsOf(entry("scripts/check.sh"), row("ci-context").refuse), [], "a check's own script stays fixable");
+  for (const path of ["scripts/check.sh", "CLAUDE.md.bak", "plugins/p/scripts/run.test.mjs"]) {
+    assert.deepEqual(refusalsOf(entry(path), row("ci-context").refuse), [], `${path} stays fixable`);
+  }
 });
 
 test("a fix-ci patch that edits CLAUDE.md is refused before any API call", async (t) => {
@@ -451,6 +464,38 @@ test("a moved tip whose commits touch a patched path skips superseded-sha", asyn
   const api = fakeApi(fix.repo, moved);
   assert.deepEqual(await pushWith(fix, api, { headSha: moved, patchHeadSha: fix.head }), { outcome: "superseded" });
   assert.deepEqual(api.calls, []);
+});
+
+test("under the ci-context row a head that moved since the model job skips superseded-sha, escalating nothing", async (t) => {
+  const dir = scratch(t);
+  writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
+  const sum = sha256("diff --git a/x b/x\n");
+  const [head, other] = ["a".repeat(40), "b".repeat(40)];
+  assert.deepEqual(select({ row: row("ci-context"), patchState: "written", patchSha256: sum, patchHeadSha: other, headSha: head, patchDir: dir }), {
+    proceed: false,
+    skipReason: "superseded-sha",
+    escalationReason: "",
+  });
+  // The push refuses it too, though the moved commits touch no patched path.
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\necho ok\n"));
+  writeFileSync(join(fix.repo, "README.md"), "# moved\n");
+  const moved = commitAll(fix.repo, "moved");
+  const api = fakeApi(fix.repo, moved);
+  assert.deepEqual(await pushWith(fix, api, { row: row("ci-context"), headSha: moved, patchHeadSha: fix.head }), { outcome: "superseded" });
+  assert.deepEqual(api.calls, []);
+});
+
+test("only the ci-context row skips a moved head; the other PR rows keep the moved-head path", (t) => {
+  const dir = scratch(t);
+  writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
+  const sum = sha256("diff --git a/x b/x\n");
+  const moved = { patchState: "written", patchSha256: sum, patchHeadSha: "b".repeat(40), headSha: "a".repeat(40), patchDir: dir };
+  assert.equal(RULES["ci-context"]["skip-moved-head"], true);
+  for (const name of ["default", "review-threads", "dependency-review"]) {
+    assert.equal(RULES[name]["skip-moved-head"], undefined, name);
+  }
+  assert.deepEqual(select({ row: row("default"), ...moved }), { proceed: true, skipReason: "", escalationReason: "" });
+  assert.deepEqual(select({ row: row("review-threads"), ...moved }), { proceed: true, skipReason: "", escalationReason: "" });
 });
 
 // --- select and main ---

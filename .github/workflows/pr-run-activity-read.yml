@@ -762,7 +762,7 @@ jobs:
 
       # PR mode: run-claude-cli reads only inside the checkout, so the stage
       # the base copy left goes to .lane/, which a head may not hold. The
-      # plugin and the CI context are read-only, git ignores the directory,
+      # plugin, the CI context and the trusted context are read-only, git ignores the directory,
       # and the patch leaves it out (collect-patch.sh).
       - name: Stage the skill's files in the checkout
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
@@ -777,6 +777,7 @@ jobs:
           cp -R "$STAGE" .lane
           if [ -f "$TRUSTED_CONTEXT" ]; then
             cp "$TRUSTED_CONTEXT" .lane/trusted-context.json
+            chmod a-w .lane/trusted-context.json
           fi
           chmod -R a-w .lane/plugins
           if [ -d .lane/ci ]; then

@@ -661,8 +661,9 @@ jobs:
 
       # apply-patch, before the mint and the head checkout, with no token:
       # the activity's script, from the base, checks the patch artifact
-      # against the model job's SHA-256 and head, and reads its report. A
-      # moved head skips superseded-sha; an empty or invalid patch escalates
+      # against the model job's SHA-256 and head, and reads its report. Under
+      # a skip-moved-head row (ci-context) a moved head skips superseded-sha,
+      # and the script takes it with --3way otherwise; an empty or invalid patch escalates
       # with nothing minted; an escalated check in the report escalates after
       # the push. An issue patch's head is its start commit.
       - name: Select the patch

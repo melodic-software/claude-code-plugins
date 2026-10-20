@@ -233,7 +233,7 @@ runs:
           allowed=("Skill($SKILL)" Grep Glob)
           # Read in the working directory needs no rule; the staged copies
           # stay unedited, and process files unread.
-          denied=(WebFetch WebSearch "Edit(./.lane/plugins/**)" "Write(./.lane/plugins/**)" "Read(//proc/**)")
+          denied=(WebFetch WebSearch "Edit(./.lane/plugins/**)" "Write(./.lane/plugins/**)" "Edit(./.lane/trusted-context.json)" "Write(./.lane/trusted-context.json)" "Read(//proc/**)")
           preamble="You run unattended as a CI lane activity on $subject, and no one can answer a question."
           if [ "$PREPARE" = ci-context ]; then
             [ -f "$CI_DIR/context.json" ] || fail "ci-context: the runner wrote no context file"

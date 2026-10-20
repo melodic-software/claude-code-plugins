@@ -20,7 +20,8 @@
 //           off, and refuses the whole patch when any change matches a
 //           refusal, exceeds max-files, or fails an allow predicate, or a new
 //           blob carries a credential shape. On a PR, a head that moved since
-//           the model job takes the patch with --3way only when the moved
+//           the model job skips superseded-sha under a skip-moved-head row,
+//           and otherwise takes the patch with --3way only when the moved
 //           commits touch no patched path, else it skips superseded-sha; an
 //           issue patch applies only to the commit it was made on. It then
 //           re-reads the holds (a PR's labels and draft state, or an issue's
@@ -312,7 +313,7 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
   if (patchState !== "written" && patchState !== "empty") {
     return decide(false, "awaiting-human", reasonFor(row, "invalid"));
   }
-  if (!SHA.test(String(patchHeadSha)) || !SHA.test(String(headSha))) {
+  if (!SHA.test(String(patchHeadSha)) || !SHA.test(String(headSha)) || (row["skip-moved-head"] === true && patchHeadSha !== headSha)) {
     return decide(false, "superseded-sha", "");
   }
   if (patchState === "empty") {
@@ -437,6 +438,10 @@ export async function push({
   }
   const git = gitRunner(cwd, gitBin);
   const moved = patchHeadSha !== headSha;
+  if (moved && row["skip-moved-head"] === true) {
+    log("the head moved since the model's run; the row takes no moved head");
+    return { outcome: "superseded" };
+  }
   if (moved && !target.movedHead) {
     return escalate("invalid", `the patch was made on ${patchHeadSha}, not the start commit ${headSha}`);
   }
