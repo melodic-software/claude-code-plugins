@@ -34,7 +34,7 @@ row under [Sources](#sources). Background for a human reader:
 
 ## Preflight
 
-Print every field, in this order, before anything else:
+Print every field, in order, before anything else (the last two: [probe](reference/sandboxes.md)):
 
 ```text
 cli_version:         <claude --version>
@@ -50,14 +50,6 @@ ceiling:             <n> USD | unlimited
 leftover_sandboxes:  <n> sandboxes (<total size> in <tmp>) | unknown
 tmp_free:            <free space on the temp dir's filesystem> | unknown
 ```
-
-**Leftover sandboxes:** earlier runs leave `claude-eval-*` directories in the temp directory `<tmp>`
-(`$TMPDIR`, else `/tmp`). Probe read-only: `find <tmp> -maxdepth 1 -type d -name 'claude-eval-*'`
-for the count, `du -skc` over them for the size (the `total` line), `df -k <tmp>` for `tmp_free`. An
-unreadable path reports `unknown`, never `0`; a non-zero `du` exit or a permission error means a
-partial total, so report the size as `unknown` or `at least <total>`. Preflight removes nothing and
-blocks on neither field. Above zero, print for the user `chmod -R u+w <tmp>/claude-eval-*`, then
-`rm -rf <tmp>/claude-eval-*`; what `chmod` cannot enter is the sandbox user's and needs `sudo rm -rf`.
 
 **Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read
 `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
@@ -406,15 +398,23 @@ claude plugin eval <out> --trust-plugin --ablation none --threshold 0 --runs 3 -
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" score --manifest <out>/manifest.json <out>/results.json
 ```
 
-`build` writes one case per sample into an empty plugin; no generated file carries the label.
-`--threshold 0` keeps the CLI's exit code about errors, since must-fail cases score 0. What
-`build` skips and why: [calibrate-build.md](reference/calibrate-build.md).
+`build` writes one case per sample into an empty plugin: the source case's prompt goes out
+unchanged, and an appended system prompt presents the sample as fixed test material for the agent
+to output byte for byte, even when wrong or incomplete, with no commentary, so the judge grades
+that sample as the answer to that question. No generated file carries the label; a must-pass and a
+must-fail case differ only in the sample text. `build` skips a grader that judges a file or mock
+calls, and prints one line for each empty or whitespace-only sample it skips: Claude Code answers
+an empty reply with an injected user turn, so it cannot be reproduced, and an empty answer is a
+deterministic failure that needs no judge. The appended prompt does not reach a `focus: trace`
+judge. `--threshold 0` keeps the CLI's exit
+code about errors, since must-fail cases are meant to score 0.
 
 `score` prints a `FAIL grader` line for each grader under 90% and exits 1; fix that rubric, or move
 the whole suite to a stronger judge, and calibrate again before reading its scores. Its false
-positives and negatives name the samples to read first. A sample listed `untested` counts toward
-no agreement: raise `--runs` or tighten the prompt before reading the grader's score. What
-agreement leaves out: [calibrate-build.md](reference/calibrate-build.md#what-score-leaves-out).
+positives and negatives name the samples to read first. Agreement leaves out a run whose reply was
+not the sample, and one with neither a kept trace nor judge evidence (also reported unchecked). A
+sample with no reproduced run is listed `untested`, counts toward no agreement, and shows in the
+verdict line; raise `--runs` or tighten the prompt before reading the grader's score.
 
 ## CI
 
