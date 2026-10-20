@@ -4,6 +4,7 @@
 # (one "<suite> <seconds>" per line, from a full run's headers; a suite it does not list starts last), so the longest
 # is never the last to start. Each seeds its own session through share.sh ensure-running on spare ports (fake
 # cloudflared), prints SKIP and exits 0 without playwright-core and a Chromium, and exits non-zero on a failed check.
+# Under CI=true a missing node, playwright-core or Chromium fails this script instead of passing it.
 # A suite timed to the millisecond (SERIAL) runs alone after the rest, since parallel load slows it past its own
 # limits. Passes only when every suite exits 0.
 #   bash plugins/planning/shared/tests/ui.test.sh
@@ -12,7 +13,8 @@
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 command -v node >/dev/null || {
-  echo "SKIP: node is not on PATH" # silent-skip-ok: a browser suite needs node
+  [[ ${CI:-} == true ]] && { echo "FAIL: node is not on PATH" >&2; exit 1; }
+  echo "SKIP: node is not on PATH" # silent-skip-ok: a browser suite needs node locally
   exit 0
 }
 max=${UI_JOBS:-6}
@@ -48,6 +50,10 @@ for s in "${suites[@]}"; do
   echo "== $s $(cat "$out/$s.s" 2>/dev/null)s"
   cat "$out/$s.log"
   [[ $(cat "$out/$s.rc" 2>/dev/null) == 0 ]] || failed+=("$s")
+  if [[ ${CI:-} == true ]] && grep -qE '^SKIP: (.*needs playwright-core|no Chromium to launch)' "$out/$s.log"; then
+    echo "FAIL: $s skipped for want of a browser under CI=true" >&2
+    failed+=("$s")
+  fi
 done
 echo "slowest: $(for s in "${suites[@]}"; do echo "$(cat "$out/$s.s" 2>/dev/null) $s"; done | sort -k1,1nr | awk 'NR <= 3 { printf "%s%s %ss", (NR > 1 ? ", " : ""), $2, $1 }')"
 ((${#failed[@]} == 0)) && exit 0

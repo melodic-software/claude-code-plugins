@@ -2597,8 +2597,8 @@ jobs:
             requirements+=(--requirement plugins/animation/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
-          # The animation render tests capture through the locked playwright's headless Chromium.
-          if [[ "$leg_needs" == *animation* ]]; then
+          # The animation render tests and the shared-page UI suite drive the locked playwright's headless Chromium.
+          if [[ "$leg_needs" == *animation* || "$leg_needs" == *browser* ]]; then
             node node_modules/playwright/cli.js install --only-shell chromium
           fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
