@@ -378,6 +378,9 @@ for (const [why, roleMap] of [
   ["a role map without the role", "schema: 1\nroles:\n  verifier:\n    model: sonnet\n    effort: high\n"],
   ["a role model of default", roleMapWith("    model: default")],
   ["a role model that is a model ID", roleMapWith("    model: claude-sonnet-5-5")],
+  // Owner rule: Fable never routes automatically, so the frontier tier is opus.
+  ["a role model of fable", roleMapWith("    model: fable")],
+  ["a role model of best", roleMapWith("    model: best")],
 ]) {
   test(`a role profile falls back to opus with ${why}`, () => {
     assert.equal(roleSlot(roleMap).model, "opus");

@@ -684,9 +684,11 @@ function grantFor(effectGrants, effect) {
 
 // The owner's model for a role route that resolves to no alias: CI has no
 // session, so `inherit`, a missing role map or role, and any value that is not
-// an alias (`default`, a model ID) all run on it.
+// an alias (`default`, a model ID) all run on it. The frontier tier (`fable`,
+// and `best`, which may resolve to it) never routes automatically, so it runs
+// on it too.
 const FALLBACK_MODEL = "opus";
-const ROUTED_ALIASES = new Set(["best", "fable", "haiku", "opus", "sonnet"]);
+const ROUTED_ALIASES = new Set(["haiku", "opus", "sonnet"]);
 const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 
 // The multi-agent role map (plugins/multi-agent/reference/defaults.yaml) as
