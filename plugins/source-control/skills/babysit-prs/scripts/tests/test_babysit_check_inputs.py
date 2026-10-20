@@ -236,12 +236,28 @@ class SharedCopySources(unittest.TestCase):
         git(self.origin, "checkout", "-q", "main")
         return sha
 
-    def read(self, head: str) -> dict:
+    def read(self, head: str, paths: tuple[str, ...] = (REGISTRY, ALLOWLIST)) -> dict:
         if not self.clone.exists():
             git(self.tmp, "clone", "-q", str(self.origin), str(self.clone))
-        return check_inputs.changed_since_merge_base(
-            (REGISTRY, ALLOWLIST), head, "main", [self.clone]
-        )
+        return check_inputs.changed_since_merge_base(paths, head, "main", [self.clone])
+
+    def test_a_pathspec_matching_the_registry_turns_the_check_on(self) -> None:
+        head = self.pr("copy", "plugins/x/a.sh")
+        commit(self.origin, "lib/a.sh", "v2\n")
+        for paths in (("scripts/*",), (":(glob)scripts/**",)):
+            with self.subTest(paths=paths):
+                out = self.read(head, paths)
+                self.assertEqual(out["state"], "stale")
+                self.assertEqual(out["regenerate"], ["lib/a.sh"])
+
+    def test_a_pathspec_missing_the_registry_leaves_it_off(self) -> None:
+        head = self.pr("copy", "plugins/x/a.sh")
+        commit(self.origin, "lib/a.sh", "v2\n")
+        for paths in (("docs/**",), (":(glob)scripts/*.md",)):
+            with self.subTest(paths=paths):
+                out = self.read(head, paths)
+                self.assertEqual(out["state"], "current")
+                self.assertNotIn("regenerate", out)
 
     def test_a_carried_canonical_changed_on_main_needs_regenerating(self) -> None:
         heads = (self.pr("copy", "plugins/x/a.sh"), self.pr("canon", "lib/a.sh"))

@@ -109,6 +109,17 @@ def _fetch_commit(root: Path, sha: str) -> bool:
     return proc.returncode == 0 and _has_commit(root, sha)
 
 
+def _matches_at(root: Path, rev: str, path: str, pathspecs: Sequence[str]) -> bool:
+    """Whether `path` exists at `rev` and git matches it to `pathspecs`, read
+    as a diff from the empty tree so every pathspec form git takes counts."""
+    empty = (_git(root, "hash-object", "-t", "tree", "/dev/null") or "").strip()
+    out = _git(
+        root, "diff", "--name-only", "--no-renames", "-z", empty, rev, "--",
+        *pathspecs,
+    )  # fmt: skip
+    return bool(empty) and out is not None and path in _names(out)
+
+
 def _blob(root: Path, rev: str, path: str) -> str:
     return _git(root, "cat-file", "blob", f"{rev}:{path}") or ""
 
@@ -176,9 +187,7 @@ def changed_since_merge_base(
     changed = _names(out)
     report: dict[str, Any] = {"mergeBase": base, "baseTip": tip}
     scoped = [p for p in changed if p in SCOPED_INPUTS]
-    registry = any(
-        REGISTRY == p or REGISTRY.startswith(f"{p.rstrip('/')}/") for p in paths
-    )
+    registry = _matches_at(root, tip, REGISTRY, paths)
     touched: set[str] = set()
     if scoped or registry:
         own = _git(root, "diff", "--name-only", "--no-renames", "-z", base, head)
