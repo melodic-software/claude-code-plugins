@@ -438,15 +438,22 @@ class TestCodes(ShareCase):
         self.assertEqual((out["tunnel"], out["guestUrl"]), ("down", ""))
         self.assertEqual(call(int(re.search(r":(\d+)/", out["localUrl"]).group(1)), "GET", "/api/state")[0], 200)
 
-    def test_a_newer_schema_exits_1(self):
+    def test_a_state_file_with_a_schema_version_starts(self):
         share(self.d, "ensure-running")
         share(self.d, "stop")
         doc = json.loads((self.d / "state.json").read_text(encoding="utf-8"))
         doc["schemaVersion"] = 8
         (self.d / "state.json").write_text(json.dumps(doc), encoding="utf-8")
         code, _, err = share(self.d, "ensure-running")
+        self.assertEqual(code, 0, err)
+
+    def test_a_state_file_that_does_not_load_exits_1(self):
+        share(self.d, "ensure-running")
+        share(self.d, "stop")
+        (self.d / "state.json").write_text(json.dumps({"title": "x"}), encoding="utf-8")
+        code, _, err = share(self.d, "ensure-running")
         self.assertEqual(code, 1)
-        self.assertIn("newer", err)
+        self.assertIn("state.json", err)
 
     def test_bad_arguments_exit_1(self):
         code, _, _ = share(self.d, "ensure-running", "--no-such-flag")
@@ -499,7 +506,7 @@ class TestRestart(Running):
 
 
 class TestRestartFromE27acc5(ShareCase):
-    """A state.json e27acc5's session.py wrote (tests/fixtures/state-written-e27acc5.json; Ann's secret is tok0003x32)
+    """A state.json written by e27acc5, rewritten to the current shape (tests/fixtures/state-written-e27acc5.json; Ann's secret is tok0003x32)
     starts, survives `share.sh restart` as it was, and then takes an upload: its keys are all optional."""
 
     def test_a_state_e27acc5_wrote_survives_restart_and_takes_an_upload(self):
@@ -534,11 +541,6 @@ class TestTunnelRestart(Running):
         self.assertIn("changedAt", snap["share"])
 
 
-PROTO = Path(__file__).resolve().parent / "fixtures" / "state-v0-prototype.json"
-ANN_SECRET = "fixture-guest-secret-ann-not-a-real-secret-000"
-PROTO_OWNER = "fixture-owner-token-0001"
-
-
 def free_port():
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
@@ -547,9 +549,9 @@ def free_port():
     return port
 
 
-class TestImport(ShareCase):
-    """ensure-running --import --guest-port --adopt-tunnel: the prototype's session moves onto the
-    plugin with its state, its port and its running cloudflared (PLAN Phase 3b item 2)."""
+class TestAdoptTunnel(ShareCase):
+    """ensure-running --guest-port --adopt-tunnel: a new session starts on the port a running cloudflared,
+    which share.py did not start, points at, and keeps it."""
 
     def setUp(self):
         super().setUp()
@@ -558,29 +560,26 @@ class TestImport(ShareCase):
         self.cf, self.url = self.outside_cloudflared(self.port)
 
     def outside_cloudflared(self, port):
-        """A fake cloudflared to `port` that share.py did not start, as the prototype's is."""
+        """A fake cloudflared to `port` that share.py did not start."""
         return outside_cloudflared(self, f"http://127.0.0.1:{port}", self.root / f"outside-{port}.log", environ=env(FAKE_CF_ARGS=str(self.args)))
 
-    def ensure(self, *extra, port=None, pid=None, url=None, source=PROTO):
-        args = ["ensure-running", "--import", str(source), "--guest-port", str(port or self.port), "--adopt-tunnel", str(pid or self.cf.pid), url or self.url]
+    def ensure(self, *extra, port=None, pid=None, url=None):
+        args = ["ensure-running", "--guest-port", str(port or self.port), "--adopt-tunnel", str(pid or self.cf.pid), url or self.url]
         return share(self.d, *args, *extra, environ=env(FAKE_CF_ARGS=str(self.args)))
 
     def runs(self):
         return self.args.read_text(encoding="utf-8").splitlines() if self.args.exists() else []
 
-    def test_import_and_adopt_keep_the_guest_link_state_and_cloudflared(self):
+    def test_adopt_keeps_the_guest_link_and_cloudflared(self):
         code, out, err = self.ensure()
         self.assertEqual(code, 0, err)
-        self.assertEqual(out["guestUrl"], f"{self.url}/#join=guest-key-aaaa")
+        self.assertTrue(out["guestUrl"].startswith(f"{self.url}/"), out["guestUrl"])
         self.assertEqual((out["localUrl"], out["tunnel"], out["shareChanged"]), (f"http://127.0.0.1:{self.port}/", "quick", False))
         rec = tunnel.read(self.d)
         self.assertEqual((rec["pid"], rec["url"], rec["port"], rec["adopted"]), (self.cf.pid, self.url, self.port, True))
         self.assertEqual(len(self.runs()), 1)  # only the outside one: nothing new was started
-        _, _, snap = call(self.port, "GET", "/api/state?since=0", headers={"X-Session-Secret": ANN_SECRET})
-        self.assertEqual(snap["me"]["pid"], "pidAnn001")
-        _, _, snap = call(self.port, "GET", "/api/state?since=0", headers={"X-Owner-Token": PROTO_OWNER})
+        _, _, snap = call(self.port, "GET", "/api/state?since=0", headers={"X-Owner-Token": self.owner_token()})
         self.assertEqual(snap["me"]["role"], "owner")
-        self.assertTrue((self.d / "state.v0.json").is_file())
 
     def test_restart_keeps_the_port_the_adopted_tunnel_the_link_and_the_state(self):
         code, first, err = self.ensure()
@@ -590,8 +589,8 @@ class TestImport(ShareCase):
         self.assertEqual((out["guestUrl"], out["localUrl"]), (first["guestUrl"], first["localUrl"]))
         self.assertEqual(tunnel.read(self.d)["pid"], self.cf.pid)
         self.assertIsNone(self.cf.poll())
-        _, _, snap = call(self.port, "GET", "/api/state?since=0", headers={"X-Session-Secret": ANN_SECRET})
-        self.assertEqual((snap["me"]["pid"], snap["title"]), ("pidAnn001", "Fixture checkout session"))
+        _, _, snap = call(self.port, "GET", "/api/state?since=0", headers={"X-Owner-Token": self.owner_token()})
+        self.assertEqual(snap["me"]["role"], "owner")
         self.assertEqual(len(self.runs()), 1)
 
     def test_an_adopted_tunnel_that_exits_is_restarted_and_the_new_link_recorded(self):
@@ -600,13 +599,13 @@ class TestImport(ShareCase):
         self.cf.kill()
         self.cf.wait()
         new = wait_for(lambda: (u := share(self.d, "url")[1]["guestUrl"]) != first["guestUrl"] and u, seconds=30, step=0.5)
-        self.assertRegex(new, r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/#join=guest-key-aaaa$")
-        _, _, snap = call(self.port, "GET", "/api/state?since=0", headers={"X-Owner-Token": PROTO_OWNER})
+        self.assertRegex(new, r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/")
+        _, _, snap = call(self.port, "GET", "/api/state?since=0", headers={"X-Owner-Token": self.owner_token()})
         self.assertIn("changedAt", snap["share"])
 
     def test_the_flags_may_come_from_defaults_json(self):
         self.d.mkdir(parents=True)
-        (self.d / "defaults.json").write_text(json.dumps({"import": str(PROTO), "guestPort": self.port, "adoptTunnel": {"pid": self.cf.pid, "url": self.url}}), encoding="utf-8")
+        (self.d / "defaults.json").write_text(json.dumps({"guestPort": self.port, "adoptTunnel": {"pid": self.cf.pid, "url": self.url}}), encoding="utf-8")
         code, out, err = share(self.d, "ensure-running", environ=env(FAKE_CF_ARGS=str(self.args)))
         self.assertEqual(code, 0, err)
         self.assertEqual(out["localUrl"], f"http://127.0.0.1:{self.port}/")
@@ -645,7 +644,7 @@ class TestImport(ShareCase):
         before = (self.d / "state.json").read_bytes()
         code, _, err = self.ensure()
         self.assertEqual(code, 1)
-        self.assertIn("already exists", err)
+        self.assertIn("only when a session is created", err)
         self.assertEqual((self.d / "state.json").read_bytes(), before)
         self.assertEqual(tunnel.read(self.d)["pid"], self.cf.pid)
 
@@ -660,19 +659,12 @@ class TestImport(ShareCase):
         self.assertIsNone(tunnel.read(self.d))
 
     def test_a_server_start_that_fails_another_way_forgets_the_adopted_tunnel_and_leaves_it_running(self):
-        a = share_cli.parser().parse_args(["--dir", str(self.d), "ensure-running", "--import", str(PROTO), "--guest-port", str(self.port), "--adopt-tunnel", str(self.cf.pid), self.url])
+        a = share_cli.parser().parse_args(["--dir", str(self.d), "ensure-running", "--guest-port", str(self.port), "--adopt-tunnel", str(self.cf.pid), self.url])
         with mock.patch.dict(os.environ, env(FAKE_CF_ARGS=str(self.args))), mock.patch.object(share_cli, "start_server", side_effect=TimeoutError("the server lock timed out")):
             with self.assertRaises(TimeoutError):
                 share_cli.bring_up(self.d, a)
         self.assertIsNone(tunnel.read(self.d))
         self.assertIsNone(self.cf.poll())
-
-    def test_a_state_file_that_does_not_migrate_is_refused_and_the_tunnel_left_running(self):
-        bad = self.root / "not-a-session.json"
-        bad.write_text(json.dumps({"title": "x"}), encoding="utf-8")
-        code, _, err = self.ensure(source=bad)
-        self.assertEqual(code, 1, err)
-        self.assert_nothing_started()
 
 
 @unittest.skipIf(WINDOWS, "share.sh runs under Git Bash there; the Python entry point is tested above")
