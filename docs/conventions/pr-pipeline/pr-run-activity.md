@@ -378,12 +378,15 @@ each as its own command, and that the run inspects files with Read, Grep and Glo
 with Edit or Write, never with `cd`, `;`, `&&`, a pipe or an interpreter one-liner; when
 `git-mv-rm.sh` is listed, it names that wrapper for a rename or a removal.
 Any other arguments match, so a listed script that changes files or runs checkout code must limit
-itself, or hand the run a power it may hold. `resolve-issue` also lists skill-quality's
-`check-evals-quality.sh` (bash and jq over `evals.json` files) and `check-skill.sh`, which runs each
-checked skill's `scripts/*.test.sh` and the checkout's markdownlint: checkout code with the network
-open and the token readable from an ancestor process, the power `scripts/run-test-file.sh` has. It lists two that limit themselves, each refusing (exit 2) an argument that is absolute,
+itself, or hand the run a power it may hold. Code a listed script runs can read the token from
+any same-user process's `/proc/<pid>/environ`, so `resolve-issue` lists no script that runs
+checkout code: not `scripts/run-test-file.sh`, and not skill-quality's `check-skill.sh`, which runs
+each checked skill's `scripts/*.test.sh` and the checkout's markdownlint. It lists skill-quality's
+`check-evals-quality.sh` (bash and jq over `evals.json` files), and `scripts/git-mv-rm.sh`, which
+limits itself, refusing (exit 2) an argument that is absolute,
 has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
-a path that does not exist yet (`scripts/lib/checkout-path.sh`). `scripts/run-test-file.sh` takes
+a path that does not exist yet (`scripts/lib/checkout-path.sh`); `scripts/run-test-file.sh` does
+the same when an activity lists it. `scripts/run-test-file.sh` takes
 one test file and runs it by name, `test_*.py` under `python3 -m pytest`, `*.test.sh` under
 `bash`, `*.test.mjs` under `node --test`, each after `--`, and a `*.test.js` or `*.test.ts` file
 that imports `vitest` under `npx --no-install vitest run <absolute path>` from the nearest
@@ -404,6 +407,10 @@ change reaches the branch through `commit_files` and `delete_files`. `resolve-is
 `.changes/<plugin>/<slug>.md` files there, refuses a plugin name outside `[a-z0-9-]` and a linked
 `.changes` or `.changes/<plugin>`, and reads `--carriers-of` through its own copy's
 `sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry.
+Every activity whose effect is not `read`, and a read skill that hands on a patch, also gets
+`--disallowedTools` rules for the read-only shell commands that run with no allow rule (`echo`,
+`printf`, `cat`, `head`, `tail`, `grep`, `find`, `env`, `printenv`, `strings`, `od`, `xxd`, each as
+`Bash(<command> *)`) and `Read(//proc/**)`; the skill reads files with `Read`, `Grep` and `Glob`.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain

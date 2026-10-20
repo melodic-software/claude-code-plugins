@@ -434,6 +434,13 @@ runs:
               disallowed="${disallowed:+$disallowed,}Edit(/$DEPENDENCY_DIR/**),Write(/$DEPENDENCY_DIR/**)"
               system_prompt="$system_prompt The dependency context file is $DEPENDENCY_DIR/dependency.json. Your verdict is your structured output; a later job acts on it, and you post nothing."
             fi
+            # Read-only commands such as cat and echo run with no allow rule
+            # in every mode, until a deny rule names them
+            # (https://code.claude.com/docs/en/permissions#read-only-commands).
+            # A write skill reads files with Read, Grep and Glob, so these keep
+            # its shell from printing files and the environment; the Read rule
+            # keeps it out of process files.
+            disallowed="${disallowed:+$disallowed,}Bash(echo *),Bash(printf *),Bash(cat *),Bash(head *),Bash(tail *),Bash(grep *),Bash(find *),Bash(env *),Bash(printenv *),Bash(strings *),Bash(od *),Bash(xxd *),Read(//proc/**)"
             ;;
           *) fail "the activity's effect is not a known effect" ;;
         esac
