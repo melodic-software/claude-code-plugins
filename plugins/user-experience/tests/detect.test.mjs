@@ -393,6 +393,7 @@ describe("team surface", () => {
   test("the team file at the convention home is read through the shared resolver, and --team overrides it", () => {
     const project = join(scratch, "cascade-project");
     mkdirSync(join(project, "docs/conventions"), { recursive: true });
+    gitInit(project);
     writeFileSync(join(project, "docs/conventions/user-experience.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\noutput_home: docs/ux\n");
     // Only the cascade reads a .local file beside the team file; it wins per key.
     writeFileSync(join(project, "docs/conventions/user-experience.local.yaml"), "jtbd_school: jobs-to-be-done-theory\n");
@@ -406,9 +407,10 @@ describe("team surface", () => {
     assert.equal(seam.output_home, "docs/ux");
   });
 
-  test("a refusal in the local or user layer is a warning naming that layer", () => {
+  test("a refusal in the local layer is a warning naming that layer, and a user-global file is not read", () => {
     const project = join(scratch, "layer-warnings");
     mkdirSync(join(project, "docs/conventions"), { recursive: true });
+    gitInit(project);
     writeFileSync(join(project, "docs/conventions/user-experience.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\n");
     writeFileSync(join(project, "docs/conventions/user-experience.local.yaml"), "routing:\n  deny: [x]\n");
     const home = join(scratch, "layer-warnings-home");
@@ -418,7 +420,7 @@ describe("team surface", () => {
     assert.equal(team.loaded, true);
     const refused = (layer) => team.warnings.some((w) => w.startsWith(`${layer} (`) && w.includes('"routing": accepted only in the team layer'));
     assert.ok(refused("local"), team.warnings.join("\n"));
-    assert.ok(refused("user"), team.warnings.join("\n"));
+    assert.ok(!team.warnings.some((w) => w.startsWith("user (")), team.warnings.join("\n"));
   });
 
   test("an empty routing key is accepted, and a routing that is not a mapping degrades", () => {
@@ -445,6 +447,7 @@ describe("team surface", () => {
   test("a team file that is a symlink is not read", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
     const project = join(scratch, "symlinked-team");
     mkdirSync(join(project, "docs/conventions"), { recursive: true });
+    gitInit(project);
     writeFileSync(join(project, "docs/real.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\n");
     symlinkSync(join(project, "docs/real.yaml"), join(project, "docs/conventions/user-experience.yaml"));
     const { team } = detect(["--project", project, ...seams]);
