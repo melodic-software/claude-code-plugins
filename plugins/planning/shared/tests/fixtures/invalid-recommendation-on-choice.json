@@ -1,0 +1,20 @@
+{
+  "id": "Q2",
+  "text": "Which payment method should be selected by default?",
+  "recommendation": "Saved method.",
+  "alternatives": [],
+  "dependsOn": [],
+  "round": 1,
+  "purpose": "decide",
+  "format": {
+    "kind": "choice",
+    "options": [
+      {"id": "opt-1", "label": "Card"},
+      {"id": "opt-2", "label": "Saved method"}
+    ]
+  },
+  "answerScope": "person",
+  "references": [],
+  "origin": {"kind": "claude"},
+  "needsReview": []
+}

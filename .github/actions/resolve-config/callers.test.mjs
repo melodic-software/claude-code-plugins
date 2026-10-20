@@ -5,7 +5,8 @@
 // leaves the review on the reusable's defaults; intake never runs without
 // resolved arguments; and each sparse checkout holds what this action loads.
 // Also: pr-unblock.yml leaves a publish-feedback check on the head whether or
-// not its reply job runs, and work-resolve-issue.yml caps its concurrent runs.
+// not its reply job runs, and a fix-ci check when fix-ci-context skips, and
+// work-resolve-issue.yml caps its concurrent runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -16,6 +17,7 @@ import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
+import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -147,12 +149,81 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
       "needs.born-triaged.outputs.claude-args": claudeArgs,
     });
   const args = "--model sonnet --max-turns 30 --effort medium";
-  assert.equal(runs("", args), true, "a failed or false born-triaged check still runs intake");
+  assert.equal(runs("", args), true, "a failed or false born-triaged check falls through to the reusable's gate");
   assert.equal(runs("false", args), true);
   assert.equal(runs("true", args), false, "a born-triaged issue skips intake");
   assert.equal(runs("", ""), false, "intake never runs without resolved claude-args");
   assert.equal(runs("false", ""), false);
   assert.equal(intake.with["claude-args"], "${{ needs.born-triaged.outputs.claude-args }}");
+});
+
+test("intake-triage.yml: a dispatch runs only from main and passes the gate's ids", () => {
+  const { jobs } = workflow("intake-triage.yml");
+  const gate = jobs["born-triaged"];
+  const runsOn = (event, ref) => evaluate(gate.if, { "github.event_name": event, "github.ref": ref });
+  assert.equal(runsOn("issues", "refs/heads/main"), true);
+  assert.equal(runsOn("workflow_dispatch", "refs/heads/main"), true);
+  assert.equal(runsOn("workflow_dispatch", "refs/heads/feature"), false, "a dispatch from a branch reads no branch's trusted-actor list");
+
+  const intake = jobs["intake-triage"];
+  assert.equal(intake.with["allowed-author-ids"], "${{ needs.born-triaged.outputs.human-ids }}");
+  assert.equal(intake.with["allowed-bot-sender-ids"], "${{ needs.born-triaged.outputs.bot-ids }}");
+  assert.equal(intake.with["issue-number"], "${{ inputs.issue-number }}");
+
+  const bots = gate.steps.find((step) => step.id === "bots");
+  assert.equal(gate.outputs["bot-ids"], "${{ steps.bots.outputs.ids }}");
+  const dir = mkdtempSync(join(tmpdir(), "bot-ids-"));
+  try {
+    const ids = (lanesAppId) => {
+      const output = join(dir, "output");
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-c", bots.run], {
+        env: { ...process.env, LANES_APP_ID: lanesAppId, GITHUB_OUTPUT: output },
+      });
+      assert.equal(result.status, 0);
+      return readFileSync(output, "utf8");
+    };
+    assert.equal(ids(""), "ids=41898282\n");
+    assert.equal(ids("123456"), "ids=41898282,123456\n");
+    assert.equal(ids("12a; echo x"), "ids=41898282\n", "a malformed lanes App id is dropped");
+    assert.equal(ids("0"), "ids=41898282\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation with a gated head", () => {
+  const head = "c".repeat(40);
+  const { jobs } = workflow("pr-unblock.yml");
+  const job = jobs["report-conflict-status"];
+  const context = (reason, headSha) => ({
+    "needs.resolve-conflicts.outputs.escalation-reason": reason,
+    "needs.resolve-conflicts.outputs.head-sha": headSha,
+  });
+  assert.equal(evaluate(job.if, context("unresolved-conflict", head)), true);
+  for (const reason of ["repeat-cap", "protected-path-conflict", "workflow-staged", ""]) {
+    assert.equal(evaluate(job.if, context(reason, head)), false, reason);
+  }
+  assert.equal(evaluate(job.if, context("unresolved-conflict", "")), false, "no gated head to post on");
+  assert.deepEqual(job.permissions, { contents: "read", statuses: "write" });
+  assert.equal(job.uses, undefined, "a script job, never the write runner");
+});
+
+// Runs 39184851924 and 39184853452: fix-ci's job group rendered to its own
+// run's group, pr-unblock-fix-ci-<pr>, and the job never started.
+test("pr-unblock.yml: no job's concurrency group is its own run's group", () => {
+  const { on, concurrency, jobs } = workflow("pr-unblock.yml");
+  const render = (group, activity) =>
+    group.replaceAll("${{ inputs.activity }}", activity).replaceAll("${{ inputs.pr-number }}", "7923");
+  for (const activity of on.workflow_dispatch.inputs.activity.options) {
+    const runGroup = render(concurrency.group, activity);
+    for (const [id, job] of Object.entries(jobs)) {
+      if (job.concurrency) assert.notEqual(render(job.concurrency.group, activity), runGroup, `${id} (${activity})`);
+    }
+  }
+  // fix-ci still runs one at a time per PR, a running one never cancelled.
+  assert.equal(render(concurrency.group, "fix-ci"), "pr-unblock-fix-ci-7923");
+  assert.equal(concurrency["cancel-in-progress"], false);
 });
 
 // address-feedback's head-sha output is empty after a gate stop.
@@ -173,10 +244,88 @@ test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback
   assert.equal(evaluate(notRun.if, context("false", "")), false, "a gate stop gated no head to post on");
   assert.equal(evaluate(notRun.if, context("", "", "resolve-conflicts")), false);
 
-  // The step's inputs reach report-check-run.mjs through the action's env map.
+  const calls = await postNotRunCheck(notRun, context("false", head));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, "pr-unblock / publish-feedback");
+  assert.equal(calls[0].head_sha, head);
+  assert.equal(calls[0].conclusion, "neutral");
+  assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
+});
+
+// A fix-ci-context skip with no fix-ci check on the head would let the
+// dispatcher send the same head again on every run.
+test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and the dispatcher counts it", async () => {
+  const head = "d".repeat(40);
+  const { jobs } = workflow("pr-unblock.yml");
+  const fixCi = jobs["fix-ci"];
+  const notRun = jobs["fix-ci-not-run"];
+  // fix-ci-context.mjs writes proceed "true" or "false"; a kill-switch stop
+  // skips its step and leaves every output empty.
+  const context = (proceed, escalation, headSha, activity = "fix-ci") => ({
+    "inputs.activity": activity,
+    "needs.fix-ci-context.outputs.proceed": proceed,
+    "needs.fix-ci-context.outputs.escalation-reason": escalation,
+    "needs.fix-ci-context.outputs.head-sha": headSha,
+  });
+  assert.equal(evaluate(fixCi.if, context("true", "", head)), true);
+  assert.equal(evaluate(notRun.if, context("true", "", head)), false);
+  assert.equal(evaluate(notRun.if, context("false", "", head)), true);
+  assert.equal(evaluate(notRun.if, context("false", "ci-fix-round-cap", head)), false, "report-escalation owns it");
+  assert.equal(evaluate(notRun.if, context("", "", "")), false, "a kill-switch stop names no head");
+  assert.equal(evaluate(notRun.if, context("", "", "", "resolve-conflicts")), false);
+
+  const calls = await postNotRunCheck(notRun, context("false", "", head));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, "pr-unblock / fix-ci");
+  assert.equal(calls[0].head_sha, head);
+  assert.equal(calls[0].conclusion, "neutral");
+  assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
+
+  // fix-ci-dispatch.mjs dispatches a head with no fix-ci check run; the
+  // posted one, as the listing returns it, means the head was handled.
+  const appSenderId = 7;
+  const node = {
+    number: 8171,
+    isDraft: false,
+    isCrossRepository: false,
+    baseRefName: "main",
+    headRefOid: head,
+    author: { databaseId: appSenderId },
+    labels: { nodes: [] },
+    commits: {
+      nodes: [
+        {
+          commit: {
+            oid: head,
+            statusCheckRollup: {
+              contexts: {
+                nodes: [
+                  { name: "ci-status", status: "COMPLETED", conclusion: "FAILURE" },
+                  {
+                    name: calls[0].name,
+                    status: calls[0].status.toUpperCase(),
+                    conclusion: calls[0].conclusion.toUpperCase(),
+                    title: calls[0].output.title,
+                  },
+                ].map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run })),
+                pageInfo: { hasNextPage: false },
+              },
+            },
+          },
+        },
+      ],
+    },
+  };
+  const options = { ...CI_FIX_DEFAULTS, appSenderId, restarts: 1 };
+  assert.equal(skipReason(node, options), "head already has a pr-unblock / fix-ci check run");
+});
+
+// Runs a not-run job's report-check-run step, its inputs reaching
+// report-check-run.mjs through the action's env map; returns the POST bodies.
+async function postNotRunCheck(job, context) {
   const action = parse(read("../report-check-run/action.yml"));
-  const step = notRun.steps.find((s) => s.uses === "./.base/.github/actions/report-check-run");
-  const values = { ...context("false", head), "github.token": "test-token" };
+  const step = job.steps.find((s) => s.uses === "./.base/.github/actions/report-check-run");
+  const values = { ...context, "github.token": "test-token" };
   const env = {};
   for (const [name, value] of Object.entries(action.runs.steps[0].env)) {
     const input = value.match(/^\$\{\{ inputs\.([\w-]+) \}\}$/)[1];
@@ -198,12 +347,8 @@ test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback
     log: () => {},
   });
   assert.equal(code, 0);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].name, "pr-unblock / publish-feedback");
-  assert.equal(calls[0].head_sha, head);
-  assert.equal(calls[0].conclusion, "neutral");
-  assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
-});
+  return calls;
+}
 
 // GitHub runs at most one job per concurrency group, and `queue: max` keeps
 // the rest waiting instead of cancelling them (workflow-syntax#concurrency),
@@ -241,14 +386,119 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
 
   // A label other than agent-ready starts neither job, so it holds no runner.
   for (const [label, runs] of [["agent-ready", true], ["bug", false]]) {
-    const context = { "github.event.label.name": label };
+    const context = { "github.event.label.name": label, "needs.pick-slot.outputs.capped": "false" };
     assert.equal(evaluate(pick.if, context), runs, label);
     assert.equal(evaluate(resolve.if, context), runs, label);
   }
+  // At the WIP cap resolve-issue takes no slot; a cap check that failed or
+  // set nothing starts it.
+  assert.equal(pick.outputs.capped, "${{ steps.wip.outputs.capped }}");
+  for (const [capped, runs] of [["true", false], ["false", true], ["", true]]) {
+    const context = { "github.event.label.name": "agent-ready", "needs.pick-slot.outputs.capped": capped };
+    assert.equal(evaluate(resolve.if, context), runs, `capped ${JSON.stringify(capped)}`);
+  }
+  const wip = pick.steps.find((item) => item.id === "wip");
+  assert.equal(wip["continue-on-error"], true, "a failed cap check must start the run");
   // The per-issue run group still dedupes: one agent-ready run per issue.
   assert.equal(
     concurrency.group,
     "work-resolve-issue-${{ github.event.issue.number }}-${{ github.event.label.name == 'agent-ready' }}",
   );
   assert.equal(concurrency["cancel-in-progress"], false);
+});
+
+// The run job's timeout is the issue size's (models.issue-dimensions), resolved
+// from the base config before the job starts; no literal stands in for it.
+test("work-resolve-issue.yml: resolve-issue's timeout is the resolved issue dimensions'", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const dims = jobs["pick-slot"].steps.find((s) => s.id === "dimensions");
+  assert.equal(dims.uses, "./.base/.github/actions/resolve-config");
+  assert.deepEqual([dims.with.lane, dims.with.activity], ["work-resolve-issue", "resolve-issue"]);
+  assert.notEqual(dims["continue-on-error"], true, "unresolved dimensions must not start a run");
+  // The org fields are readable only with issues: read.
+  assert.equal(jobs["pick-slot"].permissions.issues, "read");
+  assert.equal(jobs["pick-slot"].outputs["timeout-minutes"], "${{ steps.dimensions.outputs.timeout-minutes }}");
+  assert.equal(jobs["resolve-issue"].with["timeout-minutes"], "${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}");
+  // The run takes the dimensions whose timeout it got, not fields set while it waited.
+  assert.equal(jobs["pick-slot"].outputs["issue-dimensions"], "${{ steps.dimensions.outputs.issue-dimensions }}");
+  assert.equal(jobs["resolve-issue"].with["issue-dimensions"], "${{ needs.pick-slot.outputs.issue-dimensions }}");
+  const write = workflow("pr-run-activity-write.yml");
+  const config = write.jobs.run.steps.find((s) => s.id === "config");
+  assert.equal(config.with["issue-dimensions"], "${{ inputs.issue-dimensions }}");
+});
+
+// A queued resolve-issue run starts on the workflow files of its label event.
+// The broker refuses its mint as workflow-modified when either file's blob at
+// the run's commit differs from main's tip (azure-iac binding.mjs), so the
+// run job checks the same rule first and fails red with no token request;
+// work-unblock's sweep re-fires a failed run that left no outcome marker.
+test("pr-run-activity-write.yml: an issue run on stale workflow files fails before the token request", () => {
+  const { jobs } = workflow("pr-run-activity-write.yml");
+  const steps = jobs.run.steps;
+  const index = (id) => steps.findIndex((step) => step.id === id);
+  const check = steps[index("workflow-current")];
+  assert.ok(check, "the run job has a workflow-current step");
+  assert.ok(index("base") < index("workflow-current"), "it reads the default branch checkout");
+  assert.ok(index("workflow-current") < index("issue-prior"));
+  assert.ok(index("workflow-current") < index("lane-token"));
+  // Every step from the check to the mint runs only while no step failed.
+  for (const step of steps.slice(index("workflow-current") + 1, index("lane-token") + 1)) {
+    assert.doesNotMatch(String(step.if ?? ""), /always\(\)|failure\(\)|!cancelled\(\)/, step.name);
+  }
+  // A skill run in issue mode only: report-outcome is a script, and the
+  // broker lets a report job's file differ.
+  for (const [issue, kind, runs] of [["7", "skill", true], ["7", "script", false], ["", "skill", false]]) {
+    const context = {
+      "inputs.issue-number": issue,
+      "steps.config.outputs.applies": "true",
+      "steps.config.outputs.kind": kind,
+    };
+    assert.equal(evaluate(check.if, context), runs, `${issue || "no issue"} ${kind}`);
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), "workflow-current-"));
+  after(() => rmSync(dir, { recursive: true, force: true }));
+  const base = join(dir, ".base");
+  const git = (...args) => {
+    const run = spawnSync("git", ["-C", base, ...args], { encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    return run.stdout.trim();
+  };
+  const caller = ".github/workflows/work-resolve-issue.yml";
+  const reusable = ".github/workflows/pr-run-activity-write.yml";
+  const commit = (files) => {
+    for (const [path, text] of Object.entries(files)) {
+      writeFileSync(join(base, path), text);
+    }
+    git("add", "-A");
+    git("-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "c");
+    return git("rev-parse", "HEAD");
+  };
+  spawnSync("git", ["init", "-q", "-b", "main", base]);
+  spawnSync("mkdir", ["-p", join(base, ".github/workflows")]);
+  const run = commit({ [caller]: "caller 1\n", [reusable]: "write 1\n", "README.md": "a\n" });
+  const runCheck = (sha = run, ref = `melodic-software/claude-code-plugins/${caller}@refs/heads/main`) =>
+    spawnSync("bash", ["-c", check.run], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, WORKFLOW_REF: ref, WORKFLOW_SHA: sha },
+    });
+
+  assert.equal(runCheck().status, 0, "the run's own commit is main's tip");
+  commit({ "README.md": "b\n" });
+  assert.equal(runCheck().status, 0, "main moved, but neither workflow file changed");
+  commit({ [caller]: "caller 2\n" });
+  const callerStale = runCheck();
+  assert.equal(callerStale.status, 1, "the caller changed on main");
+  assert.match(callerStale.stdout, /::error::workflow-stale: \.github\/workflows\/work-resolve-issue\.yml /);
+  const fresh = git("rev-parse", "HEAD");
+  assert.equal(runCheck(fresh).status, 0, "a run on main's current files proceeds");
+  commit({ [reusable]: "write 2\n" });
+  const reusableStale = runCheck(fresh);
+  assert.equal(reusableStale.status, 1, "the write runner changed on main");
+  assert.match(reusableStale.stdout, /::error::workflow-stale: \.github\/workflows\/pr-run-activity-write\.yml /);
+  // A commit or caller this checkout cannot read is left to the broker.
+  assert.equal(runCheck("0".repeat(40)).status, 0);
+  assert.equal(runCheck("").status, 0);
+  assert.equal(runCheck(run, "").status, 0);
 });

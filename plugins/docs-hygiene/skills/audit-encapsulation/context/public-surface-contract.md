@@ -28,7 +28,9 @@ This guarantees skills are rip-and-paste portable: moving `.claude/skills/<name>
 
 ## Carve-out: `scripts/` entry surface
 
-A skill's `scripts/` directory is its declared entry surface. Harness surfaces, CI workflows, git hooks, and automation registries MAY path-cite `scripts/` entry scripts directly. **Sibling skills may NOT**, because skill-to-skill stays slash-only. That outbound half of the asymmetry is out of scope for this inbound audit; a consuming repo that wants it enforced wires its own outbound gate.
+A skill's `scripts/` directory is its declared entry surface. Harness surfaces, CI workflows, git hooks, and automation registries outside `plugins/` MAY path-cite `scripts/` entry scripts directly. **Sibling skills may NOT**, because skill-to-skill stays slash-only. That outbound half of the asymmetry is out of scope for this inbound audit; a consuming repo that wants it enforced wires its own outbound gate.
+
+In a marketplace monorepo the carve-out narrows: a file under `plugins/<q>/` that path-cites another plugin's `scripts/` is a violation (plugins install independently, so the path can be absent; cite `/plugin:skill`). The same plugin's own files stay legal.
 
 ### Layered convention. Plugin monorepos where the plugin is the shipping unit
 
@@ -39,8 +41,20 @@ one manifest and one version per plugin, no per-skill manifest, and no installat
 separates two skills in the same plugin.
 
 The relaxation is intra-plugin only. Cross-plugin path citation stays a violation, since plugins
-install independently and the cited path can be genuinely absent. Heading anchors stay private in
-both cases, because a heading is body structure whatever ships alongside it.
+install independently and the cited path can be genuinely absent. That covers every spelling of the
+target: the skill root (`plugins/<p>/skills/<s>`), a bare `SKILL.md`, any subdirectory, `scripts/`,
+a `../` path, and a `github.com` tree/blob or `raw.githubusercontent.com` URL into the skills
+folder. Heading anchors stay private in both cases, because a heading is body structure whatever
+ships alongside it.
+
+A marketplace repo also never names its own marketplace id (`<plugin>@<id>`) outside an install
+recipe line: the id is a deployment detail of one install, so prose and config cite
+`/plugin:skill` instead. Third-party ids are not covered.
+
+Fixtures, evals and tests that exist to exercise a detector embed literal violations. The consuming
+repo lists each in an allowlist of `path<TAB>reason` rows the detector reads
+(`docs/conventions/audit-encapsulation-allowlist.tsv` by default, `--allowlist <file>` otherwise);
+a real cite is fixed, never listed.
 
 This repository layers exactly that convention; `docs/plugin-philosophy.md` states it and bounds it.
 A repo that has not declared such a convention gets the unrelaxed contract above.

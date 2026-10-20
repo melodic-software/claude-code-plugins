@@ -117,6 +117,18 @@
         "The diagram of the releases has kind timeline, with one point per release",
         "Every point carries its date in when, not folded into some labels and missing from others"
       ]
+    },
+    {
+      "id": 11,
+      "name": "no-medium-and-no-layer-delivers-the-local-file",
+      "prompt": "/education:illustrate how a guitar amplifier shapes tone (no medium argument, and no rendered-views layer sets medium, in a session that can publish artifacts)",
+      "expected_output": "Builds the record and the page, then resolves the medium to the shipped ladder, which is file and then terminal. It reports the local path of the page and of the record, and does not publish an artifact or watch one, even though this session can publish.",
+      "files": [],
+      "expectations": [
+        "Reports the local file path of the page and the path of the record",
+        "Does not publish an artifact, although the session can publish one",
+        "Names the shipped ladder as the fact that decided the medium"
+      ]
     }
   ]
 }

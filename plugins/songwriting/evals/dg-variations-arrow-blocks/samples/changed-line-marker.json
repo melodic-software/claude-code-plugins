@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "Dominant problem: line 3 tells the feeling the other lines already show. Three variations, each a full block with the changed line marked.\n\n**Variation A: image axis**\n\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► Your coffee ring is fading where you set it down\nEighty miles of nothing and the radio gone bad\n\n**Variation B: action axis**\n\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► I turn to tell you something, then I turn back\nEighty miles of nothing and the radio gone bad\n\n**Variation C: vowel axis**\n\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► I keep your side of the seat belt clicked and empty\nEighty miles of nothing and the radio gone bad\n\nScansion maps and craft notes for each are in `variations/`."
+    },
+    {
+      "answer": "§3, §8 and §2 run. Voiceprint: none on disk, register gate skipped (no voiceprint).\n\n### Version 1 (POV)\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► You'd have made me pull over at the first gas station\nEighty miles of nothing and the radio gone bad\n\n### Version 2 (time)\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► Last June you had your bare feet on the glove box\nEighty miles of nothing and the radio gone bad\n\n### Version 3 (sound)\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► Half a song about you on a station I can't find\nEighty miles of nothing and the radio gone bad\n\n### Version 4 (understatement)\nDust on the dashboard, a map I never fold\nYour sweater in the back seat, still smelling like the cold\n► I left your sunglasses right where you threw them\nEighty miles of nothing and the radio gone bad"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Option A: Your coffee ring is fading\nOption B: I turn to tell you something"
+    },
+    {
+      "answer": "Variation A\n> Your coffee ring is fading where you set it down\n▶ changed",
+      "why": "a different arrow glyph"
+    },
+    {
+      "answer": "Variation A\n-> Your coffee ring is fading where you set it down",
+      "why": "ASCII arrow"
+    }
+  ]
+}

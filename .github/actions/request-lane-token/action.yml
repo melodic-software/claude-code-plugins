@@ -2,9 +2,12 @@ name: Request lane token
 description: >
   Exchange this job's GitHub OIDC token at the lanes token broker. In `token`
   mode, the default, it gets one lane App installation token: it retries only
-  a 503 `github-unavailable`, with backoff, masks the token, and fails red, after
+  a 503 `github-unavailable`, with backoff, or `github-rate-limited`, after its
+  `Retry-After`, masks the token, and fails red, after
   revoking the token, unless the broker's effect, permissions, lane, activity
-  and repository equal what this job resolved. In `check` mode it asks the
+  and repository equal what this job resolved; with `pr-workflow-change-ok` a
+  `workflow-modified` refusal of a workflow file the PR changes skips instead
+  of failing. In `check` mode it asks the
   broker's check endpoint, which mints nothing, whether a read lane may run,
   and fails red on anything but an allow. Contract:
   docs/conventions/pr-pipeline/pr-run-activity.md, run job step 6 and the
@@ -79,6 +82,29 @@ inputs:
       work. Any other denial still fails red. Default `false`.
     required: false
     default: "false"
+  pr-workflow-change-ok:
+    description: >-
+      `true` ends the step green, with no token and the `skip-reason` output
+      `workflow-modified`, when the broker answers 403 `workflow-modified`
+      naming a `.github/workflows/` file that the pull request itself changes:
+      the GitHub compare from `default-branch` to `head-sha` lists it. Any
+      other denial, a refusal that does not parse, a file the compare does not
+      list, or a failed compare read still fails red. `token` mode with
+      `pr-number` only. Default `false`.
+    required: false
+    default: "false"
+  head-sha:
+    description: The gated head SHA the compare reads; required with `pr-workflow-change-ok`.
+    required: false
+    default: ""
+  default-branch:
+    description: The repository's default branch, the compare's base; required with `pr-workflow-change-ok`.
+    required: false
+    default: ""
+  github-token:
+    description: A token that can read the repository's contents, for the compare; required with `pr-workflow-change-ok`.
+    required: false
+    default: ""
 
 outputs:
   token:
@@ -95,6 +121,10 @@ outputs:
       The one-line reason the step failed with, such as `lane-token-denied: ...`;
       empty on a success.
     value: ${{ steps.request.outputs.failure-reason }}
+  skip-reason:
+    description: >-
+      `workflow-modified` when `pr-workflow-change-ok` skipped the activity; empty otherwise.
+    value: ${{ steps.request.outputs.skip-reason }}
 
 runs:
   using: composite
@@ -117,6 +147,10 @@ runs:
         PULL_REQUESTS: ${{ inputs.pull-requests }}
         ISSUES: ${{ inputs.issues }}
         SUPERSEDED_OK: ${{ inputs.superseded-ok }}
+        PR_WORKFLOW_CHANGE_OK: ${{ inputs.pr-workflow-change-ok }}
+        HEAD_SHA: ${{ inputs.head-sha }}
+        DEFAULT_BRANCH: ${{ inputs.default-branch }}
+        API_TOKEN: ${{ inputs.github-token }}
       run: |
         set -euo pipefail
         umask 077
@@ -139,6 +173,14 @@ runs:
         [[ $LANE =~ $name && $ACTIVITY =~ $name ]] || fail "the lane and activity must be kebab-case names"
         SUPERSEDED_OK=${SUPERSEDED_OK:-false}
         [[ $SUPERSEDED_OK == true || $SUPERSEDED_OK == false ]] || fail "superseded-ok must be true or false"
+        PR_WORKFLOW_CHANGE_OK=${PR_WORKFLOW_CHANGE_OK:-false}
+        [[ $PR_WORKFLOW_CHANGE_OK == true || $PR_WORKFLOW_CHANGE_OK == false ]] ||
+          fail "pr-workflow-change-ok must be true or false"
+        if [ "$PR_WORKFLOW_CHANGE_OK" = true ]; then
+          [[ $MODE == token && -n ${PR_NUMBER:-} && ${HEAD_SHA:-} =~ ^[0-9a-f]{40}$ &&
+            ${DEFAULT_BRANCH:-} =~ ^[A-Za-z0-9._-]+$ && -n ${API_TOKEN:-} ]] ||
+            fail "pr-workflow-change-ok needs token mode, a PR number, a head SHA, the default branch and a GitHub token"
+        fi
         case "$MODE" in
         token)
           [[ $EFFECT =~ $name ]] || fail "the effect must be a kebab-case name"
@@ -172,6 +214,7 @@ runs:
 
         response="$RUNNER_TEMP/lane-token-response.json"
         headers="$RUNNER_TEMP/lane-token-headers.txt"
+        compare="$RUNNER_TEMP/lane-token-compare.json"
         issued=""
         revoke() {
           printf 'Authorization: Bearer %s\n' "$1" |
@@ -183,7 +226,7 @@ runs:
         # prints its status, so only a token that passed every check reaches the job.
         cleanup() {
           local rc=$?
-          rm -f "$response" "$headers"
+          rm -f "$response" "$headers" "$compare"
           if [ "$rc" -ne 0 ] && [ -n "$issued" ]; then
             echo "Revoke attempt returned $(revoke "$issued")"
           fi
@@ -201,22 +244,23 @@ runs:
         reason_of() { jq -r 'if type == "object" and (.reason | type) == "string" then .reason else "" end' "$response" 2>/dev/null || true; }
         detail_of() { jq -r 'if type == "object" and (.detail | type) == "string" then .detail else "" end' "$response" 2>/dev/null | one_line || true; }
 
-        # The one retry is a 503 github-unavailable: the broker's GitHub call
-        # failed, as under a secondary rate limit. GitHub
-        # says to wait at least a minute, then back off exponentially:
+        # Two 503s come before the broker reserves anything, so they are retried,
+        # each with a fresh OIDC token, as GitHub's rate-limit guidance asks:
         # https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit
-        # A failed mint also answers github-unavailable, after the broker
-        # reserved the job's one mint, so its retry is denied already-minted and
-        # never gets a second token. Every other answer, and no answer, is
-        # final: a 200 lost in transit is revoked by nobody. A Retry-After header
-        # longer than the backoff sets the wait; no retry starts more than 8
-        # minutes after the first request, so with its 30 s OIDC and 60 s broker
-        # timeouts the last answer comes within 9.5 minutes.
-        # Each attempt takes a fresh OIDC token. A check is never reserved, so
-        # re-running all jobs asks again; "Re-run failed jobs" reuses an earlier
-        # allow, which the read file's run job refuses.
+        # github-rate-limited carries GitHub's wait as Retry-After: the retry
+        # waits exactly that (a minute when absent) plus jitter, never less, and
+        # a wait that would end past the budget fails at once. github-unavailable
+        # backs off exponentially from a minute, or waits a longer Retry-After.
+        # mint-unavailable is a failed mint after the job's one reservation, so
+        # it is final, as is every other answer and no answer: a 200 lost in
+        # transit is revoked by nobody. No retry starts more than 8 minutes
+        # after the first request, so with its 30 s OIDC and 60 s broker
+        # timeouts the last answer comes within 9.5 minutes. A check is never
+        # reserved, so re-running all jobs asks again; "Re-run failed jobs"
+        # reuses an earlier allow, which the read file's run job refuses.
         backoff=(60 120 240)
-        attempt=0 start=$SECONDS retried=""
+        budget=480
+        attempt=0 start=$SECONDS retried="" rate_limit=""
         while :; do
           oidc=$(printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" |
             curl -sS --fail --max-time 30 -H @- "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" |
@@ -228,14 +272,36 @@ runs:
             curl -sS --proto '=https' --max-time 60 -o "$response" -D "$headers" -w '%{http_code}' -X POST -H @- \
               -H 'Content-Type: application/json' --data-binary "$body" "$BROKER_URL") || status=000
           unset oidc
-          [[ $status == 503 && $attempt -lt ${#backoff[@]} && $(reason_of) == github-unavailable ]] || break
-          delay=$((backoff[attempt] + RANDOM % 21))
+          reason=$(reason_of)
+          [[ $status == 503 && $attempt -lt ${#backoff[@]} && $reason =~ ^github-(unavailable|rate-limited)$ ]] || break
           after=$(tr -d '\r' <"$headers" 2>/dev/null |
             awk -F': *' 'tolower($1) == "retry-after" && $2 ~ /^[0-9]+$/ && length($2) <= 6 { v = $2 + 0 } END { print v }') || after=""
-          [[ -z $after || $after -le $delay ]] || delay=$after
-          [ $((SECONDS - start + delay)) -le 480 ] || break
+          elapsed=$((SECONDS - start))
+          if [ "$reason" = github-rate-limited ]; then
+            delay=${after:-60}
+            if [ $((elapsed + delay)) -gt "$budget" ]; then
+              # The anchored allowlists below are what keep broker text out of
+              # the ::error:: command and $GITHUB_OUTPUT: never loosen them.
+              limit=$(jq -r 'if (.limit | type) == "string" then .limit else "" end' "$response" 2>/dev/null) || limit=""
+              [[ $limit =~ ^(primary|secondary)$ ]] || limit=unknown
+              resource=$(jq -r 'if (.resource | type) == "string" then .resource else "" end' "$response" 2>/dev/null) || resource=""
+              [[ $resource =~ ^[a-z_]{1,40}$ ]] || resource=""
+              resets=$(jq -rn --argjson s "$delay" 'now + $s | ceil | todate')
+              when="resets at"
+              [ -n "$after" ] || when="sent no Retry-After, so its earliest retry is"
+              rate_limit="; GitHub's $limit rate limit${resource:+ ($resource)} $when $resets, past the 8-minute retry budget"
+              break
+            fi
+            jitter=$((RANDOM % 21))
+            [ "$jitter" -le $((budget - elapsed - delay)) ] || jitter=$((budget - elapsed - delay))
+            delay=$((delay + jitter))
+          else
+            delay=$((backoff[attempt] + RANDOM % 21))
+            [[ -z $after || $after -le $delay ]] || delay=$after
+            [ $((elapsed + delay)) -le "$budget" ] || break
+          fi
           detail=$(detail_of)
-          retried="503 with reason github-unavailable${detail:+: $detail}"
+          retried="503 with reason $reason${detail:+: $detail}"
           attempt=$((attempt + 1))
           echo "::warning::lane-token-retry: the broker answered $retried; retry $attempt of ${#backoff[@]} in ${delay}s"
           sleep "$delay"
@@ -250,13 +316,49 @@ runs:
           reason=$(reason_of)
           [[ $reason =~ ^[a-z]+(-[a-z]+)*$ ]] || reason=unknown
           detail=$(detail_of)
-          [ "$reason" != github-unavailable ] || retried=""
-          detail="$detail${retried:+, after $retried}"
+          [[ $retried != "503 with reason $reason" && $retried != "503 with reason $reason: "* ]] || retried=""
+          [ "$reason" != mint-unavailable ] ||
+            detail="$detail; final: the broker had reserved this job's one mint, so no retry can mint it"
+          detail="$detail$rate_limit${retried:+, after $retried}"
           if [[ $SUPERSEDED_OK == true && $status == 403 && $reason == workflow-modified ]]; then
             msg="lane-token-superseded: $LANE.yml changed on the default branch after this run started, so a newer run of it does this work; this run takes no token and skips the rest"
             echo "::warning::$msg"
             printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
             exit 0
+          fi
+          # The refusal does not say whether the PR or the default branch
+          # changed the file, so the skip needs GitHub's own three-dot compare
+          # at the gated head to list it; any doubt stays red.
+          if [[ $PR_WORKFLOW_CHANGE_OK == true && $status == 403 && $reason == workflow-modified ]]; then
+            raw=$(jq -r 'if type == "object" and (.detail | type) == "string" then .detail else "" end' "$response" 2>/dev/null) || raw=""
+            file="" why=""
+            if [[ $raw =~ ^(\.github/workflows/[A-Za-z0-9._-]+\.ya?ml)\ differs\ from\ refs/heads/([A-Za-z0-9._-]+)$ &&
+              ${BASH_REMATCH[2]} == "$DEFAULT_BRANCH" ]]; then
+              file=${BASH_REMATCH[1]}
+            else
+              why="the refusal names no workflow file against refs/heads/$DEFAULT_BRANCH"
+            fi
+            if [ -n "$file" ]; then
+              if printf 'Authorization: Bearer %s\n' "$API_TOKEN" |
+                curl -sS --fail --proto '=https' --max-time 30 -o "$compare" -H @- \
+                  -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' \
+                  "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/compare/$DEFAULT_BRANCH...$HEAD_SHA"; then
+                touched=$(jq --arg f "$file" \
+                  'type == "object" and (.files | type) == "array" and any(.files[]; .filename == $f or .previous_filename == $f)' \
+                  "$compare" 2>/dev/null) || touched=false
+                [ "$touched" = true ] || why="the pull request's diff at $HEAD_SHA does not change $file"
+              else
+                why="the compare of $DEFAULT_BRANCH...$HEAD_SHA could not be read"
+              fi
+            fi
+            if [ -z "$why" ]; then
+              msg="lane-token-skipped: the broker refused the token as workflow-modified because this pull request changes $file; no lane run gets a token while it does, so the activity is skipped"
+              echo "::notice::$msg"
+              printf -- '- %s\n' "$msg" >>"$GITHUB_STEP_SUMMARY"
+              echo "skip-reason=workflow-modified" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+            detail="$detail; not skipped: $why"
           fi
           fail "$denied: the broker answered $status with reason $reason${detail:+: $detail}"
         fi

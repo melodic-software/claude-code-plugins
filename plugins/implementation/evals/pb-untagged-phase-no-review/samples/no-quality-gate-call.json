@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "1. Dispatch `implementation:phase-verifier` with Phase 3's criteria and the diff from 4b1d9e07.\n2. Mark Phase 3 `[DONE]`.\n3. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
+      "why": "no review step"
+    },
+    {
+      "answer": "Phase 3 has no `Review:` tag, so no `/review:quality-gate` call runs.\n1. Dispatch `implementation:phase-verifier`.\n2. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
+      "why": "negated mention"
+    },
+    {
+      "answer": "Skipped: /review:quality-gate (untagged phase).\n1. implementation:phase-verifier\n2. git commit",
+      "why": "skip note"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. `/review:quality-gate code-design --worktree /srv/wt/shop-pricing --base 4b1d9e07 --report-only`\n2. Dispatch `implementation:phase-verifier`.\n3. `git -C /srv/wt/shop-pricing commit -F /tmp/msg.txt`",
+      "why": "reviews an untagged phase"
+    },
+    {
+      "answer": "1. Run /review:quality-gate code --worktree /srv/wt/shop-pricing --base 4b1d9e07\n2. phase-verifier\n3. commit",
+      "why": "a generic review on an untagged phase"
+    }
+  ]
+}

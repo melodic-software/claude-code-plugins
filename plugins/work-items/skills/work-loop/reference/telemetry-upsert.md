@@ -20,7 +20,8 @@ Run the script at the absolute path `SKILL.md`'s "Telemetry and durable loop sta
 
 ```bash
 bash "<upsert-script>" \
-  --lane work-loop --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" --body-file "$BODY_FILE"
+  --lane work-loop --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" --body-file "$BODY_FILE" \
+  --app-slug '${user_config.lane_app_slug}'
 ```
 
 | Argument | Value |
@@ -30,7 +31,7 @@ bash "<upsert-script>" \
 | `--repo` | The target repository as `owner/name`. |
 | `--issue` | The lane's tracking issue number. |
 | `--body-file` | The file holding this cycle's composed body. |
-| `--app-slug` | Optional; required under an App installation token, where the upsert otherwise exits 15 every cycle. No config key carries the slug yet, so the launch prompt supplies it. The GitHub App whose installation token `gh` runs under. The write identity is the `gh api user` login when that call reports a User; when it fails or reports a Bot, `<app-slug>[bot]`, else the reported Bot login plus `[bot]`. |
+| `--app-slug` | Always passed as `${user_config.lane_app_slug}`; a launch prompt that names a slug overrides it. An empty value, or a surviving literal `${user_config.…}` placeholder, means the key is unset and the script treats it as absent, so the argument is a no-op outside an App token. It matters under an App installation token, where the upsert otherwise exits 15 every cycle. The GitHub App whose installation token `gh` runs under. The write identity is the `gh api user` login when that call reports a User; when it fails or reports a Bot, `<app-slug>[bot]`, else the reported Bot login plus `[bot]`. |
 
 ## What the upsert writes
 

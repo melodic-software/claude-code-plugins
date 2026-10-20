@@ -247,6 +247,12 @@ pointer with an as-of date and a recheck trigger, live in
 - **Does not verify measurable-improvement claims**. `/verification:measure` owns the baseline/compare mechanism; this skill redirects improvement claims there.
 - **Does not replace PR prep**, the project's PR flow orchestrates review + verification + cleanup. This skill is the verification component.
 
+## Next
+
+- Verdict CONFIRMED: /source-control:pull-request.
+- Improvement claimed without data: /verification:measure.
+- Gaps found: fix them, then /verification:confirm.
+
 ## Gotchas
 
 - **Stage 1 is a gate, not the deliverable.** A green build is the prerequisite; the deliverable is outcome confirmation. Don't stop at "it builds."

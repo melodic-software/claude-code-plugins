@@ -3,7 +3,9 @@
 #
 #   scripts/new-changelog-fragment.sh [--stdin] [--carriers-of <canonical>]... [<plugin>...] <major|minor|patch|none>
 #
-# Writes one .changes/<plugin>/<branch-slug>-<8 hex>.md per named plugin, holding
+# Writes, in the git work tree the caller stands in, one
+# .changes/<plugin>/<branch-slug>-<8 hex>.md per named plugin or listed
+# convention (scripts/lib/changelog-fragments.sh), holding
 # the front matter, and prints each path. --carriers-of adds every plugin that
 # carries a copy of <canonical> in scripts/shared-copies.txt, so one edit to a
 # shared library takes one command. A plugin named twice gets one fragment. A
@@ -24,12 +26,18 @@
 # fragment mode, an invalid --stdin body, or no branch.
 set -uo pipefail
 
+self="$(basename "$0")"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-cd "$SCRIPT_DIR/.." || exit 2
+# The fragment goes into the work tree the caller stands in, so a copy of
+# scripts/ kept outside it (the issue lane's read-only copy) writes into the
+# checkout; outside any work tree there is nowhere to write.
+if ! root="$(git rev-parse --show-toplevel 2>/dev/null)" || ! cd "$root"; then
+  echo "$self: run it inside a git work tree; the fragment goes under its .changes/." >&2
+  exit 2
+fi
 # shellcheck source=lib/changelog-fragments.sh
 . "$SCRIPT_DIR/lib/changelog-fragments.sh" || exit 2
 
-self="$(basename "$0")"
 usage() {
   echo "usage: $self [--stdin] [--carriers-of <canonical>]... [<plugin>...] <major|minor|patch|none>" >&2
   exit 2
@@ -44,7 +52,7 @@ while (($#)); do
     ;;
   --carriers-of)
     (($# >= 2)) || usage
-    if [[ -z "$manifest" ]] && ! manifest="$(bash scripts/sync-shared-copies.sh --print-manifest)"; then
+    if [[ -z "$manifest" ]] && ! manifest="$(bash "$SCRIPT_DIR/sync-shared-copies.sh" --print-manifest)"; then
       echo "$self: could not read scripts/shared-copies.txt." >&2
       exit 2
     fi
@@ -76,8 +84,12 @@ declare -A seen=()
 for plugin in "${names[@]}"; do
   [[ -z "${seen[$plugin]:-}" ]] || continue
   seen["$plugin"]=1
-  if [[ ! -f "plugins/$plugin/.claude-plugin/plugin.json" ]]; then
-    echo "$self: no plugin named '$plugin' (plugins/$plugin/.claude-plugin/plugin.json is missing)." >&2
+  if [[ ! "$plugin" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+    echo "$self: '$plugin' is not a plugin name (lowercase letters, digits and -)." >&2
+    exit 2
+  fi
+  if ! changelog_fragments::root_of "$plugin" >/dev/null; then
+    echo "$self: no plugin named '$plugin' (plugins/$plugin/.claude-plugin/plugin.json is missing) and no convention docs/conventions/$plugin/CHANGELOG.md." >&2
     exit 2
   fi
   changelog_fragments::in_mode "$plugin"
@@ -124,7 +136,12 @@ for plugin in "${plugins[@]}"; do
     discard
   fi
   path=".changes/$plugin/$slug-$suffix.md"
-  if [[ -e "$path" ]]; then
+  # A linked directory would carry the write out of .changes/.
+  if [[ -L .changes || -L ".changes/$plugin" ]]; then
+    echo "$self: .changes or .changes/$plugin is a symbolic link; wrote nothing." >&2
+    discard
+  fi
+  if [[ -e "$path" || -L "$path" ]]; then
     echo "$self: $path already exists; run it again for a new suffix." >&2
     discard
   fi
