@@ -14,7 +14,7 @@ This is complementary to `/planning:devils-advocate`. Review checks completeness
 
 ## Re-plan after a divergence
 
-When `review` is invoked after implementation diverged or stopped (a Major divergence, a falsified load-bearing assumption, a divergence note in the invocation), or a `DEVIATIONS.md` beside PLAN.md holds a Major entry no re-plan has answered, re-plan instead of only judging completeness:
+When `review` is invoked after implementation diverged or stopped (a Major divergence, a falsified load-bearing assumption, a divergence note in the invocation), re-plan instead of only judging completeness:
 
 1. Read `DEVIATIONS.md` beside PLAN.md in the memory slice, or the divergence note the invocation carries. Name each entry that drives the re-plan.
 2. Re-check that the plan's Goal still serves the Brief's `### Problem`, and mark each `### Load-bearing assumptions` row the entries falsify by starting its Assumption cell with `FALSIFIED <date>:`.
