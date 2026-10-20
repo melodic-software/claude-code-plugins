@@ -442,7 +442,7 @@ class TestCodes(ShareCase):
         share(self.d, "ensure-running")
         share(self.d, "stop")
         doc = json.loads((self.d / "state.json").read_text(encoding="utf-8"))
-        doc["schemaVersion"] = 7
+        doc["schemaVersion"] = 8
         (self.d / "state.json").write_text(json.dumps(doc), encoding="utf-8")
         code, _, err = share(self.d, "ensure-running")
         self.assertEqual(code, 1)
