@@ -34,10 +34,11 @@
               "symlink",
               "gitlink",
               "new-executable",
-              "rename-into-refused"
+              "rename-into-refused",
+              "instruction-path"
             ]
           },
-          "description": "Named refusals; any match refuses the whole patch. github: .github/** in any case and through any .. segment; claude: .claude/** at any depth; mcp-config: the root .mcp.json; gitmodules: .gitmodules; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; new-executable: an executable bit on a file not already executable; rename-into-refused: a rename whose new path another refusal matches."
+          "description": "Named refusals; any match refuses the whole patch. github: .github/** in any case and through any .. segment; claude: .claude/** at any depth; mcp-config: the root .mcp.json; gitmodules: .gitmodules; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; new-executable: an executable bit on a file not already executable; rename-into-refused: a rename whose new path another refusal matches; instruction-path, optional: a path loaded as instructions or ownership (CLAUDE.md, AGENTS.md, .mcp.json, .lsp.json, .gitmodules or CODEOWNERS at any depth, a .claude or .claude-plugin directory, a plugin's hooks, monitors or bin)."
         },
         "allow": {
           "type": "array",

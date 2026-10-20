@@ -46,6 +46,7 @@ import { appendFileSync, existsSync, lstatSync, readdirSync, readFileSync, write
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { isInstructionPath } from "../pr-unblock/thread-scope.mjs";
 import { PREDICATES } from "./predicates.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
@@ -86,9 +87,11 @@ const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
 const pathRefused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path))) || path.includes("\\");
 
 // The refusal table. Every row must name every refusal but those in ALWAYS,
-// which apply to every row unnamed; any match refuses the whole patch, and
-// `kind` picks the row's escalation reason.
+// which apply to every row unnamed, and those in OPTIONAL, which apply only to
+// a row that names them; any match refuses the whole patch, and `kind` picks
+// the row's escalation reason.
 export const ALWAYS = ["backslash"];
+export const OPTIONAL = ["instruction-path"];
 export const REFUSALS = {
   // A backslash reads as a directory separator on Windows checkouts.
   backslash: { kind: "protected-path", test: (entry) => entry.path.includes("\\") },
@@ -101,10 +104,17 @@ export const REFUSALS = {
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
   "new-executable": { kind: "protected-path", test: (entry) => entry.newMode === EXECUTABLE && entry.oldMode !== EXECUTABLE },
   "rename-into-refused": { kind: "protected-path", test: (entry) => entry.renamedFrom !== undefined && pathRefused(entry.path) },
+  // A path the harness, git or GitHub runs or loads as instructions
+  // (thread-scope.mjs): agent rules, MCP and language-server config, code
+  // owners, .claude and .claude-plugin directories, a plugin's hooks,
+  // monitors and bin.
+  "instruction-path": { kind: "protected-path", test: (entry) => isInstructionPath(entry.path) },
 };
 
-// The names of the refusals that match one changed entry.
-export const refusalsOf = (entry, names = Object.keys(REFUSALS)) => names.filter((name) => REFUSALS[name].test(entry));
+// The names of the refusals that match one changed entry; by default those
+// every row names.
+export const refusalsOf = (entry, names = Object.keys(REFUSALS).filter((name) => !OPTIONAL.includes(name))) =>
+  names.filter((name) => REFUSALS[name].test(entry));
 
 // Credential shapes: any match in the patch or a patched blob refuses it all.
 export const CREDENTIALS = [
@@ -219,14 +229,18 @@ export function checkRow(row) {
   const fail = (message) => {
     throw new Error(`patch-rules.json row \`${row.name}\` ${message}`);
   };
-  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !row.refuse?.includes(name));
+  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !OPTIONAL.includes(name) && !row.refuse?.includes(name));
   if (missing.length > 0) {
     fail(`does not refuse ${missing.join(", ")}`);
+  }
+  // push reads every requirement before anything applies.
+  if (!Array.isArray(row.requires)) {
+    fail("has no requires list");
   }
   for (const [what, names, known] of [
     ["refusal", row.refuse, REFUSALS],
     ["predicate", row.allow ?? [], PREDICATES],
-    ["requirement", row.requires ?? [], REQUIREMENTS],
+    ["requirement", row.requires, REQUIREMENTS],
   ]) {
     const bad = unknown(names, known);
     if (bad.length > 0) {
