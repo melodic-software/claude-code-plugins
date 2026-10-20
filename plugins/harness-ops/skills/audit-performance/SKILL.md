@@ -208,7 +208,10 @@ spawns. Read `fan_out` in this order:
    registered-row ceiling, so read `by_matcher` and
    `projection` beside it for what one tool call of a given shape actually spawns, and
    `unclassified_rows` for the `if` gates the engine could not decide and therefore counted as
-   firing. **Never present hook cost as a sum**: hooks on one event run in parallel, so the
+   firing. Each projection row carries a `floor` (rows known to fire) and a `ceiling` (the
+   floor plus `fire_always_unclassified`); quote the pair, never the ceiling alone, as the
+   count one edit spawns. The floor counts an edit inside each handler's project anchor; an edit
+   outside an anchor can fire fewer, so say which (the `HOOK_ANCHOR_NOTE` in the notes). **Never present hook cost as a sum**: hooks on one event run in parallel, so the
    wall-clock cost is roughly the slowest hook plus contention, and adding them up can overstate
    the total several times over. To find which hook is the wall on `Stop`, point the operator at
    the `stop_hook_summary` durations named under "Never time a hook by running it" in Gotchas;

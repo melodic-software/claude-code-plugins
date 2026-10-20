@@ -1372,9 +1372,9 @@ def log_activity(doc, text, ids, **marks):
     doc["activity"] = kept[1 - ACTIVITY_CAP :] + [entry]
 
 
-def summarize(doc, logged):
+def summarize(doc, logged, asks=False):
     """One feed entry for the (op name, message, touched) of one write's logged ops; none when
-    there are none. `notes`, `added`, `finished` and `restate` (the new rev) mark what the page links to."""
+    there are none. `notes`, `added`, `revised`, `waits`, `asks` (a Notes reply that needs an answer), `finished` and `restate` (the new rev) mark what the page links to."""
     if not logged:
         return
     names = {name for name, _, _ in logged}
@@ -1388,6 +1388,9 @@ def summarize(doc, logged):
         ids,
         notes="note-reply" in names,
         added=bool(names & {"add", "add-round"}),
+        revised="revise" in names,
+        waits=bool(names & {"reply", "wait"}),  # a write that also replies or holds leaves the question waiting on the user
+        asks=asks,
         restate=doc["restatement"]["rev"] if "restate" in names else None,
         finished="finish" in names,
     )
@@ -1401,7 +1404,7 @@ def write_op(fn, name):
             doc = load(d)
             touched, msg = fn(d, doc, a)
             if name in LOGGED_OPS:
-                summarize(doc, [(name, msg, touched)])
+                summarize(doc, [(name, msg, touched)], getattr(a, "needsAnswer", False))
             save(d, doc, touched)
         print(f"{msg} (rev {doc['rev']})")
 
@@ -1657,7 +1660,7 @@ def apply_ops_file(d, name, claimed):
         if err:
             sys.exit(f"refused: {err}")
     doc = load(d)
-    touched, lines, added, logged = [], [], [], []
+    touched, lines, added, logged, asks = [], [], [], [], False
     for op in spec["ops"]:
         fn, defaults = OP_ARGS[op["op"]]
         args = argparse.Namespace(
@@ -1678,7 +1681,8 @@ def apply_ops_file(d, name, claimed):
         lines.append(f"{op['op']}: {msg}")
         if op["op"] in LOGGED_OPS:
             logged.append((op["op"], msg, t))
-    summarize(doc, logged)
+        asks = asks or (op["op"] == "note-reply" and args.needsAnswer)
+    summarize(doc, logged, asks)
     lint_questions(doc, added)
     for op in spec["ops"]:
         if op["op"] not in ("add", "add-round", "meta"):
