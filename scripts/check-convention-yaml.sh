@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Validate every tracked docs/conventions/<concern>.yaml against its JSON Schema
-# (ADR 0064 Decisions 6 and 7).
+# Validate every tracked <home>/<concern>.yaml against its JSON Schema
+# (ADR 0064 Decisions 6 and 7). <home> is the convention home the repository
+# binds in the pointer region of AGENTS.md or CLAUDE.md, read with
+# lib/resolve-convention-home.sh (ADR 0075 fix 3); docs/conventions when the
+# repository binds none or declined a home.
 #
 #   scripts/check-convention-yaml.sh          validate; list every finding
 #   scripts/check-convention-yaml.sh --check  same, explicit form matching the
@@ -9,11 +12,11 @@
 # The schema for <concern>.yaml is found by ADR 0064 Decision 6, first match
 # wins:
 #
-#   1. plugins/<concern>/schemas/<concern>.schema.json   a plugin concern
-#   2. docs/conventions/<concern>/<concern>.schema.json  a cross-plugin convention
+#   1. plugins/<concern>/schemas/<concern>.schema.json  a plugin concern
+#   2. <home>/<concern>/<concern>.schema.json           a cross-plugin convention
 #
 # A YAML file with neither is a finding: config nobody can validate is config
-# nobody can trust. Only files directly under docs/conventions/ are read; YAML
+# nobody can trust. Only files directly under <home>/ are read; YAML
 # in a convention folder (examples, fixtures) is not a team layer.
 #
 # Before the schema check each file goes through lib/yaml-subset.awk, the
@@ -62,10 +65,35 @@ if ! command -v "$validator" >/dev/null 2>&1; then
   exit 2
 fi
 
+# The convention home is the one the repository binds in its pointer region
+# (lib/resolve-convention-home.sh, ADR 0075 fix 3). With no region, a declined
+# home, or a root that binds none, it is docs/conventions.
+resolver=lib/resolve-convention-home.sh
+if [[ ! -f "$resolver" ]]; then
+  printf 'check-convention-yaml: %s is required to find the convention home\n' "$resolver" >&2
+  exit 2
+fi
+home=docs/conventions
+resolved_rc=0
+resolved="$(bash "$resolver" --root . 2>/dev/null)" || resolved_rc=$?
+case "$resolved_rc" in
+0) home="$resolved" ;;
+1 | 4 | 5) ;;
+3)
+  # The resolver's own message says which region is broken.
+  bash "$resolver" --root . 2>&1 >/dev/null | sed 's/^/check-convention-yaml: /' >&2 || true
+  exit 1
+  ;;
+*)
+  printf 'check-convention-yaml: %s failed with exit %s\n' "$resolver" "$resolved_rc" >&2
+  exit 2
+  ;;
+esac
+
 files=()
 while IFS= read -r -d '' path; do
   files+=("$path")
-done < <(git ls-files -z -- ':(glob)docs/conventions/*.yaml')
+done < <(git ls-files -z -- ":(glob)$home/*.yaml")
 
 findings=0
 checked=0
@@ -76,7 +104,7 @@ for path in ${files+"${files[@]}"}; do
   # with it every plain --merge. It reads no other file here, so only that one
   # is held to it. Read byte-wise as the policy's reader runs (LC_ALL=C); only
   # LF and a line-ending CR, which the reader strips, are allowed.
-  if [[ "$path" == docs/conventions/pr-pipeline.yaml ]] &&
+  if [[ "$path" == "$home/pr-pipeline.yaml" ]] &&
     separator="$(LC_ALL=C awk '/[\001-\011\013\014\016-\037\177]|\015./ || /\302[\200-\237]|\342\200[\250\251]/ { print NR; exit }' "$path")" &&
     [[ -n "$separator" ]]; then
     printf '%s: line %s carries a control or line-separator character the unattended merge policy refuses\n' "$path" "$separator" >&2
@@ -91,7 +119,7 @@ for path in ${files+"${files[@]}"}; do
   stem="${path##*/}"
   stem="${stem%.yaml}"
   plugin_schema="plugins/$stem/schemas/$stem.schema.json"
-  convention_schema="docs/conventions/$stem/$stem.schema.json"
+  convention_schema="$home/$stem/$stem.schema.json"
   if [[ -f "$plugin_schema" ]]; then
     schema="$plugin_schema"
   elif [[ -f "$convention_schema" ]]; then
@@ -111,4 +139,4 @@ if ((findings > 0)); then
   printf 'check-convention-yaml: %d finding(s) across %d file(s) checked\n' "$findings" "$checked" >&2
   exit 1
 fi
-printf 'check-convention-yaml: %d docs/conventions YAML file(s) parse and validate against their schemas\n' "$checked"
+printf 'check-convention-yaml: %d %s YAML file(s) parse and validate against their schemas\n' "$checked" "$home"

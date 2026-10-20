@@ -38,7 +38,7 @@ LOG=""
 new_repo() {
   fixture_tree::build repo --sut "$SUT_SRC" --git --label convention-yaml || return 1
   mkdir -p "$repo/.stub" "$repo/docs/conventions" "$repo/lib"
-  cp "$SCRIPT_DIR/../lib/yaml-subset.awk" "$repo/lib/"
+  cp "$SCRIPT_DIR/../lib/yaml-subset.awk" "$SCRIPT_DIR/../lib/resolve-convention-home.sh" "$repo/lib/"
   printf '%s\n' "$STUB_BODY" >"$repo/.stub/check-jsonschema"
   chmod +x "$repo/.stub/check-jsonschema"
   : >"$repo/.stub/log"
@@ -243,6 +243,60 @@ new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/sche
 rm "$repo/lib/yaml-subset.awk"
 run_sut
 if [[ $RC -eq 2 && "$ERR" == *yaml-subset.awk* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+
+# 11b. The convention home is the one the pointer region binds (ADR 0075 fix 3).
+#      The expected paths follow from the region grammar in
+#      lib/resolve-convention-home.sh: the first backticked token inside the
+#      region is the home, and a declined or absent region leaves docs/conventions.
+region_for() {
+  printf '# Team\n\n<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `%s` — read the topic doc there\n<!-- END GENERATED: convention-home -->\n' "$1"
+}
+label="a repository bound to Documentation has its Documentation/<concern>.yaml validated"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put Documentation/alpha.yaml 'mode: on' &&
+  put AGENTS.md "$(region_for Documentation)"
+run_sut
+if [[ $RC -eq 0 && "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- Documentation/alpha.yaml" &&
+  "$OUT" == *"1 Documentation YAML file(s)"* ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="a repository bound to Documentation does not read docs/conventions YAML"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put Documentation/keep.md '# prose' &&
+  put docs/conventions/alpha.yaml 'reject: true' && put AGENTS.md "$(region_for Documentation)"
+run_sut
+if [[ $RC -eq 0 && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="a cross-plugin schema is found under the bound home"
+new_repo && put Documentation/beta.yaml 'mode: on' && put Documentation/beta/beta.schema.json '{}' &&
+  put AGENTS.md "$(region_for Documentation)"
+run_sut
+if [[ $RC -eq 0 && "$LOG" == "--schemafile Documentation/beta/beta.schema.json -- Documentation/beta.yaml" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="a declined home leaves docs/conventions"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put docs/conventions/alpha.yaml 'mode: on' &&
+  put AGENTS.md $'<!-- BEGIN GENERATED: convention-home -->\ndeclined\n<!-- END GENERATED: convention-home -->'
+run_sut
+if [[ $RC -eq 0 && "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- docs/conventions/alpha.yaml" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="a pointer to a missing directory exits 1 naming the region"
+new_repo && put AGENTS.md "$(region_for Documentation)"
+run_sut
+if [[ $RC -eq 1 && "$ERR" == *"pointer target directory missing: Documentation"* && -z "$LOG" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="a missing lib/resolve-convention-home.sh exits 2"
+new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/schemas/alpha.schema.json '{}'
+rm "$repo/lib/resolve-convention-home.sh"
+run_sut
+if [[ $RC -eq 2 && "$ERR" == *resolve-convention-home.sh* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
 
 # 12. An unknown argument is a usage error.
 label="unknown argument exits 2"

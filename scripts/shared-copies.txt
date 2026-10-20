@@ -463,6 +463,13 @@ lib/setup-apply.mjs plugins/planning/lib/setup-apply.mjs
 lib/setup-apply.mjs plugins/review/lib/setup-apply.mjs
 lib/setup-apply.mjs plugins/session-flow/lib/setup-apply.mjs
 lib/setup-apply.mjs plugins/verification/lib/setup-apply.mjs
+lib/resolve-convention-home.sh plugins/discipline/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/discovery/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/docs-hygiene/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/education/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/review/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/session-flow/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/verification/lib/resolve-convention-home.sh
 lib/yaml-subset.mjs plugins/user-experience/scripts/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/user-interface/scripts/lib/yaml-subset.mjs
 lib/config-cascade.mjs plugins/user-experience/scripts/lib/config-cascade.mjs
