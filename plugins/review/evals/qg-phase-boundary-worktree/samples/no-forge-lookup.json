@@ -1,0 +1,30 @@
+{
+  "pass": [
+    { "answer": [], "why": "no Bash call at all" },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "cat .worktrees/phase-2.base" } },
+        { "tool": "Bash", "input": { "command": "git -C .worktrees/phase-2 diff 3f9c2a1b7d" } }
+      ],
+      "why": "local reads only"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git -C .worktrees/phase-2 log --oneline 3f9c2a1b7d..HEAD" } }],
+      "why": "local log"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "gh pr list --head feat/storefront-phases --json baseRefName" } }],
+      "why": "pull-request lookup"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git fetch origin" } }],
+      "why": "fetch from the unreachable origin"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git -C .worktrees/phase-2 ls-remote --symref origin" } }],
+      "why": "remote read through the worktree"
+    }
+  ]
+}

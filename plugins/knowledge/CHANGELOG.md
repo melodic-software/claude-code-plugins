@@ -4,6 +4,70 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.25.0] - 2026-10-20
+
+### Added
+
+- `docpage-digest` has a standing gate, `check-sources-parity.py`, that lists every heading of the source (`#` lines and `<h1>`-`<h6>` tags with an `id`, outside code fences) and fails when the SOURCES.md heading table, the digest-map line ranges, the digest files and the status rows disagree with it.
+
+- `video-digest` watch records the primary entry's video, info JSON and caption file names in `watch.json` (`phases.acquire.metrics.primaryMedia`), and `relayout-slice.js` uses them, so a multi-video X post can be re-laid out with media. A session with more than one video and no recorded entry (an older `watch.json`) is still refused. (#7034)
+
+- `video-digest watch` records a metadata versus probed duration mismatch. When the source metadata duration and the probed media duration differ by more than the larger of 5 s and 1% of the longer one, `watch.json` carries `durationMismatch` with both values and the slice `README.md` gets a `Duration mismatch` section. Agreement within that threshold records nothing, and the pipeline still uses the probed duration.
+
+- `/knowledge:check`, a model-invocable read-only skill that reports, through the shared prerequisites checker, whether each tool `prerequisites.json` declares resolves. Its check installs nothing; after the report it offers each missing row's fix and runs it only on the user's yes. `prerequisites.json` entries now name it as their re-check skill, and `video-digest`'s Prerequisites failure line names it beside the preflight.
+
+### Changed
+
+- **build: Bump playwright from 1.61.1 to 1.64.1 in /plugins/knowledge/skills/course-digest/extraction in the npm-minor-patch group** (#8352).
+  - `playwright` 1.61.1→1.64.1
+
+- **build: Bump mdast-util-from-markdown from 2.0.3 to 2.1.0 in /plugins/knowledge/skills/video-digest/extraction in the npm-minor-patch group across 1 directory** (#8353).
+  - `mdast-util-from-markdown` 2.0.3→2.1.0
+
+- **build: Bump vitest from 4.1.11 to 5.0.5 in /plugins/knowledge/skills/course-digest/extraction** (#8354).
+
+- **build: Bump vitest from 4.1.11 to 5.0.5 in /plugins/knowledge/skills/video-digest/extraction** (#8355).
+
+- **build: Bump @types/node from 24.13.3 to 26.6.5 in /plugins/knowledge/skills/video-digest/extraction** (#8358).
+
+- **build: Bump @types/node from 24.13.3 to 26.6.5 in /plugins/knowledge/skills/course-digest/extraction** (#8359).
+
+- **build: Bump typescript from 6.0.3 to 7.0.2 in `course-digest/extraction`** (#8357). The JSDoc types for the platform config, the parsed course.json and the validators' regression summary are now real types, which TypeScript 7 requires where `object` stood in.
+
+- **build: Bump typescript from 6.0.3 to 7.0.2 in `video-digest/extraction`** (#8361). The watch slice, the key-frame quality audit, the promotion decisions and the nullable locals TypeScript 7 no longer widens from `null` now carry real JSDoc types.
+
+### Fixed
+
+- `/knowledge:course-digest` no longer says the Bash tool has a hard 10-minute timeout or that a `nohup` background run has no limit. The long-extraction advice now points at the tools reference's timeout section with an as-of date and recheck trigger, and tells the user to rerun the same command to resume a stopped extraction.
+
+- `list-promotion-candidates.js` run as a CLI now prints a malformed or missing claim inventory error (with the session format hint) as one line on stderr and exits 1, instead of an uncaught exception with a Node stack trace. The `listPromotionCandidates` function still throws for programmatic callers.
+
+- `video-digest` no longer lists the dead `/extracting cookies/i` cookie-profile retry hint: yt-dlp prints that line on stdout, which the stderr-only failure detail never holds. A missing browser profile still advances to the next one through `/could not find .* cookies/i`.
+
+- `docpage-digest` no longer tells authors to put an ellipsis or a join marker inside a key-claim fence, which the exact-substring fence gate rejects. A fence payload is an exact contiguous substring of the source, and a truncation or a join of source lines is recorded outside the fence.
+
+- `docpage-digest` counts an HTML-tag H2 as a digest-unit boundary in the Phase 2 inventory and the checklist, and the Anthropic-docs profile lists HTML-tag headings among the `code.claude.com` raw-md artifacts, so such a section no longer merges silently into the previous unit.
+
+- video-digest `watch` no longer exits 1 after downloading a YouTube video that has no captions in any language: in full mode with the video downloaded, an exhausted caption ladder returns the entry with `caption: null`, and the transcript strategy selects `asr` when it is detected or completes with a recorded `transcriptDegradation`. `transcript` mode, which downloads no media, still stops on an exhausted ladder.
+
+- `video-digest`'s watch outcome gate now lets a `key-frames/visual-gaps.md` row `| talking-head-only | <session name> | <note> |` satisfy `session-visual-coverage` and `session-synthesis-depth` for that session, so a webcam-only session no longer needs a promoted frame the synthesis contract rejects. A session with neither a frame nor such a row still fails both. `quality-gates.md` and `synthesis-contract.md` state the rule.
+
+- `/knowledge:video-digest` no longer leaves a harvested-repo clone running when its parent process dies. The parent tracks each live clone process group and kills it on exit, SIGINT, SIGTERM and SIGHUP, then re-raises the signal so it still dies the conventional way. SIGKILL of the parent cannot be caught, and Windows behavior is unchanged.
+
+- `video-digest` `init-watch-checklist.js --force` now drops a tick, with its evidence lines, when the row's criteria text changed since it was ticked, and prints the dropped row ids on stdout. Each checklist row carries a criteria hash for this; a tick saved before the hash existed is kept and gets the current hash stamped.
+
+- `video-digest` ASR transcripts now get the same proper-noun repair captions do: the repair lexicon is built from the title, description and harvested links for every transcript strategy, and the repair pass runs over ASR cues, so `repairedTermCount` counts their repairs.
+
+- `docpage-digest` digests put `**FN.**` figure rows under their own `## Figure claims` heading after Key claims, so the fence gate no longer fails them as unlabeled fences. The Anthropic profile lists the figure parts to extract (figcaption title, subtitle and id, alt and aria-label, SVG text, control labels) and checks the extracted file against them.
+- A verifier arm whose effective effort is never confirmed (a Codex verifier B) is recorded as `requested <level>, unconfirmed`, and the checklist has effort lines for both arms.
+- Recorded and replayed search commands call GNU grep explicitly, or check `grep --version` first, so a plain `grep` that resolves to ugrep no longer changes recorded counts.
+
+- The `library_dir` description and README no longer say a project artifacts convention wins: they state that video-digest relocates its work root and supports the `relayout-slice.js` layout. Phase 9 and the gotchas point at `relayout-slice.js` before `close` to keep media. (#6817)
+
+- video-digest watch: a run whose transcript came from the optional ASR rung now feeds the ASR cues to frame densification, instead of an empty cue list that recorded `densificationWindows: 0`. `writeEnvelopeTranscriptArtifacts` returns the cues each transcript was built from (caption or ASR) per entry, and `run-watch.js` passes the primary entry's cues to watching. A captioned run passes the same cues as before.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.24.0] - 2026-10-18
 
 ### Added

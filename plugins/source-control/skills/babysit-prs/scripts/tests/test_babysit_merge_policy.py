@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import dataclasses
+import io
 import json
 import os
 import pathlib
@@ -43,6 +44,7 @@ del _leaked_git_var
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_gh  # noqa: E402
 import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
 import babysit_postmerge  # noqa: E402
 
@@ -261,6 +263,69 @@ class ReadConfigAt(unittest.TestCase):
                 self.assertEqual(config.max_in_flight, expected)
                 self.assertEqual(config.rung, "C2")
                 self.assertEqual(any("max-in-flight" in n for n in config.notes), noted)
+
+    def test_max_queue_ejections_defaults_to_two_and_reads_a_count(self) -> None:
+        def with_cap(value: str) -> str:
+            return PIPELINE.replace(
+                "merge:\n", f"merge:\n  max-queue-ejections: {value}\n"
+            )
+
+        for text, expected, noted in (
+            (PIPELINE, 2, False),
+            (with_cap("3"), 3, False),
+            (with_cap(str(policy.MAX_QUEUE_EJECTIONS_LIMIT)), 20, False),
+            (with_cap("0"), 2, True),
+            (with_cap(str(policy.MAX_QUEUE_EJECTIONS_LIMIT + 1)), 2, True),
+            (with_cap("two"), 2, True),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.max_queue_ejections, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(
+                    any("max-queue-ejections" in n for n in config.notes), noted
+                )
+
+    def test_risk_escalation_minutes_defaults_to_sixty_and_reads_minutes(
+        self,
+    ) -> None:
+        def with_minutes(value: str) -> str:
+            return PIPELINE.replace(
+                "merge:\n", f"merge:\n  risk-escalation-minutes: {value}\n"
+            )
+
+        for text, expected, noted in (
+            (PIPELINE, 60, False),
+            (with_minutes("0"), 0, False),
+            (with_minutes("90"), 90, False),
+            (with_minutes("-5"), 60, True),
+            (with_minutes("an hour"), 60, True),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.risk_escalation_minutes, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(
+                    any("risk-escalation-minutes" in n for n in config.notes), noted
+                )
+
+    def test_check_inputs_reads_a_path_list_and_is_empty_when_absent(self) -> None:
+        listed = PIPELINE.replace(
+            "merge:\n",
+            "merge:\n  check-inputs:\n    - scripts/shared-copies.txt\n"
+            "    - scripts/docs-only-paths.txt\n",
+        )
+        for text, expected in (
+            (PIPELINE, ()),
+            (listed, ("scripts/shared-copies.txt", "scripts/docs-only-paths.txt")),
+        ):
+            with self.subTest(expected=expected):
+                config_fake(self, text)
+                self.assertEqual(
+                    policy.read_config_at(REPO, SHA).check_inputs, expected
+                )
 
     def test_a_parse_error_is_off(self) -> None:
         config_fake(self, "merge:\n  rung: [C2\n")
@@ -2620,6 +2685,99 @@ class LocalEnabledSince(unittest.TestCase):
         self.git(self.clone, "replace", "--graft", middle)
         self.assertEqual(policy._local_history(self.base), whole)
 
+    def test_the_base_config_comes_from_the_clone(self) -> None:
+        # Before the clone read: two contents-API calls per candidate.
+        self.commit(policy.SOURCE_CONTROL_PATH, SOURCE_CONTROL, "2026-10-01T00:00:00Z")
+        base = self.pipeline(PIPELINE, "2026-10-02T00:00:00Z")
+        gh = self.local()
+        config = policy.read_config_at(REPO, base)
+        self.assertEqual(
+            (config.authority, config.agent_identity, config.loop_merge),
+            ("local-babysit", IDENTITY, "c2-mechanical"),
+        )
+        self.assertEqual(gh.calls, [])
+
+    def test_a_symlinked_config_reads_the_api_as_before(self) -> None:
+        # The contents API follows an in-repository symlink to a file; the
+        # clone read hands such a path to it rather than refusing it.
+        self.commit("docs/source-control.md", SOURCE_CONTROL, "2026-10-01T00:00:00Z")
+        (self.clone / policy.SOURCE_CONTROL_PATH).parent.mkdir(exist_ok=True)
+        (self.clone / policy.SOURCE_CONTROL_PATH).symlink_to(
+            "../docs/source-control.md"
+        )
+        self.git(self.clone, "add", policy.SOURCE_CONTROL_PATH)
+        base = self.pipeline(PIPELINE, "2026-10-02T00:00:00Z")
+        gh = self.local()
+        api = f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={base}"
+        gh.rest[api] = file_payload(SOURCE_CONTROL)
+        config = policy.read_config_at(REPO, base)
+        self.assertEqual(config.loop_merge, "c2-mechanical")
+        self.assertEqual(gh.calls, [["api", api]])
+
+    def test_a_base_missing_from_the_clone_reads_the_api_not_no_config(
+        self,
+    ) -> None:
+        self.pipeline(DISABLED, "2026-10-01T00:00:00Z")
+        gh = self.fake([], {SHA: PIPELINE}, clones=(self.scripts,))
+        config = policy.read_config_at(REPO, SHA)
+        self.assertEqual(
+            (config.authority, config.agent_identity), ("local-babysit", IDENTITY)
+        )
+        self.assertIn(
+            ["api", f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"], gh.calls
+        )
+
+    def test_changed_file_modes_come_from_the_clone(self) -> None:
+        # Before the clone read: one trees-API call per side.
+        base = self.commit("tool.sh", "echo\n", "2026-10-01T00:00:00Z")
+        (self.clone / "tool.sh").chmod(0o755)
+        self.git(self.clone, "add", "tool.sh")
+        self.git(self.clone, "commit", "-q", "-m", "x", date="2026-10-02T00:00:00Z")
+        head = self.git(self.clone, "rev-parse", "HEAD")
+        gh = self.local()
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = [
+            {
+                "filename": "tool.sh",
+                "status": "modified",
+                "additions": 0,
+                "deletions": 0,
+            }
+        ]
+        pr = {
+            "number": 7,
+            "changed_files": 1,
+            "head": {"sha": head},
+            "base": {"sha": base},
+        }
+        files, complete = policy.changed_files(REPO, pr)
+        self.assertTrue(complete)
+        self.assertEqual(
+            [(f.path, f.mode, f.previous_mode) for f in files],
+            [("tool.sh", "100755", "100644")],
+        )
+        self.assertEqual(
+            gh.calls,
+            [
+                [
+                    "api",
+                    f"repos/{REPO}/pulls/7/files?per_page=100",
+                    "--paginate",
+                    "--slurp",
+                ]
+            ],
+        )
+
+    def test_a_tree_missing_from_the_clone_reads_the_api(self) -> None:
+        self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
+        gh = self.fake([], {}, clones=(self.scripts,))
+        gh.rest[f"repos/{REPO}/git/trees/{SHA}?recursive=1"] = {
+            "truncated": False,
+            "tree": [{"path": "docs/a.md", "mode": "100644"}],
+        }
+        self.assertEqual(
+            policy._tree_modes("owner", "repo", SHA), {"docs/a.md": "100644"}
+        )
+
     def test_a_clone_without_the_base_falls_back_to_the_api(self) -> None:
         self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
         self.fake(
@@ -4020,6 +4178,22 @@ class DependabotConfig(unittest.TestCase):
                 config_fake(self, text)
                 self.assertEqual(policy.read_config_at(REPO, SHA).dependabot_mode, mode)
 
+    def test_majors_hold_unless_set_to_review(self) -> None:
+        for written, majors in (
+            (None, "hold"),
+            ("hold", "hold"),
+            ("review", "review"),
+            ("merge", "hold"),
+        ):
+            with self.subTest(written=written):
+                text = LANE_PIPELINE + "  dependabot:\n    mode: enforce\n"
+                if written is not None:
+                    text += f"    majors: {written}\n"
+                config_fake(self, text)
+                self.assertEqual(
+                    policy.read_config_at(REPO, SHA).dependabot_majors, majors
+                )
+
 
 class DependabotEligibility(unittest.TestCase):
     """The pr-merge lane's Dependabot class: tier `auto` on verified
@@ -4136,7 +4310,7 @@ class DependabotEligibility(unittest.TestCase):
             **fields,
         }
 
-    def eligibility(self, title: str = "build(deps): bump x") -> Any:
+    def eligibility(self, title: str = "build(deps): bump x", **options: Any) -> Any:
         pr = {
             "number": 7,
             "title": title,
@@ -4147,7 +4321,9 @@ class DependabotEligibility(unittest.TestCase):
             "head": {"sha": self.HEAD, "ref": "dependabot/npm_and_yarn/x-1.3.0"},
             "user": {"login": "dependabot[bot]", "type": "Bot"},
         }
-        return policy.dependabot_eligibility(REPO, 7, pr=pr, agent_identity=IDENTITY)
+        return policy.dependabot_eligibility(
+            REPO, 7, pr=pr, agent_identity=IDENTITY, **options
+        )
 
     def marker(
         self, head: str | None = None, verdict: str = "merge", login: str = IDENTITY
@@ -4208,6 +4384,14 @@ class DependabotEligibility(unittest.TestCase):
         )
         self.assertEqual(result.dependabot.tier, "review")
 
+    def test_a_candidate_scope_reads_the_commits_once(self) -> None:
+        gh = self.fake(commits=[dependabot_commit(sha=self.HEAD)])
+        with babysit_gh.candidate_reads():
+            first, again = self.eligibility(), self.eligibility()
+        self.assertEqual(first, again)
+        self.assertTrue(first.eligible, first.reason)
+        self.assertEqual(sum(self.COMMITS in call for call in gh.calls), 1)
+
     def test_an_unreadable_registry_waits_for_a_review(self) -> None:
         self.fake(registry={})
         self.assertEqual(
@@ -4218,7 +4402,7 @@ class DependabotEligibility(unittest.TestCase):
     def test_a_review_tier_bump_spends_no_registry_read(self) -> None:
         self.fake(commits=[dependabot_commit("semver-major")], registry={})
         self.assertEqual(
-            self.eligibility().reason,
+            self.eligibility(hold_majors=False).reason,
             "dependabot-review:major:x;review-verdict-missing",
         )
         self.assertEqual(self.registry_calls, [])
@@ -4237,16 +4421,85 @@ class DependabotEligibility(unittest.TestCase):
 
     def test_a_major_bump_is_tier_review_and_waits_for_the_verdict(self) -> None:
         self.fake(commits=[dependabot_commit("semver-major")])
-        result = self.eligibility()
+        result = self.eligibility(hold_majors=False)
         self.assertFalse(result.eligible)
         self.assertEqual(
             result.reason, "dependabot-review:major:x;review-verdict-missing"
         )
         self.assertEqual(result.dependabot.tier, "review")
 
-    def test_a_merge_verdict_at_the_current_head_on_green_ci_is_eligible(self) -> None:
+    def test_a_major_bump_is_held_for_a_human_despite_a_merge_verdict(self) -> None:
         self.fake(commits=[dependabot_commit("semver-major")], comments=[self.marker()])
         result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:x")
+        self.assertIsNone(result.dependabot.approved)
+
+    SHA_PIN = dependabot_commit(
+        message=(
+            "build(deps): bump x\n\n---\nupdated-dependencies:\n"
+            f"- dependency-name: x\n  dependency-version: {'a' * 40}\n"
+            "  dependency-type: direct:production\n...\n"
+        )
+    )
+
+    def test_a_sha_pin_bump_is_held_despite_a_merge_verdict(self) -> None:
+        # Fail closed: an unreadable version may be a major.
+        self.fake(commits=[self.SHA_PIN], comments=[self.marker()])
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:x(unreadable)")
+        self.assertEqual(result.dependabot.reasons, ("unparsed-version:x",))
+
+    def test_sources_that_disagree_are_held_despite_a_merge_verdict(self) -> None:
+        # The metadata says minor, the title says major.
+        self.fake(comments=[self.marker()])
+        result = self.eligibility(title="build(deps): bump x from 1.2.0 to 2.0.0")
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:x(disagree)")
+        self.assertIn("sources-disagree", result.dependabot.reasons)
+
+    def test_no_readable_update_is_held_despite_a_merge_verdict(self) -> None:
+        # Fail closed: neither the title nor the commit names an update.
+        self.fake(
+            commits=[dependabot_commit(message="build(deps): update dependencies")],
+            comments=[self.marker()],
+        )
+        result = self.eligibility(title="build(deps): update dependencies")
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "dependabot-major-held:updates(unreadable)")
+        self.assertIsNone(result.dependabot.approved)
+
+    def test_with_majors_review_the_verdict_path_is_unchanged(self) -> None:
+        for commit, why in (
+            (dependabot_commit("semver-major"), "major:x"),
+            (self.SHA_PIN, "unparsed-version:x"),
+        ):
+            with self.subTest(why=why):
+                self.fake(commits=[commit])
+                self.assertEqual(
+                    self.eligibility(hold_majors=False).reason,
+                    f"dependabot-review:{why};review-verdict-missing",
+                )
+                self.fake(commits=[commit], comments=[self.marker()])
+                result = self.eligibility(hold_majors=False)
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.dependabot.approved, "55-1")
+
+    def test_a_minor_bump_still_merges_while_majors_are_held(self) -> None:
+        self.fake()
+        result = self.eligibility(hold_majors=True)
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.tier, "auto")
+        # A non-major review-tier bump still merges on the verdict.
+        self.fake(review_only=[self.entry()], comments=[self.marker()])
+        result = self.eligibility(hold_majors=True)
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.dependabot.approved, "55-1")
+
+    def test_a_merge_verdict_at_the_current_head_on_green_ci_is_eligible(self) -> None:
+        self.fake(commits=[dependabot_commit("semver-major")], comments=[self.marker()])
+        result = self.eligibility(hold_majors=False)
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual(result.work_class, "C2")
         self.assertEqual(
@@ -4263,7 +4516,7 @@ class DependabotEligibility(unittest.TestCase):
                 self.fake(
                     commits=[dependabot_commit("semver-major")], comments=[comment]
                 )
-                result = self.eligibility()
+                result = self.eligibility(hold_majors=False)
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.reason, f"dependabot-review:major:x;{why}")
 
@@ -4273,7 +4526,9 @@ class DependabotEligibility(unittest.TestCase):
             comments=[self.marker()],
             ci=[{"status": "in_progress", "conclusion": None}],
         )
-        self.assertEqual(self.eligibility().reason, "ci-status:pending")
+        self.assertEqual(
+            self.eligibility(hold_majors=False).reason, "ci-status:pending"
+        )
 
     def test_the_lanes_app_fix_commit_counts_only_after_a_review(self) -> None:
         fix = dependabot_commit(
@@ -4287,7 +4542,10 @@ class DependabotEligibility(unittest.TestCase):
         gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
             "files": [{"filename": "src/x.js"}]
         }
-        self.assertEqual(self.eligibility().reason, f"commit-not-dependabot:{'e' * 12}")
+        self.assertEqual(
+            self.eligibility(hold_majors=False).reason,
+            f"commit-not-dependabot:{'e' * 12}",
+        )
         pushes = [
             {
                 "activity_type": "push",
@@ -4308,7 +4566,7 @@ class DependabotEligibility(unittest.TestCase):
         gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
             "files": [{"filename": "src/x.js"}]
         }
-        result = self.eligibility()
+        result = self.eligibility(hold_majors=False)
         self.assertTrue(result.eligible, result.reason)
         # A fix commit may not touch .github/.
         gh = self.fake(
@@ -4318,7 +4576,7 @@ class DependabotEligibility(unittest.TestCase):
             "files": [{"filename": ".github/workflows/ci.yml"}]
         }
         self.assertEqual(
-            self.eligibility().reason,
+            self.eligibility(hold_majors=False).reason,
             "dependabot-fix-content:.github/workflows/ci.yml",
         )
 
@@ -4561,6 +4819,20 @@ class DependabotAssess(unittest.TestCase):
         self.assertEqual(result.reason, "ineligible:dependabot-merge-off")
         self.read.assert_not_called()
 
+    def test_the_majors_setting_reaches_the_eligibility_read(self) -> None:
+        for written, hold in ((None, True), ("hold", True), ("review", False)):
+            with self.subTest(written=written):
+                pipeline = LANE_PIPELINE + "  dependabot:\n    mode: enforce\n"
+                if written is not None:
+                    pipeline += f"    majors: {written}\n"
+                result = self.assess_mode(None, pipeline=pipeline)
+                self.assertIsNone(result.reason)
+                self.assertIs(self.read.call_args.kwargs["hold_majors"], hold)
+                self.assertEqual(
+                    result.report()["dependabot"]["majors"],
+                    "hold" if hold else "review",
+                )
+
     def test_tier_review_is_refused(self) -> None:
         tier = policy.dependabot.Classification("review", ("major:x",))
         result = self.assess_mode(
@@ -4701,6 +4973,98 @@ def setUpModule() -> None:
 
 def tearDownModule() -> None:
     _role_label.stop()
+
+
+class CapabilityContents(unittest.TestCase):
+    """The floor's capability check reads each changed capability file once
+    per side, at the pull request's base and head SHAs."""
+
+    PR = {"base": {"sha": "b" * 40}, "head": {"sha": "h" * 40}}
+
+    def setUp(self) -> None:
+        policy._TEXT_AT.clear()
+        self.addCleanup(policy._TEXT_AT.clear)
+
+    def changed(self, path: str, **kw: Any) -> policy.ChangedFile:
+        fields = {
+            "previous_path": None, "status": "modified", "additions": 1,
+            "deletions": 0, "has_patch": True, "mode": "100644", **kw,
+        }  # fmt: skip
+        return policy.ChangedFile(path=path, **fields)
+
+    def read(self, files, texts):
+        calls = []
+
+        def file_at(owner, name, path, sha):
+            calls.append((path, sha))
+            found = texts[(path, sha)]
+            if isinstance(found, Exception):
+                raise found
+            return found
+
+        with mock.patch.object(policy, "_file_at", side_effect=file_at):
+            out = policy.with_capability_contents("o/r", self.PR, tuple(files))
+        return out, calls
+
+    def test_each_side_is_read_once_and_cached(self) -> None:
+        skill = self.changed("p/skills/s/SKILL.md")
+        texts = {
+            ("p/skills/s/SKILL.md", "b" * 40): "old",
+            ("p/skills/s/SKILL.md", "h" * 40): "new",
+        }
+        out, calls = self.read([skill, skill, self.changed("docs/x.md")], texts)
+        self.assertEqual([f.contents for f in out[:2]], [("old", "new")] * 2)
+        self.assertIsNone(out[2].contents)
+        self.assertEqual(len(calls), 2)
+
+    def test_a_rename_reads_the_base_at_its_previous_path(self) -> None:
+        moved = self.changed(
+            "p/agents/a.md", status="renamed", previous_path="p/notes/a.md"
+        )
+        texts = {("p/notes/a.md", "b" * 40): "old", ("p/agents/a.md", "h" * 40): "new"}
+        out, _ = self.read([moved], texts)
+        self.assertEqual(out[0].contents, ("old", "new"))
+
+    def test_an_added_file_reads_only_its_head(self) -> None:
+        added = self.changed("p/commands/go.md", status="added")
+        out, calls = self.read([added], {("p/commands/go.md", "h" * 40): "new"})
+        self.assertEqual((out[0].contents, len(calls)), ((None, "new"), 1))
+
+    def test_a_path_is_quoted_so_it_cannot_pick_another_ref(self) -> None:
+        odd = self.changed("p/x?ref=main#/SKILL.md")
+        quoted = "p/x%3Fref%3Dmain%23/SKILL.md"
+        out, calls = self.read(
+            [odd], {(quoted, "b" * 40): "a", (quoted, "h" * 40): "a"}
+        )
+        self.assertEqual({path for path, _ in calls}, {quoted})
+
+    def test_any_exception_is_carried_with_its_type(self) -> None:
+        skill = self.changed("p/skills/s/SKILL.md")
+        texts = {("p/skills/s/SKILL.md", "b" * 40): TypeError("bad payload")}
+        out, _ = self.read([skill], texts)
+        self.assertIsNone(out[0].contents)
+        self.assertIn("TypeError", out[0].contents_error)
+
+    def test_the_logged_path_cannot_start_a_workflow_command(self) -> None:
+        # Review thread L2597: a newline in a changed path must stay escaped.
+        path = "p/agents/a\n::set-output name=dispatch::true\nb.md"
+        texts = {(path, "b" * 40): TypeError("bad\n::error::x")}
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.read([self.changed(path)], texts)
+        self.assertTrue(err.getvalue())
+        self.assertFalse(
+            [line for line in err.getvalue().splitlines() if line.startswith("::")]
+        )
+
+    def test_a_read_error_is_carried_for_the_scorer(self) -> None:
+        skill = self.changed("p/skills/s/SKILL.md")
+        texts = {
+            ("p/skills/s/SKILL.md", "b" * 40): policy.PolicyReadError("status 502")
+        }
+        out, _ = self.read([skill], texts)
+        self.assertIsNone(out[0].contents)
+        self.assertIn("502", out[0].contents_error)
 
 
 if __name__ == "__main__":

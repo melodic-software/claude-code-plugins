@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261018T090000Z-handoff-retry-backoff.md", "content": "This session has no task tools. See .work/retry-backoff/workflow-checklist.md."}}
+      ],
+      "why": "save-point carries no recreate calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261018T090000Z-handoff-retry-backoff.md", "content": "TaskCreate(subject=\"Cap the delay\", description=\"...\")"}}
+      ],
+      "why": "recreate call rebuilt from memory"
+    }
+  ]
+}

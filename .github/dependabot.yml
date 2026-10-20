@@ -1,19 +1,25 @@
 # Dependabot keeps this repo's dependencies current with pull requests — GitHub-native,
 # no third-party app and no PAT. It covers full-SHA GitHub Actions, the root locked Node CI
 # toolchain, the standards-managed runner-policy dependency root, the hash-locked Python CI
-# toolchain, and the miro plugin's Node MCP server. The plugin hooks
+# toolchain, the lockfile-backed npm roots of the resolve-config action and the plugin skills and
+# evals, and the miro plugin's Node MCP server. The plugin hooks
 # still use each consuming repository's tools; these manifests exist only to make this repository's
-# validation reproducible. No Dependabot PR waits on a human (ADR 0073): the pr-merge lane
-# (.github/workflows/pr-merge.yml) merges every Dependabot PR of verified commits once
-# `ci-status` passes: a non-major bump from an allowed Actions publisher (tier auto) as is, and
-# anything riskier (tier review: a major, another publisher, a red `ci-status`) once the
-# pr-unblock lane's AI review leaves a merge verdict at its head. A dependency joins the first
+# validation reproducible. The pr-merge lane (.github/workflows/pr-merge.yml, ADR 0073) merges
+# Dependabot PRs of verified commits once `ci-status` passes: a non-major bump from an allowed
+# Actions publisher (tier auto) as is, and anything riskier (tier review: another publisher, a red
+# `ci-status`) once the pr-unblock lane's AI review leaves a merge verdict at its head. Majors, and
+# updates whose version cannot be read, wait for a human (`merge.dependabot.majors: hold`; ADR 0073
+# addendum 2026-10-18). A dependency joins the first
 # group that matches it, so majors fall through to the `github-actions` group, whose title and
 # metadata then name a major update.
 version: 2
 updates:
+  # "/" scans .github/workflows; the glob also scans each composite action's own action.yml
+  # (check-wip-cap pins actions/setup-node), which Dependabot does not reach from "/" alone.
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - /
+      - /.github/actions/*
     # Only the `dependencies` label (already in the governed taxonomy). This overrides
     # Dependabot's defaults, suppressing the auto-created snake_case `github_actions`
     # ecosystem label — the label every downstream tool ignores anyway (release notes
@@ -140,6 +146,92 @@ updates:
   # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
   - package-ecosystem: npm
     directory: /plugins/testing/skills/check-visual-parity/scripts
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+  # The resolve-config composite action's ajv and yaml, installed from its lockfile by the
+  # lanes that run it.
+  - package-ecosystem: npm
+    directory: /.github/actions/resolve-config
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+  # The knowledge course-digest and video-digest extraction packages (playwright, mdast, and
+  # their TypeScript and vitest tooling), each locked in its own directory.
+  - package-ecosystem: npm
+    directory: /plugins/knowledge/skills/course-digest/extraction
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: npm
+    directory: /plugins/knowledge/skills/video-digest/extraction
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+  # The ai-briefing generate skill's output build (playwright, pptxgenjs, unified, zod).
+  - package-ecosystem: npm
+    directory: /plugins/ai-briefing/skills/generate/output/build
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+  # The testing ui-defects eval harness (@axe-core/playwright).
+  - package-ecosystem: npm
+    directory: /plugins/testing/evals/ui-defects/harness
     labels:
       - dependencies
     schedule:

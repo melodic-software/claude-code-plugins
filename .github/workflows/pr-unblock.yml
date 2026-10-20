@@ -69,6 +69,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: resolve-conflicts
       pr-number: ${{ inputs.pr-number }}
@@ -91,6 +92,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: address-feedback
       pr-number: ${{ inputs.pr-number }}
@@ -117,6 +119,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: publish-feedback
       pr-number: ${{ inputs.pr-number }}
@@ -197,6 +200,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: review-dependency
       pr-number: ${{ inputs.pr-number }}
@@ -218,6 +222,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: apply-dependency-verdict
       pr-number: ${{ inputs.pr-number }}
@@ -300,12 +305,57 @@ jobs:
         with:
           name: ci-context-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ci-context/context.json
-          retention-days: 3
+          retention-days: 1
           if-no-files-found: error
+
+  # A fix-ci-context skip (a closed PR or no failing check) runs no fix-ci job,
+  # so no fix-ci check would land on the head and fix-ci-dispatch.mjs would
+  # dispatch it again on every run. This job posts fix-ci neutral on that head,
+  # as publish-feedback-not-run does; a kill-switch stop leaves the head empty.
+  fix-ci-not-run:
+    needs: fix-ci-context
+    if: >-
+      ${{ !cancelled() && inputs.activity == 'fix-ci'
+      && needs.fix-ci-context.outputs.proceed == 'false'
+      && needs.fix-ci-context.outputs.escalation-reason == ''
+      && needs.fix-ci-context.outputs.head-sha != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      checks: write
+      contents: read
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Post the check run
+        uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: fix-ci
+          run-result: skipped
+          not-run-reason: not-applicable
+          head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+          can-commit: "false"
+          base-path: .base
+          head-sha-fallback: ${{ needs.fix-ci-context.outputs.head-sha }}
+          github-token: ${{ github.token }}
 
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill reruns the failing checks, fixes
   # them and reruns them; the runner uploads its uncommitted edits as a patch.
+  # The run's own concurrency group already holds one fix-ci run per PR. A job
+  # group with the same name waits on its own run and never starts.
   fix-ci:
     needs: fix-ci-context
     if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
@@ -314,9 +364,6 @@ jobs:
       pull-requests: read
       checks: write
       id-token: write
-    concurrency:
-      group: pr-unblock-fix-ci-${{ inputs.pr-number }}
-      queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
       lane: pr-unblock
@@ -324,6 +371,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       output-mode: patch
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
       # Reproducing, fixing and rerunning several checks outlasts the default.
@@ -351,6 +399,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: apply-ci-fix
       pr-number: ${{ inputs.pr-number }}
@@ -428,6 +477,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: report-escalation
       pr-number: ${{ inputs.pr-number }}
