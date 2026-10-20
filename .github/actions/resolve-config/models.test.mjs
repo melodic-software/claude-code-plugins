@@ -325,8 +325,8 @@ test("live config: fix-ci runs as a worker on code, opus at the verifier's effor
   assert.equal(modelArgs(slot.models), "--model opus --max-turns 75 --effort high");
 });
 
-// Every route the live config names runs on an alias: lowercase letters only,
-// which no model ID is, and never `default` or the role map's `inherit`.
+// Every route the live config names runs on a routed alias: never empty,
+// `default`, `inherit`, a model ID, or the frontier tier (fable, best).
 test("live config: every route resolves to a model alias, never empty, default or a model ID", () => {
   const doc = parse(LIVE.config);
   const routes = Object.keys(doc.models.routes);
@@ -340,8 +340,7 @@ test("live config: every route resolves to a model alias, never empty, default o
     } else {
       models = resolveRoute(LIVE, { route, configPath: CONFIG_PATH });
     }
-    assert.match(models.model, /^[a-z]+$/, route);
-    assert.ok(!["default", "inherit"].includes(models.model), `${route}: ${models.model}`);
+    assert.ok(["haiku", "sonnet", "opus"].includes(models.model), `${route}: ${models.model}`);
   }
 });
 
@@ -386,6 +385,18 @@ for (const [why, roleMap] of [
     assert.equal(roleSlot(roleMap).model, "opus");
   });
 }
+
+// The reader refuses YAML aliases; a role map holding one is treated as absent,
+// so fix-ci still resolves, on opus, instead of failing its lane.
+test("live config: a role map holding a YAML alias resolves fix-ci to opus", () => {
+  const roleMap = "schema: 1\nroles:\n  worker: &w\n    model: sonnet\n    effort: medium\n  verifier: *w\n";
+  const { models } = resolve(
+    { ...LIVE, roleMap },
+    { lane: "pr-unblock", activity: "fix-ci", configPath: CONFIG_PATH, basePath: ".base", facts: LIVE_FACTS },
+  ).selected;
+  assert.equal(models.model, "opus");
+  assert.equal(models.effort, null);
+});
 
 test("a role profile whose effort-role the role map lacks passes no --effort", () => {
   const models = roleSlot("schema: 1\nroles:\n  worker:\n    model: sonnet\n");

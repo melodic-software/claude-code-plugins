@@ -692,7 +692,7 @@ const ROUTED_ALIASES = new Set(["haiku", "opus", "sonnet"]);
 const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 
 // The multi-agent role map (plugins/multi-agent/reference/defaults.yaml) as
-// data, or null when its text is absent or does not parse.
+// data, or null when its text is absent or does not parse (an alias included).
 function roleMapOf(text) {
   if (typeof text !== "string") {
     return null;
@@ -701,7 +701,12 @@ function roleMapOf(text) {
   if (document.errors.length > 0) {
     return null;
   }
-  const map = document.toJS({ maxAliasCount: 0 });
+  let map;
+  try {
+    map = document.toJS({ maxAliasCount: 0 });
+  } catch {
+    return null;
+  }
   return isObject(map?.roles) ? map : null;
 }
 
