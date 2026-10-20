@@ -49,6 +49,14 @@ LANES: dict[str, tuple[str, str]] = {
     ),
 }
 
+# What a lane run may take from the pull request's own checkout: its caller
+# workflows and the local actions and scripts they run (.github/), the review
+# plugin, and Claude Code project config at any depth (.claude/). A pull
+# request that changes any of them ran its own copy on its pull_request
+# event, so its records prove no review by the default branch's lane.
+LANE_SOURCE_PREFIXES = (".github/", "plugins/review/")
+LANE_SOURCE_SEGMENT = ".claude"
+
 RECORD_TITLE = "claude-lane-review-complete"
 _SHA = r"[0-9a-f]{40}"
 _COUNT = r"\d{1,6}"
@@ -97,6 +105,7 @@ def bind(
     threads: Sequence[Mapping[str, Any]] | None,
     *,
     is_human: Callable[[Any], bool],
+    changed_paths: Sequence[str] | None,
     base_changed: bool = False,
     head_file: Callable[[str, str], str | None] | None = None,
 ) -> tuple[LaneEvidence, ...]:
@@ -111,7 +120,10 @@ def bind(
     seen. `is_human` takes one actor and must return False for the agent
     identity, the pull request's author and its head pushers. `base_changed`
     is True when the pull request was ever retargeted: the reviews read a
-    diff against another base, so no lane binds.
+    diff against another base, so no lane binds. `changed_paths` holds every
+    path the pull request changes (both sides of a rename), or None when the
+    list is unread or incomplete: no lane binds then, nor when one is a lane
+    source (`lane_source`).
 
     A lane binds only when every head its reviewed-head markers name still
     has a listed run: a deleted or expired run would drop its findings from
@@ -122,6 +134,10 @@ def bind(
             raise Unbound("bad-head")
         if base_changed is not False:
             raise Unbound("base-retargeted")
+        if not isinstance(changed_paths, list | tuple):
+            raise Unbound("changed-files-unread")
+        if any(lane_source(path) for path in changed_paths):
+            raise Unbound("lane-source-changed")
         # Thread ids already standing for a recorded finding in some lane.
         # LANES order matters: claude-review claims first, so a doubtful
         # untagged thread leaves the count on the security lane.
@@ -135,6 +151,17 @@ def bind(
     except Exception as exc:  # noqa: BLE001 - any doubt is unbound
         reason = exc.reason if isinstance(exc, Unbound) else "evidence-error"
         return tuple(LaneEvidence(lane, False, reason, None) for lane in LANES)
+
+
+def lane_source(path: Any) -> bool:
+    """Whether a changed path is one a lane run takes from the checkout; a
+    path that is not a string counts as one."""
+    if not isinstance(path, str):
+        return True
+    return (
+        path.startswith(LANE_SOURCE_PREFIXES)
+        or LANE_SOURCE_SEGMENT in (path.split("/")[:-1])
+    )
 
 
 def _bind_lane(
