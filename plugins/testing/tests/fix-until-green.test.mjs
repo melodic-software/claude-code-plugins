@@ -608,3 +608,28 @@ test('a base re-run that leaves the repository changed differently stops the run
   assert.equal(result.green, false)
   assert.equal(result.stoppedBecause, 'outside-edit')
 })
+
+test('a base re-run that cannot run its command stops as an environment failure, not a test-edit dependency', async () => {
+  const base = { ...red([]), environmentFailure: true, note: 'Cannot find module vitest', changedFiles: ['a.test.js', 'src/a.js'] }
+  const { result } = await run({ command: 'x' }, makeReply(TEST_AND_SRC, { verify: sawBoth, 'run:base': base }))
+  assert.equal(result.green, false)
+  assert.equal(result.stoppedBecause, 'base-rerun-env-failed')
+  assert.equal(result.baseRerun.environmentFailure, true)
+  assert.deepEqual(result.testEdits, ['a.test.js'])
+})
+
+test('a base re-run whose tests ran and failed is not an environment failure', async () => {
+  const base = { ...red(fail('a.test.js')), environmentFailure: false, changedFiles: ['a.test.js', 'src/a.js'] }
+  const { result } = await run({ command: 'x' }, makeReply(TEST_AND_SRC, { verify: sawBoth, 'run:base': base }))
+  assert.equal(result.stoppedBecause, 'green-needs-test-edits')
+  assert.equal(result.baseRerun.environmentFailure, false)
+})
+
+test('the base re-run links the main tree\'s ignored dependency directories', async () => {
+  const { calls } = await run({ command: 'x' }, makeReply(TEST_AND_SRC, { verify: sawBoth }))
+  const c = one(calls, 'run:base')
+  assert.match(c.prompt, /git ls-files --others --ignored --exclude-standard --directory/)
+  assert.match(c.prompt, /ln -s/)
+  assert.ok(data(c.prompt, 'dependency-dirs').includes('node_modules'))
+  assert.ok(data(c.prompt, 'dependency-dirs').includes('.venv'))
+})

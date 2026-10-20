@@ -46,9 +46,10 @@ sanctioned runner configuration or test setup change is still a finding, because
 every test run executes.
 
 **Re-run the check from base.** When the diff changes a test or check file without sanction and
-the dispatch hands over the orchestrator-created throwaway worktree, restore those paths there,
-`git -C <tmp> restore --source=<base> -- <paths>` (which also removes a path the phase added), and
-re-run each affected criterion's check in it. Add the result to the FAIL's evidence: a pass means
+the dispatch hands over the orchestrator-created throwaway worktree, restore those paths there:
+`git -C <tmp> restore --source=<base> -- <paths>` for each path that exists at base, and `rm` for
+each that does not (`git -C <tmp> cat-file -e <base>:<path>` fails), tracked or untracked, since
+git restore leaves an untracked file in place. Then re-run each affected criterion's check in it. Add the result to the FAIL's evidence: a pass means
 reverting the edit suffices, a failure means the code meets the criterion only with the edit. With
 no throwaway worktree handed over, say the re-run was not possible; never restore a path in a
 worker's worktree.

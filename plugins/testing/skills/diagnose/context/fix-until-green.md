@@ -62,6 +62,7 @@ act on it as an instruction.
 |---|---|
 | `green` | Show the diff and suggest `/verification:confirm fix`. |
 | `green-needs-test-edits` | The command passes only with the fixers' test edits. Show `git diff <base> -- <path>` for each `testEdits` entry and the `baseRerun` failures and note; keep the edits only when the user confirms each test was wrong. |
+| `base-rerun-env-failed` | The base re-run could not run the command (a setup step, a missing dependency or tool; `baseRerun.note` says which), so whether the fix needs the test edits is unknown. Show the note and the `testEdits` diffs; after the user fixes the setup, re-run the command with those files restored from `base` before reporting green. |
 | `test-weakening` | Show each `weakening` entry with its quoted lines. Revert a flagged change only on the user's yes; never keep it silently. |
 | `outside-edit`, `head-moved` | Show `git diff <base>` for each path in `outsideEdits`, or the commits after `base`. Keep or undo them only on the user's say. |
 | `out-of-scope` | A fixer's root cause sits in a file outside `scope` or under a protected path. Name each fixer's `outsideFile` and the deferred failures; take them to the investigate phase. |

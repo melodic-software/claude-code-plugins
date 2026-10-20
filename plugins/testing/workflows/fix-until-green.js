@@ -67,6 +67,9 @@ const TEST_NAME_PATTERNS = [
   /(^|[._-])(tests?|spec)([._-]|$)/i, /(Tests?|Spec)\.(java|kt|cs|fs|vb|scala|swift)$/, /\.snap$/i,
   /^conftest\.py$/i, /^pytest\.ini$/i, /^(jest|vitest|playwright|karma|cypress)\.config\./i, /^\.mocharc/i,
 ]
+// Ignored dependency directories the base re-run links in from the main tree,
+// so a missing install does not read as a test that needs its edits.
+const DEP_DIRS = ['node_modules', '.venv', 'venv', '.tox', 'vendor', '.bundle']
 const isTestFile = p => {
   const segs = p.split('/')
   const name = segs.pop()
@@ -190,6 +193,7 @@ const RUN_SCHEMA = {
     changedFiles: { type: 'array', items: { type: 'string' } },
     head: { type: 'string' },
     note: { type: 'string' },
+    environmentFailure: { type: 'boolean' },
   },
   required: ['passed', 'failures', 'head', 'changedFiles'],
 }
@@ -252,12 +256,16 @@ async function runCommand(label, base, restore) {
   const how = restore
     ? 'Stage: base re-run. Check whether the command below passes with the test edits undone. Create a throwaway ' +
       'worktree outside the repository at the starting commit: `git worktree add --detach "$(mktemp -d)/tree" ' + base + '`. ' +
-      'In it, copy from the repository root every path in carry-files that exists there, and delete every path in ' +
+      'Link the main tree\'s ignored dependency directories into it: for each directory ' +
+      '`git ls-files --others --ignored --exclude-standard --directory` lists in the repository root whose last ' +
+      'segment is one of dependency-dirs, `ln -s <repository root>/<dir> <throwaway>/<dir>`; read them, never change ' +
+      'them. In it, copy from the repository root every path in carry-files that exists there, and delete every path in ' +
       'carry-files that does not; leave every path in test-edits as the starting commit has it, so a test file the run ' +
       'added stays absent. Run the command once, exactly as given, from the throwaway worktree\'s root, and wait for it ' +
       'to finish; then remove it with `git worktree remove --force <its path>`. Change no file in the repository ' +
-      'itself; the throwaway worktree is the only place you write. When a setup step fails, or the command needs an ' +
-      'ignored dependency directory (node_modules, a virtualenv) the throwaway worktree lacks, say so in note. Report ' +
+      'itself; the throwaway worktree is the only place you write. Set environmentFailure true when the command failed ' +
+      'before any test ran or for a reason no test reports: a setup step failed, a module, package or tool was not ' +
+      'found, or the runner could not start; say which in note. Set it false when tests ran and failed. Report ' +
       'whether it passed (exit code 0), its exit code, and every failing '
     : 'Stage: run. Run the command below once, exactly as given, from the repository root, and wait for it ' +
       'to finish. Change no file. Report whether it passed (exit code 0), its exit code, and every failing '
@@ -270,7 +278,7 @@ async function runCommand(label, base, restore) {
     'tracked. When the command fails with no failure you can attribute to a file, say so in note. Then, in the ' +
     'repository root, run `git rev-parse HEAD` and `git rev-parse --show-toplevel` and report their output as head and ' +
     'root.' + tree + fence('command', COMMAND) +
-    (restore ? fence('test-edits', restore.testEdits) + fence('carry-files', restore.carry) : ''),
+    (restore ? fence('test-edits', restore.testEdits) + fence('carry-files', restore.carry) + fence('dependency-dirs', DEP_DIRS) : ''),
     { label, phase: 'Run', schema: RUN_SCHEMA, ...opts('testing:green-runner', R.retrieval.single) }
   )
   if (got == null) { nulls.push(label); return null }
@@ -281,7 +289,7 @@ async function runCommand(label, base, restore) {
       suspects: (Array.isArray(f.suspects) ? f.suspects : []).filter(s => typeof s === 'string').map(norm).filter(isEditable),
     }))
   if (failures.length > FAILURE_CAP) log(label + ': ' + (failures.length - FAILURE_CAP) + ' failures past the cap of ' + FAILURE_CAP + ' wait for a later round')
-  return { passed: got.passed === true && failures.length === 0, exitCode: got.exitCode ?? null, failures, head: shaOf(got.head), root: typeof got.root === 'string' ? norm(got.root) : null, changedFiles: got.changedFiles, note: got.note || '' }
+  return { passed: got.passed === true && failures.length === 0, exitCode: got.exitCode ?? null, failures, head: shaOf(got.head), root: typeof got.root === 'string' ? norm(got.root) : null, changedFiles: got.changedFiles, note: got.note || '', environmentFailure: got.environmentFailure === true }
 }
 
 // Group failures into components that share no file: two failures sharing a
@@ -507,11 +515,12 @@ if (green && testEdits.length) {
   phase('Verify')
   ran.push('run:base')
   const b = await runCommand('run:base', BASE, { testEdits, carry: lastChanged.filter(x => !isTestFile(x)) })
-  baseRerun = b ? { passed: b.passed, failures: b.failures, note: b.note } : null
+  baseRerun = b ? { passed: b.passed, failures: b.failures, note: b.note, environmentFailure: b.environmentFailure } : null
   const tree = b ? judgeTree(b, []) : null
   green = false
   if (!b) stoppedBecause = 'runner-failed'
   else if (tree) stoppedBecause = tree
+  else if (!b.passed && b.environmentFailure) stoppedBecause = 'base-rerun-env-failed'
   else if (!b.passed) stoppedBecause = 'green-needs-test-edits'
   else green = true
 }
