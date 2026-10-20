@@ -121,6 +121,17 @@ observed the two disagree for one plugin.
 - **Recheck trigger**: a disabled-by-default install stops printing the notice `sync-run.sh`
   matches, or a docs page starts to state what such an install writes to `enabledPlugins`.
 
+**An `ask` pick is journaled before it is installed.** `sync-run.sh` appends the id to
+`pending-enable.txt`, one level above the run journals, before `claude plugin install`, and removes
+it once the enable lands (or the install failed, or needed no enable). A run cut off in between
+leaves the record. The next sync, before its own install gap, enables each recorded id that is
+installed at user scope and effectively `false`, lists it in the digest's `pending_enable[]`
+(`{id, outcome}`, `enabled` or `enable_failed`; a failed enable keeps the record), and drops a
+record whose id is not installed or already enabled. Only ids sync itself journaled are touched, so
+a `false` the user set on a plugin with no record is never re-enabled. A record survives a failed
+enable or a cut-off run until the next sync, and a plugin the user disables in that window is
+re-enabled by it.
+
 ### After any install: normalize user-scope `enabledPlugins` key order
 
 Claude Code's settings writer appends each new `enabledPlugins` key at the end of the map rather

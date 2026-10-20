@@ -3,6 +3,8 @@
 #   - Python at .python-version in a venv, with pytest and the rest of the
 #     hash-pinned wheels in .github/requirements-ci.txt (as pr-require-checks.yml
 #     installs them);
+#   - ShellCheck at the release CI lints with, in the venv's bin, when the one
+#     on PATH is another version (Linux x86_64 only; elsewhere it says so);
 #   - the locked Node packages (npm ci at the root and in
 #     .github/standards/runner-policy);
 #   - Playwright's Chromium, only with --playwright or SETUP_ENV_PLAYWRIGHT=1
@@ -26,7 +28,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -h | --help)
-      sed -n '2,16p' "$0"
+      sed -n '2,18p' "$0"
       exit 0
       ;;
     *)
@@ -74,6 +76,38 @@ else
     --requirement .github/requirements-ci.txt
   printf '%s\n' "$key" >"$venv/.setup-env"
   echo "setup-env: installed .github/requirements-ci.txt into $venv"
+fi
+
+# ShellCheck: scripts/check-affected.sh passes --rcfile, which the runner
+# image's ShellCheck predates, and .shellcheckrc enables checks only the
+# release CI pins knows.
+shellcheck_version=0.11.0
+shellcheck_sha256=b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
+have=""
+for candidate in "$bin/shellcheck" shellcheck; do
+  if [[ "$("$candidate" --version 2>/dev/null)" == *"version: $shellcheck_version"* ]]; then
+    have=$candidate
+    break
+  fi
+done
+if [[ -n "$have" ]]; then
+  echo "setup-env: shellcheck $shellcheck_version is current: $have"
+elif [[ "$(uname -sm)" != "Linux x86_64" ]]; then
+  echo "setup-env: no shellcheck $shellcheck_version on PATH; install it to lint as CI does" >&2
+else
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  release=shellcheck-v$shellcheck_version
+  curl -fsSL --retry 3 "https://github.com/koalaman/shellcheck/releases/download/v$shellcheck_version/$release.linux.x86_64.tar.gz" -o "$tmp/$release.tar.gz"
+  got=$(hash_of "$tmp/$release.tar.gz")
+  if [[ "$got" != "$shellcheck_sha256" ]]; then
+    echo "setup-env: the shellcheck $shellcheck_version download failed its checksum" >&2
+    exit 1
+  fi
+  tar -xzf "$tmp/$release.tar.gz" -C "$tmp"
+  cp "$tmp/$release/shellcheck" "$bin/shellcheck"
+  chmod +x "$bin/shellcheck"
+  echo "setup-env: installed shellcheck $shellcheck_version into $bin"
 fi
 
 # Node.

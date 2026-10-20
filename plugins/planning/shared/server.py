@@ -1,7 +1,7 @@
 """The shared interview session's server: one process, two 127.0.0.1 listeners. Python 3 stdlib.
 
 Usage: python server.py --dir DATA_DIR [--guest-port P] [--control-port P] [--nonce N]
-                        [--defaults-file F | --initial-state F]
+                        [--defaults-file F]
 
 Start it through `share.sh ensure-running`, which starts it detached and reuses a running one.
 No secret travels on this command line: the control token and the owner token come from
@@ -49,7 +49,6 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 import detached  # noqa: E402  (beside this file; sys.path is set just above)
-import migrate  # noqa: E402
 import session  # noqa: E402
 import session_bridge  # noqa: E402
 import tunnel  # noqa: E402
@@ -61,8 +60,8 @@ PORTS = ".shared-ports.json"
 OWNER_LINK = ".owner-link"
 STATE = "state.json"
 DEFAULTS = "defaults.json"
-IMPORT_DEFAULTS = ("import", "guestPort", "adoptTunnel")  # defaults.json keys share.py reads; the server ignores them
-OLD_PAGE_BANNER = "This page was updated: reload"
+IMPORT_DEFAULTS = ("guestPort", "adoptTunnel")  # defaults.json keys share.py reads; the server ignores them
+MIN_OWNER_TOKEN = 16  # an owner token as short as the prototype's (token_urlsafe(12)) is kept: its owner link survives a restart
 WEB = HERE / "web"
 STATIC = {
     "/": ("index.html", "text/html"),
@@ -291,10 +290,9 @@ def read_json(path):
 def ensure_secrets(d):
     """The control and owner tokens from the 0600 secrets file, making any that is missing, plus
     `ownerAt`, when the owner token was issued: None for a new token or a file that does not say,
-    which settle_owner_token decides once the session is open. An owner token as short as the
-    prototype's (migrate.MIN_OWNER_TOKEN) is kept, so an imported owner link survives a restart."""
+    which settle_owner_token decides once the session is open."""
     have = read_json(d / SECRETS) or {}
-    least = {"control": 32, "owner": migrate.MIN_OWNER_TOKEN}
+    least = {"control": 32, "owner": MIN_OWNER_TOKEN}
     out = {k: have[k] if isinstance(have.get(k), str) and len(have[k]) >= n else secrets.token_urlsafe(32) for k, n in least.items()}
     at = have.get("ownerAt")
     dated = out["owner"] == have.get("owner") and isinstance(at, (int, float)) and not isinstance(at, bool)
@@ -324,58 +322,13 @@ def settle_owner_token(d, s, creds, log):
         detached.write_private(d / SECRETS, json.dumps(creds) + "\n")
 
 
-def prototype_import(d, src, text, creds):
-    """For a session created from the prototype's state file: keep its owner token as the owner's
-    credential (the open owner tabs keep working) and copy the assets its questions show from the
-    `assets/` folder beside that file. A one-line summary for server.log, or "" for another file."""
-    doc = json.loads(text)
-    if migrate.version_of(doc) != 0:
-        return ""
-    token = migrate.prototype_owner_token(doc)
-    if token:
-        creds.update(owner=token, ownerAt=None)
-    copied, missing = 0, 0
-    for name in migrate.prototype_assets(doc):
-        f = src.parent / "assets" / name
-        if f.is_symlink() or not f.is_file() or f.stat().st_size > session.ASSET_MAX:
-            missing += 1
-            continue
-        dest = d / "assets" / name
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        if not dest.exists():
-            dest.write_bytes(f.read_bytes())
-        ext = name.rsplit(".", 1)[1]
-        meta = {"id": name, "kind": session.ASSET_KINDS[ext], "bytes": dest.stat().st_size, "at": time.time(), "scale": 1}
-        detached.write_private(d / "assets" / f".{name}.json", json.dumps(meta) + "\n")
-        copied += 1
-    return f"owner link {'kept' if token else 'issued anew'}; {copied} assets copied, {missing} not found"
-
-
-def open_session(d, creds, log, *, defaults_file=None, initial_state=None):
-    """The session in d/state.json: loaded and migrated, or created from defaults.json or from
-    `initial_state` (a session file from elsewhere, run through migrate.py and validated as
-    any load is). The owner token in `creds` (from ensure_secrets) becomes the owner's
-    credential unless the session rotated the owner link after it was issued."""
+def open_session(d, creds, log, *, defaults_file=None):
+    """The session in d/state.json: loaded, or created from defaults.json. The owner token in `creds` (from
+    ensure_secrets) becomes the owner's credential unless the session rotated the owner link after it was issued."""
     path = d / STATE
     version = plugin_version()
-    notes = []
     try:
-        if not path.exists() and initial_state is not None:
-            text = Path(initial_state).read_text(encoding="utf-8")
-            backup = path.with_name("state.v0.json")
-            had_backup = backup.exists()
-            detached.write_private(path, text)
-            try:
-                s = session.Session.load(path, plugin_version=version, notes=notes)
-            except BaseException:
-                path.unlink(missing_ok=True)
-                if not had_backup:
-                    backup.unlink(missing_ok=True)
-                raise
-            imported = prototype_import(d, Path(initial_state), text, creds)
-            if imported:
-                log.info("imported the prototype's state from %s: %s", loggable(initial_state, 400), imported)
-        elif not path.exists():
+        if not path.exists():
             src = Path(defaults_file) if defaults_file else d / DEFAULTS
             defaults = read_json(src) if src.exists() else {}
             if defaults is None or set(defaults) - {"settings", "title", "goal", *IMPORT_DEFAULTS}:
@@ -389,13 +342,11 @@ def open_session(d, creds, log, *, defaults_file=None, initial_state=None):
                 owner_token=creds["owner"],
             )
         else:
-            s = session.Session.load(path, plugin_version=version, notes=notes)
-        for line in notes:
-            log.warning("%s", loggable(line, 400))
+            s = session.Session.load(path, plugin_version=version)
         settle_owner_token(d, s, creds, log)
         s.reset_owner_token(creds["owner"], creds["ownerAt"])
         return s
-    except (migrate.MigrationError, DomainError, OSError) as exc:
+    except (DomainError, OSError) as exc:
         raise StartRefused(getattr(exc, "message", None) or str(exc)) from exc
 
 
@@ -487,7 +438,6 @@ class ControlHub(session_bridge.LoopbackWatcher):
             "session": app.session.state["session"]["title"],
             "guestPort": app.guest_port,
             "publicUrl": app.public_url,
-            "schemaVersion": app.session.state["schemaVersion"],
             "build": app.build,
         }
 
@@ -770,7 +720,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             if m and self.app.session.is_prototype(m.group(1)):
                 return self.static("proto.html", "text/html")
             if url.path == "/api/state":
-                return self.state(url.query)
+                return self.state()
             if url.path in GET_ROUTES:
                 auth, method = GET_ROUTES[url.path]
                 pid = self.authorize(auth)
@@ -799,13 +749,11 @@ class GuestHandler(BaseHTTPRequestHandler):
         body = f.read_bytes() + (f"\n<script>{PIN_HELPER}</script>\n".encode() if pin else b"")
         return self.send(200, body, "text/html", {"Content-Security-Policy": HTML_ASSET_CSP, "Content-Disposition": "inline", "X-Frame-Options": "SAMEORIGIN"})
 
-    def state(self, query=""):
+    def state(self):
         app = self.app
         pid = self.identity()
         if pid is None:
             return self.send(200, app.session.anonymous_view())
-        if app.old_pages and not query:
-            return self.send(200, app.old_page_view())
         tag, sent = app.etag(pid), self.headers.get("If-None-Match") or ""
         if sent == tag:  # identity() already refused a removed or waiting person
             return self.send(304, b"", extra={"ETag": tag})
@@ -950,7 +898,7 @@ class GuestHandler(BaseHTTPRequestHandler):
 class App:
     """Both listeners, the session and the tunnel watch for one data dir."""
 
-    def __init__(self, data_dir, *, guest_port=0, control_port=0, nonce="", defaults_file=None, initial_state=None, watch_tunnel=True):
+    def __init__(self, data_dir, *, guest_port=0, control_port=0, nonce="", defaults_file=None, watch_tunnel=True):
         self.dir = Path(data_dir).resolve()
         problem = detached.data_dir_problem(self.dir)
         if problem:
@@ -959,12 +907,11 @@ class App:
         detached.make_private_dir(self.dir / session.STAGING)
         self.log = make_logger(self.dir)
         self.secrets = ensure_secrets(self.dir)
-        self.session = open_session(self.dir, self.secrets, self.log, defaults_file=defaults_file, initial_state=initial_state)
+        self.session = open_session(self.dir, self.secrets, self.log, defaults_file=defaults_file)
         self.session.on_owner_token = self.owner_rotated
         swept = self.session.recover_uploads()
         if swept:
             self.log.info("uploads: deleted %d partial or unclaimed files", swept)
-        self.old_pages = (self.dir / "state.v0.json").exists()  # imported from the prototype: its open tabs may still poll
         self.build = build_hash()
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
         self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)  # keyed by pid
@@ -1053,13 +1000,6 @@ class App:
             return True
         return origin in {f"http://{h}" for h in self.local_hosts} or (bool(self.tunnel_host) and origin == f"https://{self.tunnel_host}")
 
-    def old_page_view(self):
-        """What a prototype page that is still open gets for its state poll: its banner text as the
-        title, and no other key, so its script falls back to the empty state it starts with before
-        its first poll. `schemaVersion` is there for a prototype page that reloads on seeing it."""
-        st = self.session.state
-        return {"schemaVersion": st["schemaVersion"], "rev": st["rev"], "outdated": True, "title": OLD_PAGE_BANNER}
-
     def etag(self, pid):
         tick = int(time.time() // PRESENCE_TICK)
         who = hashlib.sha256(pid.encode()).hexdigest()[:8]
@@ -1137,10 +1077,9 @@ def main(argv=None):
     p.add_argument("--control-port", type=int, default=0, help="control listener port; 0 picks a free one")
     p.add_argument("--nonce", default="", help="echoed into the session files so share.py knows its own start")
     p.add_argument("--defaults-file", help="settings for a new session (default <dir>/defaults.json)")
-    p.add_argument("--initial-state", help="a session file to start a new session from (run through migrate.py, then validated)")
     a = p.parse_args(argv)
     try:
-        app = App(a.dir, guest_port=a.guest_port, control_port=a.control_port, nonce=a.nonce, defaults_file=a.defaults_file, initial_state=a.initial_state)
+        app = App(a.dir, guest_port=a.guest_port, control_port=a.control_port, nonce=a.nonce, defaults_file=a.defaults_file)
     except StartRefused as exc:
         print(f"refused: {exc}", file=sys.stderr)
         return 1

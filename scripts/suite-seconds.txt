@@ -413,7 +413,6 @@ plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
 plugins/planning/shared/tests/align.test.sh 200
 plugins/planning/shared/tests/test_load.py 11
-plugins/planning/shared/tests/test_migrate.py 2
 plugins/planning/shared/tests/test_schema_shapes.py 1
 plugins/planning/shared/tests/test_server.py 94
 plugins/planning/shared/tests/test_session.py 15

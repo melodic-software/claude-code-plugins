@@ -10,8 +10,8 @@
 // and opens in a reader, and chat shows a character count; the owner and leaders get a Host view (people, queue, round
 // status, links, goal, Later) and a guest does not; IF the server drops, pages show "Reconnecting…", keep unsent text
 // and recover; IF the tunnel restarts with a new address, the owner view shows "New guest link, share again"; after
-// Send a round shows Waiting for Claude (Cancel works, and guests see it reopen), then Claude is working (no cancel; the
-// owner alone can reset it from the Host view behind a confirm, and guests see it reopen),
+// Send a round shows Waiting for Claude (Cancel works, and guests see it reopen), then Claude is working (no cancel; after
+// a while it says for how long; the owner alone can reset it from the Host view behind a confirm, and guests see it reopen),
 // then a "Round N is here" toast on the owner's and a guest's page, moving nobody unless Follow is on; a proposal Claude marks "Not placed" shows its
 // author the reason; WHILE a session is ended guests see a read-only Tree and new joins are refused; Focus, Compare and
 // Tree show the same live data and Compare marks off-screen columns; new answers are announced; answers stay visible at
@@ -296,11 +296,18 @@ async function main() {
     await railQ(cy, Q2T).click();
     await railQ(host, Q1T).click();
     await host.locator(".vf-round-cur .vf-send").click();
-    const sendAnyway = host.locator(".vf-confirm button", { hasText: "Send anyway" });
+    const sendAnyway = host.locator("dialog.vf-cdlg[open] button", { hasText: "Send anyway" });
     if (await sendAnyway.isVisible().catch(() => false)) await sendAnyway.click();
     ok("round lifecycle: after Send, guests see Waiting for Claude", await until(bo, () => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent === "Waiting for Claude"), await curStep(bo));
     const cancelBtn = host.locator(".vf-cancel-send").first();
     ok("round lifecycle: the owner gets Cancel while it waits", await cancelBtn.waitFor({ timeout: 8000 }).then(() => true, () => false));
+    // Follow-up 33 review: Claude acks and opens the next round in one apply, so while it waits it may already be reading
+    ok("round lifecycle: while it waits the owner reads that Claude may already be reading it and Cancel still works", await until(host, () =>
+      /Claude may already be reading it; you can still cancel\./.test(document.querySelector(".vf-next .vf-step-note")?.textContent || "")), await host.evaluate(() => document.querySelector(".vf-next .vf-step-note")?.textContent));
+    const waitLater = async route => { const r = await route.fetch(); const j = await r.json().catch(() => null); return j?.serverTime ? route.fulfill({ response: r, json: { ...j, serverTime: j.serverTime + 300 } }) : route.fulfill({ response: r }); };
+    await bo.route("**/api/state?*", waitLater);
+    ok("round lifecycle: five minutes after Send, the step says how long it has waited", await until(bo, () => /^Waiting for Claude · 5 min$/.test(document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent || ""), null, 15000), await curStep(bo));
+    await bo.unroute("**/api/state?*", waitLater);
     await cancelBtn.click();
     await host.locator("dialog[open] button", { hasText: "Cancel sending" }).click();
     ok("round lifecycle: Cancel works, and guests see the round open again", await toastHas(bo, /cancelled\. It is open again/)
@@ -312,6 +319,11 @@ async function main() {
     ok("round lifecycle: once Claude picks it up, the page shows Claude is working", await until(bo, () => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent === "Claude is working"), await curStep(bo));
     ok("round lifecycle: while Claude is working the owner has no Cancel", await until(host, () => window.Core.snapshot().round.status === "working"
       && ![...document.querySelectorAll("button")].some(b => b.offsetParent && /^Cancel sending$/.test(b.textContent.trim()))));
+    // Follow-up 33: after a while in working, the step says how long (the server's clock read 5 minutes later)
+    const later = async route => { const r = await route.fetch(); const j = await r.json().catch(() => null); return j?.serverTime ? route.fulfill({ response: r, json: { ...j, serverTime: j.serverTime + 300 } }) : route.fulfill({ response: r }); };
+    await bo.route("**/api/state?*", later);
+    ok("round lifecycle: five minutes into working, the step says how long", await until(bo, () => /^Claude is working · 5 min$/.test(document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent || ""), null, 15000), await curStep(bo));
+    await bo.unroute("**/api/state?*", later);
     // A stalled preparation: the owner resets it from the Host view behind a confirm step; guests never get the control.
     const toView = async (page, label) => {
       const b = page.locator(".vf-bar .vf-seg-btn", { hasText: label }), more = page.locator(".vf-viewopts");

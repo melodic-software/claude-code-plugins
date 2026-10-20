@@ -434,6 +434,7 @@ lib/hook-utils.sh plugins/guardrails/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/harness-ops/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/markdown-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/rate-limit-guard/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/repo-hygiene/skills/clean/scripts/hook-utils.sh
 lib/hook-utils.sh plugins/ruff-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/source-control/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/speech/hooks/hook-utils.sh

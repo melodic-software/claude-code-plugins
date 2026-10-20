@@ -302,6 +302,8 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     {"op": "reply", "id": "Q3", "text": "The benchmark settles it: three retries."}]}'
     bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round2.json --round 2 >/dev/null
     japply d '{"ops": [{"op": "note-reply", "seq": '"$note"', "text": "Yes, on track."}]}'
+    # The reply to the note goes to the log; the Notes reply that asks raises the notice (phase 3).
+    japply d2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Should the retry count stay at three?"}]}'
     jrun 3
     jhandle
     japply e '{"ops": [{"op": "confirm-commitments", "id": "Q2", "reason": "Confirmed in the terminal"},
@@ -309,8 +311,8 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     {"op": "confirm-commitments", "id": "Q4", "reason": "Said yes in the terminal"},
     {"op": "restate", "sections": {"goal": "Ship green builds to staging on their own.",
       "constraints": "Builds stop at ten minutes.", "planningOwned": "How the cache key is built."}}]}'
-    # A Notes reply lands after the restatement: the restate notice must stay shown over it (phase 4).
-    japply e2 '{"ops": [{"op": "note-reply", "text": "One more thing: what should the cache key include?"}]}'
+    # A Notes reply that asks lands after the restatement: the restate notice must stay shown over it (phase 4).
+    japply e2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "One more thing: what should the cache key include?"}]}'
     jrun 4
     jhandle
     bash "$here/round.sh" --dir "$j" revise Q7 --rec "Yes, from the merged pull requests and their linked issues." --affects none --keep-alternatives --force >/dev/null
@@ -336,23 +338,31 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     jrun 7
     japply i '{"ops": [{"op": "activity", "text": "Checked the cache key while you were looking"}]}'
     jrun 8
-    # One log entry and one Notes reply: only the Notes reply counts in the title (phases 9, 11 and 13).
+    # One log entry, one plain Notes reply, then a Notes reply that asks: only the asking reply counts
+    # in the title (phases 9, 11 and 13).
     japply j '{"ops": [{"op": "activity", "text": "Checked the cache key again while the tab was hidden"}, {"op": "note-reply", "text": "Still on track."}]}'
+    japply j2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Still on track on your side?"}]}'
     jrun 9
     jrun 10
     japply k '{"ops": [{"op": "activity", "text": "Checked the cache key with the panel open"}, {"op": "note-reply", "text": "Nothing new yet."}]}'
+    japply k2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Anything new on your side?"}]}'
     jrun 11
     jrun 12
     japply l '{"ops": [{"op": "activity", "text": "Checked the cache key after the page loaded hidden"}, {"op": "note-reply", "text": "Checking again."}]}'
+    japply l2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Should I check again?"}]}'
     jrun 13
     jhandle
     japply m '{"ops": [{"op": "add", "question": {"id": "Q9", "group": "g1", "stage": "interview",
     "short": "Pattern scope", "title": "Which patterns count?", "recommendation": "Only the ones in the lock file.",
     "commits": [], "alternatives": [{"key": "a", "text": "All of them"}, {"key": "b", "text": "None"}]}}]}'
+    # The added Q9 goes to the log; the asking reply after it is what raises the toast in phase 14.
+    japply m2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Q9 is new: which patterns count?"}]}'
     jrun 14
     read -r -a js <<<"$(unhandled "$j")"
     bash "$here/round.sh" --dir "$j" revise Q9 --rec "All of them, since the lock file lists none." --alt "a:Only the ones in the lock file" --alt "b:Whatever the config names" --affects none --seq "${js[${#js[@]} - 1]}" >/dev/null
     jhandle
+    # The revision goes to the log; the asking reply after it raises the notification in phase 15.
+    japply m3 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Does that pattern scope work for you?"}]}'
     jrun 15
     # Phase 16 runs after the wrap-up: a new open question, a range in a question's facts, and a
     # third restatement the wrap-up never saw.
@@ -449,6 +459,9 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     # An older terminal record has no rev: strip it, then revise Q9 so only the time orders the two.
     "$py" -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); [q["terminal"].pop("rev", None) for q in d["questions"] if q["id"] == "Q9"]; json.dump(d, open(p, "w"))' "$pg/questions.json"
     grev Q9 --rec "The release owner, with the support lead."
+    # Phase 10: a Notes reply that asks belongs under Needs you, a plain one in the log.
+    bash "$here/round.sh" --dir "$pg" note-reply --text "Plain note: the owner is settled." >/dev/null || bad "page: note-reply refused"
+    bash "$here/round.sh" --dir "$pg" note-reply --text "Asking note: should support sign off?" --needs-answer >/dev/null || bad "page: note-reply --needs-answer refused"
     grun 10
     bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
     for n in $(seq 1 "$gphases"); do grade "ui_page.$n" "$tmp/up$n.out"; done

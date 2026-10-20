@@ -49,7 +49,7 @@ reach() { # url seconds
   local end=$((SECONDS + $2)) body
   while [[ $SECONDS -lt $end ]]; do
     body=$(curl -s --max-time 10 "$1api/state" 2>/dev/null)
-    [[ "$body" == *'"schemaVersion"'* ]] && {
+    [[ "$body" == *'"joinNeedsKey"'* ]] && {
       printf '%s' "$body"
       return 0
     }

@@ -340,11 +340,23 @@ async function main() {
     let escaped = 0;
     for (let i = 0; i < PRESSES; i++) { await tia.keyboard.press(i % 2 ? "Shift+Tab" : "Tab"); if (!(await tia.evaluate(c => document.querySelector(c).contains(document.activeElement), card))) escaped++; }
     ok(`${PRESSES} Tab and Shift+Tab presses keep focus inside the tour`, escaped === 0, `${escaped} left it`);
-    let steps = 2; // the ring check above pressed Next once
-    while (steps < 10 && (await tia.evaluate(() => document.querySelector(".vf-tour-row .vf-btn-primary").textContent)) === "Next") { await tia.click(".vf-tour-row .vf-btn-primary"); steps++; }
-    await tia.click(".vf-tour-row .vf-btn-primary"); // Done
-    ok("Done ends the tour and the `tour` pref says done (server state)", await until(tia, () => document.querySelector(".vf-tour").hidden && window.Core.snapshot()?.me?.prefs?.tour === "done"), `${steps} steps`);
-    ok("the tour walks at least the questions, the answer, the answer box, others' answers, the chat and Help", steps >= 6, `${steps} steps`);
+    /** Every step's heading from here to Done, which ends the tour. */
+    const walk = async page => {
+      const seen = [];
+      for (let i = 0; i < 20; i++) {
+        seen.push(await page.textContent(".vf-tour-h"));
+        const last = (await page.textContent(".vf-tour-row .vf-btn-primary")) === "Done";
+        await page.click(".vf-tour-row .vf-btn-primary");
+        if (last) break;
+      }
+      return seen;
+    };
+    const steps = await walk(tia); // from the second step: the ring check above pressed Next once
+    ok("Done ends the tour and the `tour` pref says done (server state)", await until(tia, () => document.querySelector(".vf-tour").hidden && window.Core.snapshot()?.me?.prefs?.tour === "done"), steps.join(" | "));
+    // Follow-up 38: a guest's tour adds the Discussion, Ask Claude (and @Claude), and the Inbox; none of the host's steps.
+    const GUEST_STEPS = ["Your answer box", "Everyone's answers", "Discussion", "Ask Claude", "Chat with people", "Your Inbox", "Help is here"];
+    ok("a guest's tour walks the answer box, others' answers, the Discussion, Ask Claude, the chat, the Inbox and Help", GUEST_STEPS.every(h => steps.includes(h)), steps.join(" | "));
+    ok("  and none of the host's steps", !steps.some(h => ["Share the link", "Needs you", "Send the round"].includes(h)), steps.join(" | "));
     ok("once done, the first view stops offering the tour", await until(tia, () => document.querySelector(".vf-orient-tour").hidden));
     await tia.click(".vf-keysbtn");
     await tia.click(".vf-help-tour");
@@ -352,6 +364,26 @@ async function main() {
     await tia.keyboard.press("Escape");
     ok("Escape skips the tour, the pref says skipped, and focus goes back to the Help button", await until(tia, () => document.querySelector(".vf-tour").hidden
       && window.Core.snapshot()?.me?.prefs?.tour === "skipped" && document.activeElement?.classList.contains("vf-keysbtn")));
+
+    // Follow-up 38: the host's tour, from Help: Share, Needs you (Run and Approve) and Send, each on its real control.
+    await owner.click(".vf-keysbtn");
+    await owner.click(".vf-help-tour");
+    await until(owner, c => !!document.querySelector(c)?.offsetParent, card);
+    const hostSteps = [];
+    for (let i = 0; i < 20; i++) {
+      const h = await owner.textContent(".vf-tour-h");
+      const at = await owner.evaluate(() => { // what the ring is drawn round: the control each host step names
+        const ring = document.querySelector(".vf-tour-ring").getBoundingClientRect(), mid = [(ring.left + ring.right) / 2, (ring.top + ring.bottom) / 2];
+        return [".vf-sharebtn", ".vf-bell", ".vf-round-cur .vf-send"].find(sel => { const r = document.querySelector(sel)?.getBoundingClientRect(); return r && r.width && Math.abs((r.left + r.right) / 2 - mid[0]) < 2 && Math.abs((r.top + r.bottom) / 2 - mid[1]) < 2; }) || "";
+      });
+      hostSteps.push(`${h}@${at}`);
+      const last = (await owner.textContent(".vf-tour-row .vf-btn-primary")) === "Done";
+      await owner.click(".vf-tour-row .vf-btn-primary");
+      await owner.evaluate(() => Promise.all(document.querySelector(".vf-tour-ring").getAnimations().map(a => a.finished.catch(() => null))));
+      if (last) break;
+    }
+    ok("the host's tour rings Share, the Inbox for Needs you, and the round's Send", ["Share the link@.vf-sharebtn", "Needs you@.vf-bell", "Send the round@.vf-round-cur .vf-send"].every(x => hostSteps.includes(x)), hostSteps.join(" | "));
+    ok("  and skips a guest's Discussion and chat steps", !hostSteps.some(x => /^(Discussion|Chat with people)@/.test(x)), hostSteps.join(" | "));
 
     // animation-audit I4: once the round is sent, the current step's dot breathes a few times and stops (WCAG 2.2.2:
     // no auto-playing motion past 5 s beside other content).

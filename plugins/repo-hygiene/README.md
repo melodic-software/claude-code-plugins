@@ -78,15 +78,18 @@ ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.s
 - **Any git-tracked file is off-limits** to selective deletion; a tracked file
   deleted by reparse-point (junction/symlink) traversal during a `tree` clean is
   auto-restored from the index.
-- **Session-scoped destructive guard.** While the skill is active, a PreToolUse
-  hook blocks bare `rm -rf`, `git clean -f*`, `git reset --hard`,
+- **Session-scoped destructive guard.** While a mutating clean run is open (a
+  per-session run marker under the plugin data directory, written by the
+  mutating tiers and never by `scan` or `scan-batch`, cleared when the run ends,
+  with an idle timeout as a fallback), a PreToolUse hook blocks bare `rm -rf`, `git clean -f*`, `git reset --hard`,
   `git checkout --`, recursive `Remove-Item`, bare `git branch -D`/`-d`/`--delete`,
   `git push --delete` and `git push origin :ref` (also `+:ref`), the clean scripts when the
   command contains `--apply`, and `git worktree remove` with a force flag. A
   dry-run (including a dry-run push) is not blocked. The confirmed command runs
   only through the skill's own gate, and the ack-prefixed spelling is the
   documented way to run a bare `git branch -D` during a clean session. The guard
-  is a best-effort net over command text, not a security boundary. The skill deletes local
+  is a best-effort net over command words, not a security boundary; on the Bash tool destructive
+  text inside one quoted argument does not match. The skill deletes local
   branches with `git-branch-delete.sh` after the confirmation gate, which uses
   `git update-ref -d` and so does not go through the branch patterns. Kill switch: the `clean_destructive_guard_enabled`
   userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`, or

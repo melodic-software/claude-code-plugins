@@ -55,8 +55,11 @@ async function main() {
 
     // ---------- a question's Ask Claude form: the same ----------
     await ann.waitForTimeout(1200);
+    const aria = await ann.evaluate(() => { const b = document.querySelector(".vf-askbtn"); return { pop: b.getAttribute("aria-haspopup"), ctl: b.getAttribute("aria-controls"), form: document.querySelector(".vf-askform").id, chev: !!b.querySelector(".vf-chev") }; });
+    ok("the question's Ask Claude button claims no menu: it controls the ask form, with no chevron (B4)", aria.pop === null && aria.ctl === aria.form && !!aria.form && !aria.chev, JSON.stringify(aria));
     await ann.click(".vf-askbtn");
     await until(ann, () => !document.querySelector(".vf-askform").hidden);
+    ok("pressing it opens the form and says so", (await ann.getAttribute(".vf-askbtn", "aria-expanded")) === "true");
     const form = await ann.evaluate(() => {
       const shown = sel => [...document.querySelectorAll(sel)].filter(e => e.getClientRects().length && !e.closest("[hidden]"));
       return { seg: shown(".vf-askform .vf-seg-btn").filter(b => !b.closest(".vf-aud")).map(b => b.textContent), chip: shown(".vf-askform .vf-webchip").map(b => b.textContent) };

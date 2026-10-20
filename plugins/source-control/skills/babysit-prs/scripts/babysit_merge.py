@@ -94,7 +94,9 @@ Contract enforced here (encoded as code, not convention):
   enqueued at its pinned head after a second kill-switch read, an armed
   auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment, unless
   the base changed a `merge.check-inputs` path since its merge base, when its
-  branch is updated from the base (`update-branch`) instead; a later run that reads the queued entry back as merged at that head
+  branch is updated from the base (`update-branch`) instead, or, for a
+  shared-copy canonical it carries, it gets the human-gated role label and one
+  upserted `<!-- babysit-merge-shared-copy-escalation -->` comment; a later run that reads the queued entry back as merged at that head
   dispatches the full run. It refuses `--allow-dependency`, `--auto`,
   `--allow-unpinned-head`, `--stacked-prs` and `--allow-unprotected`. Absent
   the flag the gate is unchanged, except that plain `--merge` refuses at exit 10 when the token's
@@ -151,6 +153,7 @@ import babysit_review_evidence as review_evidence
 import babysit_risk
 import babysit_run_cache as run_cache
 import babysit_verify_evidence as verify_evidence
+import babysit_whole_review as whole_review
 import babysit_repo_config as repo_policy
 from babysit_state import resolve_state_dir, state_lock, write_state
 from babysit_checks import check_identity_key, classify_checks
@@ -2739,7 +2742,7 @@ def queued_entry_hold(
 
 # --- The unattended path ------------------------------------------------------------------------
 
-RISK_MARKER = "<!-- babysit-merge-risk -->"
+RISK_MARKER = whole_review.RISK_MARKER
 # Appended to the reasons comment when its refusal persisted: the rewrite
 # stamps the comment beside the label it explains, which the head-moved
 # clear (clear-escalations.mjs) needs to pair them.
@@ -2752,6 +2755,8 @@ VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
 VERIFY_SUMMARY_MAX = 1500
 QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
+# Cleared by clear-escalations.mjs once the head moves, like the verify one.
+SHARED_COPY_ESCALATION_MARKER = "<!-- babysit-merge-shared-copy-escalation -->"
 # The attended queue's escalation marker (work-items reference
 # escalation-marker.md): first line of the held-major comment, so
 # /work-items:attend-queue lists the pull request as escalated.
@@ -3065,6 +3070,9 @@ def score_unattended(
             for lane in lanes
         ],
     }
+    # Every other gate passed and only findings a clean whole review of the
+    # head would close hold it (babysit_whole_review.py).
+    details["wholeReviewWanted"] = whole_review.wanted(policy.reason, risk, lanes)
     inputs.update(risk=risk, comments=comments)
     reason = policy.reason or (
         None if risk.score is babysit_risk.Risk.LOW else f"risk:{risk.score.name}"
@@ -3330,6 +3338,31 @@ def major_escalation_body(majors: str, head: str) -> str:
             "holds those Dependabot updates for a human "
             "(`merge.dependabot.majors: hold`), whatever the review verdict "
             "says; the pr-merge lane will not merge this pull request.",
+        ]
+    )
+
+
+def shared_copy_escalation_body(
+    reason: str, sources: list[str], branch: str, merge_base: str, head: str
+) -> str:
+    """The needs-human comment for a pull request whose carried shared-copy
+    canonicals changed on the base: a function of its arguments only, so a
+    rerun at the same head renders the same body."""
+    names = ", ".join(f"`{s.replace('`', "'")}`" for s in sources)
+    return "\n".join(
+        [
+            SHARED_COPY_ESCALATION_MARKER,
+            f"Unattended merge: the shared-library canonical source {names} changed "
+            f"on `{branch}` since merge base `{merge_base}`, so the generated "
+            f"copies this pull request carries are stale at head `{head}`.",
+            "",
+            f"Refusal: `{reason}`",
+            "",
+            "Updating the branch from the base cannot regenerate them, so the "
+            "pr-merge lane will not enqueue it. To fix: merge "
+            f"`{branch}` into this branch, run `scripts/sync-shared-copies.sh`, "
+            "commit the regenerated copies, and push. pr-merge judges the new "
+            "head afresh.",
         ]
     )
 
@@ -3628,6 +3661,9 @@ def unattended_writes(
                 else merge_policy.RISK_ESCALATION_MINUTES
             )
             prior = _newest_marker_comment(comments, identity, RISK_MARKER)
+            body, report["wholeReview"] = _whole_review_record(
+                repo, policy, body, head, prior
+            )
             escalated = f"{body}\n\n{RISK_ESCALATION_LINE}"
             if prior is not None and (
                 str(prior.get("body") or "") == escalated
@@ -3643,8 +3679,14 @@ def unattended_writes(
                 report["riskComment"] = upsert_marker_comment(
                     repo, number, identity, body, comments
                 )
+            # Recorded first, so a failed write never toggles twice at a head.
+            if report["wholeReview"] == {"toggle": True}:
+                node_id = str(json_object(inputs.get("pr")).get("node_id") or "")
+                report["wholeReview"] = whole_review.toggle(node_id)
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"reasons comment: {exc}")
+        if report.get("wholeReview") is None:
+            report.pop("wholeReview", None)
     # A LOW score ends the refusal at this head: the identity's refusal
     # comment naming it says so once, from comments already read. An
     # escalated one stays beside the label it explains.
@@ -3652,7 +3694,10 @@ def unattended_writes(
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         prior = _newest_marker_comment(inputs["comments"], identity, RISK_MARKER)
         text = str((prior or {}).get("body") or "")
-        cleared = risk_cleared_body(head)
+        # Every whole-review record stays, so the cap counts across heads.
+        cleared = whole_review.with_records(
+            risk_cleared_body(head), whole_review.record_lines(text)
+        )
         if (
             prior is not None
             and f" at head `{head}`" in text
@@ -3700,6 +3745,53 @@ def unattended_writes(
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"major escalation: {exc}")
     return report
+
+
+def _whole_review_record(
+    repo: str,
+    policy: merge_policy.UnattendedPolicy,
+    body: str,
+    head: str,
+    prior: dict[str, Any] | None,
+) -> tuple[str, dict[str, Any] | None]:
+    """The reasons comment body with every whole-review record line the
+    prior comment holds, and the request: `{"toggle": True}` when this run
+    records a new one. A lane pull request scored `wholeReviewWanted` whose
+    comment is not escalated, with no record at this head and fewer than
+    `MAX_TOGGLES` in all (record lines and the identity's conversions to
+    draft on the timeline), is recorded when this sweep's limits allow it."""
+    text = str((prior or {}).get("body") or "")
+    lines = whole_review.record_lines(text)
+    kept = whole_review.with_records(body, lines)
+    if whole_review.recorded(text, head):
+        return kept, None
+    inputs = policy.inputs or {}
+    pr = json_object(inputs.get("pr"))
+    user = json_object(pr.get("user"))
+    author = merge_policy.actor_key(
+        {"__typename": user.get("type"), "login": user.get("login")}
+    )
+    if (
+        (policy.details or {}).get("wholeReviewWanted") is not True
+        or author != str(inputs.get("identity") or "").casefold()
+        or text.endswith(RISK_ESCALATION_LINE)
+    ):
+        return kept, None
+    if len(lines) >= whole_review.MAX_TOGGLES:
+        return kept, {"toggled": False, "skipped": f"toggle-cap:{len(lines)}"}
+    # The timeline, not the comment the lane token can edit, holds the count.
+    toggled = whole_review.lane_toggles(
+        str(pr.get("node_id") or ""), str(inputs.get("identity") or "")
+    )
+    if toggled is None:
+        return kept, {"toggled": False, "skipped": "toggle-cap:unread"}
+    if toggled >= whole_review.MAX_TOGGLES:
+        return kept, {"toggled": False, "skipped": f"toggle-cap:{toggled}"}
+    refusal = whole_review.limits(repo)
+    if refusal is not None:
+        return kept, {"toggled": False, "skipped": refusal}
+    line = whole_review.record_line(head, _now())
+    return whole_review.with_records(body, [*lines, line]), {"toggle": True}
 
 
 def _identity_queue_entries(
@@ -3894,25 +3986,64 @@ def unattended_enqueue(
     # what the checks read since the merge base, the branch is updated from
     # the base instead; a later run enqueues the new head once its checks
     # pass. A Dependabot head is not written (its own rebases stop), and a
-    # doubtful read or refused update enqueues as before.
+    # doubtful read or an update the API refused (4xx) enqueues as before. An
+    # update with no answer (a timeout, no status, a server error) may have
+    # landed, so the old head is held rather than pinned.
     inputs_read = check_inputs.changed_since_merge_base(
         inputs["config"].check_inputs, pin, branch
     )
     step["checkInputs"] = inputs_read
-    if inputs_read["state"] == "stale" and eligible_dependabot is None:
-        proc = gh_capture(
-            ["api", "-X", "PUT", f"repos/{repo}/pulls/{number}/update-branch"]
-            + ["-f", f"expected_head_sha={pin}"]
+    # Updating merges the base's canonical but not the copies the pull request
+    # generated from its own, so the drift check fails until they are
+    # regenerated: refused, with the fix named, instead of updated.
+    # No lane acts on the refusal, so it is escalated to a person.
+    if sources := inputs_read.get("regenerate"):
+        reason = (
+            f"shared-copy-sources-changed:{','.join(sources)} "
+            f"changed on {branch} since merge base {inputs_read['mergeBase']}; "
+            f"merge {branch} and run scripts/sync-shared-copies.sh, then the new "
+            "head is enqueued once its checks pass"
         )
-        inputs_read["updated"] = proc.returncode == 0
-        if proc.returncode == 0:
-            return hold(
-                f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
-                f"{branch} since merge base {inputs_read['mergeBase']}; the branch "
-                "was updated from the base, so the new head is enqueued once its "
-                "checks pass"
+        body = shared_copy_escalation_body(
+            reason, sources, branch, str(inputs_read["mergeBase"]), pin
+        )
+        try:
+            step["escalation"] = escalate(
+                repo, number, identity, body, SHARED_COPY_ESCALATION_MARKER, inputs
             )
-        inputs_read["updateError"] = update_error(proc)
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            step["escalationError"] = str(exc)
+        return hold(reason)
+    if inputs_read["state"] == "stale" and eligible_dependabot is None:
+        stale = (
+            f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
+            f"{branch} since merge base {inputs_read['mergeBase']}"
+        )
+        try:
+            proc = gh_capture(
+                ["api", "-X", "PUT", f"repos/{repo}/pulls/{number}/update-branch"]
+                + ["-f", f"expected_head_sha={pin}"]
+            )
+        except (RuntimeError, ValueError, OSError) as exc:
+            proc = None
+            inputs_read["updateError"] = {"status": None, "message": str(exc)[:500]}
+        if proc is not None and proc.returncode == 0:
+            inputs_read["updated"] = True
+            return hold(
+                f"{stale}; the branch was updated from the base, so the new head "
+                "is enqueued once its checks pass"
+            )
+        if proc is not None:
+            inputs_read["updateError"] = update_error(proc)
+        status = inputs_read["updateError"]["status"]
+        if status is None or not 400 <= status < 500:
+            inputs_read["updated"] = None
+            return hold(
+                f"{stale}; the update from the base got no answer "
+                f"({status or 'no status'}) and may have landed, so this head "
+                "is not enqueued"
+            )
+        inputs_read["updated"] = False
     proc = gh_capture(
         ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
         + ["-f", f"body={postmerge.pin_comment(pin)}"]
