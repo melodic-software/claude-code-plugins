@@ -514,12 +514,13 @@ full execution file is not uploaded: it holds head text and tool output.
 ### In-run tidy
 
 A `mutate-branch` skill with `tidy` tidies its own diff before its review, so the PR reaches review
-already tidied. `resolve-issue` sets it: `simplify` (bundled with Claude Code) and
-`code-tidying:dissolve-comments safe --added-since HEAD` on changed code, then
+already tidied. `resolve-issue` sets it: `code-tidying:dissolve-comments safe --added-since HEAD`
+on changed code, then
 `docs-hygiene:audit-noise` and `ai-slop:audit fix` on changed markdown. `collect-base-activity`:
 
 - allows `Skill(<pass>)` for each listed pass and no other skill, and installs each pass's plugin
-  from the base marketplace copy (a bare name is bundled, so nothing is installed);
+  from the base marketplace copy; a pass must be `<plugin>:<skill>`, since a bare `Skill(<name>)`
+  rule also matches a project skill of that name, which the run can write;
 - copies the base `scripts/tidy-route.sh` and the pass list to `$RUNNER_TEMP/lane-tidy`, makes the
   copy read-only, denies `Edit` and `Write` on it, and allows one wrapper there with no arguments,
   which runs the copy in the checkout with the cutoff and the pass list fixed, `GH_TOKEN` and
@@ -563,10 +564,7 @@ so `dissolve-comments`, `audit-noise` and `ai-slop:audit`, whose pre-compute lin
 `grep`, `head` or `echo`, do not load; the run names each and moves on, and the run record's
 `denied` list shows which commands were refused. A live-config test fails when any rule a pass's
 `allowed-tools` grant is neither matched by a deny in `tidy-pass-grants.json` nor in its reviewed
-`allow` list; the bundled `simplify` is not in the checkout, so the file's `bundled` entry records
-its grants (none in Claude Code 2.1.304's registration). `Skill(simplify)` is the lane's one bare-name skill rule;
-whether `--setting-sources user` keeps a `simplify` skill the run writes under `.claude/skills/`
-from matching it is not yet observed. A pre-compute line that does run executes a base
+`allow` list. A pre-compute line that does run executes a base
 copy of the pass's plugin in the checkout, the power the issue lane's `run-test-file.sh` already
 gives the run.
 

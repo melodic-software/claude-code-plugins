@@ -508,8 +508,8 @@
                 "properties": {
                   "skill": {
                     "type": "string",
-                    "pattern": "^[a-z0-9-]+(:[a-z0-9-]+)?$",
-                    "description": "<plugin>:<skill> from this marketplace, or a bare name for a skill bundled with Claude Code."
+                    "pattern": "^[a-z0-9-]+:[a-z0-9-]+$",
+                    "description": "<plugin>:<skill> from this marketplace. A bare name is refused: its Skill rule would also match a project skill the run writes."
                   },
                   "args": {
                     "type": "string",

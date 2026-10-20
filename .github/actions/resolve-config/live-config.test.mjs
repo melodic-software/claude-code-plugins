@@ -330,13 +330,12 @@ test("live config: resolve-issue reads official docs hosts only; review-dependen
 // own diff with these passes, in this order; no other activity tidies. FACTS
 // sizes the issue small and low complexity, a 75-turn cap, so a 0.2 share is
 // 15 turns.
-test("live config: resolve-issue tidies its diff with the four passes in order; no other activity tidies", () => {
+test("live config: resolve-issue tidies its diff with the three passes in order; no other activity tidies", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE).tidy, {
     "max-changed-lines": 150,
     "turn-share": 0.2,
     turns: 15,
     passes: [
-      { skill: "simplify", files: "code" },
       { skill: "code-tidying:dissolve-comments", args: "safe --added-since HEAD", files: "code" },
       { skill: "docs-hygiene:audit-noise", files: "markdown" },
       { skill: "ai-slop:audit", args: "fix", files: "markdown" },
@@ -352,8 +351,7 @@ test("live config: resolve-issue tidies its diff with the four passes in order; 
 // commands would run beside the lane's GitHub token, so every rule a tidy pass
 // grants must be reviewed into tidy-pass-grants.json's allow list or matched by
 // one of its deny rules, which the write runner adds and which beat any allow
-// (code.claude.com/docs/en/permissions, "Manage permissions"). A bundled skill
-// has no SKILL.md here; its grants are recorded in the same file.
+// (code.claude.com/docs/en/permissions, "Manage permissions").
 const GRANTS = json("../collect-base-activity/tidy-pass-grants.json");
 const ruleRegex = (rule) => {
   const body = rule.replace(/:\*\)$/, " *)");
@@ -367,10 +365,6 @@ const ruleRegex = (rule) => {
 const sampleCall = (rule, dir) =>
   rule.replaceAll("${CLAUDE_SKILL_DIR}", dir).replace(/(:\*| \*)\)$/, " --sample)").replaceAll("*", "x");
 function passGrants(skill) {
-  if (!skill.includes(":")) {
-    assert.ok(Object.hasOwn(GRANTS.bundled, skill), `${skill}: a bundled pass needs its grants recorded`);
-    return GRANTS.bundled[skill];
-  }
   const [plugin, name] = skill.split(":");
   const body = readFileSync(new URL(`../../../plugins/${plugin}/skills/${name}/SKILL.md`, import.meta.url), "utf8");
   const tools = parse(/^---\n([\s\S]*?)\n---/.exec(body)[1])["allowed-tools"] ?? [];

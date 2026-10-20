@@ -219,8 +219,8 @@ activities:
       enabled: true
       domains: [code.claude.com, platform.claude.com, docs.anthropic.com, docs.github.com, nodejs.org, docs.python.org]
     # Tidies the run's own diff before the review: after the checks pass,
-    # simplify and dissolve-comments run on the changed code (dissolve-comments
-    # on added lines only), audit-noise and ai-slop on the changed markdown,
+    # dissolve-comments runs on the changed code's added lines, audit-noise
+    # and ai-slop on the changed markdown,
     # then the checks run again and the run commits. A diff over
     # max-changed-lines added plus deleted lines, or touching more than one
     # area (one plugin, or one top-level directory), skips it for now. Both
@@ -231,8 +231,6 @@ activities:
       max-changed-lines: 150
       turn-share: 0.2
       passes:
-        - skill: simplify
-          files: code
         - skill: code-tidying:dissolve-comments
           args: safe --added-since HEAD
           files: code

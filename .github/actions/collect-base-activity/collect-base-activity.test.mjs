@@ -1190,11 +1190,10 @@ test("prepare: ci-context with applied-by.patch keeps the ci-context tool set", 
 });
 
 // pr-run-activity.md, "In-run tidy": the runner allows exactly the listed tidy
-// skills, installs their plugins (a bare name is bundled, so nothing), and
+// skills, installs their plugins, and
 // gives the skill the routing tool as a no-argument wrapper over a read-only
 // base copy, with the cutoff and pass list fixed and the GitHub token unset.
 const TIDY_PASSES = [
-  { skill: "simplify", files: "code" },
   { skill: "code-tidying:dissolve-comments", args: "safe --added-since HEAD", files: "code" },
   { skill: "ai-slop:audit", args: "fix", files: "markdown" },
   { skill: "work-items:work", files: "markdown" },
@@ -1227,7 +1226,7 @@ test("tidy allows exactly the listed skills, installs their plugins once, and gr
   assert.equal(status, 0);
   assert.deepEqual(
     allowed.filter((rule) => rule.startsWith("Skill(")),
-    ["Skill(work-items:work)", "Skill(simplify)", "Skill(code-tidying:dissolve-comments)", "Skill(ai-slop:audit)", "Skill(work-items:work)"],
+    ["Skill(work-items:work)", "Skill(code-tidying:dissolve-comments)", "Skill(ai-slop:audit)", "Skill(work-items:work)"],
   );
   assert.deepEqual(plugins, ["work-items@melodic-software", "code-tidying@melodic-software", "ai-slop@melodic-software"]);
   assert.deepEqual(wrapperRules(allowed), [`Bash(${router})`]);
@@ -1246,7 +1245,7 @@ test("tidy allows exactly the listed skills, installs their plugins once, and gr
   assert.equal(
     run.stdout,
     `pwd=${workspace} gh=unset args=--max-changed-lines 150 --passes ${path.join(tidyDir, "passes.tsv")}\n` +
-      "code\tsimplify\t\ncode\tcode-tidying:dissolve-comments\tsafe --added-since HEAD\nmarkdown\tai-slop:audit\tfix\nmarkdown\twork-items:work\t\n",
+      "code\tcode-tidying:dissolve-comments\tsafe --added-since HEAD\nmarkdown\tai-slop:audit\tfix\nmarkdown\twork-items:work\t\n",
   );
 });
 
@@ -1271,9 +1270,11 @@ test("a read skill gets no tidy grant", () => {
 for (const pass of [
   { skill: "Simplify", files: "code" },
   { skill: "a:b:c", files: "code" },
-  { skill: "simplify", files: "tree" },
-  { skill: "simplify", args: "x;y", files: "code" },
-  { skill: "simplify),Bash(*", files: "code" },
+  { skill: "ai-slop:audit", files: "tree" },
+  { skill: "ai-slop:audit", args: "x;y", files: "code" },
+  { skill: "ai-slop:audit),Bash(*", files: "code" },
+  // A bare name matches any skill of that name, one the run writes included.
+  { skill: "simplify", files: "code" },
 ]) {
   test(`a malformed tidy pass fails red: ${JSON.stringify(pass)}`, () => {
     const { status, stdout, args } = withTidy({ "max-changed-lines": 150, turns: 15, passes: [pass] });
@@ -1299,10 +1300,20 @@ for (const [name, run] of [
   ["web-access any", () => withWebAccess({ enabled: true, domains: "any" })],
   ["web-access with a domain list", () => withWebAccess({ enabled: true, domains: ["code.claude.com"] })],
   ["a read skill that hands on a patch", () => withAppliedBy({ patch: "apply-patch" })],
+  ["tidy", () => withTidy({ "max-changed-lines": 150, turns: 15, passes: TIDY_PASSES })],
 ]) {
   test(`a write lane denies every shell read command and Read of /proc: ${name}`, () => {
     const { status, denied } = run();
     assert.equal(status, 0);
     for (const rule of SHELL_DENIED) assert.ok(denied.includes(rule), `${rule} in ${denied.join(" | ")}`);
+  });
+  // A bare Skill(name) rule matches a project skill of that name, which the
+  // run can write; a plugin:skill rule only matches that plugin's skill.
+  test(`a write lane allows only plugin-qualified skills: ${name}`, () => {
+    const { status, allowed } = run();
+    assert.equal(status, 0);
+    const skills = allowed.filter((rule) => rule.startsWith("Skill("));
+    assert.ok(skills.length > 0, allowed.join(" | "));
+    for (const rule of skills) assert.match(rule, /^Skill\([a-z0-9-]+:[a-z0-9-]+\)$/);
   });
 }

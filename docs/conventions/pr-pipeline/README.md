@@ -340,8 +340,8 @@ Each leaf declares:
   those domains, and run the research skills, wherever the runner gives it its edit tools
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). An activity that turns it on must
   set `reads-untrusted: true`.
-- `tidy` (optional, `skill` only, `mutate-branch` only): `passes`, each a `skill` (`<plugin>:<skill>`,
-  or a bare name for a skill bundled with Claude Code), optional `args` and `files` (`code` or
+- `tidy` (optional, `skill` only, `mutate-branch` only): `passes`, each a `skill` (`<plugin>:<skill>`;
+  a bare name is refused), optional `args` and `files` (`code` or
   `markdown`), run in order on the activity's own diff after its checks pass;
   `max-changed-lines` (default 150) and `turn-share` (default 0.2). The write runner allows exactly
   these skills and gives the run a routing tool that skips the passes for a diff over the cutoff

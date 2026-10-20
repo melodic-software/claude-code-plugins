@@ -431,15 +431,14 @@ runs:
               mkdir -p "$TIDY_DIR/bin"
               cp "$BASE_PATH/scripts/tidy-route.sh" "$TIDY_DIR/tidy-route.sh"
               jq -r '.selected.tidy.passes[] | [.files, .skill, (.args // "")] | @tsv' "$RESOLVED" >"$TIDY_DIR/passes.tsv"
-              pass_shape='^[a-z0-9-]+(:[a-z0-9-]+)?$'
+              # A bare Skill(name) rule also matches a project skill of that
+              # name, which the run can write, so a pass is <plugin>:<skill>.
+              pass_shape='^[a-z0-9-]+:[a-z0-9-]+$'
               args_shape='^[A-Za-z0-9 _.=-]*$'
               while IFS=$'\t' read -r files pass pass_args; do
                 [[ $files =~ ^(code|markdown)$ && $pass =~ $pass_shape && $pass_args =~ $args_shape ]] || fail "tidy: a pass is malformed"
                 allowed="$allowed,Skill($pass)"
-                # A bare name is a skill bundled with Claude Code: nothing to install.
-                if [[ $pass == *:* ]]; then
-                  plugins="$plugins"$'\n'"${pass%%:*}@$marketplace"
-                fi
+                plugins="$plugins"$'\n'"${pass%%:*}@$marketplace"
               done <"$TIDY_DIR/passes.tsv"
               router="$TIDY_DIR/bin/tidy-route"
               {

@@ -1,8 +1,5 @@
 {
   "allow": [],
-  "bundled": {
-    "simplify": []
-  },
   "deny": [
     "Bash(git *)",
     "Bash(echo *)",

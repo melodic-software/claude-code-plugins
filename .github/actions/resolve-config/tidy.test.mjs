@@ -47,7 +47,6 @@ const rejected = (fixDocs, activity) =>
   );
 
 const PASSES = [
-  { skill: "simplify", files: "code" },
   { skill: "code-tidying:dissolve-comments", args: "safe --added-since HEAD", files: "code" },
   { skill: "ai-slop:audit", args: "fix", files: "markdown" },
 ];
@@ -87,12 +86,13 @@ for (const [name, tidy] of [
   ["a zero cutoff", { "max-changed-lines": 0, passes: PASSES }],
   ["a zero share", { "turn-share": 0, passes: PASSES }],
   ["a share over half", { "turn-share": 0.6, passes: PASSES }],
-  ["a pass on another file kind", { passes: [{ skill: "simplify", files: "tree" }] }],
-  ["a pass with no file kind", { passes: [{ skill: "simplify" }] }],
+  ["a pass on another file kind", { passes: [{ skill: "ai-slop:audit", files: "tree" }] }],
+  ["a pass with no file kind", { passes: [{ skill: "ai-slop:audit" }] }],
   ["a capitalized skill", { passes: [{ skill: "Simplify", files: "code" }] }],
   ["a three-part skill", { passes: [{ skill: "a:b:c", files: "code" }] }],
-  ["shell characters in args", { passes: [{ skill: "simplify", args: "x; y", files: "code" }] }],
-  ["an unknown pass key", { passes: [{ skill: "simplify", files: "code", when: "always" }] }],
+  ["a bare skill name", { passes: [{ skill: "simplify", files: "code" }] }],
+  ["shell characters in args", { passes: [{ skill: "ai-slop:audit", args: "x; y", files: "code" }] }],
+  ["an unknown pass key", { passes: [{ skill: "ai-slop:audit", files: "code", when: "always" }] }],
 ]) {
   test(`tidy with ${name} fails the schema`, () => {
     rejected({ tidy });
