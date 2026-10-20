@@ -559,8 +559,6 @@ unresolvable "merge inside backticks, assigned" 'x=`gh pr merge 42 -R o/r`'
 unresolvable "single-quoted body with a backtick" 'gh pr merge 42 -R acme/widgets --squash --body '"'"'see `notes.md`'"'"''
 assert_contains "single-quoted backtick -> names --body-file" "$ERR" "--body-file"
 unresolvable "escaped backtick" 'gh pr merge 42 -R acme/widgets --squash --body "see \`notes\`"'
-# The pre-filter matches any command naming merge, so this one is refused too.
-unresolvable "backtick in git merge-base" 'git merge-base HEAD `git rev-parse origin/main`'
 # Only one merge per command can be checked, so a second one is refused.
 multi() { # <label> <command>
   unresolvable "$1" "$2"
@@ -571,7 +569,11 @@ multi "two literal merges with ;" 'gh pr merge 1 -R acme/widgets; gh pr merge 2 
 multi "a literal merge, then a variable merge" 'gh pr merge 1 -R acme/widgets && gh pr merge $n -R acme/widgets'
 multi "gh pr merge, then a REST merge" 'gh pr merge 1 -R acme/widgets && gh api -X PUT repos/acme/widgets/pulls/2/merge'
 
-# MUST stay quiet: --disable-auto is not a merge.
+# MUST stay quiet: --disable-auto is not a merge, and a backtick refuses only
+# in merge-shaped text, so commit messages that mention merge pass.
+quiet "backtick in git merge-base" 'git merge-base HEAD `git rev-parse origin/main`'
+quiet "heredoc commit mentioning merge in backticks" $'git commit -F - <<\'EOF\'\nfix(guardrails): tighten the `merge` path\n\nThe `merge` guard reads `pulls/`.\nEOF'
+quiet "commit -m mentioning merge in backticks" 'git commit -m "fix the merge path in `foo.sh`"'
 quiet "--disable-auto, then gh pr view" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr view 42'
 scenario none none green green
 run "--disable-auto, then one merge" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr merge 42 -R acme/widgets --squash' 0

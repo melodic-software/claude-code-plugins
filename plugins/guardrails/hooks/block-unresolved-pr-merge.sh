@@ -48,8 +48,10 @@
 # a `gh pr merge` with no selector whose current branch cannot be read or has
 # no open PR, or one whose `-R` value is missing, is blocked with the literal
 # form to use (`gh pr merge <number> -R owner/repo`); otherwise any `$R` or
-# `$n` would skip the check. On the Bash tool, any command that names `merge`
-# or `enqueue` and holds a backtick anywhere is blocked before it is parsed: the
+# `$n` would skip the check. On the Bash tool, a command whose text is merge-
+# shaped (`pr merge`, `pr -R x merge`, a `pulls/.../merge` or `auto_merge`
+# route, a merge mutation name) and holds a backtick anywhere is blocked before
+# it is parsed: the
 # tokenizer splits a backtick substitution off, so the target it reads need not
 # be the one the shell runs (`5`echo 0`` reads #5, merges #50), and a merge
 # written inside the backticks would be hidden. Quoting is not judged (a comment
@@ -76,7 +78,9 @@
 # inside `$(...)`; a GraphQL mutation read from a file (`--input`), whose name
 # never appears in the command; past 100 reviews or check runs the rest are
 # not read; more than 100 review threads with none unresolved in the first 100
-# is reported as unchecked;
+# is reported as unchecked; the backtick refusal keys on merge-shaped text, so
+# an obfuscated spelling (`g""h pr merge`, `pr mer"ge"`) with a backtick is
+# parsed as usual (#8657);
 # a cancelled run `<name>` is cleared by a newer successful `<name> (...)` run
 # of the same app in another check suite even when that run belongs to an unrelated
 # workflow, which the check-runs payload cannot tell apart from a matrix leg;
@@ -412,9 +416,10 @@ else
   # Cheap pre-filter: every matched path names `merge` or `enqueue`.
   _bupm_lc="${COMMAND,,}"
   [[ "$_bupm_lc" == *merge* || "$_bupm_lc" == *enqueue* ]] || exit 0
-  # Any backtick is refused below without parsing; in PowerShell a backtick
-  # is the escape character, not a substitution.
-  if [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *'`'* ]]; then
+  # A backtick in merge-shaped text is refused below without parsing; in
+  # PowerShell a backtick is the escape character, not a substitution.
+  _bupm_shape_re='(^|[^a-z0-9_-])pr[[:space:]]+((-r|--repo)[=[:space:]]*[^[:space:]]+[[:space:]]+)*merge|pulls/.*merge|mergepullrequest|enqueuepullrequest|enablepullrequestautomerge'
+  if [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *'`'* && "$_bupm_lc" =~ $_bupm_shape_re ]]; then
     BUPM_BT=1
     BUPM_FORM=backtick
   else
