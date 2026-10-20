@@ -104,14 +104,16 @@ test("done opens a PR whose body starts with Closes #N", () => {
   assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
 });
 
-// A recorded keep-Refs decision (#7741): the PR links without closing, and a
-// human merges it because the merge gate finds no closing issue to read.
-test('done with "link": "refs" opens a PR that starts Refs: #N and carries the hold line', () => {
+// A recorded keep-Refs decision (#7741): the PR links without closing. The
+// merge gate finds no closing issue to read, so it never merges it; Refs alone
+// adds no hold line.
+test('done with "link": "refs" opens a PR that starts Refs: #N and carries no hold line', () => {
   withDir({ "work-outcome.json": JSON.stringify({ ...done, link: "refs" }) }, (dir) => {
     const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
     assert.ok(plan.body.startsWith("Refs: #77\n"), plan.body);
     assert.ok(!plan.body.includes("Closes #77"), plan.body);
-    assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
+    assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+    assert.equal(plan.refsHold, "needs-human");
   });
 });
 
@@ -171,6 +173,11 @@ test("the closing-keyword check corrects a body that does not name the admitted 
 
 test("the closing-keyword check rejects a Refs body that closes the admitted issue", () => {
   assert.throws(() => checkClosingKeywords("Refs: #77\n\nCloses #77", { ...LINKED, link: "refs" }), /Refs/);
+});
+
+test("a Refs PR with a trusted merge: human label still carries the hold line", () => {
+  const plan = decideDone({ outcome: { ...done, link: "refs" }, humanMerge: true });
+  assert.ok(plan.body.startsWith("Refs: #77\n\nHold: a human merges this\n"), plan.body);
 });
 
 test("an unknown link value still closes the issue", () => {
@@ -591,9 +598,14 @@ test("an issue title carrying an issue reference or URL loses it", () => {
   );
 });
 
-test("a diff the compare listing may have cut short carries the hold line", () => {
+test("a diff the compare listing may have cut short carries the hold line while a path is denied", () => {
   const files = Array.from({ length: 300 }, (_, i) => `docs/f${i}.md`);
   assert.ok(decideDone({ changedFiles: files }).body.split("\n").includes("Hold: a human merges this"));
+});
+
+test("with no denied path a diff at the compare cap carries no hold line, since the cut can hide nothing", () => {
+  const files = Array.from({ length: 300 }, (_, i) => `docs/f${i}.md`);
+  assert.ok(!decideDone({ changedFiles: files, holdPaths: [] }).body.includes("Hold: a human merges this"));
 });
 
 test("done with no branch is stopped, since nothing was committed", () => {
