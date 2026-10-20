@@ -56,7 +56,11 @@
 # be the one the shell runs (`5`echo 0`` reads #5, merges #50), and a merge
 # written inside the backticks would be hidden. Quoting is not judged (a comment
 # or heredoc apostrophe would fool a quote tracker), so a backtick in a quoted
-# --body is refused too; pass such a body with --body-file. A command holding
+# --body is refused too; pass such a body with --body-file. Likewise a
+# `pr merge` or REST merge route continued with a backslash-newline is blocked:
+# bash joins a continuation except in a comment, a quoted heredoc or after an
+# escaped backslash, so the command is never rewritten, and only the pre-filter
+# reads a joined copy. A command holding
 # more than one merge is blocked as well, so each merge runs, and is checked,
 # as its own command. ALSO FAILS CLOSED: a GraphQL merge,
 # auto-merge or merge-queue mutation whose PR cannot be resolved (an id from a
@@ -425,11 +429,13 @@ else
   # without parsing; in PowerShell a backtick is the escape character, not a
   # substitution, and a backslash is not a continuation.
   # shellcheck disable=SC2016  # the backticks are literal regex text
-  _bupm_shape_re='(^|[^a-z0-9_-])pr[[:space:]]+((-r|--repo)[=[:space:]]*[^[:space:]]+[[:space:]]+)*merge|pulls/([^/[:space:]`]|`[^`]*`)+/(ccr/auto_)?merge|mergepullrequest|enqueuepullrequest|enablepullrequestautomerge'
+  _bupm_cli_re='(^|[^a-z0-9_-])pr[[:space:]]+((-r|--repo)[=[:space:]]*[^[:space:]]+[[:space:]]+)*merge|pulls/([^/[:space:]`]|`[^`]*`)+/(ccr/auto_)?merge'
+  _bupm_gql_re='mergepullrequest|enqueuepullrequest|enablepullrequestautomerge'
+  _bupm_shape_re="$_bupm_cli_re|$_bupm_gql_re"
   if [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *'`'* && "$_bupm_joined" =~ $_bupm_shape_re ]]; then
     BUPM_BT=1
     BUPM_FORM=backtick
-  elif [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *$'\\\n'* && "$_bupm_joined" =~ ${_bupm_shape_re%%|mergepullrequest*} ]]; then
+  elif [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *$'\\\n'* && "$_bupm_joined" =~ $_bupm_cli_re ]]; then
     # GraphQL keeps the PR in a quoted query the parser reads, and fails closed
     # on anything but a literal node id, so only `pr merge` and the REST route
     # are refused here.

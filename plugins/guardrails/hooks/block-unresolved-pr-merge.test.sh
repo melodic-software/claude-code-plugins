@@ -563,6 +563,8 @@ unresolvable "continuation inside a REST route" $'gh api -X PUT repos/acme/widge
 unresolvable "comment ending in a backslash, merge on the next line" $'# note \\\ngh pr merge 5 -R acme/widgets --admin'
 unresolvable "escaped backslash before the newline, merge on the next line" $'echo x \\\\\ngh pr merge 5 -R acme/widgets'
 unresolvable "quoted heredoc line ending in a backslash, then a merge" $'cat <<\'EOF\'\nfoo\\\nEOF\ngh pr merge 5 -R acme/widgets'
+scenario unresolved none green green
+run "continuation inside a double-quoted GraphQL mutation name" $'gh api graphql -f query="mutation{merge\\\nPullRequest(input:{pullRequestId:\\"PR_kwDOabc\\"}){clientMutationId}}"' 2
 quiet "continuation in a command that is not a merge" $'git commit -m "tidy" \\\n  -m "merge the two helpers"'
 unresolvable "merge inside backticks, echoed" 'echo `gh pr merge 42 -R acme/widgets`'
 unresolvable "merge inside backticks, assigned" 'x=`gh pr merge 42 -R o/r`'
