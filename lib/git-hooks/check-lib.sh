@@ -16,8 +16,17 @@
 #   checks_changed_lines       write "<path><TAB><start><TAB><end>" ranges of
 #                              added lines to $CHECKS_TMP/ranges, none for a
 #                              file whose content is binary
-#   checks_file_text <p> [<rev>]
-#                              <p> as the change holds it, on stdout
+#   checks_file_text [--tip <sha>] <p> [<rev>]
+#                              <p> as the change holds it, on stdout: the
+#                              tip's blob (in pre-push with no tip, the tip of
+#                              the range <p> changed in), else the work tree in
+#                              worktree mode, else the index; returns 1,
+#                              printing nothing, when <p> is not a regular
+#                              file there (deleted, symlink, submodule)
+#   checks_regular_file [--tip <sha>] <p> [<rev>]
+#                              0 when <p> is a regular file in that place;
+#                              --tip names the tip when two pushed ranges
+#                              change the same path
 #   checks_has_nul <p> [<rev>] 0 when that content's first 8000 bytes hold a NUL
 #   checks_filter_findings     stdin "<path>:<line>: <message>" lines; prints
 #                              those inside a changed range
@@ -172,6 +181,74 @@ checks_diff() {
   esac
 }
 
+# checks_range_tip <path>: pre-push; prints the tip of the first pushed range
+# whose base-to-tip diff touches <path>, so a path is read from its own ref.
+checks_range_tip() {
+  local b l
+  while read -r b l; do
+    git diff --quiet "$b" "$l" -- ":(literal)$1" 2>/dev/null && continue
+    printf '%s' "$l"
+    return 0
+  done <"$CHECKS_TMP/push-ranges"
+  return 1
+}
+
+# checks_tip_arg: the shared "[--tip <sha>] <path> [<rev>]" parse; sets tip
+# and path. <rev> is the older spelling of --tip.
+checks_tip_arg() {
+  tip=""
+  if [[ "${1:-}" == --tip ]]; then
+    tip="$2"
+    shift 2
+  fi
+  path="$1"
+  [[ -n "$tip" ]] || tip="${2:-}"
+}
+
+# checks_regular_file [--tip <sha>] <path> [<rev>]: a regular file, not a
+# symlink or a submodule entry, where checks_file_text reads it: the tip's
+# tree, else the work tree in worktree mode, else the index. In pre-push with
+# no tip, the tip of the range that changed <path>, never the work tree.
+checks_regular_file() {
+  local tip path entry
+  checks_tip_arg "$@"
+  if [[ -z "$tip" ]]; then
+    case "$CHECKS_MODE" in
+    worktree)
+      [[ -f "$path" && ! -L "$path" ]]
+      return
+      ;;
+    pre-push) tip="$(checks_range_tip "$path")" || return 1 ;;
+    *)
+      entry="$(git ls-files -s -z -- ":(literal)$path" 2>/dev/null | tr -d '\0')"
+      [[ "$entry" == 100* && "${entry#*$'\t'}" == "$path" ]]
+      return
+      ;;
+    esac
+  fi
+  entry="$(git ls-tree -z "$tip" -- "$path" 2>/dev/null | tr -d '\0')"
+  [[ "$entry" == 100* && "${entry#*$'\t'}" == "$path" ]]
+}
+
+# checks_file_text [--tip <sha>] <path> [<rev>]: the content a check judges,
+# from the place checks_regular_file looks. A path that is not a regular file
+# there returns 1 with no output, so it is never judged as an empty file.
+checks_file_text() {
+  local tip path
+  checks_tip_arg "$@"
+  if [[ -z "$tip" && "$CHECKS_MODE" == pre-push ]]; then
+    tip="$(checks_range_tip "$path")" || return 1
+  fi
+  checks_regular_file --tip "$tip" "$path" || return 1
+  if [[ -n "$tip" ]]; then
+    git show "$tip:$path" 2>/dev/null
+  elif [[ "$CHECKS_MODE" == worktree ]]; then
+    cat -- "$path"
+  else
+    git show ":$path" 2>/dev/null
+  fi
+}
+
 checks_files() {
   checks_diff --name-only --diff-filter=ACMR -z
   if [[ "$CHECKS_MODE" == worktree ]]; then
@@ -214,18 +291,6 @@ checks_changed_lines() {
     fi
     ((bin)) || printf '%s\t%s\t%s\n' "$p" "$s" "$e" >>"$out"
   done <"$raw"
-}
-
-# checks_file_text <path> [<rev>]: the file as the change holds it, on stdout:
-# <rev>'s blob, else the work tree in worktree mode, else the index.
-checks_file_text() {
-  if [[ -n "${2:-}" ]]; then
-    git show "$2:$1" 2>/dev/null
-  elif [[ "$CHECKS_MODE" == worktree ]]; then
-    cat -- "$1"
-  else
-    git show ":$1" 2>/dev/null
-  fi
 }
 
 # checks_has_nul <path> [<rev>]: 0 when the first 8000 bytes of
