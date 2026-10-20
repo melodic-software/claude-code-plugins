@@ -5,6 +5,16 @@ All notable changes to the `writing` plugin are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-20
+
+### Added
+
+- Three outcome eval cases under `evals/` and a frozen trigger-probe set under `probes/`.
+
+### Changed
+
+- Shorter body for `be-concise`. Eval cases measured it against the old text before it shipped. Its description keeps the original text, because the shorter description triggered on fewer held-out requests.
+
 ## [0.1.6] - 2026-10-13
 
 ### Changed

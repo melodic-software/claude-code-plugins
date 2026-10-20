@@ -3,6 +3,12 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.8] - 2026-10-20
+
+### Changed
+
+- `audit` gains a `## Next` section routing findings to `/implementation:implement` and applied fixes to `/verification:confirm` ([#7972](https://github.com/melodic-software/claude-code-plugins/issues/7972)).
+
 ## [0.10.7] - 2026-10-13
 
 ### Changed

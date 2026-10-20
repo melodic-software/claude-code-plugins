@@ -215,7 +215,7 @@ Well-attested across community guides and Reddit but not officially documented. 
 
 **The fix lives at the prompt layer, not in the lyric.** Join the lines that should sing as one phrase in the **Suno lyrics field**; the page lyric keeps its artistic lineation. These are two artifacts, the song and the Suno input, and only the second one changes. Nothing here asks a writer to un-write a line.
 
-**Basis.** The line-break mechanism carries this section's MEDIUM rung and is not rated down. The failure edge and the join fix are `writer-observed, single session (2026-08-12), n=1 — not externally corroborated`: one v5.5 session, one section, fixed on regeneration. What would settle it: the same section joined and un-joined across several generations each, plus one external report of the same edge. Diagnosis and fix steps: [troubleshoot.md](troubleshoot.md) "There's too much pause between lines".
+**Basis.** The line-break mechanism carries this section's MEDIUM rung and is not rated down. The failure edge and the join fix are `writer-observed, single session (2026-08-12), n=1, not externally corroborated`: one v5.5 session, one section, fixed on regeneration. What would settle it: the same section joined and un-joined across several generations each, plus one external report of the same edge. Diagnosis and fix steps: [troubleshoot.md](troubleshoot.md) "There's too much pause between lines".
 
 ## Hallucinated-lyrics prevention
 

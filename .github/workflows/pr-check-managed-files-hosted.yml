@@ -82,7 +82,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: read # check-managed-files lists the PR commits to skip all-Dependabot PRs
 
 # Canonical block from the standards `concurrency-policy` component: a newer
 # push to the same pull request cancels the in-flight guard run; the

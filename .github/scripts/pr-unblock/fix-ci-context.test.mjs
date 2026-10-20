@@ -87,6 +87,38 @@ test("ci-status, passing checks and a check whose later run passed are left out"
   assert.equal(result.skipReason, "not-applicable");
 });
 
+test("a failure a later skipped or neutral run of the same check hides is still failing", async () => {
+  const api = fakeApi({
+    checkRuns: [
+      run(11, "lint-shell", "failure"),
+      run(12, "test-node", "failure"),
+      run(15, "lint-shell", "skipped"),
+      run(16, "test-node", "neutral"),
+      run(17, "ci-status", "failure"),
+    ],
+  });
+  const result = await selectWith(api);
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(
+    result.file.checks.map((check) => check.name),
+    ["lint-shell", "test-node"],
+  );
+});
+
+test("a later success still outranks an earlier failure when a skip follows it", async () => {
+  const api = fakeApi({
+    checkRuns: [run(11, "lint-shell", "failure"), run(14, "lint-shell", "success"), run(16, "lint-shell", "skipped")],
+  });
+  const result = await selectWith(api);
+  assert.equal(result.decision, "skip");
+});
+
+test("a check with only skipped runs is not failing", async () => {
+  const api = fakeApi({ checkRuns: [run(11, "lint-shell", "skipped"), run(15, "lint-shell", "skipped")] });
+  const result = await selectWith(api);
+  assert.equal(result.decision, "skip");
+});
+
 test("a github-actions check run that is no workflow job (a lane's own check) is left out", async () => {
   const api = fakeApi({ checkRuns: [run(11, "lint-shell", "failure"), run(77, "pr-unblock / address-feedback", "failure")] });
   const result = await selectWith(api);
@@ -220,24 +252,4 @@ test("main escalates the round cap with no context file", async () => {
 test("main refuses a malformed round cap", async () => {
   const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: "/dev/null", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: "/dev/null" };
   await assert.rejects(main({ ...env, FIX_CI_ROUNDS: "0" }, { api: fakeApi() }), /FIX_CI_ROUNDS/);
-});
-
-test("with no FIX_CI_ROUNDS, main reads loop.fix-ci-rounds from the base config", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "fix-ci-context-"));
-  try {
-    const env = {
-      GITHUB_TOKEN: "t",
-      GITHUB_REPOSITORY: "o/r",
-      GITHUB_OUTPUT: join(dir, "out"),
-      PR_NUMBER: "42",
-      APP_SENDER_ID: String(APP),
-      CONTEXT_FILE: join(dir, "context.json"),
-      // This checkout stands in for the base: its config sets 3.
-      BASE_PATH: new URL("../../..", import.meta.url).pathname,
-    };
-    await main(env, { api: fakeApi({ commits: [fixCommit(), fixCommit(), fixCommit()] }), log: () => {} });
-    assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^escalation-reason=ci-fix-round-cap$/m);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
 });

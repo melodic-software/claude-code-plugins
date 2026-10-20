@@ -104,6 +104,7 @@ async function main() {
     const notes = await host.evaluate(() => window.Core.snapshot().me.notifications);
     const firstN = Math.min(20, notes.length);
     await host.click(".vf-bell");
+    await host.click(".vf-ixtabs [data-k=notes]");
     ok(`the bell shows ${firstN} of its ${notes.length} notifications`, notes.length > 20 && await until(host, n => document.querySelectorAll(".vf-nlist > li").length === n, firstN), String(await rows(host, ".vf-nlist > li")));
     await host.locator(".vf-nlist + .vf-more-foot button").click();
     ok("Show more shows the next 20", await until(host, n => document.querySelectorAll(".vf-nlist > li").length === n, Math.min(40, notes.length)));

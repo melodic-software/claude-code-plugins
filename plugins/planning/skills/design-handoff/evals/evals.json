@@ -11,7 +11,8 @@
         "Output evaluates each thread against the artifact and reports a PASS",
         "Output emits a plan-ready handoff summary sourced from the artifact (resolved decisions with rationale, deferred research tags)",
         "The summary is drawn from the artifact content, not recalled from conversation memory",
-        "Output emits a resume prompt so a fresh session can pick up at /planning:plan"
+        "Output emits a resume prompt so a fresh session can pick up at /planning:plan",
+        "The required Principles and Lifecycle and reversibility threads are present and RESOLVED, so neither is reported missing"
       ]
     },
     {
@@ -75,7 +76,8 @@
         "Each row names the thread from the fixture that addresses that dimension and that thread's status",
         "The directional threads (runtime placement; timing, sequencing and lifecycle) count as covering their dimensions, reported with status directional",
         "No row reads `none`",
-        "The coverage table follows the PASS verdict and does not change it"
+        "The coverage table follows the PASS verdict and does not change it",
+        "The required Principles and Lifecycle and reversibility threads are present and RESOLVED, so neither is reported missing"
       ]
     },
     {
@@ -89,7 +91,8 @@
         "The coverage table reads `none` for the where row and for the who row",
         "The coverage gap does NOT downgrade the PASS or block the handoff, and is not promoted to a FAIL",
         "The handoff summary lists the uncovered dimensions (where, who) and the resume prompt carries them",
-        "The TAGGED-DEFERRED encoding thread is not treated as covering any dimension"
+        "The TAGGED-DEFERRED encoding thread is not treated as covering any dimension",
+        "The required Principles and Lifecycle and reversibility threads are present and RESOLVED, so neither is reported missing"
       ]
     },
     {
@@ -117,7 +120,9 @@
         "The ADR candidates list holds exactly one candidate: the tunnel exposure boundary decision",
         "That candidate shows pass or fail on each of the three criteria with one line of evidence each, including the rejected alternative (direct exposure with per-request token checks) taken from the artifact",
         "The data-folder-per-session and log line format decisions are not listed as candidates and are named as failing, each naming the criterion it fails (costly to undo and/or not obvious from the code)",
-        "Any offer to invoke /architecture:record-decision applies only to the listed candidate, not to the two that failed"
+        "Any offer to invoke /architecture:record-decision applies only to the listed candidate, not to the two that failed",
+        "The required Principles and Lifecycle and reversibility threads are present and RESOLVED, so neither is reported missing",
+        "The Principles and Lifecycle and reversibility threads are not listed as ADR candidates"
       ]
     },
     {
@@ -130,7 +135,9 @@
         "Output reports a PASS and emits the handoff summary",
         "The ADR candidates entry says None and lists no candidate",
         "No decision from the artifact (file naming, defaults-file bridge, page size) is offered to /architecture:record-decision",
-        "Each of the three decisions is named on a separate not-candidates line with the criterion it fails and one line of evidence"
+        "Each of the three decisions is named on a separate not-candidates line with the criterion it fails and one line of evidence",
+        "The required Principles and Lifecycle and reversibility threads are present and RESOLVED, so neither is reported missing",
+        "The Principles and Lifecycle and reversibility threads are not listed as ADR candidates"
       ]
     }
   ]

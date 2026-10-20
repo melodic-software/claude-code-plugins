@@ -44,7 +44,7 @@ function fakeFetch(status = 201) {
       init,
       body: init.body === undefined ? undefined : JSON.parse(init.body),
     });
-    return { ok: status < 300, status, json: async () => ({ id: 1 }) };
+    return new Response(JSON.stringify({ id: 1 }), { status });
   };
   fetchImpl.calls = calls;
   return fetchImpl;
@@ -312,6 +312,17 @@ test("a skip reason in the base schema's enum POSTs neutral", async () => {
   });
   assert.equal(calls[0].body.conclusion, "neutral");
   assert.match(calls[0].body.output.summary, /not-applicable-paths/);
+});
+
+// #7732: request-lane-token's skip for a workflow file the PR changes ends the
+// run job green with the act step skipped and this skip reason.
+test("a workflow-modified skip from a run job that succeeded POSTs neutral", async () => {
+  const verdict = { ...JSON.parse(readFileSync(fixture("verdict-skipped.json"), "utf8")), "skip-reason": "workflow-modified", outcome: "skipped" };
+  const verdictPath = path.join(dir, "verdict.json");
+  writeFileSync(verdictPath, JSON.stringify(verdict));
+  const { calls } = await run({ VERDICT_PATH: verdictPath, ACT_OUTCOME: "skipped" });
+  assert.equal(calls[0].body.conclusion, "neutral");
+  assert.equal(calls[0].body.output.summary, "Skip reason: workflow-modified");
 });
 
 test("the enum is read from base-path: a base schema without the reason POSTs failure", async () => {

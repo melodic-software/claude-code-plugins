@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Stress map (capitals = stressed):\n\n1. i NEV-er THOUGHT i'd BE a-LONE (4 stresses)\n2. in ALL the EMP-ty ROOMS of this HOUSE (4 stresses)\n3. and EV-ery CLOCK is TICK-ing SLOW-er (4 stresses)\n4. and NOW that YOU are GONE for GOOD (4 stresses)\n\nBy raw syllables you get 8/9/9/8, but raw syllable counts don't measure line length in this method. By stress it reads 4/4/4/4, so the balance is real, not because of the syllable totals.\n\nLine 2 has a greedy-adjacent problem at \"this HOUSE\": the natural stress wants \"THIS house\" in speech. Line 3 ends feminine (SLOW-er), which keeps the section open. That serves the unresolved feeling. For a line that scans better, take it to `/songwriting:co-write` line-brainstorm."
+    },
+    {
+      "answer": "§3 Critique filter: run.\n\n| Line | Raw syllables | Stresses |\n| --- | --- | --- |\n| I never thought I'd be alone | 8 | 4 |\n| In all the empty rooms of this house | 9 | 3 |\n| And every clock is ticking slower | 9 | 4 |\n| And now that you are gone for good | 8 | 4 |\n\nMarked: u / u / u / u / for lines 1 and 4 (iambic tetrameter).\n\nYour syllable count doesn't prove balance. By stress the chorus is 4/3/4/4: line 2 is the short one, so the symmetry the 8/9/9/8 count showed isn't there. Whether that unevenness serves the emptiness is your call."
+    },
+    {
+      "answer": "Line 2 carries three stresses; the others carry four."
+    },
+    {
+      "answer": "```text\nI  nev er thought I'd be  a  lone\nu  /   u  /      u   (/)  u  /              3 firm, +1 weak (\"be\")\n```\n\n- **Spoken naturally it's 3/4/4/3.** That's short, long, long, short.\n- **Sung over a steady even rhythm it's 4/4/4/4.**",
+      "why": "observed Opus reply: per-line stress counts as a slash sequence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "8/9/9/8 by raw syllables, so the stresses look balanced."
+    },
+    {
+      "answer": "Raw syllables: 8, 9, 9, 8. Balanced."
+    },
+    {
+      "answer": "The stresses land on the right words.",
+      "why": "no count"
+    },
+    {
+      "answer": "Stress map: i NEV-er THOUGHT i'd BE a-LONE / in ALL the EMP-ty ROOMS of this HOUSE. Your 8/9/9/8 count looks balanced; lines 2 and 3 run long.",
+      "why": "stresses marked but never counted"
+    }
+  ]
+}

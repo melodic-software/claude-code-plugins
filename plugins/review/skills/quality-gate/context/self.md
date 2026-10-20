@@ -36,7 +36,7 @@ Run the checklist below. Do not edit files. Open your report with a `Criteria re
 naming every criteria and convention source your reading steps list that you read, or
 `none present`, or `skipped: <reason>`. Close it with a `Coverage:` line naming the changed
 files you did not reach, or `all changed files reviewed`. Between them, return the findings
-table only.
+table only, plus a `Quality bar:` line when your rules require one.
 
 ## Worker checklist
 
