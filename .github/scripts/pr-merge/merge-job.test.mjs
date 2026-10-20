@@ -561,7 +561,7 @@ test("each candidate's check run is written by its own job, the only one holding
   const writer = jobBlock("gate-check");
   assert.match(writer, /^ {4}needs: \[merge\]\n/);
   assert.match(writer, /\n {4}if: always\(\) && needs\.merge\.outputs\.gate-rows == 'true'\n/);
-  assert.match(writer, /\n {4}permissions:\n {6}contents: read[^\n]*\n(?: {6}#[^\n]*\n)* {6}checks: write\n {4}[a-z]/);
+  assert.match(writer, /\n {4}permissions:\n {6}contents: read[^\n]*\n(?: {6}#[^\n]*\n)* {6}checks: write\n {6}pull-requests: read[^\n]*\n {4}[a-z]/);
   // Runs wait in line like the merge job's: never two writers at once, and a
   // cancelled job would sit on PR heads as a CANCELLED check.
   assert.match(writer, /\n {4}concurrency:\n {6}group: pr-merge-gate-check\n {6}queue: max\n/);

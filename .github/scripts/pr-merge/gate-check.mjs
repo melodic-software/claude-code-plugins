@@ -23,7 +23,10 @@
 // sweep writes nothing;
 // otherwise that check run is updated in place, or a new one created. The
 // summary lists the blockers of the sweep that set the title. A row the gate
-// did not judge in this run (`carried`) is left as it is. A failed read leaves
+// did not judge in this run (`carried`) is left as it is, and so is a row
+// whose head is not its pull request's head when read, or whose pull request
+// cannot be read: the summary artifact alone never picks the commit written
+// to. A failed read leaves
 // its chunk's checks as they are, and so does a head whose listing may be
 // cut short, rather than add a duplicate every sweep. Each sweep logs one line of counts, so a
 // reason whose text changes every sweep shows as a write every sweep.
@@ -37,7 +40,8 @@
 // merge, so a forged one can mislead a reader but never move a gate.
 //
 // Environment:
-//   GH_TOKEN            the job's own token, with checks: write
+//   GH_TOKEN            the job's own token, with checks: write and
+//                       pull-requests: read
 //   GITHUB_REPOSITORY   owner/repo
 //   SUMMARY_PATH        pr-merge-summary.json
 //   GITHUB_RUN_ID, GITHUB_SERVER_URL, GITHUB_API_URL
@@ -70,7 +74,7 @@ const flat = (text, chars) => Array.from(String(text).replaceAll(/[\r\n`]/g, " "
 
 // The check run a summary row should show, or null for a row with none.
 export function render(row) {
-  if (!Number.isSafeInteger(row?.pr) || !SHA.test(String(row?.head)) || Object.hasOwn(row, "carried")) {
+  if (!Number.isSafeInteger(row?.pr) || row.pr < 1 || !SHA.test(String(row?.head)) || Object.hasOwn(row, "carried")) {
     return null;
   }
   const blockers = Array.isArray(row.blockers) ? row.blockers : [];
@@ -100,13 +104,15 @@ export function render(row) {
   return { conclusion, title, summary };
 }
 
-export const READ_QUERY = (heads) =>
+// Each candidate's head and its pull request's current head, read together.
+export const READ_QUERY = (candidates) =>
   "query($o:String!,$r:String!,$n:String!){repository(owner:$o,name:$r){" +
-  heads
+  candidates
     .map(
-      (sha, i) =>
-        `h${i}:object(oid:"${sha}"){... on Commit{checkSuites(first:${SUITES},filterBy:{appId:${ACTIONS_APP_ID}})` +
-        "{totalCount nodes{checkRuns(first:1,filterBy:{checkName:$n,checkType:LATEST}){nodes{databaseId name title conclusion externalId}}}}}}",
+      ({ head, pr }, i) =>
+        `h${i}:object(oid:"${head}"){... on Commit{checkSuites(first:${SUITES},filterBy:{appId:${ACTIONS_APP_ID}})` +
+        "{totalCount nodes{checkRuns(first:1,filterBy:{checkName:$n,checkType:LATEST}){nodes{databaseId name title conclusion externalId}}}}}} " +
+        `p${i}:pullRequest(number:${pr}){headRefOid}`,
     )
     .join(" ") +
   "}}";
@@ -156,12 +162,13 @@ export async function main({ env = process.env, github, now = () => new Date() }
     let unchanged = 0;
     let skipped = 0;
     let unread = 0;
+    let stale = 0;
     let readFailed = false;
     for (let start = 0; start < heads.length; start += CHUNK) {
       const chunk = heads.slice(start, start + CHUNK);
       let found;
       try {
-        found = (await github("POST", "/graphql", { query: READ_QUERY(chunk), variables: { o: owner, r: name, n: CHECK_NAME } }))?.data?.repository;
+        found = (await github("POST", "/graphql", { query: READ_QUERY(chunk.map((head) => ({ head, pr: wanted.get(head).pr }))), variables: { o: owner, r: name, n: CHECK_NAME } }))?.data?.repository;
         if (!found) throw new Error("no repository in the answer");
       } catch (error) {
         unread += chunk.length;
@@ -171,6 +178,14 @@ export async function main({ env = process.env, github, now = () => new Date() }
       }
       for (const [i, head] of chunk.entries()) {
         const { pr, conclusion, title, summary } = wanted.get(head);
+        const prHead = found[`p${i}`]?.headRefOid;
+        if (prHead !== head) {
+          stale += 1;
+          console.log(
+            `::warning title=gate-check::#${pr}: ${prHead ? `head is ${escapeCommand(prHead)}, not ${head}` : "pull request not read"}, no check written at ${head}`,
+          );
+          continue;
+        }
         const current = existing(found[`h${i}`]);
         if (current === undefined) {
           unread += 1;
@@ -208,7 +223,7 @@ export async function main({ env = process.env, github, now = () => new Date() }
         }
       }
     }
-    console.log(`gate-check: sweep: ${written} written, ${unchanged} unchanged, ${skipped} skipped, ${unread} unread, ${failed} failed`);
+    console.log(`gate-check: sweep: ${written} written, ${unchanged} unchanged, ${skipped} skipped, ${stale} not the head, ${unread} unread, ${failed} failed`);
     return failed === 0 && !readFailed ? 0 : 1;
   } catch (error) {
     console.log(`::error title=gate-check::${escapeCommand(error?.message ?? error)}`);

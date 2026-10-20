@@ -20,8 +20,10 @@ const suite = (...runs) => ({ checkRuns: { nodes: runs } });
 const checkRun = (databaseId, title, conclusion = "NEUTRAL", name = "pr-merge / gate", externalId = "pr-merge-gate") => ({ databaseId, name, title, conclusion, externalId });
 const listed = (...suites) => ({ checkSuites: { totalCount: suites.length, nodes: suites } });
 
-// `checks` maps a head to its commit node in the GraphQL answer.
-function world(rows, checks = {}, { readFails = false } = {}) {
+// `checks` maps a head to its commit node in the GraphQL answer. Each pull
+// request's head is its first row's head unless `prHeads` names another, or
+// null for a pull request the read returns nothing for.
+function world(rows, checks = {}, { readFails = false, prHeads = {} } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), "gate-check-"));
   const summary = path.join(dir, "pr-merge-summary.json");
   writeFileSync(summary, JSON.stringify(rows));
@@ -32,7 +34,16 @@ function world(rows, checks = {}, { readFails = false } = {}) {
     if (method === "POST" && apiPath === "/graphql") {
       if (readFails) throw new Error("POST /graphql failed: 502");
       const heads = [...body.query.matchAll(/h(\d+):object\(oid:"([0-9a-f]{40})"\)/g)];
-      return { data: { repository: Object.fromEntries(heads.map(([, i, head]) => [`h${i}`, checks[head] ?? listed()])) } };
+      const prs = [...body.query.matchAll(/p(\d+):pullRequest\(number:(\d+)\)\{headRefOid\}/g)];
+      const headOf = (pr) => (Object.hasOwn(prHeads, pr) ? prHeads[pr] : rows.find((r) => r.pr === pr)?.head);
+      return {
+        data: {
+          repository: Object.fromEntries([
+            ...heads.map(([, i, head]) => [`h${i}`, checks[head] ?? listed()]),
+            ...prs.map(([, i, pr]) => [`p${i}`, headOf(Number(pr)) === null ? null : { headRefOid: headOf(Number(pr)) }]),
+          ]),
+        },
+      };
     }
     return {};
   };
@@ -132,7 +143,7 @@ test("a head whose listing may be cut is left as it is, so no sweep adds a dupli
   });
   assert.equal(await w.run(), 0);
   assert.deepEqual(w.writes(), []);
-  assert.ok(w.logs.includes("gate-check: sweep: 0 written, 0 unchanged, 0 skipped, 1 unread, 0 failed"));
+  assert.ok(w.logs.includes("gate-check: sweep: 0 written, 0 unchanged, 0 skipped, 0 not the head, 1 unread, 0 failed"));
 });
 
 test("a failed read writes nothing and fails the step", async () => {
@@ -170,7 +181,7 @@ test("each sweep logs one line with its written and unchanged counts", async () 
   });
   await w.run();
   assert.equal(w.logs.filter((line) => line.startsWith("gate-check: sweep")).length, 1);
-  assert.ok(w.logs.includes("gate-check: sweep: 1 written, 1 unchanged, 0 skipped, 0 unread, 0 failed"));
+  assert.ok(w.logs.includes("gate-check: sweep: 1 written, 1 unchanged, 0 skipped, 0 not the head, 0 unread, 0 failed"));
 });
 
 test("candidates past one read's chunk are read again and matched to their own heads", async () => {
@@ -196,4 +207,26 @@ test("a ready candidate not enqueued is titled with the gate's reason when it gi
   const w = world([row(7, sha("a"), { ready: true, reason: "merge-queue entry armed, not yet queued" }), row(8, sha("b"), { ready: true })]);
   await w.run();
   assert.deepEqual(w.writes().map((call) => call.body.output.title), ["merge-queue entry armed, not yet queued", "ready, not enqueued this run"]);
+});
+
+test("a row whose head is not its pull request's head writes no check", async () => {
+  const w = world([row(7, sha("a"), { reason: "risk:MED" })], {}, { prHeads: { 7: sha("b") } });
+  assert.equal(await w.run(), 0);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(w.logs.some((line) => line.includes(`#7: head is ${sha("b")}, not ${sha("a")}`)));
+  assert.ok(w.logs.includes("gate-check: sweep: 0 written, 0 unchanged, 0 skipped, 1 not the head, 0 unread, 0 failed"));
+});
+
+test("a row whose pull request cannot be read writes nothing", async () => {
+  const w = world([row(7, sha("a"), { reason: "risk:MED" })], {}, { prHeads: { 7: null } });
+  assert.equal(await w.run(), 0);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(w.logs.some((line) => line.includes("#7: pull request not read")));
+});
+
+test("a row at its pull request's head is read with that pull request and written as before", async () => {
+  const w = world([row(7, sha("a"), { reason: "risk:MED" }), row(8, sha("b"), { reason: "verify:fail" })], {}, { prHeads: { 8: sha("c") } });
+  await w.run();
+  assert.match(w.calls[0].body.query, /p0:pullRequest\(number:7\)\{headRefOid\}/);
+  assert.deepEqual(w.writes().map((call) => [call.method, call.body.head_sha, call.body.output.title]), [["POST", sha("a"), "risk:MED"]]);
 });
