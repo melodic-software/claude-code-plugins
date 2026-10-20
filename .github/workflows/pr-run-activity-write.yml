@@ -1695,7 +1695,8 @@ jobs:
           COMMIT_SHA: ${{ steps.commit.outputs.commit }}
           # review-threads mode moves the PR branch only when every path the
           # lane branch changes is in the kept threads' scope, as the base's
-          # thread-scope.mjs decides, and none is under .github/.
+          # thread-scope.mjs decides, none is under .github/, and every path
+          # it adds or changes is a regular file at its tip.
           THREAD_FILE: >-
             ${{ steps.config.outputs.prepare == 'review-threads'
             && format('{0}/lane-feedback/threads.json', runner.temp) || '' }}
@@ -1741,7 +1742,8 @@ jobs:
                   core.setFailed('threads.json does not match the SHA-256 the select step recorded; the PR branch is not moved');
                   return;
                 }
-                const paths = new Set(JSON.parse(threadText.toString('utf8')).threads.map((t) => t.path));
+                const { threads } = JSON.parse(threadText.toString('utf8'));
+                const paths = new Set(threads.map((t) => t.path));
                 // Imported from the bytes just hashed, so a rewrite after the
                 // check cannot reach the import.
                 const scope = fs.readFileSync(SCOPE_SCRIPT);
@@ -1753,9 +1755,32 @@ jobs:
                 const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${HEAD_SHA}...${lane}` });
                 const bad = data.files.length >= 300 ? ['(300 or more files)'] : data.files
                   .flatMap((f) => [f.filename, f.previous_filename].filter(Boolean))
-                  .filter((p) => !inThreadScope(p, paths));
+                  .filter((p) => !inThreadScope(p, paths, threads));
                 if (bad.length > 0) {
                   core.setFailed(`The lane branch changes a path outside the kept threads' scope or under .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
+                  return;
+                }
+                // The compare lists names, not modes: every path the lane adds
+                // or changes must be a regular file at its tip, never a
+                // symbolic link or gitlink.
+                const trees = new Map();
+                const notFile = [];
+                for (const f of data.files.filter((f) => f.status !== 'removed')) {
+                  const dir = f.filename.slice(0, Math.max(f.filename.lastIndexOf('/'), 0));
+                  if (!trees.has(dir)) {
+                    const { repository } = await github.graphql(
+                      'query($owner: String!, $name: String!, $expression: String!) { repository(owner: $owner, name: $name) { object(expression: $expression) { ... on Tree { entries { name type mode } } } } }',
+                      { owner: context.repo.owner, name: context.repo.repo, expression: `${lane}:${dir}` },
+                    );
+                    trees.set(dir, repository.object?.entries ?? []);
+                  }
+                  const entry = trees.get(dir).find((e) => e.name === f.filename.slice(dir ? dir.length + 1 : 0));
+                  if (!(entry?.type === 'blob' && [0o100644, 0o100755].includes(entry.mode))) {
+                    notFile.push(f.filename);
+                  }
+                }
+                if (notFile.length > 0) {
+                  core.setFailed(`The lane branch adds or changes a path that is not a regular file (${notFile.slice(0, 5).join(', ')}); the PR branch is not moved`);
                   return;
                 }
               }
@@ -1870,7 +1895,7 @@ jobs:
             const run = {
               version: 1,
               head_sha: HEAD_SHA,
-              threads: threads.map((t) => ({ id: t.id, path: t.path, comment_ids: t.comments.map((c) => c.id) })),
+              threads: threads.map((t) => ({ id: t.id, path: t.path, comment_ids: t.comments.map((c) => c.id), ...(t.named_paths ? { named_paths: t.named_paths } : {}) })),
             };
             const runText = `${JSON.stringify(run)}\n`;
             fs.writeFileSync(`${OUT_DIR}/run.json`, runText);

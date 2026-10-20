@@ -14,7 +14,7 @@
 //   (none)  the activity's script step, after the head checkout, with the
 //           lane token: applies the patch to the index with no --unsafe-paths,
 //           refuses the whole patch when any change is under .github/
-//           (thread-scope.mjs's isProtectedPath) or an INSTRUCTION_PATH, or is
+//           (thread-scope.mjs's isProtectedPath) or an instruction path, or is
 //           a symbolic link or gitlink, re-reads the hold labels and draft
 //           state, then commits
 //           the tree on the gated head through the Git Data API and moves the
@@ -33,7 +33,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
-import { isProtectedPath } from "./thread-scope.mjs";
+import { isInstructionPath, isProtectedPath } from "./thread-scope.mjs";
 import { FIX_TRAILER } from "./fix-ci-context.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
@@ -42,14 +42,11 @@ const ESCALATED_LINE = new RegExp(`^(.+?): escalated (?:${REASONS})(?: |$)`);
 const SYMLINK = "120000";
 const GITLINK = "160000";
 const ZERO = /^0+$/;
-// Paths the harness or the forge reads as instructions or ownership, at any
-// depth and in any case: CLAUDE.md, AGENTS.md, a .claude/ or .claude-plugin/
-// directory (the root marketplace.json too), a plugin's hooks/, .mcp.json,
-// .gitmodules and CODEOWNERS. Code and test files stay editable, so fix-ci
-// can fix a check's own script.
-const INSTRUCTION_PATH =
-  /(^|\/)((claude|agents)\.md|\.mcp\.json|\.gitmodules|codeowners)$|(^|\/)\.claude(-plugin)?\/|(^|\/)plugins\/[^/]+\/hooks\//i;
-export const refusedPath = (path) => isProtectedPath(path) || INSTRUCTION_PATH.test(path);
+// .github/ and the paths the harness or the forge reads as instructions or
+// ownership (thread-scope.mjs's isInstructionPath), at any depth and in any
+// case. Code and test files stay editable, so fix-ci can fix a check's own
+// script.
+export const refusedPath = (path) => isProtectedPath(path) || isInstructionPath(path);
 
 // The checks the ci --ci report escalated, one per `<check>: escalated
 // <reason> <sentence>` line. The report is model output: only this shape is

@@ -209,8 +209,8 @@ skill in [patch output mode](pr-run-activity.md#patch-output-mode)) runs
 `source-control:pull-request ci --ci`, which reruns, fixes and reruns the checks; and
 `apply-ci-fix` (a `mutate-branch` script, no model, no head code) pushes the patch as one commit
 without force, refusing the whole patch on any change to `.github/**`, an agent instruction path
-(`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a plugin's `hooks/`, `.mcp.json`,
-`.gitmodules`, `CODEOWNERS`), a symbolic link or a gitlink
+(`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a plugin's `hooks/`, `monitors/` or
+`bin/`, `.mcp.json`, `.lsp.json`, `.gitmodules`, `CODEOWNERS`), a symbolic link or a gitlink
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
 unappliable patch, or a check the model escalated, goes to `report-escalation`. The same
@@ -733,9 +733,14 @@ current head closes a review finding whoever resolved its thread, and a HIGH sec
 needs the security review lane's own clean whole review of that head. The gate applies it per lane
 (`_open_findings` in `babysit_review_evidence.py`): a resolved thread closes when it was opened
 before that review's job completed and the review chain covering the head, here the whole review
-alone, reports no finding. An incremental review reads only what changed since the last review, so
-it never closes an unchanged thread: a lane that resolved an unfixed finding and pushed an unrelated
-commit leaves it open. A resolved thread also closes when a human resolved it, or when it is
+alone, reports no finding. A finding any review of a head reported, whole or incremental, clears
+only by a new head (a fix) or a human resolution (owner decision, #8554): a later clean review of
+the same head never clears it. So for each head on the covering chain the gate counts the most
+summary findings, and the most inline findings left without a thread, that any review of that head
+reported, closes a resolved thread only when no completed review of such a head reported a finding,
+and re-running a review until it comes back clean closes nothing. An incremental review reads only what changed since the last review, so it never closes an
+unchanged thread: a lane that resolved an unfixed finding and pushed an unrelated commit leaves it
+open. A resolved thread also closes when a human resolved it, or when it is
 outdated with none of its flagged lines left at the head; an unresolved thread stays open.
 
 Whole-review request (`babysit_whole_review.py`): when a lane pull request passes every other gate

@@ -3,6 +3,29 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.82.0] - 2026-10-20
+
+### Added
+
+- `tests/repin.sh <pin-label> <justification>` re-pins one digest pin of `interview-defenses.test.sh` in one attended command: it rewrites only that pin's sha256, adds the justification comment above the pin, reruns the test and prints PASS or FAIL. It refuses an unknown or ambiguous label and changes nothing when the digest already matches. It writes only when stdin and stdout are both terminals and the person answers y after seeing the old and new digest and the plugin's `git diff --stat`; any other run exits non-zero and writes nothing. The test's attended-only message names it.
+
+- **The interview page searches and jumps to a question.** A search box in the rail toolbar matches the question id, short title and title: typing words filters the rail, and typing a number then Enter opens that question (`100` opens Q100). It narrows within the Show filter, and the rail says when Show hides matches. A jump opens the group that holds the question. Selecting a question writes `#<id>` to the URL (replacing the hash, so Back still leaves the page), and loading or changing to `#Q100` selects Q100; an unknown id leaves the selection alone. (#5915)
+
+### Changed
+
+- **`/` now focuses the new search box, and `s` focuses the Show filter.** The keyboard sheet lists both. (#5915)
+- **A rail button's accessible name is its id, short title and state.** The needs chips, state chips and Claude preview move to its accessible description. (#5915)
+
+## [0.81.0] - 2026-10-20
+
+### Added
+
+- `round.sh supersede` and `round.sh resolve` (#6124): terminal commands that set an answered register row of a ledger to `superseded-by-plan` (taking its resolution as `was`, written `was plain::` or `was answer::` to record the row's form so `restore` gives it back byte for byte; a bare `was::` still loads) and clear it by `reconfirm` or `restore`. They escape through the exporter, back the ledger up, print the `check-open-questions.sh` verdict, and need no page. `/planning:plan` "Plan changes after the Brief" names them instead of describing the grammar.
+
+### Fixed
+
+- **Interview source links pin to a commit SHA.** The surface spoke's Source rule requires a repo-file link of the form `blob/<sha>/<path>`, and `round.py add`, `add-round`, `apply` and `revise` warn (without refusing) on a `blob/<branch>` link in a question's `facts`, naming the question.
+
 ## [0.80.0] - 2026-10-20
 
 ### Added

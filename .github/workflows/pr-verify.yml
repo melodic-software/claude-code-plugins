@@ -108,6 +108,7 @@ jobs:
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
+          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
 
       - name: Resolve the pull request
         id: pr
@@ -414,7 +415,8 @@ jobs:
           echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict"
 
       # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list.
+      # on the trusted-actor list. A re-run github-actions[bot] started passes
+      # only as the lost-run reconciler's recorded re-run of this run.
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
@@ -422,6 +424,7 @@ jobs:
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           triggering-actor: ${{ github.triggering_actor }}
+          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
 
       - name: Resolve the pull request
         id: pr

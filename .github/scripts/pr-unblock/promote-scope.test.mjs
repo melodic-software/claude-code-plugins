@@ -33,10 +33,11 @@ function stepScript(step = "promote") {
 const dir = mkdtempSync(join(tmpdir(), "promote-scope-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 
+// Every lane-tip tree entry is a regular file unless `modes` names it.
 // `edit` rewrites the thread file after its SHA-256 is recorded.
-async function promote(files, { scope = readFileSync(SCOPE), sha256, threadsSha256, edit } = {}) {
+async function promote(files, { scope = readFileSync(SCOPE), sha256, threads = [{ path: "plugins/p/evals/c/case.yaml" }, { path: "src/round.py" }], modes = {}, threadsSha256, edit } = {}) {
   const threadFile = join(dir, "threads.json");
-  writeFileSync(threadFile, JSON.stringify({ threads: [{ path: "plugins/p/evals/c/case.yaml" }, { path: "src/round.py" }] }));
+  writeFileSync(threadFile, JSON.stringify({ threads }));
   const recorded = threadsSha256 ?? createHash("sha256").update(readFileSync(threadFile)).digest("hex");
   if (edit) writeFileSync(threadFile, edit);
   const scopeScript = join(dir, "thread-scope.mjs");
@@ -59,6 +60,14 @@ async function promote(files, { scope = readFileSync(SCOPE), sha256, threadsSha2
   const core = { setOutput() {}, info() {}, warning() {}, setFailed: (message) => failed.push(message) };
   const github = {
     request: async () => ({ data: { object: { sha: LANE } } }),
+    async graphql(query, { expression }) {
+      const dir = expression.slice(`${LANE}:`.length);
+      const entries = files
+        .map((f) => f.filename)
+        .filter((name) => name.slice(0, Math.max(name.lastIndexOf("/"), 0)) === dir)
+        .map((name) => ({ name: name.slice(dir ? dir.length + 1 : 0), ...(modes[name] ?? { type: "blob", mode: 0o100644 }) }));
+      return { repository: { object: { entries } } };
+    },
     rest: {
       repos: { compareCommitsWithBasehead: async () => ({ data: { files } }) },
       git: { deleteRef: async () => {} },
@@ -113,6 +122,26 @@ test("a rewritten scope copy, or no recorded hash, stops the move", async () => 
     const failed = await promote([{ filename: ".github/workflows/x.yml" }], options);
     assert.deepEqual(failed, ["thread-scope.mjs does not match the base's copy; the PR branch is not moved"]);
   }
+});
+
+test("a file a kept thread's named_paths holds passes the path check; the same file unnamed stops the move", async () => {
+  const named = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/lib/run.js"] }];
+  const passed = await promote([{ filename: "plugins/p/lib/run.js" }], { threads: named });
+  assert.equal(passed.length, 1);
+  assert.match(passed[0], HOLD);
+  const stopped = await promote([{ filename: "plugins/p/lib/run.js" }]);
+  assert.match(stopped[0], OUT);
+  const instruction = await promote([{ filename: "plugins/p/AGENTS.md" }], { threads: [{ ...named[0], named_paths: ["plugins/p/AGENTS.md"] }] });
+  assert.match(instruction[0], OUT);
+});
+
+test("a symbolic link or gitlink the lane adds at an in-scope path stops the move; a removed file needs no entry", async () => {
+  for (const mode of [{ type: "blob", mode: 0o120000 }, { type: "commit", mode: 0o160000 }]) {
+    const failed = await promote([{ filename: "plugins/p/hooksx" }], { modes: { "plugins/p/hooksx": mode } });
+    assert.deepEqual(failed, ["The lane branch adds or changes a path that is not a regular file (plugins/p/hooksx); the PR branch is not moved"]);
+  }
+  const removed = await promote([{ filename: "plugins/p/README.md", status: "removed" }], { modes: { "plugins/p/README.md": { type: "missing" } } });
+  assert.match(removed[0], HOLD);
 });
 
 const WIDENED = JSON.stringify({ threads: [{ path: ".github/workflows/x.yml" }] });
