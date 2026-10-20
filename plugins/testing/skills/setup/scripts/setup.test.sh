@@ -271,6 +271,12 @@ pixel_tolerance:
 reuse_running_instance: false
 feature_map_dir: docs/map" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
 assert_eq "and the docs block it shadows is untouched" "$(printf '%b' "$block_md")" "$(cat "$G/docs/conventions/testing.md")"
+printf 'browser_driver: pw-alt\npaths:\n  exclude: [old]\n' >"$G/docs/conventions/testing.yaml"
+run_g --exclude 'yaml/**'
+assert_eq "testing.yaml in use: apply keeps the browser_driver line" "0:# Test-file scope and rule levels for the testing plugin (/testing:setup).
+paths:
+  exclude: ['yaml/**']
+browser_driver: pw-alt" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
 
 assert_eq "neither check nor apply changed CLAUDE.md or AGENTS.md" "$before" "$(sums)"
 assert_eq "apply wrote no file but docs/conventions/testing.yaml" "docs/conventions/testing.yaml" \
