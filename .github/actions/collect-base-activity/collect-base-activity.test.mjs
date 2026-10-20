@@ -1080,3 +1080,55 @@ test("a read skill gets no web tools even with web-access", () => {
   assert.ok(!allowed.some((rule) => rule.startsWith("Web")), allowed.join(" | "));
   assert.deepEqual(plugins, ["work-items@melodic-software"]);
 });
+
+// A read skill whose applied-by sets patch hands its change on as a patch
+// (pr-run-activity.md, Skill activities): the write tool set, no commit tool,
+// and the instruction to leave the change uncommitted.
+const UNCOMMITTED_SENTENCE = "Leave every change uncommitted in the working tree";
+
+function withAppliedBy(appliedBy, overrides = {}) {
+  const dir = mkdtempSync(path.join(root, "applied-by-"));
+  const file = path.join(dir, "resolved.json");
+  writeFileSync(file, JSON.stringify({ selected: { args: "--ci", "applied-by": appliedBy } }));
+  return stage({ EFFECT: "read", CAN_COMMIT: "false", RESOLVED: file, ...overrides });
+}
+
+test("a read skill that hands on a patch gets Edit, Write and Agent, no commit tool, and is told to leave its change uncommitted", () => {
+  const { status, args, allowed } = withAppliedBy({ patch: "apply-patch" });
+  assert.equal(status, 0);
+  for (const tool of ["Edit", "Write", "Agent"]) {
+    assert.ok(allowed.includes(tool), `${tool} in ${allowed.join(" | ")}`);
+  }
+  assert.ok(!allowed.some((rule) => rule.startsWith("mcp__github_file_ops__")), allowed.join(" | "));
+  assert.ok(!allowed.includes(CHMOD_RULE), allowed.join(" | "));
+  assert.ok(args.includes(UNCOMMITTED_SENTENCE), args);
+  assert.ok(!args.includes(COMMIT_SENTENCE), args);
+});
+
+test("a read skill whose applied-by names no patch keeps the read tool set", () => {
+  const { status, args, allowed } = withAppliedBy({ "feedback-replies": "publish-feedback" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => /^(Bash|Edit|Write)/.test(rule)), allowed.join(" | "));
+  assert.ok(!args.includes(UNCOMMITTED_SENTENCE), args);
+});
+
+test("a read skill that hands on a patch gets its checks' wrappers and the web tools its web-access sets", () => {
+  const { status, allowed } = withChecks(
+    ["scripts/check-x.sh"],
+    { EFFECT: "read", CAN_COMMIT: "false" },
+    { "applied-by": { patch: "apply-patch" }, "web-access": { enabled: true, domains: ["code.claude.com"] } },
+  );
+  assert.equal(status, 0);
+  assert.equal(wrapperRules(allowed).length, 1, allowed.join(" | "));
+  assert.ok(allowed.includes("WebFetch(domain:code.claude.com)"), allowed.join(" | "));
+});
+
+test("prepare: ci-context with applied-by.patch keeps the ci-context tool set", () => {
+  const ciDir = mkdtempSync(path.join(root, "ci-ab-"));
+  writeFileSync(path.join(ciDir, "context.json"), "{}");
+  const { status, args, allowed } = withAppliedBy({ patch: "apply-patch" }, { PREPARE: "ci-context", CI_DIR: ciDir });
+  assert.equal(status, 0);
+  assert.ok(allowed.includes("Bash"), allowed.join(" | "));
+  assert.ok(args.includes(`${ciDir}/context.json`), args);
+  assert.ok(!args.includes(UNCOMMITTED_SENTENCE), args);
+});
