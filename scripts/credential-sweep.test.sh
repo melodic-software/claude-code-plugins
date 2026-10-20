@@ -27,6 +27,30 @@ prefix='gh''p_'
 body='R7kT2vXq9LmN4bWc8YdF3hJs6PzA1uEo5iGt'
 PLANTED="$prefix$body"
 SINCE=2026-10-01
+# The pinned default config's shape, cut to one rule: a global [allowlist]
+# whose paths list skips node_modules, the way the upstream default does.
+CONFIG_FIXTURE="$(
+  cat <<'EOF'
+title = "fixture"
+minVersion = "v8.25.0"
+
+[allowlist]
+description = "global allow lists"
+paths = [
+    '''(?:^|/)node_modules(?:/.*)?$''',
+]
+regexes = [
+    '''(?i)^true|false|null$''',
+]
+
+[[rules]]
+id = "github-pat"
+description = "GitHub Personal Access Token"
+regex = '''ghp_[0-9a-zA-Z]{36}'''
+entropy = 3
+keywords = ["ghp_"]
+EOF
+)"
 
 mkdir -p "$TMP/bin" "$TMP/stub-gitleaks"
 # gh: logs its arguments, then serves $STUB_FIX/<key> (or <key>.err to stderr
@@ -91,6 +115,7 @@ base_fixture() {
   fix "$d" "$b/actions/caches?$pages" '{"actions_caches":[]}'
   fix "$d" "$b/pulls?state=all&sort=updated&direction=desc&$pages" '[]'
   fix "$d" "$b" '{"private":false}'
+  printf '%s\n' "$CONFIG_FIXTURE" >"$d/$(key "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=v8.30.1")"
 }
 
 # one_run <dir> <repo> <check-runs-json>: run 11 (attempt 1, suite 21) since
@@ -99,7 +124,24 @@ one_run() {
   local d="$1" b="repos/o/$2"
   fix "$d" "$b/actions/runs?exclude_pull_requests=true&per_page=100&page=1" \
     '{"workflow_runs":[{"id":11,"run_attempt":1,"check_suite_id":21,"created_at":"2026-10-05T10:00:00Z"},{"id":99,"run_attempt":1,"check_suite_id":98,"created_at":"2026-09-01T10:00:00Z"}]}'
-  fix "$d" "$b/check-suites/21/check-runs?per_page=100&page=1" "$3"
+  fix "$d" "$b/check-suites/21/check-runs?filter=all&per_page=100&page=1" "$3"
+}
+
+# artifact_zip <dir> <repo> <member=content>...: artifact 5 ("a") since
+# --since, whose zip holds each member; content \x00 marks a binary member.
+artifact_zip() {
+  local d="$1" b="repos/o/$2"
+  shift 2
+  fix "$d" "$b/actions/artifacts?per_page=100&page=1" \
+    '{"artifacts":[{"id":5,"name":"a","expired":false,"created_at":"2026-10-05T00:00:00Z"}]}'
+  "$PYTHON" -I - "$d/$(key "$b/actions/artifacts/5/zip")" "$@" <<'PY2' || fail "could not build the artifact zip"
+import sys, zipfile
+z = zipfile.ZipFile(sys.argv[1], "w")
+for m in sys.argv[2:]:
+    name, _, content = m.partition("=")
+    z.writestr(name, content.replace("\\x00", "\x00").encode())
+z.close()
+PY2
 }
 
 # log_zip <dir> <repo> <text>: run 11's log archive holds build/1_step.txt.
@@ -167,8 +209,52 @@ if [[ "$(gitleaks version 2>/dev/null)" == 8.30.1 ]]; then
   expect_rc "the real scanner finds the planted token" 1
   expect_out "the real scanner's hit names rule and location" '| github-pat | r/logs/run-11-attempt-1/build/1_step.txt | 3 |'
   expect_no_value "the real scanner's hit is redacted" "$TMP/out-real"
+
+  # A path the default config allowlists is still scanned.
+  F="$TMP/allowlisted"
+  base_fixture "$F" r
+  artifact_zip "$F" r "node_modules/x/.env=token $PLANTED"
+  sweep "$TMP/no-such-dir" "$F" "$TMP/out-allowlisted" --repo r
+  expect_rc "a token under a default-allowlisted path is found" 1
+  expect_out "the allowlisted-path hit names its location" '| github-pat | r/artifacts/5-a/node_modules/x/.env |'
 else
-  printf 'SKIP: gitleaks 8.30.1 not on PATH; the real-scanner case did not run\n'
+  printf 'SKIP: gitleaks 8.30.1 not on PATH; the real-scanner cases did not run\n'
+fi
+
+# The scanner config is fetched at the pin; an unreadable one stops the sweep.
+F="$TMP/noconfig"
+base_fixture "$F" r
+rm -f "$F/$(key "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=v8.30.1")"
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-noconfig" --repo r
+expect_rc "an unreadable scanner config exits 3" 3
+
+# --- Check runs of every attempt are swept, not only the latest -------------
+F="$TMP/attempts"
+base_fixture "$F" r
+one_run "$F" r '{"check_runs":[{"id":30,"name":"build","output":{"title":"first attempt","summary":"","text":""}},{"id":31,"name":"build","output":{"title":"rerun","summary":"","text":""}}]}'
+fix "$F" "repos/o/r/check-suites/21/check-runs?per_page=100&page=1" \
+  '{"check_runs":[{"id":31,"name":"build","output":{"title":"rerun","summary":"","text":""}}]}'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-attempts" --repo r --keep
+if grep -qF "check-run 30 build" "$TMP/out-attempts/downloads/r/check-runs/run-11.txt" 2>/dev/null; then
+  ok "an earlier attempt's check run is swept"
+else
+  fail "check run 30 missing: $LOG"
+fi
+
+# --- A downloaded file is never overwritten by a strings(1) copy ------------
+F="$TMP/sidecar"
+base_fixture "$F" r
+artifact_zip "$F" r 'payload=\x00BINARYCONTENTLINE\x00' 'payload.strings.txt=downloaded text'
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-sidecar" --repo r --keep
+if [[ "$(cat "$TMP/out-sidecar/downloads/r/artifacts/5-a/payload.strings.txt" 2>/dev/null)" == "downloaded text" ]]; then
+  ok "a downloaded file named like a strings copy survives"
+else
+  fail "payload.strings.txt overwritten or missing"
+fi
+if grep -qF BINARYCONTENTLINE "$TMP/out-sidecar/downloads/r/strings/artifacts/5-a/payload.strings.txt" 2>/dev/null; then
+  ok "the binary's strings copy is kept apart from the downloads"
+else
+  fail "no strings copy of the binary under r/strings"
 fi
 
 # --- An undownloadable log is a gap, not a pass -----------------------------
@@ -298,6 +384,9 @@ expect_out "the repo after the stop is a gap" '- s: all: not swept'
 if [[ "$(tail -n 1 <<<"$LOG")" == *actions/runs* ]]; then ok "no request follows the rate-limit error"; else fail "requests after the limit: $LOG"; fi
 
 # --- Could not start ---------------------------------------------------------
+sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-bogus" --bogus
+expect_rc "an unknown option exits 3" 3
+expect_out "usage describes --keep" '--keep   keep the downloads'
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-usage" --since 2026-13-45
 expect_rc "a malformed --since exits 3" 3
 STUB_GITLEAKS_VERSION=8.0.0 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-version" --repo r

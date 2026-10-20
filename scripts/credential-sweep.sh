@@ -17,7 +17,8 @@
 # Sources per repository. --since bounds runs, artifacts and comments; releases
 # and caches are swept whole.
 #   logs         every attempt of every Actions run created since --since
-#   check-runs   output title, summary and text of each run's check suite
+#   check-runs   output title, summary and text of each run's check runs, every
+#                attempt
 #   artifacts    every artifact created since --since, unzipped
 #   releases     name and body of every published release, and its assets
 #   bot-comments issue, pull request and review comments by Bot accounts
@@ -33,7 +34,8 @@
 # section and never moves the exit code. A GAP is something readable that was
 # not read: a failed list or download, an unparsable page, a rate-limit stop.
 #
-# Binaries get a strings(1) -n 8 pass whose output is scanned as text; nested
+# Binaries get a strings(1) -n 8 pass whose output is scanned as text, written
+# under downloads/<repo>/strings/ so it never replaces a downloaded file; nested
 # archives are read by gitleaks --max-archive-depth.
 #
 # Read-only: every request is a REST GET, one at a time. The first rate-limit
@@ -41,9 +43,12 @@
 #
 # The scanner is gitleaks at the version the lint-repo `Scan for secrets` step
 # installs (melodic-software/ci-workflows gitleaks action, pinned in
-# .github/workflows/pr-require-checks.yml), with the repo's .gitleaks.toml.
-# Every output is redacted: gitleaks runs with --redact, and the report keeps
-# only rule, path and line.
+# .github/workflows/pr-require-checks.yml), with that version's default config
+# (one GET of config/gitleaks.toml at the tag) minus its global path allowlist,
+# which skips lockfiles, node_modules/, vendor/, images and office files: in a
+# download those can hold a credential like any other file. Rule-level path
+# allowlists stay. Every output is redacted: gitleaks runs with --redact, and
+# the report keeps only rule, path and line.
 #
 # Exit: 0 no hits and nothing readable missed; 1 hits; 2 gaps and no hits;
 # 3 could not start (usage,
@@ -54,7 +59,6 @@ PROG="credential-sweep.sh"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SELF_DIR/.." && pwd)"
 GITLEAKS_PIN="8.30.1"
-CONFIG="$ROOT/.gitleaks.toml"
 PER_PAGE=100
 UNPACK_MAX=$((1024 * 1024 * 1024))
 
@@ -77,7 +81,7 @@ die() {
 }
 
 usage() {
-  sed -n '6,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '6,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
   exit 3
 }
 
@@ -187,7 +191,7 @@ sweep_logs_and_checks() {
         gap "$r" logs "run $id attempt $a: $API_ERR"
       fi
     done
-    fetch_pages "$STATE/checks.jsonl" "$base/check-suites/$suite/check-runs" '.check_runs[]'
+    fetch_pages "$STATE/checks.jsonl" "$base/check-suites/$suite/check-runs?filter=all" '.check_runs[]'
     rc=$?
     ((rc != 3)) || return 3
     if ((rc != 0)); then
@@ -350,12 +354,38 @@ list_public_repos() {
   mapfile -t REPOS < <(jq -r '.' "$STATE/repos.jsonl")
 }
 
-# strings_pass: a text copy of every non-empty binary, next to it.
+# strings_pass: a text copy of every non-empty binary under <repo>/strings/,
+# a directory the sweep creates and no download writes into.
 strings_pass() {
-  local f
-  while IFS= read -r -d '' f; do
-    LC_ALL=C grep -qI . "$f" || strings -n 8 "$f" >"$f.strings.txt"
-  done < <(find "$DL" -type f -size +0 -print0)
+  local d f out
+  for d in "$DL"/*/; do
+    d="${d%/}"
+    while IFS= read -r -d '' f; do
+      LC_ALL=C grep -qI . "$f" && continue
+      out="$d/strings/${f#"$d/"}.strings.txt"
+      mkdir -p "${out%/*}"
+      strings -n 8 "$f" >"$out"
+    done < <(find "$d" -path "$d/strings" -prune -o -type f -size +0 -print0)
+  done
+}
+
+# fetch_config: the pinned default config without its global path allowlist,
+# into $STATE/sweep.toml. A [allowlist] or [[allowlists]] table loses every
+# paths key; [[rules.allowlists]] tables are kept whole. Dies when the file is
+# unreadable or holds no rules.
+fetch_config() {
+  local raw="$STATE/default.toml"
+  api_get "$raw" "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=v$GITLEAKS_PIN" \
+    -H 'Accept: application/vnd.github.raw' ||
+    die "cannot read the gitleaks $GITLEAKS_PIN default config: ${STOPPED:-$API_ERR}"
+  grep -q '^\[\[rules\]\]' "$raw" || die "the gitleaks $GITLEAKS_PIN default config holds no rules"
+  awk '
+    /^\[/ { global = ($0 == "[allowlist]" || $0 == "[[allowlists]]"); skip = 0 }
+    global && /^paths *= *\[ *$/ { skip = 1; next }
+    skip { if ($0 ~ /^\]/) skip = 0; next }
+    global && /^paths *=/ { next }
+    { print }
+  ' "$raw" >"$STATE/sweep.toml"
 }
 
 # scan: gitleaks over the whole download tree; writes $OUT/findings.json with
@@ -364,7 +394,7 @@ scan() {
   local rc
   mkdir -p "$STATE/no-ignore"
   gitleaks dir --no-banner --no-color --log-level error --redact --ignore-gitleaks-allow \
-    --max-archive-depth 8 --exit-code 9 -c "$CONFIG" -i "$STATE/no-ignore" \
+    --max-archive-depth 8 --exit-code 9 -c "$STATE/sweep.toml" -i "$STATE/no-ignore" \
     -f json -r "$STATE/gitleaks.json" "$DL" >"$STATE/gitleaks.log" 2>&1
   rc=$?
   if ((rc != 0 && rc != 9)) || [[ ! -f "$STATE/gitleaks.json" ]]; then
@@ -381,8 +411,8 @@ report() {
   gaps="$(wc -l <"$STATE/gaps.tsv")"
   {
     printf '# Credential sweep: %s since %s\n\n' "$OWNER" "$SINCE"
-    printf 'Scanner: gitleaks %s, %s, redacted. Binaries: strings(1) -n 8 pass, scanned as text (*.strings.txt). Nested archives: gitleaks --max-archive-depth 8.\n' \
-      "$GITLEAKS_PIN" "${CONFIG#"$ROOT/"}"
+    printf 'Scanner: gitleaks %s, default config without its global path allowlist, redacted. Binaries: strings(1) -n 8 pass, scanned as text (<repo>/strings/). Nested archives: gitleaks --max-archive-depth 8.\n' \
+      "$GITLEAKS_PIN"
     printf 'API requests: %d (REST GET only).\n\n## Swept\n\n' "$REQUESTS"
     printf '| repo |'
     printf ' %s |' "${sources[@]}" hits
@@ -469,6 +499,7 @@ main() {
   else
     list_public_repos
   fi
+  fetch_config
   for ((i = 0; i < ${#REPOS[@]}; i++)); do
     r="${REPOS[i]}"
     if [[ -n "$STOPPED" ]]; then
