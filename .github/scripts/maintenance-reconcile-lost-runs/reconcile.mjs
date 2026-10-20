@@ -72,9 +72,13 @@ export const MAX_IN_FLIGHT = 3;
 export const WRITE_GAP_MS = 1000;
 // An outage loss is re-run within a day; an older one is left to a person (judgment).
 export const LOOKBACK_HOURS = 24;
-// Pages of 100 read from a lane's run listing; a day of pr-verify runs fits in
-// them, and a listing that does not is a failure, never a partial read.
+// Pages of 100 read per status query of a lane's run listing; a listing that
+// does not fit is a failure, never a partial read.
 export const LANE_RUN_PAGES = 5;
+// The lane listing is read once per status, so the many succeeded runs are
+// never listed: the lost conclusions, and every status short of completed (the
+// runs a re-run may have put in flight).
+export const LANE_LIST_STATUSES = [...LOST, "in_progress", "queued", "waiting", "requested", "pending"];
 
 class RateLimited extends Error {}
 
@@ -179,17 +183,24 @@ async function plan({ repo, call, say, since }) {
   for (const lanePath of RECORDED_LANES) {
     try {
       const file = lanePath.slice(lanePath.lastIndexOf("/") + 1);
-      const listed = await paginate(
-        async (...args) => {
-          const page = await call(...args);
-          if (!Array.isArray(page?.workflow_runs)) {
-            throw new Error("its run listing is not a page of runs");
-          }
-          return page.workflow_runs;
-        },
-        `/repos/${repo}/actions/workflows/${file}/runs?created=${created}`,
-        LANE_RUN_PAGES,
-      );
+      const byId = new Map();
+      for (const status of LANE_LIST_STATUSES) {
+        const listed = await paginate(
+          async (...args) => {
+            const page = await call(...args);
+            if (!Array.isArray(page?.workflow_runs)) {
+              throw new Error("its run listing is not a page of runs");
+            }
+            return page.workflow_runs;
+          },
+          `/repos/${repo}/actions/workflows/${file}/runs?created=${created}&status=${status}`,
+          LANE_RUN_PAGES,
+        );
+        for (const r of listed) {
+          byId.set(r.id, r);
+        }
+      }
+      const listed = [...byId.values()];
       const runs = listed.filter((r) => r.path === lanePath);
       inFlight += runs.filter((r) => r.status !== "completed" && r.run_attempt > 1).length;
       const unpublished = [];
