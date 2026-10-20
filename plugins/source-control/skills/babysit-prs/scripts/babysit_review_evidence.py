@@ -428,7 +428,12 @@ def _open_findings(
     A resolved thread is closed when:
     - a human resolved it;
     - the covering chain reports no finding at all and the thread was opened
-      before the covering review's job completed, so that review read past it;
+      before the covering review's job completed, so that review read past it.
+      A whole review of the head is a chain of one, so a clean whole review
+      closes a thread whoever resolved it; an incremental review reads only
+      what changed and never closes an unchanged thread this way. Closure is
+      per lane: a security-lane (HIGH) thread needs the security lane's own
+      clean whole review;
     - or GitHub marks it outdated, it was opened before the first review at
       `reviewed` (the head whose review covers the pinned head) started, and
       no line of its flagged range is left at the pinned head
