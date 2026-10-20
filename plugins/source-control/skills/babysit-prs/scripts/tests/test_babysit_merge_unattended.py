@@ -2485,6 +2485,135 @@ class ReasonsComment(Unattended):
         self.assertNotIn("risk-comment:POST", self.log)
 
 
+# Held only by a finding a clean whole review of the head would close.
+CARRIED = (
+    LaneEvidence("claude-review", True, None, 1, True),
+    LaneEvidence("claude-security-review", True, None, 0),
+)
+
+
+class WholeReviewRequest(Unattended):
+    """A lane pull request held only by findings an incremental review cannot
+    clear gets one whole-review request per head: the record line in the
+    reasons comment first, then the draft toggle."""
+
+    WRITTEN = ReasonsComment.WRITTEN
+    earlier_sweep = ReasonsComment.earlier_sweep
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.now = self.WRITTEN + timedelta(hours=2)
+        self.lanes = CARRIED
+        self.limit: str | None = None
+        self.toggles: list[str] = []
+
+    def _toggle(self, node_id: str, **kwargs: Any) -> dict[str, Any]:
+        self.log.append("toggle")
+        self.toggles.append(node_id)
+        return {"toggled": True}
+
+    def run_main(
+        self, *flags: str, merge_flag: bool = True
+    ) -> tuple[int, dict[str, Any]]:
+        with (
+            mock.patch.object(merge, "_now", return_value=self.now),
+            mock.patch.object(merge.whole_review, "limits", return_value=self.limit),
+            mock.patch.object(merge.whole_review, "toggle", side_effect=self._toggle),
+        ):
+            return super().run_main(*flags, merge_flag=merge_flag)
+
+    def posted(self) -> str:
+        return next(
+            c.args[0][-1].removeprefix("body=")
+            for c in self.capture.call_args_list
+            if "babysit-merge-risk" in " ".join(c.args[0])
+        )
+
+    def test_records_then_toggles_once(self) -> None:
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, ["risk-comment:POST", "toggle"])
+        self.assertEqual(self.toggles, [self.node_id])
+        self.assertIn(merge.whole_review.record_line(HEAD), self.posted())
+        self.assertEqual(out["unattended"]["writes"]["wholeReview"], {"toggled": True})
+
+    def test_a_recorded_head_is_not_toggled_again_and_keeps_its_record(self) -> None:
+        self.run_main()
+        body = self.posted()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.now = self.WRITTEN + timedelta(minutes=10)
+        _, out = self.run_main()
+        self.assertEqual(self.log, [])
+        self.assertEqual(out["unattended"]["writes"]["riskComment"], "unchanged")
+
+    def test_the_record_survives_escalation(self) -> None:
+        self.run_main()
+        body = self.posted()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.now = self.WRITTEN + timedelta(hours=3)
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+        patched = next(
+            c.args[0][-1] for c in self.capture.call_args_list if "PATCH" in c.args[0]
+        )
+        self.assertIn(merge.whole_review.record_line(HEAD), patched)
+        self.assertTrue(patched.endswith(merge.RISK_ESCALATION_LINE))
+
+    def test_a_record_at_an_older_head_does_not_stop_a_new_one(self) -> None:
+        self.run_main()
+        old = self.posted().replace(HEAD, "d" * 40)
+        self.setUp()
+        self.earlier_sweep(old)
+        self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH", "toggle"])
+
+    def test_an_escalated_comment_is_not_toggled(self) -> None:
+        self.run_main()
+        body = self.posted()
+        self.setUp()
+        self.earlier_sweep(
+            f"{body.replace(merge.whole_review.record_line(HEAD), '').rstrip()}"
+            f"\n\n{merge.RISK_ESCALATION_LINE}"
+        )
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+    def test_a_limit_writes_no_record_and_no_toggle(self) -> None:
+        self.limit = "running-jobs:40"
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:POST"])
+        self.assertNotIn(merge.whole_review.record_line(HEAD), self.posted())
+        self.assertEqual(
+            out["unattended"]["writes"]["wholeReview"],
+            {"toggled": False, "skipped": "running-jobs:40"},
+        )
+
+    def test_another_refusal_is_not_toggled(self) -> None:
+        self.lanes = (
+            CARRIED[0],
+            LaneEvidence("claude-security-review", False, "no-marker", None),
+        )
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+    def test_a_finding_at_the_head_is_not_toggled(self) -> None:
+        self.lanes = (LaneEvidence("claude-review", True, None, 1, False), CARRIED[1])
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+    def test_another_authors_pull_request_is_not_toggled(self) -> None:
+        self.pr_user = {"login": "someone", "type": "User"}
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+    def test_report_only_requests_nothing(self) -> None:
+        self.config = dataclasses.replace(self.config, report_only=True)
+        self.run_main()
+        self.assertNotIn("toggle", self.log)
+
+
 class HeadFile(unittest.TestCase):
     """`bind()`'s head-file reader proves a deletion, never a rename."""
 

@@ -152,12 +152,12 @@ def _bind_lane(
         reviewed, chain = _resolve(lane, head, lane_runs)
         _require_marker(lane, head, comments)
         _require_marked_runs(lane, lane_runs, comments)
-        count = _open_findings(
+        count, clears = _open_findings(
             lane, lane_runs, threads, is_human, claimed, reviewed, chain, head_file
         )
     except Unbound as exc:
         return LaneEvidence(lane, False, exc.reason, None)
-    return LaneEvidence(lane, True, None, count)
+    return LaneEvidence(lane, True, None, count, clears)
 
 
 def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -412,7 +412,7 @@ def _open_findings(
     reviewed: str,
     chain: Sequence[_Record],
     head_file: Callable[[str, str], str | None] | None = None,
-) -> int:
+) -> tuple[int, bool]:
     """Summary findings of the review chain covering the pinned head
     (`chain`, from `_resolve`), plus inline threads still open, plus inline
     findings of the chain whose thread is gone. A summary or thread-less
@@ -443,7 +443,11 @@ def _open_findings(
     that resolved it. A thread stands for a recorded inline finding only when
     it was opened inside that lane job's run, and it stands for one finding
     across both lanes (`claimed`), so neither an unrecorded review's thread
-    nor the other lane's untagged thread hides a missing one."""
+    nor the other lane's untagged thread hides a missing one.
+
+    Also returns whether a clean whole review of `reviewed` would close every
+    open finding: none is an unresolved thread, no completed review of
+    `reviewed` reported a finding, and none of them was a whole review."""
     if threads is None:
         raise Unbound("threads-unread")
     # (job started, job completed, inline findings) per recorded attempt.
@@ -456,6 +460,8 @@ def _open_findings(
     # Per head, the most (findings, summary findings) any completed whole
     # review of it reported.
     whole_max: dict[str, tuple[int, int]] = {}
+    # Whether any review of `reviewed` was whole or reported a finding.
+    head_spent = False
     for item in lane_runs:
         for attempt in _attempts(item).values():
             # A draft-skipped run has only the caller job and reviewed nothing.
@@ -485,6 +491,8 @@ def _open_findings(
                 )
             )
             kinds.append((rec.sha, rec.whole))
+            if rec.sha == reviewed and (rec.whole or rec.findings > 0):
+                head_spent = True
             if (
                 item["head_sha"] == reviewed
                 and started
@@ -505,6 +513,7 @@ def _open_findings(
         raise Unbound("evidence-error")
     covered = [0] * len(windows)
     open_threads = 0
+    unresolved = 0
     for thread in threads:
         if not isinstance(thread, Mapping):
             raise Unbound("evidence-error")
@@ -520,6 +529,7 @@ def _open_findings(
                     break
         if thread.get("isResolved") is not True:
             open_threads += 1
+            unresolved += 1
         elif cleared and read_through and created and created < read_through:
             continue
         elif not (
@@ -540,7 +550,8 @@ def _open_findings(
         )
         for rec in chain
     )
-    return summary + open_threads + missing
+    count = summary + open_threads + missing
+    return count, count > 0 and not unresolved and not head_spent
 
 
 def _line_changed(

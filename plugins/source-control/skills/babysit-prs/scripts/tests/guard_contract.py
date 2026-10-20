@@ -48,6 +48,7 @@ SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
 PREFILTER_CLI = "skills/babysit-prs/scripts/babysit_merge_prefilter.py"
 SKIP_CLI = "skills/babysit-prs/scripts/babysit_merge_skip.py"
+WHOLE_REVIEW_CLI = "skills/babysit-prs/scripts/babysit_whole_review.py"
 THREADS_CLI = "skills/babysit-prs/scripts/pr_review_threads.py"
 READINESS_GATE = "scripts/babysit-readiness-gate.sh"
 MERGE_WRAPPER = "scripts/source-control-babysit-merge"
@@ -1242,6 +1243,15 @@ MECHANISMS: tuple[Mechanism, ...] = (
         must_not_contain=('"push"', "'push'"),
     ),
     Mechanism(
+        id="whole-review.marks-ready",
+        claim=(
+            "babysit_whole_review.py recover performs a GitHub write: it marks a "
+            "draft pull request ready for review through GraphQL."
+        ),
+        entry_point=WHOLE_REVIEW_CLI,
+        must_contain=("markPullRequestReadyForReview",),
+    ),
+    Mechanism(
         id="review.posts-a-comment",
         claim=(
             "request_review.py --apply performs a GitHub write: it POSTs an issue comment "
@@ -1520,6 +1530,19 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "held, printed on stdout; no write of any kind and no GitHub call."
         ),
         backed_by=(),
+    ),
+    EntryPoint(
+        path=WHOLE_REVIEW_CLI,
+        wrapper=None,
+        mutation=MUTATING,
+        mutates_what="a pull request's draft state",
+        gate="pr-merge.yml runs `recover` with the lane token, live mode only",
+        claim=(
+            "`recover` reads each listed draft's comments and marks ready a "
+            "draft whose newest comment by the lane identity records a "
+            "whole-review request at its current head."
+        ),
+        backed_by=("whole-review.marks-ready",),
     ),
     EntryPoint(
         path=SKIP_CLI,

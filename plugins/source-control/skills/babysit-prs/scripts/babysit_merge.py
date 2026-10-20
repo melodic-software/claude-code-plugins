@@ -151,6 +151,7 @@ import babysit_review_evidence as review_evidence
 import babysit_risk
 import babysit_run_cache as run_cache
 import babysit_verify_evidence as verify_evidence
+import babysit_whole_review as whole_review
 import babysit_repo_config as repo_policy
 from babysit_state import resolve_state_dir, state_lock, write_state
 from babysit_checks import check_identity_key, classify_checks
@@ -3054,6 +3055,9 @@ def score_unattended(
             for lane in lanes
         ],
     }
+    # Every other gate passed and only findings a clean whole review of the
+    # head would close hold it (babysit_whole_review.py).
+    details["wholeReviewWanted"] = whole_review.wanted(policy.reason, risk, lanes)
     inputs.update(risk=risk, comments=comments)
     reason = policy.reason or (
         None if risk.score is babysit_risk.Risk.LOW else f"risk:{risk.score.name}"
@@ -3617,6 +3621,9 @@ def unattended_writes(
                 else merge_policy.RISK_ESCALATION_MINUTES
             )
             prior = _newest_marker_comment(comments, identity, RISK_MARKER)
+            body, report["wholeReview"] = _whole_review_record(
+                repo, policy, body, head, prior
+            )
             escalated = f"{body}\n\n{RISK_ESCALATION_LINE}"
             if prior is not None and (
                 str(prior.get("body") or "") == escalated
@@ -3632,8 +3639,14 @@ def unattended_writes(
                 report["riskComment"] = upsert_marker_comment(
                     repo, number, identity, body, comments
                 )
+            # Recorded first, so a failed write never toggles twice at a head.
+            if report["wholeReview"] == {"toggle": True}:
+                node_id = str(json_object(inputs.get("pr")).get("node_id") or "")
+                report["wholeReview"] = whole_review.toggle(node_id)
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"reasons comment: {exc}")
+        if report.get("wholeReview") is None:
+            report.pop("wholeReview", None)
     # A LOW score ends the refusal at this head: the identity's refusal
     # comment naming it says so once, from comments already read. An
     # escalated one stays beside the label it explains.
@@ -3689,6 +3702,39 @@ def unattended_writes(
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"major escalation: {exc}")
     return report
+
+
+def _whole_review_record(
+    repo: str,
+    policy: merge_policy.UnattendedPolicy,
+    body: str,
+    head: str,
+    prior: dict[str, Any] | None,
+) -> tuple[str, dict[str, Any] | None]:
+    """The reasons comment body with the whole-review record line, and the
+    request: `{"toggle": True}` when this run records a new one. A record of
+    this head in the prior comment is carried. A lane pull request scored
+    `wholeReviewWanted` whose comment is not escalated is recorded when this
+    sweep's limits allow it."""
+    text = str((prior or {}).get("body") or "")
+    if whole_review.recorded(text, head):
+        return whole_review.with_record(body, head), None
+    inputs = policy.inputs or {}
+    pr = json_object(inputs.get("pr"))
+    user = json_object(pr.get("user"))
+    author = merge_policy.actor_key(
+        {"__typename": user.get("type"), "login": user.get("login")}
+    )
+    if (
+        (policy.details or {}).get("wholeReviewWanted") is not True
+        or author != str(inputs.get("identity") or "").casefold()
+        or text.endswith(RISK_ESCALATION_LINE)
+    ):
+        return body, None
+    refusal = whole_review.limits(repo)
+    if refusal is not None:
+        return body, {"toggled": False, "skipped": refusal}
+    return whole_review.with_record(body, head), {"toggle": True}
 
 
 def _identity_queue_entries(

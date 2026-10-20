@@ -103,6 +103,10 @@ class LaneEvidence:
     bound: bool  # the evidence binding held on the pinned SHA
     unbound_reason: str | None
     open_findings: int | None  # None when not bound
+    # Every open finding is one a clean whole review of the head closes: none
+    # was reported at the head, no whole review of it is recorded, and no
+    # lane thread is unresolved.
+    whole_review_clears: bool = False
 
 
 @dataclass(frozen=True)

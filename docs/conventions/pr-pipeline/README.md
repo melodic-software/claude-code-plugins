@@ -730,6 +730,18 @@ it never closes an unchanged thread: a lane that resolved an unfixed finding and
 commit leaves it open. A resolved thread also closes when a human resolved it, or when it is
 outdated with none of its flagged lines left at the head; an unresolved thread stays open.
 
+Whole-review request (`babysit_whole_review.py`): when a lane pull request passes every other gate
+and its only risk reasons are open findings a clean whole review of the head would close (no review
+of that head reported a finding or was whole, and no lane thread is unresolved), the gate writes a
+`Whole review requested at head` line into its reasons comment, then converts the pull request to a
+draft and marks it ready with the lane token, so `ready_for_review` runs both review lanes whole.
+That event also re-runs `pr-require-checks.yml`, `pr-test-windows.yml` and pr-merge itself. The
+line is carried on every rewrite at that head, so a head is toggled once. A run toggles at most one
+pull request, and only while fewer than 35 jobs are running and the lane token and the job token
+each have 1,500 calls left; an escalated comment is not toggled. Each toggle logs
+`::notice::pr-merge whole-review-toggle pr=<n> head=<sha>`. A draft a run left between the two
+writes is marked ready by the next run.
+
 While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
 no full CI run either; its summary says whether it would have.
 

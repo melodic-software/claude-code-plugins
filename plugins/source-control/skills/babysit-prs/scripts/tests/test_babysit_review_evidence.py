@@ -1359,6 +1359,70 @@ class CleanWholeReviewTests(Base):
         self.assertEqual(result["claude-review"].open_findings, 1)
 
 
+class WholeReviewClearsTests(Base):
+    """`whole_review_clears`: the lane's open findings are all ones a clean
+    whole review of the head would close, and no review of the head has
+    reported a finding or been a whole one."""
+
+    SECURITY = CleanWholeReviewTests.SECURITY
+    CLEAN_INCREMENTAL = CleanWholeReviewTests.CLEAN_INCREMENTAL
+    LANES_BOT = CleanWholeReviewTests.LANES_BOT
+    chain = CleanWholeReviewTests.chain
+    security_thread = CleanWholeReviewTests.security_thread
+
+    def test_older_resolved_thread_under_a_clean_incremental_clears(self) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_INCREMENTAL, raised=0),
+            *self.chain("claude-security-review", self.CLEAN_INCREMENTAL),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        self.assertTrue(result["claude-security-review"].whole_review_clears)
+        # Nothing open: nothing to clear.
+        self.assertFalse(result["claude-review"].whole_review_clears)
+
+    def test_older_summary_finding_under_a_clean_incremental_clears(self) -> None:
+        runs = [
+            run("claude-review", S0, "findings=1 inline=0 scope=whole"),
+            run("claude-review", S, self.CLEAN_INCREMENTAL),
+        ]
+        result = self.bind(runs)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+        self.assertTrue(result["claude-review"].whole_review_clears)
+
+    def test_a_finding_reported_at_the_current_head_does_not_clear(self) -> None:
+        runs = [
+            run("claude-review", S0, "findings=1 inline=0 scope=whole"),
+            run(
+                "claude-review", S, f"findings=1 inline=0 scope=incremental since={S0}"
+            ),
+        ]
+        result = self.bind(runs)
+        self.assertEqual(result["claude-review"].open_findings, 2)
+        self.assertFalse(result["claude-review"].whole_review_clears)
+
+    def test_a_whole_review_already_at_the_head_does_not_clear(self) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_INCREMENTAL, raised=0),
+            *self.chain("claude-security-review", "findings=1 inline=0 scope=whole"),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        self.assertFalse(result["claude-security-review"].whole_review_clears)
+
+    def test_an_unresolved_thread_does_not_clear(self) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_INCREMENTAL, raised=0),
+            *self.chain("claude-security-review", self.CLEAN_INCREMENTAL),
+        ]
+        threads = [thread(self.SECURITY)]
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-security-review"].open_findings, 1)
+        self.assertFalse(result["claude-security-review"].whole_review_clears)
+
+    def test_unbound_never_clears(self) -> None:
+        result = self.bind([])
+        self.assertFalse(result["claude-review"].whole_review_clears)
+
+
 class FailClosedTests(Base):
     def test_garbage_input_never_raises(self) -> None:
         for runs in (None, [None], [{"attempts": "x"}], "runs", [{"id": 1}]):
