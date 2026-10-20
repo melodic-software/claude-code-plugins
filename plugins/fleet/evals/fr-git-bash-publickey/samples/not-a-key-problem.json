@@ -9,6 +9,14 @@
     {
       "answer": "Nothing is wrong with your keys; the wrong ssh binary answered.",
       "why": "unusual wording"
+    },
+    {
+      "answer": "Your keys are almost certainly fine; Git Bash's MSYS ssh can't reach the Windows agent. Use ssh.exe.",
+      "why": "observed wording: adverbs between 'are' and 'fine'"
+    },
+    {
+      "answer": "Nothing was wrong with the keys: the MSYS ssh in Git Bash answered instead of ssh.exe.",
+      "why": "observed wording: past tense"
     }
   ],
   "fail": [
@@ -18,6 +26,10 @@
     {
       "answer": "Try the Windows OpenSSH client, ssh.exe, and see if that helps.",
       "why": "written to fail: names the client but never says the keys are fine"
+    },
+    {
+      "answer": "Your keys are probably not fine; regenerate them with ssh-keygen.",
+      "why": "written to fail: an adverb before 'not fine' must not pass"
     }
   ]
 }
