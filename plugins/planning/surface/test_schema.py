@@ -290,6 +290,43 @@ class TestShippedSchemas(unittest.TestCase):
             with self.subTest(bad=bad):
                 self.assertIsNotNone(err(bad))
 
+    def test_revising_by_claude_op_shape(self):
+        ops = schema.load("ops")
+
+        def err(op):
+            return schema.first_error(op, ops["$defs"]["revising-by-claude"], "$", ops)
+
+        for ok in (
+            {"op": "revising-by-claude", "ids": ["Q1", "Q2"], "why": "audit"},
+            {"op": "revising-by-claude", "clear": True},
+            {"op": "revising-by-claude", "ids": ["Q1"], "clear": True},
+        ):
+            with self.subTest(ok=ok):
+                self.assertIsNone(err(ok))
+        for bad in (
+            {"op": "revising-by-claude", "ids": [], "why": "audit"},
+            {"op": "revising-by-claude", "ids": "Q1", "why": "audit"},
+            {"op": "revising-by-claude", "ids": ["Q1"], "why": 5},
+            {"op": "revising-by-claude", "extra": 1},
+        ):
+            with self.subTest(bad=bad):
+                self.assertIsNotNone(err(bad))
+
+    def test_a_question_may_carry_a_revising_mark(self):
+        doc = {
+            "questions": [
+                {
+                    "id": "Q1",
+                    "short": "s",
+                    "title": "t",
+                    "claudeRevising": {"why": "audit", "at": "2026-10-20T00:00:00Z"},
+                }
+            ]
+        }
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        doc["questions"][0]["claudeRevising"] = {"why": "audit"}
+        self.assertIsNotNone(schema.first_error(doc, schema.load("questions")))
+
     def test_ops_text_caps_match_round_py(self):
         ops = schema.load("ops")
 
@@ -299,6 +336,7 @@ class TestShippedSchemas(unittest.TestCase):
         for op, cap in (
             ({"op": "activity", "text": ""}, 500),
             ({"op": "set-status", "text": ""}, 500),
+            ({"op": "revising-by-claude", "ids": ["Q1"], "why": ""}, 500),
             ({"op": "wait", "id": "Q1", "waitsOn": ""}, 500),
             ({"op": "archive", "ids": ["Q1"], "why": ""}, 500),
             ({"op": "revise", "id": "Q1", "title": ""}, 500),
