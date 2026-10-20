@@ -84,8 +84,10 @@ Contract enforced here (encoded as code, not convention):
   report's `unattended` block says which. With `--merge`, a stop refusal
   dequeues the identity's queued entries, a held identity entry leaves the
   queue, an eligible MED or HIGH pull request gets one upserted
-  `<!-- babysit-merge-risk -->` comment, a verifier refusal that needs a
-  human gets the tracker's human-gated role label and one upserted
+  `<!-- babysit-merge-risk -->` comment (and the human-gated role label once
+  an earlier run's identical comment has stood for
+  `merge.risk-escalation-minutes`), a verifier refusal that
+  needs a human gets the tracker's human-gated role label and one upserted
   `<!-- babysit-merge-verify-escalation -->` comment, a Dependabot update held
   under `merge.dependabot.majors: hold` gets the same label and one upserted
   `<!-- babysit-merge-dependabot-major -->` comment, and a ready LOW pull request is
@@ -2738,6 +2740,13 @@ def queued_entry_hold(
 # --- The unattended path ------------------------------------------------------------------------
 
 RISK_MARKER = "<!-- babysit-merge-risk -->"
+# Appended to the reasons comment when its refusal persisted: the rewrite
+# stamps the comment beside the label it explains, which the head-moved
+# clear (clear-escalations.mjs) needs to pair them.
+RISK_ESCALATION_LINE = (
+    "This refusal has stood unchanged at this head, so a person is needed: "
+    "the pr-merge lane added the human-gated label."
+)
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
 # The most of a verdict's summary a verify:fail escalation quotes (judgment).
 VERIFY_SUMMARY_MAX = 1500
@@ -3155,6 +3164,18 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     return "\n".join(lines)
 
 
+def risk_cleared_body(head: str) -> str:
+    """The reasons comment once the head scores LOW: a refusal there later
+    renders a different body, so its time starts then, not at the old one."""
+    return "\n".join(
+        [
+            RISK_MARKER,
+            f"Unattended merge: risk **LOW** at head `{head}`. The earlier "
+            "refusal no longer holds.",
+        ]
+    )
+
+
 def _newest_marker_comment(
     comments: list[dict[str, Any]], identity: str, marker: str
 ) -> dict[str, Any] | None:
@@ -3174,6 +3195,18 @@ def _newest_marker_comment(
     if not mine:
         return None
     return max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
+
+
+def _stood_unchanged(comment: dict[str, Any], body: str, minutes: int) -> bool:
+    """Whether `comment` already reads `body` (the same score, reasons and
+    head) and has for at least `minutes`, timed from its last change: a
+    rewrite of its reasons restarts the time."""
+    if str(comment.get("body") or "") != body:
+        return False
+    changed = parse_github_timestamp(
+        str(comment.get("updated_at") or comment.get("created_at") or "")
+    )
+    return changed is not None and _now() - changed >= timedelta(minutes=minutes)
 
 
 def upsert_marker_comment(
@@ -3474,7 +3507,11 @@ def unattended_writes(
     hold (D3) leaves the queue, as does this pull request's own entry when
     this run refused it for itself (`own_refusal`) or scored it above LOW
     (`risk:<score>`). Then the reasons comment for an eligible
-    MED or HIGH pull request on a path not stopped, and the escalation
+    MED or HIGH pull request on a path not stopped, escalated (`escalate`)
+    when the comment read before this run already says the same and has for
+    `merge.risk-escalation-minutes` (`_stood_unchanged`), the comment first
+    rewritten to end with `RISK_ESCALATION_LINE` (once); at LOW, a refusal
+    comment naming the head becomes `risk_cleared_body`; and the escalation
     (`escalate_verify`) for a verifier refusal that needs a human, or for a
     Dependabot update held under `merge.dependabot.majors: hold`, keyed on the
     eligibility reason. Nothing is written before
@@ -3562,16 +3599,61 @@ def unattended_writes(
     # reasons comment would only say so on every pull request.
     if not stopped and risk is not None and risk.score is not babysit_risk.Risk.LOW:
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
+        body = risk_comment_body(risk, head)
         try:
-            report["riskComment"] = upsert_marker_comment(
-                repo,
-                number,
-                identity,
-                risk_comment_body(risk, head),
-                inputs.get("comments"),
+            comments = inputs.get("comments")
+            if comments is None:
+                comments = fetch_paginated_api(
+                    f"repos/{repo}/issues/{number}/comments?per_page=100",
+                    f"#{number} comments",
+                )
+            # An earlier run's reasons comment saying the same thing at this
+            # head for long enough means the refusal persisted: escalate it.
+            # A shorter stand may be a review still running at the head.
+            config = inputs.get("config")
+            minutes = (
+                config.risk_escalation_minutes
+                if config is not None
+                else merge_policy.RISK_ESCALATION_MINUTES
             )
+            prior = _newest_marker_comment(comments, identity, RISK_MARKER)
+            escalated = f"{body}\n\n{RISK_ESCALATION_LINE}"
+            if prior is not None and (
+                str(prior.get("body") or "") == escalated
+                or _stood_unchanged(prior, body, minutes)
+            ):
+                escalation = escalate(
+                    repo, number, identity, escalated, RISK_MARKER,
+                    {**inputs, "comments": comments},
+                )  # fmt: skip
+                report["riskComment"] = escalation["comment"]
+                report["riskEscalation"] = escalation
+            else:
+                report["riskComment"] = upsert_marker_comment(
+                    repo, number, identity, body, comments
+                )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"reasons comment: {exc}")
+    # A LOW score ends the refusal at this head: the identity's refusal
+    # comment naming it says so once, from comments already read. An
+    # escalated one stays beside the label it explains.
+    elif not stopped and risk is not None and inputs.get("comments") is not None:
+        head = str(json_object(inputs["pr"].get("head")).get("sha"))
+        prior = _newest_marker_comment(inputs["comments"], identity, RISK_MARKER)
+        text = str((prior or {}).get("body") or "")
+        cleared = risk_cleared_body(head)
+        if (
+            prior is not None
+            and f" at head `{head}`" in text
+            and text != cleared
+            and not text.endswith(RISK_ESCALATION_LINE)
+        ):
+            try:
+                report["riskComment"] = upsert_marker_comment(
+                    repo, number, identity, cleared, inputs["comments"]
+                )
+            except RuntimeError as exc:
+                report["errors"].append(f"reasons comment: {exc}")
     # A verifier refusal that needs a human gets the durable escalation
     # signal; report-only never reaches here.
     verify = json_object((policy.details or {}).get("verify"))
