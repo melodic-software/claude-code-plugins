@@ -26,22 +26,27 @@ gh pr view <pr_number> --json state -q '.state'
 
 The Monitor watch's poll script, passed inline in the `command` parameter. `<scripts-dir>` is the
 placeholder the pull-request skill resolves. `BASELINE_FILE` stays empty on the first arming; a
-re-arm sets it to the file holding the full iteration's checks (the `cur_checks` lines, one
-`name: bucket` per line, pending rows left out), which the script reads as its first snapshot.
+re-arm sets it to the snapshot file this same script wrote in a snapshot run (`SNAPSHOT_FILE`
+set: one state check and checks read, the `cur_checks` lines written under a marker line, then
+exit 0, or exit 1 with nothing written when the read failed). A baseline file without that
+marker line is refused with `BASELINE-UNREADABLE`, so only this script's own serializer ever
+produces a baseline.
 
 ```bash
 PR_NUMBER=<N>
 INTERVAL=60  # raise with several watchers (../README.md#api-budget)
 OWNER=$(gh repo view --json owner -q .owner.login)
 REPO=$(gh repo view --json name -q .name)
-BASELINE_FILE=  # re-arm only: the checks snapshot the full iteration wrote
+BASELINE_FILE=  # re-arm only: the file a snapshot run of this script wrote
+SNAPSHOT_FILE=  # snapshot run only: write the checks here and exit
+SNAPSHOT_MARK='# monitor-poll checks snapshot'
 prev_checks=""
-baselined=0  # set by a readable BASELINE_FILE or the first successful check read
-if [ -n "$BASELINE_FILE" ] && [ -r "$BASELINE_FILE" ]; then
-  prev_checks=$(tr -d '\r' <"$BASELINE_FILE" | sort)
+baselined=0  # set by a snapshot BASELINE_FILE or the first successful check read
+if [ -n "$BASELINE_FILE" ] && [ "$(head -n 1 "$BASELINE_FILE" 2>/dev/null | tr -d '\r')" = "$SNAPSHOT_MARK" ]; then
+  prev_checks=$(tail -n +2 "$BASELINE_FILE" | tr -d '\r' | grep -v '^$' | sort || true)
   baselined=1
 elif [ -n "$BASELINE_FILE" ]; then
-  echo "BASELINE-UNREADABLE $BASELINE_FILE — first checks poll only records; run a full scan"
+  echo "BASELINE-UNREADABLE $BASELINE_FILE — missing or not a snapshot this script wrote; first checks poll only records; run a full scan"
 fi
 last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 prev_threads=""
@@ -90,6 +95,15 @@ while true; do
     run_rows=$(printf '%s\n' "$runs_raw" | jq -s -r --argjson wf "$wf" "$b"' [.[].check_runs[] | {k: "\(.name)/\($wf[.check_suite.id | tostring] // "")", name, t: (.started_at // ""), s: (if .status == "completed" then .conclusion else .status end)}] | group_by(.k) | map(max_by(.t))[] | "\(.name): \(.s | b)"') || checks_ok=0
     cur_checks=$({ printf '%s\n' "$run_rows"; printf '%s\n' "$stat_raw"; } \
       | tr -d '\r' | grep -v -e '^$' -e ': pending$' | sort || true)
+  fi
+  if [ -n "$SNAPSHOT_FILE" ]; then
+    if [ "$checks_ok" -ne 1 ]; then
+      echo "SNAPSHOT-FAILED — checks read failed; no snapshot written"
+      exit 1
+    fi
+    printf '%s\n%s\n' "$SNAPSHOT_MARK" "$cur_checks" >"$SNAPSHOT_FILE.tmp" &&
+      mv "$SNAPSHOT_FILE.tmp" "$SNAPSHOT_FILE"
+    exit $?
   fi
   if [ "$checks_ok" -eq 1 ]; then
     # Bucket values mirror gh pr checks: pass|fail|pending|skipping|cancel.

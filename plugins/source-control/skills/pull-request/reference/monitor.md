@@ -80,7 +80,7 @@ We pass the background-command maximum on every fallback poll and treat the stop
    )
    ```
 
-   **Re-arm at the deadline.** On the deadline notice, if the PR is still `OPEN` and readiness has not passed (§3.0.5), run the full iteration's checks read first (the poll script's CI block, standalone) and write its `name: bucket` lines to a snapshot file in the scratch directory. Then arm the watch with this same call, `BASELINE_FILE` set to that file, and finish the full iteration (step 5). The watch starts from that checks snapshot, so a check that finishes after the read is emitted once by the watch, and a check already finished at the read is not reported again. The iteration covers anything else that landed between the deadline and the new watch: the new watch only reports comments posted after it starts, and its first poll records the review-thread count without emitting it. With no snapshot (the first arming), the first poll only records the checks.
+   **Re-arm at the deadline.** On the deadline notice, if the PR is still `OPEN` and readiness has not passed (§3.0.5), first run the poll script once through Bash with `SNAPSHOT_FILE` set to a path in the scratch directory: it reads the checks and writes them there in the format the watch reads, then exits. Never write or edit the snapshot by hand; the watch refuses a file the script did not write. Then arm the watch with this same call, `BASELINE_FILE` set to that path (left empty if the snapshot run exited non-zero), and finish the full iteration (step 5). The watch starts from that checks snapshot, so a check that finishes after the read is emitted once by the watch, and a check already finished at the read is not reported again. The iteration covers anything else that landed between the deadline and the new watch: the new watch only reports comments posted after it starts, and its first poll records the review-thread count without emitting it. With no snapshot (the first arming), the first poll only records the checks.
 
    We pass the Monitor deadline maximum on every arming call and re-arm on the deadline notice for as long as the PR needs watching.
 
@@ -121,10 +121,10 @@ We pass the background-command maximum on every fallback poll and treat the stop
      the unresolved count, or `THREADS_UNPROVEN`, changes. Resolving a thread moves no check and
      posts no comment, so the other reads never see it.
    - It records the thread count on its first poll, and the checks as the baseline on the first poll
-     whose check read succeeds, unless `BASELINE_FILE` names a readable snapshot. With one, the
+     whose check read succeeds, unless `BASELINE_FILE` names a snapshot the script's snapshot run wrote. With one, the
      snapshot is the baseline: the first successful checks read emits a check finished in the live
-     read but not in the snapshot, and nothing else. A `BASELINE_FILE` that is unreadable emits
-     `BASELINE-UNREADABLE <path>` and records only; run a full checks scan when it wakes you. A poll
+     read but not in the snapshot, and nothing else. A `BASELINE_FILE` that is unreadable or lacks
+     the snapshot marker emits `BASELINE-UNREADABLE <path>` and records only; run a full checks scan when it wakes you. A poll
      whose check read fails (any call in the read errors) keeps the baseline and emits no check lines.
 
    Capture the returned task id. Report: `Monitor watch armed (task <id>, PR #<N>). Fires on CI check completion, new comments, and review-thread count changes. Stop with TaskStop <id> or end session; re-armed at each deadline.` Keep that task id: it is what step 2 and §3.0.5 check.
