@@ -778,6 +778,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (isStale(q)) chips.push('<span class="chip hot">' + ((q.upstreamChanged || []).length ? "Upstream changed" : "Stale") + "</span>");
     if (up) chips.push('<span class="chip plain" title="' + esc("Reconfirm " + waitOn(q).join(", ") + " (under Review), or answer this one anyway") + '">Waiting on ' + esc(waitOn(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled your answer to this question yet.">Answer not handled yet</span>');
+    if (q.claudeRevising && st !== "arch") chips.push('<span class="chip hot" title="' + esc("Claude is revising this: " + q.claudeRevising.why) + '">Claude is revising this: ' + esc(trunc(q.claudeRevising.why, 60)) + "</span>");
     if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">asked ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " ago, unanswered</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
     const aa = live(q) && afterAnswer(q);
@@ -1137,6 +1138,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". Research in progress" + (fmtT(q.waitingSince) ? ", started " + esc(fmtT(q.waitingSince)) : "") + ". You can answer anyway; it counts once the research returns.</div>";
     if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
     if (q.revising && st !== "arch") h += '<div class="banner"><b>Answer not handled yet.</b> Claude has not handled your answer to this question yet, so it may be revised. You can still answer.</div>';
+    if (q.claudeRevising && st !== "arch") h += '<div class="banner"><b>Claude is revising this:</b> ' + inline(q.claudeRevising.why) + " You can still answer.</div>";
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
     if (q.supersededBy) h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
     if (q.revised) { // the full banner until the user has opened the question since its latest revision, then a chip
@@ -1239,7 +1241,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function grow(ta){ ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, window.innerHeight * 0.4) + "px"; }
 
   // ---------- conflict (409) ----------
-  function snapOf(q){ return {rev: crev(q), title: q.title, recommendation: q.recommendation || "", alternatives: (q.alternatives || []).map(a => "(" + a.key + ") " + a.text).join("\n")}; }
+  function snapOf(q){ return {rev: crev(q), content: q.contentRev || 0, title: q.title, recommendation: q.recommendation || "", alternatives: (q.alternatives || []).map(a => "(" + a.key + ") " + a.text).join("\n")}; }
   function wordDiff(a, b, sep){ // sep splits into the compared pieces: words by default, /^/m for lines
     const x = String(a || "").split(sep || /(\s+)/), y = String(b || "").split(sep || /(\s+)/);
     if (x.length * y.length > 250000) return "<del>" + esc(a) + "</del> <ins>" + esc(b) + "</ins>";
@@ -1264,8 +1266,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if ((old.recommendation || "") !== (cur.recommendation || "")) rows.push("<div><b>Recommendation</b><div class=\"diff\">" + wordDiff(old.recommendation, cur.recommendation) + "</div></div>");
     if ((old.alternatives || "") !== alts) rows.push("<div><b>Alternatives</b><div class=\"diff\">" + wordDiff(old.alternatives, alts) + "</div></div>");
     const dec = c.data.decision;
+    if (!rows.length && c.early) rows.push("<div>Claude revised the details below the question.</div>");
     if (!rows.length) rows.push("<div>The decision changed elsewhere" + (dec && dec.decision ? ": now " + esc(LABEL[dec.decision] || dec.decision) : "") + ".</div>");
-    box.innerHTML = "<div><b>" + esc(c.id) + " changed while you were answering.</b> Your note and choice are kept.</div>" + rows.join("") +
+    box.innerHTML = "<div><b>" + esc(c.id) + (c.early ? " just changed: review.</b> Your note and choice are kept." : " changed while you were answering.</b> Your note and choice are kept.") + "</div>" + rows.join("") +
       '<div class="arow"><button class="act" data-conflict="new" data-submit="1">Accept new</button><button class="act primary" data-conflict="mine" data-submit="1">Keep mine</button></div>';
     box.hidden = false;
   }
@@ -1600,7 +1603,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   // ---------- navigation ----------
   function select(id, opts){
     if (id !== SUMMARY && !Q[id]) return;
-    if (S.sel !== id) { S.armed = null; S.vtab = null; S.revSeen = lsGet("revSeen", {})[id]; if (!S.undo) { S.toast = ""; S.toastBad = false; renderToast(); } } // a toast speaks for the view it was raised on
+    if (S.sel !== id) { S.armed = null; S.vtab = null; if (S.conflict && S.conflict.early) S.conflict = null; S.revSeen = lsGet("revSeen", {})[id]; if (!S.undo) { S.toast = ""; S.toastBad = false; renderToast(); } } // a toast speaks for the view it was raised on; leaving a question drops its early changed notice, since the next visit re-snaps it
     S.sel = id; lsSet("sel", id);
     if (id !== SUMMARY) {
       markSeen(e => (e.ids || []).includes(id));
@@ -1995,6 +1998,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (S.sel && S.sel !== SUMMARY && !Q[S.sel]) S.sel = railOrder()[0] || null;
     const q = Q[S.sel], f = focusKey();
     if (q && !S.conflict && !S.armed && !$("note").value.trim()) S.snap[q.id] = snapOf(q); // not answering yet: follow the latest wording
+    const was = q && S.snap[q.id]; // a revision that lands on the question being answered is shown now, not at Save's 409
+    if (q && was && !S.conflict && !S.busy && changed.includes(q.id) && (S.armed || $("note").value.trim()) && was.content !== (q.contentRev || 0)) // contentRev moves only on a revision: the user's own save or undo does not
+      S.conflict = {id: q.id, early: true, saw: was, data: {current: {title: q.title, recommendation: q.recommendation || "", alternatives: q.alternatives || []}, decision: decisionOf(q)}};
     renderHeader(); renderRail(changed);
     const typing = document.activeElement === $("note");
     if (!S.busy && q && lsGet("draft:" + S.sel, null) === null && !typing) fillNote();
@@ -2102,6 +2108,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (cf && S.conflict) {
       const c = S.conflict;
       if (cf.dataset.conflict === "new") { S.snap[c.id] = snapOf(Q[c.id]); S.conflict = null; toast("Showing the new version. Your note and choice are kept."); renderDetail(); }
+      else if (c.early) { S.snap[c.id] = snapOf(Q[c.id]); S.conflict = null; toast("Keeping your choice on the new version."); renderAnswer(); }
       else { S.conflict = null; send(c.kind, c.alt, c.data.contentRev, c.keep, c.noted); }
       return;
     }

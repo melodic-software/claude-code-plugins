@@ -1578,6 +1578,50 @@ class TestClaudeActivity(DirCase):
             with self.subTest(extra=extra):
                 self.refused({"op": "set-status", **extra})
 
+    def test_revising_by_claude_marks_questions_and_a_clear_removes_it(self):
+        out = self.apply(
+            {"op": "revising-by-claude", "ids": ["Q1", "Q3"], "why": "audit pass"}
+        )
+        self.assertIn("Q1, Q3 marked as being revised: audit pass", out)
+        for qid in ("Q1", "Q3"):
+            mark = self.q(qid)["claudeRevising"]
+            self.assertEqual(mark["why"], "audit pass")
+            self.assertTrue(mark["at"])
+        self.assertNotIn("claudeRevising", self.q("Q2"))
+        self.assertEqual(self.entries(), [])
+        self.apply({"op": "revising-by-claude", "ids": ["Q1"], "clear": True})
+        self.assertNotIn("claudeRevising", self.q("Q1"))
+        self.assertIn("claudeRevising", self.q("Q3"))
+        self.apply({"op": "revising-by-claude", "clear": True})
+        self.assertNotIn("claudeRevising", self.q("Q3"))
+
+    def test_revise_or_reply_clears_the_revising_mark_of_that_question_only(self):
+        mark = {"op": "revising-by-claude", "ids": ["Q1", "Q2", "Q3"], "why": "audit"}
+        self.apply(mark, {"op": "revise", "id": "Q1", "title": "New wording?"})
+        self.assertNotIn("claudeRevising", self.q("Q1"))
+        self.assertIn("claudeRevising", self.q("Q2"))
+        self.apply({"op": "reply", "id": "Q2", "text": "Checked."})
+        self.assertNotIn("claudeRevising", self.q("Q2"))
+        self.assertIn("claudeRevising", self.q("Q3"))
+
+    def test_revising_by_claude_refuses_bad_shapes_and_unknown_ids(self):
+        for extra in (
+            {},
+            {"ids": ["Q1"]},
+            {"why": "audit"},
+            {"ids": ["Q1"], "why": "  "},
+            {"ids": ["Q1"], "why": "x", "clear": True},
+            {"ids": ["Q1"], "why": "x" * 501},
+            {"ids": [], "why": "audit"},
+        ):
+            with self.subTest(extra=extra):
+                self.refused({"op": "revising-by-claude", **extra})
+        msg = self.refused(
+            {"op": "revising-by-claude", "ids": ["Q1", "Q98", "Q99"], "why": "audit"}
+        )
+        self.assertIn("Q98, Q99", msg)
+        self.assertNotIn("claudeRevising", self.q("Q1"))
+
     def test_context_sets_percent_and_zone_and_clear_removes_them(self):
         self.apply({"op": "context", "percent": 0, "zone": "green"})
         ctx = self.doc()["context"]

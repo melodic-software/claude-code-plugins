@@ -310,6 +310,13 @@
           "type": "integer",
           "description": "The page's responses seq when a `wait` with `by: user` landed. A page decision whose seq is not above this does not count as an answer, even after the hold clears."
         },
+        "claudeRevising": {
+          "description": "Claude's declaration that it is revising this question, written by the revising-by-claude op and removed by its clear, or by a revise or reply of this question. Not the derived `revising` flag, which marks the user's own unhandled answer.",
+          "type": "object",
+          "required": ["why", "at"],
+          "additionalProperties": false,
+          "properties": {"why": {"type": "string"}, "at": {"type": "string"}}
+        },
         "contentRev": {"type": "integer"},
         "rev": {"type": "integer"},
         "visuals": {

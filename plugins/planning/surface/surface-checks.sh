@@ -185,6 +185,9 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     bash "$here/round.sh" --dir "$c" revise P2 --alt "a:No" --alt "c:Never" --force >/dev/null
     # A recommendation change on P1 marks its decided dependent P2 upstream changed: phase 2 reads the banner.
     bash "$here/round.sh" --dir "$c" revise P1 --rec "Yes, the upstream step, revised." --affects none --keep-alternatives --force >/dev/null
+    # Claude declares Q3 as being revised: phase 2 reads the mark on its rail card and detail pane.
+    printf '%s' '{"ops": [{"op": "revising-by-claude", "ids": ["Q3"], "why": "auditing the cache choice"}]}' >"$tmp/revising.json"
+    bash "$here/round.sh" --dir "$c" apply --file "$tmp/revising.json" >/dev/null 2>&1
     bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
     pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
     read -r -a seqs <<<"$(unhandled)"

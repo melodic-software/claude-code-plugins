@@ -26,6 +26,7 @@
           {"$ref": "#/$defs/archive-visual"},
           {"$ref": "#/$defs/record-terminal"},
           {"$ref": "#/$defs/set-status"},
+          {"$ref": "#/$defs/revising-by-claude"},
           {"$ref": "#/$defs/context"},
           {"$ref": "#/$defs/wait"},
           {"$ref": "#/$defs/activity"},
@@ -265,6 +266,18 @@
       "properties": {
         "op": {"enum": ["set-status"]},
         "text": {"$ref": "#/$defs/line"},
+        "clear": {"type": "boolean"}
+      }
+    },
+    "revising-by-claude": {
+      "description": "Declare that Claude is revising the questions in `ids`, with a reason: the page shows \"Claude is revising this: <why>\" on each. Takes `ids` and a non-empty `why`, or `clear`; exactly one of the two. Every id must be a known question. `clear` with `ids` removes the mark from those questions, and without `ids` from every question. A `revise` or `reply` of a question also removes its mark. The mark informs only: answering stays possible. It is not the derived `revising` flag, which marks the user's own unhandled answer.",
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["revising-by-claude"]},
+        "ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "why": {"$ref": "#/$defs/line"},
         "clear": {"type": "boolean"}
       }
     },
