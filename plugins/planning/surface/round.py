@@ -160,6 +160,9 @@ ASKS_USER = re.compile(
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
 CODE_SPAN = re.compile(r"`[^`\n]+`")
 REPO_SLUG = re.compile(r"[\w.-]+/[\w.-]+", re.ASCII)
+BRANCH_SOURCE_LINK = re.compile(
+    r"https?://github\.com/[\w.-]+/[\w.-]+/blob/(?![0-9a-f]{7,40}/)[^/\s)]+/", re.ASCII
+)
 
 if os.name == "nt":
     import msvcrt
@@ -570,6 +573,15 @@ def warn_bare_issue_refs(doc, label, value):
         )
 
 
+def warn_branch_source_links(label, facts):
+    """Warn once when facts links a repo file by branch (blob/<branch>), which stops landing on the quoted lines once the branch moves."""
+    if facts and BRANCH_SOURCE_LINK.search(facts):
+        warn(
+            f"{label} facts links a repo file by branch (blob/<branch>); "
+            "pin the source link to a commit SHA (blob/<sha>/...)"
+        )
+
+
 def norm_alt(text):
     """Casefolded, whitespace-collapsed text without a (recommended) marker or trailing punctuation."""
     t = " ".join(str(text).casefold().replace("(recommended)", " ").split())
@@ -601,6 +613,7 @@ def lint_questions(doc, qs):
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
+        warn_branch_source_links(q["id"], q.get("facts"))
         rec = q.get("recommendation") or ""
         m = SENTENCE_BREAK.search(rec)
         first = m.start() + 1 if m else len(rec)
@@ -1029,6 +1042,7 @@ def op_revise(d, doc, a):
             "pass revised alternatives in the same op (revise --alt)",
         )
     snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
+    warn_branch_source_links(a.id, a.facts)
     changed = []
     for field, val in (
         ("title", a.title),
