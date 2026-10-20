@@ -5,13 +5,20 @@
 // re-run while githubstatus.com shows Actions as anything but operational.
 // Run and PR shapes follow a recorded REST response (a cancelled
 // pr-require-checks run, an open PR); fixtures/components.json is a recorded
-// githubstatus.com components response, trimmed.
+// githubstatus.com components response, trimmed. A lost pr-verify run is
+// re-run only after the plan names its record
+// reconcile-rerun-<run id>-2-<head sha> for the upload steps; pr-verify run
+// shapes follow a recorded workflow_run run (head_branch main, head_sha the
+// main tip, no pull_requests), and only when a job of its first attempt started
+// but none started the judge step.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { main } from "./reconcile.mjs";
+import { JUDGE_STEP, main } from "./reconcile.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-19T20:00:00Z");
@@ -19,6 +26,8 @@ const STATUS = JSON.parse(readFileSync(new URL("./fixtures/components.json", imp
 const CHECKS = ".github/workflows/pr-require-checks.yml";
 const WINDOWS = ".github/workflows/pr-test-windows.yml";
 const REVIEW = ".github/workflows/pr-review-hosted.yml";
+const VERIFY = ".github/workflows/pr-verify.yml";
+const MAIN_TIP = "e".repeat(40);
 const sha = (n) => String(n).padStart(40, "0");
 
 const statusWith = (actions) => ({
@@ -67,6 +76,20 @@ function fakeGitHub({ pulls, runs = [], fail = {} }) {
       const found = runs.filter((r) => r.head_sha === listing[1]);
       return { total_count: found.length, workflow_runs: found };
     }
+    const byWorkflow = /^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/([a-z0-9-]+\.yml)\/runs\?created=%3E%3D2026-10-18T20%3A00%3A00Z(?:&status=([a-z_]+))?&per_page=100(?:&page=([0-9]+))?$/.exec(path);
+    if (method === "GET" && byWorkflow) {
+      // Like GitHub, `status` matches a run's status or its conclusion.
+      const found = runs.filter(
+        (r) => r.path === `.github/workflows/${byWorkflow[1]}` && (byWorkflow[2] === undefined || r.status === byWorkflow[2] || r.conclusion === byWorkflow[2]),
+      );
+      const page = Number(byWorkflow[3] ?? 1);
+      return { total_count: found.length, workflow_runs: found.slice((page - 1) * 100, page * 100) };
+    }
+    const jobs = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/attempts\/1\/jobs\?per_page=100$/.exec(path);
+    if (method === "GET" && jobs) {
+      const found = byId.get(Number(jobs[1]))?.jobs ?? [];
+      return { total_count: found.length, jobs: found };
+    }
     const one = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)(\/rerun)?$/.exec(path);
     if (one && method === "GET") {
       return byId.get(Number(one[1]));
@@ -79,32 +102,68 @@ function fakeGitHub({ pulls, runs = [], fail = {} }) {
   return { github, calls };
 }
 
-async function reconcile({ pulls, runs, status = STATUS, env = {}, fail } = {}) {
+// Runs the workflow's two steps: plan, then, when the plan step succeeds,
+// act. The upload steps between them read the plan's record-N outputs.
+async function reconcile({ pulls, runs, status = STATUS, env = {}, fail, github: wrap = (g) => g } = {}) {
   const { github, calls } = fakeGitHub({ pulls, runs, fail });
   const sleeps = [];
   const order = [];
-  const tracked = async (method, path, body) => {
+  const tracked = wrap(async (method, path, body) => {
     order.push(method === "GET" ? "read" : "write");
     return github(method, path, body);
-  };
-  const code = await main({
-    env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", ...env },
-    github: tracked,
-    fetchStatus: async () => {
-      if (status instanceof Error) {
-        throw status;
-      }
-      return status;
-    },
-    sleep: async (ms) => {
-      sleeps.push(ms);
-      order.push(`sleep ${ms}`);
-    },
-    now: NOW,
   });
-  const reruns = calls.filter((c) => c.startsWith("POST ")).map((c) => Number(/runs\/([0-9]+)\/rerun$/.exec(c)[1]));
-  return { code, calls, reruns, sleeps, order };
+  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-"));
+  try {
+    const files = {
+      PLAN_PATH: path.join(dir, "plan.json"),
+      RECORD_PATH: path.join(dir, "record.json"),
+      GITHUB_OUTPUT: path.join(dir, "output"),
+    };
+    writeFileSync(files.GITHUB_OUTPUT, "");
+    const step = (mode) =>
+      main({
+        env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", ...files, ...env, MODE: mode },
+        github: tracked,
+        fetchStatus: async () => {
+          if (status instanceof Error) {
+            throw status;
+          }
+          return status;
+        },
+        sleep: async (ms) => {
+          sleeps.push(ms);
+          order.push(`sleep ${ms}`);
+        },
+        now: NOW,
+      });
+    const planCode = await step("plan");
+    const planWrites = calls.filter((c) => c.startsWith("POST ")).length;
+    const outputs = Object.fromEntries(
+      [...readFileSync(files.GITHUB_OUTPUT, "utf8").matchAll(/^([a-z0-9-]+)<<(\S+)\n([^\n]*)\n\2$/gm)].map((m) => [m[1], m[3]]),
+    );
+    const code = planCode === 0 ? await step("act") : planCode;
+    const reruns = calls.filter((c) => c.startsWith("POST ")).map((c) => Number(/runs\/([0-9]+)\/rerun$/.exec(c)[1]));
+    return { code, planCode, planWrites, outputs, calls, reruns, sleeps, order };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
+
+// A first-attempt job of pr-verify, lost before (null) or after its judge step
+// started; by default it was lost in the trigger check, before the judge step.
+const verifyJob = (judgeConclusion = null) => [
+  {
+    name: "verify",
+    steps: [
+      { name: "Set up job", status: "completed", conclusion: "success" },
+      { name: "Check the trigger", status: "completed", conclusion: judgeConclusion === null ? "cancelled" : "success" },
+      { name: "Judge the pull request", status: judgeConclusion === null ? "pending" : "completed", conclusion: judgeConclusion },
+      { name: "Upload the verdict", status: "pending", conclusion: null },
+    ],
+  },
+];
+const verifyRun = (id, opts = {}) => ({ ...run(id, MAIN_TIP, { path: VERIFY, event: "workflow_run", ...opts }), head_branch: "main", jobs: verifyJob() });
+const records = (outputs) => [outputs["record-1"], outputs["record-2"], outputs["record-3"]];
 
 test("a cancelled CI run on a PR's head is re-run once", async () => {
   const { code, reruns } = await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1))] });
@@ -127,26 +186,20 @@ test("a run already re-fired is not re-fired again", async () => {
   assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
 });
 
+// The fresh read before the write sees the run already re-run.
+const rerunSinceListing = (id) => (github) => async (method, apiPath, body) => {
+  if (method === "GET" && apiPath.endsWith(`/actions/runs/${id}`)) {
+    const listed = await github(method, apiPath, body);
+    return { ...listed, run_attempt: 2, status: "queued", conclusion: null };
+  }
+  return github(method, apiPath, body);
+};
+
 test("a run re-fired between the listing and the write is left alone", async () => {
-  const listed = run(101, sha(1));
-  const { github, calls } = fakeGitHub({ pulls: [pr(1)], runs: [listed] });
-  let reads = 0;
-  const code = await main({
-    env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed" },
-    github: async (method, path, body) => {
-      if (method === "GET" && path.endsWith("/actions/runs/101")) {
-        reads += 1;
-        return { ...listed, run_attempt: 2, status: "queued", conclusion: null };
-      }
-      return github(method, path, body);
-    },
-    fetchStatus: async () => STATUS,
-    sleep: async () => {},
-    now: NOW,
-  });
+  const { code, calls, reruns } = await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1))], github: rerunSinceListing(101) });
   assert.equal(code, 0);
-  assert.equal(reads, 1);
-  assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
+  assert.equal(calls.filter((c) => c.endsWith("/actions/runs/101")).length, 1);
+  assert.deepEqual(reruns, []);
 });
 
 test("a degraded Actions status produces no dispatch and reads nothing from GitHub", async () => {
@@ -253,34 +306,228 @@ test("a refused re-run is reported and the rest go ahead", async () => {
 
 test("a re-run GitHub accepts with its empty 201 response counts as done", async () => {
   // The re-run endpoint answers 201 with no body; the real client parses it.
-  const { github: fake, calls } = fakeGitHub({ pulls: [pr(1)], runs: [run(101, sha(1))] });
-  const fetchImpl = async (url, init) => {
-    const answer = await fake(init.method, url.slice("https://api.example".length));
-    return init.method === "POST" ? new Response(null, { status: 201 }) : Response.json(answer);
-  };
-  const code = await main({
-    env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed" },
-    github: createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl }),
-    fetchStatus: async () => STATUS,
-    sleep: async () => {},
-    now: NOW,
+  const { code, reruns } = await reconcile({
+    pulls: [pr(1)],
+    runs: [run(101, sha(1))],
+    github: (fake) =>
+      createGitHub({
+        token: "t",
+        apiUrl: "https://api.example",
+        fetchImpl: async (url, init) => {
+          const answer = await fake(init.method, url.slice("https://api.example".length));
+          return init.method === "POST" ? new Response(null, { status: 201 }) : Response.json(answer);
+        },
+      }),
   });
   assert.equal(code, 0);
-  assert.ok(calls.includes(`POST /repos/${REPO}/actions/runs/101/rerun`));
+  assert.deepEqual(reruns, [101]);
 });
 
 test("a PR whose head moved, or that closed or went draft, after the listing is left alone", async () => {
   for (const now of [{ head: { ...pr(1).head, sha: sha(2) } }, { state: "closed" }, { draft: true }]) {
-    const { github, calls } = fakeGitHub({ pulls: [pr(1)], runs: [run(101, sha(1))] });
-    const code = await main({
-      env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed" },
-      github: async (method, path, body) =>
-        method === "GET" && path === `/repos/${REPO}/pulls/1` ? { ...pr(1), ...now } : github(method, path, body),
-      fetchStatus: async () => STATUS,
-      sleep: async () => {},
-      now: NOW,
+    const { code, reruns } = await reconcile({
+      pulls: [pr(1)],
+      runs: [run(101, sha(1))],
+      github: (fake) => async (method, p, body) =>
+        method === "GET" && p === `/repos/${REPO}/pulls/1` ? { ...pr(1), ...now } : fake(method, p, body),
     });
     assert.equal(code, 0, JSON.stringify(now));
-    assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0, JSON.stringify(now));
+    assert.deepEqual(reruns, [], JSON.stringify(now));
   }
+});
+
+test("a lost verify run is re-run after the plan names its record, and the plan writes nothing", async () => {
+  const { code, planWrites, outputs, reruns } = await reconcile({ pulls: [pr(1)], runs: [verifyRun(201)] });
+  assert.equal(code, 0);
+  assert.equal(planWrites, 0);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
+  assert.deepEqual(reruns, [201]);
+});
+
+test("a verify run already at attempt 2 is never re-run or recorded", async () => {
+  const { outputs, reruns } = await reconcile({ pulls: [], runs: [verifyRun(201, { attempt: 2 })] });
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), ["", "", ""]);
+});
+
+test("a verify run re-run between the plan and the write is left alone", async () => {
+  const { code, reruns } = await reconcile({ pulls: [], runs: [verifyRun(201)], github: rerunSinceListing(201) });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, []);
+});
+
+test("verify runs that succeeded, failed, are older than the lookback, or ran off main are left alone", async () => {
+  const { reruns, outputs } = await reconcile({
+    pulls: [],
+    runs: [
+      verifyRun(201, { conclusion: "success" }),
+      verifyRun(202, { conclusion: "failure" }),
+      verifyRun(203, { created: "2026-10-17T19:00:00Z" }),
+      { ...verifyRun(204), head_branch: "fix/x" },
+      verifyRun(205, { event: "workflow_dispatch" }),
+    ],
+  });
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), ["", "", ""]);
+});
+
+test("verify re-runs share the cap of 3 with PR CI sets, CI first, then the oldest verify run", async () => {
+  // One verify re-run is already in flight, so two places are left.
+  const { reruns, outputs } = await reconcile({
+    pulls: [pr(1)],
+    runs: [
+      run(101, sha(1)),
+      verifyRun(209, { status: "in_progress", attempt: 2 }),
+      verifyRun(202, { created: "2026-10-19T19:20:00Z" }),
+      verifyRun(201, { created: "2026-10-19T19:10:00Z" }),
+    ],
+  });
+  assert.deepEqual(reruns, [101, 201]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
+});
+
+test("at most 3 verify runs are recorded and re-run in one run", async () => {
+  const { reruns, outputs } = await reconcile({
+    pulls: [],
+    runs: [verifyRun(201), verifyRun(202), verifyRun(203), verifyRun(204)].map((r, i) => ({ ...r, created_at: `2026-10-19T19:0${i}:00Z` })),
+  });
+  assert.deepEqual(reruns, [201, 202, 203]);
+  assert.deepEqual(records(outputs), [201, 202, 203].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
+});
+
+test("pr-verify still names its judge step as the reconciler reads it", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
+  const stepAt = (name) => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return workflow.search(new RegExp(`^[ ]*- name: ${escaped}$`, "m"));
+  };
+  const judge = stepAt(JUDGE_STEP);
+  assert.ok(judge >= 0);
+  assert.ok(judge < stepAt("Upload the verdict"));
+});
+
+test("a verify run whose judge step started is never re-run or recorded", async () => {
+  for (const conclusion of ["success", "failure", "cancelled"]) {
+    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: verifyJob(conclusion) }] });
+    assert.equal(code, 0, conclusion);
+    assert.deepEqual(reruns, [], conclusion);
+    assert.deepEqual(records(outputs), ["", "", ""], conclusion);
+  }
+});
+
+test("a verify run lost after it started but before its judge step is re-run", async () => {
+  const { reruns } = await reconcile({
+    pulls: [],
+    runs: [
+      { ...verifyRun(201), jobs: verifyJob(null) },
+      { ...verifyRun(202), jobs: verifyJob("skipped"), created_at: "2026-10-19T19:00:00Z" },
+    ],
+  });
+  assert.deepEqual(reruns, [201, 202]);
+});
+
+test("a verify run none of whose first-attempt jobs started is never re-run or recorded", async () => {
+  // A pending run concurrency cancelled for a newer one on the same PR head.
+  for (const jobs of [[], [{ name: "verify", status: "completed", conclusion: "cancelled", steps: [] }]]) {
+    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs }] });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+    assert.deepEqual(records(outputs), ["", "", ""]);
+  }
+});
+
+test("a verify run whose jobs cannot be read is not re-run", async () => {
+  const { code, reruns, outputs } = await reconcile({
+    pulls: [],
+    runs: [verifyRun(201)],
+    fail: { [`GET /repos/${REPO}/actions/runs/201/attempts/1/jobs?per_page=100`]: new GitHubError(500, "boom") },
+  });
+  assert.equal(code, 1);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), ["", "", ""]);
+});
+
+test("a non-operational Actions status records nothing", async () => {
+  const { outputs, calls } = await reconcile({ pulls: [], runs: [verifyRun(201)], status: statusWith("major_outage") });
+  assert.deepEqual(calls, []);
+  assert.deepEqual(records(outputs), ["", "", ""]);
+});
+
+// A day of pr-verify runs: succeeded ones, with the given runs among them.
+const verifyDay = (count, lost) =>
+  Array.from({ length: count }, (_, i) => lost.get(i) ?? { ...run(10_000 + i, MAIN_TIP, { path: VERIFY, event: "workflow_run", conclusion: "success" }), head_branch: "main" });
+
+// Lost pr-verify runs, oldest first.
+const lostDay = (count) =>
+  Array.from({ length: count }, (_, i) => verifyRun(1000 + i, { created: new Date(Date.parse("2026-10-19T00:00:00Z") + i * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z") }));
+const lostQueries = (calls) => calls.filter((c) => c.includes("/workflows/pr-verify.yml/runs?") && c.includes("&status=cancelled&"));
+
+test("a lost-run listing of 150 runs over 2 pages is read in full", async () => {
+  const { code, reruns, calls } = await reconcile({ pulls: [], runs: lostDay(150) });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [1000, 1001, 1002]);
+  assert.equal(lostQueries(calls).length, 2);
+});
+
+test("700 succeeded verify runs and 2 lost ones plan the 2 lost runs without hitting the page cap", async () => {
+  const { code, reruns, outputs, calls } = await reconcile({
+    pulls: [],
+    runs: [...verifyDay(700, new Map()), verifyRun(201), verifyRun(202, { created: "2026-10-19T19:00:00Z" })],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [201, 202]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, `reconcile-rerun-202-2-${MAIN_TIP}`, ""]);
+  assert.ok(calls.every((c) => !c.includes("&page=2")));
+});
+
+test("with 700 succeeded runs listed, verify re-runs already queued or in progress still take places", async () => {
+  const { code, reruns } = await reconcile({
+    pulls: [],
+    runs: [
+      ...verifyDay(700, new Map()),
+      verifyRun(209, { status: "in_progress", attempt: 2 }),
+      verifyRun(210, { status: "queued", attempt: 2 }),
+      verifyRun(201),
+      verifyRun(202, { created: "2026-10-19T19:00:00Z" }),
+    ],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [201]);
+});
+
+test("verify re-runs that start while the listing is read still take places", async () => {
+  const queued = [209, 210, 211].map((id) => verifyRun(id, { status: "queued", attempt: 2 }));
+  const { code, reruns } = await reconcile({
+    pulls: [],
+    runs: [...queued, verifyRun(201)],
+    github: (g) => async (method, path, body) => {
+      if (path.includes("/workflows/pr-verify.yml/runs?") && path.includes("&status=queued&")) {
+        for (const r of queued) {
+          r.status = "in_progress";
+        }
+      }
+      return g(method, path, body);
+    },
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, []);
+});
+
+test("a lane listing past the page cap is a failure, and nothing is called lost", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { code, reruns } = await reconcile({ pulls: [], runs: lostDay(501) });
+  const lines = log.mock.calls.map((c) => String(c.arguments[0]));
+  assert.equal(code, 1);
+  assert.deepEqual(reruns, []);
+  assert.ok(lines.some((l) => l.startsWith("::error title=reconcile::.github/workflows/pr-verify.yml:") && l.includes("has more than 5 pages")));
+  assert.ok(!lines.includes("reconcile: nothing lost"));
+  assert.ok(lines.includes("reconcile: 1 listings failed; what was lost is unknown"));
+});
+
+test("act says why it exits 1 when the plan recorded listing failures", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { code } = await reconcile({ pulls: [], runs: lostDay(501) });
+  const errors = log.mock.calls.map((c) => String(c.arguments[0])).filter((l) => l.startsWith("::error title=reconcile::the plan step"));
+  assert.equal(code, 1);
+  assert.deepEqual(errors, ["::error title=reconcile::the plan step recorded 1 listing failures and 0 re-runs failed; see the Find lost runs step"]);
 });

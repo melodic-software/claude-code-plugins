@@ -1,0 +1,47 @@
+diff --git a/plugins/sample-kit/scripts/report.mjs b/plugins/sample-kit/scripts/report.mjs
+index 6d7e8f9..0a1b2c3 100644
+--- a/plugins/sample-kit/scripts/report.mjs
++++ b/plugins/sample-kit/scripts/report.mjs
+@@ -1,8 +1,16 @@
+ import { listBranches } from "./git.mjs";
+
++const DAY_MS = 24 * 60 * 60 * 1000;
++
++// Branches whose last commit is more than 30 days before `now`.
++export function activeBranches(branches, now) {
++  return branches.filter((branch) => now - Date.parse(branch.lastCommitAt) > 30 * DAY_MS).length;
++}
++
+ export function report(dir, now = Date.now()) {
+   const branches = listBranches(dir);
+   const lines = [`branches: ${branches.length}`];
++  lines.push(`stale: ${activeBranches(branches, now)}`);
+   return lines.join("\n");
+ }
+
+diff --git a/plugins/sample-kit/scripts/report.test.mjs b/plugins/sample-kit/scripts/report.test.mjs
+new file mode 100644
+index 0000000..1b2c3d4
+--- /dev/null
++++ b/plugins/sample-kit/scripts/report.test.mjs
+@@ -0,0 +1,20 @@
++import assert from "node:assert/strict";
++import { test } from "node:test";
++
++import { activeBranches } from "./report.mjs";
++
++const NOW = Date.parse("2026-10-20T00:00:00Z");
++
++test("no stale branches", () => {
++  const branches = [{ lastCommitAt: "2026-10-19T00:00:00Z" }];
++  assert.equal(activeBranches(branches, NOW), 0);
++});
++
++test("two stale branches", () => {
++  const branches = [
++    { lastCommitAt: "2026-08-01T00:00:00Z" },
++    { lastCommitAt: "2026-10-18T00:00:00Z" },
++    { lastCommitAt: "2026-09-01T00:00:00Z" },
++  ];
++  assert.equal(activeBranches(branches, NOW), 2);
++});

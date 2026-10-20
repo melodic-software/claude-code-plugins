@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`sample-kit list --page-size N` passes any number to the API, which rejects a page size of 100 or more with a 422.\n\n## Fix\n\nValidate `--page-size` before the call. The upper bound is exclusive: accept 1 through 99, and reject 0, 100 and anything larger with the error `page size must be 1-99`. Non-integers are rejected the same way.\n\n## Done when\n\n- [ ] 1 and 99 are accepted.\n- [ ] 0 and 100 are rejected with `page size must be 1-99`.\n- [ ] Tests cover those four values."
+  },
+  "pr": {
+    "title": "fix(sample-kit): reject page sizes the API refuses",
+    "body": "Validates --page-size against the 1-99 range the issue states, with tests at both edges."
+  }
+}

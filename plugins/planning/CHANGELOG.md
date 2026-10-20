@@ -3,6 +3,57 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.83.2] - 2026-10-20
+
+### Changed
+
+- **`/planning:interview` and `/planning:prd` look for `GLOSSARY.md`.** The domain-vocabulary lookup names `GLOSSARY.md` (or the domain-driven-design `glossary_file` setting) and `GLOSSARY-MAP.md` in a multi-context repository, in place of `UBIQUITOUS-LANGUAGE.md`.
+- **The `/planning:questionnaire` template carries no em dashes**, and the em-dash gate now names it.
+
+## [0.83.1] - 2026-10-20
+
+### Added
+
+- **Shared interview page: a question's background.** The `context` stored on a question now shows under its text.
+
+### Fixed
+
+- A shared-interview answer or other write sent from a second tab or device within a second of the same person's last one is sent again once a moment later, instead of being refused with "Wait a moment before sending again."
+
+- **Shared interview page: the QA sweep's 37 findings.** Counts on the welcome card and in the rail are per person, and the catch-up note sits in the round it is about; the welcome card no longer asks a joined guest for their name, and its first step names its round. The chat "Sent to Claude" marker sits under its bubble. Locked and read-only hints no longer point "above"; the Pass trigger hides while its form is open. The host reads "Waiting for you to run it" on their own queue. Claude's reports render headings, lists, bold and code instead of raw markdown, and drop the empty "via Claude" line. The question's Ask box and the Ask Claude panel share one layout, placeholder and "Run it on my own Claude" switch. Proposal actions keep one order, and a sheet's close button stays on its title row. Toolbars wrap instead of cutting chips, and phone tab rows fade at the cut edge. Attach is one square button everywhere, dialog buttons match the page's, and the attach dialog names what the file goes with and styles its file button. Pick formats share one results hint and one "Write your own" wording; a comment written before the picks rides with Save, with no second primary button. Report a problem puts its screenshot before Send. A renamed joiner ("Ivy 2") is told so, arriving in a later round shows no "Round 2 is here." toast, and a waiting guest stops sending a refused heartbeat and polls less often. Phone tap targets reach 44 px, avatars never draw initials below 9 px, the top bar title uses the free width, the chat button never covers the column, and the prototype tile and empty option feet no longer show blank boxes.
+- **Shared interview page: "Who must answer" stays on the question's column.** The panel kept the question's width at wide sizes; a new `column` rule in the alignment check holds every focus-view block to it.
+- **Shared interview page on phones.** A long saved answer wraps inside the folded field, the answer sheet's Save sits under the field in thumb reach, and the chat message and reaction menus open as bottom sheets clear of the home indicator.
+
+## [0.83.0] - 2026-10-20
+
+### Added
+
+- The interview surface has a `revising-by-claude` op: Claude marks a set of questions as being revised, with a reason, and the page shows "Claude is revising this: <reason>" on each question's rail card and detail pane. The mark informs only, so answering stays possible. A `revise` or `reply` of a question, or an explicit `clear`, removes it.
+- A revision that lands on the selected question while a choice is armed or a note is typed now shows the "Qn just changed: review" notice at once, instead of only when Save returns a 409.
+
+## [0.82.0] - 2026-10-20
+
+### Added
+
+- `tests/repin.sh <pin-label> <justification>` re-pins one digest pin of `interview-defenses.test.sh` in one attended command: it rewrites only that pin's sha256, adds the justification comment above the pin, reruns the test and prints PASS or FAIL. It refuses an unknown or ambiguous label and changes nothing when the digest already matches. It writes only when stdin and stdout are both terminals and the person answers y after seeing the old and new digest and the plugin's `git diff --stat`; any other run exits non-zero and writes nothing. The test's attended-only message names it.
+
+- **The interview page searches and jumps to a question.** A search box in the rail toolbar matches the question id, short title and title: typing words filters the rail, and typing a number then Enter opens that question (`100` opens Q100). It narrows within the Show filter, and the rail says when Show hides matches. A jump opens the group that holds the question. Selecting a question writes `#<id>` to the URL (replacing the hash, so Back still leaves the page), and loading or changing to `#Q100` selects Q100; an unknown id leaves the selection alone. (#5915)
+
+### Changed
+
+- **`/` now focuses the new search box, and `s` focuses the Show filter.** The keyboard sheet lists both. (#5915)
+- **A rail button's accessible name is its id, short title and state.** The needs chips, state chips and Claude preview move to its accessible description. (#5915)
+
+## [0.81.0] - 2026-10-20
+
+### Added
+
+- `round.sh supersede` and `round.sh resolve` (#6124): terminal commands that set an answered register row of a ledger to `superseded-by-plan` (taking its resolution as `was`, written `was plain::` or `was answer::` to record the row's form so `restore` gives it back byte for byte; a bare `was::` still loads) and clear it by `reconfirm` or `restore`. They escape through the exporter, back the ledger up, print the `check-open-questions.sh` verdict, and need no page. `/planning:plan` "Plan changes after the Brief" names them instead of describing the grammar.
+
+### Fixed
+
+- **Interview source links pin to a commit SHA.** The surface spoke's Source rule requires a repo-file link of the form `blob/<sha>/<path>`, and `round.py add`, `add-round`, `apply` and `revise` warn (without refusing) on a `blob/<branch>` link in a question's `facts`, naming the question.
+
 ## [0.80.0] - 2026-10-20
 
 ### Added

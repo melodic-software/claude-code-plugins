@@ -17,7 +17,8 @@ allowed-tools:
   # matches these scripts when the command text contains `--apply`, plus
   # `git worktree remove` with a force flag. A dry-run of the same scripts, or
   # of a push, does not match. It does not match obfuscated spellings (eval,
-  # `bash -c`, aliases). The guard is a best-effort net over command text, not
+  # aliases) or a `bash -c` behind any wrapper (sudo, timeout, env, nohup, ssh,
+  # docker exec). The guard is a best-effort net over command words, not
   # a security boundary.
   # git-branch-audit.sh writes one TipCapture file under the git common dir
   # (.git/repo-hygiene/branch-tips/) per run, and its landed-proof squash step
@@ -40,7 +41,9 @@ hooks:
         # Exec form. `command` is `node`. exec-bash.mjs finds Git Bash and
         # never System32\bash.exe, then runs destructive-guard.sh. `args`
         # names only ${CLAUDE_PLUGIN_ROOT}, by design; whether a
-        # skill-frontmatter hook receives ${CLAUDE_PLUGIN_DATA} is untested.
+        # skill-frontmatter hook receives ${CLAUDE_PLUGIN_DATA} is untested. The
+        # guard reads it from its environment to find the run marker and stays
+        # armed when it is empty.
         # Pointer: https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
         # and https://code.claude.com/docs/en/hooks#reference-scripts-by-path.
         # As of: 2026-10-11.
@@ -137,7 +140,7 @@ Protected-path enforcement gates `scan`, `caches`, `build`, `git`, AND `tree` (`
 
 `tree` requires explicit confirmation and is never auto-invoked. Any file tracked by git is reset via `git reset --hard`, not selective deletion, and any tracked file deleted by reparse-point traversal (junction/symlink into a tracked dir) is auto-restored.
 
-**Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) inspects Bash **and** PowerShell tool calls and blocks destructive command shapes (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`, bare `git branch -D`/`-d`/`--delete`, `git push --delete`, `git push origin :ref` (also `+:ref`)). It also blocks this skill's mutating scripts (`clean-caches.sh`, `clean-build.sh`, `git-prune.sh`, `git-tree-reset.sh`, `git-tree-reset-batch.sh`, `remove-path.sh`, `clean-batch.sh`) when the command contains `--apply`, and `git worktree remove` with a force flag. A dry-run of those scripts, or of a push, is not blocked. It is a best-effort net over command text, not a security boundary: obfuscated spellings (`eval`, `bash -c`, aliases) get past it. After the [confirmation gate](#confirmation-gate) passes, re-issue the confirmed command with the acknowledgement prefix for the tool you are using: `CLEAN_GUARD_ACK=1 <command>` on the Bash tool, `$env:CLEAN_GUARD_ACK=1; <command>` on the PowerShell tool. Each spelling is a real assignment only in its own shell, so the guard accepts it only there, and only as the first statement of the command (not in a comment, a string, or after the destructive command). The gating is per tool and default-deny: any other tool name, including a missing one, gets no acknowledgement path at all, so the block stands and no prefix lifts it. Never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`). The prefix satisfies only this guard; Claude Code's permission rules and auto-mode classifier still apply ([the host permission layer above the ack](reference/invocation-forms.md#the-host-permission-layer-above-the-ack)).
+**Session-scoped destructive guard (frontmatter hook).** A per-session run marker scopes the guard to the run, whatever the host does with the hook registration (lifetime: [hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents), as of 2026-10-20, recheck when the page changes how skill hooks end): [run marker](context/run-marker.md) is opened when a mutating tier starts (never for `scan` or `scan-batch`) and cleared when the run reaches its final outcome, and with no live marker the guard allows every command. While a run is open, a PreToolUse hook (`scripts/destructive-guard.sh`) inspects Bash **and** PowerShell tool calls and blocks destructive command shapes (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`, bare `git branch -D`/`-d`/`--delete`, `git push --delete`, `git push origin :ref` (also `+:ref`)). It also blocks this skill's mutating scripts (`clean-caches.sh`, `clean-build.sh`, `git-prune.sh`, `git-tree-reset.sh`, `git-tree-reset-batch.sh`, `remove-path.sh`, `clean-batch.sh`) when the command contains `--apply`, and `git worktree remove` with a force flag. A dry-run of those scripts, or of a push, is not blocked. On the Bash tool it matches the parsed words of each command, so destructive text inside one quoted argument (an issue comment body, a commit message) does not match; the PowerShell tool keeps raw-text matching. It is a best-effort net over command words, not a security boundary: obfuscated spellings (`eval`, aliases) and a `bash -c` behind any wrapper (`sudo`, `timeout`, `env`, `nohup`, `ssh`, `docker exec`) get past it. After the [confirmation gate](#confirmation-gate) passes, re-issue the confirmed command with the acknowledgement prefix for the tool you are using: `CLEAN_GUARD_ACK=1 <command>` on the Bash tool, `$env:CLEAN_GUARD_ACK=1; <command>` on the PowerShell tool. Each spelling is a real assignment only in its own shell, so the guard accepts it only there, and only as the first statement of the command (not in a comment, a string, or after the destructive command). The gating is per tool and default-deny: any other tool name, including a missing one, gets no acknowledgement path at all, so the block stands and no prefix lifts it. Never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`). The prefix satisfies only this guard; Claude Code's permission rules and auto-mode classifier still apply ([the host permission layer above the ack](reference/invocation-forms.md#the-host-permission-layer-above-the-ack)).
 
 **Guard coverage for branch deletion.** The guard matches bare `git branch -D`/`-d`/`--delete`, `git push --delete`, `git push -d` and `git push origin :ref` (also `+:ref`); a push with `--dry-run`/`-n` is allowed. The ack prefix lifts these blocks like the others and is the documented way to run a bare `git branch -D` during a clean session; a spelling the patterns do not parse (a global option with a separate value such as `--work-tree <path>`, an alias) is not blocked. This skill deletes local branches with `git-branch-delete.sh` after the confirmation gate; the script deletes with `git update-ref -d`, so the confirmed path does not go through these patterns. No script or instruction this skill runs (excluding `*.test.sh` fixtures) runs `git push --delete`.
 
@@ -162,6 +165,8 @@ Per-tier targets: [reference/cleanup-config.md](reference/cleanup-config.md). Sc
 ### 0. Resolve action
 
 Run `resolve-clean-action.sh`. If `Action: menu`, show table + ask. Otherwise dispatch to the matching § below. **Never `--apply` on first invocation.**
+
+For any resolved action other than `scan` and `scan-batch`, open the run marker before the first dry-run or `--apply` and clear it when the run reaches its final outcome (done, declined or aborted): [context/run-marker.md](context/run-marker.md). This session's id is `${CLAUDE_SESSION_ID}`; the plugin data directory is `${CLAUDE_PLUGIN_DATA}`.
 
 Resolve no repo root here. This step is reachable from anywhere, including outside a repository, and a bare `git rev-parse --show-toplevel` on that path exits non-zero and takes the menu down with it. The tiers that need a root resolve it themselves, guarded, in §§ 4 to 6 below; the bundled scripts each resolve their own and print `Error: not a git repository` rather than failing.
 
@@ -248,7 +253,8 @@ Repo sources: `--repo` (repeatable; a shell glob expands to these), `--repos-fro
 ## Spoke paths
 
 The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`,
-and the plugin data directory as `<plugin-data>`, which is `${CLAUDE_PLUGIN_DATA}`. Put those paths
+the plugin data directory as `<plugin-data>`, which is `${CLAUDE_PLUGIN_DATA}`, and the session id as
+`<session-id>`, which is `${CLAUDE_SESSION_ID}`. Put those values
 in place of the placeholders before running a command. Those files arrive through the Read tool as
 plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted.
 

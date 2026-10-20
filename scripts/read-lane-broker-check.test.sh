@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml
+# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml .github/standards/runner-policy/package.json
 # Runs the shell of two read-lane broker-check steps, lifted from their YAML,
 # against the cases the contract states
 # (docs/conventions/pr-pipeline/pr-run-activity.md, "The broker-check job"):

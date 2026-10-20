@@ -19,6 +19,7 @@
 - [Loop caps](#loop-caps)
 - [Limits](#limits)
 - [WIP cap](#wip-cap)
+- [Red main](#red-main)
 - [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
 - [Outside this repository](#outside-this-repository)
@@ -209,8 +210,8 @@ skill in [patch output mode](pr-run-activity.md#patch-output-mode)) runs
 `source-control:pull-request ci --ci`, which reruns, fixes and reruns the checks; and
 `apply-ci-fix` (a `mutate-branch` script, no model, no head code) pushes the patch as one commit
 without force, refusing the whole patch on any change to `.github/**`, an agent instruction path
-(`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a plugin's `hooks/`, `.mcp.json`,
-`.gitmodules`, `CODEOWNERS`), a symbolic link or a gitlink
+(`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a plugin's `hooks/`, `monitors/` or
+`bin/`, `.mcp.json`, `.lsp.json`, `.gitmodules`, `CODEOWNERS`), a symbolic link or a gitlink
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
 unappliable patch, or a check the model escalated, goes to `report-escalation`. The same
@@ -739,9 +740,14 @@ current head closes a review finding whoever resolved its thread, and a HIGH sec
 needs the security review lane's own clean whole review of that head. The gate applies it per lane
 (`_open_findings` in `babysit_review_evidence.py`): a resolved thread closes when it was opened
 before that review's job completed and the review chain covering the head, here the whole review
-alone, reports no finding. An incremental review reads only what changed since the last review, so
-it never closes an unchanged thread: a lane that resolved an unfixed finding and pushed an unrelated
-commit leaves it open. A resolved thread also closes when a human resolved it, or when it is
+alone, reports no finding. A finding any review of a head reported, whole or incremental, clears
+only by a new head (a fix) or a human resolution (owner decision, #8554): a later clean review of
+the same head never clears it. So for each head on the covering chain the gate counts the most
+summary findings, and the most inline findings left without a thread, that any review of that head
+reported, closes a resolved thread only when no completed review of such a head reported a finding,
+and re-running a review until it comes back clean closes nothing. An incremental review reads only what changed since the last review, so it never closes an
+unchanged thread: a lane that resolved an unfixed finding and pushed an unrelated commit leaves it
+open. A resolved thread also closes when a human resolved it, or when it is
 outdated with none of its flagged lines left at the head; an unresolved thread stays open.
 
 Whole-review request (`babysit_whole_review.py`): when a lane pull request passes every other gate
@@ -1394,6 +1400,55 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane
 | `wip_over`, `held_over`, `admission_over`, `held_alarm` | Which limit is crossed. |
 | `alert` | Any of the four. |
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |
+
+## Red main
+
+When a full `pr-require-checks` run on `main` (scheduled or dispatched) fails, the
+`report-red-main` job of
+[`post-merge-demotion-alert.yml`](../../../.github/workflows/post-merge-demotion-alert.yml) applies
+this rule after the alert job has filed its post-merge record. It runs no model; its scripts and
+tests are in
+[`.github/scripts/post-merge-demotion-alert/`](../../../.github/scripts/post-merge-demotion-alert/).
+
+1. **Confirmed red.** Attempt 1 concluded `failure`, the one re-run of its failed jobs finished
+   and concluded `failure`, and one check failed in both, a check being a job that concluded
+   `failure` or a gate the hygiene aggregator titles (never the all-branches gitleaks gate). A
+   cancelled, timed-out or not-started run, a re-run that passes or never finishes within
+   `confirm-wait-minutes`, and the canary never trigger it. The job waits for the re-run because
+   pr-merge starts the one for a run it dispatched, and that re-run raises no event of its own.
+2. **Culprit.** The range is the first-parent merges since `main`'s last green full run. A
+   merge is red when its own full run is a confirmed red in a check the head also fails, and
+   green when it passed. The culprit is the one merge that is red while its parent is green (the
+   last green run for the oldest). A range of one merge always pins it. Two such merges, or none
+   (a merge with no full run of its own breaks the chain), pin no culprit: the report names the
+   untested merges, and a person picks from the post-merge record.
+3. **Who reverts.** The bot may revert the culprit only when every guard holds; otherwise a
+   person gets a draft revert pull request, labeled `needs-human`. The guards: the lanes App
+   (`merge.agent-identity`) put it in the merge queue, so an owner or other human merge never
+   auto-reverts while a lane merge pinned inside a mixed range may; it merged under
+   `max-culprit-age-hours` ago; it is no revert itself (a `revert` subject, a `This reverts
+   commit` line or the `auto-revert` label); no auto-revert of it was decided before; fewer than
+   `daily-cap` were decided in the last 24 hours, dry-run decisions included; no open canary
+   record names a merge in the range; and `git merge-tree` applies the revert to `main`'s tip.
+4. **The revert.** `git revert --no-edit <culprit>` on branch `red-main-revert/<sha12>`, titled
+   `revert: <the culprit's subject>`, labeled `auto-revert`, its body carrying
+   `<!-- red-main-revert culprit=<sha> -->` and linking the culprit, the failing run and the
+   evidence runs. The bot also files a reinstate issue and comments on the culprit's pull request,
+   and its own revert merges through the merge queue.
+
+| Key | Default | What it sets |
+|---|---|---|
+| `dry-run` | `true` | Report only: the step summary and one comment per confirmed red on the log issue (first body line `<!-- red-main-revert-log -->`), each starting `<!-- red-main-report run=<id> attempt=<n> culprit=<sha or none> decision=<auto-revert, human or none> -->`. Nothing is pushed, opened or merged. This version has no revert path, so `false` reports too. |
+| `daily-cap` | 3 | Auto-reverts decided in any 24 hours; 0 to 10, and 0 sends every culprit to a person. |
+| `max-culprit-age-hours` | 24 | Hours since the culprit merged past which a person decides; 1 to 168. |
+| `confirm-wait-minutes` | 40 | Minutes the job waits for the re-run to finish; 0 to 45. |
+
+The job reads the leaf through the base checkout's resolve-config (`redMainFromBase`), so a config
+the resolver refuses fails it. It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`,
+`contents` and `pull-requests` read, `issues: write`), reads REST only, 300 ms apart and within 300
+calls, and stops on any failed read. A range of more than 25 merges pins no culprit. The kill switch stops it, and it skips an event the lanes App
+sent. Owner decision 2026-10-20: `dry-run` stays true for 3 days of reports with no wrong blame
+before any revert merges.
 
 ## Planning lane work
 

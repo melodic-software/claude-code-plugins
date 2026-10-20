@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`history.json` grows without bound.\n\n## Fix\n\nAfter each write, `trimHistory` keeps the last 5 entries (the newest five, by position) and drops the rest.\n\n## Done when\n\n- [ ] At most 5 entries remain, and they are the newest five.\n- [ ] A test with 7 entries checks that entries 3 through 7 remain."
+  },
+  "pr": {
+    "title": "fix(sample-kit): cap history at five entries",
+    "body": "Adds trimHistory and calls it after each write, with a test."
+  }
+}

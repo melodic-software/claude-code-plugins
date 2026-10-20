@@ -1,0 +1,7 @@
+{
+  "class": "control",
+  "expected": "pass",
+  "scored": "main",
+  "defect": "none: the removed null check is unreachable, since every caller passes a string",
+  "mentions": []
+}

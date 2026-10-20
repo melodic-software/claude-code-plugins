@@ -17,6 +17,19 @@ const LIST = path.join(FIXTURES, "trusted-actors.json");
 const HEAD_SHA = "1111111111111111111111111111111111111111";
 const BASE_SHA = "2222222222222222222222222222222222222222";
 const STRANGER = { login: "stranger", id: 9999001, type: "User" };
+const OWN_RUN_ID = "39000000001";
+const OWN_ROUTE = `GET /repos/${REPOSITORY}/actions/runs/${OWN_RUN_ID}`;
+// The account each triggering-actor login in these tests stands for.
+const USERS = {
+  "kyle-sexton": { login: "kyle-sexton", id: 153232337, type: "User" },
+  stranger: STRANGER,
+  "claude[bot]": { login: "claude[bot]", id: 209825114, type: "Bot" },
+  "melodic-automation-lanes[bot]": { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" },
+  "github-actions[bot]": { login: "github-actions[bot]", id: 41898282, type: "Bot" },
+  "github-merge-queue[bot]": { login: "github-merge-queue[bot]", id: 118344674, type: "Bot" },
+};
+// A listed login now held by another account.
+const IMPOSTOR = { login: "kyle-sexton", id: 9999002, type: "User" };
 
 const fixture = (name) => JSON.parse(readFileSync(path.join(FIXTURES, name), "utf8"));
 
@@ -35,6 +48,7 @@ function fakeGitHub(routes) {
     return structuredClone(value);
   };
   github.calls = calls;
+  github.routes = routes;
   return github;
 }
 
@@ -83,13 +97,32 @@ async function gate({
   expectedUpstreamHead,
   lanesAppId,
   requirePr,
-  runId,
+  runId = OWN_RUN_ID,
   dispatchedWorkflow,
   requireKind,
   appLabel,
+  reconcilerWorkflow,
+  runAttempt = "1",
+  rerunner = USERS[triggeringActor.toLowerCase()],
+  ownRun,
   sleep = fakeSleep(),
 }) {
   const outputPath = writeJson("output", "");
+  // This run's own record, unless the test routes it: the re-runner is read
+  // from its triggering_actor, by default the user triggeringActor names.
+  const ownRoute = `GET /repos/${REPOSITORY}/actions/runs/${runId}`;
+  const record = ownRun !== undefined ? ownRun : { id: Number(runId), run_attempt: Number(runAttempt), triggering_actor: rerunner };
+  const withOwnRun = async (method, apiPath, ...rest) => {
+    const key = `${method} ${apiPath}`;
+    if (key !== ownRoute || key in (github.routes ?? {})) {
+      return github(method, apiPath, ...rest);
+    }
+    github.calls?.push(key);
+    if (record instanceof GitHubError) {
+      throw record;
+    }
+    return structuredClone(record);
+  };
   await main({
     env: {
       EVENT_NAME: eventName,
@@ -115,8 +148,10 @@ async function gate({
       ...(dispatchedWorkflow === undefined ? {} : { DISPATCHED_WORKFLOW: dispatchedWorkflow }),
       ...(requireKind === undefined ? {} : { REQUIRE_KIND: requireKind }),
       ...(appLabel === undefined ? {} : { APP_LABEL: appLabel }),
+      ...(reconcilerWorkflow === undefined ? {} : { RECONCILER_WORKFLOW: reconcilerWorkflow }),
+      ...(runAttempt === undefined ? {} : { GITHUB_RUN_ATTEMPT: runAttempt }),
     },
-    github,
+    github: withOwnRun,
     sleep,
   });
   return readOutputs(readFileSync(outputPath, "utf8"));
@@ -205,7 +240,7 @@ test("workflow_dispatch: resolves the head ref of a same-repo PR by fetching it"
     prNumber: "42",
   });
   assert.deepEqual(outputs, PROCEED);
-  assert.deepEqual(github.calls, [`GET /repos/${REPOSITORY}/pulls/42`]);
+  assert.deepEqual(github.calls, [`GET /repos/${REPOSITORY}/pulls/42`, OWN_ROUTE]);
 });
 
 test("workflow_dispatch: a fetched PR with a null head repo counts as a fork", async () => {
@@ -645,9 +680,9 @@ test("dispatcher: a sender named github-actions[bot] under another id is not the
 test("dispatcher: the dispatcher check is skipped for a listed human sender", async () => {
   const event = fixture("event-workflow-dispatch-dispatcher.json");
   event.sender = KYLE;
-  const github = fakeGitHub(dispatcherRoutes());
+  const github = fakeGitHub(dispatcherRoutes({ self: { triggering_actor: KYLE } }));
   assert.deepEqual(await dispatched({ github, event, triggeringActor: "kyle-sexton" }), PROCEED);
-  assert.deepEqual(github.calls, [pullRoute]);
+  assert.deepEqual(github.calls, [pullRoute, selfRoute]);
 });
 
 test("dispatcher: a dispatched run still needs a listed PR author", async () => {
@@ -700,7 +735,7 @@ test("dispatcher: the run id is ignored on a pull_request event", async () => {
     }),
     PROCEED,
   );
-  assert.deepEqual(github.calls, []);
+  assert.deepEqual(github.calls, [selfRoute]);
 });
 
 // The dispatcher run's record of the runs it dispatched
@@ -879,9 +914,303 @@ test("dispatcher: a re-run attempt 2 by a listed human refuses once the record h
 test("dispatcher: a listed human's own dispatch reads no record", async () => {
   const event = fixture("event-workflow-dispatch-dispatcher.json");
   event.sender = KYLE;
-  const github = fakeGitHub(dispatcherRoutes({ artifacts: listing() }));
+  const github = fakeGitHub(dispatcherRoutes({ artifacts: listing(), self: { triggering_actor: KYLE } }));
   assert.deepEqual(await dispatched({ github, event, triggeringActor: "kyle-sexton" }), PROCEED);
   assert.equal(artifactReads(github), 0);
+});
+
+// A lost lane run re-run by the lost-run reconciler: attempt 2, started by
+// github-actions[bot], trusted only through the reconciler run's record
+// reconcile-rerun-<run id>-2-<head sha>, uploaded before the re-run. Run and
+// artifact shapes follow the recorded fixtures above.
+
+const RECONCILER_WORKFLOW = ".github/workflows/maintenance-reconcile-lost-runs.yml";
+const RECONCILER_RUN_ID = 39320000001;
+const RECONCILER_HEAD = "7777777777777777777777777777777777777777";
+const LOST_RUN_ID = "39310000002";
+const LOST_HEAD = "6666666666666666666666666666666666666666";
+const RERUN_RECORD = `reconcile-rerun-${LOST_RUN_ID}-2-${LOST_HEAD}`;
+const attemptRoute = `GET /repos/${REPOSITORY}/actions/runs/${LOST_RUN_ID}/attempts/2`;
+const rerunArtifactsRoute = `GET /repos/${REPOSITORY}/actions/artifacts?name=${RERUN_RECORD}&per_page=100&page=1`;
+const reconcilerRoute = `GET /repos/${REPOSITORY}/actions/runs/${RECONCILER_RUN_ID}`;
+const reconcilerCompare = `GET /repos/${REPOSITORY}/compare/${RECONCILER_HEAD}...${TIP_SHA}`;
+
+const reconcilerRun = (overrides = {}) => ({
+  id: RECONCILER_RUN_ID,
+  name: "maintenance-reconcile-lost-runs",
+  path: RECONCILER_WORKFLOW,
+  event: "schedule",
+  status: "in_progress",
+  head_branch: "main",
+  head_sha: RECONCILER_HEAD,
+  run_attempt: 1,
+  created_at: "2026-10-19T19:04:00Z",
+  run_started_at: "2026-10-19T19:04:10Z",
+  updated_at: "2026-10-19T19:04:50Z",
+  actor: KYLE,
+  triggering_actor: KYLE,
+  repository: { id: 1, full_name: REPOSITORY },
+  head_repository: { id: 1, full_name: REPOSITORY },
+  ...overrides,
+});
+const lostAttempt = (overrides = {}) => ({
+  id: Number(LOST_RUN_ID),
+  name: "pr-verify",
+  path: ".github/workflows/pr-verify.yml",
+  event: "workflow_run",
+  head_branch: "main",
+  head_sha: LOST_HEAD,
+  run_attempt: 2,
+  created_at: "2026-10-19T18:40:00Z",
+  run_started_at: "2026-10-19T19:04:45Z",
+  actor: KYLE,
+  triggering_actor: ACTIONS_BOT,
+  repository: { id: 1, full_name: REPOSITORY },
+  ...overrides,
+});
+const rerunRecord = (overrides = {}) => ({
+  id: 11800000001,
+  name: RERUN_RECORD,
+  expired: false,
+  created_at: "2026-10-19T19:04:40Z",
+  updated_at: "2026-10-19T19:04:40Z",
+  expires_at: "2026-10-20T19:04:39Z",
+  workflow_run: {
+    id: RECONCILER_RUN_ID,
+    repository_id: 1,
+    head_repository_id: 1,
+    head_branch: "main",
+    head_sha: RECONCILER_HEAD,
+  },
+  ...overrides,
+});
+
+// No tagRoute: the fake answers 404, so no tag shares the branch name.
+function rerunRoutes({ attempt = {}, reconciler = {}, artifacts = listing(rerunRecord()), compare = { status: "ahead" }, extra = {} } = {}) {
+  return {
+    [commitPulls]: [fixture("api-pull-42.json")],
+    [attemptRoute]: { ...lostAttempt(), ...attempt },
+    [rerunArtifactsRoute]: artifacts,
+    [reconcilerRoute]: typeof reconciler === "function" ? reconciler : reconcilerRun(reconciler),
+    [tipRoute]: TIP_REF,
+    [reconcilerCompare]: compare,
+    ...extra,
+  };
+}
+
+function rerunEvent() {
+  const event = fixture("event-workflow-run.json");
+  event.repository = { ...event.repository, default_branch: "main" };
+  return event;
+}
+
+function reconcilerRerun({ github, event = rerunEvent(), eventName = "workflow_run", ...rest }) {
+  return gate({
+    eventName,
+    event,
+    github,
+    triggeringActor: "github-actions[bot]",
+    reconcilerWorkflow: RECONCILER_WORKFLOW,
+    runId: LOST_RUN_ID,
+    runAttempt: "2",
+    ...rest,
+  });
+}
+
+test("reconciler re-run: a valid record vouches for github-actions[bot] as re-runner", async () => {
+  const github = fakeGitHub(rerunRoutes());
+  assert.deepEqual(await reconcilerRerun({ github }), PROCEED);
+  assert.ok(github.calls.includes(rerunArtifactsRoute));
+  assert.ok(github.calls.includes(reconcilerCompare));
+});
+
+test("reconciler re-run: a valid record vouches on a pull_request lane too", async () => {
+  const event = fixture("event-pull-request.json");
+  event.repository = { ...event.repository, default_branch: "main" };
+  const github = fakeGitHub(rerunRoutes({ attempt: { event: "pull_request", head_sha: LOST_HEAD } }));
+  assert.deepEqual(await reconcilerRerun({ github, event, eventName: "pull_request" }), PROCEED);
+});
+
+test("reconciler re-run: a reconciler run a listed human dispatched vouches", async () => {
+  const github = fakeGitHub(rerunRoutes({ reconciler: { event: "workflow_dispatch" } }));
+  assert.deepEqual(await reconcilerRerun({ github }), PROCEED);
+});
+
+test("reconciler re-run: one valid record among forged ones of the same name vouches", async () => {
+  const forged = rerunRecord({ id: 11800000009, workflow_run: { id: 39320000009, head_branch: "fix/x" } });
+  const github = fakeGitHub(
+    rerunRoutes({
+      artifacts: listing(forged, rerunRecord()),
+      extra: { [`GET /repos/${REPOSITORY}/actions/runs/39320000009`]: reconcilerRun({ id: 39320000009, event: "pull_request", head_branch: "fix/x" }) },
+    }),
+  );
+  assert.deepEqual(await reconcilerRerun({ github }), PROCEED);
+});
+
+test("reconciler re-run: a forged record whose run cannot be read does not stop the check", async () => {
+  // No route answers for run 39320000009, so its read fails.
+  const forged = rerunRecord({ id: 11800000009, workflow_run: { id: 39320000009 } });
+  const github = fakeGitHub(rerunRoutes({ artifacts: listing(forged, rerunRecord()) }));
+  assert.deepEqual(await reconcilerRerun({ github }), PROCEED);
+});
+
+test("reconciler re-run: a valid record past a full page of forged ones vouches", async () => {
+  const forged = Array.from({ length: 100 }, (_, i) => rerunRecord({ id: 11900000000 + i, expired: true }));
+  const github = fakeGitHub(
+    rerunRoutes({
+      artifacts: { total_count: 101, artifacts: forged },
+      extra: { [rerunArtifactsRoute.replace(/page=1$/, "page=2")]: { total_count: 101, artifacts: [rerunRecord()] } },
+    }),
+  );
+  assert.deepEqual(await reconcilerRerun({ github }), PROCEED);
+});
+
+test("reconciler re-run: 21 forged candidates before the real record refuse after 20 run reads", async () => {
+  const forgedIds = Array.from({ length: 21 }, (_, i) => 39330000000 + i);
+  const forged = forgedIds.map((id, i) => rerunRecord({ id: 11900000000 + i, workflow_run: { id } }));
+  const github = fakeGitHub(rerunRoutes({ artifacts: listing(...forged, rerunRecord()) }));
+  assert.deepEqual(await reconcilerRerun({ github }), STOPPED("untrusted-rerunner"));
+  const runReads = github.calls.filter((call) => /\/actions\/runs\/[0-9]+$/.test(call));
+  assert.equal(runReads.length, 20);
+  assert.ok(!github.calls.includes(reconcilerRoute));
+});
+
+test("reconciler re-run: with no record, github-actions[bot] stays an untrusted re-runner after one re-read", async () => {
+  const sleep = fakeSleep();
+  const github = fakeGitHub(rerunRoutes({ artifacts: listing() }));
+  assert.deepEqual(await reconcilerRerun({ github, sleep }), STOPPED("untrusted-rerunner"));
+  assert.equal(github.calls.filter((call) => call === rerunArtifactsRoute).length, 2);
+  assert.deepEqual(sleep.waits, [5000]);
+});
+
+test("reconciler re-run: without reconciler-workflow the bot re-runner stops and no record is read", async () => {
+  const github = fakeGitHub(rerunRoutes());
+  assert.deepEqual(
+    await reconcilerRerun({ github, reconcilerWorkflow: "" }),
+    STOPPED("untrusted-rerunner"),
+  );
+  assert.deepEqual(github.calls, [commitPulls, `GET /repos/${REPOSITORY}/actions/runs/${LOST_RUN_ID}`]);
+});
+
+test("reconciler re-run: an unlisted re-runner with no record still stops", async () => {
+  const github = fakeGitHub(rerunRoutes({ artifacts: listing() }));
+  assert.deepEqual(
+    await reconcilerRerun({ github, triggeringActor: "stranger" }),
+    STOPPED("untrusted-rerunner"),
+  );
+  assert.ok(!github.calls.includes(rerunArtifactsRoute));
+});
+
+test("reconciler re-run: a record does not vouch for an unlisted PR author", async () => {
+  const pull = fixture("api-pull-42.json");
+  pull.user = STRANGER;
+  const github = fakeGitHub({ ...rerunRoutes(), [commitPulls]: [pull] });
+  assert.deepEqual(await reconcilerRerun({ github }), STOPPED("untrusted-author"));
+});
+
+test("reconciler re-run: a record does not vouch for an unlisted upstream actor", async () => {
+  const event = rerunEvent();
+  event.workflow_run.actor = STRANGER;
+  const github = fakeGitHub(rerunRoutes());
+  assert.deepEqual(await reconcilerRerun({ github, event }), STOPPED("untrusted-actor"));
+  assert.ok(!github.calls.includes(rerunArtifactsRoute));
+});
+
+for (const runAttempt of ["1", "3", ""]) {
+  test(`reconciler re-run: attempt ${runAttempt || "(none)"} is never vouched for and nothing is read`, async () => {
+    const github = fakeGitHub(rerunRoutes());
+    assert.deepEqual(await reconcilerRerun({ github, runAttempt }), STOPPED("untrusted-rerunner"));
+    assert.deepEqual(github.calls, [commitPulls]);
+  });
+}
+
+test("reconciler re-run: a denied github-actions[bot] stops before any record read", async () => {
+  const github = fakeGitHub(rerunRoutes());
+  assert.deepEqual(
+    await reconcilerRerun({ github, deniedActorIds: "41898282" }),
+    STOPPED("untrusted-rerunner"),
+  );
+  assert.ok(!github.calls.includes(rerunArtifactsRoute));
+});
+
+for (const [label, attempt] of [
+  ["the attempt was started by someone else", { triggering_actor: KYLE }],
+  ["the attempt names another run", { id: 39310000003 }],
+  ["the attempt is another attempt", { run_attempt: 3 }],
+  ["the attempt belongs to another repository", { repository: { id: 2, full_name: "stranger/claude-code-plugins" } }],
+  ["the attempt has no head SHA", { head_sha: "main" }],
+  ["the attempt started before the reconciler run", { run_started_at: "2026-10-19T19:04:09Z" }],
+  ["the attempt started more than ten minutes after the reconciler run", { run_started_at: "2026-10-19T19:14:11Z" }],
+  ["the attempt started before the record was written", { run_started_at: "2026-10-19T19:04:39Z" }],
+]) {
+  test(`reconciler re-run: refused when ${label}`, async () => {
+    const github = fakeGitHub(rerunRoutes({ attempt }));
+    assert.deepEqual(await reconcilerRerun({ github }), STOPPED("untrusted-rerunner"));
+  });
+}
+
+test("reconciler re-run: a record naming another run or another head does not vouch", async () => {
+  // The listing for this run's name is empty; records for other names exist.
+  const others = {
+    [`GET /repos/${REPOSITORY}/actions/artifacts?name=reconcile-rerun-39310000099-2-${LOST_HEAD}&per_page=100&page=1`]: listing(rerunRecord({ name: `reconcile-rerun-39310000099-2-${LOST_HEAD}` })),
+    [`GET /repos/${REPOSITORY}/actions/artifacts?name=reconcile-rerun-${LOST_RUN_ID}-2-${HEAD_SHA}&per_page=100&page=1`]: listing(rerunRecord({ name: `reconcile-rerun-${LOST_RUN_ID}-2-${HEAD_SHA}` })),
+  };
+  const github = fakeGitHub(rerunRoutes({ artifacts: listing(), extra: others }));
+  assert.deepEqual(await reconcilerRerun({ github }), STOPPED("untrusted-rerunner"));
+});
+
+for (const [label, artifacts] of [
+  ["the listed artifact has another name", listing(rerunRecord({ name: `reconcile-rerun-39310000099-2-${LOST_HEAD}` }))],
+  ["the record has expired", listing(rerunRecord({ expired: true }))],
+  ["the record has no run id", listing(rerunRecord({ workflow_run: null }))],
+  ["the record was written after the re-run started", listing(rerunRecord({ created_at: "2026-10-19T19:04:46Z" }))],
+  ["the listing has no artifacts array", { total_count: 1 }],
+]) {
+  test(`reconciler re-run: refused when ${label}`, async () => {
+    const github = fakeGitHub(rerunRoutes({ artifacts }));
+    assert.deepEqual(await reconcilerRerun({ github }), STOPPED("untrusted-rerunner"));
+  });
+}
+
+for (const [label, reconciler] of [
+  ["the recording run is another workflow", { path: ".github/workflows/pr-merge.yml" }],
+  ["the recording run is a PR branch's run", { event: "pull_request", head_branch: "fix/forge" }],
+  ["the recording run is a dispatch on a PR branch", { event: "workflow_dispatch", head_branch: "fix/forge" }],
+  ["the recording run is a push run", { event: "push" }],
+  ["the recording run is in another repository", { repository: { id: 2, full_name: "stranger/claude-code-plugins" } }],
+  ["the recording run was dispatched by an unlisted user", { event: "workflow_dispatch", actor: STRANGER }],
+  ["the recording run was re-run by an unlisted user", { run_attempt: 2, triggering_actor: STRANGER }],
+  ["the recording run reports another id", { id: 39320000002 }],
+  ["the recording run's head is not a SHA", { head_sha: "main" }],
+  ["the recording run started after the attempt", { run_started_at: "2026-10-19T19:04:46Z" }],
+]) {
+  test(`reconciler re-run: refused when ${label}`, async () => {
+    const github = fakeGitHub(rerunRoutes({ reconciler }));
+    assert.deepEqual(await reconcilerRerun({ github }), STOPPED("untrusted-rerunner"));
+  });
+}
+
+test("reconciler re-run: a recording run not on the default branch's history does not vouch", async () => {
+  const github = fakeGitHub(rerunRoutes({ compare: { status: "diverged" } }));
+  assert.deepEqual(await reconcilerRerun({ github }), STOPPED("untrusted-rerunner"));
+});
+
+test("reconciler re-run: a tag sharing the default branch name does not vouch", async () => {
+  const github = fakeGitHub({ ...rerunRoutes(), [tagRoute]: { ref: "refs/tags/main" } });
+  assert.deepEqual(await reconcilerRerun({ github }), STOPPED("untrusted-rerunner"));
+});
+
+test("reconciler re-run: a payload without the default branch does not vouch", async () => {
+  const github = fakeGitHub(rerunRoutes());
+  assert.deepEqual(
+    await reconcilerRerun({ github, event: fixture("event-workflow-run.json") }),
+    STOPPED("untrusted-rerunner"),
+  );
+});
+
+test("reconciler re-run: a failed attempt read refuses", async () => {
+  const github = fakeGitHub(rerunRoutes({ attempt: undefined, extra: { [attemptRoute]: new GitHubError(502, "attempt") } }));
+  assert.deepEqual(await reconcilerRerun({ github }), STOPPED("untrusted-rerunner"));
 });
 
 // actor-only mode (require-pr: false)
@@ -900,7 +1229,7 @@ function actorOnly({ eventName = "workflow_dispatch", event, ...rest }) {
 }
 
 test("actor-only: a listed sender and triggering actor on workflow_dispatch proceed without a PR", async () => {
-  assert.deepEqual(await actorOnly({}), { outputs: ACTORS_OK, calls: [] });
+  assert.deepEqual(await actorOnly({}), { outputs: ACTORS_OK, calls: [OWN_ROUTE] });
 });
 
 test("actor-only: an unlisted workflow_dispatch sender stops with untrusted-actor", async () => {
@@ -925,7 +1254,7 @@ test("actor-only: a push checks only the triggering actor", async () => {
     triggeringActor: "kyle-sexton",
   });
   assert.deepEqual(outputs, ACTORS_OK);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, [OWN_ROUTE]);
 });
 
 test("actor-only: a push with an unlisted triggering actor stops", async () => {
@@ -945,7 +1274,7 @@ test("actor-only: a push with a denied triggering actor stops", async () => {
 test("actor-only: a pr-number is not read", async () => {
   const { outputs, calls } = await actorOnly({ prNumber: "42" });
   assert.deepEqual(outputs, ACTORS_OK);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, [OWN_ROUTE]);
 });
 
 for (const eventName of ["pull_request", "workflow_run", "schedule"]) {
@@ -959,7 +1288,7 @@ for (const eventName of ["pull_request", "workflow_run", "schedule"]) {
 test("actor-only: an issues label from a listed human proceeds without a PR", async () => {
   const { outputs, calls } = await actorOnly({ eventName: "issues", requireKind: "human" });
   assert.deepEqual(outputs, ACTORS_OK);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, [OWN_ROUTE]);
 });
 
 test("actor-only: an issues label from an unlisted sender stops with untrusted-actor", async () => {
@@ -1037,10 +1366,10 @@ function appLabel({ label = "agent-ready", action = "labeled", sender = LANES_AP
   }).then((outputs) => ({ outputs, calls: github.calls }));
 }
 
-test("app-label: the App's agent-ready label proceeds on the label alone and reads nothing", async () => {
+test("app-label: the App's agent-ready label proceeds on the label alone and reads only its own run", async () => {
   const { outputs, calls } = await appLabel();
   assert.deepEqual(outputs, ACTORS_OK);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, [OWN_ROUTE]);
 });
 
 test("app-label: a listed human re-running the App's run proceeds", async () => {
@@ -1095,7 +1424,7 @@ test("app-label:another listed bot applying agent-ready still stops with untrust
 test("app-label:a human's agent-ready label proceeds as before", async () => {
   const { outputs, calls } = await appLabel({ sender: KYLE, triggeringActor: "kyle-sexton" });
   assert.deepEqual(outputs, ACTORS_OK);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, [OWN_ROUTE]);
 });
 
 test("app-label:outside issues, the App sender still stops with bot-actor", async () => {
@@ -1281,7 +1610,7 @@ test("bot-actor: a malformed denied-id list stops with list-unreadable", async (
   );
 });
 
-test("triggering-actor: a listed re-runner proceeds, matched without case", async () => {
+test("triggering-actor: a listed re-runner proceeds whatever the login's case", async () => {
   assert.deepEqual(
     await gate({
       eventName: "pull_request",
@@ -1303,15 +1632,21 @@ test("untrusted-rerunner: an unlisted re-runner of a trusted run stops", async (
   );
 });
 
-test("untrusted-rerunner: an empty re-runner login stops instead of skipping the check", async () => {
-  assert.deepEqual(
-    await gate({
-      eventName: "pull_request",
-      event: fixture("event-pull-request.json"),
-      triggeringActor: "",
-    }),
-    STOPPED("untrusted-rerunner"),
-  );
+test("untrusted-rerunner: an empty re-runner login does not skip the check of the record's id", async () => {
+  for (const [rerunner, expected] of [
+    [USERS["kyle-sexton"], PROCEED],
+    [STRANGER, STOPPED("untrusted-rerunner")],
+  ]) {
+    assert.deepEqual(
+      await gate({
+        eventName: "pull_request",
+        event: fixture("event-pull-request.json"),
+        triggeringActor: "",
+        rerunner,
+      }),
+      expected,
+    );
+  }
 });
 
 // failure handling
@@ -1622,10 +1957,146 @@ test("workflow_run dispatcher: the push dispatcher still proceeds with both conf
 test("workflow_run dispatcher: a listed human's own dispatch is unchanged", async () => {
   const event = fixture("event-workflow-dispatch-dispatcher.json");
   event.sender = KYLE;
-  const github = fakeGitHub(runDispatcherRoutes());
+  const github = fakeGitHub(runDispatcherRoutes({ self: { triggering_actor: KYLE } }));
   assert.deepEqual(
     await runDispatched({ github, event, triggeringActor: "kyle-sexton" }),
     PROCEED,
   );
-  assert.deepEqual(github.calls, [pullRoute]);
+  assert.deepEqual(github.calls, [pullRoute, selfRoute]);
 });
+
+// The re-runner is read by id from this run's own record
+// (GET /actions/runs/{run_id}), never by login: a released login another
+// account registers stays untrusted.
+
+const prPaths = {
+  pull_request: () => ({ eventName: "pull_request", event: fixture("event-pull-request.json") }),
+  workflow_dispatch: () => ({
+    eventName: "workflow_dispatch",
+    event: fixture("event-workflow-dispatch.json"),
+    prNumber: "42",
+    github: fakeGitHub({ [pullRoute]: fixture("api-pull-42.json") }),
+  }),
+  workflow_run: () => ({
+    eventName: "workflow_run",
+    event: fixture("event-workflow-run.json"),
+    github: fakeGitHub({ [commitPulls]: [fixture("api-pull-42.json")] }),
+  }),
+};
+
+for (const [name, path_] of Object.entries(prPaths)) {
+  test(`re-runner by id: ${name}, a listed login held by another id stops`, async () => {
+    assert.deepEqual(await gate({ ...path_(), rerunner: IMPOSTOR }), STOPPED("untrusted-rerunner"));
+  });
+
+  test(`re-runner by id: ${name}, a listed id proceeds whatever its login`, async () => {
+    const args = path_();
+    args.github ??= fakeGitHub({});
+    assert.deepEqual(
+      await gate({ ...args, triggeringActor: "kyle-renamed", rerunner: { ...USERS["kyle-sexton"], login: "kyle-renamed" } }),
+      PROCEED,
+    );
+    assert.ok(args.github.calls.includes(OWN_ROUTE));
+  });
+
+  test(`re-runner by id: ${name}, a failed own-run read stops`, async () => {
+    assert.deepEqual(
+      await gate({ ...path_(), ownRun: new GitHubError(403, OWN_ROUTE) }),
+      STOPPED("untrusted-rerunner"),
+    );
+  });
+}
+
+const actorPaths = {
+  workflow_dispatch: () => ({}),
+  push: () => ({ eventName: "push", event: { sender: STRANGER } }),
+  issues: () => ({ eventName: "issues", requireKind: "human" }),
+};
+
+for (const [name, path_] of Object.entries(actorPaths)) {
+  test(`re-runner by id: actor-only ${name}, a listed login held by another id stops`, async () => {
+    const { outputs, calls } = await actorOnly({ ...path_(), rerunner: IMPOSTOR });
+    assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+    assert.deepEqual(calls, [OWN_ROUTE]);
+  });
+
+  test(`re-runner by id: actor-only ${name}, a failed own-run read stops`, async () => {
+    const { outputs } = await actorOnly({ ...path_(), ownRun: new GitHubError(403, OWN_ROUTE) });
+    assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+  });
+}
+
+test("re-runner by id: app-label, the App's login held by another id stops", async () => {
+  const { outputs } = await appLabel({ rerunner: { ...LANES_APP, id: 9999003 } });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+test("re-runner by id: app-label, a human's login held by another id stops", async () => {
+  const { outputs } = await appLabel({ triggeringActor: "kyle-sexton", rerunner: IMPOSTOR });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+test("re-runner by id: app-label, the App as re-runner must still be on the list", async () => {
+  const list = writeJson("no-app.json", {
+    version: 1,
+    actors: [{ id: 153232337, login: "kyle-sexton", kind: "human" }],
+  });
+  const { outputs } = await appLabel({ list });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+test("re-runner by id: app-label, a failed own-run read stops", async () => {
+  const { outputs } = await appLabel({ ownRun: new GitHubError(403, OWN_ROUTE) });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+// work-resolve-issue.yml's admit job: require-pr false, require-kind human,
+// app-label agent-ready and the lanes App id.
+test("re-runner by id: the admit inputs admit a listed human's or the App's agent-ready label", async () => {
+  assert.deepEqual(await appLabel({ sender: KYLE, triggeringActor: "kyle-sexton", deniedActorIds: "" }), {
+    outputs: ACTORS_OK,
+    calls: [OWN_ROUTE],
+  });
+  assert.deepEqual(await appLabel({ deniedActorIds: "" }), { outputs: ACTORS_OK, calls: [OWN_ROUTE] });
+  const { outputs } = await appLabel({ sender: STRANGER, triggeringActor: "stranger", deniedActorIds: "" });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+const malformed = {
+  "a non-object body": null,
+  "an array body": [],
+  "no triggering_actor": { id: Number(OWN_RUN_ID), run_attempt: 1 },
+  "a string triggering_actor id": {
+    id: Number(OWN_RUN_ID),
+    run_attempt: 1,
+    triggering_actor: { ...USERS["kyle-sexton"], id: "153232337" },
+  },
+  "another run's id": { id: 39000000002, run_attempt: 1, triggering_actor: USERS["kyle-sexton"] },
+  "another attempt": { id: Number(OWN_RUN_ID), run_attempt: 2, triggering_actor: USERS["kyle-sexton"] },
+};
+
+for (const [label, ownRun] of Object.entries(malformed)) {
+  test(`re-runner by id: a run record with ${label} stops`, async () => {
+    assert.deepEqual(
+      await gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), ownRun }),
+      STOPPED("untrusted-rerunner"),
+    );
+    const { outputs } = await actorOnly({ ownRun });
+    assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+  });
+}
+
+for (const [label, ids] of [
+  ["no run id", { runId: "" }],
+  ["a malformed run id", { runId: "1/../../pulls/1" }],
+  ["no run attempt", { runAttempt: "" }],
+]) {
+  test(`re-runner by id: ${label} stops before any read`, async () => {
+    const github = fakeGitHub({});
+    assert.deepEqual(
+      await gate({ eventName: "pull_request", event: fixture("event-pull-request.json"), github, ...ids }),
+      STOPPED("untrusted-rerunner"),
+    );
+    assert.deepEqual(github.calls, []);
+  });
+}

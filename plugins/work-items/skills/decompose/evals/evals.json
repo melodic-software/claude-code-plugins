@@ -124,6 +124,31 @@
         "No created item carries a work-class: label",
         "Writes no status field on any created item"
       ]
+    },
+    {
+      "id": 10,
+      "name": "published-bodies-inline-redacted-decisions-with-qd-ids",
+      "prompt": "/work-items:decompose — the topic is refund-export and its PLAN.md is approved and has two phases: Phase 1 builds the replica-backed refund query, Phase 2 writes the CSV export. Its decision log numbers Q2 (should the export read from the reporting replica?) answered by D4 (yes, read only from the replica, because the primary is write-hot), and D5 (the CSV is written to /srv/build-07/exports/refunds.csv on the build host). Both phases rest on D4; only Phase 2 rests on D5. The repository is public. Publish the breakdown as plain items with no spec container; I approve it in advance.",
+      "expected_output": "Publishes one item per phase. Both item bodies have a Decisions section that inlines D4's content with its Q/D ids (Q2, D4), so the body stands on its own in a public tracker; the Phase 2 body also carries D5. D5's machine-specific path is generalized or dropped rather than copied. No body names a path under the memory root (default .work/, so no .work/refund-export/PLAN.md) and none links the PLAN.md file in place of the decision text; the Parent section's 'PLAN Phase N, topic refund-export' label is allowed.",
+      "files": [],
+      "expectations": [
+        "Both published item bodies have a Decisions section inlining D4's content with its Q/D ids (Q2 and D4)",
+        "The Phase 2 body also inlines D5, redacted: the machine-specific path /srv/build-07/exports/refunds.csv appears in no body, generalized to what it names or dropped",
+        "No item body contains a path under the memory root (default .work/) or a <slug>/PLAN.md path",
+        "No item body points at a PLAN.md file path or link, or at the thread, in place of stating the decision (the 'PLAN Phase N, topic <slug>' label in Parent is allowed)"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "decisions-read-from-plan-table-and-ledger-without-coined-ids",
+      "prompt": "/work-items:decompose — the topic is refund-export. Its approved PLAN.md has one phase, Phase 1: the CSV refund export. The prompt names no decisions; read them from the plan. PLAN.md's `Decisions made (gate-passed)` table has two rows: `D4 | Read refunds only from the reporting replica | Phase 1 queries the replica | primary is write-hot | plan` and, with no id, `Columns follow the finance team template | Phase 1 fixes the column order | finance template doc | plan`. The topic's interview-checklist.md register has one answered row, `Q2 | answered | round 1 | Export format? | CSV, not XLSX`. The repository is public. Publish the breakdown as one plain item with no spec container; I approve it in advance.",
+      "expected_output": "Publishes one item. Its Decisions section inlines the replica decision with D4, the CSV-format answer with Q2, and the column-order decision with no id, since its source row carries none. No body names a memory-root path.",
+      "files": [],
+      "expectations": [
+        "The item body has a Decisions section inlining the replica-only decision with the id D4 and the CSV-not-XLSX answer with the id Q2",
+        "The column-order decision is inlined with no Q or D id attached to it (no coined id such as D5 or D1)",
+        "No item body contains a path under the memory root (default .work/) or a <slug>/PLAN.md or interview-checklist.md path"
+      ]
     }
   ]
 }

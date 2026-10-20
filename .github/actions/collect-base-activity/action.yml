@@ -207,8 +207,12 @@ runs:
             # is the review step; no tool here limits which files it changes.
             # In merge-base mode the runner commits what the skill staged,
             # so the skill gets no commit tool and no instruction to commit.
+            # On Linux the Grep and Glob tools exist only when --allowedTools
+            # names them (https://code.claude.com/docs/en/tools-reference,
+            # "Glob tool behavior"), and the Bash deny list below removes grep
+            # and find, so without them the skill has no way to search.
             mkdir -p "$SCRATCH"
-            allowed="$allowed,Edit,Write,Agent"
+            allowed="$allowed,Edit,Write,Agent,Grep,Glob"
             # delete_files carries a rename's old path or a removal to the
             # branch, which commit_files cannot.
             if [ "$PREPARE" != merge-base ] && [ "$edits" != patch ]; then
@@ -505,9 +509,11 @@ runs:
             # (https://code.claude.com/docs/en/permissions#read-only-commands).
             # A write skill reads files with Read, Grep and Glob, so these
             # deny every command that can print a file or the environment,
-            # read-only or a text filter; the Read rule keeps it out of
-            # process files.
-            disallowed="${disallowed:+$disallowed,}Bash(echo *),Bash(printf *),Bash(cat *),Bash(head *),Bash(tail *),Bash(grep *),Bash(find *),Bash(env *),Bash(printenv *),Bash(strings *),Bash(od *),Bash(xxd *),Bash(diff *),Bash(sed *),Bash(awk *),Bash(sort *),Bash(cut *),Bash(tr *),Bash(base64 *),Bash(nl *),Bash(tac *),Bash(rev *),Bash(uniq *),Bash(fold *),Bash(column *),Bash(jq *),Bash(xargs *),Bash(more *),Bash(less *),Read(//proc/**)"
+            # read-only or a text filter; the Read rules keep it out of
+            # process files and out of the checkout's git config, where the
+            # action stores its token.
+            [[ $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the workspace path is missing or has a name a rule cannot carry"
+            disallowed="${disallowed:+$disallowed,}Bash(echo *),Bash(printf *),Bash(cat *),Bash(head *),Bash(tail *),Bash(grep *),Bash(find *),Bash(env *),Bash(printenv *),Bash(strings *),Bash(od *),Bash(xxd *),Bash(diff *),Bash(sed *),Bash(awk *),Bash(sort *),Bash(cut *),Bash(tr *),Bash(base64 *),Bash(nl *),Bash(tac *),Bash(rev *),Bash(uniq *),Bash(fold *),Bash(column *),Bash(jq *),Bash(xargs *),Bash(more *),Bash(less *),Read(//proc/**),Read(/$WORKSPACE/.git/**)"
             ;;
           *) fail "the activity's effect is not a known effect" ;;
         esac

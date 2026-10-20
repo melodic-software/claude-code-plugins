@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`formatLabel(name)` in `plugins/sample-kit/scripts/labels.mjs` starts with `if (name == null) return \"\";`. That branch is dead: its three callers, `render.mjs`, `export.mjs` and `cli.mjs`, each pass `String(item.name)`, and `item.name` is a required field the schema validates before any of them runs. So `name` is always a string.\n\n## Fix\n\nRemove the null check from `formatLabel`.\n\n## Done when\n\n- [ ] The null check is gone.\n- [ ] No caller changes.\n- [ ] The existing `formatLabel` tests still pass unchanged."
+  },
+  "pr": {
+    "title": "refactor(sample-kit): drop the dead null check in formatLabel",
+    "body": "Removes the null check the issue shows is unreachable. Callers and tests are untouched."
+  }
+}

@@ -31,8 +31,9 @@ collision check reads them to tell a resume from a slug collision.
       under `## Figure claims` as `**FN.**`; each unit's
       model recorded as mapped and actual; refusals and waits recorded)
 - [ ] Phase 4: Dual verification: pin-manifest written on agent-reported completion; standing
-      gates (`check-fences-exact.py`, `check-snippets.py`, `check-sources-parity.py`, and
-      `check-html-rows.py` when digests carry `**FN.**` rows quoted from `source.html`) PASS; Verifier A (same-vendor) +
+      gates (`check-fences-exact.py`, `check-snippets.py`, `check-prose-terms.py`,
+      `check-sources-parity.py`, and `check-html-rows.py` when digests carry `**FN.**` rows
+      quoted from `source.html`) PASS; Verifier A (same-vendor) +
       Verifier B (cross-vendor) verdicts in `verification/` (append-only; each arm states the
       hashes it audited and one verdict, PASS / PASS-WITH-FINDINGS / FAIL / BLOCKED, done only on
       PASS or PASS-WITH-FINDINGS from both arms; degraded fallback / death-ladder recorded, never silent)

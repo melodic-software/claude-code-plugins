@@ -272,6 +272,19 @@ else
   ok "SKIP device-node and read-only .git cases (bwrap cannot start here)"
 fi
 rm -rf "$repo/new-tool"
+# The inner run lints from the scratch repository, with the rcfile beside the
+# outer copy of the script; an optional check the rcfile enables proves it read it.
+if grep -q -- --rcfile <<<"$(shellcheck --help 2>&1)"; then
+  cp "$SELF_DIR/../.shellcheckrc" "$repo/.shellcheckrc"
+  printf '#!/usr/bin/env bash\nif [ -n "${1:-}" ]; then echo hi; fi\n' >"$repo/lint-me.sh"
+  chmod +x "$repo/lint-me.sh"
+  run -- --uncommitted
+  check "--uncommitted lints a changed shell file with the repository's .shellcheckrc" \
+    '[[ $RC == 1 && $ERR == *"FAIL shellcheck"* && $ERR == *"SC2292"* && $ERR != *"unrecognized option"* ]]'
+  rm -f "$repo/.shellcheckrc" "$repo/lint-me.sh"
+else
+  ok "SKIP --uncommitted shellcheck case (no shellcheck with --rcfile here)"
+fi
 check "--uncommitted leaves HEAD, the index and the worktree list as they were" '[[ $(state) == "$before" ]]'
 
 run -- --bogus

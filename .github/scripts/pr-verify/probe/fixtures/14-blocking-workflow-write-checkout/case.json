@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\nNothing runs the sample-kit tests on pull requests.\n\n## Fix\n\nAdd a workflow that runs `npm ci` and `npm test` in `plugins/sample-kit` on every pull request.\n\n## Done when\n\n- [ ] The tests run on each pull request and its result shows on the PR."
+  },
+  "pr": {
+    "title": "ci(sample-kit): run the sample-kit tests on pull requests",
+    "body": "Adds a workflow that runs the sample-kit tests on every pull request, including ones from forks."
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "separate",
+  "defect": "a pull_request_target workflow that holds contents: write and checks out and runs the PR head; the issue scores it apart because diff-check is meant to stop a .github/workflows change before the verifier",
+  "mentions": ["contents: write", "write (token|permission)", "pull_request_target", "head\\.sha", "checks? out the (PR|pull request) head", "untrusted code", "pwn"]
+}

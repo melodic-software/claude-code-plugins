@@ -623,3 +623,141 @@ test("createGitHubApi follows rel=next pages and sends the token", async () => {
     ["Bearer tok", "Bearer tok"],
   );
 });
+
+// #8116's thread PRRT_kwDOTCGFQM6tojDu: the reviewer bot's finding on
+// write-transcript.js, then the owner's fix request naming run-transcript.js,
+// refused at 2026-10-19T02:31Z as outside every kept thread's scope.
+const T = "plugins/knowledge/skills/video-digest/extraction/transcript";
+const OWNER_8116 =
+  "*Owner reply, posted by AI from the owner's answer in an attended session on 2026-10-18.*\n\n" +
+  "PR-fix lane: please fix this finding. Strip `cues` where `run-transcript.js` serializes the rows " +
+  "(for example `written.transcripts.map(({ cues, ...row }) => row)`) so the CLI's stdout is unchanged, " +
+  "and add a test that the CLI output has no `cues` key.";
+const FILE = { type: "blob", mode: 0o100644 };
+const EXEC = { type: "blob", mode: 0o100755 };
+// The head's trees, keyed by directory: GraphQL TreeEntry rows.
+const TREES = {
+  [T]: [{ name: "write-transcript.js", ...FILE }, { name: "run-transcript.js", ...EXEC }, { name: "run-transcript.test.js", ...FILE }],
+  "plugins/knowledge": [{ name: "README.md", ...FILE }, { name: "AGENTS.md", ...FILE }, { name: "link.md", type: "blob", mode: 0o120000 }, { name: "vendor", type: "commit", mode: 0o160000 }],
+  "plugins/other": [{ name: "x.js", ...FILE }],
+  ".github/workflows": [{ name: "x.yml", ...FILE }],
+};
+function named(replies, { trees = TREES, permissions } = {}) {
+  const fixture = asked(replies);
+  fixture.reviewComments = fixture.reviewComments.map((row) => ({ ...row, path: `${T}/write-transcript.js` }));
+  const api = fakeApi({ ...fixture, permissions });
+  const reads = [];
+  api.listTree = async (sha, dir) => {
+    reads.push(`${sha}:${dir}`);
+    return trees[dir] ?? [];
+  };
+  return { api, reads };
+}
+
+test("#8116: a write-access fix request naming a same-plugin file adds it to the thread's scope", async () => {
+  const { api, reads } = named([[101, HUMAN, OWNER_8116]]);
+  const result = await run(api);
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.threads[0].named_paths, [`${T}/run-transcript.js`]);
+  assert.deepEqual(reads, [`${HEAD}:${T}`]);
+  const { inThreadScope } = await import("./thread-scope.mjs");
+  assert.equal(inThreadScope(`${T}/run-transcript.js`, new Set([`${T}/write-transcript.js`]), result.file.threads), true);
+});
+
+test("a repository-relative name with a :line suffix in the same plugin is added", async () => {
+  const body = "PR-fix lane: please fix this finding. Also update plugins/knowledge/README.md:12.";
+  const result = await run(named([[101, HUMAN, body]]).api);
+  assert.deepEqual(result.file.threads[0].named_paths, ["plugins/knowledge/README.md"]);
+});
+
+test("a name in another plugin, under .github/ or on an instruction path is not added, and no tree is read for it", async () => {
+  const body =
+    "PR-fix lane: please fix this finding. Edit plugins/other/x.js, .github/workflows/x.yml, " +
+    "plugins/knowledge/AGENTS.md and `plugins/knowledge/hooks/hooks.json`.";
+  const { api, reads } = named([[101, HUMAN, body]]);
+  const result = await run(api);
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.file.threads[0].named_paths, undefined);
+  assert.deepEqual(reads, []);
+});
+
+test("a ../ traversal or an absolute name is not added", async () => {
+  const body =
+    "PR-fix lane: please fix this finding. See ../watch/run-watch.js, plugins/knowledge/../other/x.js " +
+    "and /plugins/knowledge/README.md.";
+  const { api, reads } = named([[101, HUMAN, body]]);
+  assert.equal((await run(api)).file.threads[0].named_paths, undefined);
+  assert.deepEqual(reads, []);
+});
+
+test("a name from a trusted person without write access is not added", async () => {
+  // Kept as an answer to the lane's escalation, which needs no write access.
+  const fixture = escalated({ replies: [[102, HUMAN, OWNER_8116]] });
+  fixture.reviewComments = fixture.reviewComments.map((row) => ({ ...row, path: `${T}/write-transcript.js` }));
+  const api = fakeApi({ ...fixture, permissions: { "kyle-sexton": "read" } });
+  api.listTree = async (sha, dir) => TREES[dir] ?? [];
+  const result = await run(api);
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.file.threads[0].named_paths, undefined);
+});
+
+test("a name from an untrusted account leaves the thread alone, so nothing is added", async () => {
+  const { api } = named([[101, STRANGER, OWNER_8116]], { permissions: { stranger: "admin" } });
+  assert.equal((await run(api)).decision, "skip");
+});
+
+test("a name that is no regular file at the head is not added: missing, a symbolic link, a gitlink, or another letter case", async () => {
+  const body =
+    "PR-fix lane: please fix this finding. Edit `missing.js`, plugins/knowledge/link.md, plugins/knowledge/vendor.d " +
+    "and Run-transcript.js.";
+  const trees = { ...TREES, "plugins/knowledge": [...TREES["plugins/knowledge"], { name: "vendor.d", type: "commit", mode: 0o160000 }] };
+  const result = await run(named([[101, HUMAN, body]], { trees }).api);
+  assert.equal(result.file.threads[0].named_paths, undefined);
+});
+
+test("names inside fenced code or quoted lines, and in the thread's other comments, are not read", async () => {
+  const body = "PR-fix lane: please fix this finding.\n```\nrun-transcript.js\n```\n> plugins/knowledge/README.md";
+  const result = await run(named([[101, HUMAN, body], [102, HUMAN, "Also run-transcript.test.js"]]).api);
+  assert.equal(result.file.threads[0].named_paths, undefined);
+});
+
+test("words that are not files ahead of a real name do not push it out of the cap", async () => {
+  const words = Array.from({ length: 12 }, (_, i) => `obj.f${i}`).join(" ");
+  const body = `PR-fix lane: please fix this finding. Per ${words}, edit run-transcript.js.`;
+  const { api, reads } = named([[101, HUMAN, body]]);
+  assert.deepEqual((await run(api)).file.threads[0].named_paths, [`${T}/run-transcript.js`]);
+  assert.deepEqual(reads, [`${HEAD}:${T}`]);
+});
+
+test("names in many missing directories read at most TREE_READ_CAP trees; a name in a read directory still counts", async () => {
+  const { TREE_READ_CAP } = await import("./address-feedback.mjs");
+  const missing = Array.from({ length: TREE_READ_CAP + 5 }, (_, i) => `plugins/knowledge/d${i}/x.js`);
+  const body = `PR-fix lane: please fix this finding. Edit ${missing.join(" ")} and run-transcript.js.`;
+  const { api, reads } = named([[101, HUMAN, body]]);
+  assert.equal((await run(api)).file.threads[0].named_paths, undefined);
+  assert.equal(reads.length, TREE_READ_CAP);
+  const first = `PR-fix lane: please fix this finding. Edit run-transcript.js, ${missing.join(" ")} and run-transcript.test.js.`;
+  const kept = named([[101, HUMAN, first]]);
+  assert.deepEqual((await run(kept.api)).file.threads[0].named_paths, [`${T}/run-transcript.js`, `${T}/run-transcript.test.js`]);
+  assert.equal(kept.reads.length, TREE_READ_CAP);
+});
+
+test("at most NAMED_CAP existing files are added", async () => {
+  const { NAMED_CAP } = await import("./address-feedback.mjs");
+  const files = Array.from({ length: NAMED_CAP + 2 }, (_, i) => `f${i}.js`);
+  const body = `PR-fix lane: please fix this finding. Edit ${files.join(" ")}.`;
+  const trees = { ...TREES, [T]: [...TREES[T], ...files.map((name) => ({ name, ...FILE }))] };
+  const result = await run(named([[101, HUMAN, body]], { trees }).api);
+  assert.deepEqual(result.file.threads[0].named_paths, files.slice(0, NAMED_CAP).map((name) => `${T}/${name}`));
+});
+
+test("a leading or trailing _ that belongs to the name is kept; only a matched _ pair is emphasis", async () => {
+  const body =
+    "PR-fix lane: please fix this finding. Edit _utils.js, `__init__.py` and _run-transcript.test.js_.";
+  const trees = {
+    ...TREES,
+    [T]: [...TREES[T], { name: "_utils.js", ...FILE }, { name: "utils.js", ...FILE }, { name: "__init__.py", ...FILE }, { name: "init__.py", ...FILE }],
+  };
+  const result = await run(named([[101, HUMAN, body]], { trees }).api);
+  assert.deepEqual([...result.file.threads[0].named_paths].sort(), [`${T}/__init__.py`, `${T}/_utils.js`, `${T}/run-transcript.test.js`]);
+});

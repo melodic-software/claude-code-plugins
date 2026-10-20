@@ -129,3 +129,89 @@ test(".github/ is refused even when a kept thread names a file there", () => {
   assert.equal(isProtectedPath(".github"), true);
   assert.equal(isProtectedPath(".githubx/a"), false);
 });
+
+test("a plugin's .mcp.json, .gitmodules or CODEOWNERS is outside the plugin-wide part of its scope", () => {
+  for (const path of ["plugins/p/.mcp.json", "plugins/p/skills/s/.gitmodules", "plugins/p/CODEOWNERS"]) {
+    assert.equal(inThreadScope(path, kept), false, path);
+  }
+});
+
+// #8116's thread PRRT_kwDOTCGFQM6tojDu: on write-transcript.js, the owner's
+// fix request named run-transcript.js, which check-paths refused.
+const T = "plugins/knowledge/skills/video-digest/extraction/transcript";
+const WRITE = `${T}/write-transcript.js`;
+const RUN = `${T}/run-transcript.js`;
+
+test("a same-plugin file in a kept thread's named_paths is in scope, and only that thread's", () => {
+  const paths = new Set([WRITE]);
+  assert.equal(inThreadScope(RUN, paths), false);
+  assert.equal(inThreadScope(RUN, paths, [{ path: WRITE, named_paths: [RUN] }]), true);
+  assert.equal(inThreadScope(`${T}/run-watch.js`, paths, [{ path: WRITE, named_paths: [RUN] }]), false);
+  assert.equal(inThreadScope(`plugins/knowledge/lib/x.sh`, paths, [{ path: WRITE, named_paths: ["plugins/knowledge/lib/x.sh"] }]), true);
+});
+
+test("a named path in another plugin, under .github/, or on an instruction path is refused", () => {
+  for (const path of [
+    "plugins/other/lib/x.js",
+    "plugins/knowledgebase/x.js",
+    "src/x.js",
+    ".github/workflows/x.yml",
+    "plugins/knowledge/AGENTS.md",
+    "plugins/knowledge/skills/s/claude.md",
+    "plugins/knowledge/hooks/guard.mjs",
+    "plugins/knowledge/Hooks/hooks.json",
+    "plugins/knowledge/.claude-plugin/plugin.json",
+    "plugins/knowledge/.claude/settings.json",
+    "plugins/knowledge/.mcp.json",
+    "plugins/knowledge/.gitmodules",
+    "plugins/knowledge/CODEOWNERS",
+  ]) {
+    assert.equal(inThreadScope(path, new Set([WRITE]), [{ path: WRITE, named_paths: [path] }]), false, path);
+  }
+  // The thread the name came from decides the plugin, not any other kept thread.
+  const other = [{ path: "plugins/other/a.md", named_paths: [RUN] }];
+  assert.equal(inThreadScope(RUN, new Set([WRITE, "plugins/other/a.md"]), other), false);
+});
+
+test("a named path off normal form or outside plain ASCII is refused", () => {
+  for (const path of [
+    "plugins/knowledge/../other/x.js",
+    `${T}/../../watch/run-watch.js`,
+    "plugins/knowledge/./x.js",
+    "/plugins/knowledge/x.js",
+    "plugins/knowledge//x.js",
+    "plugins/knowledge/a b.js",
+    "plugins/knowledge\\x.js",
+    "plugins/knowledge/ｘ.js",
+  ]) {
+    assert.equal(inThreadScope(path, new Set([WRITE]), [{ path: WRITE, named_paths: [path] }]), false, path);
+  }
+});
+
+// From the security review of #8461: a segment named exactly hooks or
+// .claude, plugin monitors, bin and .lsp.json, more code extensions, and
+// non-ASCII letters JS /i does not fold (U+212A KELVIN SIGN, U+017F LONG S).
+test("instruction segments with no trailing /, plugin monitors, bin and .lsp.json, and more code files are refused", () => {
+  for (const path of [
+    "plugins/p/hooks",
+    "plugins/p/.claude",
+    "plugins/p/skills/s/.claude-plugin",
+    "plugins/p/monitors/monitors.json",
+    "plugins/p/bin/tool",
+    "plugins/p/.lsp.json",
+    "plugins/p/lib/x.cjs",
+    "plugins/p/lib/x.mts",
+    "plugins/p/lib/x.cts",
+    "plugins/p/lib/x.ps1",
+    "plugins/p/lib/x.bash",
+    "plugins/p/lib/x.zsh",
+  ]) {
+    assert.equal(inThreadScope(path, kept), false, path);
+  }
+});
+
+test("a path with a non-ASCII letter is refused, even as a kept thread's own path", () => {
+  for (const path of ["plugins/p/hooKs/hooks.json", "plugins/p/AGENTſ.md", "plugins/p/run.ſh", "plugins/p/café.md"]) {
+    assert.equal(inThreadScope(path, new Set([...kept, path])), false, path);
+  }
+});

@@ -259,27 +259,34 @@ const ps = promote.with?.script ?? "";
 say(/COMMIT_SHA/.test(JSON.stringify(promote.env ?? {})) && /lane !== COMMIT_SHA/.test(ps) && /COMMIT_OUTCOME !== 'success'/.test(ps),
   "in merge-base mode promote requires the commit step's success and its commit at the lane ref");
 
-// Issue mode: only the skill run writes the outcome artifact, so the
-// report-outcome run downloads what the skill run left, never its own copy.
-const outcomeWriters = steps.filter((s) => /upload-artifact/.test(s.uses ?? "") && /work-outcome/.test(JSON.stringify(s.with ?? {})));
-const collect = steps.find((s) => s.name === "Collect the issue outcome");
+// Issue mode runs its skill in the read runner, which holds no lane token:
+// these checks read that file. Only the skill run writes the outcome
+// artifact, so the report-outcome run downloads what it left.
+const rwf = YAML.parse(readFileSync(".github/workflows/pr-run-activity-read.yml", "utf8"));
+const rsteps = rwf.jobs.run.steps;
+const rat = (pred) => rsteps.findIndex(pred);
+const rById = (id) => rsteps.find((s) => s.id === id) ?? {};
+const outcomeWriters = rsteps.filter((s) => /upload-artifact/.test(s.uses ?? "") && /work-outcome/.test(JSON.stringify(s.with ?? {})));
+const collect = rsteps.find((s) => s.name === "Collect the issue outcome");
 say(outcomeWriters.length === 1 && collect !== undefined
   && [...outcomeWriters, collect].every((s) => /steps\.config\.outputs\.kind == 'skill'/.test(String(s.if ?? ""))),
   "issue mode collects and uploads the outcome artifact only in a skill run");
 
-// Issue mode: the check for an earlier run's work decides before the mint,
-// with the job's read-only token, and a stop or reuse skips the mint.
-const prior = byId("issue-prior");
-const priorAt = at((s) => s.id === "issue-prior");
-say(priorAt >= 0 && priorAt < recheck && priorAt < mint && prior.env?.GH_TOKEN === "${{ github.token }}"
+// Issue mode: the check for an earlier run's work decides before the run
+// decides to start and before any model turn, with the job's read-only
+// token, and a stop or reuse skips the model.
+const prior = rById("issue-prior");
+const priorAt = rat((s) => s.id === "issue-prior");
+say(priorAt >= 0 && priorAt < rat((s) => s.id === "go") && priorAt < rat((s) => s.id === "act-skill") && prior.env?.GH_TOKEN === "${{ github.token }}"
   && !/lane-token/.test(JSON.stringify(prior)),
-  "the earlier-work check runs before the head re-read and the mint, with the job's read-only token and no lane token");
+  "the earlier-work check runs before the run decides to start and before the model, with the job's read-only token and no lane token");
 say(/steps\.config\.outputs\.kind == 'skill'/.test(String(prior.if ?? "")) && /inputs\.issue-number != ''/.test(String(prior.if ?? ""))
   && /\.base\/\.github\/scripts\/work-resolve-issue\/report-outcome\.mjs --find-prior/.test(prior.run ?? ""),
   "the earlier-work check runs only for an issue-mode skill, from the base copy");
-say(/steps\.issue-prior\.outputs\.proceed != 'false'/.test(String(byId("head-recheck").if ?? "")),
-  "an earlier run's work skips the mint");
-say(wf.jobs.run.outputs["reuse-branch"] === "${{ steps.issue-prior.outputs.reuse-branch }}",
+say(rById("go").env?.PRIOR === "${{ steps.issue-prior.outputs.proceed }}" && /PRIOR" = false/.test(rById("go").run ?? "")
+  && /steps\.go\.outputs\.run == 'true'/.test(String(rById("act-skill").if ?? "")),
+  "an earlier run's work skips the model");
+say(rwf.jobs.run.outputs["reuse-branch"] === "${{ steps.issue-prior.outputs.reuse-branch }}",
   "the reuse-branch output comes only from the runner's earlier-work check");
 const first = steps[0];
 say(first.env?.REUSE_BRANCH === "${{ inputs.reuse-branch }}"
@@ -287,20 +294,21 @@ say(first.env?.REUSE_BRANCH === "${{ inputs.reuse-branch }}"
   "the first step refuses a reuse-branch input that is not this issue's lane branch");
 say(byId("act-script").env?.REUSE_BRANCH === "${{ inputs.reuse-branch }}", "the script step gets the checked reuse-branch input");
 
-// Issue mode, reuse: the summary pass is its own job after the run job,
-// started only by the earlier-work check's reuse-branch (which skips the mint).
-// It holds no id-token, reads the branch as data, and no step can turn it red.
-const sjob = wf.jobs.summary ?? {};
+// Issue mode, reuse: the summary pass is the read runner's own job after the
+// run job, started only by the earlier-work check's reuse-branch (which skips
+// the model). It holds no id-token, reads the branch as data, and no step can
+// turn it red.
+const sjob = rwf.jobs.summary ?? {};
 const ssteps = sjob.steps ?? [];
 const sById = (id) => ssteps.find((s) => s.id === id) ?? {};
 const summaryIds = ["summary-data", "summary-models", "summary-prompt", "summary-run", "summary-collect"];
-say(!steps.some((s) => summaryIds.includes(s.id) || /claude-code-action/.test(s.uses ?? "") && s.id !== "act-skill"),
-  "the run job, which holds id-token: write, runs no summary step and no model step but the skill");
+say(!rsteps.some((s) => summaryIds.includes(s.id) || /claude-code-action/.test(s.uses ?? "") && s.id !== "act-skill"),
+  "the run job runs no summary step and no model step but the skill");
 say(sjob.needs === "run" && /needs\.run\.outputs\.reuse-branch != ''/.test(String(sjob.if ?? "")) && /!cancelled\(\)/.test(String(sjob.if ?? "")),
   "the summary job runs after the run job, only on its reuse-branch output");
 say(JSON.stringify(sjob.permissions) === JSON.stringify({ contents: "read" }),
   "the summary job holds contents: read and nothing else, no id-token");
-say(wf.jobs.run.outputs?.["reuse-branch"] === "${{ steps.issue-prior.outputs.reuse-branch }}",
+say(rwf.jobs.run.outputs?.["reuse-branch"] === "${{ steps.issue-prior.outputs.reuse-branch }}",
   "the run job's reuse-branch output is the earlier-work check's");
 say(ssteps.length > 0 && ssteps.every((s) => s["continue-on-error"] === true),
   "every summary job step is continue-on-error, so a failed pass turns no job red");
@@ -317,7 +325,7 @@ say(summaryData.env?.GITHUB_TOKEN === "${{ github.token }}" && /GIT_CONFIG_GLOBA
   "the summary data step fetches the branch as objects with the read-only token and diffs it without running anything from it");
 const summaryRun = sById("summary-run");
 const summaryArgs = String(sById("summary-prompt").run ?? "");
-say(String(summaryRun.uses ?? "") === String(skill.uses ?? "") && summaryRun.with?.github_token === "${{ github.token }}"
+say(String(summaryRun.uses ?? "") === String(rById("act-skill").uses ?? "") && summaryRun.with?.github_token === "${{ github.token }}"
   && !("use_commit_signing" in (summaryRun.with ?? {})) && !("plugins" in (summaryRun.with ?? {}))
   && !("plugin_marketplaces" in (summaryRun.with ?? {})) && sById("isolate").uses === "./.base/.github/actions/setup-runner-isolation"
   && String(summaryRun.if ?? "") === "steps.isolate.outcome == 'success'",

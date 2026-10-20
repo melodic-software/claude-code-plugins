@@ -1,0 +1,7 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "main",
+  "defect": "shell injection: the issue title, untrusted text, is interpolated into an execSync shell string",
+  "mentions": ["inject", "execSync", "shell", "interpolat", "untrusted"]
+}

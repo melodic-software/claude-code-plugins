@@ -1,35 +1,44 @@
 #!/usr/bin/env node
-// apply-patch.mjs: the one script that applies a read model job's patch to a
-// pull request branch and pushes it, with no model and no PR head code run. The
-// producer's prepare mode picks its row of patch-rules.json, read from the
-// trusted base checkout (BASE_DIR), never from the head; an empty prepare mode
-// takes the `default` row. A lane changes what is admitted by registering a row
-// or a predicate, never by a branch here.
+// apply-patch.mjs: the one script that applies a read model job's patch and
+// commits it, with no model and no producer code run. Its target picks the row
+// of patch-rules.json, read from the trusted base checkout (BASE_DIR), never
+// from the head: a pull request target takes the producer's prepare-mode row
+// (`default` for none) and moves the PR branch on from the gated head; the
+// issue target takes the `issue` row and makes a new lane branch at the commit
+// the producer started from. A lane changes what is admitted by registering a
+// row or a predicate, never by a branch here.
 //
 //   select  before the mint and the head checkout, with no token: checks the
 //           downloaded artifact (exactly one regular patch.diff, at most 1 MiB,
 //           with the model job's SHA-256 and no credential shape) and reads the
-//           row's producer report. An empty or invalid patch hands the PR to a
-//           person.
-//   (none)  after the head checkout, with the lane token: checks the row and
-//           builds its allow predicates (an unknown name throws before any
-//           write), checks the row's requirements and the patch again, applies
-//           it to the index with git's hooks and config off, and refuses the
-//           whole patch when any change matches a refusal, exceeds max-files, or
-//           fails an allow predicate, or a new blob carries a credential shape.
-//           A head that moved since the model job takes the patch with --3way
-//           only when the moved commits touch no patched path, else it skips
-//           superseded-sha. It then re-reads the hold labels, draft state and
-//           branch tip, commits the tree on the gated head through the Git Data
-//           API, checks the tree hash, and moves the branch with force: false.
+//           row's producer report. An empty or invalid patch hands the work to
+//           a person.
+//   (none)  after the checkout of the start commit, with the lane token:
+//           checks the row and builds its allow predicates (an unknown name
+//           throws before any write), checks the row's requirements and the
+//           patch again, applies it to the index with git's hooks and config
+//           off, and refuses the whole patch when any change matches a
+//           refusal, exceeds max-files, or fails an allow predicate, or a new
+//           blob carries a credential shape. On a PR, a head that moved since
+//           the model job takes the patch with --3way only when the moved
+//           commits touch no patched path, else it skips superseded-sha; an
+//           issue patch applies only to the commit it was made on. It then
+//           re-reads the holds (a PR's labels and draft state, or an issue's
+//           hold and required labels), commits the tree through the Git Data
+//           API, checks the tree hash, and moves the PR branch with
+//           force: false or creates the new branch, which fails if it exists.
 //
 // Environment, both: BASE_DIR, PATCH_PREPARE (empty for none), PATCH_TARGET
-// (pr; issue is not supported yet). Select: GITHUB_OUTPUT, PATCH_STATE,
+// (pr, the default, or issue). Select: GITHUB_OUTPUT, PATCH_STATE,
 // PATCH_SHA256, PATCH_HEAD_SHA, HEAD_SHA, PATCH_DIR, REPORT_DIR. Script step:
-// GH_TOKEN, GITHUB_REPOSITORY, PR_NUMBER, HEAD_SHA, PATCH_HEAD_SHA, HEAD_REF,
-// LANE, PATCH_ACTIVITY, PATCH_FILE, PATCH_SHA256, HOLD_LABELS, SKIP_REASON_FILE,
+// GH_TOKEN, GITHUB_REPOSITORY, PR_NUMBER (pr) or ISSUE_NUMBER,
+// REQUIRED_LABELS (a JSON list) and PATCH_BASE_SHA (the default-branch commit
+// the refusals measure from) (issue), HEAD_SHA, PATCH_HEAD_SHA, HEAD_REF (the
+// PR branch, or the new `<lane>/issue-<n>-<run id>-<attempt>` branch), LANE,
+// PATCH_ACTIVITY, PATCH_FILE, PATCH_SHA256, HOLD_LABELS, SKIP_REASON_FILE,
 // ESCALATION_REASON_FILE; optional BASE_REF, KEPT_THREADS_FILE (a JSON list of
-// paths), DEPENDENCY_VERDICT and GITHUB_OUTPUT (gets commit=<sha>).
+// paths), DEPENDENCY_VERDICT and GITHUB_OUTPUT (gets commit=<sha> and
+// branch=<ref>).
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -40,6 +49,10 @@ import { pathToFileURL } from "node:url";
 import { PREDICATES } from "./predicates.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
+// A compressed binary patch inflates: any one patched blob, and all of them
+// together, are capped before any is read.
+export const MAX_BLOB_BYTES = 5 * 1024 * 1024;
+export const MAX_TOTAL_BLOB_BYTES = 20 * 1024 * 1024;
 export const RULES_PATH = ".github/actions/resolve-config/patch-rules.json";
 const SHA = /^[0-9a-f]{40}$/;
 const NAME = /^[a-z][a-z0-9-]*$/;
@@ -133,19 +146,70 @@ export function loadRules(baseDir) {
   return JSON.parse(readFileSync(join(baseDir, RULES_PATH), "utf8"));
 }
 
-// The producer's row: its prepare mode's, or `default` when it has none.
+const laneBranch = (lane, issue) => new RegExp(`^${lane}/issue-${issue}-[1-9][0-9]*-[1-9][0-9]*$`);
+
+// Where a target's commit goes. `row` names the row it reads; `number` the
+// push argument that names its PR or issue, and `env` the script step
+// variables it needs past the shared ones (its number first); `held` re-reads
+// what stops the commit; `ready` checks the ref before any write; `write`
+// moves or makes it.
+export const TARGETS = {
+  pr: {
+    row: (prepare) => prepare || "default",
+    number: "pr",
+    env: ["PR_NUMBER"],
+    movedHead: true,
+    checkRef: () => "",
+    // The push goes to this repository's branch only: a fork head throws.
+    async held(api, number, { holds, repository }) {
+      const [pull, labels] = [await api.getPull(number), await api.listLabels(number)];
+      if (pull.head?.repo?.full_name !== repository) {
+        throw new Error(`the PR head is ${pull.head?.repo?.full_name ?? "unreadable"}, not ${repository}; the patch is not pushed`);
+      }
+      return pull.draft !== false || labels.some((label) => holds.has(label.name));
+    },
+    async ready(api, ref, head) {
+      const tip = await api.readBranch(ref);
+      if (tip !== head) {
+        throw new Error(`the PR branch moved from ${head} to ${tip}; the patch is not pushed`);
+      }
+    },
+    // force: false refuses anything but a fast-forward from the gated head.
+    write: (api, ref, commit) => api.updateRef(`heads/${ref}`, commit, false),
+  },
+  issue: {
+    row: () => "issue",
+    number: "issue",
+    env: ["ISSUE_NUMBER", "REQUIRED_LABELS", "PATCH_BASE_SHA"],
+    movedHead: false,
+    checkRef: (ref, { lane, issue }) => (laneBranch(lane, issue).test(String(ref)) ? "" : `${ref} is not a ${lane}/issue-${issue}-<run id>-<attempt> branch`),
+    // A hold label added, or a required label (agent-ready) removed, while
+    // the model worked stops the commit.
+    async held(api, number, { holds, required }) {
+      const names = new Set((await api.listLabels(number)).map((label) => label.name));
+      return [...names].some((name) => holds.has(name)) || required.some((name) => !names.has(name));
+    },
+    // The branch is new: creating it fails when it exists, so nothing is read first.
+    ready: async () => {},
+    write: (api, ref, commit) => api.createRef(`refs/heads/${ref}`, commit),
+  },
+};
+
+// The producer's row: the target's, which for a PR is its prepare mode's, or
+// `default` when it has none.
 export function rowFor(rules, { prepare = "", target = "pr" } = {}) {
-  if (target === "issue") {
-    throw new Error("the issue target is not supported by this apply-patch yet");
-  }
-  if (target !== "pr") {
+  if (!Object.hasOwn(TARGETS, target)) {
     throw new Error(`unknown patch target ${target}`);
   }
-  const name = prepare || "default";
+  const name = TARGETS[target].row(prepare);
+  const owner = Object.keys(TARGETS).find((other) => other !== target && TARGETS[other].row("") === name);
+  if (owner) {
+    throw new Error(`the \`${name}\` row belongs to the ${owner} target`);
+  }
   if (!Object.hasOwn(rules, name)) {
     throw new Error(`patch-rules.json has no \`${name}\` row`);
   }
-  return { name, ...rules[name] };
+  return { name, target, ...rules[name] };
 }
 
 // Every name the row uses is known and the universal refusals are all there;
@@ -183,6 +247,9 @@ export function checkRow(row) {
   }
   if (!row.escalations?.some((reason) => reason.endsWith("-invalid"))) {
     fail("has no -invalid escalation reason");
+  }
+  if (!Object.hasOwn(TARGETS, String(row.target))) {
+    fail(`names an unknown target: ${row.target}`);
   }
   return row;
 }
@@ -311,6 +378,7 @@ export async function push({
   row,
   context = {},
   pr,
+  issue,
   headSha,
   patchHeadSha,
   headRef,
@@ -320,15 +388,27 @@ export async function push({
   patchFile,
   patchSha256,
   holdLabels,
+  requiredLabels = [],
+  repository = "",
+  refusalBase = "",
   log = () => {},
 }) {
   // Everything the row names resolves before any git or API work.
   checkRow(row);
+  const target = TARGETS[row.target];
   const allow = row.allow.map((name) => PREDICATES[name](context));
   if (!NAME.test(String(lane)) || !NAME.test(String(activity))) {
     throw new Error("LANE and PATCH_ACTIVITY must be lane and activity names");
   }
-  const message = commitMessage(row, { ref: headRef, base: baseRef, lane, activity });
+  const number = { pr, issue }[target.number];
+  if (!Number.isSafeInteger(number) || number < 1) {
+    throw new Error(`the ${row.target} target needs its ${target.number} number`);
+  }
+  const badRef = target.checkRef(headRef, { lane, issue: number });
+  if (badRef) {
+    throw new Error(badRef);
+  }
+  const message = commitMessage(row, { ref: headRef, base: baseRef, lane, activity, [target.number]: String(number) });
   const escalate = (kind, why) => {
     log(why);
     return { outcome: "escalate", escalationReason: reasonFor(row, kind) };
@@ -343,6 +423,9 @@ export async function push({
   }
   const git = gitRunner(cwd, gitBin);
   const moved = patchHeadSha !== headSha;
+  if (moved && !target.movedHead) {
+    return escalate("invalid", `the patch was made on ${patchHeadSha}, not the start commit ${headSha}`);
+  }
   if (moved) {
     // The moved commits may touch no path the patch changes.
     if (!SHA.test(String(patchHeadSha)) || !hasCommit(git, patchHeadSha)) {
@@ -367,10 +450,22 @@ export async function push({
   if (entries.length === 0) {
     return escalate("empty", "the patch changes nothing");
   }
-  const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", headSha, tree]));
+  // A start commit that is not on the default branch (a resumed lane
+  // branch's tip) brings its own commits to the new branch, so the refusals
+  // also cover what the final tree changes since the default-branch commit it
+  // forked from, the diff the pull request shows.
+  let from = headSha;
+  if (refusalBase && refusalBase !== headSha) {
+    if (!SHA.test(String(refusalBase)) || !hasCommit(git, refusalBase)) {
+      return escalate("invalid", `the default-branch commit ${refusalBase} is not in the checkout`);
+    }
+    from = git(["merge-base", refusalBase, headSha]).toString("utf8").trim();
+  }
+  const reaching = from === headSha ? entries : changes(git(["diff-tree", "-r", "-z", "--no-renames", from, tree]));
+  const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", from, tree]));
   // One refused entry refuses the whole patch, before anything is written.
   // A rename is checked as one first; every entry then meets the rest.
-  const checks = [...renames.map((entry) => [entry, ["rename-into-refused"]]), ...entries.map((entry) => [entry, [...row.refuse, ...ALWAYS]])];
+  const checks = [...renames.map((entry) => [entry, ["rename-into-refused"]]), ...reaching.map((entry) => [entry, [...row.refuse, ...ALWAYS]])];
   for (const [entry, names] of checks) {
     const [refusal] = refusalsOf(entry, names);
     if (refusal) {
@@ -384,22 +479,26 @@ export async function push({
   if (outside) {
     return escalate("protected-path", `not allowed by ${row.allow.join(", ")}: ${outside.path}`);
   }
-  const blobs = entries.filter((entry) => !ZERO.test(entry.newSha)).map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
+  const written = entries.filter((entry) => !ZERO.test(entry.newSha));
+  const sizes = written.map((entry) => Number(git(["cat-file", "-s", entry.newSha]).toString("utf8").trim()));
+  const big = sizes.findIndex((size) => !(size <= MAX_BLOB_BYTES));
+  if (big !== -1) {
+    return escalate("invalid", `the patched ${written[big].path} is over ${MAX_BLOB_BYTES} bytes`);
+  }
+  if (sizes.reduce((sum, size) => sum + size, 0) > MAX_TOTAL_BLOB_BYTES) {
+    return escalate("invalid", `the patched blobs total over ${MAX_TOTAL_BLOB_BYTES} bytes`);
+  }
+  const blobs = written.map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
   const leaked = blobs.find(({ bytes }) => credentialIn(bytes.toString("latin1")));
   if (leaked) {
     return escalate("invalid", `the patched ${leaked.entry.path} carries a credential shape`);
   }
-  // A hold or a draft set while the model worked stops the push.
-  const holds = new Set(holdLabels);
-  const [pull, labels] = [await api.getPull(pr), await api.listLabels(pr)];
-  if (pull.draft !== false || labels.some((label) => holds.has(label.name))) {
-    log("the pull request is held or a draft; the patch is dropped");
+  // A hold set while the model worked stops the commit.
+  if (await target.held(api, number, { holds: new Set(holdLabels), required: requiredLabels, repository })) {
+    log(`the ${row.target} is held; the patch is dropped`);
     return { outcome: "held" };
   }
-  const tip = await api.readBranch(headRef);
-  if (tip !== headSha) {
-    throw new Error(`the PR branch moved from ${headSha} to ${tip}; the patch is not pushed`);
-  }
+  await target.ready(api, headRef, headSha);
   const treeEntries = entries.filter((entry) => ZERO.test(entry.newSha)).map((entry) => ({ path: entry.path, mode: entry.oldMode, type: "blob", sha: null }));
   for (const { entry, bytes } of blobs) {
     const sha = await api.createBlob(bytes.toString("base64"));
@@ -414,14 +513,13 @@ export async function push({
     throw new Error(`GitHub built tree ${built}, not the applied tree ${tree}; nothing is committed`);
   }
   const commit = await api.createCommit(message, tree, [headSha]);
-  // force: false refuses anything but a fast-forward from the gated head.
-  await api.updateRef(`heads/${headRef}`, commit, false);
+  await target.write(api, headRef, commit);
   const after = await api.readBranch(headRef);
   if (after !== commit) {
-    throw new Error(`the PR branch reads ${after} after the update to ${commit}`);
+    throw new Error(`${headRef} reads ${after} after the write of ${commit}`);
   }
   log(`pushed ${commit} (${entries.length} path(s)) onto ${headRef}`);
-  return { outcome: "pushed", commit };
+  return { outcome: "pushed", commit, branch: headRef };
 }
 
 // The REST calls apply-patch makes. GitHub signs a commit made with no author
@@ -458,6 +556,10 @@ export function createGitHubApi({ token, repository, apiUrl, fetch = globalThis.
     async updateRef(ref, sha, force) {
       await request(`git/refs/${refPath(ref)}`, "PATCH", { sha, force });
     },
+    // GitHub answers 422 when the ref already exists.
+    async createRef(ref, sha) {
+      await request("git/refs", "POST", { ref, sha });
+    },
   };
 }
 
@@ -479,8 +581,17 @@ function keptThreadsFrom(file) {
   return new Set(paths);
 }
 
+function labelList(env, key) {
+  const labels = JSON.parse(env[key]);
+  if (!Array.isArray(labels) || !labels.every((label) => typeof label === "string")) {
+    throw new Error(`${key} is not a list of labels`);
+  }
+  return labels;
+}
+
 export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = (line) => console.log(line) } = {}) {
   const row = rowFor(loadRules(env.BASE_DIR), { prepare: env.PATCH_PREPARE ?? "", target: env.PATCH_TARGET || "pr" });
+  const target = TARGETS[row.target];
   if (argv[0] === "select") {
     need(env, ["GITHUB_OUTPUT", "HEAD_SHA"]);
     const result = select({
@@ -502,7 +613,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
   need(env, [
     "GH_TOKEN",
     "GITHUB_REPOSITORY",
-    "PR_NUMBER",
+    ...target.env,
     "HEAD_SHA",
     "PATCH_HEAD_SHA",
     "HEAD_REF",
@@ -516,12 +627,9 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
   if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit id");
   }
-  if (!/^[1-9][0-9]{0,14}$/.test(env.PR_NUMBER)) {
-    throw new Error("PR_NUMBER is not a positive integer");
-  }
-  const holdLabels = JSON.parse(env.HOLD_LABELS);
-  if (!Array.isArray(holdLabels) || !holdLabels.every((label) => typeof label === "string")) {
-    throw new Error("HOLD_LABELS is not a list of labels");
+  const [numberKey] = target.env;
+  if (!/^[1-9][0-9]{0,14}$/.test(env[numberKey])) {
+    throw new Error(`${numberKey} is not a positive integer`);
   }
   const result = await push({
     api: api ?? createGitHubApi({ token: env.GH_TOKEN, repository: env.GITHUB_REPOSITORY, apiUrl: env.GITHUB_API_URL ?? "https://api.github.com" }),
@@ -529,7 +637,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     gitBin,
     row,
     context: { keptThreads: keptThreadsFrom(env.KEPT_THREADS_FILE), dependencyVerdict: env.DEPENDENCY_VERDICT ?? "" },
-    pr: Number(env.PR_NUMBER),
+    [target.number]: Number(env[numberKey]),
     headSha: env.HEAD_SHA,
     patchHeadSha: env.PATCH_HEAD_SHA,
     headRef: env.HEAD_REF,
@@ -538,14 +646,17 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     activity: env.PATCH_ACTIVITY,
     patchFile: env.PATCH_FILE,
     patchSha256: env.PATCH_SHA256 ?? "",
-    holdLabels: ["do-not-merge", ...holdLabels],
+    holdLabels: ["do-not-merge", ...labelList(env, "HOLD_LABELS")],
+    requiredLabels: env.REQUIRED_LABELS ? labelList(env, "REQUIRED_LABELS") : [],
+    repository: env.GITHUB_REPOSITORY,
+    refusalBase: env.PATCH_BASE_SHA ?? "",
     log,
   });
   if (result.outcome === "escalate") {
     writeFileSync(env.ESCALATION_REASON_FILE, `${result.escalationReason}\n`);
   }
   if (result.outcome === "pushed" && env.GITHUB_OUTPUT) {
-    appendFileSync(env.GITHUB_OUTPUT, `commit=${result.commit}\n`);
+    appendFileSync(env.GITHUB_OUTPUT, `commit=${result.commit}\nbranch=${result.branch}\n`);
   }
   if (result.outcome !== "pushed") {
     writeFileSync(env.SKIP_REASON_FILE, result.outcome === "superseded" ? "superseded-sha\n" : "awaiting-human\n");
