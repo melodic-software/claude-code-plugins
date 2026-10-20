@@ -720,13 +720,15 @@ refusal comment naming that head, unless it is escalated, to say the refusal no 
 later refusal at the head starts its time afresh. The merge gate never removes the label; the
 `head-moved` clear above removes it once the head moves, and otherwise a person does.
 
-Finding closure (owner decision, #8450): a clean newer review on the current head closes a review
-finding whoever resolved its thread, and a HIGH security finding also needs the security review lane
-clean on that head. The gate does not apply that rule yet
-([#8478](https://github.com/melodic-software/claude-code-plugins/issues/8478)): today a resolved
-thread closes only when a human resolved it, the whole review chain covering the head reports no
-finding, or it is outdated with none of its flagged lines left at the head (`_open_findings` in
-`babysit_review_evidence.py`).
+Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
+current head closes a review finding whoever resolved its thread, and a HIGH security finding also
+needs the security review lane's own clean whole review of that head. The gate applies it per lane
+(`_open_findings` in `babysit_review_evidence.py`): a resolved thread closes when it was opened
+before that review's job completed and the review chain covering the head, here the whole review
+alone, reports no finding. An incremental review reads only what changed since the last review, so
+it never closes an unchanged thread: a lane that resolved an unfixed finding and pushed an unrelated
+commit leaves it open. A resolved thread also closes when a human resolved it, or when it is
+outdated with none of its flagged lines left at the head; an unresolved thread stays open.
 
 While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
 no full CI run either; its summary says whether it would have.
