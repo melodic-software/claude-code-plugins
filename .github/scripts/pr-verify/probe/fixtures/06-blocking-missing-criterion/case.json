@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\nScripts that call `sample-kit status` have to scrape its text output.\n\n## Fix\n\nAdd a `--json` flag to `sample-kit status`.\n\n## Done when\n\n- [ ] `status --json` prints one JSON object: `{\"ok\": <boolean>, \"pending\": <number>}`.\n- [ ] The README's Status section documents `--json`.\n- [ ] A test runs `status --json` and checks both fields."
+  },
+  "pr": {
+    "title": "feat(sample-kit): add status --json",
+    "body": "Adds `--json` to `sample-kit status` and documents it in the README."
+  }
+}

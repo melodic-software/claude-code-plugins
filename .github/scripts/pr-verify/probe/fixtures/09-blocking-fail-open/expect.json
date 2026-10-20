@@ -1,0 +1,7 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "main",
+  "defect": "fails open: the catch returns `true`, allowing every host when the allowlist is unreadable; the issue requires `false`",
+  "mentions": ["fail(s|ing)? open", "return(s)? true", "allow(s|ing)? every host", "allows all", "should (return|be) false", "deny"]
+}

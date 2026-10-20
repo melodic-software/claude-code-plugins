@@ -1,0 +1,33 @@
+diff --git a/plugins/sample-kit/scripts/recent.mjs b/plugins/sample-kit/scripts/recent.mjs
+index 9a8b7c6..5d4e3f2 100644
+--- a/plugins/sample-kit/scripts/recent.mjs
++++ b/plugins/sample-kit/scripts/recent.mjs
+@@ -4,6 +4,7 @@ import { readEntries } from "./store.mjs";
+
+ export function recent(store) {
+-  return readEntries(store);
++  const entries = readEntries(store);
++  return entries.toSorted((a, b) => a.name.localeCompare(b.name));
+ }
+
+ export function printRecent(store) {
+diff --git a/plugins/sample-kit/scripts/recent.test.mjs b/plugins/sample-kit/scripts/recent.test.mjs
+index 1c2d3e4..f5a6b7c 100644
+--- a/plugins/sample-kit/scripts/recent.test.mjs
++++ b/plugins/sample-kit/scripts/recent.test.mjs
+@@ -10,3 +10,15 @@ test("recent reads the store", () => {
+   const store = fakeStore([]);
+   assert.deepEqual(recent(store), []);
+ });
++
++test("recent sorts the entries", () => {
++  const store = fakeStore([
++    { name: "gamma", updatedAt: "2026-10-03T00:00:00Z" },
++    { name: "alpha", updatedAt: "2026-10-01T00:00:00Z" },
++    { name: "beta", updatedAt: "2026-10-02T00:00:00Z" },
++  ]);
++  assert.deepEqual(
++    recent(store).map((entry) => entry.name),
++    ["alpha", "beta", "gamma"],
++  );
++});

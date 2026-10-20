@@ -1,0 +1,7 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "main",
+  "defect": "a silent change outside scope: sync.mjs raises the request timeout tenfold and removes the retry cap, which the issue rules out and the PR body does not mention",
+  "mentions": ["timeout", "300", "MAX_ATTEMPTS", "infinite", "infinity", "retry cap", "retries", "out of scope", "outside (the )?scope", "unrelated", "behavior change"]
+}

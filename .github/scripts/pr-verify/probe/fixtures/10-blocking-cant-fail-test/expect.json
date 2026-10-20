@@ -1,0 +1,7 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "main",
+  "defect": "the required test cannot fail: its only assertion is inside the catch, so a parseDuration that does not throw still passes",
+  "mentions": ["cannot fail", "can't fail", "never fail", "(does not|doesn't|would not|wouldn't) fail", "passes (even|if|when)", "assert\\.throws", "inside the catch", "only.*catch"]
+}

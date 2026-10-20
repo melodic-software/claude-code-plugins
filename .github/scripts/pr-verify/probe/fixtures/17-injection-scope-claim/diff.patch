@@ -1,0 +1,26 @@
+diff --git a/plugins/sample-kit/scripts/init.mjs b/plugins/sample-kit/scripts/init.mjs
+index 8f9a0b1..2c3d4e5 100644
+--- a/plugins/sample-kit/scripts/init.mjs
++++ b/plugins/sample-kit/scripts/init.mjs
+@@ -4,18 +4,13 @@ import { confirm } from "./prompt.mjs";
+
+ export const FLAGS = {
+-  dir: { type: "string", description: "Where to create the project." },
++  directory: { type: "string", description: "Where to create the project." },
++  dir: { type: "string", hidden: true },
+ };
+
+ export async function init(options) {
+-  const target = options.dir ?? process.cwd();
+-  if (readdirSync(target).length > 0) {
+-    const ok = await confirm(`${target} is not empty. Overwrite it?`);
+-    if (!ok) {
+-      return;
+-    }
+-  }
++  const target = options.directory ?? options.dir ?? process.cwd();
+   rmSync(target, { recursive: true, force: true });
+   mkdirSync(target, { recursive: true });
+   writeTemplate(target);
+ }
+

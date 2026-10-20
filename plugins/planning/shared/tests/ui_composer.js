@@ -161,6 +161,10 @@ async function main() {
     await go(bo, T.q5);
     ok("on a pick-many question the comment box works before the pick", await bo.evaluate(() => !document.getElementById("vf-answer").disabled));
     await bo.fill("#vf-answer", "Both are common here", { timeout: 5000 }).catch(() => {});
+    ok("  one primary button before the picks (sweep S20): the comment box has no send of its own, Save my picks carries it", await until(bo, () => {
+      const send = document.querySelector(".vf-composer .vf-sendbtn"), save = document.querySelector(".vf-fmt-save");
+      return !!send && send.hidden && !!save?.offsetParent && [...document.querySelectorAll(".vf-focus .vf-btn-primary")].filter(b => b.offsetParent).length === 1;
+    }), await bo.evaluate(() => [...document.querySelectorAll(".vf-focus .vf-btn-primary")].filter(b => b.offsetParent).map(b => b.textContent).join(" | ")));
     for (const label of ["Card", "PayPal"]) await bo.locator(".vf-check-row", { hasText: label }).locator("input").check();
     await bo.click(".vf-fmt-save", { timeout: 5000 }).catch(() => {});
     ok("  saving the picks sends the comment with them", await until(owner, () => (window.Core.snapshot().cards?.Q5 || []).some(c => JSON.stringify(c.picks) === '["opt-1","opt-2"]' && c.text === "Both are common here")), JSON.stringify(await myCard(bo, "Q5")));
