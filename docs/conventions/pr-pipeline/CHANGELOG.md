@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [2.19.4] - 2026-10-20
+
+### Fixed
+
+- The Unattended merge section documents that pr-merge refuses, as `shared-copy-sources-changed:`, a pull request carrying a shared-library canonical that main changed since its merge base, escalates it with the human-gated role label and a `babysit-merge-shared-copy-escalation` comment, and that the fix is merging main and running `scripts/sync-shared-copies.sh`. The head-moved clear removes that label once the head moves ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
 ## [2.19.3] - 2026-10-20
 
 ### Fixed
