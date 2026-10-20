@@ -1268,6 +1268,97 @@ class CoveringReviewTests(Base):
         self.assertEqual(result["claude-review"].open_findings, 1)
 
 
+def windowed(item: dict[str, Any], start: str, end: str) -> dict[str, Any]:
+    job = item["attempts"][0]["jobs"][0]
+    job["started_at"], job["completed_at"] = start, end
+    return item
+
+
+class CleanWholeReviewTests(Base):
+    """A clean whole review of the pinned head closes a resolved thread
+    whoever resolved it; a security-lane (HIGH) thread needs the security
+    lane's own clean whole review. An incremental review reads only what
+    changed, so it never closes an unchanged thread (owner decision
+    2026-10-19, narrowed to whole reviews)."""
+
+    LANES_BOT = {"__typename": "Bot", "login": "melodic-lanes"}
+    SECURITY = "finding\n\n`claude-lane: claude-security-review`"
+    CLEAN_WHOLE = "findings=0 inline=0 scope=whole"
+    CLEAN_INCREMENTAL = f"findings=0 inline=0 scope=incremental since={S0}"
+
+    def chain(self, lane: str, head_tail: str, raised: int = 1) -> list[dict[str, Any]]:
+        # A whole review at S0 (00:00-01:00) raised `raised` inline findings;
+        # the review at the pinned head S ran 02:00-03:00.
+        return [
+            run(lane, S0, f"findings={raised} inline={raised} scope=whole"),
+            windowed(
+                run(lane, S, head_tail, created="2026-01-01T02:00:00Z"),
+                "2026-01-01T02:00:00Z",
+                "2026-01-01T03:00:00Z",
+            ),
+        ]
+
+    def security_thread(self) -> list[dict[str, Any]]:
+        return [thread(self.SECURITY, resolved=True, resolved_by=self.LANES_BOT)]
+
+    def test_resolved_security_thread_stays_open_after_a_clean_incremental(
+        self,
+    ) -> None:
+        # The lane resolved an unfixed HIGH thread and an unrelated push was
+        # reviewed incrementally: that review never re-read the flagged line.
+        runs = [
+            *self.chain("claude-review", self.CLEAN_INCREMENTAL, raised=0),
+            *self.chain("claude-security-review", self.CLEAN_INCREMENTAL),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        self.assertEqual(result["claude-review"].open_findings, 0)
+        self.assertEqual(result["claude-security-review"].open_findings, 1)
+
+    def test_resolved_security_thread_closes_on_a_clean_whole_review(
+        self,
+    ) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_WHOLE, raised=0),
+            *self.chain("claude-security-review", self.CLEAN_WHOLE),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+            self.assertEqual(result[lane].open_findings, 0, lane)
+
+    def test_security_thread_needs_the_security_lane_clean(self) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_WHOLE, raised=0),
+            *self.chain("claude-security-review", "findings=1 inline=0 scope=whole"),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        self.assertEqual(result["claude-review"].open_findings, 0)
+        # The security head review's summary finding plus the thread.
+        self.assertEqual(result["claude-security-review"].open_findings, 2)
+
+    def test_clean_whole_review_of_an_older_head_does_not_close(self) -> None:
+        runs = [
+            windowed(
+                run("claude-review", S, "findings=1 inline=1 scope=whole"),
+                "2026-01-01T00:00:00Z",
+                "2026-01-01T01:00:00Z",
+            ),
+            windowed(
+                run(
+                    "claude-review",
+                    S0,
+                    self.CLEAN_WHOLE,
+                    created="2026-01-01T02:00:00Z",
+                ),
+                "2026-01-01T02:00:00Z",
+                "2026-01-01T03:00:00Z",
+            ),
+        ]
+        threads = [thread(resolved=True, resolved_by=self.LANES_BOT)]
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+
 class FailClosedTests(Base):
     def test_garbage_input_never_raises(self) -> None:
         for runs in (None, [None], [{"attempts": "x"}], "runs", [{"id": 1}]):
