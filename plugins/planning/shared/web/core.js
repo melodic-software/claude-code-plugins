@@ -755,7 +755,8 @@
   // The server takes one write a second per person on each of these routes (session.py _throttle, WRITE_INTERVAL;
   // a chat reaction per message) and answers a faster one 429. Writes to one route go out one at a time, the next a
   // second after the last answer came back: the server stamps a write before it answers, so that gap is never shorter
-  // than a second there.
+  // than a second there. The limit is per person and this spacing per page, so a write the same person just made from
+  // another tab or device can still refuse one: send() tries that once more a gap later.
   const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
     "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree", "/api/pass",
     "/api/go-with", "/api/notifications/read", "/api/inbox/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail",
@@ -784,6 +785,7 @@
         r = await go();
         if (r.status === 401 && !ownerToken && await mergedIntoOwner(r)) return r;
         if (r.status === 401 && !ownerToken) { forget(); await join(); r = await go(); }
+        if (r.status === 429 && SPACED.has(path) && (await r.clone().json().catch(() => ({}))).error === "slow-down") { await wait(GAP); r = await go(); }
       } catch (e) {
         if (e instanceof TypeError) fault("api", e.message, { route: path, code: "network" });
         throw e;
