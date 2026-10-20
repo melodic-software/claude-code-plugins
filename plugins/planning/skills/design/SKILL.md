@@ -183,7 +183,7 @@ one-offs only). Run the leak test on every abstraction and contained boundary, a
 where the solution's existing architecture style already puts them. Questions, verdicts, leak test,
 autonomy rule, and sources:
 [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md).
-An intent answer from `/planning:interview` is settled, never re-asked.
+A variation-intent answer from `/planning:interview` is settled, never re-asked.
 
 Produce: `design-threads.md`
 
