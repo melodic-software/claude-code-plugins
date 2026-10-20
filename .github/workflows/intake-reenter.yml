@@ -14,6 +14,13 @@ name: intake-reenter
 # back from the API; nothing from the event but their numbers reaches it, and
 # no comment text reaches a shell. issue_comment runs this file from the
 # default branch only.
+#
+# Accepted exposure: only a trusted comment decides whether a re-entry
+# happens, but the triage run it starts reads every comment on the issue, so
+# any commenter's text reaches the triage model on each re-entry. Triage can
+# only apply allowlisted labels and post with mentions broken, holds no write
+# tools, and never adds `agent-ready`. Passing only trusted comments on a
+# dispatch belongs in ci-workflows' intake-triage workflow.
 on:
   issue_comment:
     types: [created]
