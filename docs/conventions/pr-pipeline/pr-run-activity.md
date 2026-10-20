@@ -699,7 +699,10 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    `cancelled` or `timed_out`) still runs one more round, on those threads only; a
    round with no readable time grants none. Both escalations skip `awaiting-human` with nothing
    minted. Otherwise
-   it writes `$RUNNER_TEMP/lane-feedback/threads.json`.
+   it writes `$RUNNER_TEMP/lane-feedback/threads.json` and records its SHA-256 as a step output,
+   which the promote and collect steps check before they read the file: on a mismatch or no
+   recorded hash, the promote step does not move the PR branch and the collect step writes no
+   `run.json`.
 2. `collect-base-activity` makes that directory read-only and stages a wrapper over the base's
    `feedback-thread.sh` there. The skill keeps the commit tool and gets `Bash(<wrapper> *)`; Edit
    and Write are denied on the directory and on the tool's replies directory. The tool lists the
