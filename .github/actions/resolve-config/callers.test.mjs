@@ -556,7 +556,7 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files fails befor
   assert.equal(runCheck(run, "").status, 0);
 });
 
-// GHSA-cqxm: the issue lane's model job holds no write token. resolve-issue
+// The issue lane's model job holds no write token. resolve-issue
 // runs on the read runner, whose run job (the one that runs the model) gets
 // only the job's read-only GITHUB_TOKEN; the App token is minted only by the
 // apply job that commits the patch.

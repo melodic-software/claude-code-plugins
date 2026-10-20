@@ -443,7 +443,7 @@ test("issue target: the lookup takes the issue row whatever the prepare mode", (
   const picked = rowFor(RULES, { prepare: "ci-context", target: "issue" });
   assert.equal(picked.name, "issue");
   assert.equal(picked.target, "issue");
-  assert.equal(picked["max-files"], 300);
+  assert.equal(picked["max-files"], RULES.issue["max-files"]);
 });
 
 test("issue target: makes <lane>/issue-<n>-<run id>-<attempt> at the start commit with one commit", async (t) => {
@@ -479,7 +479,7 @@ test("issue target: a resumed run's patch lands on a new branch made at the resu
   writeFileSync(fix.patchFile, text);
   const api = fakeApi(fix.repo, resumeTip, { labels: READY });
   const resumed = { ...fix, head: resumeTip, sum: sha256(text) };
-  assert.equal((await pushIssue(resumed, api, { headRef: `${LANE}/issue-7-124-1` })).outcome, "pushed");
+  assert.equal((await pushIssue(resumed, api, { headRef: `${LANE}/issue-7-124-1`, refusalBase: fix.head })).outcome, "pushed", "a clean resume tip passes");
   const { createCommit } = api.calls.find((call) => call.createCommit);
   assert.deepEqual(createCommit.parents, [resumeTip]);
   assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:notes.md`]), "earlier run's work");
@@ -559,6 +559,7 @@ test("issue target: main reads ISSUE_NUMBER and REQUIRED_LABELS and writes the c
     REQUIRED_LABELS: '["agent-ready"]',
     HEAD_SHA: fix.head,
     PATCH_HEAD_SHA: fix.head,
+    PATCH_BASE_SHA: fix.head,
     HEAD_REF: ISSUE_BRANCH,
     LANE,
     PATCH_ACTIVITY: "resolve-issue",
@@ -576,4 +577,63 @@ test("issue target: main reads ISSUE_NUMBER and REQUIRED_LABELS and writes the c
   assert.equal(REQUIRED_LABELS, '["agent-ready"]');
   await assert.rejects(main([], noRequired, { api, cwd: fix.repo, gitBin: "git", log: () => {} }), /REQUIRED_LABELS not set/);
   await assert.rejects(main([], { ...env, ISSUE_NUMBER: "7a" }, { api, cwd: fix.repo, gitBin: "git", log: () => {} }), /ISSUE_NUMBER is not a positive integer/);
+});
+
+// A resume tip of the patch's own, made after the default-branch commit.
+function resumeWith(t, earlier) {
+  const fix = repoWithPatch(t, () => {});
+  earlier(fix.repo);
+  const resumeTip = commitAll(fix.repo, "earlier lane commit");
+  writeFileSync(join(fix.repo, "README.md"), "# finished\n");
+  git(fix.repo, ["add", "-A"]);
+  const text = execFileSync("git", ["diff", "--cached", "--binary", "--full-index", "--no-renames", resumeTip], { cwd: fix.repo, encoding: "utf8" });
+  git(fix.repo, ["reset", "-q", "--hard", resumeTip]);
+  writeFileSync(fix.patchFile, text);
+  return { fix: { ...fix, head: resumeTip, sum: sha256(text) }, base: fix.head };
+}
+
+test("issue target: a resume tip carrying a refused path is refused, though the patch itself is clean", async (t) => {
+  for (const [what, earlier, reason] of [
+    ["a .claude/ file", (repo) => (mkdirSync(join(repo, ".claude")), writeFileSync(join(repo, ".claude/x"), "x\n")), "patch-protected-path"],
+    ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github")), writeFileSync(join(repo, ".github/x.yml"), "on: push\n")), "patch-protected-path"],
+    ["a new executable bit", (repo) => chmodSync(join(repo, "notes.md"), 0o755), "patch-protected-path"],
+  ]) {
+    const { fix, base } = resumeWith(t, earlier);
+    const api = fakeApi(fix.repo, fix.head, { labels: READY });
+    assert.deepEqual(await pushIssue(fix, api, { headRef: `${LANE}/issue-7-124-1`, refusalBase: base }), { outcome: "escalate", escalationReason: reason }, what);
+    assert.deepEqual(api.calls, [], what);
+    const unchecked = fakeApi(fix.repo, fix.head, { labels: READY });
+    assert.equal((await pushIssue(fix, unchecked, { headRef: `${LANE}/issue-7-124-1` })).outcome, "pushed", `${what}: only the base makes the difference`);
+  }
+});
+
+test("issue target: a default-branch commit not in the checkout refuses the patch", async (t) => {
+  const { fix } = resumeWith(t, (repo) => writeFileSync(join(repo, "notes.md"), "earlier\n"));
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api, { refusalBase: "e".repeat(40) }), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.deepEqual(api.calls, []);
+});
+
+// Zeros compress, so a patch well under 1 MiB carries blobs of many MiB.
+test("a patched blob over 5 MiB is refused before any API call", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "big.bin"), Buffer.alloc(5 * 1024 * 1024 + 1)));
+  assert.ok(readFileSync(fix.patchFile).length < 1024 * 1024);
+  for (const push of [pushWith, pushIssue]) {
+    const api = fakeApi(fix.repo, fix.head, { labels: READY });
+    assert.deepEqual(await push(fix, api), { outcome: "escalate", escalationReason: "patch-invalid" });
+    assert.deepEqual(api.calls, []);
+  }
+});
+
+test("patched blobs over 20 MiB in total are refused, each one under the per-blob cap", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    for (let i = 0; i < 5; i += 1) {
+      writeFileSync(join(repo, `part-${i}.bin`), Buffer.alloc(4 * 1024 * 1024 + i + 1));
+    }
+  });
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.deepEqual(api.calls, []);
+  const under = repoWithPatch(t, (repo) => writeFileSync(join(repo, "part.bin"), Buffer.alloc(5 * 1024 * 1024)));
+  assert.equal((await pushIssue(under, fakeApi(under.repo, under.head, { labels: READY }))).outcome, "pushed", "exactly 5 MiB passes");
 });

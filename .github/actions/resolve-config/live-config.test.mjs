@@ -326,7 +326,7 @@ test("live config: resolve-issue reads official docs hosts only; review-dependen
   assert.deepEqual(others, []);
 });
 
-// GHSA-cqxm: the model run holds no write token; only the script that
+// The model run holds no write token; only the script that
 // commits its patch may write a branch.
 test("live config: resolve-issue holds no write token; apply-issue-patch may only write its branch; report-outcome may only write PRs and issues", () => {
   const grant = (activity) =>
@@ -383,7 +383,15 @@ test("live config: apply-issue-patch runs apply-patch.mjs and holds on the issue
   assert.equal(slot.script, ".github/scripts/apply-patch/apply-patch.mjs");
   assert.equal(slot.prepare, "apply-patch");
   assert.deepEqual(slot.needs, ["resolve-issue"]);
-  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
+  // Every hold that keeps resolve-issue from starting also drops its patch,
+  // and the patch needs the label resolve-issue needs.
+  const { activities } = parse(FILES.config);
+  const holds = activities["resolve-issue"]["applies-when"]["labels-absent"];
+  const applyHolds = new Set(activities["apply-issue-patch"]["applies-when"]["labels-absent"]);
+  assert.ok(holds.length > 0);
+  assert.deepEqual(holds.filter((hold) => !applyHolds.has(hold)), [], "apply-issue-patch's labels-absent covers resolve-issue's");
+  assert.deepEqual(activities["apply-issue-patch"]["applies-when"].labels, activities["resolve-issue"]["applies-when"].labels);
+  for (const hold of applyHolds) {
     assert.equal(skipReason("work-resolve-issue", "apply-issue-patch", { ...ISSUE, labels: ["agent-ready", hold] }), "awaiting-human", hold);
   }
   assert.equal(skipReason("work-resolve-issue", "apply-issue-patch", { ...ISSUE, labels: [] }), "not-applicable");

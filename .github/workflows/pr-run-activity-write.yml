@@ -992,8 +992,12 @@ jobs:
           token: ${{ steps.lane-token.outputs.token }}
           persist-credentials: false
           # The merge needs the history back to the merge base and the trusted
-          # base commit. Written as != so the 0 is not read as false.
-          fetch-depth: ${{ steps.config.outputs.prepare != 'merge-base' && 1 || 0 }}
+          # base commit, and an issue patch the history back to where its start
+          # commit forked from the default branch. Written as != so the 0 is
+          # not read as false.
+          fetch-depth: >-
+            ${{ steps.config.outputs.prepare != 'merge-base'
+            && !(inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch') && 1 || 0 }}
 
       # The activity judges exactly the commit the check is posted on.
       - name: Assert the head is the gated SHA
@@ -2010,6 +2014,9 @@ jobs:
           BASE_DIR: ${{ steps.apply-base.outputs.dir }}
           PATCH_TARGET: ${{ inputs.issue-number != '' && 'issue' || 'pr' }}
           PATCH_HEAD_SHA: ${{ inputs.issue-number != '' && steps.issue-start.outputs.sha || inputs.patch-head-sha }}
+          # Issue mode: the default-branch commit the issue-start step checked;
+          # the refusals cover everything the new branch adds since it.
+          PATCH_BASE_SHA: ${{ inputs.issue-number != '' && inputs.patch-base-sha || '' }}
           LANE: ${{ inputs.lane }}
           PATCH_ACTIVITY: ${{ inputs.patch-activity }}
           REQUIRED_LABELS: ${{ steps.required-labels.outputs.required }}

@@ -965,7 +965,11 @@ labels and stops uncommitted (`awaiting-human`) when a hold label is on it or `a
 gone, creates the commit `Resolve issue #<n>` with the trailer
 `Lane-Activity: work-resolve-issue/resolve-issue`, creates the branch (which fails if it exists,
 so no branch is ever moved), reads it back, and outputs `commit` and `branch`. The row's
-`max-files` (300) bounds its blob uploads. The script's base copy imports `thread-scope.mjs`, and
+`max-files` (300) bounds its blob uploads. On a resume it checks out the full history and also
+holds every change the final tree makes since the commit the resume tip forked from
+`patch-base-sha` to the refusals, so an earlier lane commit cannot carry a refused path onto the
+new branch. Every target refuses `patch-invalid` a patched blob over 5 MiB, or patched blobs over
+20 MiB in all, by `git cat-file -s` before any is read. The script's base copy imports `thread-scope.mjs`, and
 reads `patch-rules.json` from a copy the write file makes before the checkout.
 
 The rules each producer's patch is to be held to are registered in

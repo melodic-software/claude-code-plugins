@@ -31,8 +31,9 @@
 // Environment, both: BASE_DIR, PATCH_PREPARE (empty for none), PATCH_TARGET
 // (pr, the default, or issue). Select: GITHUB_OUTPUT, PATCH_STATE,
 // PATCH_SHA256, PATCH_HEAD_SHA, HEAD_SHA, PATCH_DIR, REPORT_DIR. Script step:
-// GH_TOKEN, GITHUB_REPOSITORY, PR_NUMBER (pr) or ISSUE_NUMBER and
-// REQUIRED_LABELS (issue, a JSON list), HEAD_SHA, PATCH_HEAD_SHA, HEAD_REF (the
+// GH_TOKEN, GITHUB_REPOSITORY, PR_NUMBER (pr) or ISSUE_NUMBER,
+// REQUIRED_LABELS (a JSON list) and PATCH_BASE_SHA (the default-branch commit
+// the refusals measure from) (issue), HEAD_SHA, PATCH_HEAD_SHA, HEAD_REF (the
 // PR branch, or the new `<lane>/issue-<n>-<run id>-<attempt>` branch), LANE,
 // PATCH_ACTIVITY, PATCH_FILE, PATCH_SHA256, HOLD_LABELS, SKIP_REASON_FILE,
 // ESCALATION_REASON_FILE; optional BASE_REF, KEPT_THREADS_FILE (a JSON list of
@@ -48,6 +49,10 @@ import { pathToFileURL } from "node:url";
 import { PREDICATES } from "./predicates.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
+// A compressed binary patch inflates: any one patched blob, and all of them
+// together, are capped before any is read.
+export const MAX_BLOB_BYTES = 5 * 1024 * 1024;
+export const MAX_TOTAL_BLOB_BYTES = 20 * 1024 * 1024;
 export const RULES_PATH = ".github/actions/resolve-config/patch-rules.json";
 const SHA = /^[0-9a-f]{40}$/;
 const NAME = /^[a-z][a-z0-9-]*$/;
@@ -175,7 +180,7 @@ export const TARGETS = {
   issue: {
     row: () => "issue",
     number: "issue",
-    env: ["ISSUE_NUMBER", "REQUIRED_LABELS"],
+    env: ["ISSUE_NUMBER", "REQUIRED_LABELS", "PATCH_BASE_SHA"],
     movedHead: false,
     checkRef: (ref, { lane, issue }) => (laneBranch(lane, issue).test(String(ref)) ? "" : `${ref} is not a ${lane}/issue-${issue}-<run id>-<attempt> branch`),
     // A hold label added, or a required label (agent-ready) removed, while
@@ -385,6 +390,7 @@ export async function push({
   holdLabels,
   requiredLabels = [],
   repository = "",
+  refusalBase = "",
   log = () => {},
 }) {
   // Everything the row names resolves before any git or API work.
@@ -444,10 +450,22 @@ export async function push({
   if (entries.length === 0) {
     return escalate("empty", "the patch changes nothing");
   }
-  const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", headSha, tree]));
+  // A start commit that is not on the default branch (a resumed lane
+  // branch's tip) brings its own commits to the new branch, so the refusals
+  // also cover what the final tree changes since the default-branch commit it
+  // forked from, the diff the pull request shows.
+  let from = headSha;
+  if (refusalBase && refusalBase !== headSha) {
+    if (!SHA.test(String(refusalBase)) || !hasCommit(git, refusalBase)) {
+      return escalate("invalid", `the default-branch commit ${refusalBase} is not in the checkout`);
+    }
+    from = git(["merge-base", refusalBase, headSha]).toString("utf8").trim();
+  }
+  const reaching = from === headSha ? entries : changes(git(["diff-tree", "-r", "-z", "--no-renames", from, tree]));
+  const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", from, tree]));
   // One refused entry refuses the whole patch, before anything is written.
   // A rename is checked as one first; every entry then meets the rest.
-  const checks = [...renames.map((entry) => [entry, ["rename-into-refused"]]), ...entries.map((entry) => [entry, [...row.refuse, ...ALWAYS]])];
+  const checks = [...renames.map((entry) => [entry, ["rename-into-refused"]]), ...reaching.map((entry) => [entry, [...row.refuse, ...ALWAYS]])];
   for (const [entry, names] of checks) {
     const [refusal] = refusalsOf(entry, names);
     if (refusal) {
@@ -461,7 +479,16 @@ export async function push({
   if (outside) {
     return escalate("protected-path", `not allowed by ${row.allow.join(", ")}: ${outside.path}`);
   }
-  const blobs = entries.filter((entry) => !ZERO.test(entry.newSha)).map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
+  const written = entries.filter((entry) => !ZERO.test(entry.newSha));
+  const sizes = written.map((entry) => Number(git(["cat-file", "-s", entry.newSha]).toString("utf8").trim()));
+  const big = sizes.findIndex((size) => !(size <= MAX_BLOB_BYTES));
+  if (big !== -1) {
+    return escalate("invalid", `the patched ${written[big].path} is over ${MAX_BLOB_BYTES} bytes`);
+  }
+  if (sizes.reduce((sum, size) => sum + size, 0) > MAX_TOTAL_BLOB_BYTES) {
+    return escalate("invalid", `the patched blobs total over ${MAX_TOTAL_BLOB_BYTES} bytes`);
+  }
+  const blobs = written.map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
   const leaked = blobs.find(({ bytes }) => credentialIn(bytes.toString("latin1")));
   if (leaked) {
     return escalate("invalid", `the patched ${leaked.entry.path} carries a credential shape`);
@@ -622,6 +649,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     holdLabels: ["do-not-merge", ...labelList(env, "HOLD_LABELS")],
     requiredLabels: env.REQUIRED_LABELS ? labelList(env, "REQUIRED_LABELS") : [],
     repository: env.GITHUB_REPOSITORY,
+    refusalBase: env.PATCH_BASE_SHA ?? "",
     log,
   });
   if (result.outcome === "escalate") {
