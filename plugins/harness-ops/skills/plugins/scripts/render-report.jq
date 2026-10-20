@@ -191,22 +191,37 @@ def block($d):
          "Enabled: \($enabled_ok | length) plugin(s): \($enabled_ok | map(scoped) | join(", "))"
        else empty end),
 
-      # Divergences: actionable only (versionsMatch false), split by interval.
-      # The split is machine-wide, so it follows the machine-wide count it sums to.
+      # Divergences: version-skewed rows only (versionsMatch false), split by interval.
+      # The interval split is machine-wide, so it follows the machine-wide count it sums to.
+      # A digest from this version also splits the count by what can be done about each
+      # row: only the actionable parts point at converge. A digest written before that
+      # split carries no `blocked` field and renders as it always did.
       (.divergences as $v
+       | ("\($v.pre_existing) pre-existing, \($v.new_total) newly created by this run (\($v.new_by_interval.in_repo) by the in-repo update, \($v.new_by_interval.user_sweep) by the user-scope sweep"
+          + (if ($v.new_by_interval.concurrent // 0) > 0
+             then ", \($v.new_by_interval.concurrent) moved during this run, cause unattributed" else "" end)
+          + ")") as $intervals
        | if $v.post == null then
            "Divergences: not computed (\($v.note // "a snapshot was missing"))"
-         else
-           ("\($v.post) actionable: \($v.pre_existing) pre-existing, \($v.new_total) newly created by this run (\($v.new_by_interval.in_repo) by the in-repo update, \($v.new_by_interval.user_sweep) by the user-scope sweep"
-              + (if ($v.new_by_interval.concurrent // 0) > 0
-                 then ", \($v.new_by_interval.concurrent) moved during this run, cause unattributed" else "" end)
-              + ")") as $split
-           | if $v.post == 0 then "Divergences: 0 actionable"
-             elif .project_root != null and .divergences_here != null then
+         elif $v.post == 0 then "Divergences: 0 actionable"
+         elif $v.blocked == null then
+           "\($v.post) actionable: \($intervals)" as $split
+           | if .project_root != null and .divergences_here != null then
                "Divergences: \(.divergences_here) behind here → run `/harness-ops:plugins converge`; on this whole machine \($split)"
              else
                "Divergences: \($split) → run `/harness-ops:plugins converge`"
              end
+         else
+           ([(if ($v.actionable_here // 0) > 0 then "\($v.actionable_here) actionable here" else empty end),
+             (if ($v.actionable_elsewhere // 0) > 0 then "\($v.actionable_elsewhere) actionable elsewhere on this machine" else empty end)]) as $act
+           | ([(if ($act | length) > 0 then ($act | join(", ")) + " → run `/harness-ops:plugins converge`" else empty end),
+               (if ($v.in_worktrees // 0) > 0 then
+                  "\($v.in_worktrees) in linked worktrees → remove the worktree; /source-control:worktree audit (if installed) classifies them"
+                else empty end),
+               (if ($v.blocked // 0) > 0 then
+                  "\($v.blocked) blocked, path not present → see Stale project records below"
+                else empty end)] | join("; ")) as $parts
+           | "Divergences: \($parts) (of \($v.post) in all: \($intervals))"
          end),
 
       # The digest names this plugin's own row; a digest written before it did

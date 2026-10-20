@@ -109,6 +109,11 @@
 #   `direction: "unknown"`); a pair whose new version is LOWER lands in `downgraded`
 #   instead, which is what keeps a backward move off the report's `Updated:` line
 #   even for an id the guard could not prove in advance.
+#   `divergences` is `{pre, mid, post, new_total, new_by_interval, pre_existing,
+#   actionable_here, actionable_elsewhere, in_worktrees, blocked}`: `post` counts
+#   the actionable (`versionsMatch: false`) rows, and the last four split it by
+#   what an operator can do about each row (see `divergence_block`). A digest
+#   written before the split carries none of the four.
 #   `moved_during_run[]` is `{id, scope, kind, old, new, direction}` for each id whose
 #   update call the CLI answered "already at the latest version" while the post
 #   snapshot's version differs from the pre-mutation one: it moved during the run
@@ -704,15 +709,58 @@ catalog_regression_rows() {
 # labeling the whole delta "the user-scope sweep" is wrong whenever Step 2 caused
 # it. Only `versionsMatch: false` rows are actionable; a same-version multi-scope
 # install is benign and is never counted.
+#
+# The post count is then split by what an operator can do about each row, so the
+# report points converge only at rows converge can act on. A divergence row is
+# classed by its project/local pins: any pin that is present and not a linked
+# worktree makes the row `actionable`; otherwise any pin in a linked worktree makes
+# it `worktree`; otherwise every pin is in a path that is not present and the row is
+# `blocked`. A row with no pin is `actionable`. The actionable rows split again into
+# `actionable_here` (the id has a record for the repo the run stands in) and
+# `actionable_elsewhere`. `divergences[]` itself is never filtered.
+#
+# A linked worktree is a present path whose `.git` is a FILE whose `gitdir:` line
+# names a `<repo>.git/worktrees/<name>` entry of another repository. A repository's
+# own `.git` is a directory, a submodule's `.git` file names `/modules/`, and a
+# `--separate-git-dir` checkout names a git directory that is not under `worktrees/`
+# of a `.git`, so none of them matches.
+#
+# A row's pins are judged only when they differ from the row's highest version
+# (`row_class`), so a pin already at the highest version does not make a row
+# actionable while its stale pin sits in a path that is not present.
+linked_worktree_paths() {
+  local __var="$1" post="$2" paths="" p fs line
+  local found=()
+  jq_to paths -r '[.divergences[]? | select(.versionsMatch == false) | .scopes[]?
+    | select(.projectPathPresent == true) | .projectPath] | unique | .[]' "$post" || paths=""
+  while IFS= read -r p; do
+    p="${p//$'\r'/}"
+    [[ -n "$p" ]] || continue
+    fs="${p//\\//}"
+    [[ -f "$fs/.git" ]] || continue
+    line=""
+    IFS= read -r line <"$fs/.git" || true
+    line="${line//$'\r'/}"
+    case "$line" in
+    "gitdir:"*".git/worktrees/"*) found+=("$p") ;;
+    *) ;;
+    esac
+  done <<<"$paths"
+  json_strings_of "$__var" ${found[@]+"${found[@]}"}
+}
+
 divergence_block() {
   local __var="$1" mp="$2"
   local pre="$RUN_DIR/pre.$mp.json" mid="$RUN_DIR/mid.$mp.json" post="$RUN_DIR/post.$mp.json"
+  local linked="[]"
   if [[ ! -f "$pre" || ! -f "$mid" || ! -f "$post" ]]; then
     jq_to "$__var" -c -n '{pre: null, mid: null, post: null, new_total: null,
       new_by_interval: {in_repo: null, user_sweep: null, concurrent: null}, pre_existing: null,
       note: "a snapshot was missing; the split could not be computed"}'
     return 0
   fi
+  linked_worktree_paths linked "$post"
+  [[ -n "$linked" ]] || linked="[]"
   # The ids that moved during the run under a call this run did not make an update
   # (finalize_moves' MOVED_DURING): a new divergence on one of them is not the
   # step's doing, so it is split out of the interval it first appeared in.
@@ -720,19 +768,51 @@ divergence_block() {
   json_array_of moved_rows ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c -n --argjson moved "$moved_rows" \
-    --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" '
-    def act: [.divergences[]? | select(.versionsMatch == false) | .id];
+    --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" \
+    --argjson wt "$linked" '
+    # A pin at the project the run stands in is converge-actionable even when that
+    # project is itself a linked worktree, so it is never classed `worktree`.
+    ([$q[0].installed[]? | select(.currentProject == true) | .projectPath]) as $curp
+    | def act: [.divergences[]? | select(.versionsMatch == false) | .id];
+    def pin_class:
+      if .projectPathPresent == false then "blocked"
+      elif .projectPathPresent == true and (.projectPath as $pp | $curp | index($pp)) == null
+           and (.projectPath as $pp | $wt | index($pp)) != null then "worktree"
+      else "actionable" end;
+    def version_triple:
+      if type == "string" then
+        ((capture("^v?(?<a>[0-9]+)[.](?<b>[0-9]+)[.](?<c>[0-9]+)") // null)
+         | if . == null then null else [.a, .b, .c] | map(tonumber) end)
+      else null end;
+    # Only a pin that differs from the row'"'"'s highest version is the skew converge or
+    # a worktree removal would settle; a pin already at it is not what makes the
+    # row actionable. An unparsable version stays in, the conservative direction.
+    def row_class:
+      ([.scopes[]? | .version | version_triple | select(. != null)] | max) as $top
+      | [.scopes[]? | select((.projectPath // "") != "")
+         | select($top == null or (.version | version_triple) != $top)
+         | pin_class] as $c
+      | if ($c | length) == 0 or ($c | index("actionable")) != null then "actionable"
+        elif ($c | index("worktree")) != null then "worktree"
+        else "blocked" end;
     ($moved | map(.id)) as $conc
     | ($p[0] | act) as $pre | ($m[0] | act) as $mid | ($q[0] | act) as $post
     | ($post - $pre) as $new
     | [$new[] | select(. as $i | $conc | index($i))] as $by_conc
     | ($new - $by_conc) as $by_step
+    | ([$q[0].installed[]? | select(.currentProject == true) | .id]) as $here
+    | ([$q[0].divergences[]? | select(.versionsMatch == false) | {id, c: row_class}]) as $rows
+    | ([$rows[] | select(.c == "actionable")]) as $act_rows
     | {pre: ($pre | length), mid: ($mid | length), post: ($post | length),
        new_total: ($new | length),
        new_by_interval: {in_repo: ([$by_step[] | select(. as $i | $mid | index($i))] | length),
                          user_sweep: ([$by_step[] | select(. as $i | $mid | index($i) | not)] | length),
                          concurrent: ($by_conc | length)},
-       pre_existing: (($post | length) - ($new | length))}'
+       pre_existing: (($post | length) - ($new | length)),
+       actionable_here: ([$act_rows[] | select(.id as $i | $here | index($i))] | length),
+       actionable_elsewhere: ([$act_rows[] | select(.id as $i | $here | index($i) | not)] | length),
+       in_worktrees: ([$rows[] | select(.c == "worktree")] | length),
+       blocked: ([$rows[] | select(.c == "blocked")] | length)}'
 }
 
 # --- per-marketplace accumulators ----------------------------------------------
