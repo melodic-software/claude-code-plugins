@@ -554,6 +554,54 @@ test_resolver_internal_error_stops() {
   assert_file "resolver 2: nothing written" "$r/AGENTS.md" "$r/want"
 }
 
+test_resolver_declined_nothing_to_point() {
+  local r
+  r="$(fixture)"
+  printf '%s\n%s\n%s\n' "$BEGIN" "$(dx old.md)" "$END" >"$r/AGENTS.md"
+  cp "$r/AGENTS.md" "$r/want"
+  POINTER_LINE_RESOLVER="$(stub 4 '' 'declined: the repository declined a home')"
+  export POINTER_LINE_RESOLVER
+  run check --root "$r"
+  assert_eq "resolver 4: check exits 0" 0 "$RC"
+  assert_contains "resolver 4: check reports source declined" "$OUT" "source: declined"
+  run apply --root "$r" --yes
+  unset POINTER_LINE_RESOLVER
+  assert_eq "resolver 4: apply exits 0" 0 "$RC"
+  assert_contains "resolver 4: apply reports source declined" "$OUT" "source: declined"
+  assert_contains "resolver 4: apply leaves it unchanged" "$OUT" "result: unchanged"
+  assert_absent "resolver 4: no internal error" "$ERR" "internal error"
+  assert_file "resolver 4: nothing written" "$r/AGENTS.md" "$r/want"
+}
+
+test_resolver_not_applicable_uses_default() {
+  local r
+  r="$(fixture)"
+  printf '%s\n%s\n%s\n' "$BEGIN" "$(dx old.md)" "$END" >"$r/AGENTS.md"
+  printf '%s\n%s\n%s\n' "$BEGIN" "$(dx "$DEF")" "$END" >"$r/want"
+  POINTER_LINE_RESOLVER="$(stub 5 '' 'not applicable: the root is not inside a git work tree')"
+  export POINTER_LINE_RESOLVER
+  run apply --root "$r" --yes
+  unset POINTER_LINE_RESOLVER
+  assert_eq "resolver 5: apply exits 0" 0 "$RC"
+  assert_contains "resolver 5: source default" "$OUT" "source: default"
+  assert_file "resolver 5: default path used" "$r/AGENTS.md" "$r/want"
+}
+
+test_real_resolver_outside_git_uses_default() {
+  local r
+  r="$(fixture)"
+  if git -C "$r" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    skip "real resolver outside git" "the temp directory is inside a git work tree"
+    return
+  fi
+  printf '%s\n%s\n%s\n' "$BEGIN" "$(dx old.md)" "$END" >"$r/AGENTS.md"
+  printf '%s\n%s\n%s\n' "$BEGIN" "$(dx "$DEF")" "$END" >"$r/want"
+  run apply --root "$r" --yes
+  assert_eq "outside git: apply exits 0" 0 "$RC"
+  assert_contains "outside git: source default" "$OUT" "source: default"
+  assert_file "outside git: default path used" "$r/AGENTS.md" "$r/want"
+}
+
 test_dry_run_shows_diff_writes_nothing() {
   local r
   r="$(fixture)"
@@ -859,6 +907,9 @@ test_no_block_edge_cases
 test_marker_and_line_placement
 test_resolver_trailing_slash_and_invalid_path
 test_unwritable_root_reports_write_error
+test_resolver_declined_nothing_to_point
+test_resolver_not_applicable_uses_default
+test_real_resolver_outside_git_uses_default
 
 printf '\n%d checks, %d failed\n' "$CASES" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

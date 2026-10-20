@@ -90,8 +90,8 @@ def runtime_path(rel):
     )
 
 
-QUIET_SECONDS = 3.0  # a found event waits this long for more before the watcher wakes
-BURST_SECONDS = 12.0  # never holding it longer than this in all
+QUIET_SECONDS = 10.0  # default settleQuiet: a found event waits this long for more before the watcher wakes
+BURST_SECONDS = 30.0  # default settleBurst: never holding it longer than this in all
 NAME = "interview"  # names the session files and the token header (session_bridge)
 SESSION_JSON = session_files(NAME)[0]
 REPO_SETTINGS = Path(".claude") / "interview-surface.json"
@@ -110,6 +110,8 @@ DEFAULT_SETTINGS = {
     "waitTimeout": 90,
     "staleDepth": "direct",
     "leaseTimeout": 600,
+    "settleQuiet": QUIET_SECONDS,
+    "settleBurst": BURST_SECONDS,
 }
 SETTING_RULES = {
     "port": ("int", 0, 65535),
@@ -124,6 +126,8 @@ SETTING_RULES = {
     "waitTimeout": ("int", 5, 110),
     "staleDepth": ("enum", ("direct",)),
     "leaseTimeout": ("int", 5, 3600),
+    "settleQuiet": ("num", 0.5, 60),
+    "settleBurst": ("num", 1, 120),
 }
 REPO_KEYS = set(DEFAULT_SETTINGS) - {"displayName"}
 USER_ONLY = {"browserCommand"}  # read by ensure-running, never sent to the page
@@ -140,6 +144,12 @@ def setting_error(key, value):
             and not isinstance(value, bool)
             and rule[0] <= value <= rule[1]
         )
+    elif kind == "num":
+        ok = (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and rule[0] <= value <= rule[1]
+        )
     elif kind == "enum":
         ok = value in rule[0]
     else:
@@ -149,6 +159,7 @@ def setting_error(key, value):
     want = {
         "bool": "true or false",
         "int": f"an integer from {rule[0]} to {rule[1]}" if kind == "int" else "",
+        "num": f"a number from {rule[0]} to {rule[1]}" if kind == "num" else "",
         "enum": " or ".join(rule[0]) if kind == "enum" else "",
         "str": "a non-empty string",
     }[kind]
@@ -241,6 +252,12 @@ class Settings:
                     self.note(f"{layer} layer: {err}; the layer below applies")
                     continue
                 out[k] = {"value": v, "layer": layer}
+        if out["settleQuiet"]["value"] > out["settleBurst"]["value"]:
+            self.note(
+                "settleQuiet is greater than settleBurst; the defaults apply to both"
+            )
+            for k in ("settleQuiet", "settleBurst"):
+                out[k] = {"value": DEFAULT_SETTINGS[k], "layer": "default"}
         tokens = []
         for layer, data in (("repo", repo), ("user", user)):
             if "themeTokens" not in data:
@@ -783,7 +800,8 @@ class Hub(LoopbackWatcher):
         save_json(self.responses, log)
 
     def settle_window(self):
-        return QUIET_SECONDS, BURST_SECONDS
+        got = self.layers.resolve(self.dir, self.user_settings())[0]
+        return got["settleQuiet"]["value"], got["settleBurst"]["value"]
 
     def identity(self):
         return {"session": self.session, "api": API}

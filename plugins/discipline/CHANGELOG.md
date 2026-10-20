@@ -5,6 +5,26 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.21.2] - 2026-10-20
+
+### Added
+
+- `do-your-research` has eval cases for a fan-out worker that errors twice (one retry, then reported unverifiable) and for a planted stale fact the ledger must flag as corrected.
+
+### Changed
+
+- The sweep-all fork-guard eval prompts for `do-your-research` and `recheck-against-upstream` no longer say "audit-only" or "self-audit only", and the cases now assert that the skills' own never-inside-a-fork guard keeps the fork inline when its Agent tool could spawn.
+
+### Fixed
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- Discipline outcome evals: the `uys`, `rau`, `ror`, `swa`, `mym` and `hmh` graders now accept the correct phrasings they rejected (a brief read with `cat`, "no written reason", "a second one", "I didn't audit anything", "came last", "I cut … the Poetry/Hatch/PDM comparison", "reply with … like this:" before a text fence), each with a must-pass and a must-fail sample. `hmh` `performer-labeled` now needs a label on every step, and `swa` gains a grader against Skill-tool calls to other correctors.
+
+- The shared settings checker behind `/discipline:setup` validates string and object settings, and reports a setting whose schema shape it does not check instead of stopping with a JavaScript error.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.21.1] - 2026-10-18
 
 ### Fixed

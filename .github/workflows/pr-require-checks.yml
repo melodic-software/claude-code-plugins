@@ -3037,6 +3037,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           BROKER_PATHS='.github/actions/resolve-config/resolve.mjs
+          .github/actions/resolve-config/dimensions.mjs
           .github/actions/resolve-config/predicate.mjs
           .github/actions/resolve-config/vocabulary.mjs
           .github/actions/resolve-config/package.json

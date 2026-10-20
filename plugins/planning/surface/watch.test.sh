@@ -24,6 +24,9 @@ py=$(command -v python3 || command -v python)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-watch.XXXXXX")
 d="$tmp/data"
 mkdir -p "$d"
+# A short settle window in each data dir; the defaults outlast the cases' 10 s delivery waits.
+fast_settle='"settleQuiet": 3, "settleBurst": 12'
+printf '{%s}\n' "$fast_settle" >"$d/settings.json"
 # The native absolute form watch.sh prints (C:/... under Git Bash, the plain path elsewhere).
 abs_dir() { (cd "$1" 2>/dev/null && { pwd -W 2>/dev/null || pwd; }); }
 # A data dir whose name carries shell syntax: $( ), a backtick and a single quote. It is built on
@@ -272,6 +275,7 @@ fi
 # (i) a data dir named with $( ), a backtick and a single quote: `next` stays one literal command
 # for that exact dir.
 mkdir -p "$odd"
+printf '{%s}\n' "$fast_settle" >"$odd/settings.json"
 if bash "$here/round.sh" --dir "$odd" ensure-running --port 0 >/dev/null 2>"$tmp/i.start"; then
   oport=$(sed -n 's/^PORT=//p' "$odd/.interview-session.env" | tr -d '\r')
   otoken=$(sed -n 's/^TOKEN=//p' "$odd/.interview-session.env" | tr -d '\r')
@@ -328,7 +332,7 @@ fi
 # leaves in flight ends within seconds.
 ld="$tmp/lease"
 mkdir -p "$ld"
-printf '{"leaseTimeout": 5, "waitTimeout": 5}\n' >"$ld/settings.json"
+printf '{"leaseTimeout": 5, "waitTimeout": 5, %s}\n' "$fast_settle" >"$ld/settings.json"
 if bash "$here/round.sh" --dir "$ld" ensure-running --port 0 >/dev/null 2>"$tmp/l.start"; then
   lport=$(sed -n 's/^PORT=//p' "$ld/.interview-session.env" | tr -d '\r')
   ltoken=$(sed -n 's/^TOKEN=//p' "$ld/.interview-session.env" | tr -d '\r')
