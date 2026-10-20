@@ -112,6 +112,7 @@ async function main() {
       if (await page.locator(".vf-asktop").isVisible()) await page.click(".vf-asktop");
       else await page.evaluate(() => document.querySelector(".vf-asktop").click());
       await page.waitForSelector(".vf-drawer:not([hidden]) .vf-apform");
+      await page.selectOption(".vf-apq select", { index: 1 }); // a question: the whole session offers no own Claude
     };
     const qOf = href => decodeURIComponent(href.slice(href.indexOf("?q=") + 3));
     const api = (method, path, headers, body) => fetch(new URL(path, A.localUrl), {

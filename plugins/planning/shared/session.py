@@ -3589,8 +3589,12 @@ class Session:
 
     def act_on_request(self, pid, body):
         """POST /api/request/act: edit, decline, fail, rerun one request; run the ids the owner saw; publish, discard or
-        take down (`takedown`) a result."""
-        action = _choice(body, "action", ("edit", "decline", "fail", "rerun", "run", "publish", "discard", "takedown"))
+        take down (`takedown`) a result. `move`, its asker's or the owner's, puts one request and its result on `qid` or
+        about the whole session (`scope: session`)."""
+        action = _choice(body, "action", ("edit", "decline", "fail", "rerun", "run", "publish", "discard", "takedown", "move"))
+        if action == "move":
+            with self._write_as(pid, "request-move"):
+                return self._move_request(pid, body)
         now = self.now()
         with self._tx() as st:
             self._owner(pid)
@@ -3624,6 +3628,35 @@ class Session:
                 self._run([r])
                 self._unseen(HOST, "fail:" + r["id"])  # a later failure waits on the owner again
             return {"id": r["id"], "status": r["status"]["kind"]}
+
+    def _move_request(self, pid, body):
+        """Move a request, and its result with it; another person's request reads as 404. A running one stays put: Claude's
+        answer names where it was sent."""
+        r = self._request(_ident(body, "id"), owner_pid=None if pid == HOST else pid)
+        general = _choice(body, "scope", (GENERAL,), optional=True) is not None
+        if general and _body(body).get("qid") is not None:
+            raise _bad("qid", "A request about the whole session names no question.")
+        if general and r["runner"] == "self":
+            raise _bad("scope", "A request about the whole session runs on the host's Claude.")
+        to = None if general else self._question(body.get("qid"))["id"]
+        if r.get("qid") == to:
+            raise DomainError(409, "same-place", f"Request {r['id']} is {_on(r)} already.")
+        if r["status"]["kind"] == "running":
+            raise DomainError(409, "wrong-status", f"Request {r['id']} is running.", status="running")
+        key, results = r.get("qid", GENERAL), self.state["results"]
+        res = next((x for x in results.get(key, ()) if x["request"] == r["id"]), None)
+        if res:
+            results[key].remove(res)
+            if not results[key]:
+                results.pop(key)
+            results.setdefault(to or GENERAL, []).append(res)
+        for x in (r, res) if res else (r,):
+            x.pop("qid", None)
+            if to:
+                x["qid"] = to
+        if pid != r["pid"]:
+            self._notify(r["pid"], "request", f"Your request moved {_on(r)}.", actor=pid, qid=to)
+        return {"id": r["id"], **({"qid": to} if to else {"scope": GENERAL})}
 
     def _decline(self, r, by):
         r["status"] = {"kind": "declined", "at": self.now()}
