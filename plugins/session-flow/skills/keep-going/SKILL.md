@@ -103,7 +103,8 @@ itself the thing this skill removes.
    now (`gap`, `gap_seconds`); a transcript with no limit or error entry
    measures from the last assistant entry. Exit `2` (missing, unreadable
    or empty transcript, or no assistant entry) means the gap is unknown:
-   report it as unknown, never estimate it. State the gap in the report.
+   report it as unknown, never estimate it. The snapshot's Gap field
+   carries it.
    Anything remembered from before the stop and older than the gap is
    re-read, not trusted: limit windows, leases, PR state and CI runs.
 

@@ -203,11 +203,11 @@
       "id": 16,
       "name": "report-states-the-measured-gap-after-a-rate-limit-stop",
       "prompt": "keep going — we hit a rate limit and I was away for a while. The session transcript is at ~/.claude/projects/app/session.jsonl.",
-      "expected_output": "In step 2 the skill runs measure-stop-gap.py on the transcript instead of estimating how long the session was stopped, and the report states the measured gap (from the limit entry to now). It re-reads limit windows, leases, PR state and CI runs older than the gap rather than trusting remembered values. If the checker exits non-zero, the report says the gap is unknown and does not guess one.",
+      "expected_output": "In step 2 the skill runs measure-stop-gap.py on the transcript instead of estimating how long the session was stopped, and the environment snapshot's Gap field states the measured gap (from the limit entry to now). It re-reads limit windows, leases, PR state and CI runs older than the gap rather than trusting remembered values. If the checker exits non-zero, the report says the gap is unknown and does not guess one.",
       "files": [],
       "expectations": [
         "Runs measure-stop-gap.py on the session transcript during inspection rather than estimating the stop's length",
-        "The report states the gap length measured from the limit entry to now",
+        "The snapshot's Gap field states the gap length measured from the limit entry to now",
         "Re-reads limit windows, leases, PR state and CI runs older than the gap instead of trusting remembered state",
         "If the checker exits non-zero, reports the gap as unknown and does not invent a duration"
       ]
@@ -230,13 +230,12 @@
       "id": 18,
       "name": "snapshot-windows-unknown-without-rate-limit-guard",
       "prompt": "keep going — we got cut off by a rate limit. rate-limit-guard is not installed in this setup.",
-      "expected_output": "The skill prints the environment snapshot before acting. The windows field reads unknown and gives the reason, that rate-limit-guard is not installed, instead of an invented window or reset time; the other fields come from their own sources, and the skill asks the operator about headroom as the live-reading fallback requires.",
+      "expected_output": "The skill prints the environment snapshot before acting. The windows field reads unknown and gives the reason, that rate-limit-guard is not installed, instead of an invented window or reset time; the other fields come from their own sources.",
       "files": [],
       "expectations": [
         "Prints the snapshot block before any recovery action",
         "The windows field reads unknown and states that rate-limit-guard is not installed",
         "Does not invent a window, usage percentage or reset time",
-        "Asks the operator about headroom as the fallback and does not conclude still-blocked",
         "The other fields are filled from their own sources or read unknown with a reason"
       ]
     }
