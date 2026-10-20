@@ -6,7 +6,7 @@ export const meta = {
     { title: 'Run', detail: 'one runner runs the command and lists failures' },
     { title: 'Fix', detail: 'one fixer per disjoint file group, in waves' },
     { title: 'Check', detail: 'one verifier checks the diff for test weakening' },
-    { title: 'Verify', detail: 'optional final verifier re-runs the command and reviews the whole diff' },
+    { title: 'Verify', detail: 'optional final verifier re-runs the command and reviews the whole diff; a runner re-runs it with any edited test files restored from the starting commit' },
   ],
 }
 
@@ -59,6 +59,19 @@ const PROTECTED_NAMES = [
   '.gitattributes', '.gitmodules',
 ]
 const PROTECTED_PATTERNS = [/^requirements.*\.txt$/, /^\.env(\..*)?$/, /\.(pem|key|p12|pfx)$/, /^id_(rsa|dsa|ecdsa|ed25519)/, /^credentials/, /^secrets?\./]
+// A changed path that decides whether a check passes: a test, snapshot or
+// fixture file, or a runner config or test setup file. Matched on the path
+// alone, so the list is mechanical and needs no model.
+const TEST_DIRS = ['test', 'tests', '__tests__', 'spec', 'specs', '__snapshots__', '__fixtures__', 'fixtures', 'testdata']
+const TEST_NAME_PATTERNS = [
+  /(^|[._-])(tests?|spec)([._-]|$)/i, /(Tests?|Spec)\.(java|kt|cs|fs|vb|scala|swift)$/, /\.snap$/i,
+  /^conftest\.py$/i, /^pytest\.ini$/i, /^(jest|vitest|playwright|karma|cypress)\.config\./i, /^\.mocharc/i,
+]
+const isTestFile = p => {
+  const segs = p.split('/')
+  const name = segs.pop()
+  return segs.some(s => TEST_DIRS.includes(s.toLowerCase())) || TEST_NAME_PATTERNS.some(re => re.test(name))
+}
 const shaOf = v => (typeof v === 'string' && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(v.trim()) ? v.trim() : null)
 const isEditable = p => {
   if (!isRelative(p)) return false
@@ -228,21 +241,36 @@ const nulls = []
 
 // A re-run passes the base, so the runner also reports the tree and a command
 // that rewrites tracked files or moves HEAD is caught even on the last run.
-async function runCommand(label, base) {
+// With `restore`, the command runs in a throwaway worktree at the base with
+// the test edits left out, so it shows whether the fix passes the tests as
+// they stood before the run.
+async function runCommand(label, base, restore) {
   const tree = base
-    ? ' Then report as changedFiles every path `git diff --name-only ' + base + '` lists plus every path ' +
+    ? ' Then, in the repository root, report as changedFiles every path `git diff --name-only ' + base + '` lists plus every path ' +
       '`git ls-files --others --exclude-standard` lists.'
     : ' Report changedFiles as an empty list.'
+  const how = restore
+    ? 'Stage: base re-run. Check whether the command below passes with the test edits undone. Create a throwaway ' +
+      'worktree outside the repository at the starting commit: `git worktree add --detach "$(mktemp -d)/tree" ' + base + '`. ' +
+      'In it, copy from the repository root every path in carry-files that exists there, and delete every path in ' +
+      'carry-files that does not; leave every path in test-edits as the starting commit has it, so a test file the run ' +
+      'added stays absent. Run the command once, exactly as given, from the throwaway worktree\'s root, and wait for it ' +
+      'to finish; then remove it with `git worktree remove --force <its path>`. Change no file in the repository ' +
+      'itself; the throwaway worktree is the only place you write. When a setup step fails, or the command needs an ' +
+      'ignored dependency directory (node_modules, a virtualenv) the throwaway worktree lacks, say so in note. Report ' +
+      'whether it passed (exit code 0), its exit code, and every failing '
+    : 'Stage: run. Run the command below once, exactly as given, from the repository root, and wait for it ' +
+      'to finish. Change no file. Report whether it passed (exit code 0), its exit code, and every failing '
   const got = await agentRetry(
-    'Stage: run. Run the command below once, exactly as given, from the repository root, and wait for it ' +
-    'to finish. Change no file. Report whether it passed (exit code 0), its exit code, and every failing ' +
+    how +
     'test or check: a stable id (the test name or check rule), the repo-relative file it lives in, the ' +
     'failure message in one or two lines, and as suspects the repo-relative source files the output ' +
     'points at (stack frames, compiler errors) plus the project source files the failing test file ' +
     'imports, read with a read-only command such as grep. List only files `git ls-files` reports as ' +
-    'tracked. When the command fails with no failure you can attribute to a file, say so in note. Then ' +
-    'run `git rev-parse HEAD` and `git rev-parse --show-toplevel` and report their output as head and ' +
-    'root.' + tree + fence('command', COMMAND),
+    'tracked. When the command fails with no failure you can attribute to a file, say so in note. Then, in the ' +
+    'repository root, run `git rev-parse HEAD` and `git rev-parse --show-toplevel` and report their output as head and ' +
+    'root.' + tree + fence('command', COMMAND) +
+    (restore ? fence('test-edits', restore.testEdits) + fence('carry-files', restore.carry) : ''),
     { label, phase: 'Run', schema: RUN_SCHEMA, ...opts('testing:green-runner', R.retrieval.single) }
   )
   if (got == null) { nulls.push(label); return null }
@@ -309,11 +337,14 @@ const CHANGED =
 const everAllowed = new Set()
 let dispatched = false
 let outsideEdits = []
+// The changed files the latest check, re-run or final verifier read from git.
+let lastChanged = []
 
 // Judge what a check agent saw: a changed tracked file no fixer was allowed to
 // edit, or a HEAD that is no longer the base, stops the run.
 function judgeTree(seen, roundStrays) {
   const changed = (Array.isArray(seen.changedFiles) ? seen.changedFiles : []).filter(x => typeof x === 'string').map(norm)
+  lastChanged = [...new Set(changed)].sort()
   outsideEdits = [...new Set([...changed.filter(x => !everAllowed.has(x)), ...roundStrays])].sort()
   if (shaOf(seen.head) !== BASE) return 'head-moved'
   if (outsideEdits.length) return 'outside-edit'
@@ -467,6 +498,24 @@ if (green && FINAL_VERIFY && dispatched) {
   else green = true
 }
 
+// A green that depends on the fixers' test edits is not decided here: fixing
+// a wrong test is allowed, so a failing base re-run escalates to a person and
+// nothing is reverted.
+const testEdits = lastChanged.filter(isTestFile)
+let baseRerun = null
+if (green && testEdits.length) {
+  phase('Verify')
+  ran.push('run:base')
+  const b = await runCommand('run:base', BASE, { testEdits, carry: lastChanged.filter(x => !isTestFile(x)) })
+  baseRerun = b ? { passed: b.passed, failures: b.failures, note: b.note } : null
+  const tree = b ? judgeTree(b, []) : null
+  green = false
+  if (!b) stoppedBecause = 'runner-failed'
+  else if (tree) stoppedBecause = tree
+  else if (!b.passed) stoppedBecause = 'green-needs-test-edits'
+  else green = true
+}
+
 return {
   green,
   rounds,
@@ -476,6 +525,8 @@ return {
   weakening,
   outsideEdits,
   finalCheck,
+  testEdits,
+  baseRerun,
   base: BASE,
   scope: SCOPE,
   nulls,
