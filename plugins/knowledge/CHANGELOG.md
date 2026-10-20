@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.25.1] - 2026-10-20
+
+### Fixed
+
+- video-digest's watch spine, Phase 9 and checklist template now run the corpus relayout before `close`, which removes the media the relayout copies, and the recommendations README template's Shards line names `research/findings/` so the relayout link check resolves it ([#7177](https://github.com/melodic-software/claude-code-plugins/issues/7177)).
+
+- `video-digest` `fetch-deck-attachments` now fetches only `https:` links whose host resolves to public addresses, follows redirects manually (up to 5 hops) and re-checks each hop, so loopback, private, link-local and unique-local targets from harvested links are skipped.
+
 ## [0.25.0] - 2026-10-20
 
 ### Added

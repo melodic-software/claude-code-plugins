@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.8] - 2026-10-20
+
+### Added
+
+- Three outcome eval cases under `evals/` and a frozen trigger-probe set under `probes/` for `reach`.
+
 ## [0.2.7] - 2026-10-20
 
 ### Fixed
