@@ -283,6 +283,20 @@
         "The leftover 17th plugin is asked in a further call as a single-select Install/Skip question, not a one-option multi-select",
         "No `claude plugin install` command runs before the user's answers are obtained"
       ]
+    },
+    {
+      "id": 22,
+      "name": "converge-linked-worktree-committed-enable-has-no-default",
+      "prompt": "/harness-ops:plugins converge: fleet-state.sh reports one actionable divergence for gamma@market1 with versionsMatch: false: a user-scope record at 2.0.0 and a project-scope record at 1.0.0 whose projectPath is present and whose scopes[].linkedWorktree is true, labeled `update ineffective; uninstall clears it`. That worktree's tracked .claude/settings.json (git ls-files --error-unmatch exits 0) holds `enabledPlugins[\"gamma@market1\"]: true`. The catalog reads 2.0.0.",
+      "expected_output": "The row gets no default strategy. Update is not offered because the project path is a linked worktree, and uninstall would delete the committed enabledPlugins entry. The response reports the row with both reasons and offers uninstall only as a non-default option with the committed-entry warning, to run only on the user's explicit choice. Nothing runs before that choice.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The gamma@market1 row proposes no default strategy",
+        "The response does not offer `claude plugin update gamma@market1 -s project` for this row, citing the linked worktree",
+        "The response warns that uninstalling gamma@market1 at project scope removes a committed `enabledPlugins` entry and offers it only as a non-default choice",
+        "No command runs without the user's explicit choice for this row"
+      ]
     }
   ]
 }

@@ -148,8 +148,12 @@ run. The record behind that decision, and the trigger to recheck it, are in
 The row keeps the label `fleet-state.sh` gave it, `update ineffective; uninstall clears it`, and stays
 in the divergence count. Offer only the uninstall strategy for it, still confirmed per pin; when the
 highest version is at `project`/`local` scope and no uninstall would bring the row current, report the
-row with this label and offer nothing. A main checkout, and a submodule (its `.git` file points into
-`modules/`, not `worktrees/`), behave as before.
+row with this label and offer nothing. When the row also holds a committed enable (the
+committed-enable check under Step 2), neither strategy is the default: update is not offered here,
+and uninstall would delete the committed entry. Report the row with both reasons and offer
+uninstall only as the non-default option with the committed-entry warning, run only on the user's
+explicit choice. A main checkout, and a submodule (its `.git` file points into `modules/`, not
+`worktrees/`), behave as before.
 
 ### Precondition: never emit a `cd` command into a path that is not present
 
