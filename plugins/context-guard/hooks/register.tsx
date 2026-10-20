@@ -57,7 +57,8 @@ type Event =
   | Crossing
   | { kind: 'restate'; zone: Zone; degraded: boolean; unavailable?: boolean }
   | { kind: 'approach'; zone: Zone; toward: string }
-  | { kind: 'threshold'; zone: Zone; degraded: boolean; rule: Threshold }
+  // actionOnly: a restatement absorbed the verdict, so only the threshold's action sentence is sent.
+  | { kind: 'threshold'; zone: Zone; degraded: boolean; rule: Threshold; actionOnly?: boolean }
 type Session = {
   armed: number
   last: Zone | undefined
@@ -298,6 +299,7 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
     case 'approach':
       return line(e.zone, false, `, nearing ${e.toward}`)
     case 'threshold':
+      if (e.actionOnly) return sentence('operator setting for a threshold', e.rule).trimStart()
       return `${line(e.zone, e.degraded, ', past an operator threshold')}${sentence('operator setting for a threshold', e.rule)}`
   }
 }
@@ -481,6 +483,21 @@ const crossingData = (s: Session, events: Event[], extra: Record<string, unknown
     : { zone, previous: s.last ?? '', armed: RANK_WORD[s.armed], ...extra }
 }
 
+// A restatement says the verdict as of when it was recorded, so a crossing, an approach or an
+// earlier restatement before it merges into it rather than reaching Claude twice. A threshold
+// before it keeps only its action sentence, which the restatement does not carry. A crossing
+// recorded after it is the newer verdict and replaces it.
+const mergeRestated = (pending: Event[]): Event[] => {
+  const lastRestate = pending.findLastIndex(e => e.kind === 'restate')
+  if (lastRestate < 0) return pending
+  const keep = pending.findLastIndex(e => e.kind === 'crossing') > lastRestate ? -1 : lastRestate
+  return pending.flatMap((e, i): Event[] => {
+    if (i > lastRestate || i === keep) return [e]
+    if (e.kind !== 'threshold' || sentence('operator setting for a threshold', e.rule) === '') return []
+    return [{ ...e, actionOnly: true }]
+  })
+}
+
 async function takeLines($: EngineInterface, st: State, cfg: Config, fire: Fire): Promise<string[]> {
   const s = st.sessions.get(await $.session.id())
   if (s === undefined) return []
@@ -489,14 +506,8 @@ async function takeLines($: EngineInterface, st: State, cfg: Config, fire: Fire)
     return []
   }
   const holds = cfg.lines && (await operatorHolds($, st, cfg))
-  // A restatement says the verdict as of when it was recorded, so a crossing or an earlier
-  // restatement before it merges into it rather than reaching Claude twice. A crossing recorded
-  // after it is the newer verdict and replaces it. No await from here until s.pending is replaced.
-  const pending = s.pending
-  const lastRestate = pending.findLastIndex(e => e.kind === 'restate')
-  const keep = pending.findLastIndex(e => e.kind === 'crossing') > lastRestate ? -1 : lastRestate
-  const merged =
-    lastRestate < 0 ? pending : pending.filter((e, i) => i > lastRestate || i === keep || (e.kind !== 'crossing' && e.kind !== 'restate'))
+  // No await from here until s.pending is replaced.
+  const merged = mergeRestated(s.pending)
   // A hold keeps lines for the suggestion, except a crossing the person was already shown (read in an
   // unattended turn): offering it again would repeat it, so it goes to Claude as in automatic mode.
   const seen = (e: Event) => e.kind === 'crossing' && e.shown === true
@@ -793,8 +804,13 @@ export const register: Register = (on, options) => {
 
   on('session.measure', async ($, e, next) => {
     await refresh($, st)
-    await queueWrite($, st)
-    await showPending($, st, cfg)
+    // The person's toast first, so a slow snapshot helper (10 s per run) cannot delay it; the
+    // finally keeps a failing toast step from skipping the write.
+    try {
+      await showPending($, st, cfg)
+    } finally {
+      await queueWrite($, st)
+    }
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -813,6 +829,7 @@ export const register: Register = (on, options) => {
     st.writeTimer = stopTimer(st.writeTimer)
     if (cfg.enabled && cfg.lines && (await operatorHolds($, st, cfg))) {
       const s = await current($, st)
+      s.pending = mergeRestated(s.pending)
       const lines = renderAll(s.pending, s, cfg, st.settings)
       if (lines.length > 0) {
         st.notice = { text: `FYI, ${PREFIX}${lines.map(l => l.replace(PREFIX, '')).join(' ')}`, kind: 'operator' }

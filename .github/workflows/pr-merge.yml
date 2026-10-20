@@ -44,7 +44,9 @@ name: pr-merge
 #
 # On its schedule it also gives a PR a new head, an empty commit, when a lane
 # run on its current head was refused by the token broker as
-# workflow-modified, once per version of the workflow file the broker named.
+# workflow-modified, once per version of the workflow file the broker named,
+# and takes off a needs-human label the lanes App set for a pr-unblock
+# escalation once its recorded reason no longer holds.
 #
 # How to keep one PR from merging: put the line `Hold: a human merges this`
 # in its body, or add the `do-not-merge` or `needs-human` label (the
@@ -312,9 +314,13 @@ jobs:
       # The gate's pr-verify verdict reads (artifact listing, run records,
       # download); the lane token holds no Actions permission.
       actions: read
-      checks: read # read a refused lane run's annotations and its PR head's checks
+      # Read a refused lane run's annotations and its PR head's checks. Never
+      # write: the gate-check job below writes the check runs.
+      checks: read
       id-token: write # prove to the token broker which workflow this is
     outputs:
+      # `true` when the gate's rows were handed to the gate-check job.
+      gate-rows: ${{ steps.rows.outcome == 'success' }}
       # `true` when the lane can merge (its own PRs are not report-only, or
       # Dependabot PRs are enforced) and either a PR merged during this run
       # and the gate could not start the follow-up full CI run itself (its
@@ -443,6 +449,8 @@ jobs:
             echo "dependabot=$dependabot"
             echo "live=$live"
             echo "gate-budget-minutes=$(yq '.merge."gate-budget-minutes" // ""' "$config")"
+            echo "skip-max-minutes=$(yq '.merge."skip-unchanged"."max-minutes" // ""' "$config")"
+            echo "skip-max-skips=$(yq '.merge."skip-unchanged"."max-skips" // ""' "$config")"
           } >>"$GITHUB_OUTPUT"
 
       # Swaps this job's GitHub identity proof for a short-lived token of the
@@ -660,6 +668,34 @@ jobs:
             echo "::warning::the post-merge remediation exited $code (re-run or dispatch refused: the lane token has no Actions permission)"
           fi
 
+      # A candidate the last run refused on inputs that have not changed
+      # since (head, updatedAt, labels, base, check rollup, reviews and
+      # threads, comments, closing issues, verdict artifacts, the gate's
+      # config and code on main) is reported with that refusal, marked
+      # carried, instead of gated again: a skip only repeats a refusal. It is
+      # gated again within merge.skip-unchanged (max-minutes, max-skips),
+      # always while in the merge queue, and one candidate always is. One
+      # GraphQL query per 20 candidates; the artifact listing it reads is
+      # saved for the gate's first candidate. Any error gates every
+      # candidate. Rules: babysit_merge_skip.py.
+      - name: Skip refusals whose inputs have not changed
+        if: steps.candidates.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          REPO: ${{ github.repository }}
+          RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
+          MAX_MINUTES: ${{ steps.mode.outputs.skip-max-minutes }}
+          MAX_SKIPS: ${{ steps.mode.outputs.skip-max-skips }}
+        run: |
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_skip.py filter \
+            --repo "$REPO" --base .base --store "$RUNNER_TEMP/pr-merge-carried.json" \
+            --candidates "$RUNNER_TEMP/candidates.json" --out-keys "$RUNNER_TEMP/skip-keys.json" \
+            --out-skipped "$RUNNER_TEMP/skipped.json" --rung-cap "$RUNG_CAP" \
+            --max-minutes "$MAX_MINUTES" --max-skips "$MAX_SKIPS"
+
       # The gate itself, once per candidate, using the lane App's token. It is
       # the same script the local babysit loop uses, run as the pr-merge lane:
       # it refuses on any hold, missing review, failing check, risk above LOW,
@@ -725,6 +761,12 @@ jobs:
             enqueued: false, merged: false, reportOnly: null, reason: "prefilter:\(.reason)",
             dispatched: null, blockers: ["prefilter: \(.reason), refused before the gate"]}' \
             "$RUNNER_TEMP/held.json" >"$results"
+          # The candidates the skip step set aside, with their carried
+          # refusal; one still listed for the gate is not reported twice.
+          jq -c --slurpfile c "$RUNNER_TEMP/candidates.json" \
+            '.[] | select(.pr as $p | $c[0] | any(.number == $p) | not)' \
+            "$RUNNER_TEMP/skipped.json" >"$RUNNER_TEMP/carried.jsonl" 2>/dev/null &&
+            cat "$RUNNER_TEMP/carried.jsonl" >>"$results" || true
           # Rewritten after each candidate, so a cancelled run still reports
           # the verdicts it reached.
           summary="$RUNNER_TEMP/pr-merge-summary.json"
@@ -785,6 +827,18 @@ jobs:
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 
+      # The refusals the next run may skip, in the same entry: each gated
+      # refusal it may skip whose gate process left nothing to do, each
+      # skipped one with its count raised, each unreached one as it was.
+      # Rules: babysit_merge_skip.py.
+      - name: Keep the refusals the next run may skip
+        if: always() && steps.carry.outputs.carried == 'true'
+        continue-on-error: true
+        run: |
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_skip.py record \
+            --keys "$RUNNER_TEMP/skip-keys.json" --summary "$RUNNER_TEMP/pr-merge-summary.json" \
+            --outputs-dir "$RUNNER_TEMP" --store "$RUNNER_TEMP/pr-merge-carried.json" --run-id "$GITHUB_RUN_ID"
+
       - name: Save them for the next run
         if: always() && steps.carry.outputs.carried == 'true'
         continue-on-error: true
@@ -833,6 +887,58 @@ jobs:
             ' "$summary"
           } >>"$GITHUB_STEP_SUMMARY"
 
+      # The same verdicts as data for the lane trend chart, since the API
+      # cannot read a step summary: the pr-merge-summary artifact, and one log
+      # line of refusal counts by reason. The key is split here so this
+      # script, which the log echoes, never matches a grep for it. Rules:
+      # .github/scripts/pr-merge/sweep-summary.mjs.
+      - name: Count the sweep's refusals
+        if: always() && steps.gate.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          LIVE: ${{ steps.mode.outputs.live }}
+          GATE_OUTCOME: ${{ steps.gate.outcome }}
+          SUMMARY_PATH: ${{ runner.temp }}/pr-merge-summary.json
+          HELD_PATH: ${{ runner.temp }}/held.json
+          CANDIDATES_PATH: ${{ runner.temp }}/candidates.json
+          CURSOR_PATH: ${{ runner.temp }}/gate-cursor/cursor.json
+          SWEEP_SUMMARY_TO: ${{ runner.temp }}/pr-merge-sweep.json
+        run: |
+          set -euo pipefail
+          RUN_STARTED_AT=$(gh api "repos/$REPO/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at) || RUN_STARTED_AT=
+          export RUN_STARTED_AT
+          node .base/.github/scripts/pr-merge/sweep-summary.mjs
+          jq -r '"refusal" + "-counts=" + (.refusal_counts | tojson)' "$SWEEP_SUMMARY_TO"
+
+      - name: Upload the sweep's verdicts
+        if: always() && steps.gate.outcome != 'skipped'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-summary
+          path: ${{ runner.temp }}/pr-merge-sweep.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+      # The gate-check job below writes each candidate's check run from these
+      # rows. Not while the lane is report-only.
+      - name: Hand the gate's rows to the check writer
+        id: rows
+        if: always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-gate-rows
+          path: ${{ runner.temp }}/pr-merge-summary.json
+          retention-days: 1
+          if-no-files-found: error
+
       # A pr-refine or pr-unblock run the broker refused as
       # workflow-modified cannot pass on a rerun, which keeps its first
       # event's workflow files. On the schedule, this pushes an empty commit
@@ -857,6 +963,25 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/refire-refused.mjs
 
+      # A pr-unblock escalation adds the human-gated label with a reason. On
+      # the schedule, this takes off a label the lanes App set once that
+      # reason no longer holds at the PR's head (workflow-staged, a conflict
+      # reason, feedback-protected-path), after a comment naming the reason
+      # and the head: never a label a person set, and never after anyone but
+      # the App commented or reviewed since it went on. At most five a run, and not
+      # while the lane is report-only.
+      # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
+      - name: Clear escalations whose reason no longer holds
+        if: >-
+          always() && github.event_name == 'schedule'
+          && steps.lane-token.outputs.token != ''
+          && steps.mode.outputs.report-only == 'false'
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+        run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
+
       - name: Log the API budget at job end
         id: budget-end
         if: always() && steps.lane-token.outputs.token != ''
@@ -871,7 +996,8 @@ jobs:
 
       # One line per sweep, in the log and the summary: the two tokens' spend
       # since mint (`unknown` when the hourly window rolled), the candidates
-      # listed, and how many the gate reached before it ended.
+      # listed, how many the gate reached before it ended, and how many it
+      # skipped as unchanged.
       - name: Write the sweep cost
         if: always() && steps.gate.outcome != 'skipped'
         continue-on-error: true
@@ -887,8 +1013,9 @@ jobs:
             esac
           done
           reached=$(jq -n --slurpfile s "$RUNNER_TEMP/pr-merge-summary.json" --slurpfile h "$RUNNER_TEMP/held.json" \
-            '($s[0] | length) - ($h[0] | length)' 2>/dev/null) || reached=unknown
-          line="sweep-cost=$lane github-token-cost=$github_token candidates=${CANDIDATES:-unknown} reached=$reached"
+            '($s[0] | map(select(has("carried") | not)) | length) - ($h[0] | length)' 2>/dev/null) || reached=unknown
+          skipped=$(jq '[.[] | select(has("carried"))] | length' "$RUNNER_TEMP/pr-merge-summary.json" 2>/dev/null) || skipped=unknown
+          line="sweep-cost=$lane github-token-cost=$github_token candidates=${CANDIDATES:-unknown} reached=$reached skipped=$skipped"
           echo "$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
@@ -1002,3 +1129,58 @@ jobs:
             fi
           done
           echo "::warning::run $RUN_ID did not finish within 40 minutes; releasing the group"
+
+  # Each candidate the gate judged shows its verdict on its head as one
+  # `pr-merge / gate` check run: neutral, titled with the top refusal, or
+  # success over a refusal once enqueued or merged. Not `ci-status`, so never
+  # required. One GraphQL read per 50 candidates; a write only where the title
+  # or conclusion changed. Rules: .github/scripts/pr-merge/gate-check.mjs.
+  #
+  # A job of its own, because the main ruleset requires `ci-status` from the
+  # GitHub Actions app, the app every GITHUB_TOKEN posts as: a token with
+  # checks: write could pass that check, so only this job, which runs nothing
+  # but main's check writer and holds no lane token, gets it. Its runs wait in
+  # line like the merge job's, so two never write at once and none is
+  # cancelled onto a PR head; every step after the checkout cannot fail it.
+  gate-check:
+    needs: [merge]
+    if: always() && needs.merge.outputs.gate-rows == 'true'
+    concurrency:
+      group: pr-merge-gate-check
+      queue: max
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out main
+      checks: write
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Read the gate's rows
+        id: rows
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pr-merge-gate-rows
+          path: ${{ runner.temp }}/rows
+
+      - name: Show each candidate's refusal as a check run
+        if: steps.rows.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUMMARY_PATH: ${{ runner.temp }}/rows/pr-merge-summary.json
+        run: node .base/.github/scripts/pr-merge/gate-check.mjs
