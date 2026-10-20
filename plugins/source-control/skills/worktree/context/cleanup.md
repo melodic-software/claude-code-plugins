@@ -95,7 +95,7 @@ rm -rf <path>
 git worktree remove <path>
 ```
 
-**The session's own worktree is deferred.** When the candidate path equals `git rev-parse --show-toplevel`, skip only the `git worktree remove` line here and leave it for Step 4b, which removes it before deleting its branch. Both guards, the file-lock release, the workspace `down` and the reap still run in this step, in the order below, while the directory is on disk: the reap does `cd <path>` into the candidate, so it cannot follow the removal, and plain removal loses gitignored files with exit 0.
+**The session's own worktree is deferred.** When the candidate path equals `git rev-parse --show-toplevel`, skip only the `git worktree remove` line here and leave it for Step 4b, which removes it before deleting its branch. Both guards, the file-lock release, the workspace `down` and the reap still run in this step, in the order below, while the directory is on disk: the reap takes the candidate as `--worktree-path <path>` and enters it itself, so it cannot follow the removal, and plain removal loses gitignored files with exit 0.
 
 **Two guards, the file-lock release, the workspace `down` and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → file-lock release → `down` → reap → removal.** For a locked candidate, the `worktree-claim.sh stale` proof (exit 0) is part of guard 2: it is a read-only check, and a row where it fails is kept before the release, `down` and the reap. The guards only read state, so a row any guard keeps has no side effects: no process is stopped, no `down` runs and nothing is reaped. The file-lock release and `down` come after the guards so a worktree they keep keeps its processes and services. The stranded-work guard first, because it can abort the removal outright. Running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last before the removal for the same reason inverted: the process stop and the reap are the steps that are *not* undoable, so neither may fire for a worktree the guards are about to save.
 
@@ -150,16 +150,17 @@ installed plugin behind, permanently. Removing the directory is the last moment 
 records are both identifiable and provably dead, so removal is where they are removed too:
 
 ```bash
-# Run FROM INSIDE the candidate, after both guards above have cleared (for a locked
-# candidate, including the `stale` proof exiting 0) and the file-lock release has run.
-cd <path> && bash "<scripts-dir>/reap-project-plugin-records.sh" --worktree-path <path>
+# Run after both guards above have cleared (for a locked candidate, including the `stale`
+# proof exiting 0) and the file-lock release has run; the caller's cwd does not matter.
+bash "<scripts-dir>/reap-project-plugin-records.sh" --worktree-path <path>
 ```
 
-The `cd` is not incidental. `claude plugin uninstall <id> -s project` has **no path flag**: it
-resolves strictly against the current directory (measured in [fixtures/README.md](../fixtures/README.md)
+`claude plugin uninstall <id> -s project` has **no path flag**: it resolves strictly against the
+current directory (measured in [fixtures/README.md](../fixtures/README.md)
 § `project-scope-reap-probe.sh`, Claude Code 2.1.240, re-run unchanged on 2.1.241). The helper
-enforces the same thing from the other side: it refuses unless `--worktree-path` names the directory
-it is already standing in, so it structurally cannot act on any path but its own.
+therefore enters `--worktree-path` itself, so a session that cannot keep a `cd` between commands
+still runs it. It refuses a main working tree (its `.git` is a directory, or its git dir is its common dir) before entering, so it
+cannot reach the main checkout's records.
 
 The helper leaves the worktree's `.claude/settings.json` as it found it: when git tracks it there
 and it was unmodified before the pass, the helper restores it from git and prints an `info:` line

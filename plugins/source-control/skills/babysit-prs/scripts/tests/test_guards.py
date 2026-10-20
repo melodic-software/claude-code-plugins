@@ -248,7 +248,7 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 env=dict(os.environ, PATH=str(shim_dir)),
-                cwd=tempfile.gettempdir(),
+                cwd=tmp,
             )
             recorded = sentinel.exists()
         self.assertTrue(

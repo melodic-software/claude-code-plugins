@@ -90,8 +90,9 @@ Contract enforced here (encoded as code, not convention):
   under `merge.dependabot.majors: hold` gets the same label and one upserted
   `<!-- babysit-merge-dependabot-major -->` comment, and a ready LOW pull request is
   enqueued at its pinned head after a second kill-switch read, an armed
-  auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment; a
-  later run that reads the queued entry back as merged at that head
+  auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment, unless
+  the base changed a `merge.check-inputs` path since its merge base, when its
+  branch is updated from the base (`update-branch`) instead; a later run that reads the queued entry back as merged at that head
   dispatches the full run. It refuses `--allow-dependency`, `--auto`,
   `--allow-unpinned-head`, `--stacked-prs` and `--allow-unprotected`. Absent
   the flag the gate is unchanged, except that plain `--merge` refuses at exit 10 when the token's
@@ -141,6 +142,7 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
 
+import babysit_check_inputs as check_inputs
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
@@ -2737,6 +2739,8 @@ def queued_entry_hold(
 
 RISK_MARKER = "<!-- babysit-merge-risk -->"
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
+# The most of a verdict's summary a verify:fail escalation quotes (judgment).
+VERIFY_SUMMARY_MAX = 1500
 QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
 # The attended queue's escalation marker (work-items reference
@@ -2996,6 +3000,15 @@ def score_unattended(
         if inputs.get("authority") == merge_policy.PR_MERGE
         else {}
     )
+    # Read at the base SHA, so a pull request cannot drop its own declaration:
+    # every plugin's from a clone holding the base, else only the plugins its
+    # changed files sit in.
+    changed = [path for f in files for path in (f.path, f.previous_path)]
+    declarations = (
+        merge_policy.declarations_at(repo, pr, changed)
+        if lane_switches.get("high_floor", True)
+        else ()
+    )
     risk = babysit_risk.score(
         babysit_risk.RiskInput(
             work_class=eligible.work_class,
@@ -3008,6 +3021,7 @@ def score_unattended(
             floor_script_scopes=config.floor_script_scopes,
             # The floor additions follow the switch in every lane.
             floor_extensions=config.high_path_floor,
+            declarations=declarations,
             lanes=lanes,
             blast_radius=None,
             **lane_switches,
@@ -3141,22 +3155,10 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     return "\n".join(lines)
 
 
-def upsert_marker_comment(
-    repo: str,
-    number: int,
-    identity: str,
-    body: str,
-    comments: list[dict[str, Any]] | None,
-    marker: str = RISK_MARKER,
-) -> str:
-    """Post or rewrite the identity's one comment whose first or second line
-    is `marker` (the reasons comment, Design T14, by default): `unchanged` when
-    the newest one already says this, else `updated` or `created`. Raises
-    `RuntimeError` on a failed read or write."""
-    if comments is None:
-        comments = fetch_paginated_api(
-            f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
-        )
+def _newest_marker_comment(
+    comments: list[dict[str, Any]], identity: str, marker: str
+) -> dict[str, Any] | None:
+    """The identity's newest comment whose first or second line is `marker`."""
     mine = [
         c
         for c in comments
@@ -3169,8 +3171,29 @@ def upsert_marker_comment(
         == identity.casefold()
         and marker in _marker_lines(c.get("body"))
     ]
-    if mine:
-        newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
+    if not mine:
+        return None
+    return max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
+
+
+def upsert_marker_comment(
+    repo: str,
+    number: int,
+    identity: str,
+    body: str,
+    comments: list[dict[str, Any]] | None,
+    marker: str = RISK_MARKER,
+) -> str:
+    """Post or rewrite the identity's one comment whose first or second line
+    is `marker` (the reasons comment, Design T14, by default): `unchanged` when
+    the newest one already says this, else
+    `updated` or `created`. Raises `RuntimeError` on a failed read or write."""
+    if comments is None:
+        comments = fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
+        )
+    newest = _newest_marker_comment(comments, identity, marker)
+    if newest is not None:
         if str(newest.get("body") or "") == body:
             return "unchanged"
         args = [
@@ -3189,17 +3212,63 @@ def upsert_marker_comment(
     return outcome
 
 
-def verify_escalation_body(refusal: str, head: str) -> str:
+def verify_escalation_body(
+    refusal: str,
+    head: str,
+    summary: str | None = None,
+    carried: tuple[str, str] | None = None,
+) -> str:
     """The needs-human comment for a verifier refusal: a function of the
-    refusal and the head only, so a rerun renders the same body."""
-    return "\n".join(
-        [
-            VERIFY_ESCALATION_MARKER,
-            f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
-            f"`{head}`. That refusal needs a human, who merges in person; the "
-            "pr-merge lane will not merge this pull request.",
+    refusal, the head and the quoted fail summary only, so a rerun renders the
+    same body. The summary is model text, quoted as data in a text fence and
+    cut to `VERIFY_SUMMARY_MAX` characters. `carried`, the (head, text) an
+    earlier comment quoted (`_carried_quote`), is quoted as it was when there
+    is no `summary`."""
+    lines = [
+        VERIFY_ESCALATION_MARKER,
+        f"Unattended merge: the verifier verdict refuses `{refusal}` at head "
+        f"`{head}`. That refusal needs a human, who merges in person; the "
+        "pr-merge lane will not merge this pull request.",
+    ]
+    quote = carried
+    if summary:
+        text = _CONTROL.sub("?", summary.replace("\r\n", "\n"))
+        if len(text) > VERIFY_SUMMARY_MAX:
+            text = text[:VERIFY_SUMMARY_MAX] + " [cut]"
+        # A lone surrogate from a JSON escape cannot be encoded for `gh`.
+        text = text.encode("utf-8", "replace").decode("utf-8")
+        quote = (head, text.replace("```", "'''"))
+    if quote:
+        lines += [
+            "",
+            f"The verifier's summary of its fail verdict at `{quote[0]}`, as it "
+            "wrote it:",
+            "",
+            "```text",
+            quote[1],
+            "```",
         ]
-    )
+    return "\n".join(lines)
+
+
+_QUOTE_RE = re.compile(
+    r"\nThe verifier's summary of its fail verdict at `([0-9a-f]{40})`, as it "
+    r"wrote it:\n\n```text\n(.*)\n```\Z",
+    re.S,
+)
+
+
+def _carried_quote(
+    comments: list[dict[str, Any]], identity: str
+) -> tuple[str, str] | None:
+    """The (head, text) the identity's newest verify escalation quotes, read
+    back verbatim so a rerun that cannot read the summary renders the same
+    body, and an earlier-fail keeps the reason of the fail before it."""
+    newest = _newest_marker_comment(comments, identity, VERIFY_ESCALATION_MARKER)
+    if newest is None:
+        return None
+    match = _QUOTE_RE.search(str(newest.get("body") or ""))
+    return (match[1], match[2]) if match else None
 
 
 def major_escalation_body(majors: str, head: str) -> str:
@@ -3222,18 +3291,59 @@ def major_escalation_body(majors: str, head: str) -> str:
 
 
 def escalate_verify(
-    repo: str, number: int, identity: str, refusal: str, inputs: Mapping[str, Any]
+    repo: str,
+    number: int,
+    identity: str,
+    refusal: str,
+    inputs: Mapping[str, Any],
+    summary: str | None = None,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal."""
+    """`escalate` for a needs-human verifier refusal. A `verify:fail` or
+    `verify:earlier-fail` with no `summary` (unreadable, or a fail at an
+    earlier head) quotes the last fail summary its comment carried, so an
+    unreadable artifact rewrites nothing and the reason outlives the head.
+    An earlier-fail whose carried quote is a fail at this head is that fail
+    read as unreadable this run: it stays `verify:fail`."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
-    return escalate(
-        repo,
-        number,
-        identity,
-        verify_escalation_body(refusal, head),
-        VERIFY_ESCALATION_MARKER,
-        inputs,
-    )
+    carried = None
+    if summary is None and refusal in (
+        verify_evidence.FAIL,
+        verify_evidence.EARLIER_FAIL,
+    ):
+        comments = inputs.get("comments")
+        if comments is None:
+            comments = fetch_paginated_api(
+                f"repos/{repo}/issues/{number}/comments?per_page=100",
+                f"#{number} comments",
+            )
+            inputs = {**inputs, "comments": comments}
+        carried = _carried_quote(comments, identity)
+        if carried and carried[0] == head:
+            refusal = verify_evidence.FAIL
+    body = verify_escalation_body(refusal, head, summary, carried)
+    return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
+
+
+def _fail_summary(
+    verify: Mapping[str, Any], inputs: Mapping[str, Any], number: int
+) -> str | None:
+    """The summary of the head FAIL a `verify:fail` refusal names, read
+    through the gate's verdict reader; None for any other refusal or when the
+    record cannot be read."""
+    fail = json_object(verify.get("headFail"))
+    reader = inputs.get("verify_reader")
+    run_id, name = fail.get("run"), fail.get("artifact")
+    if (
+        verify.get("refusal") != verify_evidence.FAIL
+        or not isinstance(reader, verify_evidence.Reader)
+        or not isinstance(run_id, int)
+        or not isinstance(name, str)
+    ):
+        return None
+    try:
+        return reader.fail_summary(run_id, name, number, str(verify.get("head")))
+    except verify_evidence.SummaryUnreadable:
+        return None
 
 
 def escalate(
@@ -3252,7 +3362,12 @@ def escalate(
     a failed write."""
     pr = json_object(inputs.get("pr"))
     comment = upsert_marker_comment(
-        repo, number, identity, body, inputs.get("comments"), marker=marker
+        repo,
+        number,
+        identity,
+        body,
+        inputs.get("comments"),
+        marker=marker,
     )
     try:
         label = human_gated_label(repo)
@@ -3463,7 +3578,12 @@ def unattended_writes(
     if not stopped and verify.get("needsHuman") is True:
         try:
             report["escalation"] = escalate_verify(
-                repo, number, identity, str(verify.get("refusal")), inputs
+                repo,
+                number,
+                identity,
+                str(verify.get("refusal")),
+                inputs,
+                _fail_summary(verify, inputs, number),
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")
@@ -3526,6 +3646,23 @@ def _identity_queue_entries(
 def _graphql_write(query: str, node_id: str) -> bool:
     proc = gh_capture(["api", "graphql", "-f", f"query={query}", "-f", f"id={node_id}"])
     return proc.returncode == 0
+
+
+def update_error(proc: Any) -> dict[str, Any]:
+    """The status and message of a refused `update-branch` call: whether the
+    lane token may write a merge that brings in base workflow changes is
+    learned from these."""
+    message = ""
+    try:
+        body = json.loads(proc.stdout or "")
+        if isinstance(body, dict) and isinstance(body.get("message"), str):
+            message = body["message"]
+    except ValueError:
+        pass
+    return {
+        "status": gh_http_status(proc.stderr or ""),
+        "message": (message or (proc.stderr or "").strip())[:500],
+    }
 
 
 def unattended_enqueue(
@@ -3618,7 +3755,8 @@ def unattended_enqueue(
     # lane a removal (or a removal and a non-human re-add) since the
     # eligibility read refuses; for the pr-merge lane a changed closing issue.
     eligible = inputs.get("eligibility")
-    if getattr(eligible, "dependabot", None) is not None:
+    eligible_dependabot = getattr(eligible, "dependabot", None)
+    if eligible_dependabot is not None:
         # The Dependabot class is read again whole: a human blocking comment
         # or a `ci-status` rerun since the first read refuses.
         opt_in = merge_policy.dependabot_eligibility(
@@ -3658,6 +3796,30 @@ def unattended_enqueue(
         for base, served in list(SHARED_RULES.items())
     ):
         return hold("the base branch's rules changed since the gate read them")
+    # A head green on an old base can fail the queue's merge with the base
+    # tip, and every entry built behind it fails too. When the base changed
+    # what the checks read since the merge base, the branch is updated from
+    # the base instead; a later run enqueues the new head once its checks
+    # pass. A Dependabot head is not written (its own rebases stop), and a
+    # doubtful read or refused update enqueues as before.
+    inputs_read = check_inputs.changed_since_merge_base(
+        inputs["config"].check_inputs, pin, branch
+    )
+    step["checkInputs"] = inputs_read
+    if inputs_read["state"] == "stale" and eligible_dependabot is None:
+        proc = gh_capture(
+            ["api", "-X", "PUT", f"repos/{repo}/pulls/{number}/update-branch"]
+            + ["-f", f"expected_head_sha={pin}"]
+        )
+        inputs_read["updated"] = proc.returncode == 0
+        if proc.returncode == 0:
+            return hold(
+                f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
+                f"{branch} since merge base {inputs_read['mergeBase']}; the branch "
+                "was updated from the base, so the new head is enqueued once its "
+                "checks pass"
+            )
+        inputs_read["updateError"] = update_error(proc)
     proc = gh_capture(
         ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
         + ["-f", f"body={postmerge.pin_comment(pin)}"]
