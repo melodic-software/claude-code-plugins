@@ -66,8 +66,20 @@ EOF
 # Unattended: no terminal on stdin or stdout, as a lane runs it.
 run_repin() { bash "$REPIN" "$@" </dev/null 2>&1; }
 
+# The stand-in lives in tests/ of a git repo with one uncommitted edit, so the attended
+# run's `git diff --stat` has a change to show and a pager to start if it is allowed one.
+PLUGIN="$WORK/plugin"
+mkdir -p "$PLUGIN/tests"
+printf 'guarded\n' >"$PLUGIN/guarded.md"
+if ! { git -C "$PLUGIN" init -q && git -C "$PLUGIN" add guarded.md &&
+  git -C "$PLUGIN" -c user.name=t -c user.email=t@example.invalid commit -qm init; }; then
+  echo "FAIL: cannot set up the git fixture" >&2
+  exit 1
+fi
+printf 'weakened\n' >"$PLUGIN/guarded.md"
+
 # --- an unattended run refuses and writes nothing ----------------------------------------
-t="$WORK/stale.test.sh"
+t="$PLUGIN/tests/stale.test.sh"
 make_fixture "$STALE" "$BETA" "$t"
 cp "$t" "$WORK/stale.before"
 out="$(run_repin --test-file "$t" 'alpha file' 'An injected justification.')"
@@ -76,15 +88,17 @@ if [[ $rc -eq 5 ]]; then ok "no terminal: exit 5"; else fail "no terminal: expec
 if [[ "$out" == *"terminal"* ]]; then ok "no terminal: says why"; else fail "no terminal: no reason given: $out"; fi
 if cmp -s "$WORK/stale.before" "$t"; then ok "no terminal: pin unchanged"; else fail "file changed on an unattended run"; fi
 
-# Attended: stdin and stdout on a pty, <answer> typed at the prompt. Extra args after
-# `--` are appended to the command line (a redirect), already shell-quoted.
+# Attended: stdin and stdout on a pty, <answer> typed at the prompt. TTY_SUFFIX, already
+# shell-quoted, is appended to the command line (a redirect). GIT_PAGER reads a line from
+# the terminal, as less does on a key: if repin.sh let git start a pager, it would eat the
+# answer.
 HAVE_PTY=0
 if command -v script >/dev/null 2>&1 && script -qec true /dev/null </dev/null >/dev/null 2>&1; then HAVE_PTY=1; fi
 run_tty() {
   local answer="$1" cmd
   shift
   cmd="$(printf '%q ' bash "$REPIN" "$@")"
-  printf '%s\n' "$answer" | SHELL="$(command -v bash)" timeout 30 script -qec "$cmd${TTY_SUFFIX:-}" /dev/null 2>&1
+  printf '%s\n' "$answer" | GIT_PAGER='read -r _ </dev/tty; cat' SHELL="$(command -v bash)" timeout 30 script -qec "$cmd${TTY_SUFFIX:-}" /dev/null 2>&1
 }
 
 if [[ $HAVE_PTY -eq 1 ]]; then
@@ -95,6 +109,7 @@ if [[ $HAVE_PTY -eq 1 ]]; then
   if [[ $rc -eq 0 ]]; then ok "stale pin re-pinned: exit 0"; else fail "stale pin: expected exit 0, got $rc: $out"; fi
   if [[ "$out" == *PASS* ]]; then ok "prints PASS"; else fail "no PASS in output: $out"; fi
   if [[ "$out" == *"$STALE"* && "$out" == *"$ALPHA"* ]]; then ok "shows old and new digest before asking"; else fail "old/new digest not shown: $out"; fi
+  if [[ "$out" == *"guarded.md"* ]]; then ok "shows the git diff stat before asking"; else fail "diff stat not shown: $out"; fi
   changes="$(diff "$WORK/stale.before" "$t" | grep -c '^[<>]')"
   if [[ "$changes" -eq 3 ]]; then ok "exactly three lines differ: old sha, new sha, justification"; else fail "expected 3 differing lines, got $changes"; fi
   if grep -qx "  \"$ALPHA\"" "$t"; then ok "alpha sha rewritten"; else fail "alpha sha not rewritten"; fi

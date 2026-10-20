@@ -102,7 +102,8 @@ echo "Old digest: $old"
 echo "New digest: $new"
 plugin_dir="$(cd "$(dirname "$test_file")/.." && pwd)"
 echo "Changes under $plugin_dir since HEAD:"
-git -C "$plugin_dir" diff --stat HEAD -- . 2>/dev/null || echo "(no git diff available)"
+# --no-pager: a pager would read the y/N answer from the terminal.
+git --no-pager -C "$plugin_dir" diff --stat HEAD -- . 2>/dev/null || echo "(no git diff available)"
 read -r -p "Write the new digest? [y/N] " answer || answer=""
 if [[ "$answer" != [yY] && "$answer" != [yY][eE][sS] ]]; then
   echo "$self: not re-pinned." >&2
