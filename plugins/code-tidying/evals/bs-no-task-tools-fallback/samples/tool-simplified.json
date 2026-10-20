@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Reports how many items the tool processed.\nset -euo pipefail\n\ncount=\"${1:-0}\"\necho \"tool: processed $count items\"\n",
+      "why": "repo/tool.sh simplified"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Reports how many items the tool processed.\nset -euo pipefail\n\ncount=\"${1:-0}\"\nif [ -n \"$count\" ]; then\n  echo \"tool: processed $count items\"\nelse\n  echo \"tool: processed $count items\"\nfi\n",
+      "why": "repo/tool.sh untouched"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

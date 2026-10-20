@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Code-design review",
+            "prompt": "Concern: code-design.\nQuality bar: prototype\n\nRead in order: ...",
+            "subagent_type": "review:brief-reviewer"
+          }
+        }
+      ],
+      "why": "the brief carries the bar"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no reviewer dispatched"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Code-design review",
+            "prompt": "Concern: code-design.\nQuality bar: production (assumed: none given)",
+            "subagent_type": "review:brief-reviewer"
+          }
+        }
+      ],
+      "why": "the passed bar is dropped"
+    }
+  ]
+}

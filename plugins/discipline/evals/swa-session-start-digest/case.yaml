@@ -14,6 +14,13 @@ graders:
     target: last_message
   - name: no-audit-stated
     type: regex
-    pattern: '\bno audit\b|\bnothing (?:was |is |got )?audited\b|\baudit(?:s|ed)? nothing\b|\baudit(?:ing)? (?:did not|didn''t|does not|doesn''t|will not|won''t) run\b|\bwithout (?:running )?(?:an |any )?audit\b|\bno (?:corrector|audit)s? (?:ran|run|were run)\b|\bnot (?:run|running) (?:an |any )?audit\b|\bskipp(?:ed|ing) the audit\b|\bdigest only\b|\bposture only\b|\bnothing to audit\b'
+    pattern: '\bno audit\b|\bnothing (?:was |is |got )?audited\b|\baudit(?:s|ed)? nothing\b|\baudit(?:ing)? (?:did not|didn''t|does not|doesn''t|will not|won''t) run\b|\bwithout (?:running )?(?:an |any )?audit\b|\bno (?:corrector|audit)s? (?:ran|run|were run)\b|\bnot (?:run|running) (?:an |any )?audit\b|\bskipp(?:ed|ing) the audit\b|\bdigest only\b|\bposture only\b|\bnothing to audit\b|\b(?:did not|didn''t|do not|don''t|have not|haven''t|will not|won''t)[ \t]+(?:run[ \t]+|perform[ \t]+)?(?:an[ \t]+|any[ \t]+)?audit(?:ed)?\b'
     flags: 'i'
     target: last_message
+  - name: no-other-corrector-skills
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:discipline:)?(?:be-ambitious|do-your-research|follow-our-standards|hold-my-hand|mind-your-maxims|pick-for-the-problem|point-dont-copy|reason-dont-recite|recheck-against-upstream|reuse-or-replace|script-the-deterministic-work|scrutinize-dont-coast|tighten-your-output|use-your-skills|wait-what)"'
+    min: 0
+    max: 0
+    arm: both

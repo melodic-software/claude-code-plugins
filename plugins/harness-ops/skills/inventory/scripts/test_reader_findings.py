@@ -876,6 +876,55 @@ class TestOpenFindings(unittest.TestCase):
         self.assertEqual(self._parsed(prelude), PARTIAL)
 
 
+class TestToolAliasesAcrossModules(unittest.TestCase):
+    """#6888: a tool's `aliases` spread an array another module exports (the
+    `TaskStop` shape on 2.1.302). The exporter declares the tool name beside
+    the array, the registering module spreads it, a second importer spreads it
+    into a `new Set`, and an unrelated module declares a function of the
+    same name. The regex reader reads the names; the parser reader reads them
+    or marks the field partial, and never reports an unread list as `[]`."""
+
+    reader: pr.ParserReader | None = None
+    NAMES = ["KillShell", "KillBash"]
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if cls.reader is not None:
+            cls.reader.close()
+            cls.reader = None
+
+    @staticmethod
+    def _bundle() -> str:
+        modules = (
+            'var Ud="TaskStop",bjn=["KillShell","KillBash"];export{Ud,bjn};',
+            'import{Ud,bjn}from"/a.js";'
+            "$t({name:Ud,maxResultSizeChars:1,aliases:[...bjn]});",
+            'import{Ud,bjn}from"/a.js";var s=new Set([Ud,...bjn]);',
+            "function bjn(e){}",
+        )
+        return "\n// @bun\n".join(modules)
+
+    def test_the_regex_reader_reads_the_imported_array(self) -> None:
+        rec = _tool(self._bundle(), "TaskStop")
+        self.assertEqual(rec["aliases"], self.NAMES)
+        self.assertEqual(rec["aliases_source"], "literal")
+
+    def test_the_parser_reader_reads_the_names_or_marks_them_partial(self) -> None:
+        src = self._bundle()
+        if type(self).reader is None:
+            type(self).reader = pr.ParserReader(_require_live(self))
+        type(self).reader.set_module_paths(
+            src, {lo: f"/{chr(97 + i)}.js" for i, lo in enumerate(inv._chunk_starts(src))}
+        )
+        with inv.use_reader(type(self).reader):
+            rec = _tool(src, "TaskStop")
+        if rec["aliases_source"] == "literal":
+            self.assertEqual(rec["aliases"], self.NAMES)
+        else:
+            self.assertEqual(rec["aliases_source"], "partial")
+            self.assertTrue(set(rec["aliases"]) <= set(self.NAMES))
+
+
 INSTALLED = pathlib.Path.home() / ".local" / "share" / "claude" / "versions"
 
 

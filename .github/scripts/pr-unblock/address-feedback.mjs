@@ -6,18 +6,27 @@
 //           `prepare: review-threads` skill, before the head checkout and any
 //           model turn, with the job's read-only token: keeps the unresolved
 //           review threads the reviewer bot opened in a review on a head a
-//           review lane's marker confirms, when every comment is the bot's or
+//           review lane's marker confirms, when every comment is the bot's,
+//           a trusted person with write access asked the lane to fix it, or
 //           a trusted person answered the lane's escalation, then decides
 //           skip (no such thread), escalate (the PR changes .github/**, or
-//           the configured number of rounds already ran) or proceed, writing the thread file
-//           the skill's review-thread tool reads.
+//           the configured number of rounds already ran and no write-access
+//           fix request came after the newest one) or proceed, writing the thread file
+//           the skill's review-thread tool reads. On a PR carrying the
+//           human-gated label it keeps only threads a trusted person with
+//           write access asked it to fix (isFixRequest), and skips
+//           awaiting-human when there are none.
 //
 // Every comment body is copied into the thread file and never logged or
 // interpolated into a command. Only a trusted person's reply to the lane's
-// escalation is marked as direction; every other body is data.
+// escalation, or with no escalation a trusted person's comment from the first
+// write-access fix request on, is marked as direction; every other body is
+// data.
 
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+
+import { isProtectedPath } from "./thread-scope.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
@@ -36,10 +45,6 @@ const FILES_CAP = 3000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 
-export function isProtectedPath(path) {
-  return /^\.github(\/|$)/i.test(String(path));
-}
-
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
 
@@ -53,15 +58,23 @@ export function countRounds(issueComments, appId) {
 // or broker refusal after the push moved the head); a forged one only stops
 // the lane sooner.
 export const MODEL_CHECK = "pr-unblock / address-feedback";
+const isModelRun = (run, conclusions) =>
+  run.name === MODEL_CHECK && run.app?.slug === "github-actions" && conclusions.includes(run.conclusion);
 export function countCheckRounds(checkRunsByCommit) {
-  return checkRunsByCommit.filter((runs) =>
-    runs.some(
-      (run) =>
-        run.name === MODEL_CHECK &&
-        run.app?.slug === "github-actions" &&
-        ["success", "failure"].includes(run.conclusion),
-    ),
-  ).length;
+  return checkRunsByCommit.filter((runs) => runs.some((run) => isModelRun(run, ["success", "failure"]))).length;
+}
+
+// When the newest round ended: the latest of the round markers' creation and
+// the model check runs' completion, a cancelled or timed-out one included so
+// one fix request cannot start a round again after such a run. NaN when any of
+// them has no readable time, so no fix request counts as newer.
+export function lastRoundAt(issueComments, appId, checkRunsByCommit) {
+  const ended = ["success", "failure", "cancelled", "timed_out"];
+  const times = [
+    ...issueComments.filter((comment) => isRoundMarker(comment, appId)).map((comment) => comment.created_at),
+    ...checkRunsByCommit.flat().filter((run) => isModelRun(run, ended)).map((run) => run.completed_at),
+  ].map((time) => Date.parse(time ?? ""));
+  return times.some(Number.isNaN) ? Number.NaN : Math.max(...times);
 }
 
 export function reviewedHeads(issueComments) {
@@ -84,31 +97,131 @@ const ESCALATION_REPLY =
   /^\*\*pr-unblock \/ address-feedback: (INCORRECT, left open|UNCERTAIN, left open for a person|VALID \(defer\), left open for a person)\*\*$/;
 export const isEscalationReply = (comment, appId) => comment?.user?.id === appId && ESCALATION_REPLY.test(firstLine(comment.body));
 
+// On a PR carrying the human-gated label, a thread is worked only when a
+// trusted person with write access asks for it: a line of their reply that
+// starts with this phrase, in any case, outside a fenced code block. A quoted
+// line starts with `>`, so it never matches.
+export const FIX_REQUEST = /^pr-fix lane: please fix this finding(?=[\s.:;,!]|$)/i;
+export function isFixRequest(body) {
+  let fenced = false;
+  for (const line of String(body ?? "").split("\n")) {
+    if (/^ {0,3}(```|~~~)/.test(line)) {
+      fenced = !fenced;
+    } else if (!fenced && FIX_REQUEST.test(line.replace(/\r$/, ""))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The ids of the trusted people who wrote a fix request in `comments` (each
+// { authorId, login, body }) and hold write or admin permission on the
+// repository now (`permission(login)` answers GitHub's permission field).
+export async function fixRequesters({ comments, trustedHumans, permission }) {
+  const logins = new Map();
+  for (const comment of comments) {
+    if (trustedHumans.has(comment.authorId) && comment.login && isFixRequest(comment.body)) {
+      logins.set(comment.authorId, comment.login);
+    }
+  }
+  const writers = new Set();
+  for (const [id, login] of logins) {
+    if (["admin", "write"].includes(await permission(login))) {
+      writers.add(id);
+    }
+  }
+  return writers;
+}
+
+// fixRequesters over a PR's review comments (the REST rows).
+export const reviewFixers = ({ reviewComments, trustedHumans = new Set(), permission }) =>
+  fixRequesters({
+    comments: reviewComments.map((row) => ({ authorId: row.user?.id, login: row.user?.login, body: row.body })),
+    trustedHumans,
+    permission,
+  });
+
+// The base's human-gated role label: config.role_labels["human-gated"] of
+// .work-item-tracker.json, needs-human when the file or entry is absent.
+export function humanGatedLabelFrom(path) {
+  let config;
+  try {
+    config = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return "needs-human";
+    }
+    throw new Error(`cannot read ${path}`);
+  }
+  const roles = config?.config?.role_labels ?? {};
+  if (!Object.hasOwn(roles, "human-gated")) {
+    return "needs-human";
+  }
+  const label = roles["human-gated"];
+  if (typeof label !== "string" || label === "") {
+    throw new Error("the human-gated role label is not a non-empty string");
+  }
+  return label;
+}
+
 // Who wrote each comment of a thread, or null when it is not one to work.
 // `comments` are oldest first, each { authorId, createdAt, body, lastEditedAt,
-// editorId }. The first is the reviewer bot's, and either every comment is,
-// or the lanes App's last comment escalated the thread and every comment after
-// it is a trusted person's reply. Those replies are direction. A comment by
-// anyone else, a trusted person's comment last edited by anyone but a trusted
-// person, or a reply not after the escalation leaves the thread alone. The
-// select step and the reply job (keepThreads) and the dispatcher
-// (feedback-dispatch.mjs) all judge a thread with this.
-export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new Set() }) {
+// editorId }. The first is the reviewer bot's, and one of these holds:
+// - every comment is the reviewer bot's;
+// - the lanes App never commented, every later comment is the reviewer bot's
+//   or a trusted person's, and one is a fix request (isFixRequest) by one of
+//   `fixers` (the trusted people with write access who wrote a fix request,
+//   fixRequesters); the trusted people's comments from the first such
+//   request on are direction;
+// - the lanes App's last comment escalated the thread and every comment after
+//   it is a trusted person's reply, which is direction.
+// A comment by anyone else, a trusted person's comment last edited by anyone
+// but a trusted person, or a reply not after the escalation leaves the thread
+// alone. The select step and the reply job (keepThreads) and the dispatcher
+// (feedback-dispatch.mjs) all judge a thread with this. With `requesters` (a
+// set of ids, given on a PR carrying the human-gated label), a thread is
+// worked only when a reply is a fix request by one of them, after the
+// escalation when there is one.
+export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   if (comments.length === 0 || comments[0].authorId !== reviewerId) {
     return null;
   }
   if (comments.every((comment) => comment.authorId === reviewerId)) {
-    return comments.map(() => ({ author: "reviewer" }));
+    return requesters ? null : comments.map(() => ({ author: "reviewer" }));
   }
+  const isHuman = (comment) =>
+    trustedHumans.has(comment.authorId) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
+  const asks = (ids, comment) => ids.has(comment.authorId) && isFixRequest(comment.body);
   const last = comments.findLastIndex((comment) => comment.authorId === appId);
+  if (last === -1) {
+    const humanAsks = (ids) => comments.some((comment) => isHuman(comment) && asks(ids, comment));
+    if (!humanAsks(fixers) || (requesters && !humanAsks(requesters))) {
+      return null;
+    }
+    const asked = comments.findIndex((comment) => isHuman(comment) && asks(fixers, comment));
+    const authors = [];
+    for (const [i, comment] of comments.entries()) {
+      if (comment.authorId === reviewerId) {
+        authors.push({ author: "reviewer" });
+      } else if (isHuman(comment)) {
+        authors.push(i >= asked ? { author: "trusted-human", direction: true } : { author: "trusted-human" });
+      } else {
+        return null;
+      }
+    }
+    return authors;
+  }
   if (last < 1 || !ESCALATION_REPLY.test(firstLine(comments[last].body)) || last === comments.length - 1) {
+    return null;
+  }
+  if (requesters && !comments.slice(last + 1).some((comment) => asks(requesters, comment))) {
     return null;
   }
   const escalatedAt = Date.parse(comments[last].createdAt ?? "");
   const authors = [];
   for (const [i, comment] of comments.entries()) {
     const id = comment.authorId;
-    const human = trustedHumans.has(id) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
+    const human = isHuman(comment);
     if (i > last) {
       // NaN compares false, so an unparseable time leaves the thread alone.
       if (!human || !(Date.parse(comment.createdAt ?? "") > escalatedAt)) {
@@ -125,10 +238,11 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
 }
 
 // A thread is kept when it is unresolved, its first comment belongs to a
-// review the reviewer bot submitted on a marker-confirmed head, and
-// threadAuthors accepts its comments. A thread with more comments than one
-// page reads is left alone.
-export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId, appId, trustedHumans = new Set() }) {
+// review the reviewer bot submitted on a marker-confirmed head (any head for
+// a thread carrying a trusted person's direction), and threadAuthors accepts
+// its comments.
+// A thread with more comments than one page reads is left alone.
+export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
   const reviewsById = new Map(reviews.map((review) => [review.id, review]));
   const kept = [];
@@ -149,10 +263,16 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
         lastEditedAt: nodes[i].lastEditedAt,
         editorId: nodes[i].editor?.databaseId,
       })),
-      { reviewerId, appId, trustedHumans },
+      { reviewerId, appId, trustedHumans, requesters, fixers },
     );
+    if (authors === null) {
+      continue;
+    }
+    // A trusted person's direction (a fix request, or a reply to the lane's
+    // escalation) asks for the thread, so its review may be on an earlier head.
+    const directed = authors.some((a) => a.direction === true);
     const review = reviewsById.get(rows[0].pull_request_review_id);
-    if (authors === null || review?.user?.id !== reviewerId || !heads.has(review.commit_id)) {
+    if (review?.user?.id !== reviewerId || (!directed && !heads.has(review.commit_id))) {
       continue;
     }
     kept.push({
@@ -176,15 +296,21 @@ export async function select({
   appId,
   reviewerId,
   trustedHumans,
+  humanGatedLabel = "needs-human",
   maxRounds = DEFAULT_MAX_ROUNDS,
 }) {
-  const [files, issueComments, reviews, reviewComments, threads] = await Promise.all([
+  const [pull, files, issueComments, reviews, reviewComments, threads] = await Promise.all([
+    api.getPull(pr),
     api.listPullFiles(pr),
     api.listIssueComments(pr),
     api.listReviews(pr),
     api.listReviewComments(pr),
     api.listThreads(pr),
   ]);
+  // The human-gated label holds the PR except for threads a trusted person
+  // with write access asked the lane to fix.
+  const gated = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
+  const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
   const kept = keepThreads({
     threads,
     reviewComments,
@@ -193,9 +319,11 @@ export async function select({
     reviewerId,
     appId,
     trustedHumans,
+    requesters: gated ? fixers : null,
+    fixers,
   });
   if (kept.length === 0) {
-    return { decision: "skip", skipReason: "not-applicable", threads: kept };
+    return { decision: "skip", skipReason: gated ? "awaiting-human" : "not-applicable", threads: kept };
   }
   // The files listing stops at FILES_CAP, so a longer diff could hide a
   // .github/ path and is treated as touching one.
@@ -208,14 +336,34 @@ export async function select({
   const commits = await api.listPullCommits(pr);
   const checkRuns = await Promise.all(commits.map((commit) => api.listCheckRuns(commit.sha, MODEL_CHECK)));
   const rounds = Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns));
+  let worked = kept;
   if (rounds >= maxRounds) {
-    return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
+    // Past the cap, a trusted person with write access who asked for a fix
+    // after the newest round grants one more round, for the threads they
+    // asked about only.
+    const since = lastRoundAt(issueComments, appId, checkRuns);
+    const rows = new Map(reviewComments.map((row) => [row.id, row]));
+    worked = kept.filter((thread) =>
+      thread.comments.some((comment) => {
+        const row = rows.get(comment.id);
+        return (
+          comment.author === "trusted-human" &&
+          fixers.has(row.user?.id) &&
+          isFixRequest(comment.body) &&
+          Date.parse(row.created_at ?? "") > since
+        );
+      }),
+    );
+    if (worked.length === 0) {
+      return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
+    }
   }
   return {
     decision: "proceed",
     rounds,
-    threads: kept,
-    file: { version: 1, repository, pr, head_sha: headSha, lane_branch: laneBranch, threads: kept },
+    fixRequested: gated,
+    threads: worked,
+    file: { version: 1, repository, pr, head_sha: headSha, lane_branch: laneBranch, threads: worked },
   };
 }
 
@@ -227,9 +375,10 @@ export async function currentThreads({ api, pr, reviewerId, appId, trustedHumans
     api.listReviewComments(pr),
     api.listThreads(pr),
   ]);
+  const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
   return {
     issueComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, appId, trustedHumans }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, appId, trustedHumans, fixers }),
   };
 }
 
@@ -276,7 +425,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
-      throw new Error(`${method} ${url} returned ${response.status}`);
+      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { status: response.status });
     }
     return { data: await response.json(), link: response.headers.get("link") ?? "" };
   }
@@ -300,6 +449,18 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
   const repo = `${apiUrl}/repos/${owner}/${name}`;
   return {
     getPull: async (pr) => (await request(`${repo}/pulls/${pr}`)).data,
+    // Metadata read, which every token holds. A 404 (not a collaborator) is none.
+    async getPermission(login) {
+      const url = `${repo}/collaborators/${encodeURIComponent(login)}/permission`;
+      const response = await fetch(url, { headers });
+      if (response.status === 404) {
+        return "none";
+      }
+      if (!response.ok) {
+        throw new Error(`GET ${url} returned ${response.status}`);
+      }
+      return (await response.json()).permission;
+    },
     closePull: async (pr) => (await request(`${repo}/pulls/${pr}`, "PATCH", { state: "closed" })).data,
     createIssue: async (fields) => (await request(`${repo}/issues`, "POST", fields)).data,
     listIssues: (query) => paginate(`issues?${query}`),
@@ -311,6 +472,28 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     async listCheckRuns(sha, name) {
       const url = `${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&filter=all&per_page=100`;
       return (await request(url)).data.check_runs ?? [];
+    },
+    // Every check run on a commit, up to 300 (fix-ci-context.mjs).
+    async listCommitCheckRuns(sha) {
+      const runs = [];
+      for (let page = 1; page <= 3; page += 1) {
+        const { data } = await request(`${repo}/commits/${sha}/check-runs?filter=latest&per_page=100&page=${page}`);
+        runs.push(...(data.check_runs ?? []));
+        if ((data.check_runs ?? []).length < 100) {
+          break;
+        }
+      }
+      return runs;
+    },
+    listAnnotations: async (id) => (await request(`${repo}/check-runs/${id}/annotations?per_page=50`)).data,
+    getJob: async (id) => (await request(`${repo}/actions/jobs/${id}`)).data,
+    // The job log redirects to a short-lived download URL; fetch follows it.
+    async getJobLog(id) {
+      const response = await fetch(`${repo}/actions/jobs/${id}/logs`, { headers });
+      if (!response.ok) {
+        throw Object.assign(new Error(`GET job ${id} logs returned ${response.status}`), { status: response.status });
+      }
+      return response.text();
     },
     async getCommit(sha) {
       return (await request(`${repo}/commits/${sha}`)).data;
@@ -354,6 +537,22 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     },
     async createIssueComment(pr, body) {
       await request(`${repo}/issues/${pr}/comments`, "POST", { body });
+    },
+    // One page: apply-ci-fix.mjs refuses to read more labels than it holds.
+    async listLabels(pr) {
+      const { data, link } = await request(`${repo}/issues/${pr}/labels?per_page=100`);
+      if (/rel="next"/.test(link)) {
+        throw new Error("the pull request has more labels than one page holds");
+      }
+      return data;
+    },
+    // The Git Data API (apply-ci-fix.mjs): GitHub signs a commit made with no
+    // author or committer as the App.
+    createBlob: async (content) => (await request(`${repo}/git/blobs`, "POST", { content, encoding: "base64" })).data.sha,
+    createTree: async (baseTree, tree) => (await request(`${repo}/git/trees`, "POST", { base_tree: baseTree, tree })).data.sha,
+    createCommit: async (message, tree, parents) => (await request(`${repo}/git/commits`, "POST", { message, tree, parents })).data.sha,
+    async updateRef(ref, sha, force) {
+      await request(`${repo}/git/refs/${ref.split("/").map(encodeURIComponent).join("/")}`, "PATCH", { sha, force });
     },
   };
 }
@@ -422,12 +621,16 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       appId,
       reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
       trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
+      humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"),
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
     });
     if (result.file) {
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
     }
     output("proceed", String(result.decision === "proceed"));
+    // The write runner drops the human-gated label from the hold list only
+    // when this is true: every kept thread carries a write-access fix request.
+    output("fix-requested", String(result.fixRequested === true));
     output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? "awaiting-human" : "");
     output("escalation-reason", result.escalationReason ?? "");
     log(`${result.decision}: ${result.threads.length} kept thread(s), ${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`);
