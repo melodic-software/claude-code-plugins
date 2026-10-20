@@ -123,14 +123,36 @@ else
   pass "stale marker is removed"
 fi
 
-# A gated call refreshes a live marker, so the timeout counts from the last call.
-printf '%s\n' "$(($(printf '%(%s)T' -1) - RUN_MARKER_IDLE_SECONDS + 60))" >"$LIVE_MARKER"
+# A destructive or acknowledged call refreshes a live marker, so the timeout
+# counts from the last sign of run activity.
+nearly_idle=$(($(printf '%(%s)T' -1) - RUN_MARKER_IDLE_SECONDS + 60))
+printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
 assert_exit "nearly idle marker: still blocks" 2 "$(guard_exit "git branch -D x")"
 read -r refreshed <"$LIVE_MARKER"
 if ((refreshed >= $(printf '%(%s)T' -1) - 5)); then
-  pass "a gated call refreshes the marker"
+  pass "a blocked destructive call refreshes the marker"
 else
-  fail "a gated call refreshes the marker" "within 5s of now" "$refreshed"
+  fail "a blocked destructive call refreshes the marker" "within 5s of now" "$refreshed"
+fi
+
+printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
+assert_exit "nearly idle marker: acknowledged call is allowed" 0 "$(guard_exit "CLEAN_GUARD_ACK=1 git branch -D x")"
+read -r refreshed <"$LIVE_MARKER"
+if ((refreshed >= $(printf '%(%s)T' -1) - 5)); then
+  pass "an acknowledged call refreshes the marker"
+else
+  fail "an acknowledged call refreshes the marker" "within 5s of now" "$refreshed"
+fi
+
+# Ordinary shell calls are not run activity: they leave the stamp alone, so a run
+# that skipped its close step still ages out while the session keeps working.
+printf '%s\n' "$nearly_idle" >"$LIVE_MARKER"
+assert_exit "nearly idle marker: ordinary call is allowed" 0 "$(guard_exit "git status")"
+read -r refreshed <"$LIVE_MARKER"
+if [[ "$refreshed" == "$nearly_idle" ]]; then
+  pass "an ordinary call does not refresh the marker"
+else
+  fail "an ordinary call does not refresh the marker" "$nearly_idle" "$refreshed"
 fi
 
 # An unreadable stamp keeps the guard armed.

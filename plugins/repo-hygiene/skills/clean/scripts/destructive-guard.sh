@@ -33,7 +33,8 @@
 # scan-batch) and removes when the run reaches its final outcome. With no marker
 # for the hook input's session_id the guard allows the command. A marker idle for
 # RUN_MARKER_IDLE_SECONDS (lib/run-marker.sh) is deleted and the command allowed;
-# every gated call refreshes a live marker. An unresolved CLAUDE_PLUGIN_DATA or a
+# an acknowledged or destructive call refreshes a live marker, and ordinary calls
+# do not. An unresolved CLAUDE_PLUGIN_DATA or a
 # missing or unusable session_id keeps the guard armed (fail closed), and so does
 # the no-jq mode, which cannot read the session_id. The marker cases are in
 # destructive-guard.test.sh.
@@ -285,9 +286,15 @@ if run_marker_path_to MARKER_FILE "${CLAUDE_PLUGIN_DATA:-}" "$SESSION"; then
     rm -f "$MARKER_FILE"
     exit 0
     ;;
-  *) run_marker_write "$MARKER_FILE" ;;
+  *) ;;
   esac
 fi
+
+# refresh_marker: restart the idle clock. Called only on run activity (an
+# acknowledged or a destructive command), never on ordinary shell calls.
+refresh_marker() {
+  [[ -z "$MARKER_FILE" ]] || run_marker_write "$MARKER_FILE"
+}
 
 # shellcheck source=hook-utils.sh
 source "$SCRIPT_DIR/hook-utils.sh"
@@ -326,6 +333,7 @@ is_acknowledged() {
 }
 
 if is_acknowledged "$CMD" "$TOOL"; then
+  refresh_marker
   exit 0
 fi
 
@@ -336,6 +344,7 @@ else
   is_destructive "$CMD" && DESTRUCTIVE=1
 fi
 if ((DESTRUCTIVE)); then
+  refresh_marker
   # shellcheck disable=SC2016  # literal `$env:` is the PowerShell spelling
   case "$TOOL" in
   Bash) ack_form='CLEAN_GUARD_ACK=1 <command>' ;;

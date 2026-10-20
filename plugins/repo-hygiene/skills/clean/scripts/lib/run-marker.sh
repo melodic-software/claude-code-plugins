@@ -2,8 +2,9 @@
 # Per-session run-open marker shared by clean-run-marker.sh (writes it) and
 # destructive-guard.sh (reads it). A marker file says "a mutating clean run is
 # open in this session"; the guard gates only while one is live. The marker holds
-# the epoch second of its last write, and the guard refreshes it on every call it
-# gates, so the idle timeout counts from the last guarded tool call.
+# the epoch second of its last write, and the guard refreshes it on each
+# acknowledged or destructive call, so the idle timeout counts from the last run
+# activity.
 
 [[ -n "${_CLEAN_RUN_MARKER_LOADED:-}" ]] && return 0
 readonly _CLEAN_RUN_MARKER_LOADED=1
