@@ -1752,16 +1752,14 @@ def project_fan_out(entries: list[dict]) -> dict:
             gate_is_uncertain(gate, tool) and matcher_matches(entry.get("matcher"), tool)
             for tool in FILE_WRITING_TOOLS
         ):
-            unclassified_rows.append(
-                {
-                    **row,
-                    "reason": (
-                        "decided by extension only; its directory prefix, multi-dot suffix "
-                        "or `Write` tool is not modeled, so a matching extension is not "
-                        "known to fire"
-                    ),
-                }
+            reason = (
+                "decided by extension only; its directory prefix, multi-dot suffix "
+                "or `Write` tool is not modeled, so a matching extension is not "
+                "known to fire"
             )
+            if matcher_error is not None:
+                reason += f"; {matcher_error}"
+            unclassified_rows.append({**row, "reason": reason})
         elif matcher_error is not None and event in PER_TOOL_CALL_EVENTS:
             unclassified_rows.append({**row, "reason": matcher_error})
         if gate["kind"] == "extension":

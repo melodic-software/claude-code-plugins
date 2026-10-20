@@ -831,6 +831,35 @@ class TestFanOutProjection(unittest.TestCase):
         self.assertEqual(bash["fires"], 1)
         self.assertEqual(bash["fire_always_unclassified"], 1)
 
+    def test_an_uncompilable_matcher_on_a_narrowed_gate_keeps_its_compile_error(self):
+        narrowed = {
+            "event": "PostToolUse",
+            "matcher": "(",
+            "command": "n.sh",
+            "args": [],
+            "if": "Edit(**/docs/*.md)",
+            "source": "narrowed",
+        }
+        listed = engine.project_fan_out([narrowed])["unclassified_rows"]
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(set(listed[0]), {"event", "matcher", "source", "if", "reason"})
+        self.assertIn("decided by extension only", listed[0]["reason"])
+        self.assertIn("not a Python-compilable", listed[0]["reason"])
+
+    def test_an_uncompilable_matcher_on_a_write_gate_keeps_its_compile_error(self):
+        write = {
+            "event": "PostToolUse",
+            "matcher": "Write|(",
+            "command": "w.sh",
+            "args": [],
+            "if": "Write(*.ts)",
+            "source": "write",
+        }
+        listed = engine.project_fan_out([write])["unclassified_rows"]
+        self.assertEqual(len(listed), 1)
+        self.assertIn("decided by extension only", listed[0]["reason"])
+        self.assertIn("not a Python-compilable", listed[0]["reason"])
+
 
 class TestByMatcherAndBucketCounters(unittest.TestCase):
     """The ceiling and the gate count ship side by side, never one without the other."""
