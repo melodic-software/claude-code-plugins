@@ -495,6 +495,24 @@ test("with 700 succeeded runs listed, verify re-runs already queued or in progre
   assert.deepEqual(reruns, [201]);
 });
 
+test("verify re-runs that start while the listing is read still take places", async () => {
+  const queued = [209, 210, 211].map((id) => verifyRun(id, { status: "queued", attempt: 2 }));
+  const { code, reruns } = await reconcile({
+    pulls: [],
+    runs: [...queued, verifyRun(201)],
+    github: (g) => async (method, path, body) => {
+      if (path.includes("/workflows/pr-verify.yml/runs?") && path.includes("&status=queued&")) {
+        for (const r of queued) {
+          r.status = "in_progress";
+        }
+      }
+      return g(method, path, body);
+    },
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, []);
+});
+
 test("a lane listing past the page cap is a failure, and nothing is called lost", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   const { code, reruns } = await reconcile({ pulls: [], runs: lostDay(501) });

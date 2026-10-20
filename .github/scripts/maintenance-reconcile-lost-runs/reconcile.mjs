@@ -77,8 +77,9 @@ export const LOOKBACK_HOURS = 24;
 export const LANE_RUN_PAGES = 5;
 // The lane listing is read once per status, so the many succeeded runs are
 // never listed: the lost conclusions, and every status short of completed (the
-// runs a re-run may have put in flight).
-export const LANE_LIST_STATUSES = [...LOST, "in_progress", "queued", "waiting", "requested", "pending"];
+// runs a re-run may have put in flight). Earlier statuses are read first, so a
+// run that starts between two queries is still listed by the later one.
+export const LANE_LIST_STATUSES = [...LOST, "requested", "pending", "waiting", "queued", "in_progress"];
 
 class RateLimited extends Error {}
 
