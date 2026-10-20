@@ -69,7 +69,9 @@ the terminal line follows SKILL.md "Keep a running constraint ledger". The ledge
 ## Scope
 
 Name the view, screen or artifact each question is about ("Payment step, pay button"), never "this
-page" when several exist, and keep the scope current when a later round moves or renames it. The
+page" when several exist, and keep the scope current when a later round moves or renames it. Name
+the thing asked about in the question text too: "Which device are you on right now?", not "What
+are you using right now?", which a person can read as their activity. The
 shared lane requires `scope`; the other lanes write it into the question when more than one artifact
 is in play. Every answer in a shared session records the view and device it came from, so a question
 whose scope is unclear gets answers about different things.
@@ -111,7 +113,6 @@ A `rect` (the area a `confirm` question or an image reference marks) is in perce
 ## Schema version
 
 The schemas under `<plugin-root>/shared/schema/` are the source of truth for every persisted and
-wire shape, and the session's state file records its `schemaVersion`, separate from the plugin
-version. Only the server stamps `schemaVersion`, `pluginVersion` and `rev`; never write or edit
-them, and never edit `state.json` by hand. A change to a persisted shape bumps `schemaVersion` and
-ships a migration with it.
+wire shape. The state file carries no version: only the server stamps `pluginVersion` and `rev`;
+never write or edit them, and never edit `state.json` by hand. A change to a persisted shape ships
+no migration: when a later build cannot read a session, the owner starts a new one.

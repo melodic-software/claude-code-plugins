@@ -585,7 +585,9 @@ jobs:
       # skips (none), escalates (a .github/** diff, or the round cap) or
       # writes the thread file the skill's review-thread tool reads. It also
       # copies out the base's thread-scope.mjs with its SHA-256, which the
-      # promote step checks before it imports the copy.
+      # promote step checks before it imports the copy, and records the thread
+      # file's SHA-256, which the promote and collect steps check before they
+      # read it: the model's turn can reach both files.
       - name: Select the review threads
         id: feedback-select
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'review-threads'
@@ -608,6 +610,10 @@ jobs:
           REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
           export REVIEW_ROUNDS
           THREAD_FILE="$FEEDBACK_DIR/threads.json" node .base/.github/scripts/pr-unblock/address-feedback.mjs select
+          if [ -f "$FEEDBACK_DIR/threads.json" ]; then
+            sum=$(sha256sum <"$FEEDBACK_DIR/threads.json")
+            echo "threads-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+          fi
 
       # dependency-review, before the mint and any model turn, with the job's
       # read-only token: skips a PR Dependabot did not open or one sorted
@@ -1157,7 +1163,7 @@ jobs:
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
           && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
         continue-on-error: true
-        uses: anthropics/claude-code-action@5eb090f3c3afd701a0672cd32981197ca27688f6 # v1.0.253
+        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1695,6 +1701,7 @@ jobs:
             && format('{0}/lane-feedback/threads.json', runner.temp) || '' }}
           SCOPE_SCRIPT: ${{ runner.temp }}/lane-feedback-bin/thread-scope.mjs
           SCOPE_SHA256: ${{ steps.feedback-select.outputs.scope-sha256 }}
+          THREADS_SHA256: ${{ steps.feedback-select.outputs.threads-sha256 }}
           # dependency-review mode moves the PR branch only when the lane
           # branch changes nothing under .github/ and every commit's message
           # carries [dependabot skip], so Dependabot may still rebase the PR.
@@ -1711,7 +1718,7 @@ jobs:
           script: |
             const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA, THREAD_FILE } = process.env;
             const { DEPENDENCY_REVIEW, DEPENDENCY_OUTPUT, PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
-            const { SCOPE_SCRIPT, SCOPE_SHA256 } = process.env;
+            const { SCOPE_SCRIPT, SCOPE_SHA256, THREADS_SHA256 } = process.env;
             core.setOutput('skip-reason', '');
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
@@ -1728,7 +1735,13 @@ jobs:
               }
               if (THREAD_FILE) {
                 const fs = require('fs');
-                const paths = new Set(JSON.parse(fs.readFileSync(THREAD_FILE, 'utf8')).threads.map((t) => t.path));
+                // Parsed from the bytes just hashed, as the scope copy below.
+                const threadText = fs.readFileSync(THREAD_FILE);
+                if (!THREADS_SHA256 || require('crypto').createHash('sha256').update(threadText).digest('hex') !== THREADS_SHA256) {
+                  core.setFailed('threads.json does not match the SHA-256 the select step recorded; the PR branch is not moved');
+                  return;
+                }
+                const paths = new Set(JSON.parse(threadText.toString('utf8')).threads.map((t) => t.path));
                 // Imported from the bytes just hashed, so a rewrite after the
                 // check cannot reach the import.
                 const scope = fs.readFileSync(SCOPE_SCRIPT);
@@ -1838,16 +1851,22 @@ jobs:
         env:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           THREAD_FILE: ${{ runner.temp }}/lane-feedback/threads.json
+          THREADS_SHA256: ${{ steps.feedback-select.outputs.threads-sha256 }}
           REPLIES_FILE: ${{ runner.temp }}/lane-feedback-state/replies.jsonl
           OUT_DIR: ${{ runner.temp }}/lane-feedback-out
         with:
           retries: 0
           script: |
             const fs = require('fs');
-            const { HEAD_SHA, THREAD_FILE, REPLIES_FILE, OUT_DIR } = process.env;
+            const { HEAD_SHA, THREAD_FILE, THREADS_SHA256, REPLIES_FILE, OUT_DIR } = process.env;
             fs.rmSync(OUT_DIR, { recursive: true, force: true });
             fs.mkdirSync(OUT_DIR);
-            const { threads } = JSON.parse(fs.readFileSync(THREAD_FILE, 'utf8'));
+            const threadText = fs.readFileSync(THREAD_FILE);
+            if (!THREADS_SHA256 || require('crypto').createHash('sha256').update(threadText).digest('hex') !== THREADS_SHA256) {
+              core.setFailed('threads.json does not match the SHA-256 the select step recorded; no replies are collected');
+              return;
+            }
+            const { threads } = JSON.parse(threadText.toString('utf8'));
             const run = {
               version: 1,
               head_sha: HEAD_SHA,
@@ -2406,7 +2425,7 @@ jobs:
         id: summary-run
         if: steps.isolate.outcome == 'success'
         continue-on-error: true
-        uses: anthropics/claude-code-action@5eb090f3c3afd701a0672cd32981197ca27688f6 # v1.0.253
+        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
         env:
           # As in the run job's skill step.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"

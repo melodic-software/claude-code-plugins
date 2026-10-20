@@ -206,9 +206,9 @@ class SessionCase(unittest.TestCase):
 
 
 class TestPersistence(SessionCase):
-    def test_create_writes_a_schema_valid_file_with_version_and_rev_zero(self):
+    def test_create_writes_a_schema_valid_file_with_rev_zero_and_no_version(self):
         doc = self.disk()
-        self.assertEqual(doc["schemaVersion"], session.migrate.CURRENT)
+        self.assertNotIn("schemaVersion", doc)
         self.assertEqual(doc["rev"], 0)
         self.assertEqual(doc["pluginVersion"], "9.9.9")
         self.assertEqual(doc["people"][HOST]["role"], "owner")
@@ -275,52 +275,54 @@ class TestPersistence(SessionCase):
             session.Session.load(self.path, clock=self.clock, ids=self.ids)
         self.assertEqual(ctx.exception.code, "state-invalid")
 
-    def test_load_accepts_the_full_v1_fixture(self):
-        shutil.copy(FIXTURES / "state-v1.json", self.path)
+    def test_load_accepts_the_full_sample_fixture(self):
+        shutil.copy(FIXTURES / "state-sample.json", self.path)
         s = session.Session.load(self.path, clock=self.clock, ids=self.ids)
         self.assertEqual(s.state["rev"], 42)
 
-    def test_load_refuses_a_newer_schema_naming_both_versions(self):
+    def test_a_state_the_v7_build_wrote_loads_with_nothing_lost(self):
+        """state-v7-live.json is the shape the live session holds when this build starts on it: schemaVersion 7, a
+        carried picture (U1), a form's unsent draft (U3) and a loose picture under Q1 (U4). The version key goes; every
+        other field loads as written, and the first write keeps it all without the key, in place, with no copy."""
+        raw = json.loads((FIXTURES / "state-v7-live.json").read_text(encoding="utf-8"))
+        self.assertEqual(raw["schemaVersion"], 7)
+        shutil.copy(FIXTURES / "state-v7-live.json", self.path)
+        s = session.Session.load(self.path, clock=self.clock, ids=self.ids, validate_writes=True)
+        kept = {k: v for k, v in raw.items() if k != "schemaVersion"}
+        self.assertEqual(s.state, kept)
+        self.assertEqual(sorted(v["name"] for v in s.state["people"].values()), sorted(v["name"] for v in raw["people"].values()))
+        for key in ("cards", "votes", "chat", "requests", "results", "uploads", "discussions", "inboxSeen", "notifications"):
+            self.assertEqual(s.state[key], raw[key], key)
+        self.assertEqual(s.state["session"]["settings"], raw["session"]["settings"])
+        marks = {u["id"]: (u.get("draft", False), u.get("carried", False)) for u in s.state["uploads"]}
+        self.assertEqual(marks, {"U1-0a1b2c3d": (False, True), "U2-4e5f6a7b": (False, False), "U3-8c9d0e1f": (True, False), "U4-1a2b3c4d": (False, False)})
+        self.assertEqual(s.snapshot(HOST).get("questionPics"), {"Q1": ["U4-1a2b3c4d"]})
+        s.set_title(HOST, {"title": "Checkout, round two"})
         doc = self.disk()
-        now = session.migrate.CURRENT
-        doc["schemaVersion"] = now + 1
+        self.assertNotIn("schemaVersion", doc)
+        self.assertEqual({k: v for k, v in doc.items() if k not in ("rev", "session", "log")}, {k: v for k, v in kept.items() if k not in ("rev", "session", "log")})
+        self.assertEqual(sorted(p.name for p in self.tmp.iterdir()), ["assets", "state.json"])
+
+    def test_a_file_below_schema_version_7_is_refused_and_left_as_it_was(self):
+        # review: a file from before the last versioned build needs its migrations, which this build no longer has
+        doc = self.disk()
+        doc["schemaVersion"] = 6
         self.path.write_text(json.dumps(doc), encoding="utf-8")
-        with self.assertRaises(session.migrate.MigrationError) as ctx:
+        before = self.path.read_bytes()
+        with self.assertRaises(session.DomainError) as ctx:
             session.Session.load(self.path, clock=self.clock, ids=self.ids)
-        self.assertIn(f"schemaVersion {now + 1}", str(ctx.exception))
-        self.assertIn(f"newer than {now}", str(ctx.exception))
+        self.assertEqual(ctx.exception.code, "state-too-old")
+        self.assertIn("schemaVersion 6", ctx.exception.message)
+        self.assertIn("Start a new session, or restart it under the previous build", ctx.exception.message)
+        self.assertEqual(self.path.read_bytes(), before)
 
-    def test_migration_copies_the_old_file_once_then_writes_the_migrated_state(self):
-        original = self.path.read_bytes()
-
-        def step(doc, ctx):
-            return {**doc, "writtenBy": "migrated"}
-
-        now = session.migrate.CURRENT
-        with (
-            mock.patch.object(session.migrate, "CURRENT", now + 1),
-            mock.patch.dict(session.migrate.MIGRATIONS, {now: step}),
-            mock.patch.object(session, "state_error", return_value=None),
-        ):
-            s = session.Session.load(self.path, clock=self.clock, ids=self.ids)
-        self.assertEqual((self.tmp / f"state.v{now}.json").read_bytes(), original)
-        self.assertEqual(s.state["writtenBy"], "migrated")
-        self.assertEqual(self.disk()["schemaVersion"], now + 1)
-
-    def test_a_failed_migration_leaves_the_original_file(self):
-        original = self.path.read_bytes()
-
-        def step(doc, ctx):
-            raise session.migrate.MigrationError("step 1 to 2 failed")
-
-        now = session.migrate.CURRENT
-        with (
-            mock.patch.object(session.migrate, "CURRENT", now + 1),
-            mock.patch.dict(session.migrate.MIGRATIONS, {now: step}),
-            self.assertRaises(session.migrate.MigrationError),
-        ):
-            session.Session.load(self.path, clock=self.clock, ids=self.ids)
-        self.assertEqual(self.path.read_bytes(), original)
+    def test_any_schema_version_an_earlier_build_wrote_is_dropped(self):
+        doc = self.disk()
+        doc["schemaVersion"] = 99
+        self.path.write_text(json.dumps(doc), encoding="utf-8")
+        s = session.Session.load(self.path, clock=self.clock, ids=self.ids)
+        self.assertNotIn("schemaVersion", s.state)
+        self.assertEqual(s.state["rev"], doc["rev"])
 
     def test_counters_never_reuse_an_id(self):
         ann, _ = self.join("Ann")
@@ -908,6 +910,22 @@ class TestRounds(SessionCase):
     def test_ack_is_refused_unless_the_round_was_sent(self):
         self.open_round(text_q("Q1"))
         self.refused_ops("wrong-status", {"op": "ack-round", "round": 1})
+
+    def test_ack_and_the_next_open_land_in_one_apply(self):
+        # follow-up 33: the lane acks and opens the next round together, so the page never waits on Claude between them
+        self.open_round(text_q("Q1"))
+        self.send()
+        self.apply({"op": "ack-round", "round": 1}, {"op": "open-round", "questions": [text_q("Q2")]})
+        self.assertEqual((self.round_status(1), self.round_status(2)), ("closed", "open"))
+
+    def test_a_cancel_before_that_apply_refuses_all_of_it(self):
+        # gotchas.md: the owner cancels a sent round first; the combined apply then lands nothing
+        self.open_round(text_q("Q1"))
+        self.send()
+        self.act("cancel_round", HOST, {})
+        before = self.disk()
+        self.refused_ops("wrong-status", {"op": "ack-round", "round": 1}, {"op": "open-round", "questions": [text_q("Q2")]})
+        self.assertEqual((self.round_status(1), len(self.s.state["rounds"]), self.disk()), ("open", 1, before))
 
     def test_open_round_from_working_closes_it_and_opens_the_next(self):
         self.open_round(text_q("Q1"))
@@ -1610,7 +1628,7 @@ class TestLocks(SessionCase):
         self.assertEqual(self.s.state["suggestions"]["Q1"][0]["status"]["kind"], "closed")
 
     def test_the_deferred_fixture_duplicate_flag_is_refused_by_the_session_checks(self):
-        doc = session.migrate.migrate(json.loads((FIXTURES / "invalid-state-duplicate-flag.json").read_text(encoding="utf-8")))  # a v1 file
+        doc = json.loads((FIXTURES / "invalid-state-duplicate-flag.json").read_text(encoding="utf-8"))
         self.assertIsNone(session.state_error(doc))
         self.assertIn("Q3", session.cross_field_errors(doc)[0])
         self.path.write_text(json.dumps(doc), encoding="utf-8")
@@ -2805,6 +2823,18 @@ class TestSessionControls(SessionCase):
         self.refused("bad-field", "update_settings", HOST, {"theme": {"accent": "pink"}})
         self.refused("owner-only", "update_settings", self.ann, {"voting": False})
 
+    def test_the_owner_sets_which_pop_ups_guests_start_with(self):
+        # round 11: the host's defaults for a guest's three pop-up switches; absent, all three are on (the page's default)
+        self.assertNotIn("guestPopups", self.s.snapshot(self.ann)["settings"])
+        out = self.act("update_settings", HOST, {"guestPopups": ["round", "request"]})
+        self.assertEqual(out["settings"]["guestPopups"], ["request", "round"])
+        self.assertEqual(self.s.snapshot(self.ann)["settings"]["guestPopups"], ["request", "round"])
+        self.assertEqual(self.act("update_settings", HOST, {"guestPopups": []})["settings"]["guestPopups"], [])
+        for bad in (["join"], ["mention", "mention"], "mention", [1]):
+            self.refused("bad-field", "update_settings", HOST, {"guestPopups": bad})
+        self.refused("owner-only", "update_settings", self.ann, {"guestPopups": ["mention"]})
+        self.assertIsNone(session.state_error(self.disk()))
+
     def test_prefs_have_one_validator_per_key_and_belong_to_their_person(self):
         out = self.act("set_prefs", self.ann, {"set": {"sort": "votes", "expandedRounds": [1, 2]}})
         self.assertEqual(out["prefs"], {"sort": "votes", "expandedRounds": [1, 2]})
@@ -2830,11 +2860,13 @@ class TestSessionControls(SessionCase):
         self.act("set_prefs", self.ann, {"set": {"autoAdvance": None}})
         self.assertNotIn(self.ann, self.s.state["prefs"])
 
-    def test_popups_name_only_the_owners_inbox_kinds_and_belong_to_their_person(self):
+    def test_popups_name_only_pop_up_kinds_and_belong_to_their_person(self):
         self.assertEqual(self.act("set_prefs", HOST, {"set": {"popups": ["join", "share"]}})["prefs"], {"popups": ["join", "share"]})
         self.assertEqual(self.s.snapshot(self.ann)["me"]["prefs"], {})
         self.act("set_prefs", HOST, {"set": {"popups": []}})  # every kind off: the Inbox only
-        for bad in ("join", ["mention"], ["join"] * 7, ["join", "join"], [["join"]], [{}], [1]):
+        # Round 11: a guest's own switches, an answered request, a mention and a new round.
+        self.assertEqual(self.act("set_prefs", self.ann, {"set": {"popups": ["mention", "round"]}})["prefs"], {"popups": ["mention", "round"]})
+        for bad in ("join", ["reply"], ["join"] * 7, ["join", "join"], [["join"]], [{}], [1]):
             self.refused("bad-field", "set_prefs", HOST, {"set": {"popups": bad}})
 
     def test_title_is_1_to_80_and_goal_up_to_200(self):
@@ -3207,8 +3239,8 @@ class TestSnapshots(SessionCase):
     def card(self, snap, ref):
         return next(c for c in snap["cards"]["Q1"] if c["ref"] == ref)
 
-    def test_the_anonymous_view_has_exactly_four_keys(self):
-        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False, "schemaVersion": 7})
+    def test_the_anonymous_view_has_exactly_three_keys(self):
+        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False})
         self.act("rotate_guest_link", HOST, {})
         self.assertTrue(self.s.anonymous_view()["joinNeedsKey"])
 
@@ -3279,9 +3311,9 @@ class TestSnapshots(SessionCase):
         self.assertEqual(self.s.snapshot(self.ann)["behind"], {self.ann: 0, self.bo: 0, self.cy: 0})
         self.assertNotIn("behind", self.s.snapshot(self.cy))
 
-    def test_a_snapshot_carries_schema_version_and_rev(self):
+    def test_a_snapshot_carries_rev_and_no_schema_version(self):
         snap = self.s.snapshot(self.cy)
-        self.assertEqual((snap["schemaVersion"], snap["rev"]), (7, self.s.state["rev"]))
+        self.assertEqual((snap.get("schemaVersion"), snap["rev"]), (None, self.s.state["rev"]))
 
     def test_the_shared_part_is_built_once_per_rev(self):
         first = self.s._base()
@@ -4347,6 +4379,9 @@ class TestFixtureTokenHashes(unittest.TestCase):
 
 
 class StateFixtureCase(unittest.TestCase):
+    """A state written by an earlier build, rewritten to the current shape (fixtures/state-written-<build>.json),
+    loads unchanged."""
+
     def load(self, name):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
@@ -4354,20 +4389,19 @@ class StateFixtureCase(unittest.TestCase):
         shutil.copy(FIXTURES / name, tmp / "state.json")
         raw = (tmp / "state.json").read_text(encoding="utf-8")
         s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        # These builds wrote schemaVersion 1: the 1 -> 2 step (pinned by hand in test_migrate) is the only change.
-        self.assertEqual(s.state, session.migrate.migrate(json.loads(raw)))
-        self.assertEqual(json.loads((tmp / "state.json").read_text(encoding="utf-8")), s.state)
-        self.assertEqual(sorted(p.name for p in tmp.iterdir()), ["assets", "state.json", "state.v1.json"])
-        self.assertEqual((tmp / "state.v1.json").read_text(encoding="utf-8"), raw)  # the original, kept once
+        self.assertEqual(s.state, json.loads(raw))
+        self.assertEqual((tmp / "state.json").read_text(encoding="utf-8"), raw)  # loading writes nothing
+        self.assertEqual(sorted(p.name for p in tmp.iterdir()), ["assets", "state.json"])
         return s
 
 
 class TestStateFrom0bbffb3(StateFixtureCase):
-    """state.json files the 0bbffb3 build wrote load unchanged and take the Phase 4c writes. The
-    fixtures are that build's state-v1.json and a state its session.py wrote (state-written-0bbffb3.json)."""
+    """state.json files written by 0bbffb3 load unchanged and take the Phase 4c writes. The
+    fixtures are that build's sample (state-sample.json) and a state it wrote (state-written-0bbffb3.json), both rewritten to
+    the current shape."""
 
     def test_state_v1_fixture_from_0bbffb3_loads_unchanged(self):
-        s = self.load("state-v1.json")
+        s = self.load("state-sample.json")
         self.assertEqual(s.snapshot(HOST)["intro"], "")
 
     def test_a_state_0bbffb3_wrote_loads_unchanged_and_takes_the_new_writes(self):
@@ -4567,7 +4601,7 @@ class TestWaitingList(SessionCase):
 
 
 class TestStateFrom3153973(StateFixtureCase):
-    """A state the 3153973 build's session.py wrote (state-written-3153973.json: an intro, a hidden
+    """A state written by 3153973, rewritten to the current shape (state-written-3153973.json: an intro, a hidden
     card, an owner-edited card with author versions after it, a hidden multi pick, a lock, chat
     reactions and a waiting join) loads unchanged and takes the review fixes' writes."""
 
@@ -4594,14 +4628,14 @@ class TestStateFrom3153973(StateFixtureCase):
 
 
 class TestStateFrom6579f21(StateFixtureCase):
-    """state.json files the 6579f21 build wrote, which took rects of any size, load unchanged; the
+    """state.json files written by 6579f21, rewritten to the current shape, which took rects of any size, load unchanged; the
     percent rule refuses only new rects. state-written-6579f21.json holds a pixel-sized confirm rect
     (x 40, y 700, w 300, h 60) and image reference rect, written by that build's session.py."""
 
     PIXEL = {"x": 40, "y": 700, "w": 300, "h": 60}
 
     def test_the_earlier_fixtures_load_unchanged(self):
-        for name in ("state-v1.json", "state-written-0bbffb3.json", "state-written-3153973.json"):
+        for name in ("state-sample.json", "state-written-0bbffb3.json", "state-written-3153973.json"):
             with self.subTest(name):
                 self.load(name)
 
@@ -4618,38 +4652,8 @@ class TestStateFrom6579f21(StateFixtureCase):
         self.assertEqual(next(q for q in reloaded.state["questions"] if q["id"] == "Q1")["format"]["rect"], self.PIXEL)
 
 
-class TestStateFrom394a8bc(unittest.TestCase):
-    """state-written-394a8bc.json, written by the 394a8bc build's own session.py at schemaVersion 3 (Ann's waiting,
-    running, unshared and own-Claude requests; Bo's shared, declined and failed ones; the host's own, run and shared
-    by hand), loads at 4 with only inboxSeen added: every request starts read, and the Inbox then moves as usual."""
-
-    ANN, BO = "tok0002x9", "tok0004x9"
-
-    def test_it_loads_unchanged_but_for_inbox_seen_and_every_request_starts_read(self):
-        tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
-        shutil.copy(FIXTURES / "state-written-394a8bc.json", tmp / "state.json")
-        raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
-        self.assertEqual(raw["schemaVersion"], 3)
-        s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        self.assertEqual({k: v for k, v in s.state.items() if k not in ("inboxSeen", "discussions", "discussionSeen")}, {**raw, "schemaVersion": session.migrate.CURRENT})
-        self.assertEqual(s.state["inboxSeen"], {
-            self.ANN: {"R1": "waiting", "R2": "running", "R3": "unshared", "R8": "waiting"},
-            self.BO: {"R4": "shared", "R5": "declined", "R6": "failed"},
-            HOST: {"R7": "answered", "fail:R6": "open"},  # 5 -> 6: Bo's request Claude failed before the upgrade starts read
-        })
-        self.assertEqual((tmp / "state.v3.json").read_text(encoding="utf-8").rstrip("\n"), json.dumps(raw, ensure_ascii=False))
-        for pid in (self.ANN, self.BO, HOST):
-            self.assertEqual([i["key"] for i in s.snapshot(pid)["inbox"] if i["group"] == "mine" and i["unread"]], [], pid)
-        # Bo's request Claude failed (R6) before the upgrade is history: read, so out of Needs you
-        self.assertEqual([(i["key"], i["unread"]) for i in s.snapshot(HOST)["inbox"] if i["group"] == "waiting"], [("run:R1", True), ("share:X1", True), ("fail:R6", False)])
-        s.act_on_request(HOST, {"action": "publish", "id": "X1"})
-        item = next(i for i in s.snapshot(self.ANN)["inbox"] if i["key"] == "R3")
-        self.assertEqual((item["status"], item["unread"], item["result"]), ("shared", True, "X1"))
-
-
 class TestStateFrom3f9006c(StateFixtureCase):
-    """state-written-3f9006c.json was written by 3f9006c's own session.py, which took any selector up to 500
+    """state-written-3f9006c.json was written by 3f9006c, rewritten to the current shape, which took any selector up to 500
     characters: its note A1 is pinned at "#pay". It loads unchanged, its note still shows, and new notes follow
     the element-path rule."""
 
@@ -4671,14 +4675,14 @@ class TestStateFrom3f9006c(StateFixtureCase):
 
 
 class TestStateFromf6f1318(StateFixtureCase):
-    """state-written-f6f1318.json was written by f6f1318's own session.py: three notes on prototype Q1 (A1 on a
+    """state-written-f6f1318.json was written by f6f1318, rewritten to the current shape: three notes on prototype Q1 (A1 on a
     button's path, A2 on "html", A3 on "img") and round 1 sent, its digest naming each note's element. It loads
     unchanged and takes new notes; the earlier builds' files still load."""
 
     BUTTON = "html > body:nth-of-type(1) > main:nth-of-type(1) > button:nth-of-type(2)"
 
     def test_the_earlier_fixtures_load_unchanged(self):
-        for name in ("state-v1.json", "state-written-0bbffb3.json", "state-written-3153973.json", "state-written-6579f21.json", "state-written-3f9006c.json"):
+        for name in ("state-sample.json", "state-written-0bbffb3.json", "state-written-3153973.json", "state-written-6579f21.json", "state-written-3f9006c.json"):
             with self.subTest(name):
                 self.load(name)
 
@@ -4697,7 +4701,7 @@ class TestStateFromf6f1318(StateFixtureCase):
 
 
 class TestStateFrom08ff888(StateFixtureCase):
-    """state-written-08ff888.json was written by 08ff888's own session.py: Ann (tok0002x9) has host request R1
+    """state-written-08ff888.json was written by 08ff888, rewritten to the current shape: Ann (tok0002x9) has host request R1
     pending and self request R2 answered by her own Claude (result X1, "The address step."), Bo (tok0004x9) has
     self request R3 pending, and round 1 is sent with a digest whose results carry no `from`. It loads unchanged
     and takes the Phase 8 writes."""
@@ -4718,7 +4722,7 @@ class TestStateFrom08ff888(StateFixtureCase):
 
 
 class TestStateFrom740e8da(StateFixtureCase):
-    """state-written-740e8da.json was written by 740e8da's own session.py: Ann (tok0002x9) and Dee (tok0006x9) each had
+    """state-written-740e8da.json was written by 740e8da, rewritten to the current shape: Ann (tok0002x9) and Dee (tok0006x9) each had
     a self request answered by their own Claude and shown at once (X1 "The address step.", X2 "Dee's Claude says
     shipping."), Bo (tok0004x9) has self request R3 running and R4 pending, round 1 is sent, and then the owner removed
     Dee. It loads unchanged: Ann's shown result stays shown, Dee's leaves every view, and new writes take the fixes."""
@@ -4740,7 +4744,7 @@ class TestStateFrom740e8da(StateFixtureCase):
 
 
 class TestStateFrom62d8520(StateFixtureCase):
-    """state-written-62d8520.json was written by 62d8520's own session.py: Ann (tok0002x9) holds watcher key
+    """state-written-62d8520.json was written by 62d8520, rewritten to the current shape: Ann (tok0002x9) holds watcher key
     tok0006x32 and an unshared result X1 from her own Claude ("The address step."); Bo (tok0004x9) took watcher key
     tok0007x32 and was then removed, which that build left in credentials.watchers; round 1 is sent with no results
     in its digest. It loads unchanged; restoring Bo does not revive his key, and X1 shared now reaches round 2's
@@ -5224,25 +5228,22 @@ class TestAttachmentsEverywhere(UploadCase):
         self.send_all(pid, uid, PIC)
         return uid
 
-    def resumed_from_main(self, at=None):
-        """The session as main wrote it (schemaVersion 6, no draft or carried marks), loaded again by this build. at:
-        upload id -> its `at`; the rest keep theirs, this clock's, from before #8420 (migrate.ATTACH_PASTE_AT)."""
+    def loose(self, *uids):
+        """The session reloaded with these uploads unmarked, neither a draft nor carried, as an offer from before forms
+        attached pictures is in the live state: the strip under their question is for them."""
         doc = json.loads(self.path.read_text(encoding="utf-8"))
-        doc["schemaVersion"] = 6
         for u in doc["uploads"]:
-            u.pop("draft", None)
-            u.pop("carried", None)
-            u["at"] = (at or {}).get(u["id"], u["at"])
-        self.assertLess(max((u["at"] for u in doc["uploads"] if u["id"] not in (at or {})), default=0), session.migrate.ATTACH_PASTE_AT)
+            if u["id"] in uids:
+                u.pop("draft", None)
+                u.pop("carried", None)
         self.path.write_text(json.dumps(doc), encoding="utf-8")
         self.s = session.Session.load(self.path, clock=self.clock, ids=self.ids, validate_writes=True)
 
     def test_a_picture_on_a_question_that_no_record_carries_shows_under_it(self):
-        # (b) offers from before #8420 that nothing carries, upgraded from main: the strip's pictures
+        # offers from before #8420 that nothing carries: the strip's pictures
         pic, own, sent = (self.received_on_q1(p, n) for p, n in ((self.ann, "a.png"), (HOST, "h.png"), (self.ann, "c.png")))
         self.act("chat", self.ann, {"text": "Carried", "attachments": [sent]})
-        self.resumed_from_main()
-        self.assertEqual(self.s.state["schemaVersion"], 7)
+        self.loose(pic, own)
         def pics(pid):
             return self.s.snapshot(pid).get("questionPics")
         # Waiting for approval: the owner and the uploader see it, with the owner's own; Bo only the owner's.
@@ -5309,51 +5310,12 @@ class TestAttachmentsEverywhere(UploadCase):
 
     def test_a_removed_uploaders_loose_picture_is_hidden(self):
         pic = self.received_on_q1(self.ann, "a.png")
-        self.resumed_from_main()
+        self.loose(pic)
         self.act("act_on_upload", HOST, {"id": pic, "action": "approve"})
         self.assertEqual(self.s.snapshot(self.bo)["questionPics"], {"Q1": [pic]})
         self.act("set_removed", HOST, {"pid": self.ann, "on": True})
         self.assertNotIn("questionPics", self.s.snapshot(self.bo))
         self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": pic}).http, 404)
-
-    def test_a_picture_pasted_on_main_and_never_sent_stays_private_after_the_upgrade(self):
-        # (a) main recorded the qid of a form's paste, but no draft mark: from #8420 on it is carried, never loose
-        own, pic = self.received_on_q1(HOST, "pasted-20261019150000.png"), self.received_on_q1(self.ann, "pasted-20261019150100.png")
-        late = session.migrate.ATTACH_PASTE_AT + 60
-        self.resumed_from_main({own: late, pic: late})
-        for viewer in (HOST, self.ann, self.bo):
-            self.assertNotIn("questionPics", self.s.snapshot(viewer))
-        self.assertNotIn(own, self.s.snapshot(self.bo)["files"])
-        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": own}).http, 404)
-        self.assertEqual(self.s.upload_image(HOST, {"id": own})["id"], own)
-        self.assertEqual(next(u for u in self.s.snapshot(self.ann)["myUploads"] if u["id"] == pic).get("carried"), True)
-
-    def test_a_main_picture_whose_hidden_record_goes_away_stays_hidden(self):
-        # (c) one from before #8420 on a hidden answer at the upgrade, cleared after it; and one from after #8420 whose
-        # hidden comment was deleted before it, so no record names it any more
-        early, late = self.received_on_q1(self.ann, "a.png"), self.received_on_q1(self.ann, "b.png")
-        self.act("answer", self.ann, {"qid": "Q1", "text": "Ann's", "view": "focus", "attachments": [early]})
-        c = self.act("comment", self.ann, {"qid": "Q1", "text": "Mine", "attachments": [late]})["id"]
-        for uid in (early, late):
-            self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
-        self.act("hide_card", HOST, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
-        self.act("hide_comment", HOST, {"qid": "Q1", "id": c, "on": True})
-        self.act("delete_comment", self.ann, {"qid": "Q1", "id": c})
-        self.resumed_from_main({late: session.migrate.ATTACH_PASTE_AT + 60})
-        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus"})
-        self.assertFalse([r for _, r in session._attaching(self.s.state) if {early, late} & set(r.get("attachments", ()))])
-        for viewer in (HOST, self.ann, self.bo):
-            self.assertNotIn("questionPics", self.s.snapshot(viewer))
-        for uid in (early, late):
-            self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
-
-    def test_an_upgraded_upload_with_no_usable_time_is_carried(self):
-        # fail safe: an `at` no server could have written before #8420 makes the upload private
-        uid = self.received_on_q1(HOST, "h.png")
-        self.resumed_from_main({uid: -1.0})
-        self.assertEqual(next(u for u in self.s.state["uploads"] if u["id"] == uid).get("carried"), True)
-        self.assertNotIn("questionPics", self.s.snapshot(self.bo))
-        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
 
     def test_each_form_keeps_its_attachments(self):
         uid = self.offered_and_accepted(self.ann)
@@ -5779,7 +5741,7 @@ class TestUploadHardening(UploadCase):
 
 
 class TestStateFromB5ed34f(StateFixtureCase):
-    """state-written-b5ed34f.json was written by b5ed34f's own session.py: Ann (tok0002x9) offered shot.png with a
+    """state-written-b5ed34f.json was written by b5ed34f, rewritten to the current shape: Ann (tok0002x9) offered shot.png with a
     preview, sent funnel.pdf (U2, done, on her Q1 answer) and withdrew one; Bo (tok0004x9) is sending plan.pdf (U3,
     one piece in), has notes.txt accepted (U4) and one declined; one failed; the owner's brief.md is accepted. It
     loads unchanged, and every record in it stays valid under the hardened rules."""
@@ -5794,7 +5756,7 @@ class TestStateFromB5ed34f(StateFixtureCase):
 
 
 class TestStateFromE27acc5(StateFixtureCase):
-    """state-written-e27acc5.json was written by e27acc5's own session.py (uploads off, no upload ever): Ann
+    """state-written-e27acc5.json was written by e27acc5, rewritten to the current shape (uploads off, no upload ever): Ann
     (tok0002x9) answered Q1, Bo (tok0004x9) picked Google Pay on Q2 with a comment and answered Q1. It loads unchanged;
     with uploads on, Ann's file goes through and her answer carries it."""
 
@@ -6056,22 +6018,6 @@ class TestReports(SessionCase):
             self.assertIsNotNone(session.document_error(doc))
 
 
-class TestReportsOnAnOlderFile(StateFixtureCase):
-    """A schemaVersion 2 file from before reports (state-v2.json) loads at the current version, otherwise unchanged, and takes one."""
-
-    def test_a_v2_state_without_reports_loads_and_takes_a_report(self):
-        tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
-        shutil.copy(FIXTURES / "state-v2.json", tmp / "state.json")
-        raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
-        self.assertNotIn("reports", raw)
-        s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        self.assertEqual({k: v for k, v in s.state.items() if k not in ("inboxSeen", "discussions", "discussionSeen")}, {**raw, "schemaVersion": session.migrate.CURRENT})  # no one named with @: only its version moves, and the Inbox marks join
-        guest = next(p for p in s.state["people"] if p != HOST and s.state["people"][p]["status"]["kind"] == "active")
-        self.assertEqual(s.report(guest, {"text": "Broken", "ctx": {**CTX, "qid": None}})["id"], "F1")
-        self.assertEqual(session.Session.load(tmp / "state.json", validate_writes=True).state["session"]["seq"]["F"], 1)
-
-
 class TestTakingPart(SessionCase):
     """Triage row 42: one rule for taking part (an own card, a vote, a back, any reaction, a Disagree or a
     Pass) behind the Host view's behind count and the digest's people count; one other person's answer makes
@@ -6206,22 +6152,6 @@ class TestTakingPart(SessionCase):
         self.act("pass_", self.cy, {"qid": "Q1", "reason": "Away"})
         self.act("merge_people", HOST, {"from": self.cy, "to": self.bo})
         self.assertEqual((list(self.s.state["passes"]["Q1"]), self.question("Q1")["for"]), ([self.bo], [self.bo]))
-
-
-class TestTakingPartOnAnOlderFile(StateFixtureCase):
-    """A schemaVersion 2 file from before passes and `for` (state-v2.json) loads at version 3, otherwise unchanged, and takes both."""
-
-    def test_a_v2_state_loads_and_takes_a_pass_and_a_target(self):
-        tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
-        shutil.copy(FIXTURES / "state-v2.json", tmp / "state.json")
-        raw = json.loads((tmp / "state.json").read_text(encoding="utf-8"))
-        self.assertFalse({"passes", "lateActs"} & set(raw) or any("for" in q for q in raw["questions"]))
-        s = session.Session.load(tmp / "state.json", clock=Clock(1_760_700_000.0), ids=Ids(), validate_writes=True)
-        self.assertEqual({k: v for k, v in s.state.items() if k not in ("inboxSeen", "discussions", "discussionSeen")}, {**raw, "schemaVersion": session.migrate.CURRENT})  # no one named with @: only its version moves, and the Inbox marks join
-        s.set_for(HOST, {"qid": "Q5", "for": ["Ann"]})
-        self.assertEqual(s.pass_("aB3dE5fG7hJ9", {"qid": "Q5", "reason": "Not mine"}), {"pass": True})
-        self.assertEqual(session.Session.load(tmp / "state.json", validate_writes=True).state["passes"]["Q5"]["aB3dE5fG7hJ9"]["reason"], "Not mine")
 
 
 class TestMentionPointers(SessionCase):

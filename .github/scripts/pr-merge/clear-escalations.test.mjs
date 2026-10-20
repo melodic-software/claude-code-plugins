@@ -250,6 +250,23 @@ test("a pr-merge risk comment at an old head comes off as head-moved", async () 
   assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
 });
 
+const sharedCopyBody = (head) =>
+  `<!-- babysit-merge-shared-copy-escalation -->\nUnattended merge: the shared-library canonical \`lib/a.sh\` changed on \`main\` since merge base \`${OLD}\`, so the copies this pull request carries are stale at head \`${head}\`.`;
+
+test("a pr-merge shared-copy escalation at an old head comes off as head-moved", async () => {
+  const w = world({ timeline: mergeEscalated(sharedCopyBody(OLD)) });
+  await run(w);
+  assert.equal(w.writes().length, 2);
+  assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
+  assert.deepEqual(w.writes()[1], { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("a pr-merge shared-copy escalation at the current head is kept", async () => {
+  const w = world({ timeline: mergeEscalated(sharedCopyBody(HEAD)) });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
 test("a pr-merge escalation naming the current head is kept", async () => {
   for (const timeline of [
     mergeEscalated(verifyBody(HEAD)),

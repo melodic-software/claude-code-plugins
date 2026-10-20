@@ -400,7 +400,7 @@ head:
 | `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head |
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
 | `feedback-protected-path` | the PR changes nothing under `.github/` |
-| `head-moved` (pr-merge's `babysit-merge-verify-escalation` and `babysit-merge-risk`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
+| `head-moved` (pr-merge's `babysit-merge-verify-escalation`, `babysit-merge-risk` and `babysit-merge-shared-copy-escalation`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
 when a person commented, reviewed or left a review comment since that event (a bot account, such
@@ -626,13 +626,21 @@ that fails counts as a refusal.
 - **Stale check inputs.** `merge.check-inputs` lists git pathspecs the pull request checks read.
   When the base changed one since a pull request's merge base, the wrapper updates the branch from
   the base (`update-branch`, a merge) instead of enqueuing it; the new head enqueues on a later run
-  once its checks pass. The answer comes from the local clone of the base with no API read; a head
-  the clone lacks is fetched by SHA. The shared-copy registry (`scripts/shared-copies.txt`) counts
+  once its checks pass. The answer comes from the local full-history clone of the base (never a
+  shallow or partial one) with no API read; a head the clone lacks is fetched by SHA. The shared-copy registry (`scripts/shared-copies.txt`) counts
   only for a pull request whose own changes since the merge base touch the registry or a canonical
   or copy path it registers at the base tip, since a pull request touching none of them merges
-  cleanly whatever the base registered; every other listed path counts for every pull request. Any
-  doubt, a refused update (its status and message recorded as `updateError`), or a Dependabot head
-  enqueues as before. Empty or absent updates nothing.
+  cleanly whatever the base registered; every other listed path counts for every pull request.
+  With the registry listed, a canonical the pull request carries (its canonical or a copy touched,
+  or a copy newly registered) that the base changed is refused as `shared-copy-sources-changed:`
+  instead of updated: an update leaves the copies the pull request generated from its own
+  canonical, so the fix is merging the base and running `scripts/sync-shared-copies.sh`. No lane
+  acts on that refusal, so the wrapper escalates it: one `<!-- babysit-merge-shared-copy-escalation -->`
+  comment naming the canonicals, the head and the fix, then the human-gated role label, both
+  unchanged by a rerun at the same head; the `head-moved` clear removes the label once the head moves. Any
+  doubt, an update the API refused with a 4xx (its status and message recorded as `updateError`),
+  or a Dependabot head enqueues as before. An update with no answer (a timeout, no status, a server
+  error) may have landed, so it holds the old head instead. Empty or absent updates nothing.
 - **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
   pr-merge lane owns Dependabot pull requests (below).
 
@@ -736,8 +744,10 @@ of that head reported a finding or was whole, and no lane thread is unresolved),
 `Whole review requested at head` line into its reasons comment, then converts the pull request to a
 draft and marks it ready with the lane token, so `ready_for_review` runs both review lanes whole.
 That event also re-runs `pr-require-checks.yml`, `pr-test-windows.yml` and pr-merge itself. The
-line, stamped with the time it was written, is kept on every rewrite, so a head is toggled once and a pull
-request at most twice; past that it waits for a person. A run toggles at most one
+line, stamped with the time it was written, is kept on every rewrite, so a head is toggled once. A pull
+request is toggled at most twice, counted from those lines and from the lane token's conversions to draft on
+its timeline, which the lane token cannot delete as it can edit the comment; past that, or with the timeline
+unread, it waits for a person. A run toggles at most one
 pull request, and only while fewer than 35 jobs are running or queued and the lane token and the job token
 each have 30% of every rate-limit bucket's hourly limit left; an escalated comment is not toggled. Each toggle logs
 `::notice::pr-merge whole-review-toggle pr=<n> head=<sha>`. A draft a run left between the two
@@ -865,7 +875,11 @@ neutral and titled with the top refusal, the gate's reason or else its first blo
 blockers in the summary; success once enqueued or merged, only over a refusal already on show. It
 reads the heads' existing check runs in one GraphQL query per 50 candidates and writes only where
 the title or conclusion changed, so an unchanged sweep writes nothing; the step logs one line of
-written and unchanged counts per sweep. It reads and rewrites only check runs carrying its own
+written and unchanged counts per sweep. The same query reads each candidate pull request's current
+head (`pull-requests: read`, the job's only other permission besides `contents: read`), and a row
+whose head differs gets no write. A pull request the read reports `NOT_FOUND` (deleted or
+transferred) skips only its own row; any other GraphQL error leaves that read's 50 candidates
+unwritten and fails the step. It reads and rewrites only check runs carrying its own
 external id, since every workflow's `GITHUB_TOKEN` posts as the same GitHub Actions app. The check
 is display-only: it is never required and is not part of `ci-status`, and the gate reads neutral as
 passing, so it holds no merge. Not while `merge.report-only` is true.

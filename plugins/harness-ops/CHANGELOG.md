@@ -3,6 +3,18 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.20.2] - 2026-10-20
+
+### Fixed
+
+- `/harness-ops:audit-performance` no longer counts `Edit(**/<dir>/*.<ext>)` and `Write(*.<ext>)` hook gates as firing on a file of another extension, and each `fan_out.hooks.projection` row now reports a `floor` and a `ceiling` beside its existing fields, with each extra copy of a settings-file handler and each upper-case extension gate counted toward the ceiling only (#6786).
+
+## [3.20.1] - 2026-10-20
+
+### Fixed
+
+- `/harness-ops:plugins converge` no longer treats a user home directory as a project path. `fleet-state.sh` marks each project or local record whose `projectPath` is `$HOME`, `/home/<name>`, `/Users/<name>`, `C:\Users\<name>` or the WSL view `/mnt/<drive>/Users/<name>` with `projectPathIsHome: true`. `converge` reports such a row as BLOCKED and emits no command for it, because that directory's `.claude/settings.json` is user settings and a project-scope uninstall there would remove user-scope enables. `sync` leaves those records out of its divergence count and lists them in a `User-home project records` row.
+
 ## [3.20.0] - 2026-10-20
 
 ### Changed

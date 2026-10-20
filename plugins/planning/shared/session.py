@@ -47,7 +47,6 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 if str(HERE.parent / "surface") not in sys.path:
     sys.path.append(str(HERE.parent / "surface"))
-migrate = importlib.import_module("migrate")
 schema = importlib.import_module("schema")
 detached = importlib.import_module("detached")
 
@@ -86,9 +85,11 @@ NOTIFY_CAP = 500
 MAX_INBOX_READ = 100  # judgment: Inbox items one read marks; a person opens one at a time, "all" sends the unread ones
 INBOX_MARKS = ("waiting", "running", "answered", "unshared", "shared", "declined", "failed", "open")  # state.schema.json inboxSeen
 INBOX_STATUS = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}  # a request's Inbox status; done is answered, shared or unshared
-NOT_SHARED = migrate.NOT_SHARED  # a discarded result's request fails with this reason
+NOT_SHARED = "The owner did not share the result."  # a discarded result's request fails with this reason
 NOTIFY_SHOWN = 100
-POPUP_KINDS = ("join", "run", "report", "share", "merge", "fail")  # the owner's Inbox items that may pop up (web/app.js HOST_URGENT)
+# What may pop up the moment it happens (web/app.js POPUP_KINDS, GUEST_POPUPS): the owner's Inbox items and
+# offered files, and a guest's answered request, mention and new round.
+POPUP_KINDS = ("join", "run", "report", "share", "merge", "fail", "upload", "request", "mention", "round")
 MAX_COMMENTS = 200  # judgment: Discussion comments kept on one question; at the cap a new one is refused, none dropped
 MAX_ALL_COMMENTS = 2000  # judgment: comments across the session, as MAX_CHAT; at the cap a new one is refused
 MAX_MY_COMMENTS = 30  # judgment: comments one person keeps on one question, as MAX_MY_NOTES; their hidden ones count too
@@ -167,9 +168,9 @@ PURPOSES = ("decide", "gather", "poll")
 FORMATS = ("text", "choice", "multi", "scale", "rank", "confirm", "prototype")
 # Options Claude writes per format (amendment "Reactions and formats"); the server adds Something else.
 OPTION_COUNTS = {"choice": (2, 4), "multi": (2, 8), "rank": (3, 6)}
-OTHER_OPTION = migrate.OTHER_OPTION
+OTHER_OPTION = {"id": "other", "label": "Something else…", "other": True}
 OTHER = OTHER_OPTION["id"]
-MENTION = migrate.MENTION
+MENTION = re.compile(r"<@([A-Za-z0-9_-]{1,32})>")  # how state.json stores a mention: the person's pid
 VIEWS = ("focus", "compare", "tree", "host", "prototype")
 DEVICES = ("phone", "tablet", "computer")
 BROWSERS = ("chrome", "safari", "firefox", "edge", "samsung", "in-app", "other")
@@ -197,7 +198,7 @@ SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")  # a report's tab and build id
 
 QID = re.compile(r"Q[1-9][0-9]{0,5}")
 ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg|html)")
-IMAGE_ASSET = migrate.IMAGE_ASSET
+IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")  # an image asset's file name
 SVG_ASSET = re.compile(r"[0-9a-f]{16}\.svg")
 VARIANT = re.compile(r"v-[1-9][0-9]?")
 # A note's element path (Annotation.anchor.selector), written by the prototype page's pin helper: "img" on an
@@ -217,7 +218,7 @@ TMP_NAME = re.compile(r"[0-9a-f]{32}")
 STORED_NAME = re.compile(r"[0-9]{8}-U[1-9][0-9]{0,8}-[0-9a-f]{8}(?:\.[a-z0-9]{1,10})?")  # in uploads/accepted/
 STORED_DIR = "uploads/accepted/"
 # A done record's `stored`: one plain name in uploads/accepted/. The server writes STORED_NAME; the v1 design fixture
-# (state-v1.json) holds an older shape that must still load, and no name here can leave the folder.
+# (state-sample.json) holds an older shape that must still load, and no name here can leave the folder.
 # A Windows device name (CON, NUL, COM1, ...) with any extension is refused: opening one reaches the device.
 STORED_PATH = re.compile(r"uploads/accepted/(?!(?i:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\..*)?\Z)[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 FILE_EXT = re.compile(r"[a-z0-9]{1,10}")
@@ -233,7 +234,45 @@ def _element(selector):
     return selector if len(selector) <= MAX_SELECTOR and SELECTOR.fullmatch(selector) else None
 
 
-URL = migrate.URL
+URL = re.compile(r"https?://\S+", re.IGNORECASE)  # a link
+
+
+def tokenize(text, names):
+    """text with every "@Name" of `names` ((name, pid) pairs) as <@pid>, longest name first, so "@Sam 2" is not
+    also "@Sam". A name stands alone: no letter or digit before its @, none (nor _) after it. Tokens stay as they
+    are. A name two people share (casefolded) names nobody and stays text."""
+    if "@" not in text or not names:
+        return text
+    holders = collections.defaultdict(set)
+    for name, pid in names:
+        holders[name.casefold()].add(pid)
+    by = {n: next(iter(pids)) for n, pids in holders.items() if len(pids) == 1}
+    if not by:
+        return text
+    alt = "|".join(re.escape(n) for n in sorted(by, key=len, reverse=True))
+    pattern = re.compile(rf"(?<![^\W_])@({alt})(?!\w)", re.IGNORECASE)
+    parts = MENTION.split(text)  # text, pid, text, pid, ...: only the text between tokens is matched
+    for i in range(0, len(parts), 2):
+        parts[i] = pattern.sub(lambda m: f"<@{by[m.group(1).casefold()]}>" if m.group(1).casefold() in by else m.group(0), parts[i])
+    return "".join(p if i % 2 == 0 else f"<@{p}>" for i, p in enumerate(parts))
+
+
+def mention_texts(doc):
+    """(holder, key) of every text a person wrote that can hold a mention, as state.json keeps it."""
+    out = []
+    people_cards = [c for lst in doc["cards"].values() for c in lst if c.get("kind") == "person"]
+    for c in [*people_cards, *(t for lst in doc.get("cleared", {}).values() for t in lst)]:
+        out += [(c, "text"), *((v, "text") for v in c.get("history", []) if isinstance(v, dict))]
+    out += [(lk["source"], "text") for lk in doc["locks"].values() if "text" in (lk.get("source") or {})]
+    for s in (s for lst in doc["suggestions"].values() for s in lst):
+        out += [(s, "text"), (s, "note")]
+    out += [(q, "text") for q in doc["questions"] if (q.get("origin") or {}).get("kind") == "host"]
+    out += [(r, "text") for key in ("proposals", "chat", "annotations", "requests") for r in doc[key]]
+    out += [(c, "text") for lst in doc["discussions"].values() for c in lst]
+    out += [(m["replyTo"], "excerpt") for m in doc["chat"] if isinstance(m.get("replyTo"), dict)]
+    out += [(n, "body") for lst in doc["notifications"].values() for n in lst if n.get("kind") in ("mention", "reply")]
+    return [(h, k) for h, k in out if isinstance(h, dict) and isinstance(h.get(k), str)]
+
 PREF_ROUND = re.compile(r"all|[1-9][0-9]{0,3}")
 
 DEFAULT_SETTINGS = {
@@ -249,7 +288,11 @@ DEFAULT_SETTINGS = {
 }
 # Settings a session gains only once the owner sets one, so a state file written before them stays as
 # it was (and still loads in the build before them) until then.
-OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True}
+OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None}
+# guestPopups: the pop-ups a guest starts with (round 11), set by the owner; a guest's own `popups` pref wins. Absent,
+# all of GUEST_POPUPS are on.
+GUEST_POPUPS = ("request", "mention", "round")
+LAST_SCHEMA_VERSION = 7  # the last versioned build's file; an older one needs that build's migrations first
 # reviewAnswers: every answer waits for the owner's Share. A new session writes it off; a state file from before it lacks
 # it and so keeps that review-first behavior.
 SETTING_VALUES = {
@@ -1024,7 +1067,6 @@ class Session:
         name = _text({"name": owner_name}, "name", limit=MAX_NAME)
         token = owner_token or ids.token(32)
         state = {
-            "schemaVersion": migrate.CURRENT,
             "pluginVersion": plugin_version,
             "writtenBy": plugin_version,
             "rev": 0,
@@ -1079,9 +1121,9 @@ class Session:
         return s, token
 
     @classmethod
-    def load(cls, path, *, plugin_version="", clock=time.time, ids=None, validate_writes=False, assets_dir=None, notes=None):
-        """Parse state.json once, migrating an older schemaVersion (old file kept as state.v<N>.json;
-        the prototype's file, which has none, as state.v0.json). `notes` collects migration notes."""
+    def load(cls, path, *, plugin_version="", clock=time.time, ids=None, validate_writes=False, assets_dir=None):
+        """Parse state.json once. The shape is no longer versioned: the `schemaVersion` the last versioned build wrote
+        (7) is dropped and the next write leaves it out; a file below 7 needs that build's migrations, so it is refused."""
         path = Path(path)
         raw = path.read_text(encoding="utf-8")
         try:
@@ -1090,18 +1132,14 @@ class Session:
             raise DomainError(500, "state-invalid", f"{path.name} is not JSON: {exc}") from exc
         if not isinstance(doc, dict):
             raise DomainError(500, "state-invalid", f"{path.name} is not a JSON object.")
-        old = migrate.version_of(doc)
-        doc = migrate.migrate(doc, notes, float(clock()))
+        version = doc.pop("schemaVersion", None)
+        if _is_int(version) and version < LAST_SCHEMA_VERSION:
+            raise DomainError(500, "state-too-old", f"{path.name} is at schemaVersion {version}, from before this build; it reads only "
+                              f"{LAST_SCHEMA_VERSION}. Start a new session, or restart it under the previous build first so it migrates to {LAST_SCHEMA_VERSION}.")
         err = document_error(doc)
         if err:
             raise DomainError(500, "state-invalid", f"{path.name}: {err}")
-        s = cls(path, doc, clock=clock, ids=ids, validate_writes=validate_writes, assets_dir=assets_dir, plugin_version=plugin_version)
-        if doc["schemaVersion"] != old:
-            backup = path.with_name(f"{path.stem}.v{old}{path.suffix}")
-            if not backup.exists():
-                write_private(backup, raw)
-            s._write_current()
-        return s
+        return cls(path, doc, clock=clock, ids=ids, validate_writes=validate_writes, assets_dir=assets_dir, plugin_version=plugin_version)
 
     def _write_current(self):
         text = json.dumps(self.state, ensure_ascii=False, allow_nan=False)
@@ -1183,8 +1221,9 @@ class Session:
             raise DomainError(401, "unknown-session", "Join the session again.")
         if person["status"]["kind"] == "removed":
             raise DomainError(403, "removed", "The owner removed you from this session.")
-        if person["status"]["kind"] == "waiting":
-            raise DomainError(403, "waiting", "The host has not let you in yet.")
+        if person["status"]["kind"] == "waiting":  # the waiting page shows the title and intro, nothing else
+            sess = self.state["session"]
+            raise DomainError(403, "waiting", "The host has not let you in yet.", title=sess["title"], intro=sess.get("intro", ""))
         return person
 
     def _ended(self):
@@ -4517,8 +4556,7 @@ class Session:
 
     @staticmethod
     def _claude_failed(r):
-        """A request Claude failed, which only Run again moves on; not one the owner cancelled or discarded (migrate.py
-        5 -> 6 marks discards from before as cancelled)."""
+        """A request Claude failed, which only Run again moves on; not one the owner cancelled or discarded."""
         return r["status"]["kind"] == "failed" and not r["status"]["cancelled"]
 
     def _moderator_pids(self):
@@ -4559,13 +4597,13 @@ class Session:
             self._notify(p, "queue", f"{k} new item{'' if k == 1 else 's'} in the queue.", actor=actor, rollup="queue")
 
     def _tokenize(self, by, text, field="text", limit=MAX_TEXT):
-        """Text `by` wrote with each "@Name" of an active person as <@pid> (migrate.tokenize), so a rename or a merge
+        """Text `by` wrote with each "@Name" of an active person as <@pid> (tokenize), so a rename or a merge
         shows in it. A token counts toward the field's limit. While names are hidden from `by`, "@Name" stays plain
         text: a token would hand them the pid of the person the name belongs to."""
         if not text:
             return text
         names = [] if self._names_hidden_from(by) else [(v["name"], p) for p, v in self.state["people"].items() if self._active(p)]
-        out = migrate.tokenize(text, names)
+        out = tokenize(text, names)
         if len(out) > limit:
             raise DomainError(400, "too-long", f"{field} allows at most {limit} characters; each mention takes more of them than its name.", field=field, max=limit)
         return out
@@ -5297,7 +5335,7 @@ class Session:
         """GET /api/state without identity: only what the join dialog needs."""
         with self._lock:
             s = self.state["session"]
-            return {"title": s["title"], "ended": self._ended(), "joinNeedsKey": bool(s["guestKey"]), "schemaVersion": self.state["schemaVersion"]}
+            return {"title": s["title"], "ended": self._ended(), "joinNeedsKey": bool(s["guestKey"])}
 
     def _base(self):
         """The part of every person's snapshot that is the same for all of them; built once per rev."""
@@ -5314,7 +5352,6 @@ class Session:
         chat = self._visible_chat(active)
         discussions = self._discussions_for(None, active)
         base = {
-            "schemaVersion": st["schemaVersion"],
             "rev": st["rev"],
             "title": st["session"]["title"],
             "goal": st["session"]["goal"],
@@ -5346,7 +5383,7 @@ class Session:
         self._public_uploads = {uid for r in [*_answers(cards), *chat, *_flat(discussions), *_flat(suggestions)] for uid in r.get("attachments", [])}
         # Follow-up 32: received pictures offered on a question that no record ever carried (from before attachments) show
         # under that question; a form's draft or one a record carried, even one since cleared or deleted, never does
-        # (both marks are server-set: at offer, on the first carrying write, and by migrate.py's 6 -> 7 for older files).
+        # (both marks are server-set: at offer and on the first carrying write).
         # Everyone sees the approved ones, the owner and each uploader also those waiting for approval (snapshot).
         self._carried = {u["id"] for u in st["uploads"] if u.get("carried")}
         self._loose_pics = [u for u in st["uploads"] if u.get("qid") and _shows_as_image(u) and not u.get("draft") and not u.get("carried") and self._active(u["pid"])]
@@ -5367,7 +5404,7 @@ class Session:
     def _mentioned_anywhere(self):
         """Who a text everyone may read mentions; a hidden comment's mentions name no one here."""
         hidden = {id(c) for lst in self.state["discussions"].values() for c in lst if "hidden" in c}
-        return sorted({p for h, k in migrate.mention_texts(self.state) if id(h) not in hidden for p in MENTION.findall(h[k])})
+        return sorted({p for h, k in mention_texts(self.state) if id(h) not in hidden for p in MENTION.findall(h[k])})
 
     def _files_of(self, records):
         """C44: what a viewer reads of the files the records they see carry (the owner accepted each): name, kind, size
@@ -5650,6 +5687,9 @@ def _settings_patch(settings, patch):
         if k == "theme":
             if not isinstance(v, dict) or set(v) - set(THEME_VALUES) or any(v[t] not in THEME_VALUES[t] for t in v):
                 raise _bad("theme", "theme takes mode (system, light, dark) and accent (teal, indigo, violet, amber).")
+        elif k == "guestPopups":
+            if not isinstance(v, list) or any(x not in GUEST_POPUPS for x in v) or len(set(v)) != len(v):
+                raise _bad(k, f"guestPopups is a list of {', '.join(GUEST_POPUPS)}, each at most once.")
         elif k in SETTING_VALUES:
             if v not in SETTING_VALUES[k]:
                 raise _bad(k, f"{k} must be one of {', '.join(SETTING_VALUES[k])}.")
@@ -5658,6 +5698,8 @@ def _settings_patch(settings, patch):
     for k, v in patch.items():
         if k == "theme":
             settings["theme"] = {**settings["theme"], **v}
+        elif k == "guestPopups":
+            settings[k] = [x for x in GUEST_POPUPS if x in v]
         else:
             settings[k] = v
     return settings

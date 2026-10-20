@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-10-20
+
+### Changed
+
+- lookup: re-synced the vendored find-docs baseline to upstash/context7@158ad262 and updated the latest-version example queries from Next.js middleware to proxy, matching the Next.js 16 rename.
+
 ## [0.8.0] - 2026-10-20
 
 ### Changed
