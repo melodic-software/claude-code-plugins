@@ -400,6 +400,21 @@ describe("team surface", () => {
     assert.equal(seam.output_home, "docs/ux");
   });
 
+  test("a refusal in the local or user layer is a warning naming that layer", () => {
+    const project = join(scratch, "layer-warnings");
+    mkdirSync(join(project, "docs/conventions"), { recursive: true });
+    writeFileSync(join(project, "docs/conventions/user-experience.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\n");
+    writeFileSync(join(project, "docs/conventions/user-experience.local.yaml"), "routing:\n  deny: [x]\n");
+    const home = join(scratch, "layer-warnings-home");
+    mkdirSync(join(home, "docs/conventions"), { recursive: true });
+    writeFileSync(join(home, "docs/conventions/user-experience.yaml"), "routing:\n  deny: [y]\n");
+    const { team } = detect(["--project", project, "--home", home, "--plugin-list-json", PLUGINS, "--mcp-list", MCP]);
+    assert.equal(team.loaded, true);
+    const refused = (layer) => team.warnings.some((w) => w.startsWith(`${layer} (`) && w.includes('"routing": accepted only in the team layer'));
+    assert.ok(refused("local"), team.warnings.join("\n"));
+    assert.ok(refused("user"), team.warnings.join("\n"));
+  });
+
   test("an empty routing key is accepted, and a routing that is not a mapping degrades", () => {
     const empty = join(scratch, "routing-empty.yaml");
     writeFileSync(empty, "version: 1\nrouting:\n");
