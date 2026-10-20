@@ -2740,7 +2740,7 @@ def queued_entry_hold(
 
 # --- The unattended path ------------------------------------------------------------------------
 
-RISK_MARKER = "<!-- babysit-merge-risk -->"
+RISK_MARKER = whole_review.RISK_MARKER
 # Appended to the reasons comment when its refusal persisted: the rewrite
 # stamps the comment beside the label it explains, which the head-moved
 # clear (clear-escalations.mjs) needs to pair them.

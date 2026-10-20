@@ -1538,9 +1538,11 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutates_what="a pull request's draft state",
         gate="pr-merge.yml runs `recover` with the lane token, live mode only",
         claim=(
-            "`recover` reads each listed draft's comments and marks ready a "
-            "draft whose newest comment by the lane identity records a "
-            "whole-review request at its current head."
+            "`recover` reads each listed draft's comments and newest "
+            "conversion to draft, and marks ready a draft whose newest "
+            "reasons comment (`<!-- babysit-merge-risk -->`) by the lane "
+            "identity records a whole-review request, when the lane identity "
+            "also made that conversion."
         ),
         backed_by=("whole-review.marks-ready",),
     ),

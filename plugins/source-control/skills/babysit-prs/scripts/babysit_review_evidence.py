@@ -512,8 +512,8 @@ def _open_findings(
     if not isinstance(threads, list | tuple):
         raise Unbound("evidence-error")
     covered = [0] * len(windows)
-    open_threads = 0
-    unresolved = 0
+    # Open threads: unresolved ones, and resolved ones nothing closed.
+    unresolved = held = 0
     for thread in threads:
         if not isinstance(thread, Mapping):
             raise Unbound("evidence-error")
@@ -528,7 +528,6 @@ def _open_findings(
                     claimed.add(thread_id)
                     break
         if thread.get("isResolved") is not True:
-            open_threads += 1
             unresolved += 1
         elif cleared and read_through and created and created < read_through:
             continue
@@ -539,7 +538,7 @@ def _open_findings(
             and created < first
             and _line_changed(thread, head_file)
         ) and not is_human(thread.get("resolvedBy")):
-            open_threads += 1
+            held += 1
     # Inline findings with no thread left, counted like summary findings:
     # per chain link, the most any review of its kind at its head left.
     gone = [max(k - n, 0) for (_, _, k), n in zip(windows, covered)]
@@ -550,7 +549,7 @@ def _open_findings(
         )
         for rec in chain
     )
-    count = summary + open_threads + missing
+    count = summary + unresolved + held + missing
     return count, count > 0 and not unresolved and not head_spent
 
 

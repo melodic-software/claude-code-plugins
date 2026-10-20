@@ -110,6 +110,10 @@ class Limits(unittest.TestCase):
         self.assertIsNone(self.limits())
         self.assertEqual(self.limits(), "sweep-limit")
 
+    def test_exactly_the_minimum_remaining_is_allowed(self) -> None:
+        self.lane_left = self.job_left = wr.MIN_REMAINING
+        self.assertIsNone(self.limits())
+
     def test_a_refusal_also_spends_the_sweep(self) -> None:
         self.lane_left = 1499
         self.assertEqual(self.limits(), "rate-limit:lane:1499")
@@ -183,6 +187,7 @@ class Toggle(unittest.TestCase):
 
 class Recover(unittest.TestCase):
     NOW = datetime(2026, 10, 20, 12, tzinfo=UTC)
+    LANE = "lanes[bot]"
 
     def draft(self, **kw: Any) -> dict[str, Any]:
         return {
@@ -194,42 +199,78 @@ class Recover(unittest.TestCase):
             **kw,
         }
 
+    def comment(self, body: str, login: str = LANE, at: str = "T1") -> dict[str, Any]:
+        return {"user": {"login": login}, "created_at": at, "body": body}
+
+    def reasons(self, head: str = HEAD) -> str:
+        return wr.with_record(f"{wr.RISK_MARKER}\nUnattended merge: risk MED", head)
+
     def recover(
-        self, drafts: list[dict[str, Any]], body: str, login: str = "lanes[bot]"
+        self,
+        drafts: list[dict[str, Any]],
+        comments: list[dict[str, Any]],
+        converter: str | None = "lanes",
     ) -> tuple[list[dict[str, Any]], list[str]]:
-        comments = [{"user": {"login": login}, "created_at": "x", "body": body}]
         writes: list[str] = []
+        actor = None if converter is None else {"login": converter}
+        timeline = {"data": {"node": {"timelineItems": {"nodes": [{"actor": actor}]}}}}
+
+        def capture(args: list[str]) -> Any:
+            if wr.READY in args[3]:
+                writes.append(args[-1])
+                return done({})
+            return done(timeline)
+
         with (
             mock.patch.object(wr, "fetch_paginated_api", return_value=comments),
-            mock.patch.object(
-                wr, "gh_capture", side_effect=lambda a: writes.append(a[-1]) or done({})
-            ),
+            mock.patch.object(wr, "gh_capture", side_effect=capture),
         ):
-            return wr.recover("o/r", "lanes[bot]", drafts, now=self.NOW), writes
+            return wr.recover("o/r", self.LANE, drafts, now=self.NOW), writes
 
-    def test_readies_a_draft_recorded_at_its_head(self) -> None:
-        out, writes = self.recover([self.draft()], wr.with_record("r", HEAD))
+    def test_readies_a_draft_the_lane_converted(self) -> None:
+        out, writes = self.recover([self.draft()], [self.comment(self.reasons())])
         self.assertEqual(out, [{"pr": 7, "head": HEAD, "ready": True}])
         self.assertEqual(writes, ["id=PR_7"])
 
+    def test_a_human_conversion_after_the_record_stays_a_draft(self) -> None:
+        out, writes = self.recover(
+            [self.draft()], [self.comment(self.reasons())], converter="maintainer"
+        )
+        self.assertEqual((out, writes), ([], []))
+
+    def test_a_head_moved_mid_toggle_still_recovers(self) -> None:
+        moved = self.draft(head="b" * 40)
+        out, writes = self.recover([moved], [self.comment(self.reasons(HEAD))])
+        self.assertEqual(writes, ["id=PR_7"])
+
+    def test_a_later_lane_comment_does_not_hide_the_record(self) -> None:
+        comments = [
+            self.comment(self.reasons(), at="T1"),
+            self.comment("<!-- babysit-merge-pin -->\nother", at="T2"),
+        ]
+        out, writes = self.recover([self.draft()], comments)
+        self.assertEqual(writes, ["id=PR_7"])
+
     def test_leaves_other_drafts(self) -> None:
-        for drafts, body, login in (
-            ([self.draft()], "no record", "lanes[bot]"),
-            ([self.draft()], wr.with_record("r", "b" * 40), "lanes[bot]"),
-            ([self.draft()], wr.with_record("r", HEAD), "someone"),
+        unmarked = wr.with_record("no marker line", HEAD)
+        for drafts, comments, converter in (
+            ([self.draft()], [self.comment(f"{wr.RISK_MARKER}\nno record")], "lanes"),
+            ([self.draft()], [self.comment(unmarked)], "lanes"),
+            ([self.draft()], [self.comment(self.reasons(), login="someone")], "lanes"),
+            ([self.draft()], [self.comment(self.reasons())], None),
             (
                 [self.draft(labels=["do-not-merge"])],
-                wr.with_record("r", HEAD),
-                "lanes[bot]",
+                [self.comment(self.reasons())],
+                "lanes",
             ),
             (
                 [self.draft(updatedAt="2026-10-18T00:00:00+00:00")],
-                wr.with_record("r", HEAD),
-                "lanes[bot]",
+                [self.comment(self.reasons())],
+                "lanes",
             ),
         ):
-            out, writes = self.recover(drafts, body, login)
-            self.assertEqual((out, writes), ([], []), (drafts, body, login))
+            out, writes = self.recover(drafts, comments, converter)
+            self.assertEqual((out, writes), ([], []), (drafts, comments, converter))
 
 
 if __name__ == "__main__":

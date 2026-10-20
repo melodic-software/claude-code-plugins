@@ -16,7 +16,8 @@ token's events start workflows; GITHUB_TOKEN's do not). Bounds:
   both the lane token and the job's own token have `MIN_REMAINING` calls left.
 
 `recover` marks ready a draft the toggle left behind (the run ended between
-its two writes).
+its two writes), only when the lane identity made its newest conversion to
+draft.
 """
 
 from __future__ import annotations
@@ -34,6 +35,9 @@ from typing import Any
 import babysit_risk
 from babysit_gh import fetch_paginated_api, gh_capture
 
+# The reasons comment babysit_merge.py writes; the record lives in it.
+RISK_MARKER = "<!-- babysit-merge-risk -->"
+RECORD_PREFIX = "Whole review requested at head `"
 SPENT_ENV = "BABYSIT_WHOLE_REVIEW_SPENT"
 # The job's own token (GITHUB_TOKEN), which also reads the runs.
 JOB_TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
@@ -54,7 +58,7 @@ READY = (
 
 def record_line(head: str) -> str:
     return (
-        f"Whole review requested at head `{head}`: an incremental review cannot "
+        f"{RECORD_PREFIX}{head}`: an incremental review cannot "
         "clear the findings below."
     )
 
@@ -161,14 +165,42 @@ def toggle(node_id: str, *, sleep: Any = time.sleep) -> dict[str, Any]:
     return {"toggled": False, "error": "stranded-draft: mark-ready failed"}
 
 
+CONVERTER = (
+    "query($id: ID!) { node(id: $id) { ... on PullRequest {"
+    " timelineItems(itemTypes: [CONVERT_TO_DRAFT_EVENT], last: 1)"
+    " { nodes { ... on ConvertToDraftEvent { actor { login } } } } } } }"
+)
+
+
+def _login(value: Any) -> str:
+    """A login compared across REST (`app[bot]`) and GraphQL (`app`)."""
+    return str(value or "").casefold().removesuffix("[bot]")
+
+
+def _converter(node_id: str) -> str | None:
+    """Who made the newest conversion to draft, or None when unread."""
+    proc = gh_capture(
+        ["api", "graphql", "-f", f"query={CONVERTER}", "-f", f"id={node_id}"]
+    )
+    if proc.returncode != 0:
+        return None
+    try:
+        nodes = json.loads(proc.stdout)["data"]["node"]["timelineItems"]["nodes"]
+        return (nodes[-1].get("actor") or {}).get("login") if nodes else None
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+
+
 def recover(
     repo: str,
     identity: str,
     drafts: Sequence[Mapping[str, Any]],
     now: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    """Mark ready each recently updated draft whose newest comment by
-    `identity` records a whole-review request at its current head."""
+    """Mark ready each recently updated draft whose newest reasons comment by
+    `identity` records a whole-review request at any head, when `identity`
+    also made its newest conversion to draft: a draft a person made stays
+    one. Two reads per such draft: its comments and that conversion."""
     now = now or datetime.now(UTC)
     out = []
     for pr in drafts:
@@ -181,7 +213,7 @@ def recover(
         if (
             "do-not-merge" in labels
             or now - updated > timedelta(hours=RECOVER_HOURS)
-            or not (isinstance(head, str) and isinstance(node_id, str))
+            or not isinstance(node_id, str)
         ):
             continue
         try:
@@ -192,15 +224,22 @@ def recover(
         except (RuntimeError, ValueError) as exc:
             out.append({"pr": number, "error": str(exc)})
             continue
-        mine = [
+        reasons = [
             c
             for c in comments
-            if str((c.get("user") or {}).get("login") or "").casefold()
-            == identity.casefold()
+            if _login((c.get("user") or {}).get("login")) == _login(identity)
+            and RISK_MARKER
+            in [
+                line.rstrip("\r")
+                for line in str(c.get("body") or "").split("\n", 2)[:2]
+            ]
         ]
-        newest = max(mine, key=lambda c: str(c.get("created_at")), default=None)
-        if newest is not None and recorded(newest.get("body"), head):
-            out.append({"pr": number, "head": head, "ready": _graphql(READY, node_id)})
+        newest = max(reasons, key=lambda c: str(c.get("created_at")), default=None)
+        if newest is None or RECORD_PREFIX not in str(newest.get("body") or ""):
+            continue
+        if _login(_converter(node_id)) != _login(identity):
+            continue
+        out.append({"pr": number, "head": head, "ready": _graphql(READY, node_id)})
     return out
 
 

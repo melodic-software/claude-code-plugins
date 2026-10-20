@@ -740,7 +740,8 @@ line is carried on every rewrite at that head, so a head is toggled once. A run 
 pull request, and only while fewer than 35 jobs are running and the lane token and the job token
 each have 1,500 calls left; an escalated comment is not toggled. Each toggle logs
 `::notice::pr-merge whole-review-toggle pr=<n> head=<sha>`. A draft a run left between the two
-writes is marked ready by the next run.
+writes is marked ready by the next run, only when the lane token made its newest conversion to draft;
+a draft a person made stays one.
 
 While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
 no full CI run either; its summary says whether it would have.
