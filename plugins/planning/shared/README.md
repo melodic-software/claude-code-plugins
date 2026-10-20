@@ -86,7 +86,9 @@ one already. The flags may instead be `defaults.json` keys, `import`, `guestPort
   session instead answers that browser 401 `merged-into-owner`; see [Moderation](#moderation).)
   Uploads do not carry over yet. A round the
   prototype had sent to Claude opens again. The original stays beside it as `state.v0.json`.
-  Each later step keeps the file it read as `state.v<N>.json`. Version 6 marks requests the owner discarded before
+  Each later step keeps the file it read as `state.v<N>.json`. Version 7 marks every upload `carried`, so it never
+  shows under its question, except an offer whose server-set `at` is before forms attached pictures (5026be8b) and that
+  no `attachments` list names; an upload with no usable `at` is carried. Version 6 marks requests the owner discarded before
   as cancelled and starts the owner's read marks of guests' requests Claude failed before, so an upgrade adds nothing
   to Needs you. Version 3 stores mentions as
   `<@pid>` (see Mentions under [Moderation](#moderation)): an "@Name" only one person holds now becomes theirs; then,

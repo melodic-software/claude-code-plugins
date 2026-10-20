@@ -111,6 +111,8 @@ async function main() {
     ok("the offer is recorded, waiting for the host", offered, uid);
     ok("the file is held in her browser (IndexedDB) until the host accepts", (await idbKeys(ann) || []).includes(uid));
     ok("her row says it waits for the host", await until(ann, () => [...document.querySelectorAll(".vf-upstrip .vf-uprow")].some(r => /Waiting for the host/.test(r.textContent))));
+    ok("Offer file attaches it to her answer at once, as a paste does, waiting for the host", await until(ann, () => [...document.querySelectorAll(".vf-composer .vf-attdraft .vf-ref")]
+      .some(li => li.textContent.includes("funnel.pdf") && /Waiting for the host/.test(li.textContent))));
     ok("nothing of it reached the session folder yet", !fs.existsSync(path.join(A.dir, "uploads", "accepted")) || fs.readdirSync(path.join(A.dir, "uploads", "accepted")).length === 0);
 
     // ---------- a dropped piece, then a reload: the send resumes from the server's count ----------
