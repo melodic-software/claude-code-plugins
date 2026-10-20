@@ -229,7 +229,8 @@ jobs:
           path: ${{ runner.temp }}/work-outcome
 
       # The branch report-outcome opens the PR from: the reuse branch, else
-      # the one lane.json names, which must be this run's own.
+      # the one lane.json names, which must be this run's own, else the
+      # branch a resumed run continued.
       - name: Pick the lane branch
         id: branch
         env:
@@ -246,6 +247,14 @@ jobs:
               branch=$(jq -r '.branch | strings' "$LANE_FILE" 2>/dev/null) || branch=""
             fi
             shape="^work-resolve-issue/issue-$ISSUE_NUMBER-$RUN_ID-[1-9][0-9]*$"
+            # A resumed run that committed nothing kept no branch, so its work
+            # is the branch it resumed: that whole branch is checked.
+            # report-outcome counts the results only when every commit on it
+            # ahead of the default branch is the lanes App's.
+            if [ -z "$branch" ] && [ -f "$LANE_FILE" ]; then
+              branch=$(jq -r '.resume | strings' "$LANE_FILE" 2>/dev/null) || branch=""
+              shape="^work-resolve-issue/issue-$ISSUE_NUMBER-[1-9][0-9]*-[1-9][0-9]*$"
+            fi
           fi
           if ! [[ $branch =~ $shape ]]; then
             echo "No lane branch of this run to check"

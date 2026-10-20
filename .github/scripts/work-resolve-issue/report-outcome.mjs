@@ -610,12 +610,40 @@ export function decide({
     const restart = turnCapRestarts < limits["turn-cap-restarts"];
     return turnCapPlan({ issueNumber, branch, cap: turnCap.cap, restart, humanLabel, runId, runUrl, onResumed });
   }
-  // A resumed run that committed nothing of its own: the runner checked no
-  // branch of this run, so the earlier run's work goes to a person unopened.
+  // A resumed run that committed nothing of its own: its work is the
+  // resumed branch's. main passes checks for that branch only once run-checks
+  // checked it at its current tip and every commit on it ahead of the default
+  // branch is the lanes App's; then the PR opens from it when at least one
+  // check ran and none failed. Otherwise a person gets it unopened.
+  const resumedChecked = Boolean(checks?.results.length) && !checkFailures(checks).length;
+  if (outcome.exit === "done" && !branch && resumed && resumedChecked) {
+    return decide({
+      outcome: {
+        ...outcome,
+        verification: [
+          `This run resumed \`${resumed}\` and made no commit of its own; the runner checked that whole branch at ${checks.tip}, and every commit on it ahead of the default branch is the lanes App's.`,
+          ...outcome.verification,
+        ],
+      },
+      issueNumber,
+      issueLabels,
+      issueTitle,
+      branch: resumed,
+      changedFiles,
+      holdPaths,
+      humanMerge,
+      humanLabel,
+      runUrl,
+      limits,
+      now,
+      runId,
+      checks,
+    });
+  }
   if (outcome.exit === "done" && !branch && resumed) {
     return handBack({
       outcome: stopped(
-        `The run resumed \`${resumed}\` and reported done with no new commit. The earlier run's work is on that branch, which the runner did not check, so no PR was opened.`,
+        `The run resumed \`${resumed}\` and reported done with no new commit. The earlier run's work is on that branch, and the runner's checks did not pass over that whole branch, so no PR was opened.`,
       ),
       issueNumber,
       branch: resumed,
@@ -752,6 +780,16 @@ export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding"]);
 const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);
 export const isLaneBranch = (name, issueNumber) => laneBranch(issueNumber).test(name ?? "");
 
+// A commit the lanes App made through the API: verified, authored by the App
+// and committed by web-flow (a branch name proves nothing about who pushed to
+// it, and anyone can sign a commit naming the App's address as author).
+const laneCommit = (commit, bot) =>
+  commit?.commit?.verification?.verified === true && commit.author?.login === bot && commit.committer?.login === "web-flow";
+// A resume carries every commit ahead of the default branch into the next PR,
+// so each of them, not only the tip, must be the lanes App's. A listing cut
+// short (null) passes none.
+const allLaneCommits = (commits, bot) => Array.isArray(commits) && commits.length > 0 && commits.every((commit) => laneCommit(commit, bot));
+
 export function readBranch(dir, issueNumber, key = "branch") {
   try {
     const branch = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"))?.[key];
@@ -812,16 +850,13 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   }
   const reported = ({ match, tipAt }) =>
     markers.some((marker) => marker.run === match[1] || (marker.run === "" && !(marker.at <= tipAt)));
-  const laneTip = ({ tip }) =>
-    tip?.commit?.verification?.verified === true && tip.author?.login === bot && tip.committer?.login === "web-flow";
+  const laneTip = ({ tip }) => laneCommit(tip, bot);
   const usable = (branch) => branch.aheadBy > 0 && laneTip(branch) && !branch.pulls.some(byBot);
   const reuse = lane.find((branch) => usable(branch) && !reported(branch));
   if (reuse) {
     return { action: "reuse", branch: reuse.name };
   }
-  // A resume carries every commit ahead of the default branch into the next
-  // PR, so each of them, not only the tip, must be the lanes App's.
-  const allLane = ({ commits }) => Array.isArray(commits) && commits.length > 0 && commits.every((commit) => laneTip({ tip: commit }));
+  const allLane = ({ commits }) => allLaneCommits(commits, bot);
   // Newest marker first. A resumable marker for a resumed run that kept no
   // branch of its own (`branch=resumed`) left the work on the run before it,
   // so it is passed over. The first other marker decides: a resumable one
@@ -1104,7 +1139,9 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // branch; decide() marks it so, and hands a done run back naming the
     // resumed branch.
     const resumed = branch ? "" : readBranch(dir, issueNumber, "resume");
-    const checked = readChecks(env.RUNNER_CHECKS ?? "", { branch });
+    // run-checks checks the resumed branch when this run kept none of its own.
+    const checkedBranch = branch || resumed;
+    const checked = readChecks(env.RUNNER_CHECKS ?? "", { branch: checkedBranch });
     const limit = readLimit(dir);
     const turnCap = readTurnCap(dir);
     const funding = readFunding(dir);
@@ -1130,25 +1167,38 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // tip they checked; a tip that cannot be read counts as no results.
     // run-checks checks only this run's own lane branch (or the reuse branch),
     // so results for another run's branch were not written by it.
-    const ownBranch = reuse !== "" || laneBranch(issueNumber).exec(branch)?.[1] === env.GITHUB_RUN_ID;
-    let checks = branch && ownBranch && (unreported || outcome?.exit === "done") ? checked : null;
+    // A resumed branch is the earlier run's, named by lane.json (rewritable),
+    // so its results count only once every commit on it is the App's (below).
+    const ownBranch = reuse !== "" || resumed !== "" || laneBranch(issueNumber).exec(branch)?.[1] === env.GITHUB_RUN_ID;
+    let checks = checkedBranch && ownBranch && (unreported || outcome?.exit === "done") ? checked : null;
     if (checks) {
-      const ref = branch.split("/").map(encodeURIComponent).join("/");
+      const ref = checkedBranch.split("/").map(encodeURIComponent).join("/");
       const tip = await github("GET", `${repo}/git/ref/heads/${ref}`).then((answer) => answer?.object?.sha, () => "");
       if (tip !== checks.tip) {
-        console.log(`report-outcome: ${branch} is not at the tip the runner checked, so its check results do not count`);
+        console.log(`report-outcome: ${checkedBranch} is not at the tip the runner checked, so its check results do not count`);
         checks = null;
       }
     }
     let base = "";
-    const compare = async () => {
+    let commits = null;
+    const compare = async (head = branch) => {
       base = (await github("GET", repo)).default_branch;
-      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(branch)}`);
+      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
+      // The listing holds at most 250 commits; one cut short lists none.
+      commits = Array.isArray(comparison.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
       return (comparison.files ?? []).flatMap((file) =>
         file.previous_filename ? [file.filename, file.previous_filename] : [file.filename],
       );
     };
-    const changedFiles = outcome?.exit === "done" && branch ? await compare() : [];
+    const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+    let changedFiles = outcome?.exit === "done" && branch ? await compare() : [];
+    if (outcome?.exit === "done" && resumed && checks) {
+      changedFiles = await compare(resumed);
+      if (!allLaneCommits(commits, bot)) {
+        console.log(`report-outcome: ${resumed} holds a commit that is not the lanes App's, so its check results do not count`);
+        checks = null;
+      }
+    }
     const resolvedPath = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
     const holdPaths = readHoldPaths(resolvedPath);
     // A reuse whose outcome cannot be read never takes the limit record: the
@@ -1156,7 +1206,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // file list is only text, so a failed compare never blocks the PR.
     const issueTitle = typeof issue.title === "string" ? issue.title : "";
     const issueLabels = (issue.labels ?? []).map((label) => label.name);
-    const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
     // A labeler that cannot be read holds the PR, like an unreadable denied-path list.
     const humanMerge =
       !unreported &&
