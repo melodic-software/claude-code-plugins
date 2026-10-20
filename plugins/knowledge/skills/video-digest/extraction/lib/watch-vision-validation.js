@@ -575,7 +575,7 @@ export function reportSliceValidation(result, label) {
 
 /**
  * @param {string} sliceDir
- * @returns {{ valid: boolean, errors: string[], doc?: object }}
+ * @returns {{ valid: boolean, errors: string[], doc?: { reviewedAt?: string, files?: { name: string, pass: boolean, note?: string }[] } }}
  */
 export function validateQualityAuditForSlice(sliceDir) {
   const absSlice = path.resolve(sliceDir);

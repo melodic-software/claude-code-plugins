@@ -172,6 +172,9 @@ HIGH_FLOOR: tuple[str, ...] = (
     "prompts/**",
     "plugins/*/lib/**",  # synced copies of lib/ that hooks run
     "plugins/*/bin/**",  # on the Bash tool's PATH while the plugin is enabled
+    # Scripts skills run through `!` lines, and agents and workflows by path.
+    "plugins/*/scripts/**",
+    "plugins/*/skills/*/scripts/**",
     # Hook-run scripts outside hooks/.
     "plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py",
     "plugins/disk-hygiene/skills/clean/scripts/engine_context.py",

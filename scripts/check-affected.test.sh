@@ -248,7 +248,23 @@ chmod +x "$repo/scripts/validate-plugins.sh"
 run PATH="$tmp/bin:$PATH" -- --uncommitted
 check "--uncommitted validates a plugin that only untracked files touch" \
   '[[ $RC == 1 && $ERR == *"FAIL validate-plugins"* && $ERR == *"validate-plugins ran: --only demo"* ]]'
-rm -rf "$repo/new-tool" "$repo/plugins" "$repo/scripts/validate-plugins.sh"
+rm -rf "$repo/plugins" "$repo/scripts/validate-plugins.sh"
+# The lane's sandbox masks dotfiles in the checkout with /dev/null, a device git
+# refuses to add; it is skipped and the regular untracked file still checked.
+if bwrap --bind / / --dev /dev true 2>/dev/null; then
+  chmod -x "$repo/new-tool"
+  : >"$repo/.bash_profile"
+  RC=0
+  OUT="$(cd "$repo" && bwrap --bind / / --dev /dev --ro-bind /dev/null "$repo/.bash_profile" --ro-bind /dev/null "$repo/notes.txt" \
+    bash scripts/check-affected.sh --uncommitted 2>"$tmp/err")" || RC=$?
+  ERR="$(cat "$tmp/err")"
+  check "--uncommitted skips untracked and tracked device nodes and still checks the regular file beside it" \
+    '[[ $RC == 1 && $ERR == *"new-tool starts with #!"* && $ERR != *"can only add regular files"* ]]'
+  rm -f "$repo/.bash_profile"
+else
+  ok "SKIP device-node case (bwrap cannot start here)"
+fi
+rm -rf "$repo/new-tool"
 check "--uncommitted leaves HEAD, the index and the worktree list as they were" '[[ $(state) == "$before" ]]'
 
 run -- --bogus
