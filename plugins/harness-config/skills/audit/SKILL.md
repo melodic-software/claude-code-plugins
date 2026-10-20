@@ -78,7 +78,7 @@ A row the engine marks `skip` or `not-inspectable` is exactly that in the report
 | File | How to read | Notes |
 | --- | --- | --- |
 | `.claude/settings.json` | the engine, or `jq` | Project-level, checked in |
-| `.claude/settings.local.json` | the engine (structure and the four model and effort keys only) | Commonly deny-listed for the Read tool because it holds tokens. **Never echo secret values** |
+| `.claude/settings.local.json` | the engine (structure and the four model and effort keys only) | Machine-local; it must hold no credentials, which belong in environment variables or a secret store. The audit reads only its structure and the four model and effort keys. **Never echo secret values** |
 | `.mcp.json` | the engine, or `jq` | Project-level MCP server definitions |
 | `~/.claude/settings.json` | the engine, or the Read tool | User-level defaults (optional; checked when it exists) |
 | start-directory `.claude/settings.local.json` | `check-structure.sh` (structure only) | Only when the session's start directory is not the repository root AND a copy is there. A pre-v2.1.211 Claude Code wrote the file to the start directory and the current one still reads what it left; the repository-root copy wins on a shared key, but **permission rules from both files stay in effect**. The dated record for that boundary is `audit-permission-state/reference/criteria.md` §Scopes |
