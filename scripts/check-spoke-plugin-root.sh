@@ -26,7 +26,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-cd "$SCRIPT_DIR/.." || exit 2
+# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this
+# script (the pre-push hook runs a merge-base copy against the branch).
+cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 
 case "${1:-}" in
 '' | --check) ;;

@@ -386,12 +386,13 @@ head:
 | `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head |
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
 | `feedback-protected-path` | the PR changes nothing under `.github/` |
+| `head-moved` (pr-merge's `babysit-merge-verify-escalation` and `babysit-merge-risk`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
 when a person commented, reviewed or left a review comment since that event (a bot account, such
 as an AI review or another lane, does not count), or when an App comment
-written or edited since then carries any marker other than pr-unblock's escalation (pr-merge's
-own `babysit-merge-*` escalations, another lane's). Every other reason
+written or edited since then carries any marker other than the escalation being judged (another
+`babysit-merge-*` marker, another lane's). Every other reason
 (`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
 `ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
 
@@ -608,6 +609,16 @@ that fails counts as a refusal.
   An unreadable timeline, or 20 timeline items with no head change among them, refuses the
   enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment naming the
   failing `merge_group` runs.
+- **Stale check inputs.** `merge.check-inputs` lists git pathspecs the pull request checks read.
+  When the base changed one since a pull request's merge base, the wrapper updates the branch from
+  the base (`update-branch`, a merge) instead of enqueuing it; the new head enqueues on a later run
+  once its checks pass. The answer comes from the local clone of the base with no API read; a head
+  the clone lacks is fetched by SHA. The shared-copy registry (`scripts/shared-copies.txt`) counts
+  only for a pull request whose own changes since the merge base touch the registry or a canonical
+  or copy path it registers at the base tip, since a pull request touching none of them merges
+  cleanly whatever the base registered; every other listed path counts for every pull request. Any
+  doubt, a refused update (its status and message recorded as `updateError`), or a Dependabot head
+  enqueues as before. Empty or absent updates nothing.
 - **Dependabot.** A dependency-manager author is never eligible for a local unattended merge. The
   pr-merge lane owns Dependabot pull requests (below).
 
@@ -792,6 +803,20 @@ App token the broker mints for that file on `main`. A finished `ci-status` or re
 up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
 must start them more slowly than they finish to stay under GitHub's cap on queued runs.
 
+After the gate, a `gate-check` job of its own writes each candidate's verdict on its head as one
+`pr-merge / gate` check run with its `GITHUB_TOKEN`, from the gate's rows the merge job hands it as
+an artifact. Only that job holds `checks: write`, since main's ruleset requires `ci-status` from
+the same GitHub Actions app and a token with that permission could pass it; the merge job keeps
+`checks: read` and the lane token holds no Checks permission. The check is:
+neutral and titled with the top refusal, the gate's reason or else its first blocker, with the
+blockers in the summary; success once enqueued or merged, only over a refusal already on show. It
+reads the heads' existing check runs in one GraphQL query per 50 candidates and writes only where
+the title or conclusion changed, so an unchanged sweep writes nothing; the step logs one line of
+written and unchanged counts per sweep. It reads and rewrites only check runs carrying its own
+external id, since every workflow's `GITHUB_TOKEN` posts as the same GitHub Actions app. The check
+is display-only: it is never required and is not part of `ci-status`, and the gate reads neutral as
+passing, so it holds no merge. Not while `merge.report-only` is true.
+
 #### Review-only dependencies
 
 A non-major release of a hijacked package passes tier `auto` on a green `ci-status`. A dependency
@@ -938,8 +963,10 @@ refusal on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, and
 for `verify:fail` quoting as data the first 1500 characters of the `summary` in the newest head
 `fail` verdict when its record can be read and names this pull request. The comment is rewritten
-only when any of these changes, and a failed read of the record leaves a comment that already
-quotes a summary for the same refusal and head as it is; then the lane adds the tracker's human-gated role label (`needs-human` unless
+only when any of these changes. A `verify:fail` whose record cannot be read, or a
+`verify:earlier-fail`, quotes the summary the lane's last such comment quoted, under the head it
+was given at, so a failed read rewrites nothing and the reason outlives a push; an earlier-fail
+whose last quote is a fail at this head stays `verify:fail`. Then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run; a rerun that
 finds both writes nothing. While it is true the refusal is only reported. The

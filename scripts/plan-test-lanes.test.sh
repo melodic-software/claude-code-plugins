@@ -182,6 +182,20 @@ plan -- plugins/animation/requirements.txt
 is "$(suites python | tr '\n' ' ')" "plugins/p/test_p.py plugins/q/test_q.py "
 check "the animation lock test-python installs is a Python pin" $?
 
+# 925 suite-seconds would take ceil(925/180) = 6 legs; test-python stops at 4.
+# Longest first onto the least-loaded leg: p, r, s and q open the four legs,
+# then t joins q (100), u joins s (110), v joins r (190) and w joins q and t (195).
+cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
+for s in r s t u v w; do mk "plugins/$s/test_$s.py" "assert True"; done
+printf '%s\n' "plugins/r/test_r.py 190" "plugins/s/test_s.py 110" "plugins/t/test_t.py 95" \
+  "plugins/u/test_u.py 90" "plugins/v/test_v.py 80" "plugins/w/test_w.py 60" >>"$repo/scripts/suite-seconds.txt"
+plan -- .python-version
+for s in r s t u v w; do rm -rf "${repo:?}/plugins/$s"; done
+cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
+is "$(key python_legs)" "[0,1,2,3]" &&
+  grep -q 'python: 8 suite(s), 925 suite-seconds, 4 leg(s): 200s/1 270s/2 200s/2 255s/3' "$ERR"
+check "test-python packs by suite-seconds onto at most 4 legs, longest first to the least-loaded leg" $?
+
 plan -- lib/w.mjs
 is "$(suites bash)" "lib/w.test.sh" && is "$(key node)" false
 check "a Node suite with a sibling .test.sh runs through it on test-bash" $?

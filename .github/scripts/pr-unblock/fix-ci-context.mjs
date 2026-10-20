@@ -53,12 +53,17 @@ export function logExcerpt(text) {
   return excerpt;
 }
 
-// The latest run of each check name, when it failed.
+// A contract-only run skips every lane, and ci-status then carries the last
+// full run's recorded verdict forward, so a skip says nothing about a check.
+const SILENT = new Set(["skipped", "neutral"]);
+const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
+
+// The latest run of each check name that is not a skip, when it failed.
 function failingChecks(checkRuns) {
   const latest = new Map();
   for (const run of checkRuns) {
     const kept = latest.get(run.name);
-    if (!kept || run.id > kept.id) {
+    if (!kept || (silent(kept) && !silent(run)) || (silent(kept) === silent(run) && run.id > kept.id)) {
       latest.set(run.name, run);
     }
   }
