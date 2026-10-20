@@ -2397,14 +2397,55 @@ class ReasonsComment(Unattended):
         self.run_main()
         self.assertEqual(self.log, ["risk-comment:POST"])
 
-    def test_a_low_score_after_an_earlier_sweep_writes_nothing(self) -> None:
+    def comment_writes(self) -> list[str]:
+        """This run's reasons-comment writes; a LOW run also enqueues."""
+        return [e for e in self.log if e.startswith("risk-comment")]
+
+    def test_a_low_score_after_an_earlier_sweep_clears_the_comment(self) -> None:
+        # The refusal ended at this head: a later MED or HIGH with the same
+        # reasons must not read the old comment's age as its own.
         body = self.body()
         self.setUp()
         self.earlier_sweep(body)
         _, out = self.run_main()
         self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
-        self.assertNotIn(self.LABEL, self.log)
-        self.assertFalse(any(e.startswith("risk-comment") for e in self.log))
+        self.assertEqual(self.comment_writes(), ["risk-comment:PATCH"])
+        self.assertEqual(out["unattended"]["writes"]["riskComment"], "updated")
+        patched = self.patched_body()
+        self.assertEqual(patched, merge.risk_cleared_body(HEAD))
+        self.assertEqual(patched.split("\n")[0], merge.RISK_MARKER)
+        self.assertIn(f"at head `{HEAD}`", patched.split("\n")[1])
+
+    def test_a_low_score_with_the_comment_cleared_writes_nothing(self) -> None:
+        self.earlier_sweep(merge.risk_cleared_body(HEAD))
+        _, out = self.run_main()
+        self.assertEqual(self.comment_writes(), [])
+        self.assertNotIn("riskComment", out["unattended"]["writes"])
+
+    def test_a_low_score_leaves_an_escalated_comment(self) -> None:
+        # The label it explains stands; the head-moved clear pairs the two.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
+        self.run_main()
+        self.assertEqual(self.comment_writes(), [])
+
+    def test_a_low_score_leaves_a_comment_at_an_old_head(self) -> None:
+        # A later refusal at this head renders a different body anyway.
+        old = self.body().replace(HEAD, "d" * 40)
+        self.setUp()
+        self.earlier_sweep(old)
+        self.run_main()
+        self.assertEqual(self.comment_writes(), [])
+
+    def test_a_refusal_after_a_cleared_comment_restarts_the_time(self) -> None:
+        # MED, then LOW, then MED again with the same reasons: the cleared
+        # comment has stood two hours, but the refusal is new.
+        self.earlier_sweep(merge.risk_cleared_body(HEAD))
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH"])
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
 
     def test_report_only_writes_nothing_after_an_earlier_sweep(self) -> None:
         body = self.body()

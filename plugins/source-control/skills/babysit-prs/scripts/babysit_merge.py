@@ -3164,6 +3164,18 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     return "\n".join(lines)
 
 
+def risk_cleared_body(head: str) -> str:
+    """The reasons comment once the head scores LOW: a refusal there later
+    renders a different body, so its time starts then, not at the old one."""
+    return "\n".join(
+        [
+            RISK_MARKER,
+            f"Unattended merge: risk **LOW** at head `{head}`. The earlier "
+            "refusal no longer holds.",
+        ]
+    )
+
+
 def _newest_marker_comment(
     comments: list[dict[str, Any]], identity: str, marker: str
 ) -> dict[str, Any] | None:
@@ -3498,7 +3510,8 @@ def unattended_writes(
     MED or HIGH pull request on a path not stopped, escalated (`escalate`)
     when the comment read before this run already says the same and has for
     `merge.risk-escalation-minutes` (`_stood_unchanged`), the comment first
-    rewritten to end with `RISK_ESCALATION_LINE` (once), and the escalation
+    rewritten to end with `RISK_ESCALATION_LINE` (once); at LOW, a refusal
+    comment naming the head becomes `risk_cleared_body`; and the escalation
     (`escalate_verify`) for a verifier refusal that needs a human, or for a
     Dependabot update held under `merge.dependabot.majors: hold`, keyed on the
     eligibility reason. Nothing is written before
@@ -3621,6 +3634,26 @@ def unattended_writes(
                 )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"reasons comment: {exc}")
+    # A LOW score ends the refusal at this head: the identity's refusal
+    # comment naming it says so once, from comments already read. An
+    # escalated one stays beside the label it explains.
+    elif not stopped and risk is not None and inputs.get("comments") is not None:
+        head = str(json_object(inputs["pr"].get("head")).get("sha"))
+        prior = _newest_marker_comment(inputs["comments"], identity, RISK_MARKER)
+        text = str((prior or {}).get("body") or "")
+        cleared = risk_cleared_body(head)
+        if (
+            prior is not None
+            and f" at head `{head}`" in text
+            and text != cleared
+            and not text.endswith(RISK_ESCALATION_LINE)
+        ):
+            try:
+                report["riskComment"] = upsert_marker_comment(
+                    repo, number, identity, cleared, inputs["comments"]
+                )
+            except RuntimeError as exc:
+                report["errors"].append(f"reasons comment: {exc}")
     # A verifier refusal that needs a human gets the durable escalation
     # signal; report-only never reaches here.
     verify = json_object((policy.details or {}).get("verify"))

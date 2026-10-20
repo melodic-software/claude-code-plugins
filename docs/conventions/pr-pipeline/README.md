@@ -701,7 +701,10 @@ adds the tracker's human-gated role label when no label matches it ignoring case
 request leaves the WIP count and reaches the attended queue. The rewrite dates the comment beside
 the label, which the head-moved clear needs to pair them. The minimum lets a review still
 running at the head, which scores MED, finish first. Changed reasons rewrite the comment and
-restart the time; a new head, or a score back at LOW, writes no label, and only a human removes it.
+restart the time; a new head, or a score back at LOW, writes no label. A LOW score rewrites a
+refusal comment naming that head, unless it is escalated, to say the refusal no longer holds, so a
+later refusal at the head starts its time afresh. The merge gate never removes the label; the
+`head-moved` clear above removes it once the head moves, and otherwise a person does.
 
 Finding closure (owner decision, #8450): a clean newer review on the current head closes a review
 finding whoever resolved its thread, and a HIGH security finding also needs the security review lane

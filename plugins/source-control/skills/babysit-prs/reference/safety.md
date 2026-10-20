@@ -1029,7 +1029,11 @@ last change; 0 is no minimum), the refusal persisted: the comment is rewritten o
 `RISK_ESCALATION_LINE`, then the tracker's human-gated role label is added through the escalation
 contract unless a label matches it ignoring case. The minimum lets a review
 still running at the head, which scores MED, finish first. Changed reasons rewrite the comment and
-restart the time; a new head or a LOW score adds no label, and no run removes it. A pull request
+restart the time; a new head or a LOW score adds no label, and no run removes it. A LOW score
+rewrites the identity's refusal comment naming that head, unless it carries
+`RISK_ESCALATION_LINE`, to `risk_cleared_body` once, so a later refusal at the head starts its
+time afresh; it uses the comments the evidence read already holds and writes nothing when they
+were not read. A pull request
 whose reads stopped at the in-flight refusal (step 3) gets neither that comment nor the verifier escalation in that run: it is not queued, so no entry of its own
 waits on them, and the first run that reads it in full below the cap writes both. In the
 pr-merge lane the verifier verdict is read before the review evidence and the score: a verifier
