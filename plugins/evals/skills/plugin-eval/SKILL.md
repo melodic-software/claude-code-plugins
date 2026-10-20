@@ -51,12 +51,9 @@ leftover_sandboxes:  <n> sandboxes (<total size> in <tmp>) | unknown
 tmp_free:            <free space on the temp dir's filesystem> | unknown
 ```
 
-Preflight removes nothing and blocks on neither of the last two fields. When `leftover_sandboxes`
-is above zero, print `chmod -R u+w <tmp>/claude-eval-*` then `rm -rf <tmp>/claude-eval-*` for the
-user to run, and report an unreadable path as `unknown`, never `0`.
+Preflight removes nothing and blocks on neither of the last two fields. When `leftover_sandboxes` is above zero, print `chmod -R u+w <tmp>/claude-eval-*` then `rm -rf <tmp>/claude-eval-*` for the user to run, and report an unreadable path as `unknown`, never `0`.
 
-**Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read
-`claude --version` and let the number decide. `floor_met: false` stops the run and reports the
+**Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
 floor; nothing else is worth doing on a binary that cannot execute a case. `plugin eval is
 currently in early access` means an older binary: updating fixes it, no sign-up. `plugin eval is
 currently unavailable` means Anthropic has switched the command off for now, possibly by account
@@ -83,8 +80,7 @@ this session's own host, which may not be the machine that will run the eval.
 Then, when the table gives `present`, a case requests `Bash` or `PowerShell`, and
 `find "${DOCKER_CONFIG:-$HOME/.docker}/" -mindepth 1 -type l` (read-only) prints a path, override
 to `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store
-with a link inside it (the store's root may itself be a link), so the CLI refuses the whole `Bash`-granting pass, read-only cases included
-(every run ends at 0 turns with a run error naming the credential store). On `platform: darwin`
+with a link inside it (the store's root may itself be a link), so the CLI refuses the whole `Bash`-granting pass, read-only cases included (every run ends at 0 turns with a run error naming the credential store). On `platform: darwin`
 with `cli_version` 2.1.293 or later, ignore links under `~/.docker/bin` (Docker Desktop's own); an
 older client, or a `$DOCKER_CONFIG` store elsewhere, keeps them `not-ready`. `Write` and `Edit` run
 outside the shell sandbox and do not trigger it.
