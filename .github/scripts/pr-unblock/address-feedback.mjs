@@ -118,9 +118,11 @@ export function isFixRequest(body) {
 // The file-shaped words of a fix request's body outside fenced code blocks and
 // quoted lines: each word with wrapping backticks, quotes, brackets or
 // emphasis, trailing punctuation and a trailing :line or :line-line removed,
-// kept when its last segment has an extension.
-const WRAP_START = /^[`'"([{<*_]+/;
-const WRAP_END = /[`'")\]}>*_.,;:!?]+$/;
+// kept when its last segment has an extension. A _ is a legal first or last
+// character of a name, so it is emphasis only as a matched pair.
+const WRAP_START = /^[`'"([{<*]+/;
+const WRAP_END = /[`'")\]}>*.,;:!?]+$/;
+const UNDERSCORE_PAIR = /^(_+)(.+)\1$/;
 export function pathTokens(body) {
   const tokens = new Set();
   let fenced = false;
@@ -137,6 +139,7 @@ export function pathTokens(body) {
       const token = word
         .replace(WRAP_START, "")
         .replace(WRAP_END, "")
+        .replace(UNDERSCORE_PAIR, "$2")
         .replace(/:[1-9][0-9]*(-[1-9][0-9]*)?$/, "");
       if (/\.[A-Za-z0-9]+$/.test(token.slice(token.lastIndexOf("/") + 1))) {
         tokens.add(token);

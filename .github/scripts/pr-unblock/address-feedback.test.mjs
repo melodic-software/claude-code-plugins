@@ -720,3 +720,14 @@ test("names inside fenced code or quoted lines, and in the thread's other commen
   const result = await run(named([[101, HUMAN, body], [102, HUMAN, "Also run-transcript.test.js"]]).api);
   assert.equal(result.file.threads[0].named_paths, undefined);
 });
+
+test("a leading or trailing _ that belongs to the name is kept; only a matched _ pair is emphasis", async () => {
+  const body =
+    "PR-fix lane: please fix this finding. Edit _utils.js, `__init__.py` and _run-transcript.test.js_.";
+  const trees = {
+    ...TREES,
+    [T]: [...TREES[T], { name: "_utils.js", ...FILE }, { name: "utils.js", ...FILE }, { name: "__init__.py", ...FILE }, { name: "init__.py", ...FILE }],
+  };
+  const result = await run(named([[101, HUMAN, body]], { trees }).api);
+  assert.deepEqual([...result.file.threads[0].named_paths].sort(), [`${T}/__init__.py`, `${T}/_utils.js`, `${T}/run-transcript.test.js`]);
+});
