@@ -29,6 +29,12 @@
       "default": "auto",
       "options": ["auto", "true", "false"]
     },
+    "browser_driver": {
+      "type": "string",
+      "title": "Browser tool",
+      "description": "The command name of the one browser tool a /testing:run-e2e playwright drive uses (letters, digits, . _ -). playwright-cli by default. The run stops, naming this setting, when the command is not on PATH; it never switches tools. A repository's docs/conventions/testing.yaml wins.",
+      "default": "playwright-cli"
+    },
     "pixel_tolerance": {
       "type": "number",
       "title": "Visual parity pixel tolerance",

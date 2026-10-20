@@ -207,6 +207,39 @@
         }
       }
     },
+    "red-main": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The red-main revert rule: when a confirmed red full run on main is pinned to one merge, and which limits hold the bot's revert back. Contract: README.md, Red main.",
+      "properties": {
+        "dry-run": {
+          "type": "boolean",
+          "default": true,
+          "description": "true: report the culprit, the evidence runs and the revert the bot would open, and write nothing else."
+        },
+        "daily-cap": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 3,
+          "description": "Auto-reverts the bot opens in any 24 hours, counting dry-run decisions; 0 sends every culprit to a person."
+        },
+        "max-culprit-age-hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 168,
+          "default": 24,
+          "description": "Hours since the culprit merged past which it goes to a person instead of an auto-revert."
+        },
+        "confirm-wait-minutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 45,
+          "default": 40,
+          "description": "Minutes the report waits for the one re-run of a red full run to finish; a run with no finished re-run is not confirmed red."
+        }
+      }
+    },
     "merge": { "$ref": "#/$defs/merge" },
     "models": { "$ref": "#/$defs/models" }
   },

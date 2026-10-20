@@ -110,6 +110,13 @@ writes the feature map and where run-e2e reads it; it is a repository path, set 
 `docs/conventions/testing.yaml` or `.claude/testing.local.yaml`, with no `userConfig` option. Keys,
 defaults and precedence are in the skill's bundled `run-e2e/context/e2e-config.md`.
 
+`browser_driver` (default `playwright-cli`) names the one browser tool a `playwright` drive uses. It
+sits in the same layers as `e2e_driver`, plus the `userConfig` option of the same name. When the
+driver for the run is `playwright`, pinned or picked by `auto`, `scripts/check-browser-driver.sh`
+checks before the first drive that the command is on PATH; if it is not, the run stops, naming the
+setting, the value, where it came from, and the two ways forward (install the tool, or set
+`browser_driver` to one you have). It never substitutes another tool or switches mid-run.
+
 `pixel_tolerance` is a map in `docs/conventions/testing.yaml`: `pixels`, the differing pixels per
 image `/testing:check-visual-parity` accepts (a whole number, default 0), and `reason`, required when
 `pixels` is above 0. Quote a reason that holds a colon followed by a space. The team value is read
@@ -171,6 +178,7 @@ reads it from.
 | `test_guards_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED` | Ask Claude for a reason when an edit removes or skips tests or assertions. Off by default. |
 | `e2e_driver` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_E2E_DRIVER` | Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). A repository's docs/conventions/testing.yaml wins. |
 | `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labeled evidence and false stops. docs/conventions/testing.yaml wins. |
+| `browser_driver` | string | `"playwright-cli"` | `CLAUDE_PLUGIN_OPTION_BROWSER_DRIVER` | The command name of the one browser tool a /testing:run-e2e playwright drive uses (letters, digits, . _ -). playwright-cli by default. The run stops, naming this setting, when the command is not on PATH; it never switches tools. A repository's docs/conventions/testing.yaml wins. |
 | `pixel_tolerance` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_PIXEL_TOLERANCE` | Differing pixels per image /testing:check-visual-parity accepts. It can only lower the repository's pixel_tolerance in docs/conventions/testing.yaml, never raise it. 0 by default. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 

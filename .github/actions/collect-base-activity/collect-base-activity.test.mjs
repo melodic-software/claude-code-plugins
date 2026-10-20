@@ -22,7 +22,8 @@ const CHMOD_SENTENCE =
 // Every write lane denies the shell commands that can print a file or the
 // environment, read-only ones that need no allow rule
 // (https://code.claude.com/docs/en/permissions#read-only-commands) among
-// them, and Read of process files.
+// them, and Read of process files and of the checkout's git directory.
+const WORKSPACE = "/home/runner/work/repo/repo";
 const SHELL_DENIED = [
   "Bash(echo *)",
   "Bash(printf *)",
@@ -54,6 +55,7 @@ const SHELL_DENIED = [
   "Bash(more *)",
   "Bash(less *)",
   "Read(//proc/**)",
+  `Read(/${WORKSPACE}/.git/**)`,
 ];
 // The deny rules other than the write lanes' shell set.
 const ownDenied = (denied) => denied.filter((rule) => !SHELL_DENIED.includes(rule));
@@ -118,6 +120,7 @@ function stage(overrides) {
     CAN_COMMIT: "true",
     PREPARE: "",
     SCRATCH: path.join(runTemp, "lane-scratch"),
+    WORKSPACE,
     GITHUB_OUTPUT: output,
     GITHUB_ENV: envFile,
     ...overrides,
@@ -164,6 +167,14 @@ test("a writing skill gets the Grep and Glob tools, since its shell cannot grep 
     assert.equal(status, 0);
     assert.ok(allowed.includes("Grep") && allowed.includes("Glob"), allowed.join(" | "));
     assert.ok(args.includes("Bash(grep *)") && args.includes("Bash(find *)"), args);
+  }
+});
+
+test("a writing skill with no workspace path fails red before any output", () => {
+  for (const WORKSPACE of ["", "relative/path", "/has space"]) {
+    const { status, args } = stage({ WORKSPACE });
+    assert.notEqual(status, 0, WORKSPACE);
+    assert.equal(args, "", WORKSPACE);
   }
 });
 
@@ -1215,16 +1226,18 @@ for (const [name, run] of [
   ["web-access with a domain list", () => withWebAccess({ enabled: true, domains: ["code.claude.com"] })],
   ["a read skill that hands on a patch", () => withAppliedBy({ patch: "apply-patch" })],
 ]) {
-  test(`a write lane denies every shell read command and Read of /proc: ${name}`, () => {
-    const { status, denied } = run();
+  test(`a write lane denies every shell read command and Read of /proc and .git: ${name}`, () => {
+    const { status, denied, workspace = WORKSPACE } = run();
     assert.equal(status, 0);
-    for (const rule of SHELL_DENIED) assert.ok(denied.includes(rule), `${rule} in ${denied.join(" | ")}`);
+    for (const rule of SHELL_DENIED) {
+      const expected = rule.replace(WORKSPACE, workspace);
+      assert.ok(denied.includes(expected), `${expected} in ${denied.join(" | ")}`);
+    }
   });
 }
 
 // --- launcher: run-claude-cli, which reads only inside the checkout ---
 
-const WORKSPACE = "/home/runner/work/r/r";
 const outputOf = (text, name) => (new RegExp(`^${name}<<(\\S+)\\n([\\s\\S]*?)\\n\\1$`, "m").exec(text)?.[2] ?? "").split("\n").filter(Boolean);
 
 // Runs the skill step for run-claude-cli and reads its launcher outputs and
@@ -1268,8 +1281,8 @@ test("run-claude-cli: a ci-context skill gets Bash, Edit and Write, the staged c
   assert.ok(statSync(path.join(run.stageDir, "plugins", "source-control")).isDirectory());
   assert.ok(statSync(path.join(run.stageDir, "scratch")).isDirectory());
   assert.equal(run.promptFile, "Call the Skill tool with skill source-control:pull-request and args ci, then follow the skill instructions to the end.\n");
-  assert.match(run.preamble, /The context file is \/home\/runner\/work\/r\/r\/\.lane\/ci\/context\.json\./);
-  assert.match(run.preamble, /Your scratchpad directory is \/home\/runner\/work\/r\/r\/\.lane\/scratch/);
+  assert.ok(run.preamble.includes(`The context file is ${WORKSPACE}/.lane/ci/context.json.`), run.preamble);
+  assert.ok(run.preamble.includes(`Your scratchpad directory is ${WORKSPACE}/.lane/scratch:`), run.preamble);
   assert.match(run.preamble, /Leave every fix uncommitted in the working tree/);
   assert.equal(run.args, "", "no claude_args for the launcher");
   assert.deepEqual(run.plugins, []);
