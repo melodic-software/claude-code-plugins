@@ -70,10 +70,6 @@ Every new photo reaches cloud storage within a day.
 - `app/backup.py`: `upload_batch(client, photos)` calls the SDK's batch upload once per run.
 - **Sanity Check:** `pytest tests/test_backup.py -k batch` exits 0.
 
-### Phase 3: Retry failed uploads [TODO]
-- `app/backup.py`: record failures and retry them on the next run.
-- **Sanity Check:** `pytest tests/test_backup.py -k retry` exits 0.
-
 ## Blast radius
 Blast radius: LOW. One module and its tests.
 MD
