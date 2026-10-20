@@ -17,10 +17,16 @@ boundaries are missing.
 
 ## Works in any repo
 
-- **Reads your conventions, assumes none.** Glossary filename, location, shape, and
-  context map come from the consuming project; where none exist, creation is lazy and
-  discovery-first. It never prescribes a universal filename.
-- **No `userConfig`, no persistent state, no network.**
+- **Reads your conventions first.** Glossary filename, location, shape, and context map
+  come from the consuming project. Where none exist, it proposes, never imposes, one
+  `GLOSSARY.md` per bounded context and a root `GLOSSARY-MAP.md` once more than one
+  context exists, and writes only after you confirm; creation stays lazy.
+- **Settings.** `glossary_file` and `glossary_map_file` set those two names. They
+  resolve through the config cascade: the plugin default, `userConfig`, the team file
+  `docs/conventions/domain-driven-design.yaml` (schema
+  `schemas/domain-driven-design.schema.json`) and the personal overlay
+  `docs/conventions/domain-driven-design.local.yaml`. Each is a file name, never a path.
+- **No persistent state, no network.**
 
 ## Install
 

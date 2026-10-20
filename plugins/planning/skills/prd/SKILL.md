@@ -90,7 +90,7 @@ Do not proceed unless the user explicitly overrides ("write the PRD anyway") OR 
 Spend the first turn grounding yourself, in parallel:
 
 - Take product direction and current modules from the project's always-loaded instructions (root `CLAUDE.md` / `AGENTS.md`), already in context; read a nested `AGENTS.md` under the area the topic touches, since those load only when a file they cover is read
-- If the project keeps a domain-vocabulary file (e.g. `UBIQUITOUS-LANGUAGE.md`) and the topic touches a known module, walk UP from the relevant directory toward the repo root and read the first match
+- If the project keeps a domain-vocabulary file (e.g. `GLOSSARY.md`, or the name the domain-driven-design `glossary_file` setting sets, plus `GLOSSARY-MAP.md` in a multi-context repository) and the topic touches a known module, walk UP from the relevant directory toward the repo root and read the first match
 - `Glob` and `Grep` for keywords from `$ARGUMENTS` to spot existing surfaces
 - `git log --oneline -20` for recent product direction
 - List the project's own rules files that govern the area (architecture, modules, conventions)
