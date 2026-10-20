@@ -95,6 +95,7 @@ Spend the first turn grounding yourself, in parallel:
 - `git log --oneline -20` for recent product direction
 - List the project's own rules files that govern the area (architecture, modules, conventions)
 - Note what `<memory_dir>/<topic-slug>/` (default `.work/`) already contains: prior PRD, PLAN, design, exploration and research artifacts
+- When `<memory_dir>/<topic-slug>/brainstorm.md` exists, read its `## Handoff` block as seeds the rounds confirm: `Problem` and `Intent (why, in the user's words)` seed the Problem, `Vision (where this heads)` the Goals `Vision:` line (`not stated` becomes `none stated`), and `Chosen direction` with `Rejected options` stay context for the rounds, not requirements, since the PRD records the problem and its success, not the solution
 
 If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; PRD.md is never committed, so the restart note is its only history, carried by the copy pasted into the pull request body or linked issue).
 

@@ -113,7 +113,9 @@ artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
 
-Read the Brief's `### Problem` before decomposing; absent, establish it:
+Read the Brief's `### Problem` before decomposing; absent, start from the `Problem`, `Intent (why,
+in the user's words)` and `Chosen direction` lines of `<memory_dir>/<topic-slug>/brainstorm.md`'s
+`## Handoff` block when it exists; with neither, establish it:
 [`${CLAUDE_PLUGIN_ROOT}/context/problem-framing.md`](../../context/problem-framing.md). Its
 `time_units` user layer is `${user_config.time_units}` (unexpanded means unset).
 

@@ -13,6 +13,7 @@ bump: minor
 
 - **Brainstorm** confirms the problem and the user's why before grounding, asks for the user's own ideas first, allows non-code candidates and an optional landscape pass, records why picks resonate, and writes a Handoff block on its way to interview, PRD or design. Problem-framing gains an "Idea-stage requests" section where the user's named solution is one candidate; spec-stage requests are unchanged.
 - The Brief's variation line is now `Variation intent:`.
+- Brainstorm's workflow stage is the PRD stage (before the contract), so stage routing and the cheat sheet list it there.
 - Plan: the Alternatives table has a switch-condition column, Medium plans include alternatives, dependency rows carry version and source, deferred interview questions get Decisions rows, and the PLAN.md anatomy lists the plan's sections.
 
 ### Fixed
