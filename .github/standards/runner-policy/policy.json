@@ -672,6 +672,23 @@
         "contents": "read",
         "pull-requests": "read"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/maintenance-check-links-online.yml@3a2c748fdef9cfb9ceec5a66289e21842189689f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "timeout-minutes",
+        "opt-in-property",
+        "config",
+        "extra-args",
+        "globs",
+        "lychee-version"
+      ],
+      "allowedSecrets": {},
+      "minimumCallerPermissions": {
+        "contents": "read"
+      }
     }
   },
   "approvedHostedRunnerLabels": ["ubuntu-24.04", "windows-2025"],
