@@ -102,7 +102,8 @@
 # COST. A command that names neither `merge` nor `enqueue` leaves after one
 # string test. A merge command pays five calls in sequence (PR, reviews, check
 # runs, statuses, threads; up to seven with a branch or node lookup and the
-# thread fallback), all inside one 35 s budget that keeps the row under its
+# thread fallback, and one more per failed check run, three at most, to read
+# its annotations), all inside one 35 s budget that keeps the row under its
 # 60 s timeout (TIME BUDGET below), about once per PR: measured
 # 3.0 to 3.6 s end to end against live PRs in a Claude Code cloud session on
 # 2026-10-11.
@@ -644,7 +645,12 @@ _bupm_ignored="$(jq -cn --arg s "${CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHEC
   '$s | split(",") | map(gsub("^ +| +$"; "") | select(length > 0))')" || _bupm_ignored='[]'
 # shellcheck disable=SC2016
 _bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/check-runs?per_page=100" --jq "$_bupm_ignored"' as $ign
-  | [.check_runs[] | select(("\(.app.slug // ""):\(.name)") | IN($ign[]) | not)] as $all
+  | [.check_runs[] | select(("\(.app.slug // ""):\(.name)") | IN($ign[]) | not)
+    | {id, name, app: {id: .app.id}, check_suite: {id: .check_suite.id}, status, conclusion, details_url}]' ||
+  _bupm_unchecked "$BUPM_ERR"
+_bupm_all="$BUPM_OUT"
+# shellcheck disable=SC2016
+_bupm_runs="$(jq -c '. as $all
   | [$all | group_by([.name, (.app.id // 0)])[]
     | max_by(.id) as $n
     | if ($n.conclusion | IN("skipped","neutral"))
@@ -652,11 +658,38 @@ _bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/check-runs?per_page=100" --jq "$_
       else $n end
     | select(. as $c | $c.conclusion == "cancelled"
         and any($all[]; (.app.id // 0) == ($c.app.id // 0) and .id > $c.id and .check_suite.id != $c.check_suite.id
-          and .status == "completed" and .conclusion == "success" and (.name | startswith($c.name + " ("))) | not)] as $runs
+          and .status == "completed" and .conclusion == "success" and (.name | startswith($c.name + " ("))) | not)]' \
+  <<<"$_bupm_all")" || _bupm_unchecked "the check runs could not be read"
+# A failed run that pr-require-checks' contract-only path stopped because a full
+# run was in flight on this head (#8716) carries a failure annotation
+# `superseded by full run <url>/actions/runs/<id> in flight on <sha>`; its
+# output summary is empty. Such a run does not count: the named full run's run
+# of the same check and app decides, and the check is pending until that run
+# exists. A failed annotations read leaves the failure standing. Three failed
+# runs at most are read, each one more call.
+_bupm_sup='{}'
+while IFS= read -r _bupm_id; do
+  [[ "$_bupm_id" =~ ^[0-9]+$ ]] || continue
+  # shellcheck disable=SC2016
+  _bupm_api "repos/$BUPM_REPO/check-runs/$_bupm_id/annotations?per_page=100" --jq '
+    [.[] | select(.annotation_level == "failure") | .message // ""
+      | capture("^superseded by full run https://[^ ]+/actions/runs/(?<run>[0-9]+) in flight on (?<sha>[0-9a-f]+)[:. ]")
+      | "\(.run) \(.sha)"] | first // empty' || continue
+  read -r _bupm_frun _bupm_fsha <<<"$BUPM_OUT"
+  [[ -n "$_bupm_frun" && "$_bupm_fsha" == "$_bupm_sha" ]] || continue
+  _bupm_sup="$(jq -c --arg k "$_bupm_id" --arg v "$_bupm_frun" '.[$k] = $v' <<<"$_bupm_sup")" || _bupm_sup='{}'
+done < <(jq -r '[.[] | select(.status == "completed" and .conclusion == "failure") | .id][:3][]' <<<"$_bupm_runs")
+# shellcheck disable=SC2016
+BUPM_OUT="$(printf '%s\n%s\n' "$_bupm_all" "$_bupm_runs" | jq -rs --argjson sup "$_bupm_sup" '
+  .[0] as $all | .[1]
+  | map(if $sup[.id | tostring] then (. as $c | "/actions/runs/\($sup[$c.id | tostring])/" as $u
+      | ($all | map(select(.name == $c.name and (.app.id // 0) == ($c.app.id // 0) and ((.details_url // "") | contains($u))))
+        | max_by(.id)) // ($c + {status: "in_progress", conclusion: null}))
+    else . end) as $runs
   | [$runs[] | select(.status == "completed" and (.conclusion | IN("failure","timed_out","cancelled","action_required","startup_failure","stale"))) | .name] as $f
   | [$runs[] | select(.status != "completed") | .name] as $p
-  | "\($f | join(", "))\u001f\($p | join(", "))"' ||
-  _bupm_unchecked "$BUPM_ERR"
+  | "\($f | join(", "))\u001f\($p | join(", "))"')" ||
+  _bupm_unchecked "the check runs could not be judged"
 # A unit separator, not a tab: tab is IFS whitespace, so an empty first field
 # would collapse and the pending list would read as the failed one.
 IFS=$'\x1f' read -r _bupm_failed _bupm_pending <<<"$BUPM_OUT"
