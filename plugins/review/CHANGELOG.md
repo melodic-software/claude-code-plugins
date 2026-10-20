@@ -3,6 +3,43 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.0] - 2026-10-20
+
+### Added
+
+- Two quality-gate eval cases freeze code mode's routing boundary with the bundled `/code-review` skill: a convention or `REVIEW.md` review stays in code mode, and a fast zero-dependency pass routes to `/code-review`.
+
+- A PreToolUse guard on the Artifact tool denies publishing an HTML page whose content security policy names a loopback `connect-src` (a connected page, which works only on this machine). Switch it off with the `connected_page_guard_enabled` option.
+- `/review:check` reports whether node resolves and the guard is registered.
+
+- `/review:quality-gate` takes phase-boundary inputs in every mode: `--worktree <path>`, `--base <sha>`, `--quality-bar` and `--report-only`, so an orchestrator can review a phase diff in a worker's worktree before any pull request exists. With a base SHA the gate runs no pull-request lookup or fetch, and the reviewer gets the diff, the concern tag, the quality bar and its mode's own brief inputs, never the plan rationale or the conversation. The reviewer rates only findings the phase diff causes, including breakage it reaches in untouched files; problems it did not cause go in an unrated `Outside this phase` list that never affects the verdict.
+- The `code-reviewer`, `security-reviewer` and `architecture-guardian` agents accept a supplied change set: given a worktree path and base SHA, or the commands to run, they run only those commands, with no pull-request lookup, fetch or remote read, and given a worktree they run every command and read against it, never the invoking checkout. Without one, their change-set step is unchanged.
+- `/review:quality-gate` `criteria` and `restatement` modes with `--base` or `--worktree` dispatch a fresh-context `review:brief-reviewer` with the change-set commands instead of reviewing inline: `criteria` with the resolved criteria and the paved-path file, `restatement` once per batch.
+
+- `/review:quality-gate code-design` reviews a change for design that makes the next change costly. It loads the consumer's review criteria through the standards resolution ladder and falls back to small bundled criteria (Duplicated Code, Shotgun Surgery, Speculative Generality), run by a fresh-context `review:brief-reviewer`. Repetition is CRITICAL only when the diff introduces a copy in code that no shared source or sync check keeps aligned, and the finding names the repeated fact and the later change that would make the copies diverge; Markdown repetition, change cascades and the `prototype` quality bar stay SUGGESTION. A consumer standard that contradicts a bundled default wins, and the report says `Overrides bundled default <principle> per <standards file>`; with no quality bar given, the review rates as production and says so. The mode takes the phase-boundary inputs like every other.
+
+### Changed
+
+- `/review:fanout` gains a `## Next` section naming `/review:fanout fix` and `/verification:confirm`.
+
+- The `code-reviewer` agent rates repetition the way `/review:quality-gate code-design` does: Duplicated Code the diff introduces in code, with no shared source or sync check keeping the copies aligned, is CRITICAL when the finding names the repeated fact and the later change that would make the copies diverge, and may then carry `Confidence: high` once verified at every copy. Shotgun Surgery and all other repetition stay SUGGESTION, as do Markdown and a `prototype` quality bar; other smells keep the advisory default, and the project's own severity vocabulary and criteria still win. With no `Quality bar:` line in its brief it rates as production and says so, a line `/review:quality-gate` self mode's report now allows. Because the merge lane blocks on CRITICAL, an introduced, unsynced copy now blocks an unattended merge.
+- `review:brief-reviewer` lists `code-design` among the `/review:quality-gate` modes that dispatch it.
+
+### Fixed
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- The publish gate also scans a normalized copy of each line (tags removed, HTML entities decoded, doubled backslashes folded), so a credential or machine path that is tag-split, HTML-escaped or JSON-escaped is refused or routed before upload, as the pages host already does.
+
+- The session bridge's channel policy reader now reads the macOS managed preferences and the Windows HKLM registry policy, falls back to the loopback transport when one exists but cannot be read, and combines lists and merges nested blocks across managed-settings drop-ins.
+
+- The shared settings checker behind `/review:setup` validates string and object settings, and reports a setting whose schema shape it does not check instead of stopping with a JavaScript error.
+
+- Shared `watch.sh` synced: the control token reaches curl on stdin (`-H @-`), so it is in no process's argv.
+- Shared `session_bridge.py` synced: on Windows the control server refuses address reuse and binds with `SO_EXCLUSIVEADDRUSE`.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.47.0] - 2026-10-18
 
 ### Changed

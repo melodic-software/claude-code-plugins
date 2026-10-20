@@ -1720,6 +1720,91 @@ assert_eq "projectPathPresent: and the row is still graded on version skew alone
   "false" "$(jq -r '.divergences[0].versionsMatch' <<<"$out" 2>/dev/null)"
 
 # ============================================================================
+# linkedWorktree / label — a lagging record in a linked worktree is labeled,
+# stays counted, and a main checkout or a submodule is never mislabeled (#6713).
+# ============================================================================
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+main_dir="$case_dir/main-repo"
+wt_dir="$case_dir/linked-wt"
+sub_dir="$case_dir/submodule"
+bare_wt_dir="$case_dir/bare-repo/main"
+sep_dir="$case_dir/sep-checkout"
+mkdir -p "$main_dir/.git/worktrees/linked-wt" "$wt_dir" "$sub_dir" \
+  "$case_dir/bare-repo/.bare/worktrees/main" "$bare_wt_dir" \
+  "$case_dir/worktrees/sep.git" "$sep_dir"
+printf '../..\n' >"$main_dir/.git/worktrees/linked-wt/commondir"
+printf '../..\n' >"$case_dir/bare-repo/.bare/worktrees/main/commondir"
+printf 'gitdir: %s/main-repo/.git/worktrees/linked-wt\n' "$case_dir" >"$wt_dir/.git"
+printf 'gitdir: ../.git/modules/submodule\n' >"$sub_dir/.git"
+printf 'gitdir: %s/bare-repo/.bare/worktrees/main\n' "$case_dir" >"$bare_wt_dir/.git"
+printf 'gitdir: %s/worktrees/sep.git\n' "$case_dir" >"$sep_dir/.git"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg m "$main_dir" --arg w "$wt_dir" --arg s "$sub_dir" --arg bw "$bare_wt_dir" --arg sd "$sep_dir" '{
+    version: 1,
+    plugins: {
+      "alpha@market1": [
+        {scope: "project", projectPath: $w, installPath: "a", version: "0.1.0"},
+        {scope: "user", installPath: "u", version: "0.2.0"}
+      ],
+      "beta@market1": [
+        {scope: "project", projectPath: $m, installPath: "b", version: "0.1.0"},
+        {scope: "user", installPath: "u2", version: "0.2.0"}
+      ],
+      "gamma@market1": [
+        {scope: "project", projectPath: $s, installPath: "c", version: "0.1.0"},
+        {scope: "user", installPath: "u3", version: "0.2.0"}
+      ],
+      "delta@market1": [
+        {scope: "project", projectPath: $w, installPath: "d", version: "0.2.0"},
+        {scope: "user", installPath: "u4", version: "0.2.0"}
+      ],
+      "epsilon@market1": [
+        {scope: "project", projectPath: $bw, installPath: "e", version: "0.2.0"},
+        {scope: "user", installPath: "u5", version: "0.2.0"}
+      ],
+      "zeta@market1": [
+        {scope: "project", projectPath: $sd, installPath: "f", version: "0.2.0"},
+        {scope: "user", installPath: "u6", version: "0.2.0"}
+      ]
+    }
+  }'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}, {"name": "beta"}, {"name": "gamma"}, {"name": "delta"}, {"name": "epsilon"}, {"name": "zeta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "linkedWorktree: true for a worktree whose .git file points into worktrees/" \
+  "true" "$(jq -r '.installed[] | select(.id == "alpha@market1" and .scope == "project") | .linkedWorktree' <<<"$out" 2>/dev/null)"
+assert_eq "linkedWorktree: false for a main checkout (.git is a directory)" \
+  "false" "$(jq -r '.installed[] | select(.id == "beta@market1" and .scope == "project") | .linkedWorktree' <<<"$out" 2>/dev/null)"
+assert_eq "linkedWorktree: false for a submodule (.git file points into modules/)" \
+  "false" "$(jq -r '.installed[] | select(.id == "gamma@market1" and .scope == "project") | .linkedWorktree' <<<"$out" 2>/dev/null)"
+assert_eq "linkedWorktree: true for a bare layout (gitdir points into .bare/worktrees/)" \
+  "true" "$(jq -r '.installed[] | select(.id == "epsilon@market1" and .scope == "project") | .linkedWorktree' <<<"$out" 2>/dev/null)"
+assert_eq "linkedWorktree: false for a separate-git-dir main checkout under a worktrees/ parent" \
+  "false" "$(jq -r '.installed[] | select(.id == "zeta@market1" and .scope == "project") | .linkedWorktree' <<<"$out" 2>/dev/null)"
+assert_eq "linkedWorktree: null for a user-scope record" \
+  "null" "$(jq -r '.installed[] | select(.id == "alpha@market1" and .scope == "user") | .linkedWorktree' <<<"$out" 2>/dev/null)"
+assert_eq "label: a lagging linked-worktree record is labeled" \
+  "update ineffective; uninstall clears it" \
+  "$(jq -r '.installed[] | select(.id == "alpha@market1" and .scope == "project") | .label' <<<"$out" 2>/dev/null)"
+assert_eq "label: the same label rides divergences[].scopes[]" \
+  "update ineffective; uninstall clears it" \
+  "$(jq -r '.divergences[] | select(.id == "alpha@market1") | .scopes[] | select(.scope == "project") | .label' <<<"$out" 2>/dev/null)"
+assert_eq "label: a lagging record in a main checkout is not labeled" \
+  "null" "$(jq -r '.installed[] | select(.id == "beta@market1" and .scope == "project") | .label' <<<"$out" 2>/dev/null)"
+assert_eq "label: a lagging record in a submodule is not labeled" \
+  "null" "$(jq -r '.installed[] | select(.id == "gamma@market1" and .scope == "project") | .label' <<<"$out" 2>/dev/null)"
+assert_eq "label: a linked-worktree record already at the highest version is not labeled" \
+  "null" "$(jq -r '.installed[] | select(.id == "delta@market1" and .scope == "project") | .label' <<<"$out" 2>/dev/null)"
+assert_eq "label: the labeled record stays in the actionable divergence count" \
+  "alpha@market1 beta@market1 gamma@market1" \
+  "$(jq -r '[.divergences[] | select(.versionsMatch == false) | .id] | sort | join(" ")' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
 # user_scope_orphans — the class every other field is structurally blind to.
 # ============================================================================
 

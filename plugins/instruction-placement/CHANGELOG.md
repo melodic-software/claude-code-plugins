@@ -3,6 +3,14 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1] - 2026-10-20
+
+### Fixed
+
+- The `migrate` skill's AGENTS.md source record now points at the "Develop without a marketplace" section of the plugin-creation page with an anchor, an as-of date and a recheck trigger, in place of a quoted passage.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.25.0] - 2026-10-18
 
 ### Added
