@@ -16,7 +16,7 @@ A file the caller or the user writes, one entry per item:
 - `blocked-by` (optional): ids of other entries in this list the item waits for.
 - `spec` (optional): the item's decision text, such as a tracker item's body as the caller read it.
   It informs the work and never binds the way a plan's `## Design` excerpt does; only `targets` and
-  `acceptance` bind. The brief carries it in place of the Design excerpt (Dispatch cadence item 11)
+  `acceptance` bind. The brief carries it in place of the Design excerpt (Dispatch cadence item 12)
   inside the untrusted-data fence below, and says `Design: none` when it is absent.
 - `branch` and `model` (optional): the item's branch name and its routing row's `Model` value.
   Without `branch`, the name is `item/<slug>`, where `<slug>` is the id lowercased with every

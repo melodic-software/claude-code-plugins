@@ -48,6 +48,16 @@ conventions it cites. A phase that cannot honor one of them is a divergence: STO
 never redesign in place. A brief that says `Design: none`, or carries no excerpt, sets no design
 guardrail; that absence alone is not a STOP.
 
+**Report discoveries; do not act on them.** Your return carries the extension field
+`discoveries:`, after `counts:` and before `open_questions:`, `[]` when there are none, each entry
+`{type: stale-dependency | better-option | assumption-confirmed | assumption-doubtful | other,
+what, evidence}`. The three fields split by what the orchestrator does with them: `problems:` holds
+what blocks you or is not done; `open_questions:` holds a request to widen the fence;
+`discoveries:` holds non-blocking findings you noticed, such as an outdated or superseded
+dependency, a better library or approach while the plan still works, or a planning assumption that
+held or looks doubtful. A discovery never stops the work and never widens the fence: report it, and
+change nothing outside the fence because of it.
+
 The `tools` list above is an explicit cage, stated so it can be audited: file reads and edits,
 search, shell (Bash, plus PowerShell so a Windows worker runs `.ps1` and pwsh-native commands
 directly rather than launching pwsh through Bash), Monitor (so a wait on CI or a long command runs

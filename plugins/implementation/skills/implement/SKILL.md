@@ -149,6 +149,7 @@ Most important discipline in execution. Plans are hypotheses, implementation is 
 - The implementation is significantly more complex than estimated
 - You're writing workarounds or hacks to make the plan fit
 - Tests reveal edge cases the plan didn't account for
+- Nothing is failing, but a newer or better option turns up: an outdated or superseded dependency, a better library or approach
 
 **Design signals.** Before you file friction as a plan problem, compare what you just did with the rows below. A match on any row means the design, not only the plan, may have to go.
 
@@ -163,12 +164,12 @@ Length is not a row. Code that parses a messy format, such as a transcript JSONL
 
 **When divergence is detected:**
 
-1. **Stop writing code.** Do not push through a broken approach
+1. **Stop writing code until the severity is assessed.** Do not push through a broken approach
 2. **Research before declaring something impossible.** Before telling the user "this can't be done", look one level deeper: the dependency's issue tracker for workaround flags, bypass options, alternative APIs. Present "I've tried two things and they didn't work" as a progress update, not a conclusion
 3. **Assess severity:**
-   - **Minor** (typo in plan, small API difference) → fix inline, note the deviation
-   - **Moderate** (approach needs adjustment but direction is right) → adjust the plan, document what changed and why. Research alternatives before adjusting, don't settle for workarounds when a proper solution may exist
-   - **Major** (fundamental assumption was wrong) → run external research first to find alternative approaches (invoke `/discovery:research` via the Skill tool when the discovery plugin is installed, otherwise a disciplined multi-source lookup), THEN route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) to re-plan. The user approved a plan that no longer works, they need to approve the new direction, informed by fresh research
+   - **Minor** (typo in plan, small API difference) → proceed and note: fix inline, note the deviation
+   - **Moderate** (approach needs adjustment but direction is right, or a newer or better option exists while the plan still meets its criteria) → flag and continue: log it, surface it in the return and the PR, and keep building. An adjustment updates the plan and documents what changed and why; research alternatives first, don't settle for workarounds when a proper solution may exist. A better option is never adopted unasked: weigh it with `/planning:devils-advocate incumbent` or `/discipline:pick-for-the-problem`, and leave the switch to the user or to a Major replan
+   - **Major** (fundamental assumption was wrong, such as a falsified load-bearing assumption, or going on needs a scope change or a hard-to-reverse action) → stop and replan. Run external research first to find alternative approaches (invoke `/discovery:research` via the Skill tool when the discovery plugin is installed, otherwise a disciplined multi-source lookup), THEN route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) to re-plan. The user approved a plan that no longer works, they need to approve the new direction, informed by fresh research
 4. **For major divergence:** switch to plan mode for safe exploration while redesigning the approach. Exit plan mode only after the revised plan is clear and its first draft answers yes to each check: Is it smaller than the failed attempt? Does it list what it drops before what it adds? Does it start from the goal and what the failed attempt proved, never from the broken code?
 
 **Non-interactive fork (autonomous runs only):** see `/implementation:implement-dispatch` "Divergence in non-interactive runs". Moderate divergence takes the conservative option + a deviations log instead of deadlocking; Major still STOPS. Interactive sessions keep the escalation ladder above unchanged.
@@ -177,7 +178,7 @@ Length is not a row. Code that parses a messy format, such as a transcript JSONL
 
 ## Step 3.5: Scope-fence drift detector (run at every decision boundary)
 
-**When**: at each phase boundary, at each worker-agent return, and BEFORE proposing any action not literally in the approved plan's work items.
+**When**: at each phase boundary, at each worker-agent return (its `discoveries:`, its `open_questions:` and any `problems:` entry that is not a STOP), and BEFORE proposing any action not literally in the approved plan's work items.
 
 **Discipline**: classify every proposed action against the plan before announcing it to the user. Three categories:
 
@@ -186,6 +187,8 @@ Length is not a row. Code that parses a messy format, such as a transcript JSONL
 | **Plan work-item** | Literally appears in the plan's work-items list | Execute; report at phase boundary |
 | **Plan-tagged fallback / execution-shape item** | The plan itself pre-tagged it as a contingency or execution-shape choice | If a fallback: surface to the user with `AskUserQuestion`, confirm/override/drop. If pre-approved execution shape: execute |
 | **Invented mid-implement** | Not in the plan at all; surfaced by an agent return, anomaly, or implementation discovery | Stop. Classify (briefed-via-other-phase / plan-fallback / pure-invention / scope-expansion). Surface to the user with category tag + `AskUserQuestion`, separately from plan-anticipated items |
+
+**Non-interactive runs** (nobody to answer `AskUserQuestion`): never ask, and never do an invented item. Append it to `DEVIATIONS.md` as a `human-decision` entry naming its category, and leave it for Step 5's fold-back.
 
 **Anti-pattern (canonical failure mode)**: batching invented follow-up actions with plan-anticipated items in one proposal. User pushback on the batch is structurally ambiguous. "drop both" reads as "drop all my proposals"; silent over-correction drops plan-anticipated work. Always separate categories at proposal time.
 
@@ -267,7 +270,7 @@ When all planned work is done:
    - No TODO comments that should be actual work
    - No scratch verification scripts committed as permanent tests; committed tests are sized like their neighbors, roughly one focused test per stated behavior
    - No fixes, optimizations, or extensions outside the task; anything noticed nearby is reported as a follow-up in the summary, not changed
-4. **Deviation fold-back**. When a `DEVIATIONS.md` exists for this work (the non-interactive fork wrote one, or the session opted in per Step 3), read it now and emit one plan-amendment bullet per unresolved deviation or human-decision entry: what the plan should say next time, or what still needs a person. The log is the run's memory; a completion that never reads it back hands the PR reviewer deviations the author already knew about. Fold the bullets into the phase-boundary plan updates (Step 4 ritual) or the handoff summary
+4. **Deviation fold-back**. When a `DEVIATIONS.md` exists for this work (the non-interactive fork wrote one, or the session opted in per Step 3), read it now and emit one plan-amendment bullet per unresolved deviation or human-decision entry: what the plan should say next time, or what still needs a person. The log is the run's memory; a completion that never reads it back hands the PR reviewer deviations the author already knew about. Write the bullets into PLAN.md as dated pivot notes on the sections they amend, per `/planning:plan` "Mid-flight pivots", then repeat them in the handoff summary
 5. **Rubber-duck advisor checkpoint (HIGH/CRITICAL only)**. For changes involving concurrency, security, cross-platform behavior, external API integration, or with significant divergence from the original plan, call the `advisor` tool (when available in the session) for a quick cross-model critique pass before the review gate. Skip for trivial changes
 6. **Hand off to the pre-PR sequence**. Hand off, do not re-order: that sequence owns the step order (invoke `/session-flow:workflow pre-pr` via the Skill tool when the `session-flow` plugin is installed to read it; otherwise follow the consuming setup's own pre-PR checklist). Its order puts **review before outcome verification**, because the simplify pass sits between them and outcome verification must judge the code that ships. So: first suggest the Test-stage checks the change still needs beyond the affected tests above (coverage, test quality, end to end: the outcomes under Next), then the project's review flow (`/review:quality-gate` when the `review` plugin is installed; otherwise the consuming setup's review step), then `/verification:confirm <PLAN.md path>` for outcome verification once the diff is final, handing it the plan path from Progress tracking when a plan exists, so a fresh session reads the Brief (when the `verification` plugin is installed; otherwise self-verify the outcome against the plan/intent directly), then the PR (`/source-control:pull-request` when that plugin is installed; otherwise whatever the consuming setup provides. The user controls timing). Do not commit-and-push unilaterally, final staging and PR creation belong to that flow. A run that ends without outcome verification against the Brief's outcome criteria (no `/verification:confirm`, no self-verification against intent) states in the handoff summary, or in `DEVIATIONS.md` when one exists, that it did not run and why, so the omission is never invisible. In an orchestrated run, a source commit the orchestrator itself makes after the last phase gets the `phase-verifier` verdict before it is pushed, per `/implementation:implement-dispatch` "Phase boundaries"
 7. **Completion reply**. Close by putting to the user every decision that is still theirs, each with your recommendation, or by saying none remain. Ahead of that, say what now exists, and wherever the plan or task left a call to you, say which way you went and why

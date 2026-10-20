@@ -197,7 +197,7 @@ why the [untrusted-input rule](#untrusted-input-worktrees) applies to cloud host
 | `/source-control:worktree` `create` (the shared helper path and a plain `git worktree add`) | `setup` |
 | `/source-control:worktree` `cleanup` | `down` |
 | `/work-items:work` worker-side provisioning | `setup` |
-| `/implementation:implement-dispatch` worker-side provisioning (brief item 9) | `setup` |
+| `/implementation:implement-dispatch` worker-side provisioning (brief item 10) | `setup` |
 | `/testing:run-e2e` | `up`, `info` |
 
 ## Residual risks

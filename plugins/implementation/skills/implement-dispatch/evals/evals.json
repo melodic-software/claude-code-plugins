@@ -366,7 +366,7 @@
       "name": "worker-edits-existing-test-fails-verification",
       "narration": true,
       "prompt": "/implementation:implement-dispatch: autonomous run, phase 2 of .work/rates/PLAN.md adds currency rounding to src/rates/convert.ts. The plan names no test changes for this phase. The worker returned green; its diff changes src/rates/convert.ts and also edits an expected value in the existing test tests/rates/convert.test.ts.",
-      "expected_output": "Existing test files were FORBIDDEN for this non-test-authoring phase (brief item 1.12), so the return fails verification: the orchestrator does not accept the diff or build on it, reverts or re-briefs the worker, and treats the worker's green claim as no signal. Because the run is unattended, it recommends the testing plugin's `test_guards_enabled` option when it is off.",
+      "expected_output": "Existing test files were FORBIDDEN for this non-test-authoring phase (brief item 1.13), so the return fails verification: the orchestrator does not accept the diff or build on it, reverts or re-briefs the worker, and treats the worker's green claim as no signal. Because the run is unattended, it recommends the testing plugin's `test_guards_enabled` option when it is off.",
       "files": [],
       "expectations": [
         "It rejects the return because the diff edits an existing test file the phase did not authorize",
@@ -777,6 +777,34 @@
         "Does NOT put phase 2's row in the same wave as phase 1's attempts",
         "Runs phase 1's two attempts as rows of a wave holding only phase 1",
         "Dispatches phase 2 in a separate wave, before or after phase 1"
+      ]
+    },
+    {
+      "id": 59,
+      "name": "worker-reports-stale-dependency-as-discovery",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch phase-2 - autonomous run. Phase 2 adds retry handling to src/http/client.py; its fence allows only that file and its test, and requirements.txt is FORBIDDEN. While editing, the worker sees that requirements.txt pins httpx 0.23 and the httpx changelog lists several newer releases. The plan's acceptance criteria do not depend on the httpx version. Dispatch phase 2 and handle its return.",
+      "expected_output": "The worker finishes phase 2 inside its fence and returns verdict complete, listing the old httpx pin under `discoveries:` with type stale-dependency, what it found and its evidence, with `problems:` holding no STOP. requirements.txt is unchanged. The orchestrator does not treat the discovery as a STOP or a divergence: it verifies and gates the phase as usual and appends a `discovery` entry for the httpx pin to DEVIATIONS.md, without upgrading httpx itself.",
+      "files": [],
+      "expectations": [
+        "The worker return lists the httpx pin under discoveries: with type stale-dependency and evidence",
+        "The worker does NOT stop: it completes the phase-2 work and its return has no STOP for the pin",
+        "requirements.txt is NOT edited by the worker or the orchestrator",
+        "The orchestrator appends a discovery entry naming the httpx pin to DEVIATIONS.md"
+      ]
+    },
+    {
+      "id": 60,
+      "name": "brief-quotes-problem-intent-and-assumptions",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch phase-1 - autonomous run. The approved PLAN.md Brief has a ### Problem paragraph about duplicate invoice emails, a ### Goal whose Intent line reads `- Intent (why, in the user's words): \"customers should get one email per invoice, never two\"`, a ### Out-of-scope list naming the email template redesign, and the plan's ### Load-bearing assumptions table has a row 'the mail queue delivers at least once' that phase 1 depends on and a row about PDF rendering that it does not. Compose and dispatch phase 1's brief.",
+      "expected_output": "The phase 1 brief quotes the Brief verbatim: the Problem paragraph, the Goal with its Intent line word for word, the Out-of-scope list, and the 'mail queue delivers at least once' assumption row. It leaves out the PDF rendering row, which phase 1 does not depend on, and paraphrases none of the quoted text.",
+      "files": [],
+      "expectations": [
+        "The brief carries the Problem paragraph and the Out-of-scope list",
+        "The brief carries the Intent line word for word, including \"customers should get one email per invoice, never two\"",
+        "The brief carries the 'mail queue delivers at least once' assumption row",
+        "The brief does NOT carry the PDF rendering assumption row"
       ]
     }
   ]
