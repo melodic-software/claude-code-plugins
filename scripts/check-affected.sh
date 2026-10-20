@@ -107,7 +107,17 @@ if ((uncommitted)); then
   trap 'git worktree remove --force "$snap/tree" >/dev/null 2>&1; rm -rf "$snap"' EXIT
   index="$(git rev-parse --git-path index)" || exit 2
   [[ ! -f "$index" ]] || cp "$index" "$snap/index" || exit 2
-  GIT_INDEX_FILE="$snap/index" git add -A || exit 2
+  # The lane's sandbox masks dotfiles with /dev/null, a device git will not
+  # add, so only files, symlinks, repositories and deletions are staged.
+  # An empty pathspec would make add -A stage everything, so none means no add.
+  paths=()
+  while IFS= read -r -d '' f; do
+    if [[ -f "$f" || -L "$f" || -d "$f" || ! -e "$f" ]]; then paths+=("$f"); fi
+  done < <(git ls-files -z --modified --others --exclude-standard)
+  if ((${#paths[@]})); then
+    printf '%s\0' "${paths[@]}" |
+      GIT_INDEX_FILE="$snap/index" git add -A --pathspec-from-file=- --pathspec-file-nul || exit 2
+  fi
   tree="$(GIT_INDEX_FILE="$snap/index" git write-tree)" || exit 2
   commit="$(git -c user.name=check-affected -c user.email=check-affected@localhost \
     commit-tree "$tree" -p HEAD -m 'check-affected: uncommitted work')" || exit 2
