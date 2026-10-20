@@ -76,7 +76,7 @@ A `stranded` row whose `peers` column names another worktree is recoverable from
 |--------|-----------|
 | `stranded` | Work is `stranded`, `unknown`, or `superseded`. Outranks every row below |
 | `notgit` | Work is `notgit` |
-| `pr-unknown` | The row's PR lookup is incomplete (step 2). Never `stale`, `in-review` or `merged` on PR grounds while the read is missing; `merged` by `landed=yes` still applies. Re-run `status` once the read succeeds. Outranks every PR-grounded row below; `prunable`, `locked` and `unclaimed` still apply |
+| `pr-unknown` | The row's PR lookup is incomplete (step 2). Replaces `active`, `stale`, `in-review` and `merged` on PR grounds while the read is missing; `merged` by `landed=yes`, `prunable`, `locked` and `unclaimed` replace it. Re-run `status` once the read succeeds |
 | `active` | Recent commits, no issues |
 | `stale` | Last commit > threshold days ago, a successful PR read found no open PR, **and** Work is `safe` |
 | `in-review` | Has an open PR (regardless of commit age) |

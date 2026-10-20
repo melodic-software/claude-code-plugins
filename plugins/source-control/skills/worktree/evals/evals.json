@@ -96,6 +96,7 @@
         "Runs `worktree-facts.sh list` and reads its columns; does not parse `git worktree list --porcelain` by hand",
         "Reads PRs per worktree branch with `gh pr list --head <branch> --state all`, never one unfiltered list of every PR; a failed read for one branch shows 'PR lookup incomplete' rather than no PR",
         "Gives a row whose PR lookup is incomplete the Status `pr-unknown`, never `stale`, even when its last commit is past the threshold and Work is `safe`",
+        "Gives a row with recent commits and an incomplete PR lookup the Status `pr-unknown`, not `active`",
         "Uses the worktree_stale_days userConfig value for the stale threshold, falling back to 14 when unset, invalid, or unexpanded",
         "Classifies each worktree (active / stale / in-review / merged / prunable / locked) in the presented table",
         "Degrades gracefully when `gh` fails — skips PR info with a note instead of aborting the whole status report"
