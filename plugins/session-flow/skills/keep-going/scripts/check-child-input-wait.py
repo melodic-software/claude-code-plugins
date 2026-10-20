@@ -5,9 +5,11 @@ Usage: check-child-input-wait.py <root-pid>
 
 Prints one JSON object on stdout:
   {"root": <pid>, "platform": "...", "processes": [{"pid", "ppid", "depth",
-   "command", "waiting_on_input"}], "waiting": [<pid>...], "unknown": [<pid>...]}
+   "command", "waiting_on_input", "stdin"}], "waiting": [<pid>...], "unknown": [<pid>...]}
 
-``waiting_on_input`` is "yes", "no" or "unknown". "unknown" means the platform
+``waiting_on_input`` is "yes", "no" or "unknown". ``stdin`` is where fd 0 points on
+Linux (``/dev/null``, ``pipe:[N]``, a tty path), and null when unreadable or on
+another platform. "unknown" means the platform
 gave no readable signal for that process (an elevated process the session
 cannot inspect, or a platform with no signal); it is never reported as "no".
 
