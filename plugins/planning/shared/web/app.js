@@ -427,8 +427,8 @@
     /** Placed in a round that has not opened yet: shown, read-only. */
     const notOpenYet = q => roundOf(q) > curRound().current;
     const readOnly = q => !!q && (isSent(q) || notOpenYet(q) || (!!Core.state.ended && !Core.me.isOwner) || !!Core.state.youRemoved);
-    /** My answer record: text, or a pick on a choice question, or both. */
-    const myRec = qid => Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.option && !a.claude);
+    /** My answer record: text, or a pick on a choice question, or both (this device's, on a per-device question). */
+    const myRec = qid => Core.myRecord(qid);
     const hasAnswered = qid => !!myRec(qid);
     const askedOfMe = qid => Core.askedOf(qid).includes(Core.me.cid);
     /** Someone else's answer (not Claude's, not an option): one makes a question not asked of me by name optional. */
@@ -845,9 +845,15 @@
       ol._items = ["sent", "working", "here"].map(k => { const li = E("li", "vf-step"); li.dataset.k = k; li.append(E("span", "vf-step-dot"), E("span", "vf-step-txt")); ol.append(li); return li; });
       return ol;
     }
+    /** Follow-up 33: how long Claude has been working on the round, once that is long enough to wonder ("" before). */
+    const WORKING_SHOWN_AFTER = 120; // judgment: seconds before the page says how long Claude has been working
+    // Claude acks and opens the next round in one apply, so a round mostly waits in "sent": that wait counts from sentAt.
+    const longFor = ts => (ts && (Core.state.serverTime || Date.now() / 1000) - ts >= WORKING_SHOWN_AFTER ? Core.span(ts) : "");
+    const workingFor = R => (R.status === "working" ? longFor(R.ackAt) : "");
+    const waitingFor = R => (R.status === "sent" ? longFor(R.sentAt) : "");
     function fillStepper(ol, R) {
-      const st2 = R.status === "working" ? 1 : 0, n = R.current + 1;
-      const labels = ["Waiting for Claude", "Claude is working", `Round ${n} is here`];
+      const st2 = R.status === "working" ? 1 : 0, n = R.current + 1, took = workingFor(R), waited = waitingFor(R);
+      const labels = [waited ? `Waiting for Claude · ${waited}` : "Waiting for Claude", took ? `Claude is working · ${took}` : "Claude is working", `Round ${n} is here`];
       ol._items.forEach((li, i) => {
         li.lastChild.textContent = labels[i];
         li.dataset.state = i < st2 ? "done" : i === st2 ? "now" : "todo";
@@ -859,7 +865,11 @@
     const stepNote = E("p", "vf-step-note");
     nextBox.append(nextTxt, railSteps, stepNote, cancelSend);
     const railEmpty = E("p", "vf-empty vf-empty-sm vf-rail-empty", "No questions yet. Round 1 lists here as soon as it opens.");
-    rounds.append(railEmpty, groups, nextBox);
+    // Follow-up 52: a filter or a round pick that hides questions says so above the rail, with a way back.
+    const railFilter = E("p", "vf-railfilter"), railFilterTxt = E("span"), railFilterAll = btn("vf-lbtn", "Show all");
+    railFilter.append(railFilterTxt, railFilterAll); railFilter.hidden = true;
+    railFilterAll.onclick = () => setTb({ filter: "all", round: "all" });
+    rounds.append(railEmpty, railFilter, groups, nextBox);
     const railFoot = E("div", "vf-railfoot");
     function railRow(label) {
       const b = btn("vf-proprow"); b.setAttribute("aria-haspopup", "dialog"); b.setAttribute("aria-expanded", "false");
@@ -969,7 +979,9 @@
     sortSel.s.onchange = () => setTb({ sort: sortSel.s.value });
     const chips = E("div", "vf-chips"); chips.setAttribute("role", "group"); chips.setAttribute("aria-label", "Show questions");
     const chipBtns = {};
-    for (const [k, label] of [["all", "All"], ["open", "Open"], ["locked", "Locked"], ["review", "Needs review"], ["mine", "Mine"], ["research", "Has research"]]) {
+    const FILTERS = [["all", "All"], ["open", "Open"], ["locked", "Locked"], ["review", "Needs review"], ["mine", "Mine"], ["research", "Has research"]];
+    const FILTER_LABEL = Object.fromEntries(FILTERS);
+    for (const [k, label] of FILTERS) {
       const b = btn("vf-fchip", label); b.onclick = () => setTb({ filter: k }); chips.append(b); chipBtns[k] = b;
     }
     const roundSel = selWrap("Round", [["all", "All rounds"]]);
@@ -1063,6 +1075,14 @@
     const orHide = btn("vf-btn vf-btn-ghost vf-btn-sm vf-orient-x", "Skip"); orHide.setAttribute("aria-label", "Skip the welcome and the tour");
     const orCatch = catchUpEl(() => { ui.orientHidden = true; });
     orient.append(orHide, orLead, orH, orGoal, orAsk, orCatch, orRow, orWhy);
+    // Follow-up 39: on a return visit a guest sees the goal in one line until they close it; this tab remembers the close
+    // for that goal, so the next visit shows it again.
+    const goalBack = E("div", "vf-goalback"), goalBackTxt = E("span", "vf-goalback-t");
+    const goalBackX = ibtn("vf-tbtn vf-tbtn-quiet vf-goalback-x", "x", "Hide the goal");
+    goalBack.append(goalBackTxt, goalBackX);
+    const GOAL_HIDDEN = "vf-goal-hidden";
+    const goalHidden = () => { try { return sessionStorage.getItem(GOAL_HIDDEN); } catch { return ui.goalHidden; } };
+    goalBackX.onclick = () => { ui.goalHidden = Core.state.goal; try { sessionStorage.setItem(GOAL_HIDDEN, Core.state.goal); } catch { /* storage off */ } render(); qText.focus({ preventScroll: true }); };
     orWhyBtn.onclick = () => { ui.introOpen = !introOpen(); render(); };
     const WELCOME_SEEN = () => "vf-welcome-seen:" + (Core.me.cid || "anon");
     const welcomeDone = () => { store.put(WELCOME_SEEN(), true); ui.welcomeAgain = false; ui.orientHidden = true; };
@@ -1372,7 +1392,9 @@
     const advStay = btn("vf-btn vf-btn-ghost vf-btn-sm vf-advance-stay", "Stay");
     advBar.append(E("span", null, "Next question in 2 s"), E("span", "vf-advance-sep", "·"), advStay);
     // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
-    scroll.append(orient, qMeta, forBox, qText, refBox, qPicBox, reviewRow, onIt, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
+    // Follow-up 47: a question asked once per device, answered from another kind of device, asks again on this one.
+    const devNote = E("p", "vf-devnote"); devNote.hidden = true;
+    scroll.append(orient, goalBack, qMeta, forBox, qText, refBox, qPicBox, reviewRow, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
     focusV.append(scroll);
 
     // Compare view
@@ -1427,7 +1449,7 @@
     // Filter chips by presence (and Removed, the owner's), a name search once the list passes 12, then 25 at a time.
     const pFilters = E("div", "vf-chips vf-pfilters"); pFilters.setAttribute("role", "group"); pFilters.setAttribute("aria-label", "Show people");
     const pfBtns = {};
-    for (const [k, label] of [["all", "All"], ["here", "Here"], ["away", "Away"], ["offline", "Offline"], ["removed", "Removed"]]) {
+    for (const [k, label] of [["all", "All"], ["here", "Here"], ["away", "Away"], ["offline", "Offline"], ["behind", "Behind"], ["removed", "Removed"]]) {
       const b = btn("vf-fchip"); b.append(E("span", null, label), E("span", "vf-fchip-n")); b.onclick = () => { ui.peopleFilter = k; render(); }; pFilters.append(b); pfBtns[k] = b;
     }
     const pFind = E("input", "vf-input vf-pfind"); pFind.type = "search"; pFind.placeholder = "Find a person"; pFind.setAttribute("aria-label", "Find a person by name");
@@ -1914,11 +1936,15 @@
     const popBox = E("section", "vf-ixgroup vf-ibpops"), popRows = {}, popNote = E("p", "vf-pop-note");
     popBox.append(E("h3", "vf-ixgh", "Pop-ups"), popNote);
     const popList = E("div", "vf-mutebox"); popBox.append(popList);
+    // Round 11: the owner sets the pop-ups a guest starts with; each guest's own switches win.
+    const gPopBox = E("section", "vf-ixgroup vf-ibgpops"), gPopRows = {};
+    gPopBox.append(E("h3", "vf-ixgh", "Guests start with"), E("p", "vf-pop-note", "The pop-ups a guest has on until they change their own."));
+    const gPopList = E("div", "vf-mutebox"); gPopBox.append(gPopList);
     const noteMore = showMore("notes", 20);
     // Follow-up 51: the messages first at every width; Pop-ups and the switches beside them from 1100 px (a sticky side
     // column), and below that behind one "Pop-ups and notifications" button after them.
     const muteHead = E("h3", "vf-ixgh vf-ibmuteh", "Notify me about");
-    const ibSide = E("div", "vf-ibside"); ibSide.dataset.open = "false"; ibSide.append(muteBtn, popBox, muteHead, muteBox);
+    const ibSide = E("div", "vf-ibside"); ibSide.dataset.open = "false"; ibSide.append(muteBtn, popBox, gPopBox, muteHead, muteBox);
     const ixNotes = E("div", "vf-ibtab vf-ixnotes"); ixNotes.append(bpTools, nList, noteMore.foot, nEmpty, ibSide);
     // History: what needed someone and was handled, a page at a time
     const histRev = E("ul", "vf-plist vf-revlist vf-ibhistrev"); histRev.setAttribute("aria-label", "Requests to Claude, handled");
@@ -2879,7 +2905,8 @@
     /** Round 11: a guest's own pop-ups, all on until they turn one off; the rest from others waits in the Inbox. */
     const GUEST_POPUPS = [["request", "Claude answered my request"], ["mention", "Someone names or mentions me"], ["round", "A new round, or the round moves on"]];
     const popKinds = () => (Core.me.isOwner ? POPUP_KINDS : GUEST_POPUPS);
-    const urgent = () => { const v = pref("popups", null); return Array.isArray(v) ? v : Core.me.isOwner ? HOST_URGENT : GUEST_POPUPS.map(([k]) => k); };
+    const guestDefault = () => Core.state.settings?.guestPopups ?? GUEST_POPUPS.map(([k]) => k);
+    const urgent = () => { const v = pref("popups", null); return Array.isArray(v) ? v : Core.me.isOwner ? HOST_URGENT : guestDefault(); };
     /** Whether a kind of news pops up for me: switched on as a pop-up and not muted in "Notify me about". */
     const popsUp = kind => urgent().includes(kind) && !pref("mute", []).includes(kind);
     /** What may pop up: a waiting item of a kind switched on, never the host's own report, and a failure only until opened. */
@@ -2889,6 +2916,12 @@
       b.append(E("span", "vf-sw-txt vf-sw-label", label), E("span", "vf-switch"));
       b.onclick = () => { const u = new Set(urgent()); u.has(k) ? u.delete(k) : u.add(k); setPrefs({ popups: popKinds().map(([kk]) => kk).filter(kk => u.has(kk)) }); render(); };
       popList.append(b); popRows[k] = b;
+    }
+    for (const [k, label] of GUEST_POPUPS) {
+      const b = btn("vf-sw-row"); b.setAttribute("role", "switch"); b.dataset.k = k;
+      b.append(E("span", "vf-sw-txt vf-sw-label", label), E("span", "vf-switch"));
+      b.onclick = () => { const u = new Set(guestDefault()); u.has(k) ? u.delete(k) : u.add(k); Core.saveSettings({ guestPopups: GUEST_POPUPS.map(([kk]) => kk).filter(kk => u.has(kk)) }).catch(fail); };
+      gPopList.append(b); gPopRows[k] = b;
     }
     const IX_STAT = { waiting: "Waiting", running: "Running", answered: "Answered", unshared: "Answered", shared: "Shared", declined: "Declined", failed: "Failed" };
     /** A count that is news: unread Inbox items, plus unread notifications other than a request's own notices, which
@@ -3120,6 +3153,8 @@
       } else if (tab === "notes") {
         const u = urgent(), mine = new Set(popKinds().map(([k]) => k));
         for (const [k, b] of Object.entries(popRows)) { b.hidden = !mine.has(k); b.setAttribute("aria-checked", String(u.includes(k))); }
+        gPopBox.hidden = !Core.me.isOwner;
+        if (Core.me.isOwner) { const g = guestDefault(); for (const [k, b] of Object.entries(gPopRows)) b.setAttribute("aria-checked", String(g.includes(k))); }
         popNote.textContent = owner ? "On: it pops up the moment it happens. Off: it waits in Needs you." : "On: it pops up the moment it happens. Off: it waits here.";
         bpUnread.setAttribute("aria-pressed", String(ui.unreadOnly));
         const kept = ixFilter("notes", (ui.unreadOnly ? list.filter(n => !n.read) : list).map(n => ({ ...n, ck: n.kind })));
@@ -4681,6 +4716,7 @@
       if (S.trusted.includes(pid)) return "Trusted";
       return "Guest";
     }
+    const COMFORT = { low: "Not very", ok: "Fine", high: "Very" }; // session.py TECH_COMFORT
     const COLOR_NAMES = ["Pink", "Blue", "Green", "Amber", "Violet", "Red", "Cyan", "Orange", "Lime", "Magenta"];
     const nameOf = (pid, fallback = "") => Core.state.people?.[pid]?.name || Core.state.presence.find(p => p.cid === pid)?.name || fallback || "Someone";
     /** "Show the tour again": the welcome card and the tour offer come back, on this device and in my prefs. */
@@ -4700,7 +4736,7 @@
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
       const q = here?.q && qById(here.q);
-      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -4748,6 +4784,22 @@
         const again = k(lbtn("vf-menu-item vf-menu-plain vf-tour-again", "help", "Show the tour again"), "tourAgain");
         again.onclick = showWelcomeAgain;
         parts.push(adv, again);
+        if (c.pinned && !owner) {
+          // Follow-up 46: optional, for the host and Claude only, so questions can be worded for me.
+          const a = S.myAbout || {}, aseg = E("div", "vf-seg vf-seg-sm vf-about"); aseg.setAttribute("role", "group"); aseg.setAttribute("aria-label", "How comfortable are you with tech?");
+          const note = k(E("input", "vf-input vf-about-note"), "an"); note.maxLength = 200; note.placeholder = "Anything else the host should know (optional)";
+          note.setAttribute("aria-label", "A note for the host"); note.value = ui.aboutDraft ?? a.note ?? "";
+          note.oninput = () => { ui.aboutDraft = note.value; };
+          const save = comfort => Core.setAboutYou(comfort, note.value.trim()).then(() => { ui.aboutDraft = null; flash("Saved. Only the host sees it."); }).catch(fail);
+          for (const [v, l] of Object.entries(COMFORT)) {
+            const b = k(btn("vf-seg-btn", l), "ab" + v); b.setAttribute("aria-pressed", String(a.techComfort === v));
+            b.onclick = () => save(v);
+            aseg.append(b);
+          }
+          const saveNote = k(btn("vf-btn vf-btn-ghost vf-btn-sm", "Save note"), "as"); saveNote.hidden = !a.techComfort;
+          saveNote.onclick = () => save(a.techComfort);
+          parts.push(E("h3", "vf-pop-sub", "About you (optional, only the host sees it)"), E("p", "vf-pop-note", "How comfortable are you with tech?"), aseg, note, saveNote);
+        }
         if (c.pinned) {
           // Away by hand (the snooze): others see me as Away until my next key, click or touch.
           const awayB = k(lbtn("vf-menu-item vf-menu-plain vf-away-btn", "moon", Core.isAway() ? "You show as Away. Any key or tap ends it" : "Show me as Away"), "away");
@@ -6465,10 +6517,10 @@
       // round
       const n = R.current, rq = S.questions.filter(q => roundOf(q) === n), decided = rq.filter(q => Core.lockOf(q.id)).length;
       const sent = isSentStatus(R.status);
-      hRoundName.textContent = `Round ${n}: ${sent ? (R.status === "working" ? "Claude is working on it" : "waiting for Claude") : `${decided} of ${rq.length} decided`}`;
+      hRoundName.textContent = `Round ${n}: ${sent ? (R.status === "working" ? `Claude is working on it${workingFor(R) ? ` · ${workingFor(R)}` : ""}` : "waiting for Claude") : `${decided} of ${rq.length} decided`}`;
       hSteps.hidden = !sent; if (sent) fillStepper(hSteps, R);
       const props = S.ideas.filter(i => i.status === "new").length;
-      hRoundNote.textContent = sent ? (R.status === "working" ? "If Claude stopped responding, you can reset the round. Otherwise message Claude in the terminal." : "You can still cancel sending until Claude picks it up.")
+      hRoundNote.textContent = sent ? (R.status === "working" ? "If Claude stopped responding, you can reset the round. Otherwise message Claude in the terminal." : "Claude may already be reading it. You can still cancel.")
         : `${props} proposal${props === 1 ? "" : "s"} go${props === 1 ? "es" : ""} with it. ${R.ready ? `${youOr(R.ready.cid, R.ready.by)} marked it ready.` : ""}`.trim();
       hSend.hidden = !mod || sent || !!S.ended;
       hSend.textContent = owner ? "Send round to Claude" : R.ready ? "Marked ready: undo" : "Mark round ready";
@@ -6511,13 +6563,16 @@
       const lastCtx = {}, lastTs = {}; // each person's newest recorded context: answers and suggestions carry one
       for (const r of [...Object.values(S.answers).flat(), ...Object.values(S.suggestions || {}).flat()]) if (r.ctx && !(lastTs[r.cid] > r.ts)) { lastCtx[r.cid] = r.ctx; lastTs[r.cid] = r.ts; }
       const pres = p => (gone.has(p.pid) ? "removed" : presState(here.get(p.pid)));
-      const inFilter = { all: () => true, here: p => ["active", "away"].includes(pres(p)), away: p => pres(p) === "away", offline: p => pres(p) === "offline", removed: p => pres(p) === "removed" };
-      const noRemoved = !owner || !ppl.some(inFilter.removed);
-      if (noRemoved && ui.peopleFilter === "removed") ui.peopleFilter = "all";
+      // #7852: how many of the open round's questions each guest still owes (the server's count, moderators only)
+      const behind = S.behind || {}, owes = p => (gone.has(p.pid) ? 0 : behind[p.pid] || 0);
+      const inFilter = { all: () => true, here: p => ["active", "away"].includes(pres(p)), away: p => pres(p) === "away", offline: p => pres(p) === "offline",
+        behind: p => owes(p) > 0, removed: p => pres(p) === "removed" };
+      const noRemoved = !owner || !ppl.some(inFilter.removed), noBehind = !ppl.some(inFilter.behind);
+      if ((noRemoved && ui.peopleFilter === "removed") || (noBehind && ui.peopleFilter === "behind")) ui.peopleFilter = "all";
       for (const [k, b] of Object.entries(pfBtns)) {
         b.setAttribute("aria-pressed", String(ui.peopleFilter === k));
         b.lastChild.textContent = String(ppl.filter(inFilter[k]).length);
-        b.hidden = k === "removed" && noRemoved;
+        b.hidden = (k === "removed" && noRemoved) || (k === "behind" && noBehind);
       }
       pFind.hidden = ppl.length <= 12;
       const find = pFind.hidden ? "" : ui.peopleFind.trim().toLowerCase();
@@ -6552,7 +6607,9 @@
         // Active, Away (with how long), or offline: no heartbeat for a while, so not in presence at all.
         const last = h ? (h.away ? `Away${awayFor(h)}` : hq ? `Active, on ${hq.id}` : "Active") : p.seen ? `Offline, last active ${since(p.seen)}` : `Offline, joined ${since(p.ts)}`;
         const na = answeredBy[p.pid] || 0;
-        k.meta.textContent = `${last}. ${na} answered${h?.typing ? ", typing" : ""}`;
+        const nb = owes(p);
+        const ab = owner && S.aboutYou[p.pid]; // follow-up 46: what they said about themselves, for the owner only
+        k.meta.textContent = `${last}. ${na} answered${nb ? `, ${nb} to answer this round` : ""}${h?.typing ? ", typing" : ""}${ab ? `. Tech comfort: ${COMFORT[ab.techComfort]}${ab.note ? `, “${ab.note}”` : ""}` : ""}`;
         ctxBadge(k.ctxB, owner ? lastCtx[p.pid] : null);
         li.dataset.here = String(!!h);
         li.dataset.presence = presState(h);
@@ -6713,7 +6770,9 @@
         return li;
       }, (li, p) => { li._p = p; li.firstChild.textContent = disp(nameOf(p)); paintPersonActs(li._k, p, "removed"); });
 
-      // session banner: removed, ended, or a link to share again (a waiting person's card says it all: no banner)
+      // session banner: removed, ended, a link to share again, or (follow-up 45) a social app's browser, which never
+      // blocks the page (a waiting person's card says it all: no banner)
+      const inApp = Core.inApp();
       root.toggleAttribute("data-waiting", !!S.youWaiting);
       if (S.youWaiting && (ui.mode !== "focus" || (phone.matches && ui.tab !== "answer"))) { if (phone.matches) setTab("answer"); else setMode("focus"); return; }
       const bn = S.youMerged ? ["This browser was merged into the owner. Open your owner link here.", null]
@@ -6722,6 +6781,10 @@
         : S.ended ? [me.isOwner ? "You ended this session. Guests see it read-only, with the final tree." : "This session has ended. Here is what it decided.",
           me.isOwner ? ["Reopen", () => Core.endSession(false).catch(fail)] : ["Show the tree", () => setMode("tree")]]
         : reshare ? ["New guest link, share again: the old link no longer works.", ["Share", () => openSurface(sharePop, shareBtn.offsetParent ? shareBtn : bannerAct)]]
+        // never the owner's: their link is the owner credential. A guest's link signs them in, so it opens the device
+        // panel with its "Keep this private" warning rather than going to the clipboard unannounced.
+        : inApp && !me.isOwner && !ui.inAppDone ? [`You are in ${inApp.app}'s browser. For pictures, pop-ups and staying signed in, open this page in ${inApp.open}: copy your link, then paste it there.`,
+          ["Get your link", () => { ui.inAppDone = true; render(); openDevice(); }]]
         : null;
       banner.hidden = !bn;
       if (bn) {
@@ -6739,6 +6802,12 @@
       for (const x of shownQs) { const r = roundOf(x); if (!byRound.has(r)) byRound.set(r, []); byRound.get(r).push(x); }
       const roundNums = [...new Set([...qs.map(roundOf), cur])].sort((a, b) => a - b);
       const railNums = roundNums.filter(n => byRound.has(n) || (n === cur && (tb().round === "all" || tb().round === String(n))));
+      const hidQ = qs.length - shownQs.length, hidR = roundNums.filter(n => qs.some(x => roundOf(x) === n) && !byRound.has(n)).length, tf = tb();
+      railFilter.hidden = !hidQ || simpleView();
+      if (!railFilter.hidden) {
+        const what = [tf.filter !== "all" ? `${FILTER_LABEL[tf.filter]} only` : "", tf.round !== "all" ? `round ${tf.round}` : ""].filter(Boolean).join(", ");
+        railFilterTxt.textContent = `Showing ${what} · ${hidR ? `${hidR} round${hidR === 1 ? "" : "s"}` : `${hidQ} question${hidQ === 1 ? "" : "s"}`} hidden · `;
+      }
       sync(groups, railNums, n => n, n => {
         const g = E("section", "vf-round");
         const head = E("div", "vf-rhead");
@@ -6803,7 +6872,7 @@
       if (preparing) fillStepper(railSteps, R);
       stepNote.hidden = !preparing;
       stepNote.textContent = R.status === "working" ? (me.isOwner ? "If Claude stopped responding, reset the round from the Host view." : "The host can message Claude in the terminal.")
-        : `Sent ${sentAgo}.${me.isOwner ? " You can cancel until Claude picks it up." : ""}`;
+        : `Sent ${sentAgo}.${me.isOwner ? " Claude may already be reading it; you can still cancel." : ""}`;
       cancelSend.hidden = !((R.status === "sent" || R.status === "preparing") && me.isOwner);
 
       // proposed
@@ -6945,6 +7014,10 @@
       orient.hidden = !q || me.isOwner || !S.me || !!S.ended || !!S.youRemoved || !!ui.orientHidden
         || (!ui.welcomeAgain && (!!store.get(WELCOME_SEEN(), false) || S.questions.some(x => ["answered", "took"].includes(myState(x.id)))));
       introBtn.hidden = !S.intro && !me.isOwner; menuShow("intro", !introBtn.hidden);
+      // a return visit: this person had been here before this page opened (the welcome seen, or something answered)
+      if (ui.returning == null && S.me) ui.returning = !!store.get(WELCOME_SEEN(), false) || S.questions.some(x => ["answered", "took"].includes(myState(x.id)));
+      goalBack.hidden = !q || me.isOwner || !!S.youWaiting || !!S.youRemoved || !S.goal || !ui.returning || !orient.hidden || !!S.ended || goalHidden() === S.goal;
+      if (!goalBack.hidden) goalBackTxt.textContent = `Goal: ${S.goal}`;
       if (!orient.hidden) {
         const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];
         const nQ = inCur.length || S.questions.length, hostName = disp(nameOf(S.ownerPid, "The host"));
@@ -6970,6 +7043,9 @@
       }
       if (q) {
         renderRefs(q); renderQPics(q);
+        const devOthers = me.isOwner ? [] : Core.myOtherDevices(q.id);
+        devNote.hidden = !devOthers.length || !!Core.myRecord(q.id);
+        if (!devNote.hidden) devNote.textContent = `You answered this on your ${devOthers.join(" and ")}. It asks for one answer per device: answer for this ${Core.thisDevice()} too.`;
         const inRound = S.questions.filter(x => roundOf(x) === roundOf(q));
         qPos.textContent = `${q.id}, round ${roundOf(q)}, question ${inRound.indexOf(q) + 1} of ${inRound.length}`;
         qFrom.textContent = q.from ? `Suggested by ${disp(q.from)}` : "";

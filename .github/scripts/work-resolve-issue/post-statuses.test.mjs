@@ -287,8 +287,9 @@ const APP_COMMIT = {
   committer: { login: "web-flow" },
   commit: { verification: { verified: true } },
 };
-const resumedRoutes = (commits = [APP_COMMIT]) => [
+const resumedRoutes = (commits = [APP_COMMIT], refTip = TIP) => [
   ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+  ...(refTip ? [["GET", new RegExp(`/git/ref/heads/${RESUMED}$`), 200, { object: { sha: refTip } }]] : []),
   ["GET", new RegExp(`/compare/main\\.\\.\\.${TIP}$`), 200, { commits, total_commits: commits.length }],
   ["POST", new RegExp(`/statuses/${TIP}$`), 201, {}],
 ];
@@ -327,6 +328,25 @@ test("main posts nothing for a resumed run whose resume or check results do not 
       async (dir) => {
         const { fetch, calls } = fakeFetch(resumedRoutes(commits));
         assert.equal(await main({ env: { ...env(dir), RESUME_BRANCH: runner, RUNNER_CHECKS: checks }, fetch }), 0, label);
+        assert.deepEqual(calls.filter((c) => c.method === "POST"), [], label);
+      },
+    );
+  }
+});
+
+// The statuses belong on the tip the PR opens from, so a resumed branch that
+// moved past the checked tip, or whose ref cannot be read, gets none.
+test("main posts nothing for a resumed branch no longer at the checked tip", async () => {
+  for (const [label, refTip] of [
+    ["a moved branch", "f".repeat(40)],
+    ["an unreadable ref", null],
+  ]) {
+    await withOutcome(
+      { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", resume: RESUMED }) },
+      async (dir) => {
+        const { fetch, calls } = fakeFetch(resumedRoutes([APP_COMMIT], refTip));
+        const run = { ...env(dir), RESUME_BRANCH: RESUMED, RUNNER_CHECKS: resumedChecks() };
+        assert.equal(await main({ env: run, fetch }), 0, label);
         assert.deepEqual(calls.filter((c) => c.method === "POST"), [], label);
       },
     );

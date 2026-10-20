@@ -5,8 +5,8 @@
 // opens where it happened and closes the page: a request on its question, a notification on its question, a
 // question the guest is asked to answer, a proposal in the Host view's queue. A leader sees proposals to place, and
 // the server refuses a leader's Run however the page looks. The owner's Notifications start with Pop-ups switches
-// (a join, a request for Run and a report on); one turned off leaves its items in Needs you with no pop-up, and a
-// guest has no such section.
+// (a join, a request for Run and a report on); one turned off leaves its items in Needs you with no pop-up. A guest's
+// own three switches start as the owner's Guests start with defaults until the guest changes them.
 //   node plugins/planning/shared/tests/ui_inbox_page.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the owner-approved spec (spec-question-screen.md item 9, follow-up 23) and the texts this
@@ -258,6 +258,22 @@ async function main() {
     await until(ann, t => window.Core.state.ideas.find(i => i.text === t)?.status !== "new", MUTED, 10000);
     await ann.waitForTimeout(1500);
     ok("  with Proposals muted, her placed proposal does not toast", await ann.evaluate(() => !window.__toasts.some(t => /^Your proposal/.test(t))), JSON.stringify(await ann.evaluate(() => window.__toasts)));
+
+    // ---------- round 11: the owner sets the pop-ups a guest starts with; a guest's own switches win ----------
+    const gpops = () => owner.evaluate(() => Object.fromEntries([...document.querySelectorAll(".vf-ibgpops [role=switch]")].map(b => [b.dataset.k, b.getAttribute("aria-checked") === "true"])));
+    await showTab(owner, "notes");
+    ok("the owner's Notifications show what guests start with: all three on", await until(owner, () => !document.querySelector(".vf-ibgpops").hidden)
+      && JSON.stringify(await gpops()) === JSON.stringify({ request: true, mention: true, round: true }), JSON.stringify(await gpops()));
+    await owner.click(".vf-ibgpops [data-k=round]");
+    ok("  turning a new round off saves it as the session's default", await until(owner, () => JSON.stringify(window.Core.state.settings.guestPopups) === JSON.stringify(["request", "mention"]), null, 8000));
+    await owner.keyboard.press("Escape");
+    await showTab(lee, "notes");
+    ok("  a guest who never changed theirs starts with it off", await until(lee, () => document.querySelector(".vf-ibpops [data-k=round]")?.getAttribute("aria-checked") === "false", null, 8000)
+      && JSON.stringify(await pops(lee)) === JSON.stringify({ request: true, mention: true, round: false }), JSON.stringify(await pops(lee)));
+    ok("  and has no Guests start with section", await lee.evaluate(() => document.querySelector(".vf-ibgpops").hidden));
+    await showTab(ann, "notes");
+    ok("  a guest who set their own keeps them", JSON.stringify(await pops(ann)) === JSON.stringify({ request: true, mention: false, round: true }), JSON.stringify(await pops(ann)));
+    await lee.keyboard.press("Escape"); await ann.keyboard.press("Escape");
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));

@@ -103,9 +103,31 @@ itself the thing this skill removes.
    now (`gap`, `gap_seconds`); a transcript with no limit or error entry
    measures from the last assistant entry. Exit `2` (missing, unreadable
    or empty transcript, or no assistant entry) means the gap is unknown:
-   report it as unknown, never estimate it. State the gap in the report.
+   report it as unknown, never estimate it. The snapshot's Gap field
+   carries it.
    Anything remembered from before the stop and older than the gap is
    re-read, not trusted: limit windows, leases, PR state and CI runs.
+
+   **Print the environment snapshot** once step 2's reads are done and
+   before step 3 or any recovery action, as one block with these fields,
+   each from its own source:
+   - **Account**: the stop-time and active accounts with their sources
+     and the unchanged / changed / unknown state, per "After a usage limit
+     lifts"; the operator's answer stands in for a missing reading, and
+     with none the field is `unknown`.
+   - **Windows**: the 5-hour and 7-day windows with reset times, from
+     `mcp__rate-limit-guard__status`.
+   - **Zone**: the word from `mcp__context-guard__status`, per "Zone
+     input".
+   - **Off-thread items**: each with its liveness verdict from this step,
+     or `none found`.
+   - **Gap**: from `measure-stop-gap.py`.
+   - **Cause**: the evidence for why the work stopped, quoted (the limit
+     message, the error entry), or `none found`.
+
+   A field with no reading says `unknown` and why (plugin not installed,
+   mods off, tool answer with no windows, no transcript); a value is never
+   guessed. The cause line states evidence only and picks no recovery.
 3. **Goal alignment, before any recovery ACTION.** When the resume
    follows a `/session-flow:handoff`, read that file rather than trusting
    memory, and when the handoff's path was lost (a `/clear` without
@@ -163,7 +185,8 @@ itself the thing this skill removes.
 5. **Reconcile the main thread.** Restate where the primary task
    actually stood, grounded in a fresh read of any plan / checklist /
    task artifact backing it, not a prior turn's claim, and continue it.
-6. **Report.** Open with whatever needs the user: a gated kill or
+6. **Report.** The step 2 snapshot is not reprinted; the report states the
+   final state of any item or window a later step changed. Open the report with whatever needs the user: a gated kill or
    re-fire, or a question about the goal. Below it, one list sorts every
    item as still-running, recovered, restarted, abandoned, or lost /
    unrecoverable. Name every child process step 1 flagged as waiting on
@@ -343,7 +366,8 @@ the reset bullet above.
 
 ## Nothing-off-thread case
 
-If the inventory finds no off-thread work, say so, run step 3's
+If the inventory finds no off-thread work, say so (the snapshot's
+off-thread field reads `none found`), run step 3's
 goal-alignment check when a handoff backs the resume, then go straight to
 step 5: reconcile the main thread from its real state and continue. The
 interruption may have hit mid-turn on the main thread alone. Recovering
@@ -351,10 +375,11 @@ that is still the job.
 
 ## What this skill does NOT do
 
-- **Does not diagnose the interruption type.** A short limit, a weekly
-  limit, or a crash all take the same recovery, so the cause is not
-  classified. (Reading a stated reset time to gate a blocked worker is not
-  diagnosis. It does not change the recovery method.)
+- **Does not choose a recovery from the interruption type.** A short
+  limit, a weekly limit, or a crash all take the same recovery. The
+  snapshot's cause line shows the evidence and is not used to pick a
+  method. (Reading a stated reset time to gate a blocked worker does not
+  change the recovery method either.)
 - **Does not kill or restart live-but-slow work on a hunch.** Action
   follows real output, and kill/restart is gated like any side effect.
 - **Does not build or arm its own scheduler.** Still-blocked work is
