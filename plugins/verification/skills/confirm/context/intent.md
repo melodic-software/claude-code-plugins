@@ -63,6 +63,9 @@ its evidence. An assumption the change falsified (the diff, a test, or a run sho
 hold) is reported with that evidence on the report's `Assumptions:` line and withholds `CONFIRMED`:
 the plan rests on it, so the user decides whether to replan. An assumption the evidence neither
 confirms nor falsifies is listed as unchecked, not as falsified.
+A row whose Assumption cell starts with `RETIRED <date>, re-plan approved:` was replaced by a
+re-plan the user approved: list it as retired, and it withholds nothing. A row marked
+`FALSIFIED <date>:` with no such approval still withholds `CONFIRMED`.
 
 The ladder changes where intent comes from, not what is judged: the pipeline's `check-intent`
 activity still runs outcome verification only, and this skill never edits the PLAN.md, the pull

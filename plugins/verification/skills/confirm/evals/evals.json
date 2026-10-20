@@ -329,6 +329,18 @@
         "It names the conflict with the user's intent that nobody types a tracking number again",
         "The verdict is not CONFIRMED"
       ]
+    },
+    {
+      "id": "assumption-retired-01",
+      "name": "assumption-retired-by-approved-replan-does-not-withhold",
+      "prompt": "/verification:confirm. The approved PLAN.md Brief for this branch states the Problem: client photos are lost when a laptop dies. Goal: a nightly job uploads every new photo. Intent (why, in the user's words): \"we never lose a client's photos again\". Acceptance criterion AC1: every photo added since the last run is in storage after the nightly job. Its `### Load-bearing assumptions` table has two rows: `RETIRED 2026-10-02, re-plan approved: The storage SDK offers a batch upload call | Brief | Phase 2 Sanity Check | Major: stop and replan` and `Uploads of one file succeed or raise | SDK reference | Phase 2 Sanity Check | Moderate`. PLAN.md's Decisions table records the user approving the 2026-10-02 re-plan that replaced batch upload with one `upload_file(path)` call per photo. The change uploads each new photo with `upload_file`; its test uploads three new photos and finds all three in storage, and a test with a failing upload sees the error raised. Build, tests and lint pass.",
+      "expected_output": "Intent source is the PLAN.md Brief. AC1 is met. The Assumptions line lists the batch-upload assumption as retired by the approved re-plan, not as falsified, and the single-file assumption as holding. No assumption withholds the verdict, so it is CONFIRMED.",
+      "files": [],
+      "expectations": [
+        "It lists the batch-upload assumption as retired, not as falsified",
+        "It does not ask the user whether to replan because of the batch-upload assumption",
+        "The verdict is CONFIRMED"
+      ]
     }
   ]
 }
