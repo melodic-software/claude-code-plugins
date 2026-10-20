@@ -7011,7 +7011,7 @@
       introBtn.hidden = !S.intro && !me.isOwner; menuShow("intro", !introBtn.hidden);
       // a return visit: this person had been here before this page opened (the welcome seen, or something answered)
       if (ui.returning == null && S.me) ui.returning = !!store.get(WELCOME_SEEN(), false) || S.questions.some(x => ["answered", "took"].includes(myState(x.id)));
-      goalBack.hidden = !q || me.isOwner || !S.goal || !ui.returning || !orient.hidden || !!S.ended || goalHidden() === S.goal;
+      goalBack.hidden = !q || me.isOwner || !!S.youWaiting || !S.goal || !ui.returning || !orient.hidden || !!S.ended || goalHidden() === S.goal;
       if (!goalBack.hidden) goalBackTxt.textContent = `Goal: ${S.goal}`;
       if (!orient.hidden) {
         const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];

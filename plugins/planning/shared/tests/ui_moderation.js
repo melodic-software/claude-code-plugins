@@ -180,21 +180,23 @@ async function main() {
       return { title: document.querySelector(".vf-ev-title").textContent, intro: seen(".vf-ev-intro") ? document.querySelector(".vf-ev-intro").textContent : "",
         centered: Math.abs(mid - innerWidth / 2) < 24,
         shown: ["banner .vf-banner", "rail .vf-rail", "rounds .vf-round", "Propose .vf-ev > .vf-btn", "Ask Claude .vf-asktop", "Follow .vf-follow", "chat .vf-fab",
-          "here count .vf-here", "people .vf-person", "tabs .vf-tabs", "Help .vf-keysbtn"].filter(x => seen(x.split(" ").pop())).map(x => x.split(" ")[0]) };
+          "here count .vf-here", "people .vf-person", "tabs .vf-tabs", "Help .vf-keysbtn", "goal-line .vf-goalback"].filter(x => seen(x.split(" ").pop())).map(x => x.split(" ")[0]) };
     });
     const jw = await waitView(jib);
     ok("the waiting page is one centered card: the session title and \"Why you're here\" with the host's intro", jw.title === "Offsite" && jw.intro === "Why you're here" + INTRO && jw.centered, JSON.stringify(jw));
-    ok("  with no banner, questions, rounds, Propose, Ask Claude, Follow host, chat button, here count or Help", jw.shown.length === 0, jw.shown.join(", "));
+    ok("  with no banner, questions, rounds, Propose, Ask Claude, Follow host, chat button, here count, Help or goal line", jw.shown.length === 0, jw.shown.join(", "));
     await jib.locator("body").press("?");
     await jib.waitForTimeout(400);
     ok("  and ? opens no Help while waiting", await jib.evaluate(() => document.querySelector(".vf-keys").hidden));
-    const kai = await rec.open(A.localUrl, { context: PHONE });
+    // Kai waits in Instagram's in-app browser: its banner (follow-up 45) must not show while waiting either.
+    const IG_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 339.0.3.12.91";
+    const kai = await rec.open(A.localUrl, { context: { ...PHONE, userAgent: IG_UA } });
     await kai.waitForSelector("dialog.core-name[open]");
     await kai.fill("#core-n", "Kai");
     await kai.click("dialog.core-name button");
     await until(kai, () => window.Core.state.youWaiting === true && !!document.querySelector(".vf-ev-intro:not([hidden])"));
     const kw = await waitView(kai);
-    ok("on a phone the same card, with no tab bar", kw.title === "Offsite" && kw.intro === "Why you're here" + INTRO && kw.shown.length === 0, JSON.stringify(kw));
+    ok("on a phone in Instagram's browser the same card, with no tab bar or in-app banner", kw.title === "Offsite" && kw.intro === "Why you're here" + INTRO && kw.shown.length === 0, JSON.stringify(kw));
     // F10: turning someone away affects them, so Decline asks first; Cancel keeps them waiting.
     const kaiRow = owner.locator(".vf-qitem", { hasText: "Wants to join: Kai" });
     await kaiRow.waitFor({ timeout: 8000 });
