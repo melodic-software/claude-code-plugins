@@ -170,6 +170,14 @@ test("a writing skill gets the Grep and Glob tools, since its shell cannot grep 
   }
 });
 
+test("a writing skill with no workspace path fails red before any output", () => {
+  for (const WORKSPACE of ["", "relative/path", "/has space"]) {
+    const { status, args } = stage({ WORKSPACE });
+    assert.notEqual(status, 0, WORKSPACE);
+    assert.equal(args, "", WORKSPACE);
+  }
+});
+
 test("a writing skill that cannot commit gets no chmod rule and no chmod instruction", () => {
   const { status, args, allowed } = stage({ CAN_COMMIT: "false" });
   assert.equal(status, 0);

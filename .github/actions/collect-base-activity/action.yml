@@ -454,6 +454,7 @@ runs:
             # read-only or a text filter; the Read rules keep it out of
             # process files and out of the checkout's git config, where the
             # action stores its token.
+            [[ $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the workspace path is missing or has a name a rule cannot carry"
             disallowed="${disallowed:+$disallowed,}Bash(echo *),Bash(printf *),Bash(cat *),Bash(head *),Bash(tail *),Bash(grep *),Bash(find *),Bash(env *),Bash(printenv *),Bash(strings *),Bash(od *),Bash(xxd *),Bash(diff *),Bash(sed *),Bash(awk *),Bash(sort *),Bash(cut *),Bash(tr *),Bash(base64 *),Bash(nl *),Bash(tac *),Bash(rev *),Bash(uniq *),Bash(fold *),Bash(column *),Bash(jq *),Bash(xargs *),Bash(more *),Bash(less *),Read(//proc/**),Read(/$WORKSPACE/.git/**)"
             ;;
           *) fail "the activity's effect is not a known effect" ;;
