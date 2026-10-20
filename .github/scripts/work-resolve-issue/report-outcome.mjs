@@ -617,7 +617,8 @@ export function decide({
   // check ran and none failed. Otherwise a person gets it unopened.
   const resumedChecked = Boolean(checks?.results.length) && !checkFailures(checks).length;
   if (outcome.exit === "done" && !branch && resumed && resumedChecked) {
-    return decide({
+    // `tip`: main opens the PR only at the tip the runner checked.
+    const plan = decide({
       outcome: {
         ...outcome,
         verification: [
@@ -639,6 +640,7 @@ export function decide({
       runId,
       checks,
     });
+    return plan.action === "open-pr" ? { ...plan, tip: checks.tip } : plan;
   }
   if (outcome.exit === "done" && !branch && resumed) {
     return handBack({
@@ -1139,7 +1141,9 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // branch; decide() marks it so, and hands a done run back naming the
     // resumed branch.
     const resumed = branch ? "" : readBranch(dir, issueNumber, "resume");
-    // run-checks checks the resumed branch when this run kept none of its own.
+    // run-checks checks the resumed branch when this run kept none of its own,
+    // and only when lane.json's resume (rewritable) equals the branch
+    // issue-prior chose before the mint, so results naming it vouch for it.
     const checkedBranch = branch || resumed;
     const checked = readChecks(env.RUNNER_CHECKS ?? "", { branch: checkedBranch });
     const limit = readLimit(dir);
@@ -1193,7 +1197,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
     let changedFiles = outcome?.exit === "done" && branch ? await compare() : [];
     if (outcome?.exit === "done" && resumed && checks) {
-      changedFiles = await compare(resumed);
+      // By the checked SHA: the name can move after the tip check above.
+      changedFiles = await compare(checks.tip);
       if (!allLaneCommits(commits, bot)) {
         console.log(`report-outcome: ${resumed} holds a commit that is not the lanes App's, so its check results do not count`);
         checks = null;
@@ -1233,7 +1238,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           runId,
         })
       : 0;
-    const plan = unreported
+    const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
+    let plan = unreported
       ? reusePlan({
           issueNumber,
           issueTitle,
@@ -1255,7 +1261,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           changedFiles,
           holdPaths,
           humanMerge,
-          humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
+          humanLabel,
           runUrl,
           limit,
           turnCap,
@@ -1313,13 +1319,30 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           base: base || (await github("GET", repo)).default_branch,
           draft: false,
         }));
-      console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
-      if (plan.refsHold) {
-        // The label first, so a failed comment still leaves the issue with a person.
-        await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: [plan.refsHold] });
-        await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: refsHoldComment(pull.number, plan.refsHold) });
+      // A plan with a tip opens only at it: a PR whose head moved off the
+      // checked tip is closed, and the issue goes to a person.
+      if (plan.tip && pull.head?.sha !== plan.tip) {
+        await github("PATCH", `${repo}/pulls/${pull.number}`, { state: "closed" });
+        console.log(`report-outcome: closed PR #${pull.number}: its head is not ${plan.tip}, the tip the runner checked`);
+        plan = handBack({
+          outcome: stopped(
+            `The PR from \`${plan.branch}\` opened at a head other than ${plan.tip}, the tip the runner checked, so it was closed.`,
+          ),
+          issueNumber,
+          branch: plan.branch,
+          humanLabel,
+          runUrl,
+          runId,
+        });
+      } else {
+        console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
+        if (plan.refsHold) {
+          // The label first, so a failed comment still leaves the issue with a person.
+          await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: [plan.refsHold] });
+          await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: refsHoldComment(pull.number, plan.refsHold) });
+        }
+        return 0;
       }
-      return 0;
     }
     // The label first, so a failed comment still leaves the issue with a person.
     await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: plan.addLabels });

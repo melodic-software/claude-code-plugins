@@ -1287,8 +1287,9 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
   was minted.
 - `report-outcome` downloads that artifact. A `done` run that committed nothing on a resume opens its PR from the
-  resumed branch only when `run-checks` checked that whole branch, every check passed and at least one ran, the branch
-  is still at the tip checked, and every commit on it ahead of the default branch is verified, authored by the lanes App
+  resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals
+  the `resume-branch` `issue-prior` output), every check passed and at least one ran, the branch is still at the tip
+  checked (the compare reads that SHA, and a new PR whose head is another commit is closed), and every commit on it ahead of the default branch is verified, authored by the lanes App
   and committed by `web-flow`; the PR body's Verification section says so. Otherwise it hands the issue to a person,
   naming the resumed branch. On `done` it opens a ready (not draft) PR from the branch whose
   body starts `Closes #<n>` (or `Refs: #<n>` when the outcome sets

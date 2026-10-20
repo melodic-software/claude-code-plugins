@@ -237,6 +237,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           RUN_ID: ${{ github.run_id }}
           REUSE_BRANCH: ${{ needs.resolve-issue.outputs.reuse-branch }}
+          RESUME_BRANCH: ${{ needs.resolve-issue.outputs.resume-branch }}
           LANE_FILE: ${{ runner.temp }}/work-outcome/lane.json
         run: |
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $RUN_ID =~ ^[1-9][0-9]*$ ]] || exit 1
@@ -248,12 +249,19 @@ jobs:
             fi
             shape="^work-resolve-issue/issue-$ISSUE_NUMBER-$RUN_ID-[1-9][0-9]*$"
             # A resumed run that committed nothing kept no branch, so its work
-            # is the branch it resumed: that whole branch is checked.
+            # is the branch it resumed: that whole branch is checked. lane.json
+            # can be rewritten by code the model started, so its resume must
+            # equal the branch issue-prior chose before the mint.
             # report-outcome counts the results only when every commit on it
             # ahead of the default branch is the lanes App's.
-            if [ -z "$branch" ] && [ -f "$LANE_FILE" ]; then
-              branch=$(jq -r '.resume | strings' "$LANE_FILE" 2>/dev/null) || branch=""
-              shape="^work-resolve-issue/issue-$ISSUE_NUMBER-[1-9][0-9]*-[1-9][0-9]*$"
+            if [ -z "$branch" ] && [ -n "$RESUME_BRANCH" ] && [ -f "$LANE_FILE" ]; then
+              resume=$(jq -r '.resume | strings' "$LANE_FILE" 2>/dev/null) || resume=""
+              if [ "$resume" = "$RESUME_BRANCH" ]; then
+                branch=$RESUME_BRANCH
+                shape="^work-resolve-issue/issue-$ISSUE_NUMBER-[1-9][0-9]*-[1-9][0-9]*$"
+              else
+                echo "lane.json's resume is not the branch this run resumed"
+              fi
             fi
           fi
           if ! [[ $branch =~ $shape ]]; then

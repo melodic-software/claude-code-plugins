@@ -869,9 +869,12 @@ test("main on a resumed done with no commit of its own opens the PR from the res
         ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
         resumedCompare(),
         ["GET", /\/pulls$/, 200, []],
-        ["POST", /\/pulls$/, 201, { number: 90 }],
+        ["POST", /\/pulls$/, 201, { number: 90, head: { sha: CHECKED_TIP } }],
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
+      // The compare reads the tip the runner checked, not wherever the name points now.
+      assert.ok(calls.some((c) => c.path === `/repos/o/r/compare/main...${CHECKED_TIP}`), JSON.stringify(calls.map((c) => c.path)));
+      assert.ok(!calls.some((c) => c.method === "PATCH"));
       const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls"))?.body;
       assert.ok(pull, "no PR was opened");
       assert.equal(pull.head, RESUMED);
@@ -917,6 +920,38 @@ test("main on a resumed done hands back when its branch's checks fail, moved, or
       },
     );
   }
+});
+
+// The branch name can move between the tip check and the PR open, so a PR
+// whose head is not the checked tip is closed and the issue handed back.
+test("main closes a resumed branch's new PR whose head is not the tip the runner checked, and hands back", async () => {
+  await withAsyncDir(
+    {
+      "work-outcome.json": JSON.stringify(done),
+      "lane.json": JSON.stringify({ branch: "", resume: RESUMED }),
+      "runner-checks": checksFile({ branch: RESUMED }),
+    },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(RESUMED),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        resumedCompare(),
+        ["GET", /\/pulls$/, 200, []],
+        ["POST", /\/pulls$/, 201, { number: 90, head: { sha: "d".repeat(40) } }],
+        ["PATCH", /\/pulls\/90$/, 200, {}],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      assert.deepEqual(calls.find((c) => c.method === "PATCH" && c.path.endsWith("/pulls/90"))?.body, { state: "closed" });
+      assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/77/labels")).body, { labels: ["needs-human"] });
+      const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
+      assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=stopped"), comment);
+      assert.ok(comment.includes(CHECKED_TIP), comment);
+    },
+  );
 });
 
 test("a resumed done with no new commit is stopped unless the runner's checks passed on the resumed branch", () => {
