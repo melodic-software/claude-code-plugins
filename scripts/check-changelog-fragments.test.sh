@@ -4,6 +4,12 @@
 # runs the gate against it.
 set -uo pipefail
 
+# The gate reads its mode and inputs from the environment, and a CI run exports
+# them (GITHUB_EVENT_NAME=merge_group in the queue). Start every case from none
+# set; a case that needs one sets it itself.
+unset GITHUB_EVENT_NAME MERGE_GROUP_BASE_SHA CHANGELOG_PR_HEAD CHANGELOG_HEAD_REF \
+  CHANGELOG_PR_AUTHOR GITHUB_REPOSITORY
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-changelog-fragments.sh"
 . "$SELF_DIR/test-git-helpers.sh"
