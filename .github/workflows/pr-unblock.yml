@@ -448,6 +448,7 @@ jobs:
       patch-sha256: ${{ needs.fix-ci-subscription.outputs.patch-sha256 || needs.fix-ci.outputs.patch-sha256 }}
       patch-attempt: ${{ needs.fix-ci-subscription.outputs.patch-attempt || needs.fix-ci.outputs.patch-attempt }}
       patch-activity: fix-ci
+      patch-prepare: ci-context
       patch-head-sha: ${{ needs.fix-ci-subscription.outputs.head-sha || needs.fix-ci.outputs.head-sha }}
       reply-attempt: ${{ needs.fix-ci-subscription.outputs.reply-attempt || needs.fix-ci.outputs.reply-attempt }}
 

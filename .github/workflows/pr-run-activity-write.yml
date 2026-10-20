@@ -184,6 +184,13 @@ on:
         required: false
         type: string
         default: ""
+      patch-prepare:
+        description: >-
+          The patch-activity's prepare mode in the base config (ci-context for
+          fix-ci), which picks its patch-rules.json row; empty for none.
+        required: false
+        type: string
+        default: ""
       patch-head-sha:
         description: >-
           The model job's head-sha output: the head the patch was made on. A
@@ -665,6 +672,7 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           BASE_DIR: .base
           PATCH_TARGET: ${{ inputs.issue-number != '' && 'issue' || 'pr' }}
+          PATCH_PREPARE: ${{ inputs.patch-prepare }}
           PATCH_STATE: ${{ inputs.patch-state }}
           PATCH_SHA256: ${{ inputs.patch-sha256 }}
           PATCH_HEAD_SHA: ${{ inputs.issue-number != '' && steps.issue-start.outputs.sha || inputs.patch-head-sha }}
@@ -2013,6 +2021,7 @@ jobs:
           # names the commit; the issue target's required labels.
           BASE_DIR: ${{ steps.apply-base.outputs.dir }}
           PATCH_TARGET: ${{ inputs.issue-number != '' && 'issue' || 'pr' }}
+          PATCH_PREPARE: ${{ inputs.patch-prepare }}
           PATCH_HEAD_SHA: ${{ inputs.issue-number != '' && steps.issue-start.outputs.sha || inputs.patch-head-sha }}
           # Issue mode: the default-branch commit the issue-start step checked;
           # the refusals cover everything the new branch adds since it.

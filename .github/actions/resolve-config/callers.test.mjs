@@ -395,7 +395,7 @@ async function postNotRunCheck(job, context) {
       GITHUB_REPOSITORY: "melodic-software/claude-code-plugins",
       GITHUB_API_URL: "https://api.example.test",
     },
-    fetchImpl: async (url, init) => {
+    fetchImpl: async (_url, init) => {
       calls.push(JSON.parse(init.body));
       return new Response(JSON.stringify({ id: 1 }), { status: 201 });
     },
@@ -1016,6 +1016,20 @@ test("pr-unblock.yml: fix-ci-subscription runs only on fix-ci's credit stop or e
     assert.deepEqual(jobs[id].concurrency, { group: "pr-pipeline-write-${{ inputs.pr-number }}", queue: "max" }, id);
   }
   assert.equal(first.with["timeout-minutes"], 60, "the run job holds the 50-minute launcher step");
+});
+
+test("pr-run-activity-write.yml passes the producer's prepare mode to both apply-patch steps, and pr-unblock names fix-ci's", () => {
+  const { jobs } = workflow("pr-run-activity-write.yml");
+  const steps = Object.values(jobs).flatMap((job) => job.steps ?? []);
+  for (const name of ["Select the patch", "Run the script activity"]) {
+    const step = steps.find((candidate) => candidate.name === name);
+    assert.ok(step, name);
+    assert.equal(step.env.PATCH_PREPARE, "${{ inputs.patch-prepare }}", `${name} sets PATCH_PREPARE, or apply-patch.mjs uses the default row`);
+  }
+  const config = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
+  const prepare = config.activities["fix-ci"].prepare;
+  assert.equal(prepare, "ci-context");
+  assert.equal(workflow("pr-unblock.yml").jobs["apply-patch"].with["patch-prepare"], prepare);
 });
 
 test("pr-unblock.yml: apply-patch takes the patch from whichever fix-ci call ran the activity", () => {

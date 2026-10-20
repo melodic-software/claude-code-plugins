@@ -285,6 +285,17 @@ test("a fix-ci patch that edits CLAUDE.md is refused before any API call", async
   assert.deepEqual(api.calls, []);
 });
 
+test("without PATCH_PREPARE a fix-ci patch falls to the default row, which admits CLAUDE.md and gives other reasons", () => {
+  const unset = rowFor(RULES, { prepare: "" });
+  const fixCi = rowFor(RULES, { prepare: "ci-context" });
+  assert.equal(unset.name, "default");
+  assert.deepEqual(refusalsOf(entry("CLAUDE.md"), unset.refuse), []);
+  assert.deepEqual(refusalsOf(entry("CLAUDE.md"), fixCi.refuse), ["instruction-path"]);
+  assert.equal(unset["reads-report"], null);
+  assert.equal(fixCi["reads-report"], "ci-escalations");
+  assert.ok(!unset.escalations.includes("ci-fix-protected-path"));
+});
+
 test("a row with no requires list throws before any git or API work", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
   const api = fakeApi(fix.repo, fix.head);

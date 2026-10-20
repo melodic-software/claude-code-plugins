@@ -65,7 +65,7 @@ permissions, and passes no App key.
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-attempt` output, which names the replies artifact so a re-run of the reply job alone still finds it |
 | `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop` or `no-key` for its fallback call, on `claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
 | `ci-context-attempt`, `ci-context-sha256` | `''` | Read file only: for [`prepare: ci-context`](#prepare-ci-context), the attempt naming the `ci-context-<attempt>` artifact and its file's SHA-256 |
-| `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity`, `reply-attempt` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the read model job's outputs and its activity name |
+| `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity`, `patch-prepare`, `reply-attempt` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the read model job's outputs, its activity name and that activity's prepare mode, which picks the `patch-rules.json` row (empty: `default`) |
 
 The write file has six `workflow_call` outputs. `head-sha` is the PR head the gate passed, before
 any push of the run; `issue-run-started` is described below; `feedback-run-sha256` and
@@ -966,8 +966,8 @@ A `mutate-branch` script leaf, the `apply-patch` job after `fix-ci`, with no mod
 of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call ran the activity
 ([Two calls on one credential each](#two-calls-on-one-credential-each)): `patch-state`,
 `patch-sha256`, `patch-attempt`, `head-sha` (as `patch-head-sha`) and `reply-attempt`, each as
-`needs.fix-ci-subscription.outputs.<name> || needs.fix-ci.outputs.<name>`, and the activity as
-`patch-activity`.
+`needs.fix-ci-subscription.outputs.<name> || needs.fix-ci.outputs.<name>`, the activity as
+`patch-activity`, and its prepare mode as `patch-prepare` (`ci-context`).
 
 1. Before the mint, the write file downloads `patch-<lane>-<patch-activity>-<patch-attempt>`
    and the model job's reply, and runs the script's `select` with no token. A gated head other
