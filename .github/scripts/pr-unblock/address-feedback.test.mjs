@@ -729,6 +729,19 @@ test("words that are not files ahead of a real name do not push it out of the ca
   assert.deepEqual(reads, [`${HEAD}:${T}`]);
 });
 
+test("names in many missing directories read at most TREE_READ_CAP trees; a name in a read directory still counts", async () => {
+  const { TREE_READ_CAP } = await import("./address-feedback.mjs");
+  const missing = Array.from({ length: TREE_READ_CAP + 5 }, (_, i) => `plugins/knowledge/d${i}/x.js`);
+  const body = `PR-fix lane: please fix this finding. Edit ${missing.join(" ")} and run-transcript.js.`;
+  const { api, reads } = named([[101, HUMAN, body]]);
+  assert.equal((await run(api)).file.threads[0].named_paths, undefined);
+  assert.equal(reads.length, TREE_READ_CAP);
+  const first = `PR-fix lane: please fix this finding. Edit run-transcript.js, ${missing.join(" ")} and run-transcript.test.js.`;
+  const kept = named([[101, HUMAN, first]]);
+  assert.deepEqual((await run(kept.api)).file.threads[0].named_paths, [`${T}/run-transcript.js`, `${T}/run-transcript.test.js`]);
+  assert.equal(kept.reads.length, TREE_READ_CAP);
+});
+
 test("at most NAMED_CAP existing files are added", async () => {
   const { NAMED_CAP } = await import("./address-feedback.mjs");
   const files = Array.from({ length: NAMED_CAP + 2 }, (_, i) => `f${i}.js`);

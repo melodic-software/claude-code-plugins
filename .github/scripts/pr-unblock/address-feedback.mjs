@@ -151,6 +151,8 @@ export function pathTokens(body) {
 
 // The most named paths one thread adds, counted after the existence check.
 export const NAMED_CAP = 10;
+// The most distinct directories one thread's existence check reads.
+export const TREE_READ_CAP = 2 * NAMED_CAP;
 // A regular or executable file's git mode, as GraphQL's TreeEntry.mode gives
 // it (100644 and 100755 in decimal): a symbolic link (120000) and a gitlink
 // (160000) are never named in.
@@ -186,6 +188,9 @@ export async function namedPaths({ thread, reviewComments, fixers, headSha, list
     }
     const parent = path.slice(0, path.lastIndexOf("/"));
     if (!trees.has(parent)) {
+      if (trees.size === TREE_READ_CAP) {
+        continue;
+      }
       trees.set(parent, await listTree(headSha, parent));
     }
     const entry = trees.get(parent).find((e) => e.name === path.slice(parent.length + 1));
