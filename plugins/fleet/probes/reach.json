@@ -1,0 +1,126 @@
+{
+  "skill": "fleet:reach",
+  "plugin": "fleet",
+  "skill_dir": "plugins/fleet/skills/reach",
+  "ranking_note": "Authored from the before descriptions at commit a060b10761, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors live in other plugins; plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "competitors": [
+    "ListAgents",
+    "SendMessage",
+    "session-flow:continue-in-background",
+    "repo-fleet-hygiene:audit"
+  ],
+  "competitor_dirs": {
+    "session-flow:continue-in-background": "plugins/session-flow/skills/continue-in-background",
+    "repo-fleet-hygiene:audit": "plugins/repo-fleet-hygiene/skills/audit"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run the full test suite on the box called pine-desk-07 and tell me what fails."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Ask the Claude session on my Windows machine to check whether the VPN client is installed there."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm in WSL and need the Windows side to export its scheduled task list. Can you get the Windows session to do that and bring back the output?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Start a new Claude Code session on the other laptop and have it pull the latest main in the billing repo."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Send this prompt to the agent running on oak-lap-02 and wait for its answer, so I don't have to paste anything over there."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you query the Claude lane on my other machine for its free disk space?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Hand this migration check to the remote Claude session on birch-srv-03 and report back what it finds."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Tell the desktop's session to rebuild the docs site, I'm on the laptop and don't want to switch machines."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Reach the fleet: which of my machines has a Claude session open right now, and can you ping the one in Windows?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "List the subagents running in this session and tell me which one is still working."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Send a follow-up message to the reviewer subagent you spawned a minute ago."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Keep working on this refactor in a background session while I step away from the keyboard."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Audit stale branches and orphaned worktrees across all my repositories."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a bash script that copies my config files to the staging server over scp."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check on the agent you launched earlier in this session and relay its result."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fork this task into a detached background agent with a resume prompt, then I'll go offline."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which of my GitHub repos have moved or been renamed, and which have merged branches left on origin?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explain how SSH key authentication works."
+    }
+  ]
+}

@@ -539,7 +539,7 @@ jobs:
           for author in "${authors[@]}"; do
             for attempt in 1 2 3; do
               if gh pr list --repo "$REPO" --base main --state open --limit 500 \
-                --author "$author" --json number,headRefOid,isDraft,updatedAt,labels,body >>"$listing"; then
+                --author "$author" --json id,number,headRefOid,isDraft,updatedAt,labels,body >>"$listing"; then
                 break
               fi
               if [ "$attempt" = 3 ]; then
@@ -556,6 +556,8 @@ jobs:
               --human-gated="$human_gated" >"$RUNNER_TEMP/prefilter.json"
           jq -c .candidates "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/candidates.json"
           jq -c .held "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/held.json"
+          jq -cs '[add[] | select(.isDraft) | {number, id, head: .headRefOid, updatedAt,
+              labels: [.labels[].name]}] | unique_by(.number)' "$listing" >"$RUNNER_TEMP/drafts.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
 
       # The gate loop below can stop at its time budget, so it starts after
@@ -668,6 +670,23 @@ jobs:
             echo "::warning::the post-merge remediation exited $code (re-run or dispatch refused: the lane token has no Actions permission)"
           fi
 
+      # A whole-review request (babysit_whole_review.py) converts a lane PR
+      # to a draft and marks it ready again; a run that ended between the two
+      # left a draft the listing above skips. Each lane draft updated in the
+      # last day whose newest lane comment records a request at its current
+      # head is marked ready here: one comments read per such draft.
+      - name: Re-ready a draft a whole-review request left
+        if: steps.mode.outputs.report-only == 'false' && steps.candidates.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py recover \
+            --repo "$REPO" --identity "$identity" --drafts "$RUNNER_TEMP/drafts.json"
+
       # A candidate the last run refused on inputs that have not changed
       # since (head, updatedAt, labels, base, check rollup, reviews and
       # threads, comments, closing issues, verdict artifacts, the gate's
@@ -721,10 +740,14 @@ jobs:
         if: steps.candidates.outcome == 'success'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          # Only the verdict reader's Actions calls use this, as their own
-          # GH_TOKEN (babysit_verify_evidence.py); the job runs main's code
-          # alone, never a PR's.
+          # Only the verdict reader's Actions calls and the whole-review
+          # request's limit reads use this, as their own GH_TOKEN
+          # (babysit_verify_evidence.py, babysit_whole_review.py); the job
+          # runs main's code alone, never a PR's.
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
+          # At most one whole-review request per run: the first candidate to
+          # reach its limits creates this file (babysit_whole_review.py).
+          BABYSIT_WHOLE_REVIEW_SPENT: ${{ runner.temp }}/whole-review-spent
           # The first candidate saves its artifact listing here and the rest
           # of the run reads it while it is under two minutes old; a
           # candidate the saved listing would allow lists again before it is
@@ -788,6 +811,9 @@ jobs:
             echo "::group::PR #$number at $head: exit $code"
             cat "$out"
             echo "::endgroup::"
+            if jq -e '.unattended.writes.wholeReview.toggled == true' "$out" >/dev/null 2>&1; then
+              echo "::notice::pr-merge whole-review-toggle pr=$number head=$head"
+            fi
             # Keep only the verdict fields; a gate that printed no JSON object
             # is recorded as an error with its exit code.
             jq -e 'type == "object"' "$out" >/dev/null 2>&1 || echo '{"error": "gate printed no JSON"}' >"$out"
@@ -813,7 +839,7 @@ jobs:
         with:
           name: pr-merge-gate-cursor
           path: ${{ runner.temp }}/gate-cursor/cursor.json
-          retention-days: 7
+          retention-days: 2
           if-no-files-found: ignore
 
       # The next run's verdict reads, under this run's own key; also after a
@@ -922,7 +948,7 @@ jobs:
         with:
           name: pr-merge-summary
           path: ${{ runner.temp }}/pr-merge-sweep.json
-          retention-days: 30
+          retention-days: 8
           if-no-files-found: ignore
 
       # The gate-check job below writes each candidate's check run from these

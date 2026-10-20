@@ -179,6 +179,79 @@ assert_eq "--count adds the correctness line when rules are listed" "suppression
 unjustified=4
 correctness=3" "$out"
 
+# ---- --exclude ------------------------------------------------------------------
+# The report counts the files left once `scope.exclude` has dropped its matches;
+# the frozen count takes the same globs and must agree with it.
+EXC="$TEST_TMPDIR/exc"
+mkdir -p "$EXC/src" "$EXC/vendor/deep" "$EXC/gen"
+printf '%s\n' 'x = 1  # noqa: E501 kept' 'y = 2  # noqa' >"$EXC/src/app.py"
+printf '%s\n' 'x = 1  # noqa: E501' >"$EXC/vendor/lib.py"
+printf '%s\n' 'x = 1  # noqa' 'y = 2  # noqa' >"$EXC/vendor/deep/lib.py"
+printf '%s\n' 'x = 1  # noqa: F401' >"$EXC/gen/out.py"
+printf '%s\n' 'vendor/' '' '*/out.py' >"$TEST_TMPDIR/excludes"
+
+out="$(cd "$EXC" && "$PY" "$SCANNER" --count)"
+assert_eq "--count without excludes counts the excluded paths too" "suppressions=6
+unjustified=5" "$out"
+out="$(cd "$EXC" && "$PY" "$SCANNER" --count --exclude 'vendor/' --exclude '*/out.py')"
+assert_eq "--count with --exclude omits the excluded paths" "suppressions=2
+unjustified=1" "$out"
+out="$(cd "$EXC" && "$PY" "$SCANNER" --count --exclude-from "$TEST_TMPDIR/excludes")"
+assert_eq "--exclude-from reads the same globs from a file" "suppressions=2
+unjustified=1" "$out"
+report="$(cd "$EXC" && "$PY" "$SCANNER" --exclude-from "$TEST_TMPDIR/excludes" | "$PY" -c '
+import json, sys
+print(len(json.load(sys.stdin)))
+')"
+assert_eq "the JSON report and --count agree over the same excludes" "2" "$report"
+out="$(cd "$EXC" && "$PY" "$SCANNER" --exclude 'app.py' | summarize)"
+assert_eq "a glob with no slash matches the basename at any depth" "0" "$(printf '%s\n' "$out" | grep -c 'src/app.py')"
+out="$(cd "$EXC" && "$PY" "$SCANNER" --exclude 'vendor/**/lib.py' | summarize)"
+assert_eq "a ** segment spans directories" "gen/out.py:1 noqa F401 no
+src/app.py:1 noqa E501 yes
+src/app.py:2 noqa - no" "$out"
+PATHGLOB="$SCRIPT_DIR/../plugins/code-metrics/scripts/pathglob.py"
+# The audit matches `scope.exclude` with pathglob.translate; the scanner carries
+# its own copy of that translation. Run both over one table so a change to either
+# fails here instead of letting --count and the report drift apart.
+drift="$("$PY" -I - "$SCANNER" "$PATHGLOB" <<'PYEOF'
+import importlib.util, re, sys
+
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+scanner = load("suppression_scan", sys.argv[1])
+pathglob = load("pathglob", sys.argv[2])
+globs = ["vendor/", "**/generated/**", "*/out.py", "app.py", "*.py", "vendor/**/lib.py",
+         "/gen", "./src/", "a?.py", "[!a]*.py", "docs/**", "**/lib.py", "src/*.py"]
+paths = ["vendor/lib.py", "vendor/deep/lib.py", "vendor", "x/vendor/lib.py", "gen/out.py",
+         "gen/sub/out.py", "src/app.py", "app.py", "a1.py", "b1.py", "src/generated/x.py",
+         "generated/x.py", "docs/a/b.md", "docs", "lib.py", "src/sub/lib.py", "src/app.py.bak"]
+bad = []
+checked = 0
+for g in globs:
+    ours = scanner.glob_regex(g)
+    theirs = re.compile(pathglob.translate(g))
+    for p in paths:
+        if bool(ours.match(p)) != bool(theirs.match(p)):
+            bad.append("%s vs %s" % (g, p))
+        checked += 1
+if bad:
+    print("\n".join(bad))
+print("checked %d pairs" % checked)
+PYEOF
+)"
+# The last line proves the script ran to the end: a crash leaves it out, so an
+# empty mismatch list can't pass for agreement.
+assert_eq "the scanner's glob matcher agrees with pathglob.py on every glob/path pair" "checked 221 pairs" "$drift"
+
+out="$(cd "$EXC" && "$PY" "$SCANNER" --exclude '[z-a]' 2>/dev/null)"
+assert_eq "an unusable glob exits 2 with nothing on stdout" "2:" "$?:$out"
+
 # ---- --diff -------------------------------------------------------------------
 REPO="$TEST_TMPDIR/repo"
 mkdir -p "$REPO"

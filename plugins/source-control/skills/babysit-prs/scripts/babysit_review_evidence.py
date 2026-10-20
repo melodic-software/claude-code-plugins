@@ -49,6 +49,16 @@ LANES: dict[str, tuple[str, str]] = {
     ),
 }
 
+# What a lane run may take from the pull request's own checkout: its caller
+# workflows and the local actions and scripts they run (.github/), the review
+# plugin, and Claude Code project config at any depth (.claude/, .mcp.json).
+# A pull request that changes any of them ran its own copy on its
+# pull_request event, so its records prove no review by the default branch's
+# lane.
+LANE_SOURCE_PREFIXES = (".github/", "plugins/review/")
+LANE_SOURCE_SEGMENT = ".claude"
+LANE_SOURCE_NAME = ".mcp.json"
+
 RECORD_TITLE = "claude-lane-review-complete"
 _SHA = r"[0-9a-f]{40}"
 _COUNT = r"\d{1,6}"
@@ -97,6 +107,7 @@ def bind(
     threads: Sequence[Mapping[str, Any]] | None,
     *,
     is_human: Callable[[Any], bool],
+    changed_paths: Sequence[str] | None,
     base_changed: bool = False,
     head_file: Callable[[str, str], str | None] | None = None,
 ) -> tuple[LaneEvidence, ...]:
@@ -111,7 +122,10 @@ def bind(
     seen. `is_human` takes one actor and must return False for the agent
     identity, the pull request's author and its head pushers. `base_changed`
     is True when the pull request was ever retargeted: the reviews read a
-    diff against another base, so no lane binds.
+    diff against another base, so no lane binds. `changed_paths` holds every
+    path the pull request changes (both sides of a rename), or None when the
+    list is unread or incomplete: no lane binds then, nor when one is a lane
+    source (`lane_source`).
 
     A lane binds only when every head its reviewed-head markers name still
     has a listed run: a deleted or expired run would drop its findings from
@@ -122,6 +136,10 @@ def bind(
             raise Unbound("bad-head")
         if base_changed is not False:
             raise Unbound("base-retargeted")
+        if not isinstance(changed_paths, list | tuple):
+            raise Unbound("changed-files-unread")
+        if any(lane_source(path) for path in changed_paths):
+            raise Unbound("lane-source-changed")
         # Thread ids already standing for a recorded finding in some lane.
         # LANES order matters: claude-review claims first, so a doubtful
         # untagged thread leaves the count on the security lane.
@@ -135,6 +153,19 @@ def bind(
     except Exception as exc:  # noqa: BLE001 - any doubt is unbound
         reason = exc.reason if isinstance(exc, Unbound) else "evidence-error"
         return tuple(LaneEvidence(lane, False, reason, None) for lane in LANES)
+
+
+def lane_source(path: Any) -> bool:
+    """Whether a changed path is one a lane run takes from the checkout; a
+    path that is not a string counts as one."""
+    if not isinstance(path, str):
+        return True
+    *dirs, name = path.split("/")
+    return (
+        path.startswith(LANE_SOURCE_PREFIXES)
+        or LANE_SOURCE_SEGMENT in dirs
+        or name == LANE_SOURCE_NAME
+    )
 
 
 def _bind_lane(
@@ -152,12 +183,12 @@ def _bind_lane(
         reviewed, chain = _resolve(lane, head, lane_runs)
         _require_marker(lane, head, comments)
         _require_marked_runs(lane, lane_runs, comments)
-        count = _open_findings(
+        count, clears = _open_findings(
             lane, lane_runs, threads, is_human, claimed, reviewed, chain, head_file
         )
     except Unbound as exc:
         return LaneEvidence(lane, False, exc.reason, None)
-    return LaneEvidence(lane, True, None, count)
+    return LaneEvidence(lane, True, None, count, clears)
 
 
 def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -412,7 +443,7 @@ def _open_findings(
     reviewed: str,
     chain: Sequence[_Record],
     head_file: Callable[[str, str], str | None] | None = None,
-) -> int:
+) -> tuple[int, bool]:
     """Summary findings of the review chain covering the pinned head
     (`chain`, from `_resolve`), plus inline threads still open, plus inline
     findings of the chain whose thread is gone. A summary or thread-less
@@ -428,7 +459,12 @@ def _open_findings(
     A resolved thread is closed when:
     - a human resolved it;
     - the covering chain reports no finding at all and the thread was opened
-      before the covering review's job completed, so that review read past it;
+      before the covering review's job completed, so that review read past it.
+      A whole review of the head is a chain of one, so a clean whole review
+      closes a thread whoever resolved it; an incremental review reads only
+      what changed and never closes an unchanged thread this way. Closure is
+      per lane: a security-lane (HIGH) thread needs the security lane's own
+      clean whole review;
     - or GitHub marks it outdated, it was opened before the first review at
       `reviewed` (the head whose review covers the pinned head) started, and
       no line of its flagged range is left at the pinned head
@@ -438,7 +474,11 @@ def _open_findings(
     that resolved it. A thread stands for a recorded inline finding only when
     it was opened inside that lane job's run, and it stands for one finding
     across both lanes (`claimed`), so neither an unrecorded review's thread
-    nor the other lane's untagged thread hides a missing one."""
+    nor the other lane's untagged thread hides a missing one.
+
+    Also returns whether a clean whole review of `reviewed` would close every
+    open finding: none is an unresolved thread, no completed review of
+    `reviewed` reported a finding, and none of them was a whole review."""
     if threads is None:
         raise Unbound("threads-unread")
     # (job started, job completed, inline findings) per recorded attempt.
@@ -451,6 +491,8 @@ def _open_findings(
     # Per head, the most (findings, summary findings) any completed whole
     # review of it reported.
     whole_max: dict[str, tuple[int, int]] = {}
+    # Whether any review of `reviewed` was whole or reported a finding.
+    head_spent = False
     for item in lane_runs:
         for attempt in _attempts(item).values():
             # A draft-skipped run has only the caller job and reviewed nothing.
@@ -480,6 +522,8 @@ def _open_findings(
                 )
             )
             kinds.append((rec.sha, rec.whole))
+            if rec.sha == reviewed and (rec.whole or rec.findings > 0):
+                head_spent = True
             if (
                 item["head_sha"] == reviewed
                 and started
@@ -499,7 +543,8 @@ def _open_findings(
     if not isinstance(threads, list | tuple):
         raise Unbound("evidence-error")
     covered = [0] * len(windows)
-    open_threads = 0
+    # Open threads: unresolved ones, and resolved ones nothing closed.
+    unresolved = held = 0
     for thread in threads:
         if not isinstance(thread, Mapping):
             raise Unbound("evidence-error")
@@ -514,7 +559,7 @@ def _open_findings(
                     claimed.add(thread_id)
                     break
         if thread.get("isResolved") is not True:
-            open_threads += 1
+            unresolved += 1
         elif cleared and read_through and created and created < read_through:
             continue
         elif not (
@@ -524,7 +569,7 @@ def _open_findings(
             and created < first
             and _line_changed(thread, head_file)
         ) and not is_human(thread.get("resolvedBy")):
-            open_threads += 1
+            held += 1
     # Inline findings with no thread left, counted like summary findings:
     # per chain link, the most any review of its kind at its head left.
     gone = [max(k - n, 0) for (_, _, k), n in zip(windows, covered)]
@@ -535,7 +580,8 @@ def _open_findings(
         )
         for rec in chain
     )
-    return summary + open_threads + missing
+    count = summary + unresolved + held + missing
+    return count, count > 0 and not unresolved and not head_spent
 
 
 def _line_changed(

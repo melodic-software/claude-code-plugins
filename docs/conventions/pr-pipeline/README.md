@@ -13,6 +13,7 @@
 - [Merge authority](#merge-authority)
 - [Trust-root paths](#trust-root-paths)
 - [The lane sweep](#the-lane-sweep)
+- [The monitoring lane](#the-monitoring-lane)
 - [Models](#models)
 - [Funding](#funding)
 - [Loop caps](#loop-caps)
@@ -68,6 +69,19 @@ no renumbering.
 
 `maintenance` and `upstream` are scheduled producers, not steps in a PR's path. They file work
 into `intake`.
+
+An answered issue re-enters `intake` through
+[`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
+model. On a new comment on an open issue, not a pull request, it acts on a `status: needs-decision`
+issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
+trusted-actors list, not posted through an App, unedited or last edited by a listed human), or on a
+`status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
+status label, and `needs-human` for a decision, and adds `needs-triage`. It dispatches
+`intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
+or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
+cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
+claim, so a second answer dispatches nothing. It never adds `agent-ready`, and it holds the job's
+own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
 
 Pipeline lanes skip draft PRs; `ci-status` still reports on them, and passes the skipped lanes.
 The `ready_for_review` run tests the head, and the merge queue re-runs every lane before a merge.
@@ -706,13 +720,29 @@ refusal comment naming that head, unless it is escalated, to say the refusal no 
 later refusal at the head starts its time afresh. The merge gate never removes the label; the
 `head-moved` clear above removes it once the head moves, and otherwise a person does.
 
-Finding closure (owner decision, #8450): a clean newer review on the current head closes a review
-finding whoever resolved its thread, and a HIGH security finding also needs the security review lane
-clean on that head. The gate does not apply that rule yet
-([#8478](https://github.com/melodic-software/claude-code-plugins/issues/8478)): today a resolved
-thread closes only when a human resolved it, the whole review chain covering the head reports no
-finding, or it is outdated with none of its flagged lines left at the head (`_open_findings` in
-`babysit_review_evidence.py`).
+Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
+current head closes a review finding whoever resolved its thread, and a HIGH security finding also
+needs the security review lane's own clean whole review of that head. The gate applies it per lane
+(`_open_findings` in `babysit_review_evidence.py`): a resolved thread closes when it was opened
+before that review's job completed and the review chain covering the head, here the whole review
+alone, reports no finding. An incremental review reads only what changed since the last review, so
+it never closes an unchanged thread: a lane that resolved an unfixed finding and pushed an unrelated
+commit leaves it open. A resolved thread also closes when a human resolved it, or when it is
+outdated with none of its flagged lines left at the head; an unresolved thread stays open.
+
+Whole-review request (`babysit_whole_review.py`): when a lane pull request passes every other gate
+and its only risk reasons are open findings a clean whole review of the head would close (no review
+of that head reported a finding or was whole, and no lane thread is unresolved), the gate writes a
+`Whole review requested at head` line into its reasons comment, then converts the pull request to a
+draft and marks it ready with the lane token, so `ready_for_review` runs both review lanes whole.
+That event also re-runs `pr-require-checks.yml`, `pr-test-windows.yml` and pr-merge itself. The
+line, stamped with the time it was written, is kept on every rewrite, so a head is toggled once and a pull
+request at most twice; past that it waits for a person. A run toggles at most one
+pull request, and only while fewer than 35 jobs are running or queued and the lane token and the job token
+each have 30% of every rate-limit bucket's hourly limit left; an escalated comment is not toggled. Each toggle logs
+`::notice::pr-merge whole-review-toggle pr=<n> head=<sha>`. A draft a run left between the two
+writes is marked ready by the next run, only when the lane token made its newest conversion to draft within ten minutes after a record's time;
+a draft a person made stays one.
 
 While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
 no full CI run either; its summary says whether it would have.
@@ -1149,6 +1179,41 @@ one comment on the issue; after 2 dispatches leave it untriaged it labels the or
 (`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
 REST calls.
 
+## The monitoring lane
+
+[`maintenance-monitor-signals.yml`](../../../.github/workflows/maintenance-monitor-signals.yml) runs
+every hour (and on a manual run from `main`) with no model. It reads the signals below over the last
+65 minutes, counting a run in the window it completed in, and keeps one issue per key. Its scripts and tests are in
+[`.github/scripts/maintenance-monitor-signals/`](../../../.github/scripts/maintenance-monitor-signals/).
+
+| Signal | Fires when | Key |
+|---|---|---|
+| 1 main red | the newest dispatched or scheduled `pr-require-checks` run on `main` failed, read from each failed job's failure-level annotations; the flake class is named only from GitHub's own runner messages (a timeout, a lost runner) | `main-red:<job>` |
+| 2 ceiling | a reading in the window is over 90%: the lanes App and `GITHUB_TOKEN` REST quotas from pr-merge's `api-budget` notices plus the lane's own `GET /rate_limit`, and this repository's in-progress Actions jobs against 60 | `ceiling:lanes-app-rest`, `ceiling:github-token`, `ceiling:actions-jobs` |
+| 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-windows` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining; or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
+| 4 merge-queue ejections | more than 2 merge groups failed in the last 24 hours, each listed with its PR and failing steps | `merge-queue-ejections` |
+| 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
+| 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-check-upstream-drift` failed, which each does on findings | `audit:<workflow>` |
+| 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational | `platform:<incident>`, `platform:actions` |
+| 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
+
+An issue's first body line is `<!-- factory-monitor key=<key> fp=<fingerprint> -->`; the body names
+the signal, the owning area and the key, and carries the evidence inside a text fence as inert lines.
+The fingerprint changes only when the evidence does: the failure text, the run or PR set, the newest
+failed merge group, the incident status, the last merge, or the day for a ceiling. The newest issue for a key
+decides: open with the same fingerprint, nothing is written; open with a new one, a comment carries
+the evidence and the marker records it; closed as not planned, the key is muted; closed as completed,
+a new issue is filed only on new evidence, or for `main-red` on a failed run that started after the
+close, naming the old one. Issues of every age are read, page by page until a short page, so a quiet key stays open or muted; a run that spends its call budget there stops before writing. It files at most 8 issues a run,
+labeled `needs-triage` and `source: factory-monitor` where those labels exist, writes 1 s apart,
+and stops at 250 REST calls. A source it cannot read is listed in the step summary and the other
+signals still run.
+
+It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
+`issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
+workflow. The kill switch stops it. The lanes App reading in signal 2 is what pr-merge's token sees
+at the start and end of each run, not the broker's own quota record, which this token cannot read.
+
 ## Models
 
 `models` sets the model, effort and turn budget of every model run, so a model change is one edit.
@@ -1207,11 +1272,13 @@ is `split`, and Uncertainty Known, Knowable and Unknown map to `run`, `research-
 Each Claude lane's runs are paid by one funding role: `reviews`, `automations` or `issue-lane`. A
 lane on ci-workflows' `run-claude-cli` action passes its role with the role's two secrets,
 `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` (role upper-snake, so `issue-lane`
-gives `ISSUE_LANE_`); the action tries the key first and the subscription token only after a
-credit stop. Each lane's workflow names its role as a literal, and the runner policy admits it; no
-config key records it. `intake`, `pr-unblock`, `fix-ci`, `pr-verify` and `pr-refine` take
-`automations`; `claude-review` and `claude-security-review` take `reviews`; `work-resolve-issue`
-takes `issue-lane`.
+gives `ISSUE_LANE_`); the key runs first and the subscription token only after a credit stop.
+`pr-verify` holds one credential per job: `check-intent` runs on the key, and
+`check-intent-subscription` runs on the token, on a new runner, only after `check-intent`'s credit
+stop with no permission denial or when the key is empty. Each lane's workflow names its role as a
+literal, and the runner policy admits it; no config key records it. `intake`, `pr-unblock`,
+`fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
+`claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
 
 `intake` and `pr-verify` run on `run-claude-cli` today. Every other lane runs claude-code-action
 with its role's OAuth token alone until it moves there, and it never gets an API key, since

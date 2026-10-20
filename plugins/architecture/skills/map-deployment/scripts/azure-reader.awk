@@ -434,6 +434,10 @@ function show(sc, path, dflt,    v) {
 function node(sc, id, type, name, ev) {
   printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"%s\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
     jesc(id), jesc(S_env[sc]), tool, jesc(name), jesc(type), jesc(ev) >> nodes
+  # An ARM resource is addressed by its array position, which differs between
+  # templates, so it is matched by its type and its order among nodes of that type.
+  if (id ~ /resources\[[0-9]+\]/) id = S_env[sc] "/" type "#" (++cmp_ord[S_env[sc], type])
+  note_compute(S_env[sc], id, type)
 }
 
 function param(sc, c, k, v, sec, ev,    e, red, pk) {
@@ -724,5 +728,6 @@ END {
     if (a > b) { t = a; a = b; b = t }
     container_diffs(a, b, tool)
     param_port_diffs(a, b, tool)
+    node_diffs(a, b, tool)
   }
 }
