@@ -39,15 +39,17 @@ checks never count `disableAllHooks`, `allowManagedHooksOnly`, `--bare` or `--sa
 it. A session that loads no instruction files at all (`--bare` without `--add-dir`, `--safe-mode`,
 `CLAUDE_CODE_DISABLE_CLAUDE_MDS`) reads no `AGENTS.md` either.
 
-- **Pointer**: for which settings stop built-in mods, see the "Mods built into Claude Code"
-  section of <https://code.claude.com/docs/en/plugins/mods/overview> and the "What runs under
-  `allowManagedHooksOnly`" section of <https://code.claude.com/docs/en/settings-reference>; for the
-  plugin's own statement, its
+- **Pointer**: when deciding which settings stop built-in mods, fetch
+  [mods overview: mods built into Claude Code](https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code)
+  and
+  [settings reference: what runs under `allowManagedHooksOnly`](https://code.claude.com/docs/en/settings-reference#what-runs-under-allowmanagedhooksonly)
+  live; for the plugin's own statement, read its
   [README](https://github.com/anthropics/claude-code/blob/main/mods/agents-md/README.md) at commit
   `2282079d6ac8`.
-- **As of**: 2026-10-01
-- **Recheck trigger**: the overview's built-in-mods section or the README's settings paragraph
-  changes.
+- **As of**: 2026-10-18 for the two docs sections; 2026-10-01 for the README commit.
+- **Recheck trigger**: the overview's built-in-mods section or the settings reference's
+  `allowManagedHooksOnly` section changes which settings stop built-in mods, or the README's
+  settings paragraph changes.
 
 **Two of the three kinds resolve from what this plugin already reads.** A version condition is a
 comparison against the floor the pointer states, plus the provider and telemetry configuration

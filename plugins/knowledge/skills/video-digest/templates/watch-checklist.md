@@ -107,7 +107,8 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 
 - [ ] **9.1** Host verify. Verify: `node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-watch-outcomes.js "<slice-dir>" --write-report` exit 0
 - [ ] **9.2** `verification/<ISO-basic>Z-watch-outcomes.md` shows PASS. Verify: all `fail` severity checks green
-- [ ] **9.3** `watch-state.js close <slice-dir>` exit 0 after 9.1, 9.2 and 9.4; it is the only writer of `status: complete`. Verify: `watch.json` `status: complete`
+- [ ] **9.5** Corpus relayout, only when a corpus target is configured (otherwise tick as n/a). Run before 9.3: `close` removes the temp session the media is copied from. Verify: `watch/relayout-slice.js <slice-dir> <target-dir>` exit 0
+- [ ] **9.3** `watch-state.js close <slice-dir>` exit 0 after 9.1, 9.2, 9.4 and 9.5; it is the only writer of `status: complete`. Verify: `watch.json` `status: complete`
 - [ ] **9.4** Vision fidelity spot-check (required for a vision-complete claim). Verify: ≥10 synthesis PNG images name↔content + ≥3 contact sheets verdict↔JPG; notes in Resume notes below. Verify script exit 0 alone is structural only.
 
 ---

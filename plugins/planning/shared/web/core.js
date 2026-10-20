@@ -2,13 +2,16 @@
 // reads the prototype's state names; toView() builds them from the contract snapshot, and each action
 // below sends the contract route's body. The map: .work/shared-interview-ui/snapshot-map.md.
 (() => {
-  const SCHEMA_VERSION = 3; // the session file version this page was built for; another one reloads it
+  const SCHEMA_VERSION = 6; // the session file version this page was built for; another one reloads it
   const memory = new Map();
   const store = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })()
     || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
   const get = k => { try { return store.getItem(k); } catch { return memory.get(k) ?? null; } };
   const put = (k, v) => { try { store.setItem(k, v); } catch { memory.set(k, v); } };
   const drop = k => { try { store.removeItem(k); } catch { /* storage gone */ } memory.delete(k); };
+  /** A record's upload ids as the page's attachment list, and what a write sends of one (nothing for none). */
+  const attOf = x => (x.attachments ? { att: x.attachments.map(id => ({ kind: "file", upload: id })) } : {});
+  const withAtt = extra => (extra?.attachments?.length ? { attachments: extra.attachments } : {});
 
   // The guest secret lives under the prototype's key ("secret"), so a guest the import carried over
   // keeps their identity after the cutover reload. It leaves this browser only as a header.
@@ -51,7 +54,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
-    goal: "", intro: "", annotations: [], uploads: [], reports: [], passes: {}, myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], me: null, joinNeedsKey: false,
+    goal: "", intro: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
@@ -108,9 +111,10 @@
     MENTIONS = { live: labels(live.map(p => p.pid)), all: labels([...Object.keys(people), ...Object.keys(s.mentions || {})]), label };
     const plain = t => (typeof t === "string" && t.includes("<@") ? t.replace(TOKEN, (_, p) => "@" + label(p)) : t);
     const view = {
-      ...DEFAULTS,
+      ...structuredClone(DEFAULTS), // its own maps: a question whose last answer, lock, suggestion or result went must lose its key
       schemaVersion: s.schemaVersion, rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", ended: !!s.ended, serverTime: s.serverTime,
-      settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always" },
+      // reviewAnswers: absent (a session from before the setting) reviews every answer, as those sessions always did.
+      settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always", reviewAnswers: settings.reviewAnswers !== false },
       people, ownerPid: "host",
       leaders: live.filter(p => p.role === "leader").map(p => p.pid), trusted: live.filter(p => p.trusted && p.pid !== "host").map(p => p.pid),
       removed: (s.removed || []).map(p => p.pid),
@@ -178,7 +182,7 @@
         const other = c.pick === "other" || (c.picks || []).includes("other") || (c.order || []).includes("other");
         return { ...base, name: nameOf(c.pid), text: plain(c.text || ""), ts: c.at, cites: c.cites || [], device: c.device,
           // C44: the files an answer or pick carries, each an upload the owner accepted.
-          ...(c.attachments ? { att: c.attachments.map(id => ({ kind: "file", upload: id })) } : {}),
+          ...attOf(c),
           ...(c.pick ? { pick: optIn(c.pick) } : {}), ...(c.picks ? { picks: c.picks.map(optIn) } : {}), ...("value" in c ? { value: c.value } : {}),
           ...(c.order ? { order: c.order.map(optIn) } : {}), ...(other ? { other: true } : {}),
           ...(c.editedAfterVotes ? { editedAfter: c.editedAfterVotes } : {}), ...(c.late ? { late: c.late } : {}),
@@ -198,14 +202,22 @@
         name: kind === "c" ? "Claude" : kind === "o" ? "Option" : kind === "p" ? nameOf(ref.split(":")[1]) : "", poll: src.kind === "poll" };
     }
     for (const [qid, lst] of Object.entries(s.suggestions || {})) {
-      view.suggestions[qid] = lst.map(x => ({ id: x.id, cid: x.pid, name: nameOf(x.pid), text: plain(x.text), note: plain(x.note || ""), ts: x.at, status: x.status.kind, votes: x.votes || [] }));
+      view.suggestions[qid] = lst.map(x => ({ id: x.id, cid: x.pid, name: nameOf(x.pid), text: plain(x.text), note: plain(x.note || ""), ts: x.at, status: x.status.kind, votes: x.votes || [], ...attOf(x) }));
     }
     view.ideas = proposals.map(p => ({ id: p.id, cid: p.pid, name: nameOf(p.pid), text: plain(p.text), ts: p.at,
       status: p.status.kind === "not-placed" ? "notplaced" : p.status.kind, qid: p.status.question || "", reason: p.status.reason || "",
-      ...(p.via?.kind === "chat" ? { via: nameOf(p.via.by) } : {}) }));
-    view.chat = (s.chat || []).map(m => ({ id: m.id, cid: m.pid, name: nameOf(m.pid), text: plain(m.text), ts: m.at, ...(m.gapAbove ? { gapAbove: true } : {}),
-      ...(m.replyTo ? { replyTo: { id: m.replyTo.id, cid: m.replyTo.pid, name: nameOf(m.replyTo.pid), text: plain(m.replyTo.excerpt) } } : {}),
-      ...(m.proposed ? { forwarded: m.proposed } : {}), reactions: m.reactions || {} }));
+      ...(p.via?.kind === "chat" ? { via: nameOf(p.via.by) } : {}), ...attOf(p) }));
+    // Claude's shared answer to a request about the whole session is the host's message marked `claude`: it shows as Claude's.
+    const byClaude = new Set((s.chat || []).filter(m => m.claude).map(m => m.id));
+    const who = (pid, claude) => (claude ? { cid: "claude", name: "Claude" } : { cid: pid, name: nameOf(pid) });
+    view.chat = (s.chat || []).map(m => ({ id: m.id, ...who(m.pid, m.claude), text: plain(m.text), ts: m.at, ...(m.gapAbove ? { gapAbove: true } : {}),
+      ...(m.replyTo ? { replyTo: { id: m.replyTo.id, ...who(m.replyTo.pid, m.replyTo.claude || byClaude.has(m.replyTo.id)), text: plain(m.replyTo.excerpt) } } : {}),
+      ...(m.proposed ? { forwarded: m.proposed } : {}), ...(m.claude ? { claude: true, result: m.claude.result } : {}), ...(m.request ? { request: m.request } : {}),
+      reactions: m.reactions || {}, ...attOf(m) }));
+    // Each question's Discussion, oldest first; `seen` is when I last opened it, so others' comments after it are new.
+    view.discussions = Object.fromEntries(Object.entries(s.discussions || {}).map(([qid, lst]) => [qid, lst.map(c => ({ id: c.id, cid: c.pid, name: nameOf(c.pid),
+      text: plain(c.text), ts: c.at, edited: !!c.edited, hidden: !!c.hidden, request: c.request || "", reactions: c.reactions || {}, ...attOf(c) }))]));
+    view.discussionSeen = s.me?.discussionSeen || {};
     // Q98: notes pinned on prototype variants, oldest first.
     view.annotations = (s.annotations || []).map(a => ({ id: a.id, cid: a.pid, name: nameOf(a.pid), qid: a.qid, variant: a.variant, text: plain(a.text), ts: a.at,
       selector: a.anchor?.selector || "", rect: a.anchor?.rect || null }));
@@ -215,29 +227,37 @@
     for (const [qid, lst] of Object.entries(s.results || {})) {
       view.research[qid] = lst.map(x => {
         const r = x.request ? reqText.get(x.request) : null, by = x.by?.kind === "guest-claude" ? x.by.pid : r?.pid;
-        return { id: x.id, kind: x.kind, summary: x.summary, sources: x.sources || [], report: x.report || "", ts: x.at, requestId: x.request || "",
+        return { id: x.id, kind: x.kind, summary: x.summary, msg: x.msg || "", sources: x.sources || [], report: x.report || "", ts: x.at, requestId: x.request || "",
           // A guest's own Claude names its own tools in `used`; the label never repeats them.
           skill: x.by?.kind === "guest-claude" ? "their own Claude" : (x.used || []).map(u => u.name).join(", ") || "Claude", why: x.why || "", published: x.published !== false,
           own: x.by?.kind === "guest-claude", // the requester's own Claude answered it (Connect your Claude), not the host's
+          // Unshared and out to its asker (a Just me answer, or one the owner took down), and taken down by the owner.
+          private: !!x.private, takenDown: !!x.takenDown, ...(r?.audience === "me" ? { justMe: true } : {}),
           ...(r ? { ask: plain(r.text) } : {}), ...(by ? { byCid: by, by: nameOf(by) } : {}) };
       });
     }
-    const req = r => ({ id: r.id, qid: r.qid, kind: r.kind, text: plain(r.text), edited: r.edited, cid: r.pid, name: nameOf(r.pid), ts: r.at,
-      status: r.status.kind, runner: r.runner, ...(r.status.reason ? { reason: r.status.reason } : {}) });
+    const req = r => ({ id: r.id, qid: r.qid || "", kind: r.kind, text: plain(r.text), edited: r.edited, cid: r.pid, name: nameOf(r.pid), ts: r.at,
+      status: r.status.kind, runner: r.runner, ...(r.audience === "me" ? { justMe: true } : {}), ...(r.status.reason ? { reason: r.status.reason } : {}), ...attOf(r) });
     view.requests = (s.requests || []).map(req);
     view.myRequests = (s.myRequests || []).map(req);
+    // The Inbox: my own requests with the status I see, and for the owner what waits on them; the server decides both.
+    // A person asking to join is not in people yet: their name comes from joinRequests.
+    const joinName = pid => (s.joinRequests || []).find(j => j.pid === pid)?.name;
+    view.inbox = (s.inbox || []).map(i => ({ ...i, ts: i.at, changedTs: i.changed, ...(i.by ? { byCid: i.by, by: people[i.by] ? nameOf(i.by) : joinName(i.by) || nameOf(i.by) } : {}) }));
     view.mergeRequests = (s.mergeRequests || []).map(m => ({ id: m.id, from: m.from, to: m.to, fromName: nameOf(m.from), toName: nameOf(m.to), ts: m.at, status: m.status.kind }));
     view.myMergeRequests = (s.myMergeRequests || []).map(m => ({ id: m.id, status: m.status.kind, toName: nameOf(m.to) }));
     // Uploads: my own files, everyone's for the owner (with a picture's preview), and what everyone reads of the
     // files answers carry. No path ever reaches the page.
     const upView = u => ({ id: u.id, cid: u.pid, by: nameOf(u.pid), qid: u.qid || "", file: u.file, ext: u.ext, size: u.size, ts: u.at,
       total: u.chunks, chunkSize: u.chunkSize, status: u.status.kind, received: u.status.received || 0, bytes: u.status.bytes || 0,
-      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}) });
+      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}), ...(u.image ? { image: true } : {}), ...(u.shown ? { shown: true } : {}) });
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
-    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, asked: !!r.asked, ts: r.ts }));
-    view.files = s.files || {};
+    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, asked: !!r.asked, ts: r.ts, adds: r.adds || [] }));
+    // My own problem reports (Your reports): their words, additions and status, never the page context.
+    view.myReports = (s.myReports || []).map(r => ({ id: r.id, text: r.text, image: r.image, status: r.status, ts: r.ts, adds: r.adds || [] }));
+    view.files = { ...held.files, ...(s.files || {}) };
     // Passes and their reasons (owner only): qid -> pid -> {reason?, ts}.
     view.passes = s.passes || {};
     // Present people are active or away (with since when); a person with no heartbeat for a while is absent: offline.
@@ -335,6 +355,8 @@
 
   const OPPOSITE = { thumbs: "down", down: "thumbs" }; // one person never holds both on one answer
   const Core = {
+    /** A request about the whole session has no question: the page files it, and finds its results, under this key. */
+    GENERAL: "session",
     // cid holds the public pid (the prototype's name for it).
     me: { cid: secret ? get("pid") || "" : ownerToken ? "host" : "", name: get("name") || "", isOwner: !!ownerToken, isLeader: false, isTrusted: false },
     state: structuredClone(DEFAULTS),
@@ -409,7 +431,7 @@
       const body = { qid, ...contractPick(fields), ...(other != null ? { other } : { comment: comment || "" }), ...(attachments ? { attachments } : {}), ...where() };
       return act("/api/pick", body, { key: "pick:" + qid, patch: (s, pid) => patchPick(s, pid, qid, body) }).then(r => { typingUntil = 0; return r; });
     },
-    idea: text => act("/api/propose", { text }).then(r => { typingUntil = 0; return r; }),
+    idea: (text, extra) => act("/api/propose", { text, ...withAtt(extra) }).then(r => { typingUntil = 0; return r; }),
     /** A vote on an answer card (its ref, or the page's id) or on a suggestion of that question. */
     vote: (qid, target, on) => {
       if ((Core.state.suggestions[qid] || []).some(s => s.id === target)) {
@@ -479,25 +501,46 @@
       throw e?.error === "tie" ? { ...e, tied: (e.tied || []).map(cidOf) } : e;
     }),
     unlock: qid => act("/api/unlock", { qid }),
-    suggest: (qid, text, note) => act("/api/suggest", { qid, text, note: note || "" }),
+    suggest: (qid, text, note, extra) => act("/api/suggest", { qid, text, note: note || "", ...withAtt(extra) }),
     useSuggestion: (qid, id) => act("/api/suggestion/act", { qid, id, action: "use" }),
     dismissSuggestion: (qid, id) => act("/api/suggestion/act", { qid, id, action: "dismiss" }),
     lockEdit: (qid, text, from) => act("/api/lock/edit", { qid, text, ...(from ? { from } : {}) }),
     /** My message shows at once; the server's copy (a message of mine with this text it did not hold before) replaces it. */
-    chat: (text, replyTo) => {
-      const before = new Set((withChat(snap)?.chat || []).map(m => m.id)), id = `sending-${++sends}`, body = { text, ...(replyTo ? { replyTo } : {}) };
+    chat: (text, replyTo, extra) => {
+      const before = new Set((withChat(snap)?.chat || []).map(m => m.id)), id = `sending-${++sends}`, body = { text, ...(replyTo ? { replyTo } : {}), ...withAtt(extra) };
       return act("/api/chat", body, { key: "chat:" + id, patch: (s, pid) => {
         s.chat ||= [];
         const chat = s.chat, text = body.text; // as act sent it: its mentions as tokens
         if (chat.some(m => m.pid === pid && m.text === text && !before.has(m.id))) return;
         const to = replyTo && chat.find(m => m.id === replyTo);
-        chat.push({ id, pid, text, at: s.serverTime, ...(to ? { replyTo: { id: to.id, pid: to.pid, excerpt: to.text } } : {}) });
+        chat.push({ id, pid, text, at: s.serverTime, ...(to ? { replyTo: { id: to.id, pid: to.pid, excerpt: to.text } } : {}), ...withAtt(extra) });
       } }).then(r => { chatTypingUntil = 0; return r; });
     },
+    /** Inbox items I opened, by key: each reads at the status in `saw` (what the page showed), else at its status now. */
+    readInbox: (keys, saw) => act("/api/inbox/read", { keys, ...(saw ? { saw } : {}) }, { key: "inbox:" + keys.join(","),
+      patch: s => { for (const i of s.inbox || []) if (keys.includes(i.key) && (!saw || saw[i.key] === i.status)) i.unread = false; } }),
     readNotifications: ids => act("/api/notifications/read", ids === "all" ? { all: true } : { ids }),
     addReference: (qid, reference) => act("/api/question/reference", { qid, reference }),
     removeReference: (qid, index) => act("/api/question/reference", { qid, remove: index }),
     forward: id => act("/api/chat/propose", { id }, { ok: j => patchKept(id, m => { m.proposed = j.proposal; }) }),
+    /** The Discussion under a question: add, edit or delete my comment, the owner's Hide, an emoji, and having read it up to `at`. */
+    comment: (qid, text, extra) => act("/api/discussion", { qid, text, ...withAtt(extra) }),
+    editComment: (qid, id, text) => act("/api/discussion/edit", { qid, id, text }),
+    deleteComment: (qid, id) => act("/api/discussion/delete", { qid, id }, { key: "disc-del:" + id, patch: s => {
+      if (s.discussions?.[qid]) s.discussions[qid] = s.discussions[qid].filter(c => c.id !== id);
+    } }),
+    hideComment: (qid, id, on) => act("/api/discussion/hide", { qid, id, on }),
+    reactComment: (qid, id, emoji, on) => act("/api/discussion/react", { qid, id, emoji, on }, { key: `discreact:${id}:${emoji}`, patch: (s, pid) => {
+      const c = (s.discussions?.[qid] || []).find(x => x.id === id);
+      if (!c) return;
+      c.reactions ||= {};
+      const pids = without(c.reactions[emoji], pid);
+      if (on) pids.push(pid);
+      if (pids.length) c.reactions[emoji] = pids; else delete c.reactions[emoji];
+    } }),
+    readDiscussion: (qid, at) => act("/api/discussion/read", { qid, at }, { key: "discread:" + qid, patch: s => {
+      if (s.me) s.me.discussionSeen = { ...s.me.discussionSeen, [qid]: Math.max(at, s.me.discussionSeen?.[qid] || 0) };
+    } }),
     /** One of my emoji on a chat message, on or off (the server takes only its fixed set). */
     chatReact: (id, emoji, on) => {
       const react = (m, pid) => {
@@ -528,9 +571,18 @@
     /** Owner: mark a report seen or resolved; either tells the reporter. */
     /** Owner: seen | resolved tell the reporter; ask hands a report to Claude once (a report alone never reaches it). */
     reportAct: (id, action) => act("/api/report/act", { id, action }),
-    /** Owner: one report's picture, as a data: URL. */
-    reportImage: async id => {
-      const r = await fetch(`/api/report/image?${new URLSearchParams({ id })}`, { headers: ident() });
+    /** The reporter: a line, a screenshot (a data: URL) or both added to their own report while it is not fixed. */
+    addToReport: (id, text, image) => act("/api/report/add", { id, ...(text ? { text } : {}), ...(image ? { image } : {}) }),
+    /** A received picture an answer, message, request, suggestion, proposal or comment I can see carries, as a data: URL. */
+    uploadImage: async id => {
+      const r = await fetch(`/api/upload/image?${new URLSearchParams({ id })}`, { headers: ident() });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw { status: r.status, ...j };
+      return j.image;
+    },
+    /** Owner: one report's picture, or its Nth addition's, as a data: URL. */
+    reportImage: async (id, add) => {
+      const r = await fetch(`/api/report/image?${new URLSearchParams({ id, ...(add ? { add } : {}) })}`, { headers: ident() });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw { status: r.status, ...j };
       return j.image;
@@ -551,8 +603,12 @@
     },
     setPurpose: (qid, purpose) => act("/api/question/purpose", { qid, purpose }),
     sendRound: () => act("/api/round/send", {}),
-    /** runner "self": the request runs on my own Claude (Connect your Claude); only I see it. */
-    request: (qid, kind, text, _extra, runner) => act("/api/request", { qid, kind, text, ...(runner === "self" ? { runner } : {}) }),
+    /** runner "self": the request runs on my own Claude (Connect your Claude); only I see it. audience "me" (Just me):
+     *  its answer shows to me and the host until one of us shares it. */
+    request: (qid, kind, text, extra, runner, audience) => act("/api/request", { ...(qid === Core.GENERAL ? { scope: qid } : { qid }), kind, text,
+      ...(runner === "self" ? { runner } : {}), ...(audience === "me" ? { audience } : {}), ...withAtt(extra) }),
+    /** My own Just me answer, shared with everyone (the owner may share any). */
+    shareResult: id => act("/api/result/share", { id }),
     /** My own Claude's side of a self request: claim it, post its answer ({summary, sources, report, used, why}), or give up. */
     myClaim: id => act("/api/mine/requests/claim", { id }),
     myResult: (id, body) => act("/api/mine/requests/result", { id, ...body }),
@@ -562,9 +618,15 @@
     newWatcherKey: () => act("/api/watcher", {}).then(j => j.token),
     revokeWatcher: () => act("/api/watcher/revoke", {}),
     later: (id, reason) => act("/api/proposal/act", { id, action: "later", reason }),
-    /** Owner: edit | decline | fail | rerun one request, publish | discard a result; runRequests runs the given ids still pending. */
-    requestAct: (id, action, text) => act("/api/request/act", { id, action, ...(text != null ? { text } : {}) }),
-    runRequests: ids => act("/api/request/act", { action: "run", ids }),
+    /** Owner: edit | decline | fail | rerun one request, publish | discard | takedown a result; runRequests runs the given ids still pending. */
+    requestAct: (id, action, text) => (action === "run" ? Core.runRequests([id])
+      : act("/api/request/act", { id, action, ...(text != null ? { text } : {}) })),
+    /** The given ids still waiting show as running at once; a refusal puts them back. */
+    runRequests: ids => act("/api/request/act", { action: "run", ids }, { key: "run:" + ids.join(), patch: s => {
+      for (const r of [...(s.requests || []), ...(s.myRequests || [])]) {
+        if (ids.includes(r.id) && r.status.kind === "pending") r.status = { kind: "running", since: s.serverTime };
+      }
+    } }),
     proposal: (id, action) => act("/api/proposal/act", { id, action }),
     setTitle: title => act("/api/session/title", { title }),
     merge: (from, to) => act("/api/person/merge", { from, to }),
@@ -669,8 +731,9 @@
   // than a second there.
   const SPACED = new Set(["/api/answer", "/api/pick", "/api/propose", "/api/chat", "/api/suggest", "/api/request", "/api/merge-request",
     "/api/annotate", "/api/rename", "/api/color", "/api/prefs", "/api/about-you", "/api/vote", "/api/react", "/api/disagree", "/api/pass",
-    "/api/go-with", "/api/notifications/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail",
-    "/api/upload/offer", "/api/upload/act", "/api/upload/chunk"]);
+    "/api/go-with", "/api/notifications/read", "/api/inbox/read", "/api/chat/react", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail",
+    "/api/upload/offer", "/api/upload/act", "/api/upload/chunk", "/api/discussion", "/api/discussion/edit", "/api/discussion/delete",
+    "/api/discussion/hide", "/api/discussion/react", "/api/discussion/read", "/api/result/share"]);
   const GAP = 1050; // ms: the server's one-a-second limit, plus a margin for clock rounding
   const lanes = new Map(); // path -> {tail: promise of the last write, done: when it answered}
   const wait = ms => new Promise(res => setTimeout(res, Math.max(0, ms)));
@@ -729,13 +792,13 @@
   // rejections, actions that never reached the server (send above; the server logs its own refusals), and layout
   // anomalies. Repeats, action timings and rollbacks, reconnect gaps, INP and LCP wait for one summary, sent with no
   // pid when the page hides. Only once joined: the server refuses an anonymous entry. Never typed text, answers, chat,
-  // names, the address or its fragment, text on the page, or a credential. The switch (remembered here) stops it all.
+  // names, the address or its fragment, text on the page, or a credential. There is no switch: it always runs.
   const cut = (text, n) => Array.from(String(text)).slice(0, n).join(""); // by code point, as the server counts
   const recentErrors = []; // the last few this page saw, which a problem report carries
   const LAT_EDGES = [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]; // ms, upper bucket edges; share.py LAT_EDGES
   const SUMMARY_MAX = 500; // the server's message limit: what does not fit waits for the next summary
   const tel = {
-    off: get("telemetry") === "off", seen: new Set(), rep: new Map(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(),
+    seen: new Set(), rep: new Map(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(),
     pv: [...crypto.getRandomValues(new Uint8Array(4))].map(b => b.toString(16).padStart(2, "0")).join(""), // this page view, no one's id
     inp: "", lcp: "", sentInp: "", sentLcp: "", missing: "", sentMissing: false, vitals: false,
   };
@@ -744,7 +807,7 @@
   const bump = (m, k, n = 1) => m.set(k, (m.get(k) || 0) + n);
   const fnv = text => { let h = 0x811c9dc5; for (const c of text) h = Math.imul(h ^ c.codePointAt(0), 16777619) >>> 0; return h.toString(16).padStart(8, "0"); };
   function post(body) {
-    if (tel.off || !joined()) return Promise.reject(new Error("not sent"));
+    if (!joined()) return Promise.reject(new Error("not sent"));
     return fetch("/api/client-log", { method: "POST", headers: { "Content-Type": "application/json", ...ident() }, body: JSON.stringify(body), keepalive: true })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); });
   }
@@ -758,7 +821,7 @@
     const body = { kind, message: cut(message || kind, 500), route: cut(location.pathname, 200), ua: ua(), ...extra };
     if (kind !== "layout" && !extra.noted) noteError(kind, extra.code, body.message);
     delete body.noted;
-    if (tel.off || !joined()) return;
+    if (!joined()) return;
     const fp = fnv(key || [kind, body.message, body.source || "", kind === "api" ? body.route : ""].join("|"));
     if (tel.seen.has(fp)) { bump(tel.rep, fp); return; }
     tel.seen.add(fp);
@@ -772,7 +835,7 @@
   }
   /** One summary line of what waited, as `name=value` tokens; whatever does not fit in SUMMARY_MAX stays for the next. */
   function flush() {
-    if (tel.off || !joined()) return;
+    if (!joined()) return;
     const base = `pv=${tel.pv}${ownerToken ? " owner=1" : ""}`, items = [];
     const missing = tel.missing || (tel.vitals ? [!tel.hasInp && "inp=missing", !tel.hasLcp && "lcp=missing"].filter(Boolean).join(" ") : "");
     if (missing && !tel.sentMissing) items.push([missing, () => { tel.sentMissing = true; }]);
@@ -802,7 +865,7 @@
   /** INP and LCP from the vendored web-vitals attribution build (web/web-vitals.attribution.iife.js), on this origin;
    *  a page without it, or without the browser APIs it reads, says which is missing. */
   function loadVitals() {
-    if (tel.vitals || tel.loading || tel.off) return;
+    if (tel.vitals || tel.loading) return;
     tel.loading = true;
     const s = document.createElement("script");
     s.src = "/web-vitals.attribution.iife.js";
@@ -857,8 +920,12 @@
   }
   let layoutTimer = 0, layoutAt = -Infinity;
   function checkLayout() {
-    layoutTimer = 0; layoutAt = performance.now();
-    if (tel.off || !joined()) return;
+    layoutTimer = 0;
+    // A finite animation still running (the chat button's bump, a sheet sliding in) is a passing frame, not the layout:
+    // the bump scales the phone's chat button past the screen's edge. Check again once it has settled.
+    if (document.getAnimations().some(a => a.playState === "running" && a.effect?.getTiming().iterations !== Infinity)) return layoutSoon();
+    layoutAt = performance.now();
+    if (!joined()) return;
     const now = layoutNow();
     for (const [key, message] of now) if (!tel.layout.has(key)) fault("layout", message, {}, key);
     tel.layout = new Set(now.keys());
@@ -884,53 +951,40 @@
   Core.reportLayout = fields => post({ kind: "layout", message: cut(Object.entries(fields).map(([k, v]) => `${k}=${String(v).replace(/\s+/g, "")}`).join(" "), 500),
     route: cut(location.pathname, 200), ua: ua() }).catch(() => {});
   addEventListener("error", e => fault("error", e.message, e.filename ? { source: cut(`${new URL(e.filename, location.href).pathname}:${e.lineno}`, 200) } : {}));
-  addEventListener("unhandledrejection", e => fault("rejection", e.reason?.message || e.reason?.error || String(e.reason)));
+  // A server refusal ({status, error, message}) sends its code and status only: its message can quote typed text.
+  addEventListener("unhandledrejection", e => { const r = e.reason;
+    fault("rejection", r && !(r instanceof Error) && r.error ? `${r.error} ${r.status ?? ""}`.trim() : r?.message || String(r)); });
 
-  // The notice: one line, a "What this page records" link to the plain list, and the switch, in the join dialog and Help.
+  // The notice in Help: one line and a "What this page records" link to the plain list.
   const REC_LINE = "This page records errors, slow or failed actions and layout problems on this device, so the host can fix them. It never records what you type.";
   const RECORDED = ["Script errors on this page, and actions that never reached the host", "How long each action takes to get an answer, and how often one is undone",
     "How long the page takes to catch up when you come back to it", "Layout problems: something too wide for the screen, a field the keyboard covers, the header pushed off screen",
     "How fast the page answers a tap and shows its main content", "Your device type and browser family, such as phone and Safari"];
   const NEVER = ["What you type: your answers, chat and requests", "Your name, or this page's address", "Any text shown on the page"];
-  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id. It all stays on the host's computer. With recording off, this page sends none of it.";
-  const switches = new Set();
-  function setOff(off) {
-    tel.off = !!off;
-    put("telemetry", tel.off ? "off" : "on");
-    for (const s of switches) { if (s.isConnected) s.checked = !tel.off; else switches.delete(s); }
-    if (!tel.off) loadVitals();
-  }
-  function recSwitch() {
-    const label = Core.el("label", "core-rec-switch"), input = Core.el("input");
-    input.type = "checkbox"; input.setAttribute("role", "switch"); input.checked = !tel.off;
-    input.addEventListener("change", () => setOff(!input.checked));
-    switches.add(input);
-    label.append(input, Core.el("span", null, "Record problems on this device"));
-    return label;
-  }
+  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id. It all stays on the host's computer.";
   function openRecords() {
     const dlg = Core.el("dialog", "core-records"), h = Core.el("h2", null, "What this page records");
     h.id = "core-records-h"; dlg.setAttribute("aria-labelledby", h.id);
     const list = (title, items) => { const ul = Core.el("ul"); for (const t of items) ul.append(Core.el("li", null, t)); return [Core.el("h3", null, title), ul]; };
     const close = Core.el("button", null, "Close"); close.type = "button";
     close.onclick = () => dlg.close();
-    dlg.append(h, ...list("Recorded", RECORDED), ...list("Never recorded", NEVER), Core.el("p", "core-note", REC_IDS), recSwitch(), close);
+    dlg.append(h, ...list("Recorded", RECORDED), ...list("Never recorded", NEVER), Core.el("p", "core-note", REC_IDS), close);
     dlg.addEventListener("close", () => dlg.remove());
     document.body.append(dlg);
     dlg.showModal();
     close.focus();
     return dlg;
   }
-  /** The notice line with its link and switch; `cls` styles it where it sits. */
+  /** The notice line with its link; `cls` styles it where it sits. */
   function notice(cls = "core-rec") {
     const box = Core.el("div", cls), p = Core.el("p", "core-rec-line", REC_LINE + " "), a = Core.el("a", "core-rec-link", "What this page records");
     a.href = "#records";
     a.addEventListener("click", e => { e.preventDefault(); openRecords(); });
     p.append(a);
-    box.append(p, recSwitch());
+    box.append(p);
     return box;
   }
-  Core.telemetry = { notice, openRecords, setOff, get off() { return tel.off; } };
+  Core.telemetry = { notice, openRecords };
   loadVitals();
 
   // ---------- optimistic actions: shown at once, reconciled with the server in the background ----------
@@ -952,7 +1006,8 @@
   const repaint = () => { if (snap) { Core.state = view(); emit(); } };
   // The routes whose text can mention people: their "@Name" go out as <@pid> (Core.tokenize); the server does the same
   // for full names, so a name the page shows masked still reaches the person it names.
-  const MENTION_ROUTES = new Set(["/api/answer", "/api/pick", "/api/card/edit", "/api/suggest", "/api/lock/edit", "/api/propose", "/api/chat", "/api/annotate", "/api/request", "/api/request/act"]);
+  const MENTION_ROUTES = new Set(["/api/answer", "/api/pick", "/api/card/edit", "/api/suggest", "/api/lock/edit", "/api/propose", "/api/chat", "/api/annotate", "/api/request", "/api/request/act",
+    "/api/discussion", "/api/discussion/edit"]);
   function act(path, body, opt) {
     if (MENTION_ROUTES.has(path)) for (const k of ["text", "comment", "other", "note"]) if (typeof body[k] === "string") body[k] = Core.tokenize(body[k]);
     const entry = opt?.patch && { patch: opt.patch, after: null }, t0 = performance.now();
@@ -1024,7 +1079,7 @@
   // Every message this page has read stays while it is open, so one that leaves the window stays under a reader
   // scrolled up to it. `linked` holds the ids whose next older message is loaded too (or that have none); a message
   // outside it shows a Load earlier control above it. A change of name masking or role starts over.
-  const held = { chat: new Map(), linked: new Set(), key: "", touched: 0 };
+  const held = { chat: new Map(), linked: new Set(), key: "", touched: 0, files: {} }; // files: what held older messages carry
   const seqOf = id => Number(String(id).replace(/\D+/g, "")) || 0;
   function keepChat(run, before, below) {
     run.forEach((m, i) => { held.chat.set(m.id, m); if (i || !before) held.linked.add(m.id); });
@@ -1034,11 +1089,17 @@
     const r = await fetch(`/api/chat?${new URLSearchParams(query)}`, { headers: ident() });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw { status: r.status, ...j };
+    Object.assign(held.files, j.files || {});
     return j;
+  }
+  /** held.files keeps only what the held messages still carry (a removed upload leaves them when they are read again). */
+  function pruneFiles() {
+    const carried = new Set([...held.chat.values()].flatMap(m => m.attachments || []));
+    for (const id of Object.keys(held.files)) if (!carried.has(id)) delete held.files[id];
   }
   function keepWindow(s) {
     const key = `${s.settings?.names}|${s.me.role}`;
-    if (key !== held.key) { held.chat.clear(); held.linked.clear(); held.key = key; }
+    if (key !== held.key) { held.chat.clear(); held.linked.clear(); held.files = {}; held.key = key; }
     const win = s.chat || [], skipped = !!s.chatBefore && win.length > 0 && held.chat.size > 0 && !held.chat.has(win[0].id);
     const touched = (s.chatTouched || 0) !== held.touched && held.chat.size > win.length;
     held.touched = s.chatTouched || 0;
@@ -1054,6 +1115,7 @@
       for (const m of j.chat) if (held.chat.has(m.id)) held.chat.set(m.id, m);
       id = j.chat.length && seqOf(j.chat[0].id) > oldest ? j.before : "";
     }
+    pruneFiles();
     repaint();
   }
   /** More than a window arrived between two polls: read back to the messages this page already holds. */
@@ -1252,12 +1314,10 @@
     const unsub = Core.subscribe(paintSub);
     const label = Core.el("label", null, "What should everyone call you?"); label.htmlFor = "core-n";
     const input = Core.el("input"); Object.assign(input, { id: "core-n", name: "n", required: true, maxLength: 40, autocomplete: "nickname" });
-    input.setAttribute("aria-describedby", "core-n-note core-n-err");
-    const note = Core.el("p", "core-note", "Your answers are saved on the host's computer and read by Claude when a round is sent. The side chat is not sent to Claude. We note your device and view to fix problems.");
-    note.id = "core-n-note";
+    input.setAttribute("aria-describedby", "core-n-err");
     const err = Core.el("p", "core-err", notice); err.id = "core-n-err"; err.setAttribute("role", "alert");
     const go = Core.el("button", null, "Join");
-    form.append(h, sub, label, input, note, Core.telemetry.notice(), err, go); dlg.append(form);
+    form.append(h, sub, label, input, err, go); dlg.append(form);
     document.body.append(dlg);
     if (Core.state.joinNeedsKey && !joinKey) err.textContent = "This session needs the host's newest invite link. Ask them for it.";
     dlg.addEventListener("cancel", e => e.preventDefault());

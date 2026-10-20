@@ -1,0 +1,130 @@
+{
+  "skill": "songwriting:metaphor",
+  "plugin": "songwriting",
+  "skill_dir": "plugins/songwriting/skills/metaphor",
+  "ranking_note": "Authored from the before descriptions at commit 11a25e8bb3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling songwriting skills the near-miss negatives aim at; one or two negatives are adjacent non-songwriting requests.",
+  "competitors": [
+    "songwriting:object-writing",
+    "songwriting:rhyme",
+    "songwriting:co-write",
+    "songwriting:diagnose",
+    "songwriting:meter-prosody"
+  ],
+  "competitor_dirs": {
+    "songwriting:object-writing": "plugins/songwriting/skills/object-writing",
+    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
+    "songwriting:co-write": "plugins/songwriting/skills/co-write",
+    "songwriting:diagnose": "plugins/songwriting/skills/diagnose",
+    "songwriting:meter-prosody": "plugins/songwriting/skills/meter-prosody"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What's a fresh way to compare grief to something physical? I want a figurative line."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Should I say 'love is like a fire' or 'love is a fire' in this chorus?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My lyric is all literal. How can I get some figurative language into it?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Smash some nouns and verbs together for me around the idea of time running out."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I open with a lighthouse in verse one. How do I carry that image through the whole song?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The comparison between love and a garden in my chorus just sits there. How do I make it do work?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me figurative ways to describe a city at 3am, starting from what a city is like."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What things share the qualities of a closed door? I want to build a figure of speech from it."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn 'she left quietly' into a line where the verb does the figurative work."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Give me rhymes for 'door'."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Do a timed sense-bound writing on the word 'kitchen'."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which point of view should this verse use, first or third person?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Brainstorm 25 titles for a song about my dog."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explain the difference between a metaphor and an analogy for my persuasive essay."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Rewrite my whole draft based on a critique of it."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make this verse more concrete by adding sensory detail."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is this verse stable or unstable?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a punchy product description for running shoes."
+    }
+  ]
+}

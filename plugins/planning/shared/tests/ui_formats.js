@@ -192,6 +192,9 @@ async function main() {
       JSON.stringify(await cardOf(owner, "Q4", `p:${gusPid}`)));
 
     await go(pia, "Q4", "Rank the checkout steps by importance");
+    // Gus is on Q4, and his presence lands after the question renders: measure the handles once it shows, or the
+    // drag starts on whatever moved under the finger.
+    ok("rank by touch: the phone shows Gus on the question before the drag", await until(pia, () => [...document.querySelectorAll(":is(.vf-onit, .vf-qonit) .core-avatar")].some(a => a.offsetParent && a.dataset.name === "Gus")));
     const grip = item(pia, "Review").locator(".vf-rank-grip");
     await grip.scrollIntoViewIfNeeded();
     const g = await grip.boundingBox(), top = await item(pia, "Address").boundingBox();

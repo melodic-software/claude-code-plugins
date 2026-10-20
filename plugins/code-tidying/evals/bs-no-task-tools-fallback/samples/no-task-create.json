@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/greet.sh"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "TaskCreate",
+          "input": {
+            "subject": "Group 1: src",
+            "description": "src/greet.sh"
+          }
+        }
+      ]
+    }
+  ]
+}

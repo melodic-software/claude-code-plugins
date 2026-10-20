@@ -19,7 +19,7 @@ graders:
     target: last_message
   - name: undocumented-divergence-surfaced
     type: regex
-    pattern: 'useDefineForClassFields(?:(?!importsNotUsedAsValues|\bstrict\b)[\s\S]){0,300}?(?<!\bnot )\b(?:undocumented|unrecorded|no (?:recorded |written |documented )?rationale|without (?:a |any )?(?:recorded |written |documented )?rationale|your call|human''?s call|you decide|decide whether)\b|(?<!\bnot )\b(?:undocumented|unrecorded)\b(?:(?!importsNotUsedAsValues|\bstrict\b)[\s\S]){0,300}?useDefineForClassFields'
+    pattern: 'useDefineForClassFields(?:(?!importsNotUsedAsValues|\bstrict\b)[\s\S]){0,300}?(?<!\bnot )\b(?:undocumented|unrecorded|no (?:(?:recorded |written |documented )?rationale|(?:recorded |written |documented )reason)|without (?:a |any )?(?:(?:recorded |written |documented )?rationale|(?:recorded |written |documented )reason)|adopt the default or record why|your call|human''?s call|you decide|decide whether)\b|(?<!\bnot )\b(?:undocumented|unrecorded)\b(?:(?!importsNotUsedAsValues|\bstrict\b)[\s\S]){0,300}?useDefineForClassFields'
     flags: 'i'
     target: last_message
   - name: adr-backed-setting-kept

@@ -118,9 +118,10 @@ async function main() {
     let drop = true;
     await ann.context().route("**/api/upload/chunk", route => {
       const i = Number(route.request().headers()["x-chunk-index"]);
-      if (i === 1 && drop) return route.abort("connectionreset");
+      // A piece in flight when the page reloads is aborted under the handler, so abort or continue can throw.
+      if (i === 1 && drop) return route.abort("connectionreset").catch(() => {});
       sent[i] = (sent[i] || 0) + 1;
-      return route.continue();
+      return route.continue().catch(() => {});
     });
     await owner.locator(".vf-seg-btn", { hasText: /^Host$/ }).click();
     await hostRow("funnel.pdf").locator("button", { hasText: "Accept" }).click();

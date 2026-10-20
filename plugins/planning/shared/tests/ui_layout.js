@@ -15,7 +15,8 @@
 // lines and Propose above the keyboard, nothing in it clipped or scrolling sideways (triage 36, 44). At 320, 375, 390
 // and 430 px wide the page never scrolls sideways, in the default
 // view, with the chat open, or in Ask Claude with the keyboard up, and at 320 nothing in Ask Claude is clipped sideways.
-// Pinch-zoomed to 1.5, 2 and 3, the page still reads an iOS keyboard as one, and the zoom alone as none.
+// Pinch-zoomed to 1.5, 2 and 3, the page still reads an iOS keyboard as one, and the zoom alone as none. The Inbox page
+// on a phone keeps a request being edited, its question line and Save above a 260 to 430 px keyboard.
 //   node plugins/planning/shared/tests/ui_layout.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the layout requirements of the polish plan (the sizes, the 1 px tolerance, 44x44 CSS px
@@ -335,7 +336,7 @@ async function main() {
       await sp.context().close();
     }
 
-    // ---------- triage 36: Ask Claude holds only requests Claude runs; the line under its tabs opens Propose ----------
+    // ---------- triage 36: Ask Claude holds only requests Claude runs; the line under its title opens Propose ----------
     for (const [label, context] of [["390x844", PHONE], ["1440x900", { viewport: { width: 1440, height: 900 } }]]) {
       const g = await rec.open(A.localUrl, { context });
       await joinAs(g, `Point ${label}`);
@@ -345,8 +346,8 @@ async function main() {
       const tabs = await g.evaluate(() => [...document.querySelectorAll(".vf-apmodes [role=tab]")].filter(t => t.getClientRects().length).map(t => t.textContent));
       const line = await g.evaluate(() => document.querySelector(".vf-drawer .vf-ap-pointer")?.textContent || "");
       const opened = await g.locator(".vf-ap-propose").click({ timeout: 3000 }).then(() => true, () => false) && await until(g, () => !document.querySelector(".vf-proposepop").hidden && document.querySelector(".vf-drawer").hidden && document.activeElement?.id === "vf-prop-ta", null, 3000);
-      ok(`${label}: Ask Claude's tabs are exactly Ask, Research and Explore, and "Propose a question" under them closes it and opens the Propose form, its field focused`,
-        tabs.join() === "Ask,Research,Explore" && line === "Want the group asked something? Propose a question" && opened, JSON.stringify({ tabs, line, opened }));
+      ok(`${label}: a guest's Ask Claude has no kind tabs (follow-up item 2), and "Propose a question" under its title closes it and opens the Propose form, its field focused`,
+        tabs.join() === "" && line === "Want the group asked something? Propose a question" && opened, JSON.stringify({ tabs, line, opened }));
       await g.context().close();
     }
 
@@ -423,6 +424,34 @@ async function main() {
     });
     ok("390x844, keyboard up: the Ask Claude sheet scrolls down to \"Your requests\" and its first request, never sideways", reqs.scrolled && reqs.shown && !reqs.sideways, JSON.stringify(reqs));
     await ria.context().close();
+
+    // ---------- spec PR 9: the Inbox page on a phone, with an iOS keyboard up while the host edits a request ----------
+    // Expected: the same reveal rule as the sheets above (the row's question line, the field's first 3 lines and Save
+    // seen above the keyboard), at the 260 px floor, KB and 430 px, and the document never scrolls.
+    const ivy = await rec.open(A.localUrl, { context: PHONE });
+    await joinAs(ivy, "Ivy");
+    await ivy.evaluate(() => window.Core.request("Q1", "ask", "Ivy asks the host to run this one"));
+    const io = await rec.open(A.ownerUrl, { context: PHONE });
+    await until(io, () => window.Core.snapshot()?.me?.role === "owner" && (window.Core.state.requests || []).some(r => r.text.startsWith("Ivy asks")), null, 10000);
+    await io.locator(".vf-tab", { hasText: "More" }).tap();
+    await io.locator(".vf-msitem", { hasText: "Inbox" }).tap();
+    await until(io, () => !document.querySelector(".vf-inboxpage").hidden);
+    await io.locator(".vf-ixtabs [data-k=needs]").tap();
+    const IVY = ".vf-ibneeds .vf-revlist > li:has(.vf-qref)", ibad = [];
+    const ivyRow = io.locator(".vf-ibneeds .vf-revlist > li", { hasText: "Ivy asks" });
+    await ivyRow.locator("button", { hasText: /^Edit$/ }).tap();
+    await settle(io);
+    for (const kb of [260, KB, 430]) {
+      await io.evaluate(() => document.activeElement?.blur());
+      if (!(await ivyRow.locator("textarea").tap({ timeout: 5000 }).then(() => true, () => false))) { ibad.push(`keyboard ${kb}: the field could not be tapped`); break; }
+      await keyboard(io, true, { kb });
+      const seen = await fieldSeen(io, `${IVY} .vf-qref`, `${IVY} textarea`, `${IVY} .vf-acts button:not([hidden])`);
+      seen.push(...(await docScrolls(io)));
+      if (seen.length) ibad.push(`keyboard ${kb}: ${[...new Set(seen)].join(", ")}`);
+      await keyboard(io, false);
+    }
+    ok("390x844, the Inbox page's request Edit, keyboard 260 to 430 px: the row's question, the field's first 3 lines and Save are seen above the keyboard, the document never scrolled", ibad.length === 0, ibad.join("; "));
+    await io.context().close(); await ivy.context().close();
 
     // ---------- dogfood: nothing scrolls the page sideways at 320 to 430 px, keyboard or not ----------
     for (const w of [320, 375, 390, 430]) {

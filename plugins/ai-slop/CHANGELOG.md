@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.3] - 2026-10-20
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.14.2] - 2026-10-17
 
 ### Fixed

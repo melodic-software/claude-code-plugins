@@ -4,10 +4,10 @@ context:
   scaffold_script: scaffold.sh
 graders:
   - name: reads-the-brief
-    type: tool_used
-    tool: Read
-    input_match: 'delegation-brief\.md'
-    min: 1
+    type: regex
+    pattern: '\bdelegation-brief(?:\.md)?\b|\b(?:the|your|this) brief\b'
+    flags: 'i'
+    target: last_message
   - name: brief-names-the-skill
     type: regex
     pattern: '^(?![^\n]*\b(?:do not|don''t|never|without|instead of) (?:use |invoke |name |naming |using )?[`/]*(?:discipline:)?point-dont-copy)[^\n]*\bpoint-dont-copy\b'

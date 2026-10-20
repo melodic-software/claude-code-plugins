@@ -112,7 +112,10 @@ For when the sweep fires, see
 auto-update runs). Re-read state immediately before each mutating
 step (`sync.md`'s "Concurrency" section, `converge.md` Step 4) rather than driving a whole multi-step
 sync off one snapshot taken at the start. When a mutation's actual result doesn't match what the
-snapshot predicted, that's this race. Note it in the report, don't treat it as a bug to chase.
+snapshot predicted, that's this race. Note it in the report, don't treat it as a bug to chase. For
+an update call the CLI answers "already at the latest version", the report's `Moved during this run:`
+row is that note: `sync.md`'s "Concurrency" section says how the run's snapshots separate a moved id
+from a true no-op.
 
 The catalog shifts the same way. A marketplace refresh landing mid-session, whether a background
 `autoUpdate` sweep or a concurrent session's manual update, rewrites the marketplace's own
@@ -402,15 +405,19 @@ one `<plugin>`; the spawn-and-load behavior and the `--bare` mitigation are dire
 during the 2026-09-14 revert on this fleet: the host's node/bun process count climbed on every
 plain uninstall and stayed flat at 73 across six consecutive `--bare` uninstalls; the ~6s and ~15s
 figures are wall-clock from that same run and are machine- and plugin-count-dependent, so treat
-them as orders of magnitude rather than constants. Neither the spawn behavior nor `--bare` is
-documented on
+them as orders of magnitude rather than constants. The spawn behavior is not documented on
 [plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) or
 [plugin marketplace remove](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-remove), which is why this
-record exists. *As of* 2026-09-15 on **Claude Code 2.1.272** (win32); the revert itself ran on
-2.1.263–2.1.272 with no observed change in the behavior. ***Recheck trigger:*** a bulk or
-glob-accepting form appearing on `claude plugin uninstall --help`; any release note or
-`plugins-reference` change touching what a non-interactive `plugin` subcommand loads at startup, or
-documenting `--bare`; or an observed uninstall that does not spawn a plugin-loading session.
+record exists. `--bare` is now documented, but as a `claude -p` flag
+([headless: start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode),
+read 2026-10-18). `--bare` as an uninstall mitigation, and the LSP and plugin-sync skips, stay
+direct observation.
+*As of* 2026-09-15 on **Claude Code 2.1.272** (win32) for the observation, 2026-10-18 on docs
+for 2.1.300; the revert itself ran on 2.1.263–2.1.272 with no observed change in the behavior.
+***Recheck trigger:*** a bulk or glob-accepting form appearing on `claude plugin uninstall --help`;
+any release note or `plugins-reference` change touching what a non-interactive `plugin` subcommand
+loads at startup, or documenting `--bare` for it; the headless page changing what `--bare` skips;
+or an observed uninstall that does not spawn a plugin-loading session.
 
 ## A disabled-by-default install writes `false`, and only an install record can be uninstalled
 

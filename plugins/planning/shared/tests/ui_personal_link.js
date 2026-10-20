@@ -55,7 +55,7 @@ async function main() {
     await asking(tab3);
     await tab3.click("dialog.core-switch button:text-is('Switch')");
     ok("Switch stores Bo's secret", await until(tab3, s => localStorage.getItem("secret") === s, boSecret));
-    ok("  and the page signs in as Bo", await until(tab3, p => window.Core.snapshot()?.me?.pid === p && window.Core.me.name === "Bo", boPid, 10000));
+    ok("  and the page signs in as Bo", await until(tab3, p => window.Core?.snapshot()?.me?.pid === p && window.Core.me.name === "Bo", boPid, 10000));
 
     // ---------- no secret stored: adopted at once; the browser's own secret: nothing to ask ----------
     const fresh = await rec.open(`${A.localUrl}#me=${annSecret}`);

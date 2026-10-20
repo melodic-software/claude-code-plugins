@@ -179,6 +179,17 @@ checkout that has a linked worktree holding a record of the same id, showing `up
 updating the record keyed to the literal cwd. On a confirmed fix, drop the read-back in `converge.md`
 Step 4 and `sync.md` Step 2 and the `currentProject` filter in `sync-run.sh`.
 
+**A lagging record in a linked worktree is labeled, counted, and cleared by `uninstall`, never
+trusted to `update`.** `fleet-state.sh` marks each project/local record `linkedWorktree` and labels a
+lagging one `update ineffective; uninstall clears it`; the row stays a divergence, and any update the
+run does make is verified by re-reading the record ([converge.md](converge.md) Step 4). `uninstall`
+clears it and edits that worktree's tracked settings file ([converge.md](converge.md) Step 5).
+**Record**: pointer, the update-strategy results of the 2026-10-12 converge run in
+[#6713 (comment)](https://github.com/melodic-software/claude-code-plugins/issues/6713#issuecomment-6125445322);
+as-of 2026-10-12. **Recheck trigger**: a Claude Code release note that changes how `update -s project`
+treats a record keyed to a linked worktree, or a re-run of that probe (the converge update strategy
+against lagging records in linked worktrees, then a re-read) showing the records move.
+
 When reading a record out of a `fleet-state.sh` report, a `project`/`local` record belongs to the run
 only when its `currentProject` flag is `true`; matching on id and scope alone returns whichever
 sibling's record comes first.
@@ -497,15 +508,18 @@ against the recorded commit in the marketplace clone, which is the only check th
 state from a healthy one. It reports and never repairs; see
 [stale-records-cache-content.md](stale-records-cache-content.md).
 
-**A marketplace clone is shallow, so most installs are unverifiable most of the time.** The clone
-under `installLocation` carried a `.git/shallow` file and a three-commit history when this was
-measured, so an install record naming any commit older than that window has no object to compare
-against. Verified 2026-09-05 on **Claude Code 2.1.261**: 11 of 74 user-scope installs on the
-authoring machine reported `sha-not-local` for exactly this reason, on a fleet with nothing wrong
-with it. That is the steady state, not an edge case, and it caps how much any single run of the
-check can establish. The check never fetches the missing commit: a fetch is a network mutation, and
-it would repair the condition being reported. **Recheck trigger:** any change to how Claude Code
-clones a marketplace, which would move the depth this number rests on.
+**A marketplace clone has been observed shallow, so most installs are unverifiable most of the time.** The clone
+under `installLocation` carried a `.git/shallow` file when this was measured, and Claude Code
+re-clones the marketplace on update (see
+[Host and maintain a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace.md); read
+2026-10-18; the page states the re-clone and says nothing about shallowness or clone depth, so the
+shallow shape is our observation, not the page's). Only an install recorded at a
+commit inside the clone can be compared; any other record has no object to compare against, so most
+installs read `sha-not-local` (unverifiable) right after a refresh, on a fleet with nothing wrong
+with it. Observed 2026-10-04 (#5941): 84 of 86 installs unverifiable right after a refresh. That is the steady state, not an edge case, and it caps how much any single
+run of the check can establish. The check never fetches the missing commit: a fetch is a network
+mutation, and it would repair the condition being reported. **Recheck trigger:** a change to the
+host-marketplace page's update or clone description, or to how Claude Code clones a marketplace.
 
 ## `marketplace remove` leaves the cache tree, marked for the orphan sweep
 

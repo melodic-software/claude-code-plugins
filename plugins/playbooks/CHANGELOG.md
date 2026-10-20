@@ -4,6 +4,18 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.23.5] - 2026-10-20
+
+### Changed
+
+- `repo-sweep` record points to the `/source-control:worktree` accepted-shapes heading for the general shapes and keeps its three observed forms ([#5673](https://github.com/melodic-software/claude-code-plugins/issues/5673)).
+
+### Fixed
+
+- The `boris` orchestration, favorites and customization references now carry pointer records (anchor, as-of date, recheck trigger) for fast mode, the dynamic-workflows blog sections, `/batch` fan-out and the keybindings file, in place of restated speed and scale figures.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.23.4] - 2026-10-18
 
 ### Changed

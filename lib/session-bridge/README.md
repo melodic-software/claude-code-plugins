@@ -46,7 +46,10 @@ subclass sets `max_body` and `page_csp` and adds routes in `route_get(url, query
   sent, must match.
 - A per-run token from `secrets.token_urlsafe(32)` rides only in the `X-<Name>-Token` header; every
   POST and `/api/wait` needs it. Every POST must be `application/json`, 1 to `max_body` bytes, a
-  JSON object.
+  JSON object. `watch.sh` hands the header to curl on stdin (`-H @-`), so the token is in no
+  process's argv, which other local users can read on Linux without `hidepid` and on macOS.
+- On Windows the listener refuses address reuse and binds with `SO_EXCLUSIVEADDRUSE`, so no other
+  local process can bind the same port and receive requests that carry the token.
 - `start()` writes `.<name>-session.json` (pid, port, url, token, dataDir, nonce, startedAt) and
   `.<name>-session.env` (`PID`, `PORT`, `TOKEN`, `NONCE`) to the data dir, mode 0600.
 - `GET /events` streams `state` frames on every change and a `ping` every 15 s when idle; at most 8
@@ -179,11 +182,16 @@ An input it cannot read counts as failed, so an unknown never selects channels.
 | Provider | `CLAUDE_CODE_USE_BEDROCK`, `_VERTEX`, `_FOUNDRY`, `_MANTLE`, `_ANTHROPIC_AWS` | Any is set |
 | Session opt-in | The argv of the nearest ancestor naming `--channels` or `--dangerously-load-development-channels` (`/proc`, else `ps`) | No entry is named, or the ancestors cannot be read (Windows) |
 | Auth | `claude auth status --json` | It cannot be read, `loggedIn` is not true, or `apiProvider` is not `firstParty` |
-| Organization | The first managed source with a policy key: the server-managed cache (`~/.claude/remote-settings.json`), then `managed-settings.json` with `managed-settings.d/*.json` | A source exists without `channelsEnabled: true`, or none exists and `subscriptionType` is `team` or `enterprise` |
+| Organization | The first managed source with a policy key: the server-managed cache (`~/.claude/remote-settings.json`), then MDM (the macOS `com.anthropic.claudecode` managed preferences, then the `Settings` value under `HKLM\SOFTWARE\Policies\ClaudeCode`), then `managed-settings.json` with `managed-settings.d/*.json` | A source exists without `channelsEnabled: true`, an MDM source exists but cannot be read, or none exists and `subscriptionType` is `team` or `enterprise` |
 | Allowlist | `allowedChannelPlugins` in that source | The entry came by `--channels` and the list does not name its plugin and marketplace |
 
-MDM policies (a macOS plist, the Windows registry) are not read, so a policy delivered only by
-MDM reads as none.
+`allowedChannelPlugins` is taken whole from that one source, as Claude Code does under the default
+`first-wins`; only the file tier combines lists and merges nested blocks across its drop-ins. The
+HKCU registry is never read, HKLM counts on WSL only when its value sets
+`wslInheritsWindowsSettings`, and cloud sessions (`CLAUDE_CODE_REMOTE=true`) skip MDM.
+`managedSourcesBehavior: "merge"` is not supported. Basis, as of 2026-10-18:
+[managed-settings](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources).
+Recheck when the source ranking, a storage location or the file-tier merge rules change.
 
 The checks and their order are ours. Where the upstream facts they test live, as of 2026-10-11:
 

@@ -37,12 +37,12 @@ async function main() {
       guests.push({ pid: out.pid, h: { ...ip, "X-Session-Secret": out.secret } });
     }
     const { id: hello } = await api("/api/chat", { text: "Hello all" }, owner);
-    await Promise.all(guests.map(async (g, i) => {
-      await api("/api/answer", { qid: "Q1", text: `Answer from Guest ${i + 1}`, device: "computer", view: "focus" }, g.h);
-      await wait(20 * i);
+    await Promise.all(guests.map((g, i) => api("/api/answer", { qid: "Q1", text: `Answer from Guest ${i + 1}`, device: "computer", view: "focus" }, g.h)));
+    // In order, one at a time: the checks below read proposals and replies oldest first.
+    for (const [i, g] of guests.entries()) {
       await api("/api/propose", { text: `Proposal from Guest ${i + 1}` }, g.h);
       if (i < 25) await api("/api/chat", { text: `Reply ${i + 1}`, replyTo: hello }, g.h);
-    }));
+    }
     const gone = await api("/api/join", { name: "Gone", device: "computer" }, { "CF-Connecting-IP": "198.51.100.99" });
     await api("/api/person/remove", { pid: gone.pid, on: true }, owner);
     // Presence lives in memory: a restart leaves everyone offline until they beat. Guests 1-10 are here and active,
@@ -104,6 +104,7 @@ async function main() {
     const notes = await host.evaluate(() => window.Core.snapshot().me.notifications);
     const firstN = Math.min(20, notes.length);
     await host.click(".vf-bell");
+    await host.click(".vf-ixtabs [data-k=notes]");
     ok(`the bell shows ${firstN} of its ${notes.length} notifications`, notes.length > 20 && await until(host, n => document.querySelectorAll(".vf-nlist > li").length === n, firstN), String(await rows(host, ".vf-nlist > li")));
     await host.locator(".vf-nlist + .vf-more-foot button").click();
     ok("Show more shows the next 20", await until(host, n => document.querySelectorAll(".vf-nlist > li").length === n, Math.min(40, notes.length)));

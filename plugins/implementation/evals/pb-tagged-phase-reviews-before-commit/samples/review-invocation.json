@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "1. `/review:quality-gate code-design --worktree /srv/wt/shop-pricing --base 4b1d9e07c2a85f3e6d10b7a9c4e2f8d1a3b5c6e7 --quality-bar internal --report-only`\n2. Dispatch `implementation:phase-verifier`.\n3. `git -C /srv/wt/shop-pricing commit -F msg.txt`",
+      "why": "every input on the invocation line"
+    },
+    {
+      "answer": "Step 1, review: /review:quality-gate code-design --report-only --quality-bar=internal --base=4b1d9e07c2a8 --worktree=/srv/wt/shop-pricing",
+      "why": "flags in another order with = separators"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "1. `/review:quality-gate code-design --worktree /srv/wt/shop-pricing --base 4b1d9e07c2a85f3e6d10b7a9c4e2f8d1a3b5c6e7 --report-only`",
+      "why": "quality bar left out though the plan states one"
+    },
+    {
+      "answer": "1. `/review:quality-gate code-design --worktree /srv/wt/shop-pricing --base 4b1d9e07c2a85f3e6d10b7a9c4e2f8d1a3b5c6e7 --quality-bar internal`",
+      "why": "no report-only flag"
+    },
+    {
+      "answer": "1. `/review:quality-gate code --worktree /srv/wt/shop-pricing --base 4b1d9e07c2a85f3e6d10b7a9c4e2f8d1a3b5c6e7 --quality-bar internal --report-only`",
+      "why": "wrong mode for the code-design tag"
+    },
+    {
+      "answer": "1. `/review:quality-gate code-design --worktree /srv/wt/shop-pricing --base origin/main --quality-bar internal --report-only`",
+      "why": "base is not the previous phase-boundary commit"
+    },
+    {
+      "answer": "No `/review:quality-gate code-design` call is needed here.\n1. Dispatch `implementation:phase-verifier`.",
+      "why": "names the mode without invoking it"
+    }
+  ]
+}

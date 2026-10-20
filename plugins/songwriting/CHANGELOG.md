@@ -3,6 +3,20 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.0] - 2026-10-20
+
+### Added
+
+- Ten outcome eval cases under `evals/`, one per measured skill, and frozen trigger-probe sets under `probes/`.
+
+### Changed
+
+- Shorter bodies for `co-write`, `diagnose`, `meter-prosody`, `object-writing`, `practice`, `rhyme`, `song-form` and `suno`, and shorter descriptions for every skill except `metaphor`, `practice`, `rhyme` and `setup`. Eval cases and trigger probes measured each change against the old text before it shipped. `setup` keeps its original text because it could not be measured. `metaphor` keeps its original description and body, `practice` and `rhyme` keep their original descriptions, and `workflow` keeps its original body, because the shorter text scored lower.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [1.6.11] - 2026-10-16
 
 ### Changed
