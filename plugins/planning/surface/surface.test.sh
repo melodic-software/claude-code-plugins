@@ -404,6 +404,9 @@ if command -v playwright-cli >/dev/null 2>&1; then
   # An older terminal record has no rev: strip it, then revise Q9 so only the time orders the two.
   "$py" -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); [q["terminal"].pop("rev", None) for q in d["questions"] if q["id"] == "Q9"]; json.dump(d, open(p, "w"))' "$pg/questions.json"
   grev Q9 --rec "The release owner, with the support lead."
+  # Phase 10: a Notes reply that asks belongs under Needs you, a plain one in the log.
+  bash "$here/round.sh" --dir "$pg" note-reply --text "Plain note: the owner is settled." >/dev/null || bad "page: note-reply refused"
+  bash "$here/round.sh" --dir "$pg" note-reply --text "Asking note: should support sign off?" --needs-answer >/dev/null || bad "page: note-reply --needs-answer refused"
   grun 10
   bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
   grade ui_a "$tmp/ui_a.out"

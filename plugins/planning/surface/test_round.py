@@ -2082,6 +2082,15 @@ class TestClaudeActivity(DirCase):
         self.assertIs(self.entries()[-1].get("revised"), True)
         self.assertNotIn("waits", self.entries()[-1])
 
+    def test_a_note_reply_that_asks_marks_the_entry_asks(self):
+        self.apply({"op": "note-reply", "text": "Noted."})
+        self.assertNotIn("asks", self.entries()[-1])
+        self.apply({"op": "note-reply", "needsAnswer": True, "text": "Anything else?"})
+        self.assertIs(self.entries()[-1].get("asks"), True)
+        rc, out, err = self.rp("note-reply", "--text", "Which one?", "--needs-answer")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIs(self.entries()[-1].get("asks"), True)
+
     def test_a_note_reply_marks_the_entry(self):
         self.apply(
             {"op": "note-reply", "text": "Thanks."},
