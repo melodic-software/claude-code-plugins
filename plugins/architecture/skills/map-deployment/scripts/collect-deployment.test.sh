@@ -2431,6 +2431,39 @@ assert_not_contains "matching compute nodes add no diff" "$unm_rec" '"change":"c
 unm_fixture tf-compute-other envs/dev/main.tf "$tf_ecs"$'\n'"$tf_eks" envs/prod/main.tf "$tf_ecs"$'\nresource "google_container_cluster" "extra" {\n  name = "extra"\n}'
 unm_check "$TEST_TMPDIR/unm-tf-compute-other"
 assert_contains "a node only the other environment declares is added" "$unm_rec" '"container":"google_container_cluster.extra","detail":"compute present only in prod"'
+unm_fixture tf-compute-name envs/dev/main.tf "$tf_ecs" envs/prod/main.tf "${tf_ecs/name = \"c\"/name = \"c-prod\"}"
+unm_check "$TEST_TMPDIR/unm-tf-compute-name"
+assert_contains "the renamed node carries its new name" "$unm_rec" '"id":"prod/aws_ecs_cluster.c","env":"prod","tool":"terraform","kind":"compute","name":"c-prod"'
+assert_not_contains "a changed name alone is not a difference" "$unm_rec" '"change":"compute'
+
+# ARM nodes match by type and order among nodes of that type, not array position.
+arm_kube='{"type":"Microsoft.ContainerService/managedClusters","name":"kube"}'
+arm_site_plain="{\"type\":\"Microsoft.Web/sites\",\"name\":\"web\",\"properties\":{\"serverFarmId\":\"[resourceId('Microsoft.Web/serverfarms', 'plan')]\",\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:1\"}}}"
+# shellcheck disable=SC2016 # $schema is a literal JSON key
+arm_tpl() { printf '{"$schema":"%s","contentVersion":"1.0.0.0","resources":[%s]}' "$arm_schema" "$1"; }
+unm_fixture arm-compute-order envs/dev/main.json "$(arm_tpl "$arm_plan,$arm_site_plain")" envs/prod/main.json "$(arm_tpl "$arm_site_plain,$arm_kube,$arm_plan")"
+unm_check "$TEST_TMPDIR/unm-arm-compute-order"
+assert_contains "the moved plan sits at another array position" "$unm_rec" '"id":"prod/resources[2]","env":"prod","tool":"arm","kind":"compute","name":"plan"'
+assert_not_contains "an ARM node at another array position is not removed" "$unm_rec" '"change":"compute-removed"'
+assert_contains "an ARM node in one environment only is added" "$unm_rec" '"change":"compute-added","left":"dev","right":"prod","tool":"arm","container":"Microsoft.ContainerService/managedClusters#1","detail":"compute present only in prod"'
+assert_equals "the extra ARM node is the only compute diff row" "$(grep -c '"change":"compute' <<<"$unm_rec")" "1"
+
+# A type change at one address is a compute row for Bicep and Pulumi; CloudFormation diffs its nodes too.
+bicep_extra() { printf "resource extra '%s@2023-01-01' = {\n  name: 'extra'\n}" "$1"; }
+unm_fixture bicep-compute-type envs/dev/main.bicep "$bicep_plan"$'\n'"$(bicep_extra Microsoft.Web/serverfarms)" envs/prod/main.bicep "$bicep_plan"$'\n'"$(bicep_extra Microsoft.ContainerService/managedClusters)"
+unm_check "$TEST_TMPDIR/unm-bicep-compute-type"
+assert_contains "a Bicep node whose type changed is a compute row" "$unm_rec" '"change":"compute","left":"dev","right":"prod","tool":"bicep","container":"extra","detail":"Microsoft.Web/serverfarms -> Microsoft.ContainerService/managedClusters"'
+assert_not_contains "an unchanged Bicep node is not a diff row" "$unm_rec" '"container":"plan","detail":"compute'
+# shellcheck disable=SC2016 # ${...} is Pulumi interpolation, not shell
+pulumi_ecs() { printf 'name: p\nruntime: yaml\nresources:\n  cluster:\n    type: %s\n  td:\n    type: aws:ecs:TaskDefinition\n    properties:\n      containerDefinitions:\n        fn::toJSON:\n          - name: api\n            image: acme/api:1\n  svc:\n    type: aws:ecs:Service\n    properties:\n      cluster: ${cluster.arn}\n      taskDefinition: ${td.arn}' "$1"; }
+unm_fixture pulumi-compute-type envs/dev/Pulumi.yaml "$(pulumi_ecs aws:ecs:Cluster)" envs/prod/Pulumi.yaml "$(pulumi_ecs aws:ecs/cluster:Cluster)"
+unm_check "$TEST_TMPDIR/unm-pulumi-compute-type"
+assert_contains "a Pulumi node whose type changed is a compute row" "$unm_rec" '"change":"compute","left":"dev","right":"prod","tool":"pulumi-yaml","container":"cluster","detail":"aws:ecs:Cluster -> aws:ecs/cluster:Cluster"'
+cfn_svc=$'Resources:\n  Cluster:\n    Type: AWS::ECS::Cluster\n  Task:\n    Type: AWS::ECS::TaskDefinition\n    Properties:\n      ContainerDefinitions:\n        - Name: api\n          Image: acme/api:1\n  Svc:\n    Type: AWS::ECS::Service\n    Properties:\n      Cluster: !Ref Cluster\n      TaskDefinition: !Ref Task'
+unm_fixture cfn-compute-diff envs/dev/t.yaml "$cfn_svc"$'\n  Batch:\n    Type: AWS::ECS::Cluster' envs/prod/t.yaml "$cfn_svc"
+unm_check "$TEST_TMPDIR/unm-cfn-compute-diff"
+assert_contains "a CloudFormation node in one environment only is removed" "$unm_rec" '"change":"compute-removed","left":"dev","right":"prod","tool":"cloudformation","container":"Batch","detail":"compute present only in dev"'
+assert_not_contains "a CloudFormation node in both environments is not a diff row" "$unm_rec" '"container":"Cluster","detail":"compute'
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'
