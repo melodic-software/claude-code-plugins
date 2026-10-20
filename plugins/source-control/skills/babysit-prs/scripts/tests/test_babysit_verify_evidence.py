@@ -331,6 +331,18 @@ class VerdictAtTheCurrentHead(unittest.TestCase):
         self.assertEqual(evidence.refusal, "verify:fail")
         self.assertEqual(evidence.head_fail, (2, fail))
 
+    def test_a_newer_fail_at_an_earlier_head_is_never_the_fail_to_quote(
+        self,
+    ) -> None:
+        fail, earlier = named(HEAD, "fail"), named(EARLIER, "fail")
+        fake = FakeGitHub(
+            [artifact(earlier, 5), artifact(fail, 2)],
+            {2: run(2), 5: run(5)},
+        )
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(evidence.head_fail, (2, fail))
+
     def test_an_unreadable_record_is_not_a_record_with_nothing_to_quote(
         self,
     ) -> None:

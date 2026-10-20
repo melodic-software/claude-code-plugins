@@ -15,7 +15,7 @@ const DEFAULT_AUTH_WARN_DAYS = 6;
 /**
  * Check auth state freshness and warn if stale.
  * @param {string} storageStatePath
- * @param {object} platformCfg
+ * @param {import('./types.js').PlatformConfig} platformCfg
  */
 export function checkAuthAge(storageStatePath, platformCfg) {
   if (!existsSync(storageStatePath)) return;

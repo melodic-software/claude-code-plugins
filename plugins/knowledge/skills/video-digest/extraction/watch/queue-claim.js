@@ -294,6 +294,7 @@ function main(argv) {
   let epicDir = resolveEpicDir();
   let maxAgeDays = DEFAULT_STALE_DAYS;
   /** First `--video-id` wins; a repeated flag is ignored. */
+  /** @type {string | null} */
   let videoId = null;
   /** Caller-supplied holder name; the default names this short-lived child process. */
   let claimedBy;

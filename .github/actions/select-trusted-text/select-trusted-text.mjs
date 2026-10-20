@@ -252,6 +252,21 @@ export async function selectTrustedIssueComments({ github, repository, issueNumb
   return { kept, dropped };
 }
 
+const DECISION = /^\*\*Decision recorded\.\*\*(\s|$)/;
+const firstLine = (body) => (body ?? "").trimStart().split("\n", 1)[0].trimEnd();
+
+// A decision is a listed human's own text: a kept comment whose first line is
+// `**Decision recorded.**`, not posted through an App, and never edited or
+// last edited by a listed human. `humans` holds the list's human ids.
+export function isDecisionComment({ comment, lastEditedAt, lastEditorId }, humans) {
+  return (
+    humans.has(comment.user?.id) &&
+    comment.performed_via_github_app == null &&
+    (lastEditedAt === null || humans.has(lastEditorId)) &&
+    DECISION.test(firstLine(comment.body))
+  );
+}
+
 // Returns a predicate over node ids: true when the node was never edited or
 // its last editor is listed. A node missing from the answer, or an edit with
 // no resolvable editor, is false. Its `lastEditedAt` and `lastEditorId` maps

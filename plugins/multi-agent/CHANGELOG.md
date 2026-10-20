@@ -3,6 +3,24 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-10-20
+
+### Added
+
+- **A config layer declares its own workloads.** `workloads.<w>: true` in any layer declares workload `<w>`, so `roles.<role>.workloads.<w>.model` and `.effort` apply and `/multi-agent:route <role> <w>` resolves it; `false` withdraws one. The bundled layer declares `code`, `research` and `mechanical` the same way, in `reference/defaults.yaml`. A workload value for a name no layer declares is still reported and ignored, and an undeclared `--workload` exits 2 listing the declared ones.
+
+### Changed
+
+- `/multi-agent:route` takes the workload as its second bare argument, so a declared name passes through; `code`, `research` and `mechanical` work as before.
+
+### Fixed
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- `best` is no longer a role model, a frontier alias or an accepted `--session-model`: the resolver rejects it as an unknown alias, and the bundled `frontier` default is `fable`. The config reference now points at sub-agents: choose a model for the subagent aliases and model fallback. (#7990)
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.10.1] - 2026-10-16
 
 ### Changed

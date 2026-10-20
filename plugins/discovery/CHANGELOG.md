@@ -1,5 +1,20 @@
 # Changelog: discovery plugin
 
+## [0.35.1] - 2026-10-20
+
+### Changed
+
+- `/discovery:research` now bounds the verify-and-rework loop at medium budget and above to one rework round: a verifier row still FAIL after the re-verify is recorded as a Gap or Conflicts entry (or the named `verification: fail rows` value) instead of reworked again. The skill also states who writes `RESEARCH.md`: the `discovery:researcher` subagent in the standard dispatch, this session from the sweep result in the deep tier's workflow path.
+- Four new eval cases (45-48) grade the one-round cap, the fallback after a sweep artifact fails `check-source-applicability.py`, the researcher as the standard-dispatch `RESEARCH.md` writer, and the wide fan-out spawning the remaining researchers when usage has room.
+
+### Fixed
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- The shared settings checker behind `/discovery:setup` validates string and object settings, and reports a setting whose schema shape it does not check instead of stopping with a JavaScript error.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.35.0] - 2026-10-18
 
 ### Added

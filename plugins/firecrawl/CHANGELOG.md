@@ -3,6 +3,15 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2] - 2026-10-20
+
+### Fixed
+
+- `/firecrawl:update --check` no longer counts a firecrawl CLI that is not installed as drift: it reports it and exits 0 when upstream is unchanged, so its exit codes follow the shared drift-check contract (0 no drift, 1 drift, 2 unverifiable). (#6493)
+- The `--check` report prints the recorded last-sync date and SHA256 instead of `recorded)`: a never-synced placeholder such as `(none recorded)` now reads as empty. (#6493)
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.7.1] - 2026-10-16
 
 ### Changed
