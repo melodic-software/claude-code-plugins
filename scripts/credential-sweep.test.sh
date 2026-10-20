@@ -115,7 +115,7 @@ base_fixture() {
   fix "$d" "$b/actions/caches?$pages" '{"actions_caches":[]}'
   fix "$d" "$b/pulls?state=all&sort=updated&direction=desc&$pages" '[]'
   fix "$d" "$b" '{"private":false}'
-  printf '%s\n' "$CONFIG_FIXTURE" >"$d/$(key "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=v8.30.1")"
+  printf '%s\n' "$CONFIG_FIXTURE" >"$d/$(key "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=83d9cd684c87d95d656c1458ef04895a7f1cbd8e")"
 }
 
 # one_run <dir> <repo> <check-runs-json>: run 11 (attempt 1, suite 21) since
@@ -224,7 +224,7 @@ fi
 # The scanner config is fetched at the pin; an unreadable one stops the sweep.
 F="$TMP/noconfig"
 base_fixture "$F" r
-rm -f "$F/$(key "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=v8.30.1")"
+rm -f "$F/$(key "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=83d9cd684c87d95d656c1458ef04895a7f1cbd8e")"
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-noconfig" --repo r
 expect_rc "an unreadable scanner config exits 3" 3
 

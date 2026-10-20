@@ -59,6 +59,8 @@ PROG="credential-sweep.sh"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SELF_DIR/.." && pwd)"
 GITLEAKS_PIN="8.30.1"
+# The commit tag v8.30.1 names; the default config is read at it, not at the movable tag.
+GITLEAKS_CONFIG_COMMIT="83d9cd684c87d95d656c1458ef04895a7f1cbd8e"
 PER_PAGE=100
 UNPACK_MAX=$((1024 * 1024 * 1024))
 
@@ -375,7 +377,7 @@ strings_pass() {
 # unreadable or holds no rules.
 fetch_config() {
   local raw="$STATE/default.toml"
-  api_get "$raw" "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=v$GITLEAKS_PIN" \
+  api_get "$raw" "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=$GITLEAKS_CONFIG_COMMIT" \
     -H 'Accept: application/vnd.github.raw' ||
     die "cannot read the gitleaks $GITLEAKS_PIN default config: ${STOPPED:-$API_ERR}"
   grep -q '^\[\[rules\]\]' "$raw" || die "the gitleaks $GITLEAKS_PIN default config holds no rules"
