@@ -11,6 +11,7 @@ export const LIMITS = {
   failedJobsPerRun: 3,
   mainFailedJobs: 5,
   mergeGroupRuns: 10,
+  sweepArtifacts: 5,
   issuePages: 5,
 };
 export const AUDIT_WORKFLOWS = ["maintenance-audit-test-selection", "maintenance-check-upstream-drift"];
@@ -18,6 +19,11 @@ export const AUDIT_WORKFLOWS = ["maintenance-audit-test-selection", "maintenance
 // failure is counted as an ejection instead.
 const SKIP_FAILED_EVENTS = new Set(["pull_request", "merge_group"]);
 const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
+// Only main's own scheduled or dispatched pr-merge runs are trusted: a PR,
+// fork or branch run can upload an artifact or annotation of the same name.
+const TRUSTED_EVENTS = new Set(["schedule", "workflow_dispatch"]);
+const PR_MERGE_PATH = ".github/workflows/pr-merge.yml";
+const RUN_ID = /^[0-9]+$/;
 const iso = (date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 
 export async function collect({ get, getStatus, readArtifact, repo, now, windowStart, agentIdentity, ownRate = null }) {
@@ -36,6 +42,8 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
     }
     return annotationsMemo.get(jobId);
   };
+  const ownHead = (run) => run.head_repository?.full_name === repo;
+  const trustedPrMerge = (run) => TRUSTED_EVENTS.has(run.event) && run.head_branch === "main" && ownHead(run);
   const failedJobs = (jobs) => jobs.filter((j) => ["failure", "timed_out"].includes(j.conclusion));
   const window = `${iso(windowStart)}..${iso(now)}`;
   const data = { now, windowStart, gaps };
@@ -48,10 +56,10 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
   };
 
   await source("pr-merge api budget", async () => {
-    const runs = (await get(`/repos/${repo}/actions/workflows/pr-merge.yml/runs?status=completed&created=${window}&per_page=20`))
+    const runs = (await get(`/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&status=completed&created=${window}&per_page=20`))
       .workflow_runs;
     data.budgetReadings = [];
-    for (const run of runs.slice(0, LIMITS.prMergeRuns)) {
+    for (const run of runs.filter(trustedPrMerge).slice(0, LIMITS.prMergeRuns)) {
       const merge = (await jobsOf(run.id)).find((j) => j.name === "merge");
       if (!merge) continue;
       for (const a of await annotationsOf(merge.id)) {
@@ -80,7 +88,7 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
   await source("failed runs", async () => {
     const runs = (await get(`/repos/${repo}/actions/runs?status=failure&created=${window}&per_page=50`)).workflow_runs;
     data.failedRuns = [];
-    for (const run of runs.filter((r) => !SKIP_FAILED_EVENTS.has(r.event)).slice(0, LIMITS.failedRuns)) {
+    for (const run of runs.filter((r) => !SKIP_FAILED_EVENTS.has(r.event) && ownHead(r)).slice(0, LIMITS.failedRuns)) {
       const annotations = [];
       for (const job of failedJobs(await jobsOf(run.id)).slice(0, LIMITS.failedJobsPerRun)) {
         for (const a of await annotationsOf(job.id)) annotations.push({ level: a.annotation_level, message: a.message });
@@ -139,13 +147,27 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
 
   await source("pr-merge sweep", async () => {
     const artifacts = (await get(`/repos/${repo}/actions/artifacts?name=pr-merge-summary&per_page=100`)).artifacts;
-    const newest = artifacts.find((a) => !a.expired && Date.parse(a.created_at) <= now.getTime());
+    const candidates = artifacts
+      .filter((a) => !a.expired && Date.parse(a.created_at) <= now.getTime() && a.workflow_run?.head_branch === "main")
+      .slice(0, LIMITS.sweepArtifacts);
     data.sweep = null;
+    let newest = null;
+    for (const a of candidates) {
+      const run = await get(`/repos/${repo}/actions/runs/${a.workflow_run.id}`);
+      if (run.path === PR_MERGE_PATH && trustedPrMerge(run)) {
+        newest = a;
+        break;
+      }
+    }
     if (!newest) return;
     const s = await readArtifact(newest.id);
+    const runId = String(s.run_id);
+    if (!["number", "string"].includes(typeof s.run_id) || !RUN_ID.test(runId) || runId !== String(newest.workflow_run.id)) {
+      throw new Error(`artifact ${newest.id} names a run_id that is not its own run's id`);
+    }
     data.sweep = {
-      runId: s.run_id,
-      url: `https://github.com/${repo}/actions/runs/${s.run_id}`,
+      runId: Number(runId),
+      url: `https://github.com/${repo}/actions/runs/${runId}`,
       event: s.event,
       live: s.live,
       startedAt: s.started_at ?? newest.created_at,

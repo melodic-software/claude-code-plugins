@@ -9,7 +9,23 @@ import { collect } from "./collect.mjs";
 const repo = "o/r";
 const now = new Date("2026-10-19T16:41:00Z");
 const windowStart = new Date("2026-10-19T15:36:00Z");
-const run = (id, extra = {}) => ({ id, html_url: `https://github.com/o/r/actions/runs/${id}`, name: "pr-merge", event: "schedule", ...extra });
+const run = (id, extra = {}) => ({
+  id,
+  html_url: `https://github.com/o/r/actions/runs/${id}`,
+  name: "pr-merge",
+  event: "schedule",
+  head_branch: "main",
+  head_repository: { full_name: repo },
+  ...extra,
+});
+const prMergeRun = (id, extra = {}) => run(id, { path: ".github/workflows/pr-merge.yml", ...extra });
+const artifact = (id, created_at, runId, extra = {}) => ({
+  id,
+  expired: false,
+  created_at,
+  workflow_run: { id: runId, head_branch: "main" },
+  ...extra,
+});
 
 function fakeApi(routes) {
   const calls = [];
@@ -79,12 +95,10 @@ const routes = () => [
   [
     /actions\/artifacts\?name=pr-merge-summary/,
     {
-      artifacts: [
-        { id: 2, expired: false, created_at: "2026-10-19T17:00:00Z" },
-        { id: 1, expired: false, created_at: "2026-10-19T16:31:00Z" },
-      ],
+      artifacts: [artifact(2, "2026-10-19T17:00:00Z", 1002), artifact(1, "2026-10-19T16:31:00Z", 1001)],
     },
   ],
+  [/actions\/runs\/(\d+)$/, (path) => prMergeRun(Number(/(\d+)$/.exec(path)[1]))],
   [/\/pulls\?state=closed/, [
     { merged_at: "2026-10-19T13:00:00Z", user: { login: "melodic-automation-lanes[bot]" } },
     { merged_at: "2026-10-19T16:00:00Z", user: { login: "dependabot[bot]" } },
@@ -159,4 +173,79 @@ test("a failed source is a gap; the rest still read", async () => {
   assert.deepEqual(data.gaps, ["lane merges: GET /pulls: HTTP 502"]);
   assert.equal(data.laneMerges, undefined);
   assert.equal(data.sweep.runId, 1001);
+});
+
+const sweepRoutes = (artifacts, runs) => [
+  [/actions\/artifacts\?name=pr-merge-summary/, { artifacts }],
+  [/actions\/runs\/(\d+)$/, (path) => runs[/(\d+)$/.exec(path)[1]]],
+  ...routes(),
+];
+
+test("the sweep ignores a newer pr-merge-summary artifact from a fork, PR or branch run", async () => {
+  const artifacts = [
+    artifact(5, "2026-10-19T16:40:00Z", 905, { workflow_run: { id: 905, head_branch: "attacker" } }),
+    artifact(4, "2026-10-19T16:39:00Z", 904),
+    artifact(3, "2026-10-19T16:38:00Z", 903),
+    artifact(2, "2026-10-19T16:37:00Z", 902),
+    artifact(1, "2026-10-19T16:31:00Z", 901),
+  ];
+  const runs = {
+    904: prMergeRun(904, { event: "pull_request_target" }),
+    903: prMergeRun(903, { head_repository: { full_name: "fork/r" } }),
+    902: run(902, { path: ".github/workflows/other.yml" }),
+    901: prMergeRun(901, { event: "workflow_dispatch" }),
+  };
+  const data = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact: async (id) => ({ run_id: 900 + id, live: true, candidates: 1, results: [] }) }));
+  assert.deepEqual(data.gaps, []);
+  assert.equal(data.sweep.runId, 901);
+  assert.equal(data.sweep.url, "https://github.com/o/r/actions/runs/901");
+});
+
+test("the sweep rejects a summary whose run_id is not its run's digits", async () => {
+  for (const runId of ["901 @someone", "[x](https://evil.example)", "901\n", 902, null]) {
+    const api = fakeApi(sweepRoutes([artifact(1, "2026-10-19T16:31:00Z", 901)], { 901: prMergeRun(901) }));
+    const data = await collect(input(api, { readArtifact: async () => ({ run_id: runId, live: true, candidates: 1, results: [] }) }));
+    assert.equal(data.sweep, null, String(runId));
+    assert.equal(data.gaps.length, 1, String(runId));
+    assert.ok(!JSON.stringify(data).includes("evil.example"));
+  }
+});
+
+test("api-budget readings come only from main's scheduled or dispatched pr-merge runs", async () => {
+  const api = fakeApi([
+    [
+      /workflows\/pr-merge\.yml\/runs/,
+      { workflow_runs: [run(11, { event: "pull_request_target" }), run(12, { head_branch: "feature" }), run(10)] },
+    ],
+    ...routes(),
+  ]);
+  const data = await collect(input(api, { ownRate: null }));
+  assert.ok(api.calls.some((p) => p.includes("pr-merge.yml/runs") && p.includes("branch=main")));
+  assert.ok(!api.calls.some((p) => /runs\/1[12]\/jobs/.test(p)));
+  assert.deepEqual(
+    data.budgetReadings.map((r) => r.runId),
+    [10],
+  );
+});
+
+test("failed runs from a fork head are skipped", async () => {
+  const api = fakeApi([
+    [
+      /actions\/runs\?status=failure/,
+      {
+        workflow_runs: [
+          run(32, { name: "pr-unblock", event: "workflow_run", head_repository: { full_name: "fork/r" } }),
+          run(33, { name: "pr-unblock", event: "issue_comment", head_repository: null }),
+          run(30, { name: "pr-unblock" }),
+        ],
+      },
+    ],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.deepEqual(
+    data.failedRuns.map((r) => r.id),
+    [30],
+  );
+  assert.ok(!api.calls.some((p) => /runs\/3[23]\/jobs/.test(p)));
 });
