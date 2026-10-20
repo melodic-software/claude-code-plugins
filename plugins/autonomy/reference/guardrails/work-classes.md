@@ -35,7 +35,7 @@ reversal is a bounded revert; verifiability combines deterministic gates with AI
 Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard,
 so no merge rung reaches the class: a merge authority that reads the class leaves it to human
 review and human merge, and the class escalates for upfront plan approval before execution.
-The pr-merge lane reads no class at all: see [Merge authorities that read no
+A merge authority that reads no class works differently: see [Merge authorities that read no
 class](#merge-authorities-that-read-no-class).
 
 ### `C5`: untrusted-provenance
@@ -91,16 +91,13 @@ tests resolve; the tests are the executable trigger, not a second opinion on a s
 
 ## Merge authorities that read no class
 
-The pr-merge lane reads no `work-class:` label. Apart from
-[Dependabot pull requests](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#dependabot-pull-requests),
-it merges only a pull request the lanes App opened for exactly one closing issue, treats it as
-`C2`, and merges it on the verifier verdict at its head, not on any class or promotion evidence:
-see
-[the pr-merge lane](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-pr-merge-lane)
-and its
-[verifier verdict](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#verifier-verdict).
-`C5` stays human-merged there too: the lane refuses every fork pull request and every pull
-request that neither the lanes App nor Dependabot opened.
+A merge authority may read no class label. The pr-merge lane is one: apart from dependency-manager
+change requests, it merges only a change request its own automation identity opened for exactly
+one closing item, treats it as `C2`, and merges it on the verifier verdict at its head, not on any
+class or promotion evidence. This marketplace defines it in `docs/conventions/pr-pipeline/README.md`,
+sections "The pr-merge lane" and "Verifier verdict". `C5` stays human-merged there too: such an
+authority refuses every fork change request and every change request its automation identity or
+the dependency manager did not open.
 
 ## Promotion and demotion
 
