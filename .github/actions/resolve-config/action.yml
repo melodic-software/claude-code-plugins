@@ -119,7 +119,8 @@ outputs:
   settings-json:
     description: >
       The profile's settings JSON, `{"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"<alias>"}}`,
-      or empty when its subagent-model is inherit, and for a script.
+      or empty when its subagent-model is inherit, and for a script. An
+      activity with tidy passes adds `disableSkillShellExecution: true`.
     value: ${{ steps.resolve.outputs.settings-json }}
   max-turns:
     description: The profile's turn budget, or the issue dimensions'; empty for a script.

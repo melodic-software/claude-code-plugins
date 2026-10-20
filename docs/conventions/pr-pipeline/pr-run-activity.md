@@ -560,13 +560,14 @@ turn-cap resume.
 
 No pass keeps a `Bash` rule of its own. A pre-compute line a deny matches aborts the pass's
 invocation ([skills](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)),
-so `dissolve-comments`, `audit-noise` and `ai-slop:audit`, whose pre-compute lines run their scripts,
-`grep`, `head` or `echo`, do not load; the run names each and moves on, and the run record's
-`denied` list shows which commands were refused. A live-config test fails when any rule a pass's
-`allowed-tools` grant is neither matched by a deny in `tidy-pass-grants.json` nor in its reviewed
-`allow` list. A pre-compute line that does run executes a base
-copy of the pass's plugin in the checkout, the power the issue lane's `run-test-file.sh` already
-gives the run.
+and the pre-compute lines of `dissolve-comments`, `audit-noise` and `ai-slop:audit` run their
+scripts, `grep`, `head` or `echo`. So `resolve-config` adds `disableSkillShellExecution: true` to
+the `settings-json` of an activity with tidy turns: each pre-compute line is replaced with a
+placeholder instead of being run ([skills](https://code.claude.com/docs/en/skills#inject-dynamic-context)),
+and the passes load with every deny kept. A pass then works from its instructions on the listed
+files; a script call it makes is denied, and the run record's `denied` list shows it. A live-config
+test fails when any rule a pass's `allowed-tools` grant is neither matched by a deny in
+`tidy-pass-grants.json` nor in its reviewed `allow` list.
 
 ### Script activities
 

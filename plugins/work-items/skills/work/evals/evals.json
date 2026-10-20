@@ -176,7 +176,7 @@
     {
       "id": 13,
       "name": "work-ci-mode-runs-tidy-before-review-and-records-each-pass",
-      "prompt": "/work-items:work --issue 543 --ci\n\nIssue 543 asks for a small fix in one plugin's script. The runner's system prompt names a tidy routing tool and lists four passes. After the fix is committed and the checks pass, the routing tool prints one `run:` line per pass. The first pass removes two redundant comments; the second pass fails with a permission denial; the other two change nothing. What order does the run follow, what does it record in work-outcome.json, and does the failed pass stop it?",
+      "prompt": "/work-items:work --issue 543 --ci\n\nIssue 543 asks for a small fix in one plugin's script. The runner's system prompt names a tidy routing tool and lists three passes. After the fix is committed and the checks pass, the routing tool prints one `run:` line per pass. The first pass removes two redundant comments; the second pass fails with a permission denial; the third changes nothing. What order does the run follow, what does it record in work-outcome.json, and does the failed pass stop it?",
       "expected_output": "The run calls the routing tool only after the checks pass and before the review, then runs the passes it names in order. The pass that removed comments is recorded in `verification` as `tidy <skill>: what it changed`; the failed pass is recorded in `not_done` with `\"required\": false` and does not stop the run or hold back the commit and the review that follow. Passes that changed nothing are recorded in `verification` as having run, or as skipped in `not_done` with `\"required\": false`, never omitted.",
       "files": [],
       "narration": true,

@@ -9,7 +9,8 @@ import { test } from "node:test";
 
 import { parse, stringify } from "yaml";
 
-import { Rejection, resolve } from "./resolve.mjs";
+import { outputsFor } from "./resolve-config.mjs";
+import { modelSettings, Rejection, resolve } from "./resolve.mjs";
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
 const json = (relative) => JSON.parse(read(relative));
@@ -98,3 +99,22 @@ for (const [name, tidy] of [
     rejected({ tidy });
   });
 }
+
+// Each pass's injected commands run its own scripts, git, echo, grep or head,
+// which the run's tidy denies match, and a matched injected command aborts the
+// skill's load (code.claude.com/docs/en/skills, "Permission checks on injected
+// commands"). Replacing those commands with a placeholder lets the passes load
+// with every deny kept.
+test("a run with tidy turns off skill shell execution and keeps the profile's settings", () => {
+  const resolved = run({ tidy: { passes: PASSES } });
+  const profile = modelSettings(resolved.selected.models);
+  assert.deepEqual(JSON.parse(outputsFor(resolved)["settings-json"]), {
+    ...(profile === "" ? {} : JSON.parse(profile)),
+    disableSkillShellExecution: true,
+  });
+});
+
+test("a run without tidy gets only the profile's settings", () => {
+  const resolved = run({});
+  assert.equal(outputsFor(resolved)["settings-json"], modelSettings(resolved.selected.models));
+});

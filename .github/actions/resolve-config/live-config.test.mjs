@@ -8,6 +8,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
+import { outputsFor } from "./resolve-config.mjs";
 import { checkPatchRules, resolve, resolveGrant } from "./resolve.mjs";
 
 const read = (relative) =>
@@ -370,6 +371,18 @@ function passGrants(skill) {
   const tools = parse(/^---\n([\s\S]*?)\n---/.exec(body)[1])["allowed-tools"] ?? [];
   return Array.isArray(tools) ? tools : (tools.match(/[^\s,(]+(\([^)]*\))?/g) ?? []);
 }
+// The passes load only with skill shell execution off (tidy.test.mjs), so the
+// issue lane's settings must carry it.
+test("live config: resolve-issue's settings turn off skill shell execution so its tidy passes load", () => {
+  const resolved = resolve(FILES, {
+    lane: "work-resolve-issue",
+    activity: "resolve-issue",
+    configPath: CONFIG_PATH,
+    basePath: ".base",
+    facts: { ...FACTS, ...ISSUE },
+  });
+  assert.equal(JSON.parse(outputsFor(resolved)["settings-json"]).disableSkillShellExecution, true);
+});
 test("live config: every rule a tidy pass's allowed-tools grant is reviewed or denied", () => {
   const deny = GRANTS.deny.map(ruleRegex);
   for (const { skill } of selected("work-resolve-issue", "resolve-issue", ISSUE).tidy.passes) {

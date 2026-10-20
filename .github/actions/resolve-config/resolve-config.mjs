@@ -232,7 +232,17 @@ function modelOutputs(models) {
   };
 }
 
-function outputsFor({ lane, selected }) {
+// A run with tidy passes replaces skills' injected commands with a placeholder
+// instead of running them: every pass's injected commands run a script, git,
+// echo, grep or head that the run's tidy denies match, and a matched injected
+// command aborts the skill's load (code.claude.com/docs/en/skills, "Permission
+// checks on injected commands").
+function tidySettings(models) {
+  const profile = modelSettings(models);
+  return JSON.stringify({ ...(profile === "" ? {} : JSON.parse(profile)), disableSkillShellExecution: true });
+}
+
+export function outputsFor({ lane, selected }) {
   const outputs = {
     enabled: String(lane.enabled),
     slots: JSON.stringify(lane.slots.map((slot) => slot.name)),
@@ -248,6 +258,7 @@ function outputsFor({ lane, selected }) {
     skill: selected.skill ?? "",
     script: selected.script ?? "",
     ...modelOutputs(selected.models),
+    ...(selected.tidy?.turns > 0 ? { "settings-json": tidySettings(selected.models) } : {}),
     "reads-untrusted": String(selected["reads-untrusted"]),
     applies: String(selected.applies),
     "skip-reason": selected["skip-reason"] ?? "",
