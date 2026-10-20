@@ -636,7 +636,7 @@
       const oneLine = f.tagName === "INPUT" || f.rows === 1;
       const k = { f, send, escape, mentions, draftKey, oneLine, from: cut ? counterFrom ?? Math.ceil(f.maxLength * 0.75) : Infinity, key: null };
       k.count = E("span", "vf-count-txt"); k.count.setAttribute("aria-live", "polite");
-      k.hint = send && !oneLine ? E("span", "vf-hint", `${MOD_KEY} + Enter to ${verb}`) : null;
+      k.hint = send && !oneLine ? E("span", "vf-hint vf-keyhint", `${MOD_KEY} + Enter to ${verb}`) : null;
       if (mentions) for (const [a, v] of [["aria-autocomplete", "list"], ["aria-haspopup", "listbox"], ["aria-expanded", "false"]]) f.setAttribute(a, v);
       KIT.set(f, k);
       if (!kitBooted) KITS.add(k);
@@ -2391,6 +2391,7 @@
     function closePop() {
       if (!ui.pop) return;
       if (ui.pop === pcard) { ui.pcard = null; ui.renaming = false; }
+      if (ui.pop === msgMenu) ui.menuHeld = false; // a held-open menu closed without a release click: the next tap counts
       ui.pop.hidden = true; ui.pop._anchor?.setAttribute?.("aria-expanded", "false");
       if (ui.pop === bellPop) root.classList.remove("vf-inboxon");
       ui.pop._kbRead = false; // the next open logs its keyboard readout again
@@ -3070,7 +3071,7 @@
       li.dataset.key = i.key; li.dataset.stat = i.status || i.kind;
       const where = i.qid ? `${i.qid}. ` : i.scope ? `${GEN_LABEL}. ` : "";
       const when = !i.ts ? "" : ` ${k.tm.textContent.replace(/^j/, "J")}.`;
-      k.b.setAttribute("aria-label", `${i.unread ? "Unread. " : ""}${where}${k.what.textContent}${mine ? ` ${i.status === "unshared" ? "Answered, waiting for the host to share" : IX_STAT[i.status]}${sub && i.status !== "unshared" ? `: ${sub}` : ""}.` : ""}${when}`);
+      k.b.setAttribute("aria-label", `${i.unread ? "Unread. " : ""}${where}${k.what.textContent}${mine ? ` ${i.status === "unshared" ? (Core.me.isOwner ? "Answered, waiting for you to share" : "Answered, waiting for the host to share") : IX_STAT[i.status]}${sub && i.status !== "unshared" ? `: ${sub}` : ""}.` : ""}${when}`);
     }
 
     // ---------- what each tab lists ----------
@@ -4167,7 +4168,8 @@
     cForm.insertBefore(cSlot.chips, ta);
     const apSlot = attSlot(() => (askGeneral() ? "" : apQWrap.s.value || ui.cur), apAttach, null, apTa, () => !selfAsk());
     apForm.insertBefore(apSlot.chips, apNote);
-    const askSlot = attSlot(() => ui.cur, null, perQuestion(), askTa);
+    const askOwn = () => !Core.me.isOwner && !!ui.askSelf; // the question's ask box runs on my own Claude: it carries no files
+    const askSlot = attSlot(() => ui.cur, null, perQuestion(), askTa, () => !askOwn());
     askRow.prepend(askSlot.btn); askForm.insertBefore(askSlot.chips, askForm.querySelector(".vf-asknote"));
     const sugSlot = attSlot(() => ui.cur, null, perQuestion(), sugTa);
     sugRow.prepend(sugSlot.btn); sugForm.insertBefore(sugSlot.chips, sugRow);
@@ -4302,8 +4304,8 @@
       }
     }
 
-    /** Sweep S22: the name the server gave when the one typed was taken, said once, before anything else. */
-    const renamedLine = () => (Core.renamedFrom && Core.me.name ? `You joined as ${Core.me.name}: someone here already uses ${Core.renamedFrom}. ` : "");
+    /** Sweep S22: the name the server gave when the one typed was taken (by someone here or offline), said once. */
+    const renamedLine = () => (Core.renamedFrom && Core.me.name ? `You joined as ${Core.me.name}: the name ${Core.renamedFrom} was taken. ` : "");
     // ---------- events ----------
     qPrev.onclick = () => step(-1);
     qNext.onclick = () => step(1);
@@ -4453,7 +4455,7 @@
     askForm.onsubmit = e => {
       e.preventDefault();
       const text = askTa.value.trim(), qid = ui.cur; if (!text) return askTa.focus();
-      const own = !Core.me.isOwner && !!ui.askSelf;
+      const own = askOwn();
       if (!own && attWaits(askSlot)) return;
       askSend.disabled = true;
       const aud = ui.askAud || "everyone";
@@ -5363,7 +5365,7 @@
       askSeg.hidden = !Core.me.isOwner; askWeb.hidden = Core.me.isOwner;
       askWeb.setAttribute("aria-pressed", String(!!ui.askWeb));
       askTa.placeholder = askPh(kind, false);
-      const ownIn = !Core.me.isOwner && !!ui.askSelf;
+      const ownIn = askOwn();
       askSelfSw.hidden = Core.me.isOwner; askSelfSw.setAttribute("aria-checked", String(ownIn));
       askAud.hidden = ownIn;
       askLabel.textContent = kind === "ask" ? "What should Claude answer?" : "What should Claude find out?";
@@ -7091,8 +7093,9 @@
       if (!goalBack.hidden) goalBackTxt.textContent = `Goal: ${S.goal}`;
       if (!orient.hidden) {
         const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];
-        // the questions this person owes (myState open), not the round's: one asked of someone else is not theirs
-        const nQ = inCur.filter(x => myState(x.id) === "open" && !Core.lockOf(x.id) && !readOnly(x) && (!Core.askedOf(x.id).length || askedOfMe(x.id))).length;
+        // the questions this person owes, by the server's rule (session.py _owes) as the rail and catch-up count them: open
+        // for me (asked of me, or nobody else answered yet), not locked, not read-only
+        const nQ = inCur.filter(x => myState(x.id) === "open" && !Core.lockOf(x.id) && !readOnly(x)).length;
         const hostName = disp(nameOf(S.ownerPid, "The host"));
         orH.textContent = me.name ? `Welcome, ${me.name}` : "Welcome";
         orGoal.textContent = S.goal ? `Goal: ${S.goal}` : ""; orGoal.hidden = !S.goal;
@@ -7102,6 +7105,7 @@
         // past round 1 the step names its round, so it reads apart from a catch-up link to an earlier one
         const tRound = target ? roundOf(target) : cur, tPos = Math.max(1, S.questions.filter(x => roundOf(x) === tRound).indexOf(target) + 1);
         orStart.textContent = tRound > 1 ? `Start here: round ${tRound}, question ${tPos}` : `Start here: question ${tPos}`; orStart._q = target?.id;
+        orStart.hidden = !nQ; // nothing waiting: no "Start here" beside it
         orCatch._paint(catchUp());
         if (ui.introOpen == null) { ui.introOpen = !phone.matches && !store.get(INTRO_SEEN(), false); store.put(INTRO_SEEN(), true); }
         const hasWhy = !!S.intro || phone.matches;
@@ -7201,7 +7205,7 @@
         sync(upStrip, myUps, u => u.id, () => makeUpRow(false), fillUpRow);
         upStrip.hidden = !myUps.length;
         paintSlot(cSlot, readOnly(q) || !!Core.lockOf(q.id));
-        paintSlot(askSlot, readOnly(q));
+        paintSlot(askSlot, readOnly(q) || askOwn());
         paintSlot(sugSlot);
 
         // lock block

@@ -3,7 +3,8 @@
 // cloudflared: after a guest saves a long answer (one unbroken 120-letter word and a long link) from the phone sheet,
 // nothing scrolls sideways, the folded answer field and the answer card keep the text inside them, every control in the
 // question's view is a 44 px tap target, the sheet's Save sits under the field in thumb reach, and the chat message menu
-// opens as a bottom sheet the width of the screen, its last row clear of the bottom edge.
+// opens as a bottom sheet the width of the screen, its last row clear of the bottom edge; with "Run it on my own Claude"
+// on, the question's ask box offers no Attach and takes no pasted picture (sweep S11).
 //   node plugins/planning/shared/tests/ui_phone.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from O114 (no sideways scroll, text wraps in its card, 44 px targets, primary action in thumb
@@ -52,12 +53,18 @@ async function main() {
       const se = document.scrollingElement, app = document.getElementById("app"), ta = document.querySelector("#vf-answer");
       const card = [...document.querySelectorAll(".vf-alist .vf-card")].find(c => c.textContent.includes(w));
       const r = card?.getBoundingClientRect();
-      return { page: se.scrollWidth <= innerWidth && app.scrollWidth <= app.clientWidth, field: ta.scrollWidth <= ta.clientWidth + 1,
+      // the field's content box (its rect less padding) against the buttons drawn inside it
+      const cs = getComputedStyle(ta), tr = ta.getBoundingClientRect(), px = v => parseFloat(v) || 0;
+      const box = { l: tr.left + px(cs.borderLeftWidth) + px(cs.paddingLeft), r: tr.right - px(cs.borderRightWidth) - px(cs.paddingRight),
+        t: tr.top + px(cs.borderTopWidth) + px(cs.paddingTop), b: tr.bottom - px(cs.borderBottomWidth) - px(cs.paddingBottom) };
+      const btns = [...document.querySelectorAll(".vf-composer :is(.vf-sendbtn, .vf-attach)")].filter(b => b.getClientRects().length).map(b => b.getBoundingClientRect());
+      const clear = btns.length > 0 && btns.every(b => b.right <= box.l + 0.5 || b.left >= box.r - 0.5 || b.bottom <= box.t + 0.5 || b.top >= box.b - 0.5);
+      return { page: se.scrollWidth <= innerWidth && app.scrollWidth <= app.clientWidth, field: ta.scrollWidth <= ta.clientWidth + 1, clear, nBtns: btns.length,
         card: !!card && card.scrollWidth <= card.clientWidth + 1 && r.left >= 0 && r.right <= innerWidth,
         cardText: !!card && [...card.querySelectorAll(".vf-rich")].every(e => e.scrollWidth <= e.clientWidth + 1) };
     }, WORD);
     ok("after the save nothing on the page scrolls sideways", fit.page, JSON.stringify(fit));
-    ok("  the folded answer field wraps the long answer inside itself, under no button", fit.field, JSON.stringify(fit));
+    ok("  the folded answer field wraps the long answer inside itself, under no button", fit.field && fit.clear, JSON.stringify(fit));
     ok("  and the answer card holds its text inside its own box, on the screen", fit.card && fit.cardText, JSON.stringify(fit));
 
     // ---------- 44 px tap targets in the question's view ----------
@@ -88,6 +95,29 @@ async function main() {
     });
     ok("the chat message menu opens as a bottom sheet the width of the screen", menu.open && menu.full && menu.bottom, JSON.stringify(menu));
     ok("  its last row clear of the bottom edge", menu.lastClear, JSON.stringify(menu));
+
+    // ---------- the question's ask box on my own Claude carries no files (sweep S11) ----------
+    await ann.keyboard.press("Escape"); // the menu
+    await until(ann, () => document.querySelector(".vf-msgmenu").hidden);
+    await ann.evaluate(() => { const f = document.querySelector(".vf-fab"); if (f.getAttribute("aria-expanded") === "true") f.click(); }); // the chat
+    await until(ann, () => document.querySelector(".vf-chat").hidden);
+    await owner.evaluate(() => window.Core.saveSettings({ uploads: true }));
+    await until(ann, () => window.Core.state.settings?.uploads === true, null, 10000);
+    await ann.evaluate(() => { const b = document.querySelector(".vf-askbtn"); if (b.getAttribute("aria-expanded") !== "true") b.click(); });
+    const attachShown = () => ann.evaluate(() => { const b = document.querySelector(".vf-askform .vf-attach"); return !!b && b.getClientRects().length > 0; });
+    ok("the question's ask box offers Attach while it goes to the host", await until(ann, () => { const b = document.querySelector(".vf-askform .vf-attach"); return !!b && b.getClientRects().length > 0; }, null, 10000));
+    await ann.evaluate(() => document.querySelector(".vf-askself").click());
+    ok("  with Run it on my own Claude on, Attach is gone", await until(ann, () => document.querySelector(".vf-askself").getAttribute("aria-checked") === "true"
+      && !document.querySelector(".vf-askform .vf-attach")?.getClientRects().length) && !(await attachShown()));
+    await ann.evaluate(async () => {
+      const c = document.createElement("canvas"); c.width = 32; c.height = 20; c.getContext("2d").fillRect(0, 0, 32, 20);
+      const blob = await new Promise(r => c.toBlob(r, "image/png")), dt = new DataTransfer();
+      dt.items.add(new File([blob], "shot.png", { type: "image/png" }));
+      document.getElementById("vf-ask-ta").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    });
+    await ann.waitForTimeout(1500);
+    ok("  and a pasted picture adds no file to it", await ann.evaluate(() => !(window.Core.snapshot().myUploads || []).length
+      && ![...document.querySelectorAll(".vf-askform .vf-attdraft .vf-ref")].some(li => li.getClientRects().length)));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
