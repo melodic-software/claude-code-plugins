@@ -743,8 +743,10 @@ of that head reported a finding or was whole, and no lane thread is unresolved),
 `Whole review requested at head` line into its reasons comment, then converts the pull request to a
 draft and marks it ready with the lane token, so `ready_for_review` runs both review lanes whole.
 That event also re-runs `pr-require-checks.yml`, `pr-test-windows.yml` and pr-merge itself. The
-line, stamped with the time it was written, is kept on every rewrite, so a head is toggled once and a pull
-request at most twice; past that it waits for a person. A run toggles at most one
+line, stamped with the time it was written, is kept on every rewrite, so a head is toggled once. A pull
+request is toggled at most twice, counted from those lines and from the lane token's conversions to draft on
+its timeline, which the lane token cannot delete as it can edit the comment; past that, or with the timeline
+unread, it waits for a person. A run toggles at most one
 pull request, and only while fewer than 35 jobs are running or queued and the lane token and the job token
 each have 30% of every rate-limit bucket's hourly limit left; an escalated comment is not toggled. Each toggle logs
 `::notice::pr-merge whole-review-toggle pr=<n> head=<sha>`. A draft a run left between the two
@@ -872,7 +874,11 @@ neutral and titled with the top refusal, the gate's reason or else its first blo
 blockers in the summary; success once enqueued or merged, only over a refusal already on show. It
 reads the heads' existing check runs in one GraphQL query per 50 candidates and writes only where
 the title or conclusion changed, so an unchanged sweep writes nothing; the step logs one line of
-written and unchanged counts per sweep. It reads and rewrites only check runs carrying its own
+written and unchanged counts per sweep. The same query reads each candidate pull request's current
+head (`pull-requests: read`, the job's only other permission besides `contents: read`), and a row
+whose head differs gets no write. A pull request the read reports `NOT_FOUND` (deleted or
+transferred) skips only its own row; any other GraphQL error leaves that read's 50 candidates
+unwritten and fails the step. It reads and rewrites only check runs carrying its own
 external id, since every workflow's `GITHUB_TOKEN` posts as the same GitHub Actions app. The check
 is display-only: it is never required and is not part of `ci-status`, and the gate reads neutral as
 passing, so it holds no merge. Not while `merge.report-only` is true.

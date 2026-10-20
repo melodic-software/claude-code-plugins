@@ -1390,6 +1390,13 @@ test("createGitHub raises on a GraphQL response that carries errors", async () =
   await assert.rejects(github("POST", "/graphql", { query: "{}" }), GitHubError);
 });
 
+test("createGitHub opted into keepGraphQLErrors returns the answer with its errors", async () => {
+  const answer = { data: { repository: { p0: null } }, errors: [{ type: "NOT_FOUND", path: ["repository", "p0"] }] };
+  const fetchImpl = async () => new Response(JSON.stringify(answer), { status: 200 });
+  const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, keepGraphQLErrors: true });
+  assert.deepEqual(await github("POST", "/graphql", { query: "{}" }), answer);
+});
+
 // A dispatcher started by workflow_run when a review lane finished on the PR
 // (pr-feedback-dispatch.yml). Its run record reports the default branch and its
 // tip, as pr-merge.yml's workflow_run runs did (run 38779143370 after review run

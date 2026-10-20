@@ -48,7 +48,9 @@ export class GitHubError extends Error {
 }
 
 // One function every API read and write goes through; tests replace it.
-export function createGitHub({ token, apiUrl = "https://api.github.com", fetchImpl = fetch, onResponse }) {
+// keepGraphQLErrors returns a GraphQL answer with its errors for the caller to
+// judge, instead of raising on any.
+export function createGitHub({ token, apiUrl = "https://api.github.com", fetchImpl = fetch, onResponse, keepGraphQLErrors = false }) {
   return async function github(method, apiPath, body, headers = {}) {
     const response = await fetchImpl(`${apiUrl}${apiPath}`, {
       method,
@@ -71,7 +73,7 @@ export function createGitHub({ token, apiUrl = "https://api.github.com", fetchIm
       return null;
     }
     const json = JSON.parse(text);
-    if (Array.isArray(json?.errors) && json.errors.length > 0) {
+    if (!keepGraphQLErrors && Array.isArray(json?.errors) && json.errors.length > 0) {
       throw new GitHubError(response.status, `${method} ${apiPath} (GraphQL errors)`);
     }
     return json;

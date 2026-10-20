@@ -7,9 +7,11 @@ A whole review runs on `ready_for_review`, so the request converts the pull
 request to a draft and marks it ready again, with the lane token (an App
 token's events start workflows; GITHUB_TOKEN's do not). Bounds:
 
-- once per head, and `MAX_TOGGLES` per pull request: the reasons comment
-  carries a `record_line` per request, written before the toggle and kept
-  on every rewrite;
+- once per head: the reasons comment carries a `record_line` per request,
+  written before the toggle and kept on every rewrite;
+- `MAX_TOGGLES` per pull request, counted from the record lines and from the
+  lane identity's conversions to draft on the timeline, which the lane token
+  cannot delete as it can edit the comment;
 - at most one request per pr-merge sweep: the first candidate to reach
   `limits` claims the `SPENT_ENV` file, whatever its answer; with no
   `SPENT_ENV` (the local babysit loop) nothing is requested;
@@ -204,9 +206,10 @@ def toggle(node_id: str, *, sleep: Any = time.sleep) -> dict[str, Any]:
     return {"toggled": False, "error": "stranded-draft: mark-ready failed"}
 
 
-CONVERTER = (
+# The newest 100: past that the cap is long reached.
+CONVERSIONS = (
     "query($id: ID!) { node(id: $id) { ... on PullRequest {"
-    " timelineItems(itemTypes: [CONVERT_TO_DRAFT_EVENT], last: 1)"
+    " timelineItems(itemTypes: [CONVERT_TO_DRAFT_EVENT], last: 100)"
     " { nodes { ... on ConvertToDraftEvent { actor { login } createdAt } } } } } }"
 )
 
@@ -216,22 +219,46 @@ def _login(value: Any) -> str:
     return str(value or "").casefold().removesuffix("[bot]")
 
 
-def _converter(node_id: str) -> tuple[str, datetime] | None:
-    """Who made the newest conversion to draft and when (server time), or
-    None when unread."""
+def _conversions(node_id: str) -> list[dict[str, Any]] | None:
+    """The pull request's conversions to draft, oldest first, or None when
+    unread."""
     proc = gh_capture(
-        ["api", "graphql", "-f", f"query={CONVERTER}", "-f", f"id={node_id}"]
+        ["api", "graphql", "-f", f"query={CONVERSIONS}", "-f", f"id={node_id}"]
     )
     if proc.returncode != 0:
         return None
     try:
         nodes = json.loads(proc.stdout)["data"]["node"]["timelineItems"]["nodes"]
-        if not nodes:
-            return None
+    except (KeyError, TypeError, ValueError):
+        return None
+    return nodes if isinstance(nodes, list) else None
+
+
+def lane_toggles(node_id: str, identity: str) -> int | None:
+    """How many conversions to draft `identity` made, or None when unread.
+    Any lane conversion counts, a toggle's or not."""
+    nodes = _conversions(node_id)
+    if nodes is None:
+        return None
+    return sum(
+        1
+        for n in nodes
+        if isinstance(n, dict)
+        and _login((n.get("actor") or {}).get("login")) == _login(identity)
+    )
+
+
+def _converter(node_id: str) -> tuple[str, datetime] | None:
+    """Who made the newest conversion to draft and when (server time), or
+    None when unread."""
+    nodes = _conversions(node_id)
+    if not nodes:
+        return None
+    try:
         login = (nodes[-1].get("actor") or {}).get("login")
         at = datetime.fromisoformat(str(nodes[-1]["createdAt"]))
         return (str(login), at) if login and at.tzinfo else None
-    except (KeyError, TypeError, ValueError, AttributeError, IndexError):
+    except (KeyError, TypeError, ValueError, AttributeError):
         return None
 
 
