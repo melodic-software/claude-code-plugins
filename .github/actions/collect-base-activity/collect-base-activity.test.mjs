@@ -1221,3 +1221,94 @@ for (const [name, run] of [
     for (const rule of SHELL_DENIED) assert.ok(denied.includes(rule), `${rule} in ${denied.join(" | ")}`);
   });
 }
+
+// --- launcher: run-claude-cli, which reads only inside the checkout ---
+
+const WORKSPACE = "/home/runner/work/r/r";
+const outputOf = (text, name) => (new RegExp(`^${name}<<(\\S+)\\n([\\s\\S]*?)\\n\\1$`, "m").exec(text)?.[2] ?? "").split("\n").filter(Boolean);
+
+// Runs the skill step for run-claude-cli and reads its launcher outputs and
+// the stage it left.
+function launch(overrides = {}) {
+  const stageDir = path.join(mkdtempSync(path.join(root, "stage-")), "lane-stage");
+  const run = stage({ LAUNCHER: "run-claude-cli", STAGE: stageDir, WORKSPACE, EFFECT: "read", CAN_COMMIT: "false", ...overrides });
+  const text = readFileSync(run.env.GITHUB_OUTPUT, "utf8");
+  return {
+    ...run,
+    stageDir,
+    tools: outputOf(text, "tools"),
+    allowedTools: outputOf(text, "allowed-tools"),
+    deniedTools: outputOf(text, "disallowed-tools"),
+    pluginDirs: /^plugin-dirs=(.*)$/m.exec(text)?.[1] ?? "",
+    preamble: /^preamble=(.*)$/m.exec(text)?.[1] ?? "",
+    promptFile: (() => {
+      try {
+        return readFileSync(path.join(stageDir, "prompt.md"), "utf8");
+      } catch {
+        return "";
+      }
+    })(),
+  };
+}
+
+test("run-claude-cli: a ci-context skill gets Bash, Edit and Write, the staged context and plugin under .lane/, and no claude_args", () => {
+  const ciDir = mkdtempSync(path.join(root, "ci-launch-"));
+  writeFileSync(path.join(ciDir, "context.json"), '{"head_sha":"x"}');
+  const run = launch({ PREPARE: "ci-context", CI_DIR: ciDir, SKILL: "source-control:pull-request" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.tools.toSorted(), ["Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill", "Write"]);
+  for (const rule of ["Skill(source-control:pull-request)", "Bash", "Edit", "Write", "Agent", "Grep", "Glob"]) {
+    assert.ok(run.allowedTools.includes(rule), `${rule} in ${run.allowedTools.join(" | ")}`);
+  }
+  for (const rule of ["WebFetch", "WebSearch", "Edit(./.lane/ci/**)", "Write(./.lane/ci/**)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)", "Read(//proc/**)"]) {
+    assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
+  }
+  assert.equal(run.pluginDirs, ".lane/plugins/source-control");
+  assert.equal(readFileSync(path.join(run.stageDir, "ci", "context.json"), "utf8"), '{"head_sha":"x"}');
+  assert.ok(statSync(path.join(run.stageDir, "plugins", "source-control")).isDirectory());
+  assert.ok(statSync(path.join(run.stageDir, "scratch")).isDirectory());
+  assert.equal(run.promptFile, "Call the Skill tool with skill source-control:pull-request and args ci, then follow the skill instructions to the end.\n");
+  assert.match(run.preamble, /The context file is \/home\/runner\/work\/r\/r\/\.lane\/ci\/context\.json\./);
+  assert.match(run.preamble, /Your scratchpad directory is \/home\/runner\/work\/r\/r\/\.lane\/scratch/);
+  assert.match(run.preamble, /Leave every fix uncommitted in the working tree/);
+  assert.equal(run.args, "", "no claude_args for the launcher");
+  assert.deepEqual(run.plugins, []);
+});
+
+test("run-claude-cli: a read skill without ci-context gets no Bash, Edit or Write", () => {
+  const run = launch({ SKILL: "source-control:pull-request" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.tools.toSorted(), ["Glob", "Grep", "Read", "Skill"]);
+  assert.ok(!run.allowedTools.some((rule) => /^(Bash|Edit|Write)/.test(rule)), run.allowedTools.join(" | "));
+  assert.ok(run.deniedTools.includes("Read(//proc/**)"), run.deniedTools.join(" | "));
+  assert.doesNotMatch(run.preamble, /context file/);
+});
+
+test("run-claude-cli refuses an issue lane, a writing skill, a patch-producing read skill and a gate before any output", () => {
+  const appliedBy = path.join(mkdtempSync(path.join(root, "launch-ab-")), "resolved.json");
+  writeFileSync(appliedBy, JSON.stringify({ selected: { args: "--ci", "applied-by": { patch: "apply-patch" } } }));
+  for (const [overrides, message] of [
+    [{ ISSUE_NUMBER: "7" }, /an issue lane runs on claude-code-action/],
+    [{ EFFECT: "mutate-branch", CAN_COMMIT: "true" }, /only a read skill/],
+    [{ RESOLVED: appliedBy }, /only a read skill/],
+    [{ GATING: "gate" }, /a gate skill's verdict is not read from the launcher/],
+  ]) {
+    const run = launch(overrides);
+    assert.notEqual(run.status, 0, JSON.stringify(overrides));
+    assert.match(run.stdout, message);
+    assert.deepEqual(run.tools, []);
+    assert.equal(run.promptFile, "");
+  }
+});
+
+test("run-claude-cli: a skill plugin holding a symbolic link fails red", () => {
+  const linked = mkdtempSync(path.join(root, "base-link-"));
+  mkdirSync(path.join(linked, "plugins", "source-control"), { recursive: true });
+  mkdirSync(path.join(linked, ".claude-plugin"));
+  writeFileSync(path.join(linked, ".claude-plugin", "marketplace.json"), JSON.stringify({ name: "melodic-software" }));
+  spawnSync("ln", ["-s", "/etc/passwd", path.join(linked, "plugins", "source-control", "link")]);
+  const run = launch({ BASE_PATH: linked, SKILL: "source-control:pull-request" });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout, /the skill's plugin holds a symbolic link/);
+  assert.deepEqual(run.tools, []);
+});

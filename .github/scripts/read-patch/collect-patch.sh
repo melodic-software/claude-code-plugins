@@ -3,7 +3,7 @@
 # staged, unstaged or untracked, as one `git diff --binary` patch, for the
 # patch output mode of pr-run-activity-read.yml. Runs from the checkout after
 # the activity, through a temporary index, so the checkout's own index is
-# untouched. Ignored files are left out.
+# untouched. Ignored files and .lane/ are left out.
 #
 # Usage: collect-patch.sh <head-sha> <patch-file>
 # Prints `state=empty` (no change, no patch file) or `state=written`, then
@@ -39,9 +39,12 @@ export GIT_INDEX_FILE="$scratch/index"
 g=(git -c core.fsmonitor=false -c core.untrackedCache=false)
 
 "${g[@]}" read-tree "$head" || fail 'could not read the head into a scratch index'
-"${g[@]}" add -A || fail 'could not stage the working tree in the scratch index'
+# .lane/ holds what the runner staged for the skill (pr-run-activity-read.yml),
+# never the activity's change.
+paths=(':(top)' ':(top,exclude).lane')
+"${g[@]}" add -A -- "${paths[@]}" || fail 'could not stage the working tree in the scratch index'
 "${g[@]}" diff --cached --binary --full-index --no-color --no-ext-diff --no-textconv \
-  --no-renames --no-relative --submodule=short --src-prefix=a/ --dst-prefix=b/ -U3 "$head" -- >"$patch" ||
+  --no-renames --no-relative --submodule=short --src-prefix=a/ --dst-prefix=b/ -U3 "$head" -- "${paths[@]}" >"$patch" ||
   fail 'could not write the patch'
 
 if [[ ! -s $patch ]]; then

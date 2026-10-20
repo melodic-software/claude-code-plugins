@@ -9,8 +9,12 @@ description: >
   the web tools when the activity sets web-access and, when it commits, the
   instruction to commit). An activity edits when its effect is not read, or
   when its applied-by sets patch: it then leaves its change uncommitted for
-  the runner to collect as a patch. Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
-  step 8 and Skill activities.
+  the runner to collect as a patch. With launcher run-claude-cli, a read
+  skill's plugin, CI context, scratch directory and prompt file are staged
+  in $RUNNER_TEMP/lane-stage for the runner to copy to .lane/, with the
+  launcher's tool lists and preamble in place of claude_args. Contract:
+  docs/conventions/pr-pipeline/pr-run-activity.md, run job step 8 and Skill
+  activities.
 
 inputs:
   kind:
@@ -69,6 +73,16 @@ inputs:
     description: The base-SHA checkout.
     required: false
     default: .base
+  launcher:
+    description: >
+      `claude-code-action` (the default) or `run-claude-cli`. run-claude-cli
+      runs the CLI with --restricted in the checkout, so the skill's plugin,
+      the CI context, a scratch directory and the prompt file are staged in
+      $RUNNER_TEMP/lane-stage for the runner to copy to .lane/ after the head
+      checkout, and the tool rules name them there. It takes a read skill
+      only (ci-context included), never a gate or an issue lane.
+    required: false
+    default: claude-code-action
 
 outputs:
   plugins:
@@ -82,6 +96,21 @@ outputs:
   prompt:
     description: The skill's prompt.
     value: ${{ steps.skill.outputs.prompt }}
+  tools:
+    description: run-claude-cli only, its `tools` input, one per line.
+    value: ${{ steps.skill.outputs.tools }}
+  allowed-tools:
+    description: run-claude-cli only, its `allowed-tools` input, one rule per line.
+    value: ${{ steps.skill.outputs.allowed-tools }}
+  disallowed-tools:
+    description: run-claude-cli only, its `disallowed-tools` input, one rule per line.
+    value: ${{ steps.skill.outputs.disallowed-tools }}
+  plugin-dirs:
+    description: run-claude-cli only, its `plugin-dirs` input, under .lane/.
+    value: ${{ steps.skill.outputs.plugin-dirs }}
+  preamble:
+    description: run-claude-cli only, its `preamble` input, which stands in for the system prompt.
+    value: ${{ steps.skill.outputs.preamble }}
 
 runs:
   using: composite
@@ -131,6 +160,8 @@ runs:
         CI_DIR: ${{ runner.temp }}/lane-ci
         WORKSPACE: ${{ github.workspace }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
+        LAUNCHER: ${{ inputs.launcher }}
+        STAGE: ${{ runner.temp }}/lane-stage
       run: |
         fail() {
           echo "::error::$1"
@@ -176,6 +207,64 @@ runs:
         if [ "$EFFECT" = read ] && [ "$PREPARE" != ci-context ] &&
           jq -e '.selected["applied-by"].patch // empty' "$RESOLVED" >/dev/null; then
           edits=patch
+        fi
+        # run-claude-cli: the CLI runs with --restricted in the checkout and
+        # reads nothing outside it, so everything the skill reads is staged
+        # here and copied to .lane/ after the head checkout, where the rules
+        # below name it; the runner leaves .lane/ out of the patch. The
+        # launcher has no system prompt, so the preamble carries it, and the
+        # prompt asks for the Skill tool, since a slash command after the
+        # preamble would not expand.
+        if [ "$LAUNCHER" = run-claude-cli ]; then
+          [ -z "${ISSUE_NUMBER:-}" ] || fail "run-claude-cli: an issue lane runs on claude-code-action"
+          [ "$edits" = read ] || fail "run-claude-cli: only a read skill, ci-context included, runs on the launcher"
+          [ "$GATING" = advisory ] || fail "run-claude-cli: a gate skill's verdict is not read from the launcher"
+          [[ $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ && $STAGE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
+            fail "the workspace or the stage directory has a name a rule cannot carry"
+          plugin=${SKILL%%:*}
+          [ -d "$BASE_PATH/plugins/$plugin" ] || fail "the skill's plugin is not in the base"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE/plugins" "$STAGE/scratch"
+          cp -R "$BASE_PATH/plugins/$plugin" "$STAGE/plugins/"
+          # The runner makes the copy read-only, and chmod does not follow a link.
+          [ -z "$(find "$STAGE/plugins" -type l -print -quit)" ] || fail "the skill's plugin holds a symbolic link"
+          lane=$WORKSPACE/.lane
+          tools=(Read Glob Grep Skill)
+          allowed=("Skill($SKILL)" Grep Glob)
+          # Read in the working directory needs no rule; the staged copies
+          # stay unedited, and process files unread.
+          denied=(WebFetch WebSearch "Edit(./.lane/plugins/**)" "Write(./.lane/plugins/**)" "Read(//proc/**)")
+          preamble="You run unattended as a CI lane activity on $subject, and no one can answer a question."
+          if [ "$PREPARE" = ci-context ]; then
+            [ -f "$CI_DIR/context.json" ] || fail "ci-context: the runner wrote no context file"
+            mkdir -p "$STAGE/ci"
+            cp "$CI_DIR/context.json" "$STAGE/ci/context.json"
+            tools+=(Bash Edit Write Agent)
+            allowed+=(Bash Edit Write Agent)
+            denied+=("Edit(./.lane/ci/**)" "Write(./.lane/ci/**)")
+            preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The context file is $lane/ci/context.json. Leave every fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
+          fi
+          skill_args=$(jq -r '.selected.args // ""' "$RESOLVED")
+          for target in "${targets[@]}"; do
+            skill_args="${skill_args:+$skill_args }$target"
+          done
+          {
+            printf 'Call the Skill tool with skill %s' "$SKILL"
+            [ -z "$skill_args" ] || printf ' and args %s' "$skill_args"
+            printf ', then follow the skill instructions to the end.\n'
+          } >"$STAGE/prompt.md"
+          delimiter="stage_$(openssl rand -hex 16)"
+          {
+            echo "tools<<$delimiter"
+            printf '%s\n' "${tools[@]}" "$delimiter"
+            echo "allowed-tools<<$delimiter"
+            printf '%s\n' "${allowed[@]}" "$delimiter"
+            echo "disallowed-tools<<$delimiter"
+            printf '%s\n' "${denied[@]}" "$delimiter"
+            echo "plugin-dirs=.lane/plugins/$plugin"
+            echo "preamble=$preamble"
+          } >>"$GITHUB_OUTPUT"
+          exit 0
         fi
         case "$edits" in
           read)
