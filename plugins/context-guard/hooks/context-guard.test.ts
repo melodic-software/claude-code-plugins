@@ -1095,7 +1095,7 @@ test('compaction: an approach line recorded before a pending restatement merges 
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   await compact($, 'manual')
   w.percent = undefined
-  expect(own((await prompt($)).context)).toEqual([restated('degraded')])
+  expect(own((await prompt($)).context)).toEqual([UNAVAILABLE])
 })
 
 test('compaction: a threshold before a pending restatement merges into it and keeps its action sentence', async ($, on) => {
@@ -1107,7 +1107,7 @@ test('compaction: a threshold before a pending restatement merges into it and ke
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   await compact($, 'manual')
   w.percent = undefined
-  expect(own((await prompt($)).context)).toEqual(['context-guard (operator setting for a threshold): handoff.', restated('degraded')])
+  expect(own((await prompt($)).context)).toEqual(['context-guard (operator setting for a threshold): handoff.', UNAVAILABLE])
 })
 
 test('operator mode: a crossing held at the end of a turn is not offered beside the restatement a compaction adds', OPERATOR, async ($, on) => {
@@ -1120,7 +1120,7 @@ test('operator mode: a crossing held at the end of a turn is not offered beside 
   w.percent = undefined
   await measure($, 0)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(w.suggested).toEqual([offer(restated('degraded'))])
+  expect(w.suggested).toEqual([`FYI, ${UNAVAILABLE}`])
 })
 
 for (const [via, read] of [
