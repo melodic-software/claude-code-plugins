@@ -6,8 +6,8 @@
 #
 # The lanes token broker in melodic-software/azure-iac runs resolve-config at a
 # pinned commit, fetched by azure-iac scripts/deploy/fetch-resolve-config.sh
-# (runtime list: resolve.mjs predicate.mjs vocabulary.mjs package.json
-# package-lock.json under .github/actions/resolve-config). A pull request that
+# (runtime list: resolve.mjs dimensions.mjs predicate.mjs vocabulary.mjs
+# package.json package-lock.json under .github/actions/resolve-config). A pull request that
 # changes one of those files must name its paired pin pull request, or the
 # broker keeps parsing the config with the old code (#8313, azure-iac#44).
 # test-scope: .github/workflows/pr-require-checks.yml
@@ -103,7 +103,7 @@ expect() {
   fi
 }
 
-for f in resolve.mjs predicate.mjs vocabulary.mjs package.json package-lock.json; do
+for f in resolve.mjs dimensions.mjs predicate.mjs vocabulary.mjs package.json package-lock.json; do
   expect "a change to $f without the line fails" 1 1 "$(files "$RC/$f")" "Closes #1" 0 "::error::"
   expect "a change to $f with the line passes" 0 1 "$(files "$RC/$f")" "Closes #1
 $LINE" 0

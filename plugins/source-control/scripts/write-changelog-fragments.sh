@@ -30,9 +30,12 @@
 # One fragment per plugin per branch. The branch's own fragment is one this
 # branch added: since the merge base with --base or the default branch, or
 # staged or untracked. Without --base, a later releasing commit appends its
-# entry to that fragment (once; a rerun finds it there) and raises its bump to
-# the higher level; with --base, a plugin that already has a branch fragment is
-# left alone, so a pull request only fills the gaps its commits left.
+# entry to that fragment (once; a rerun finds it there) under its existing
+# heading for the section, adding the heading only when absent, and raises its
+# bump to the higher level, never lowers it; with --base, a plugin that already
+# has a branch fragment is left alone, so a pull request only fills the gaps its
+# commits left. While a merge is in progress (MERGE_HEAD exists) nothing is
+# written: the index then holds fragments the merge brought in from elsewhere.
 #
 # Prints each fragment path it wrote, one per line; stage them with the commit.
 # Exit: 0 done (including nothing to do); 2 usage, a refused subject, or a
@@ -173,11 +176,12 @@ body="$(awk '
     for (i = 1; i <= nb; i++) print ((n >= s || i > 1) ? "\n" : "") "  **Breaking:** " brk[i]
   }' <<<"$message")"
 
+entry="- $desc"
+[[ -z "$body" ]] || entry+=$'\n\n'"$body"
 if [[ "$level" == none ]]; then
   block="No release needed (${type:-no type}): $desc"
 else
-  block="### $section"$'\n\n'"- $desc"
-  [[ -z "$body" ]] || block+=$'\n\n'"$body"
+  block="### $section"$'\n\n'"$entry"
 fi
 
 # Fragments this branch added: committed since the merge base with --base, or
@@ -205,6 +209,42 @@ bump_of() { awk '{ sub(/\r$/, "") } NR > 1 && $0 == "---" { exit } sub(/^bump:[ 
 set_bump() {
   awk -v b="$2" '!done && /^bump:/ { print "bump: " b; done = 1; next } 1' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
 }
+# Add ENTRY under the "### <section>" heading $2 of fragment $1, at the end of
+# that section; create the heading at the end of the file only when it is absent,
+# so a fragment never carries the same heading twice (markdownlint MD024).
+add_entry() {
+  ENTRY="$entry" awk -v head="### $2" '
+    { sub(/\r$/, ""); line[++n] = $0 }
+    END {
+      h = 0
+      for (i = 1; i <= n; i++) if (line[i] == head) { h = i; break }
+      if (!h) {
+        while (n > 0 && line[n] !~ /[^[:space:]]/) n--
+        for (i = 1; i <= n; i++) print line[i]
+        print ""; print head; print ""; print ENVIRON["ENTRY"]
+        exit
+      }
+      e = n + 1
+      for (i = h + 1; i <= n; i++) if (line[i] ~ /^#+[ \t]/) { e = i; break }
+      last = e - 1
+      while (last > h && line[last] !~ /[^[:space:]]/) last--
+      for (i = 1; i <= last; i++) print line[i]
+      print ""; print ENVIRON["ENTRY"]
+      if (e <= n) { print ""; for (i = e; i <= n; i++) print line[i] }
+    }' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
+}
+
+# True when fragment $1 holds $entry, as whole lines, under its "### <section>"
+# heading $2: the same text under another heading or inside a body line is not it.
+has_entry() {
+  local sec
+  sec="$(awk -v head="### $2" '{ sub(/\r$/, "") } $0 == head { on = 1; next } on && /^#+[ \t]/ { on = 0 } on' "$1")"
+  [[ $'\n'"$sec"$'\n' == *$'\n'"$entry"$'\n'* ]]
+}
+
+# During a merge the index holds fragments the merge brought in from other
+# branches; they are not this branch's to edit, and no fragment is written.
+[[ ! -e "$(git rev-parse --git-path MERGE_HEAD)" ]] || exit 0
 
 for plugin in "${plugins[@]}"; do
   own="$(grep -m1 -E "^\.changes/$plugin/[^/]+\.md$" <<<"$added")"
@@ -217,7 +257,7 @@ for plugin in "${plugins[@]}"; do
   fi
   [[ -z "$base" && "$level" != none ]] || continue
   # A rerun after a failed or amended commit finds its entry already there.
-  [[ "$(<"$own")" != *"$block"* ]] || {
+  ! has_entry "$own" "$section" || {
     echo "$own"
     continue
   }
@@ -226,7 +266,7 @@ for plugin in "${plugins[@]}"; do
     printf -- '---\nbump: %s\n---\n\n%s\n' "$level" "$block" >"$own" || exit 2
   else
     (($(rank "$level") > $(rank "$old"))) && { set_bump "$own" "$level" || exit 2; }
-    printf '\n%s\n' "$block" >>"$own" || exit 2
+    add_entry "$own" "$section" || exit 2
   fi
   echo "$own"
 done

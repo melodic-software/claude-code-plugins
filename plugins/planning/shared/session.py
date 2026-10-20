@@ -3698,18 +3698,22 @@ class Session:
         down, or a guest's own Claude's, only the owner shares."""
         rid = _ident(body, "id")
         with self._write_as(pid, "result-share"):
-            try:
-                res = self._find_result(rid)
-            except DomainError:
-                res = None
-            if res is None or (pid != HOST and self._asker(res) != pid) or not self._result_seen_by(res, pid):
-                raise DomainError(404, "not-found", f"No result {rid}.")
-            if res["published"]:
-                raise DomainError(409, "wrong-status", "This answer is already shared.", status="published")
-            if pid != HOST and ("takenDown" in res or res["by"]["kind"] == "guest-claude"):
-                raise DomainError(403, "host-only", "Only the host can share this answer.")
-            self._share(res, next((r for r in self.state["requests"] if r["id"] == res["request"]), None), pid)
-            return {"id": res["id"], "published": True}
+            return self._share_result(pid, rid)
+
+    def _share_result(self, pid, rid):
+        """The one share behind the result-share route and Claude's share-result op."""
+        try:
+            res = self._find_result(rid)
+        except DomainError:
+            res = None
+        if res is None or (pid != HOST and self._asker(res) != pid) or not self._result_seen_by(res, pid):
+            raise DomainError(404, "not-found", f"No result {rid}.")
+        if res["published"]:
+            raise DomainError(409, "wrong-status", "This answer is already shared.", status="published")
+        if pid != HOST and ("takenDown" in res or res["by"]["kind"] == "guest-claude"):
+            raise DomainError(403, "host-only", "Only the host can share this answer.")
+        self._share(res, next((r for r in self.state["requests"] if r["id"] == res["request"]), None), pid)
+        return {"id": res["id"], "published": True}
 
     def _claude_says(self, res, req):
         """A result about the whole session, once shared, is also Claude's chat message (`claude`, written as the host's
@@ -4242,23 +4246,26 @@ class Session:
         action = _choice(body, "action", ("seen", "resolved", "ask"))
         with self._tx():
             self._owner(pid)
-            fid = _ident(body, "id")
-            r = self._report(fid)
-            if action == "ask":
-                if r["status"] == "resolved" or "asked" in r:
-                    state = "asked" if "asked" in r else r["status"]
-                    raise DomainError(409, "wrong-status", f"Report {fid} is {state}.", status=state)
-                r["asked"] = self.now()
-                adds = r.get("adds", [])
-                self._event("report-filed", report=fid, qid=r["ctx"].get("qid"), text=r["text"],
-                            adds=[a["text"] for a in adds if "text" in a], addImages=sum(1 for a in adds if "image" in a))
-                return {"id": fid, "status": r["status"], "asked": True}
-            if r["status"] == "resolved" or r["status"] == action:
-                raise DomainError(409, "wrong-status", f"Report {fid} is {r['status']}.", status=r["status"])
-            r["status"] = action
-            said = "saw your problem report" if action == "seen" else "marked your problem report resolved"
-            self._notify(r["by"], "report", f"The host {said}.", actor=pid)
-            return {"id": fid, "status": action}
+            return self._act_on_report(pid, _ident(body, "id"), action)
+
+    def _act_on_report(self, pid, fid, action):
+        """The one report action behind the owner's report route and Claude's resolve-report op."""
+        r = self._report(fid)
+        if action == "ask":
+            if r["status"] == "resolved" or "asked" in r:
+                state = "asked" if "asked" in r else r["status"]
+                raise DomainError(409, "wrong-status", f"Report {fid} is {state}.", status=state)
+            r["asked"] = self.now()
+            adds = r.get("adds", [])
+            self._event("report-filed", report=fid, qid=r["ctx"].get("qid"), text=r["text"],
+                        adds=[a["text"] for a in adds if "text" in a], addImages=sum(1 for a in adds if "image" in a))
+            return {"id": fid, "status": r["status"], "asked": True}
+        if r["status"] == "resolved" or r["status"] == action:
+            raise DomainError(409, "wrong-status", f"Report {fid} is {r['status']}.", status=r["status"])
+        r["status"] = action
+        said = "saw your problem report" if action == "seen" else "marked your problem report resolved"
+        self._notify(r["by"], "report", f"The host {said}.", actor=pid)
+        return {"id": fid, "status": action}
 
     def report_image(self, pid, body):
         """GET /api/report/image?id=[&add=N]: owner only. A report's picture, or its Nth addition's, as a data: URL."""
@@ -5150,6 +5157,18 @@ class Session:
         prop["status"] = {"kind": "question", "question": q["id"]}
         self._notify(prop["pid"], "proposal", f"Your proposal became question {q['id']}, in round {n}.", qid=q["id"])
         return {"question": q["id"], "round": n}
+
+    def _op_resolve_report(self, op):
+        """The owner asked in the terminal to mark a problem report seen or resolved, as the owner's page does."""
+        return self._act_on_report(HOST, op["id"], op["action"])
+
+    def _op_share_result(self, op):
+        """The owner asked in the terminal to share an unshared answer with everyone, as the result-share route does."""
+        return self._share_result(HOST, op["id"])
+
+    def _op_take_down_result(self, op):
+        """The owner asked in the terminal to take a shared answer down, as the owner's page does."""
+        return self._act_on_result(HOST, op["id"], "takedown")
 
     def _op_handle(self, op):
         log = self.state["log"]
