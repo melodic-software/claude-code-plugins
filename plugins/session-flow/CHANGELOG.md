@@ -1,5 +1,21 @@
 # Changelog: session-flow plugin
 
+## [0.61.0] - 2026-10-20
+
+### Added
+
+- Two `/session-flow:handoff` eval cases, `ho-task-tools-recreate-calls` and `ho-no-task-tools-says-so`, one for each task-tool branch of the environment section (the Task tools, and neither the Task tools nor `TodoWrite`).
+
+- `running-retro` checkpoint finds skill-fit gaps with six detectors: a skill bypassed or overridden, the same rules re-typed into several briefs, a worker stalled or re-briefed for the same reason, a denial that forced a workaround, a verifier loop stopped by judgment, and the owner asking whether a skill exists. Each finding names its owning plugin and skill and cites its evidence. Before offering to file, the skill searches the owning plugin's open issues through `/work-items:track search`; skill-fit gaps are never auto-filed.
+- Eval case `rr-skill-fit-names-owner`.
+
+- `/session-flow:keep-going` lists the child process tree of each background shell and flags any child waiting on an interactive prompt or stdin, using the new `check-child-input-wait.py` (Linux through `/proc`, macOS through `ps`, Windows through PowerShell). A process the platform gives no signal for reports `unknown`, never "not waiting". Killing a flagged child stays behind the side-effect gate.
+- The shared off-thread reference lists "external CLI processes and their child trees" as a kind.
+
+### Fixed
+
+- `/session-flow:continue-in-background`: the dirty-tree gate reads the effective `worktree.bgIsolation` (managed, local, project, user settings files, in that order; a `--settings` value cannot be read and is reported as not covered). With `none` the background session edits the checkout directly, so the gate launches instead of refusing and the launch report warns that the session edits this checkout in place, alongside the user.
+
 ## [0.60.0] - 2026-10-20
 
 ### Added
