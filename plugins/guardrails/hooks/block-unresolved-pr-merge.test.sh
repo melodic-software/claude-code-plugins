@@ -555,13 +555,15 @@ assert_contains "backtick -> says why" "$ERR" "backtick"
 unresolvable "apostrophe in a comment, then a backtick" $'# don\'t\ngh pr merge 5`echo 0` -R acme/widgets'
 unresolvable "apostrophe in a heredoc, then a backtick" $'cat <<EOF\ndon\'t\nEOF\ngh pr merge 5`echo 0` -R acme/widgets'
 unresolvable "line continuation between pr and merge, then a backtick" $'gh pr \\\nmerge 5`echo 0` -R acme/widgets'
-# A continuation inside a word is joined, so the merge is found and checked.
-scenario none none green green
-run "continuation inside 'merge'" $'gh pr mer\\\nge 5 -R acme/widgets' 0
-assert_contains "continuation inside 'merge' -> checks that PR" "$(calls)" "repos/acme/widgets/pulls/5"
-scenario none none green green
-run "continuation inside a REST route" $'gh api -X PUT repos/acme/widgets/pulls/\\\n5/merge' 0
-assert_contains "continuation inside a REST route -> checks that PR" "$(calls)" "repos/acme/widgets/pulls/5"
+# A backslash-newline in merge-shaped text is refused, never joined: bash does not
+# join inside a comment, a quoted heredoc or after an escaped backslash.
+unresolvable "continuation between pr and merge" $'gh pr \\\nmerge 5 -R acme/widgets'
+unresolvable "continuation inside 'merge'" $'gh pr mer\\\nge 5 -R acme/widgets'
+unresolvable "continuation inside a REST route" $'gh api -X PUT repos/acme/widgets/pulls/\\\n5/merge'
+unresolvable "comment ending in a backslash, merge on the next line" $'# note \\\ngh pr merge 5 -R acme/widgets --admin'
+unresolvable "escaped backslash before the newline, merge on the next line" $'echo x \\\\\ngh pr merge 5 -R acme/widgets'
+unresolvable "quoted heredoc line ending in a backslash, then a merge" $'cat <<\'EOF\'\nfoo\\\nEOF\ngh pr merge 5 -R acme/widgets'
+quiet "continuation in a command that is not a merge" $'git commit -m "tidy" \\\n  -m "merge the two helpers"'
 unresolvable "merge inside backticks, echoed" 'echo `gh pr merge 42 -R acme/widgets`'
 unresolvable "merge inside backticks, assigned" 'x=`gh pr merge 42 -R o/r`'
 unresolvable "single-quoted body with a backtick" 'gh pr merge 42 -R acme/widgets --squash --body '"'"'see `notes.md`'"'"''

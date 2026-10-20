@@ -154,6 +154,7 @@ BUPM_NODE=""  # GraphQL PullRequest node id
 BUPM_UNRESOLVED=""
 BUPM_MERGES=0 # merge paths found in the command
 BUPM_BT=0     # 1: the command holds a backtick
+BUPM_CONT=0   # 1: merge-shaped text continued with a backslash-newline
 
 # _bupm_literal <word>: true when the word holds no expansion the guard
 # cannot evaluate (a parameter, `$(...)` or a backtick substitution).
@@ -413,19 +414,27 @@ else
   [[ -n "$COMMAND" ]] || exit 0
   # Past the row's shared ceiling the command is not parsed.
   ((${#COMMAND} > 16384)) && exit 0
-  # Bash joins a backslash-newline before it runs the line, so join it here too:
-  # otherwise `gh pr \<newline>merge` or `mer\<newline>ge` hides the merge.
-  [[ "$TOOL_NAME" == PowerShell ]] || COMMAND="${COMMAND//$'\\\n'/}"
-  # Cheap pre-filter: every matched path names `merge` or `enqueue`.
+  # Cheap pre-filter: every matched path names `merge` or `enqueue`. It reads a
+  # copy with every backslash-newline joined, so `mer\<newline>ge` still matches;
+  # the command itself is never rewritten, because bash does not join inside a
+  # comment, a quoted heredoc or after an escaped backslash.
   _bupm_lc="${COMMAND,,}"
-  [[ "$_bupm_lc" == *merge* || "$_bupm_lc" == *enqueue* ]] || exit 0
-  # A backtick in merge-shaped text is refused below without parsing; in
-  # PowerShell a backtick is the escape character, not a substitution.
+  _bupm_joined="${_bupm_lc//$'\\\n'/}"
+  [[ "$_bupm_joined" == *merge* || "$_bupm_joined" == *enqueue* ]] || exit 0
+  # A backtick or a line continuation in merge-shaped text is refused below
+  # without parsing; in PowerShell a backtick is the escape character, not a
+  # substitution, and a backslash is not a continuation.
   # shellcheck disable=SC2016  # the backticks are literal regex text
   _bupm_shape_re='(^|[^a-z0-9_-])pr[[:space:]]+((-r|--repo)[=[:space:]]*[^[:space:]]+[[:space:]]+)*merge|pulls/([^/[:space:]`]|`[^`]*`)+/(ccr/auto_)?merge|mergepullrequest|enqueuepullrequest|enablepullrequestautomerge'
-  if [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *'`'* && "$_bupm_lc" =~ $_bupm_shape_re ]]; then
+  if [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *'`'* && "$_bupm_joined" =~ $_bupm_shape_re ]]; then
     BUPM_BT=1
     BUPM_FORM=backtick
+  elif [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *$'\\\n'* && "$_bupm_joined" =~ ${_bupm_shape_re%%|mergepullrequest*} ]]; then
+    # GraphQL keeps the PR in a quoted query the parser reads, and fails closed
+    # on anything but a literal node id, so only `pr merge` and the REST route
+    # are refused here.
+    BUPM_CONT=1
+    BUPM_FORM=continuation
   else
     hook::bash_parse_segments "$COMMAND" _bupm_segment
     [[ -n "$BUPM_FORM" ]] || exit 0
@@ -537,6 +546,8 @@ _bupm_refuse_target() {
 }
 ((BUPM_BT)) &&
   _bupm_refuse_target "the command holds a backtick, and a backtick substitution can change or hide the target; remove every backtick, and pass a body that holds one with --body-file"
+((BUPM_CONT)) &&
+  _bupm_refuse_target "the command continues a line with a backslash, which can join or split the merge differently from how the guard reads it; write the merge on one line"
 ((BUPM_MERGES > 1)) &&
   _bupm_refuse_target "this command holds $BUPM_MERGES merges and only one can be checked; run each merge as its own command"
 [[ -z "$BUPM_UNRESOLVED" ]] || _bupm_refuse_target "$BUPM_UNRESOLVED"
