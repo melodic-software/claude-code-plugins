@@ -55,6 +55,37 @@ err=$(node "$ENTRY" 2>&1 >/dev/null) || rc=$?
 [[ "$rc" -eq 1 ]] || fail "missing script should exit 1 (got $rc)"
 grep -q 'usage:' <<<"$err" || fail "missing script should name usage: $err"
 
+# --- --fail-closed: only exit 0 and exit 2 pass; any other outcome denies ------
+segv="$TEST_TMPDIR/segv.sh"
+printf '#!/bin/bash\nkill -SEGV $$\n' >"$segv"
+rc=0
+err=$(node "$ENTRY" --fail-closed "$segv" 2>&1 >/dev/null) || rc=$?
+[[ "$rc" -eq 2 ]] || fail "--fail-closed on a SIGSEGV child should exit 2 (got $rc)"
+[[ "$(grep -c . <<<"$err")" -eq 1 ]] || fail "--fail-closed should write one stderr line: $err"
+grep -q 'segv.sh' <<<"$err" || fail "--fail-closed line should name the script: $err"
+grep -q 'SIGSEGV' <<<"$err" || fail "--fail-closed line should name the cause: $err"
+rc=0
+node "$ENTRY" "$segv" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 1 ]] || fail "a SIGSEGV child without --fail-closed should still exit 1 (got $rc)"
+
+for code in 0 2 3 139; do
+  printf '#!/bin/bash\nexit %s\n' "$code" >"$TEST_TMPDIR/exit.sh"
+  want=$code
+  [[ "$code" -ne 3 && "$code" -ne 139 ]] || want=2
+  rc=0
+  node "$ENTRY" --fail-closed "$TEST_TMPDIR/exit.sh" >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq "$want" ]] || fail "--fail-closed on exit $code should exit $want (got $rc)"
+done
+printf '#!/bin/bash\nexit 3\n' >"$TEST_TMPDIR/exit.sh"
+rc=0
+node "$ENTRY" "$TEST_TMPDIR/exit.sh" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 3 ]] || fail "exit 3 without --fail-closed should pass through (got $rc)"
+
+# A closed option gate still exits 0 without running anything.
+rc=0
+CLAUDE_PLUGIN_OPTION_FC_GATE=false node "$ENTRY" --fail-closed --require-true FC_GATE "$segv" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 0 ]] || fail "--fail-closed must not change a closed gate (got $rc)"
+
 # --- Windows resolver: Git Bash, never the WSL relay -------------------------
 node "$HOOK_DIR/exec-bash.resolver.test.mjs" || fail "Windows resolver rejected Git Bash or accepted the relay"
 
@@ -78,7 +109,9 @@ while IFS= read -r row; do
     workflow=$((workflow + 1))
   else
     second=$(jq -r '.args[1]' <<<"$row")
-    [[ "$second" == *"/hooks/run-guards.sh" ]] || fail "args[1] is not run-guards.sh: $second"
+    [[ "$second" == "--fail-closed" ]] || fail "guard row does not pass --fail-closed: $second"
+    third=$(jq -r '.args[2]' <<<"$row")
+    [[ "$third" == *"/hooks/run-guards.sh" ]] || fail "args[2] is not run-guards.sh: $third"
     dispatcher=$((dispatcher + 1))
   fi
 done <<<"$rows"
