@@ -17,7 +17,11 @@ is in the floor, so a pull request cannot change the rule it is judged by. The
 configured `merge.diff-check.denied-paths` and `floor-paths` are joined to the
 floor, never in place of it. So are the paths each plugin's base-side
 `DECLARATION_FILES` declare as run (`RiskInput.declarations`); a declaration it
-cannot read rates HIGH as `high-path:**`. With the floor, a SKILL.md, agents/**/*.md or
+cannot read rates HIGH as `high-path:**`. Those files include each plugin's
+skill, command and agent bodies: the paths their `!` commands run and the
+scripts they name under the plugin root or skill directory join the floor,
+and a `!` command that runs any other path rates HIGH as `high-path:**`.
+With the floor, a SKILL.md, agents/**/*.md or
 commands/**/*.md file whose head text gains or changes a capability frontmatter
 key, adds a `!` command, or changes a line inside a ```! block, compared with
 its base text, or whose text could not be read, rates HIGH as
@@ -203,6 +207,12 @@ DECLARATION_FILES: tuple[str, ...] = (
     "plugins/*/.lsp.json",
     "plugins/*/hooks/hooks.json",
     "plugins/*/monitors/monitors.json",
+    # Instruction bodies: Claude Code runs a skill's or command's `!` lines
+    # before the model reads it, and the model runs the scripts any of these
+    # name under the plugin root or the skill directory.
+    "plugins/*/skills/*/SKILL.md",
+    "plugins/*/commands/**/*.md",
+    "plugins/*/agents/**/*.md",
 )
 # plugin.json keys whose values Claude Code runs or reads as run config; its
 # other `./` paths (types, skills) are not executable. A string value of one is
@@ -483,7 +493,10 @@ def _under_root(root: str, rest: str) -> str | None:
     return "/".join([root, *(parts[:-1] if len(parts) > 1 else parts)])
 
 
-_DECLARATION_NAMES = {g.removeprefix("plugins/*/") for g in DECLARATION_FILES}
+_BODY_NAMES = ("skills/*/SKILL.md", "commands/**/*.md", "agents/**/*.md")
+_DECLARATION_NAMES = {g.removeprefix("plugins/*/") for g in DECLARATION_FILES} - set(
+    _BODY_NAMES
+)
 _PLUGIN_JSON = ".claude-plugin/plugin.json"
 # A monitors file holds the monitors array; the other declarations an object.
 _MONITORS = "monitors/monitors.json"
@@ -570,11 +583,19 @@ def _declared_paths(value: Any, unsafe: list[str]) -> tuple[str, ...]:
     for path, text in pairs:
         located = _located(path)
         if located is None or not (
-            located[2] in _DECLARATION_NAMES or located[0].casefold() in pointers
+            located[2] in _DECLARATION_NAMES
+            or _is_body(located[2])
+            or located[0].casefold() in pointers
         ):
             unsafe.append(f"declaration file not recognized: {_show(path)}")
             continue
         _, root, name = located
+        if _is_body(name):
+            if not isinstance(text, str):
+                unsafe.append(f"declaration unreadable: {_show(path)}")
+            else:
+                found.extend(_body_paths(located[0], root, text, unsafe))
+            continue
         array = name == _MONITORS or located[0].casefold() in monitor_files
         data = _load(text, array=array)
         if data is None or (name == _PLUGIN_JSON and not isinstance(data, dict)):
@@ -598,6 +619,317 @@ def _declared_paths(value: Any, unsafe: list[str]) -> tuple[str, ...]:
                 else:
                     found.append(declared)
     return tuple(dict.fromkeys(found))
+
+
+# --- Instruction bodies -------------------------------------------------------
+# The `!` syntax follows https://code.claude.com/docs/en/skills#inject-dynamic-context:
+# an inline !`command` at a line start or after whitespace, or a ```! fenced
+# block, in a skill or a custom command. The variables follow the same page's
+# #available-string-substitutions table.
+
+_INLINE_BANG = re.compile(r"(?<!\S)!`([^`\n]*)`")
+_BODY_VARS = r"\$(?:\{(CLAUDE_PLUGIN_ROOT|CLAUDE_SKILL_DIR)\}|(CLAUDE_PLUGIN_ROOT|CLAUDE_SKILL_DIR)\b)"
+# A path after the variable stops at the first character no tracked path
+# uses, so `:*`, `#anchor`, `<name>` and punctuation end it.
+_BODY_REF = re.compile(_BODY_VARS + r"((?:/[A-Za-z0-9_.-]+)*)")
+_RUN_REF = re.compile(_BODY_VARS + r"((?:/[A-Za-z0-9_.-]+)*)/?")
+# A ```! fence opens its line, after any indentation, quote or list marker.
+_BANG_FENCE = re.compile(
+    r"[ \t]*(?:>[ \t]*)*(?:(?:[-*+]|[0-9]+[.)])[ \t]+)?(?:`{3,}|~{3,})[ \t]*!"
+)
+_BODY_NAME = re.compile("CLAUDE_(?:PLUGIN_ROOT|SKILL_DIR)", re.IGNORECASE)
+# Suffixes the model or a `!` line runs as code: a reference to one floors
+# the directory holding it, since code beside an entry point runs with it.
+_RUN_SUFFIXES = (
+    ".sh", ".bash", ".zsh", ".py", ".js", ".mjs", ".cjs", ".ts", ".ps1",
+    ".psm1", ".rb", ".pl",
+)  # fmt: skip
+_KEYWORDS = frozenset(
+    "if then else elif fi do done while until for in case esac ! { } [[ ]] time".split()
+)
+_WRAPPERS = frozenset({"env", "exec", "nohup", "builtin", "nice", "timeout", "xargs"})
+_SHELLS = frozenset({"bash", "sh", "zsh", "dash", "ksh"})
+_INTERPRETERS = _SHELLS | frozenset(
+    {"source", ".", "python", "python3", "node", "deno", "bun", "ruby", "perl"}
+    | {"pwsh", "powershell", "tsx", "ts-node"}
+)
+# Interpreter options whose next word is inline code or a module, not a file.
+_INLINE_CODE = frozenset({"-c", "-e", "-p", "-m", "--eval", "--print", "-command"})
+_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+_REDIRECT = re.compile(r"[0-9]*(?:&>>?|>>?&?|<<?<?&?|>\|)")
+_SUBSTITUTED = "$(...)"
+
+
+def _is_body(name: str) -> bool:
+    return any(glob_match(g, name) for g in _BODY_NAMES)
+
+
+class _Unparsed(ValueError):
+    pass
+
+
+def _braced(text: str, i: int) -> int:
+    """The index after the `}` closing the `${` at i."""
+    depth = 0
+    for j in range(i + 1, len(text)):
+        depth += {"{": 1, "}": -1}.get(text[j], 0)
+        if depth == 0:
+            return j + 1
+    raise _Unparsed("unclosed ${")
+
+
+def _double_quoted(text: str, i: int, word: list[str], out: list) -> int:
+    """Read a double-quoted string from just after its `"`; command
+    substitutions inside it are parsed into `out`."""
+    while i < len(text):
+        c = text[i]
+        if c == '"':
+            return i + 1
+        if c == "\\":
+            word.append(text[i + 1 : i + 2])
+            i += 2
+        elif text.startswith("$((", i):
+            raise _Unparsed("arithmetic expansion")
+        elif text.startswith("$(", i) or c == "`":
+            i = _parse(text, i + (1 if c == "`" else 2), ")" if c == "$" else "`", out)
+            word.append(_SUBSTITUTED)
+        elif text.startswith("${", i):
+            end = _braced(text, i + 1)
+            word.append(text[i:end])
+            i = end
+        else:
+            word.append(c)
+            i += 1
+    raise _Unparsed("unclosed double quote")
+
+
+def _parse(text: str, i: int, closer: str | None, out: list) -> int:
+    """Split shell text into simple commands (lists of words, quotes
+    removed), appending each to `out`, from i to `closer` or the end. A case
+    pattern list is dropped; what this reader cannot follow raises."""
+    words: list[str] = []
+    word: list[str] = []
+    started = False
+    cases = 0
+
+    def end_word() -> None:
+        nonlocal word, started, cases
+        if started:
+            value = "".join(word)
+            opening = all(w in _KEYWORDS for w in words)
+            if opening and value == "case":
+                cases += 1
+            elif opening and value == "esac" and cases:
+                cases -= 1
+            words.append(value)
+        word, started = [], False
+
+    def end_command(keep: bool = True) -> None:
+        nonlocal words
+        end_word()
+        if words and keep:
+            out.append(words)
+        words = []
+
+    while i < len(text):
+        c = text[i]
+        if closer is not None and c == closer and not (c == ")" and cases):
+            end_command()
+            return i + 1
+        if c == ")" and cases:
+            end_command(keep=False)  # `pattern)` of a case arm
+            i += 1
+            continue
+        if c == "\\":
+            word.append(text[i + 1 : i + 2])
+            started, i = True, i + 2
+        elif c == "'":
+            end = text.find("'", i + 1)
+            if end < 0:
+                raise _Unparsed("unclosed single quote")
+            word.append(text[i + 1 : end])
+            started, i = True, end + 1
+        elif c == '"':
+            started, i = True, _double_quoted(text, i + 1, word, out)
+        elif text.startswith("$((", i):
+            raise _Unparsed("arithmetic expansion")
+        elif text.startswith("$(", i) or c == "`":
+            i = _parse(text, i + (1 if c == "`" else 2), ")" if c == "$" else "`", out)
+            word.append(_SUBSTITUTED)
+            started = True
+        elif text.startswith("${", i):
+            end = _braced(text, i + 1)
+            word.append(text[i:end])
+            started, i = True, end
+        elif c in " \t":
+            end_word()
+            i += 1
+        elif c == "&" and (text[i - 1 : i] in (">", "<") or text[i + 1 : i + 2] == ">"):
+            word.append(c)
+            started, i = True, i + 1
+        elif c in ";|&\n()":
+            end_command()
+            i += 1
+        else:
+            word.append(c)
+            started, i = True, i + 1
+    if closer is not None:
+        raise _Unparsed(f"unclosed {closer!r}")
+    end_command()
+    return i
+
+
+def _simple_commands(text: str) -> list[list[str]]:
+    out: list[list[str]] = []
+    _parse(text, 0, None, out)
+    return out
+
+
+def _run_words(words: list[str]) -> tuple[list[str], list[str]]:
+    """(paths run, inline shell code) of one simple command: its program, and
+    an interpreter's script file. Redirections, assignments, keywords and
+    wrappers are skipped."""
+    rest = []
+    skip_next = False
+    for w in words:
+        if skip_next:
+            skip_next = False
+        elif _REDIRECT.fullmatch(w):
+            skip_next = True
+        elif not _REDIRECT.match(w):
+            rest.append(w)
+    while rest and (
+        rest[0] in _KEYWORDS or rest[0] in _WRAPPERS or _ASSIGNMENT.match(rest[0])
+    ):
+        wrapper = rest.pop(0) in _WRAPPERS
+        while wrapper and rest and rest[0].startswith("-"):
+            rest.pop(0)
+    if not rest:
+        return [], []
+    program, args = rest[0], rest[1:]
+    if program == "command":
+        if not args or args[0].startswith("-"):
+            return [], []  # `command -v x` looks x up
+        program, args = args[0], args[1:]
+    base = program.rsplit("/", 1)[-1]
+    if base not in _INTERPRETERS:
+        return [program], []
+    run = [program] if "/" in program else []
+    for n, arg in enumerate(args):
+        flag = arg.casefold()
+        if base in _SHELLS and flag.startswith("-") and "c" in flag.lstrip("-")[:3]:
+            return run, args[n + 1 : n + 2]
+        if flag in _INLINE_CODE:
+            return run, []
+        if flag in ("-file", "-f") and base in ("pwsh", "powershell"):
+            return run + args[n + 1 : n + 2], []
+        if not arg.startswith("-"):
+            return run + [arg], []
+    return run, []
+
+
+def _bang_commands(text: str) -> list[str]:
+    """Each `!` command in a body: inline ones, and each ```! block's lines."""
+    commands = [m.group(1) for m in _INLINE_BANG.finditer(text)]
+    block: list[str] | None = None
+    for line in text.split("\n"):
+        if block is None:
+            opener = _BANG_FENCE.match(line)
+            if opener:
+                block = [line[opener.end() :]]
+        elif _CLOSING_FENCE.match(line):
+            commands.append("\n".join(block))
+            block = None
+        else:
+            block.append(line)
+    if block is not None:
+        commands.append("\n".join(block))
+    return commands
+
+
+def _ref_path(
+    root: str, skill: str | None, var: str, rest: str, *, run: bool
+) -> str | None:
+    """A body reference as a repository path: the directory holding it when it
+    runs, else the path itself; None when it leaves the plugin, or names the
+    skill directory outside a skill."""
+    if var == "CLAUDE_SKILL_DIR":
+        if skill is None:
+            return None
+        rest = f"{skill}/{rest}"
+    parts = _resolve(root, rest)
+    if parts is None:
+        return None
+    if run and parts:
+        parts = parts[:-1]
+    return "/".join([root, *parts])
+
+
+def _shell_of(text: str) -> str | None:
+    """The frontmatter `shell` value, "" when unset, None when unreadable."""
+    block, ok = _front_block(text)
+    entries = _front_entries(block or "") if ok else None
+    if entries is None:
+        return None
+    line = entries.get("shell", "")
+    return line.partition(":")[2].strip().strip("\"'").casefold()
+
+
+def _body_paths(path: str, root: str, text: str, unsafe: list[str]) -> list[str]:
+    """What a skill, command or agent body runs, as floor paths. Every
+    well-formed plugin-root or skill-directory reference in the text floors
+    its path (the directory holding a script). In a `!` command, a program or
+    script path must be one of those references: a relative path, one built
+    from another variable, a variable spelling the reader does not consume,
+    shell text it cannot follow, or a non-bash `shell` is unsafe."""
+    parts = path.split("/")
+    skill = "/".join(parts[2:4]) if parts[2].casefold() == "skills" else None
+    found: list[str] = []
+
+    def add(var: str, rest: str, run: bool, where: str) -> None:
+        declared = _ref_path(root, skill, var, rest, run=run)
+        if declared is None or not normalize_path(declared)[1]:
+            unsafe.append(f"{_show(path)} {where} ${{{var}}}{rest}")
+        else:
+            found.append(declared)
+
+    for m in _BODY_REF.finditer(text):
+        rest = m.group(3).rstrip(".")
+        run = rest.casefold().endswith(_RUN_SUFFIXES)
+        # A bare variable or a placeholder (`<name>`) names no file to floor.
+        if rest.strip("/"):
+            add(m.group(1) or m.group(2), rest, run, "names")
+    commands = [] if parts[2].casefold() == "agents" else _bang_commands(text)
+    if commands and _shell_of(text) not in ("", "bash"):
+        unsafe.append(f"{_show(path)} runs `!` commands in a shell not read as bash")
+        return found
+    for command in commands:
+        refs = re.findall(_BODY_VARS, command)
+        if len(_BODY_NAME.findall(command)) > len(refs):
+            unsafe.append(f"{_show(path)} names a variable as {_show(command)}")
+        try:
+            pending = _simple_commands(command)
+            runs = []
+            while pending:
+                words = pending.pop()
+                run, inline = _run_words(words)
+                runs += run
+                for code in inline:
+                    pending += _simple_commands(code)
+        except _Unparsed as exc:
+            unsafe.append(
+                f"{_show(path)} `!` command not read ({exc}): {_show(command)}"
+            )
+            continue
+        for word in runs:
+            m = _RUN_REF.fullmatch(word)
+            if m:
+                add(m.group(1) or m.group(2), m.group(3), True, "runs")
+            elif any(c in word for c in "/$`\\") or word.casefold().endswith(
+                _RUN_SUFFIXES
+            ):
+                unsafe.append(f"{_show(path)} `!` command runs {_show(word)}")
+    return found
 
 
 _SCRIPT_SUFFIXES = (".ps1", ".cjs")
