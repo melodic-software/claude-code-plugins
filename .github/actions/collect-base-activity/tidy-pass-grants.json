@@ -1,0 +1,20 @@
+{
+  "allow": [],
+  "bundled": {
+    "simplify": []
+  },
+  "deny": [
+    "Bash(git *)",
+    "Bash(echo *)",
+    "Bash(grep *)",
+    "Bash(head *)",
+    "Bash(wc *)",
+    "Bash(mkdir *)",
+    "Bash(sha256sum *)",
+    "Bash(shasum *)",
+    "Bash(*/skills/audit/scripts/*)",
+    "Bash(*/skills/audit-noise/scripts/*)",
+    "Bash(*/skills/dissolve-comments/scripts/*)",
+    "Read(//proc/**)"
+  ]
+}

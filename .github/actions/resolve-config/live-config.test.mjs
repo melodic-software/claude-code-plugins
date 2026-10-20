@@ -344,21 +344,42 @@ test("live config: resolve-issue tidies its diff with the four passes in order; 
   assert.deepEqual(others, []);
 });
 
-// The write runner denies git to a run with tidy passes, since git -c runs any
-// command, and grants a pass no Bash of its own. If a pass's allowed-tools
-// applied anyway, each other grant must be the pass's own scripts or a command
-// that runs nothing else. Bundled skills (no plugin) are not in this checkout.
-const HARMLESS = new Set(["echo", "grep", "head", "wc", "mkdir", "sha256sum", "shasum"]);
-test("live config: no tidy pass's allowed-tools grant Bash beyond its scripts, git and harmless commands", () => {
+// Invoking a skill grants its allowed-tools for the turn, and a lane run is one
+// turn (code.claude.com/docs/en/skills, "Pre-approve tools for a skill"). Those
+// commands would run beside the lane's GitHub token, so every rule a tidy pass
+// grants must be reviewed into tidy-pass-grants.json's allow list or matched by
+// one of its deny rules, which the write runner adds and which beat any allow
+// (code.claude.com/docs/en/permissions, "Manage permissions"). A bundled skill
+// has no SKILL.md here; its grants are recorded in the same file.
+const GRANTS = json("../collect-base-activity/tidy-pass-grants.json");
+const ruleRegex = (rule) => {
+  const body = rule.replace(/:\*\)$/, " *)");
+  const pattern = body
+    .split("*")
+    .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+    .join(".*")
+    .replace(/ \.\*\\\)$/, "( .*)?\\)");
+  return new RegExp(`^${pattern}$`);
+};
+const sampleCall = (rule, dir) =>
+  rule.replaceAll("${CLAUDE_SKILL_DIR}", dir).replace(/(:\*| \*)\)$/, " --sample)").replaceAll("*", "x");
+function passGrants(skill) {
+  if (!skill.includes(":")) {
+    assert.ok(Object.hasOwn(GRANTS.bundled, skill), `${skill}: a bundled pass needs its grants recorded`);
+    return GRANTS.bundled[skill];
+  }
+  const [plugin, name] = skill.split(":");
+  const body = readFileSync(new URL(`../../../plugins/${plugin}/skills/${name}/SKILL.md`, import.meta.url), "utf8");
+  const tools = parse(/^---\n([\s\S]*?)\n---/.exec(body)[1])["allowed-tools"] ?? [];
+  return Array.isArray(tools) ? tools : (tools.match(/[^\s,(]+(\([^)]*\))?/g) ?? []);
+}
+test("live config: every rule a tidy pass's allowed-tools grant is reviewed or denied", () => {
+  const deny = GRANTS.deny.map(ruleRegex);
   for (const { skill } of selected("work-resolve-issue", "resolve-issue", ISSUE).tidy.passes) {
-    if (!skill.includes(":")) continue;
-    const [plugin, name] = skill.split(":");
-    const body = readFileSync(new URL(`../../../plugins/${plugin}/skills/${name}/SKILL.md`, import.meta.url), "utf8");
-    const line = /^allowed-tools: (\[.*\])$/m.exec(body)?.[1] ?? "[]";
-    for (const rule of JSON.parse(line).filter((r) => r.startsWith("Bash("))) {
-      const command = rule.slice(5).replace(/^"/, "").split(/[ :"]/)[0];
-      const ok = command.startsWith("${CLAUDE_SKILL_DIR}/scripts/") || command === "git" || HARMLESS.has(command);
-      assert.ok(ok, `${skill}: ${rule}`);
+    const dir = `/home/runner/.claude/plugins/cache/m/${skill.replace(":", "/1.0.0/skills/")}`;
+    for (const rule of passGrants(skill)) {
+      const call = sampleCall(rule, dir);
+      assert.ok(GRANTS.allow.includes(rule) || deny.some((re) => re.test(call)), `${skill}: ${rule} is neither reviewed nor denied`);
     }
   }
 });

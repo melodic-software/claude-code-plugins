@@ -349,8 +349,8 @@ mode from disk, and `Write` creates a file without the executable bit, so that g
 starts with `#!` or ends in `.sh`. A `read` skill that hands on a patch gets neither tool, and its
 sentence says to leave every change uncommitted for the runner to collect. A `prepare: merge-base` skill
 gets neither tool nor those sentences: it stages its resolution and the runner commits
-([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
-grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
+([below](#prepare-merge-base)). Besides the read-only commands `dontAsk` runs and what the skill's own
+`allowed-tools` grant for the run, its `Bash` is what this list allows, one rule per entry in the activity's
 `checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags,
 `CHECK_DATA_ROOT` naming the checkout, `GH_TOKEN` and `GITHUB_TOKEN` unset, and the same git config
@@ -515,8 +515,13 @@ already tidied. `resolve-issue` sets it: `simplify` (bundled with Claude Code) a
   which runs the copy in the checkout with the cutoff and the pass list fixed, `GH_TOKEN` and
   `GITHUB_TOKEN` unset and a check wrapper's git config pins (read-only guards the copy against
   the run's `Edit` and `Write`, not against code the run starts as the same user);
-- denies `Bash(git:*)` and `Bash(git *)`: `ai-slop:audit`'s `allowed-tools` grant `git`, whose `-c`
-  options run any command with the token in the environment, and a deny wins over any allow;
+- denies each rule in `tidy-pass-grants.json` beside the action: invoking a pass grants its
+  `allowed-tools` for the rest of the run
+  ([skills](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill)), beside the
+  token, and a deny wins over any allow
+  ([permissions](https://code.claude.com/docs/en/permissions#manage-permissions)); the list denies
+  `git` (its `-c` options run any command), `echo`, `grep`, `head`, `wc`, `mkdir`, `sha256sum`,
+  `shasum`, the passes' own scripts and `Read(//proc/**)`;
 - tells the run, in `--append-system-prompt`: once the change is committed and the checks pass, run
   the wrapper; on `route: run`, invoke each `run:` line in order, fix what a report-only pass reports
   on the lines the run changed, then run the checks again and commit; spend at most `turns` turns on
@@ -542,13 +547,14 @@ not a cap: `--max-turns` still caps the whole run. The work skill commits its ch
 passes start, so a run that reaches the cap during them keeps that commit on its branch for the
 turn-cap resume.
 
-No pass gets a `Bash` rule of its own. A pass's helper scripts get no rule, and whether its
-pre-compute lines run under its own `allowed-tools` in a `dontAsk` lane is not yet observed: a pass
-that needs one may fail to load or run reduced, and the run names it and moves on; the run record's
-`denied` list shows which commands were refused. A live-config test fails when a pass's
-`allowed-tools` grant `Bash` beyond its own scripts, `git` and commands that run nothing else
-(`echo`, `grep`, `head`, `wc`, `mkdir`, `sha256sum`, `shasum`); the bundled `simplify` is not in the
-checkout, so its grants are unchecked. `Skill(simplify)` is the lane's one bare-name skill rule;
+No pass keeps a `Bash` rule of its own. A pre-compute line a deny matches aborts the pass's
+invocation ([skills](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)),
+so `dissolve-comments`, `audit-noise` and `ai-slop:audit`, whose pre-compute lines run their scripts,
+`grep`, `head` or `echo`, do not load; the run names each and moves on, and the run record's
+`denied` list shows which commands were refused. A live-config test fails when any rule a pass's
+`allowed-tools` grant is neither matched by a deny in `tidy-pass-grants.json` nor in its reviewed
+`allow` list; the bundled `simplify` is not in the checkout, so the file's `bundled` entry records
+its grants (none in Claude Code 2.1.304's registration). `Skill(simplify)` is the lane's one bare-name skill rule;
 whether `--setting-sources user` keeps a `simplify` skill the run writes under `.claude/skills/`
 from matching it is not yet observed. A pre-compute line that does run executes a base
 copy of the pass's plugin in the checkout, the power the issue lane's `run-test-file.sh` already

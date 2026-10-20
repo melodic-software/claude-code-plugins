@@ -201,8 +201,9 @@ runs:
             # What a write skill needs to do its job unattended: edit files,
             # run subagents, keep state files in a scratch directory (added
             # as a working directory) and commit through the action's signed
-            # tool. Its allowed-tools frontmatter grants nothing under
-            # dontAsk: Bash runs only what a rule in this list allows. The PR
+            # tool. Bash runs what a rule in this list allows, the read-only
+            # commands dontAsk runs anyway, and what an invoked skill's
+            # allowed-tools grant for the run (tidy passes deny theirs). The PR
             # is the review step; no tool here limits which files it changes.
             # In merge-base mode the runner commits what the skill staged,
             # so the skill gets no commit tool and no instruction to commit.
@@ -444,10 +445,21 @@ runs:
               chmod +x "$router"
               chmod -R a-w "$TIDY_DIR"
               allowed="$allowed,Bash($router)"
-              # A pass's allowed-tools may grant git, whose -c options run any
-              # command with the token in the environment; a deny wins over
-              # any allow, so git stays off whether or not those grants apply.
-              disallowed="${disallowed:+$disallowed,}Edit(/$TIDY_DIR/**),Write(/$TIDY_DIR/**),Bash(git:*),Bash(git *)"
+              # Invoking a pass grants its allowed-tools for the rest of the
+              # run, and those commands would run beside the GitHub token
+              # (code.claude.com/docs/en/skills, "Pre-approve tools for a
+              # skill"). A deny wins over any allow (code.claude.com/docs/en/permissions,
+              # "Manage permissions"), so the reviewed list beside this action
+              # denies each one, git included (its -c options run any command),
+              # and /proc, where an ancestor's environ holds the token. A test
+              # fails when a pass grants a rule that list neither denies nor allows.
+              mapfile -t tidy_deny < <(jq -r '.deny[]' "$BASE_PATH/.github/actions/collect-base-activity/tidy-pass-grants.json")
+              ((${#tidy_deny[@]})) || fail "tidy: the reviewed grants list denies nothing"
+              disallowed="${disallowed:+$disallowed,}Edit(/$TIDY_DIR/**),Write(/$TIDY_DIR/**)"
+              for rule in "${tidy_deny[@]}"; do
+                [[ $rule =~ ^[A-Za-z]+\([A-Za-z0-9\ _./*-]+\)$ ]] || fail "tidy: a reviewed deny rule is malformed"
+                disallowed="$disallowed,$rule"
+              done
               system_prompt="$system_prompt Tidy your own diff before any review step: once the change is committed and the checks pass, run $router with no arguments, as its own command. It prints route: skip with the reason, or route: run and one run: line per tidy pass. On route: run, invoke each run: line's skill as written, with its arguments and files, in that order, and where a pass only reports, fix what it reports on the lines this run changed; then run the checks again, fix what they report and commit. The tidy passes may use at most $turns turns of this run: stop them when those are spent, so the review and the outcome keep theirs. Name each pass and what it changed in your report; a pass that will not load or run is named and skipped, and never holds back the commit or the outcome. Give a tidy skill only the files its run: line lists."
             fi
             # review-threads: the skill reads the runner's thread file, and

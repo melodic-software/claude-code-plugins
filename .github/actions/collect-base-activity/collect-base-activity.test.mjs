@@ -1152,6 +1152,9 @@ function withTidy(tidy, overrides = {}) {
     path.join(base, "scripts", "tidy-route.sh"),
     'echo "pwd=$PWD gh=${GH_TOKEN-unset} args=$*"\ncat "$4"\n',
   );
+  const grants = path.join(base, ".github", "actions", "collect-base-activity");
+  mkdirSync(grants, { recursive: true });
+  writeFileSync(path.join(grants, "tidy-pass-grants.json"), readFileSync(new URL("./tidy-pass-grants.json", import.meta.url)));
   const file = path.join(dir, "resolved.json");
   writeFileSync(file, JSON.stringify({ selected: { args: "--ci", tidy } }));
   const tidyDir = path.join(dir, "lane-tidy");
@@ -1173,8 +1176,10 @@ test("tidy allows exactly the listed skills, installs their plugins once, and gr
   assert.deepEqual(plugins, ["work-items@melodic-software", "code-tidying@melodic-software", "ai-slop@melodic-software"]);
   assert.deepEqual(wrapperRules(allowed), [`Bash(${router})`]);
   assert.ok(denied.includes(`Edit(/${tidyDir}/**)`) && denied.includes(`Write(/${tidyDir}/**)`), denied.join(" | "));
-  // ai-slop:audit's allowed-tools grant Bash(git:*), and git -c runs any command.
-  assert.ok(denied.includes("Bash(git:*)") && denied.includes("Bash(git *)"), denied.join(" | "));
+  // A pass's allowed-tools apply for the run; the reviewed list denies them.
+  const { deny } = JSON.parse(readFileSync(new URL("./tidy-pass-grants.json", import.meta.url), "utf8"));
+  assert.ok(deny.includes("Bash(git *)") && deny.includes("Read(//proc/**)"), deny.join(" | "));
+  for (const rule of deny) assert.ok(denied.includes(rule), `${rule} not in ${denied.join(" | ")}`);
   const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
   assert.ok(systemPrompt.includes(`run ${router} with no arguments`), systemPrompt);
   assert.ok(systemPrompt.includes("at most 15 turns"), systemPrompt);
