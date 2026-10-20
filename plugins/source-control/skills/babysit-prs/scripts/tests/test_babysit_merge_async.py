@@ -853,6 +853,25 @@ class QueuedPullRequestIsConfirmedLater(AsyncMergeHarness):
         self.assertEqual(self.captures, [])
         self.assertEqual(self._records(), {})
 
+    def test_a_dequeue_names_the_queue_removal_reason(self) -> None:
+        self._enqueue()
+        code = self._later_run(_queue(timeline=[COMMIT, _removed("failed_checks")]))
+        self.assertEqual(code, 10)
+        self.assertTrue(self.output["dequeued"])
+        self.assertIn("removed it as 'failed_checks'", self.output["blockers"][0])
+        self.assertNotIn("signature", self.output["blockers"][0])
+
+    def test_a_branch_protection_dequeue_names_the_squash_signature_cause(
+        self,
+    ) -> None:
+        self._enqueue()
+        code = self._later_run(_queue(timeline=[_removed("branch_protection_failure")]))
+        self.assertEqual(code, 10)
+        blocker = self.output["blockers"][0]
+        self.assertIn("removed it as 'branch_protection_failure'", blocker)
+        self.assertIn("committer", blocker)
+        self.assertIn("reword the body", blocker)
+
     def test_an_unreadable_queue_keeps_the_record_and_holds(self) -> None:
         self._enqueue()
         code = self._later_run(RuntimeError("gh: Server Error (HTTP 502)"))
@@ -914,6 +933,21 @@ class MergeQueueReadBack(unittest.TestCase):
             with self.subTest(timeline=timeline):
                 result = self._read(_queue(timeline=timeline))
                 self.assertEqual(result["failedEjections"], expected)
+
+    def test_the_newest_removal_reason_is_read_until_a_head_change(self) -> None:
+        for timeline, expected in (
+            ([], None),
+            (
+                [_removed("failed_checks"), _removed("branch_protection_failure")],
+                "branch_protection_failure",
+            ),
+            ([_removed("branch_protection_failure"), COMMIT], None),
+            ([FORCE_PUSH, _removed("manually_removed")], "manually_removed"),
+            ([_removed("")], None),
+        ):
+            with self.subTest(timeline=timeline):
+                result = self._read(_queue(timeline=timeline))
+                self.assertEqual(result["lastRemovalReason"], expected)
 
     def test_failed_merge_group_runs_are_the_pull_requests_own(self) -> None:
         runs = {

@@ -2099,6 +2099,19 @@ def _failed_ejections(pr: dict[str, Any]) -> int | None:
     return count if len(nodes) < merge_policy.MAX_QUEUE_EJECTIONS_LIMIT else None
 
 
+def _last_removal_reason(pr: dict[str, Any]) -> str | None:
+    """The reason of the queue's newest removal of the pull request, or None
+    when a head change is newer than every removal or none can be read."""
+    nodes = json_object(pr.get("timelineItems")).get("nodes")
+    for node in reversed(nodes if is_json_array(nodes) else []):
+        node = json_object(node)
+        if node.get("__typename") != "RemovedFromMergeQueueEvent":
+            return None
+        reason = node.get("reason")
+        return reason if isinstance(reason, str) and reason else None
+    return None
+
+
 def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
     """The PR's merge-queue standing as GitHub reports it now.
 
@@ -2143,6 +2156,7 @@ def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
         "state": entry.get("state") if entry else None,
         "position": entry.get("position") if entry else None,
         "failedEjections": _failed_ejections(pr),
+        "lastRemovalReason": _last_removal_reason(pr),
     }
 
 
@@ -2600,6 +2614,7 @@ def check_queued_entry(
         report["status"] = "dequeued"
     else:
         report["status"] = "dequeued"
+        report["removalReason"] = queue.get("lastRemovalReason")
     update_pending(path, key, None)
     return report
 
@@ -2677,6 +2692,17 @@ def _queue_position(queue: dict[str, Any]) -> str:
     return f"{where}, state {queue.get('state') or 'unknown'}"
 
 
+# A queue push the signed-commit rule refuses is removed as
+# `branch_protection_failure`. One known cause: GitHub wraps the body into the
+# squash message, and a message line starting with `committer ` breaks
+# the commit's signature (#7279, #7360). Requeuing rebuilds the same message.
+SQUASH_SIGNATURE_CAUSE = (
+    "if the base requires signed commits, the likely cause is a body line that "
+    "GitHub's 72-character wrap starts with 'committer ', which breaks the squash "
+    "commit's signature; reword the body before requeuing"
+)
+
+
 def queued_entry_hold(
     prior: dict[str, Any], verified: Any
 ) -> tuple[str | None, str | None]:
@@ -2721,11 +2747,19 @@ def queued_entry_hold(
             None,
         )
     if status == "dequeued":
+        removal = prior.get("removalReason")
+        cause = (
+            f"the queue removed it as {removal!r}"
+            if removal
+            else "removed by hand or through the API, a failed or timed-out queue "
+            "check, or a requirement it no longer meets"
+        )
+        if removal == "branch_protection_failure":
+            cause += f"; {SQUASH_SIGNATURE_CAUSE}"
         dequeued = (
-            f"left the merge queue without merging (queued at {since}): removed by "
-            "hand or through the API, a failed or timed-out queue check, or a "
-            "requirement it no longer meets -- dequeued, not merged; the record is "
-            "cleared and the next run gates it again"
+            f"left the merge queue without merging (queued at {since}): {cause} -- "
+            "dequeued, not merged; the record is cleared and the next run gates it "
+            "again"
         )
         return dequeued, dequeued
     if verified is not True:
