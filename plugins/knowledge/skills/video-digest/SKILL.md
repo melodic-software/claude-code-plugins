@@ -109,7 +109,8 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "
 ```
 
 1. **Acquire**. Captions + info JSON (`--skip-download`)
-2. **Caption ladder**. Per-source rungs; STOP and surface if exhausted (see the source spoke)
+2. **Caption ladder**. Per-source rungs; STOP and surface if exhausted, since this action
+   downloads no media for `asr` to fall back on (see the source spoke)
 3. **Transcribe**. Strategy-driven: `captions` | `captions+repair` | `asr`. The source layer
    declares the per-source default; `--transcript-strategy <value>` overrides it. When the
    resolved strategy cannot run, the digest proceeds without a transcript and the reason is
@@ -177,7 +178,8 @@ model in `context/watch-pipeline.md`)
 - **Phase 8. Synthesis**. `recommendations/**` against one resolved `--target`; no auto-implement;
   item 8.4 is the interview handoff, `recommendations/interview.md`, offering `/planning:interview`
 - **Phase 9. Outcome verification**. `check-watch-outcomes.js "<slice-dir>" --write-report` must
-  exit 0, then `watch/watch-state.js close <slice-dir>` closes the slice
+  exit 0, then (with a corpus target configured) `watch/relayout-slice.js` before `close`, which
+  removes the media it copies, then `watch/watch-state.js close <slice-dir>` closes the slice
 
 **Phase markers.** `run-watch.js` marks `acquire`, `transcript`, `watching` and `harvest`. Mark
 the rest with `watch/watch-state.js mark-phase <slice-dir> <marker>` (idempotent): `companion`
@@ -258,7 +260,7 @@ patterns live in the source spokes.
 ## Prerequisites
 
 The skill needs **Git Bash on Windows** (its `shell: bash` invocation fails before any command
-runs without bash) and **Node 20.11 or newer**, or 21.2+ on the 21 line (the runner reads
+runs without bash) and **Node 22 or newer** (the runner reads
 `import.meta.dirname`). Pointers:
 [skills, injected commands](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
 [Node `import.meta.dirname`](https://github.com/nodejs/node/blob/main/doc/api/esm.md#importmetadirname),
@@ -270,6 +272,9 @@ run it by hand when the pre-computed context did not run. It also prints where t
 install. `--data-dir` is the relocation override: pass another directory to both `setup-deps.mjs`
 and `run.mjs` when the default is not writable.
 
+`/knowledge:check` is the model-invocable, read-only report of every tool the plugin declares;
+name it beside the preflight when a prerequisite fails.
+
 1. **video-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
    Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin
    updates); idempotent. Safe to re-run, and re-run after a plugin update.
@@ -280,7 +285,8 @@ and `run.mjs` when the default is not writable.
 3. **ffmpeg**, required for `watch` only (scene-detect frame extraction). Floor 7.1+.
 4. **ImageMagick 7**, required for `watch` only (contact sheets). `magick -version`
 
-If any prerequisite is missing or below its floor, stop and tell the user. `setup-deps.mjs` fixes
+If any prerequisite is missing or below its floor, stop and tell the user, naming the preflight
+and `/knowledge:check` for the readiness report. `setup-deps.mjs` fixes
 the node dependencies; the media binaries are OS-level installs via the platform's package
 manager, or one of the fallbacks below.
 
@@ -317,7 +323,9 @@ that action. A source with no video at all (the 0-video X result above) is not a
 and keeps its text-only path.
 
 **Optional. Faster-whisper** (`large-v3`, `batch_size=8`): powers the `asr` transcript rung,
-selected automatically for caption-absent entries and available on request via
+selected automatically for caption-absent entries (a `watch` whose caption ladder is exhausted
+proceeds caption-less with the downloaded video; a failed or rate-limited caption download
+still stops) and available on request via
 `--transcript-strategy asr` even when captions exist. Either way it runs under `watch` only. ASR
 needs the media file and the `transcript` action never downloads media. Detected at runtime
 through the machine's Python (`python`, `python3`, or `py`. Whichever imports `faster_whisper`)

@@ -491,6 +491,60 @@ class TestWatcherScripts(BridgeCase):
         self.assertEqual(r.returncode, 1)
         self.assertEqual(r.stdout, "")
 
+    def recording_curl(self):
+        """A curl stand-in that logs its argv, then runs the real curl."""
+        log = self.tmp / "curl-argv"
+        stub = self.bin / "curl-stub.sh"
+        stub.write_text(
+            '#!/usr/bin/env bash\nprintf "%s\\n" "$@" >>"$CURL_ARGV_LOG"\n'
+            f'exec "{shutil.which("curl")}" "$@"\n',
+            encoding="utf-8",
+        )
+        stub.chmod(0o755)
+        return log, {"WATCH_CURL": str(stub), "CURL_ARGV_LOG": str(log)}
+
+    def test_watch_starts_no_process_with_the_token_in_its_argv(self):
+        self.hub.append("hello")
+        log, env = self.recording_curl()
+        r = self.run_script("watch.sh", str(self.dir), env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        argv = log.read_text(encoding="utf-8")
+        self.assertIn("/api/wait", argv)
+        self.assertNotIn(self.hub.token, argv)
+
+    def test_wake_starts_no_process_with_the_token_in_its_argv(self):
+        self.hub.append("next")
+        log, env = self.recording_curl()
+        r = self.run_script("wake.sh", str(self.dir), env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("/api/wait", log.read_text(encoding="utf-8"))
+        self.assertNotIn(self.hub.token, log.read_text(encoding="utf-8"))
+        self.assertNotIn(self.hub.token, (self.dir / "applied").read_text())
+
+
+class TestControlServer(unittest.TestCase):
+    """The control listener's socket reuse settings."""
+
+    def test_address_reuse_is_off_only_on_windows(self):
+        self.assertEqual(sb.ControlServer.allow_reuse_address, os.name != "nt")
+
+    def test_windows_binds_exclusively(self):
+        calls = []
+
+        class FakeSocket:
+            def setsockopt(self, *args):
+                calls.append(args)
+
+        server = sb.ControlServer.__new__(sb.ControlServer)
+        server.socket = FakeSocket()
+        with unittest.mock.patch.object(sb.os, "name", "nt"), unittest.mock.patch.object(
+            sb.socket, "SO_EXCLUSIVEADDRUSE", 0x80000004, create=True
+        ), unittest.mock.patch.object(
+            sb.ThreadingHTTPServer, "server_bind", lambda self: None
+        ):
+            server.server_bind()
+        self.assertEqual(calls, [(sb.socket.SOL_SOCKET, 0x80000004, 1)])
+
 
 ENTRY = "plugin:toy@market"
 MAX = {
@@ -608,8 +662,144 @@ class TestManagedPolicy(unittest.TestCase):
         (self.system / "managed-settings.d").mkdir(parents=True)
         self.config.mkdir()
 
-    def policy(self):
-        return sb.managed_policy(self.config, self.system)
+    def policy(self, plist=None, hklm=None, env=None):
+        """managed_policy with both MDM readers stubbed; `hives` records each registry hive asked."""
+        self.hives = []
+
+        def registry(hive):
+            self.hives.append(hive)
+            return hklm
+
+        return sb.managed_policy(
+            self.config, self.system, plist=lambda: plist, registry=registry, env=env or {}
+        )
+
+    def test_drop_ins_combine_lists_and_merge_nested_blocks(self):
+        (self.system / "managed-settings.json").write_text(
+            json.dumps(
+                {
+                    "channelsEnabled": True,
+                    "allowedChannelPlugins": [{"plugin": "a", "marketplace": "m"}],
+                    "env": {"X": "1"},
+                    "fallbackModel": ["one"],
+                }
+            )
+        )
+        (self.system / "managed-settings.d" / "10-more.json").write_text(
+            json.dumps(
+                {
+                    "allowedChannelPlugins": [
+                        {"plugin": "a", "marketplace": "m"},
+                        {"plugin": "b", "marketplace": "m"},
+                    ],
+                    "env": {"Y": "2"},
+                    "fallbackModel": ["two"],
+                }
+            )
+        )
+        (self.system / "managed-settings.d" / "20-more.json").write_text(
+            '{"allowedChannelPlugins": [{"plugin": "c", "marketplace": "m"}]}'
+        )
+        source, settings = self.policy()
+        self.assertEqual(source, "managed settings files")
+        self.assertEqual(
+            [p["plugin"] for p in settings["allowedChannelPlugins"]], ["a", "b", "c"]
+        )
+        self.assertEqual(settings["env"], {"X": "1", "Y": "2"})
+        self.assertEqual(settings["fallbackModel"], ["two"])
+
+    def test_a_higher_ranked_source_list_replaces_the_file_tier_list(self):
+        (self.system / "managed-settings.json").write_text(
+            '{"channelsEnabled": true, "allowedChannelPlugins": '
+            '[{"plugin": "file", "marketplace": "m"}]}'
+        )
+        mdm = {
+            "channelsEnabled": True,
+            "allowedChannelPlugins": [{"plugin": "mdm", "marketplace": "m"}],
+        }
+        source, settings = self.policy(plist=mdm)
+        self.assertEqual(source, "macOS managed preferences")
+        self.assertEqual(
+            settings["allowedChannelPlugins"], [{"plugin": "mdm", "marketplace": "m"}]
+        )
+        (self.config / "remote-settings.json").write_text(
+            '{"allowedChannelPlugins": []}'
+        )
+        source, settings = self.policy(plist=mdm)
+        self.assertEqual((source, settings["allowedChannelPlugins"]), ("server-managed settings", []))
+
+    def test_mdm_ranks_above_the_files_and_below_server_managed(self):
+        (self.system / "managed-settings.json").write_text('{"channelsEnabled": true}')
+        on = {"channelsEnabled": False}
+        self.assertEqual(self.policy(plist=on), ("macOS managed preferences", on))
+        self.assertEqual(self.policy(hklm=on), ("Windows HKLM registry", on))
+        both = self.policy(plist={"model": "a"}, hklm=on)
+        self.assertEqual(both[0], "macOS managed preferences")
+        (self.config / "remote-settings.json").write_text('{"model": "opus"}')
+        self.assertEqual(self.policy(plist=on)[0], "server-managed settings")
+
+    def test_an_mdm_source_with_only_control_keys_falls_through(self):
+        control = {"managedSourcesBehavior": "merge"}
+        self.assertEqual(self.policy(plist=control, hklm=control), (None, None))
+
+    def test_an_unreadable_mdm_source_is_present_and_selects_loopback(self):
+        (self.system / "managed-settings.json").write_text('{"channelsEnabled": true}')
+        self.assertEqual(
+            self.policy(plist=sb.UNREADABLE),
+            ("macOS managed preferences (unreadable)", None),
+        )
+        self.assertEqual(
+            self.policy(hklm=sb.UNREADABLE),
+            ("Windows HKLM registry (unreadable)", None),
+        )
+        r = sb.select_transport(
+            [ENTRY],
+            flags=DEV,
+            auth=MAX,
+            policy=self.policy(hklm=sb.UNREADABLE),
+            env={},
+        )
+        self.assertEqual(r["transport"], "loopback", r)
+        self.assertIn("cannot be read", r["reason"])
+
+    def test_mdm_present_allowing_and_not_allowing_drive_the_transport(self):
+        allow = {"channelsEnabled": True}
+        deny = {"channelsEnabled": False}
+        for stub, want in (
+            ({"plist": allow}, "channels"),
+            ({"plist": deny}, "loopback"),
+            ({"hklm": allow}, "channels"),
+            ({"hklm": deny}, "loopback"),
+        ):
+            r = sb.select_transport(
+                [ENTRY], flags=DEV, auth=TEAM, policy=self.policy(**stub), env={}
+            )
+            self.assertEqual(r["transport"], want, (stub, r))
+        r = sb.select_transport(
+            [ENTRY], flags=DEV, auth=TEAM, policy=self.policy(), env={}
+        )
+        self.assertEqual(r["transport"], "loopback", r)
+
+    def test_hkcu_is_never_consulted(self):
+        self.policy(hklm={"channelsEnabled": True})
+        self.policy()
+        self.assertEqual(set(self.hives), {"HKLM"})
+
+    def test_hklm_counts_on_wsl_only_with_wsl_inherits_windows_settings(self):
+        wsl = {"WSL_DISTRO_NAME": "Ubuntu"}
+        hklm = {"channelsEnabled": True}
+        self.assertEqual(self.policy(hklm=hklm, env=wsl), (None, None))
+        inherits = {**hklm, "wslInheritsWindowsSettings": True}
+        self.assertEqual(
+            self.policy(hklm=inherits, env=wsl), ("Windows HKLM registry", inherits)
+        )
+        self.assertEqual(self.policy(hklm=hklm)[0], "Windows HKLM registry")
+
+    def test_cloud_sessions_skip_mdm(self):
+        cloud = {"CLAUDE_CODE_REMOTE": "true"}
+        mdm = {"channelsEnabled": True}
+        self.assertEqual(self.policy(plist=mdm, hklm=mdm, env=cloud), (None, None))
+        self.assertEqual(self.policy(plist=mdm)[0], "macOS managed preferences")
 
     def test_none_when_no_source_sets_a_policy_key(self):
         self.assertEqual(self.policy(), (None, None))
@@ -631,6 +821,44 @@ class TestManagedPolicy(unittest.TestCase):
         (self.system / "managed-settings.json").write_text('{"channelsEnabled": true}')
         (self.config / "remote-settings.json").write_text('{"model": "opus"}')
         self.assertEqual(self.policy(), ("server-managed settings", {"model": "opus"}))
+
+
+@unittest.skipIf(os.name == "nt", "the reg.exe reader runs on WSL; Windows reads through winreg")
+class TestRegExeReader(unittest.TestCase):
+    """read_registry on WSL, with reg.exe stubbed at subprocess.run."""
+
+    def read(self, result=None, raises=None):
+        def run(*args, **kwargs):
+            if raises is not None:
+                raise raises
+            return subprocess.CompletedProcess(args[0], *result)
+
+        with unittest.mock.patch.dict(os.environ, {"WSL_DISTRO_NAME": "Ubuntu"}), \
+                unittest.mock.patch.object(sb.subprocess, "run", run):
+            return sb.read_registry("HKLM")
+
+    def test_the_settings_value_parses_to_its_dict(self):
+        out = (
+            "\r\nHKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\ClaudeCode\r\n"
+            '    Settings    REG_SZ    {"channelsEnabled": true}\r\n\r\n'
+        )
+        self.assertEqual(self.read((0, out, "")), {"channelsEnabled": True})
+
+    def test_a_key_or_value_not_found_is_absent(self):
+        err = "ERROR: The system was unable to find the specified registry key or value.\r\n"
+        self.assertIsNone(self.read((1, "", err)))
+
+    def test_no_reg_exe_to_run_is_absent(self):
+        self.assertIsNone(self.read(raises=FileNotFoundError("reg.exe")))
+
+    def test_a_timeout_is_unreadable(self):
+        self.assertIs(
+            self.read(raises=subprocess.TimeoutExpired("reg.exe", 15)), sb.UNREADABLE
+        )
+
+    def test_any_other_failure_is_unreadable_whatever_its_language(self):
+        for err in ("FEHLER: Zugriff verweigert\r\n", "ERROR: Access is denied.\r\n", ""):
+            self.assertIs(self.read((1, "", err)), sb.UNREADABLE, err)
 
 
 class TestChannelServer(BridgeCase):

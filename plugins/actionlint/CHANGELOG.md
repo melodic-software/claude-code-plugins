@@ -3,6 +3,32 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1] - 2026-10-20
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [0.14.0] - 2026-10-18
+
+### Added
+
+- Git-hook drift notices honor a decline key at any git config scope: `decline --global` declines an entry in every clone, `checks.git-hooks.declined` set true declines every entry of every plugin, and an entry's own key set to `false` in a clone opts it back in.
+
+### Changed
+
+- Setup links the marketplace adoption guide for what each install scope means to the user.
+
+### Fixed
+
+- The setup git-hook decisions reference now covers the `unsafe-path` decision and the fuller `modified` case the installer reports, and is generated from one shared source so it no longer falls behind.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.13.1] - 2026-10-16
 
 ### Fixed

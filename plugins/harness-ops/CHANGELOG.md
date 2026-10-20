@@ -3,6 +3,70 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.18.0] - 2026-10-20
+
+### Added
+
+- `/harness-ops:morning-brief` frames the issue, pull-request, review-thread, telemetry and annotation text it prints as data, reports an embedded instruction instead of following it, and treats the lane telemetry notes it re-reads as a poisoning route. It names its three lethal-trifecta legs (private data, untrusted text, an outbound channel) and the leg it cuts: the outbound channel. A new eval case, `mb-issue-body-is-data`, plants an instruction in an issue body.
+
+### Changed
+
+- The plugins skill's scope-semantics record now states that a removed marketplace's cache tree was observed gone after the 14-day orphan window (Claude Code 2.1.302, observed by absence), replacing the earlier inference.
+
+- `/harness-ops:morning-brief` labels the zone on every date stamp it prints: the header time, the stranded window's start and each lane's `last-cycle` now read `... UTC`. The stranded-findings bookmark file keeps the bare form. A scheduled prompt that runs the skill names UTC.
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+- **Upstream pointers re-checked against the live docs.** The subagent-limit comment, the Windows Git Bash resolution record, the skill usage counters note, the `--bare` uninstall gotcha, the CLI-versus-desktop scope note and the content-capture key table each carry an anchor, an as-of date and a recheck trigger. The Git Bash finding now names the step-2 skip rule, and the desktop note no longer claims the statusline and env vars are shared.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- The plugins skill's `## Next` section is one `/harness-ops:prerequisites` line, and the no-jq test cases skip with a visible `SKIP` line where `ln -s` cannot make a runnable link.
+
+- `lane-launcher.sh` takes `LANES_PLUGIN_TEST_TIMEOUT_S`, a bound for `claude plugin test` alone, so the hung-plugin-test case no longer races the `claude --version` probe on a slow runner. The production bound stays 20 s.
+
+- `/harness-ops:plugins` sync no longer drops an install that moved during the run just because the CLI said it was already current. For each such id the script compares the post-run snapshot with the pre-mutation one: a different version is reported as `Moved during this run:` (a backward one also under `Downgraded:`), feeds the self-update note and the monitor reload advisory, and is split out of the divergence attribution as "moved during this run, cause unattributed". A version that cannot be read stays a no-op and shows as `Not verified:`. The digest gains `moved_during_run[]` and `noop_unverified`.
+- The self-update note reads "<plugin> moved during this run", since this plugin's install can move through a concurrent update as well as the sweep.
+- The sync spec's Concurrency section no longer calls a concurrent move indistinguishable from a no-op, and the skill's report contract and sync-context load rule account for the new row.
+
+- `/harness-ops:plugins` no longer states a marketplace clone depth or the `11 of 74` unverifiable example. The cache-content check and its context records now say the clone is shallow and re-cloned on update, that only installs recorded at a commit inside the clone can be compared, and that most installs read unverifiable after a refresh.
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- `/harness-ops:plugins sync`'s stale project records row now names the marketplace it covers (`Stale project records (market1): ...`), since the count is built from that marketplace's install records only and read like a machine-wide count. The row also says how many of the counted records are local-scope and that nothing reaps them yet, and the digest's `stale_project_records` gains a `local` count beside `project`.
+
+- The inventory extraction resolves a description or menu description that a bundled skill reads through an arrow over a mode table (`()=>s().description()`, where `s` returns `<table>[<expr>??"<key>"]`), so the `design` skill no longer lands in `integrity.undetermined.description_unresolved` (#7987).
+
+- inventory: a built-in tool whose `aliases` array holds a spread the reader cannot follow now carries `aliases_source: partial` (or `unresolved` when the field is not an array literal) instead of an empty list. `--reader compare` then reports a regex/parser disagreement on such a list as `wrong->unresolved`, not a `value->value` change (#6888).
+
+- `/harness-ops:plugins` audit no longer predicts `claude plugin update` for an in-repo record of a marketplace whose `directory` source is the repository the run stands in: the CLI reads that folder live and leaves the record pinned. The report lists the record as read live from the folder, pinned at its version, and suggests removing and re-adding the record if the pin matters.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+- `/harness-ops:plugins` no longer reports a no-op update as a success. `fleet-state.sh` marks each project or local record `linkedWorktree` and labels a lagging one in a linked git worktree `update ineffective; uninstall clears it`, keeping it in the divergence count. `sync` reports an "already at the latest version" update whose project record is still below the catalog as a failed row. `converge` offers linked-worktree rows only the uninstall strategy and counts an update whose re-read record did not move as a failure.
+
+## [3.17.0] - 2026-10-18
+
+### Added
+
+- `/harness-ops:morning-brief` gains a Lanes section: per lane workflow over the last 7 days, runs, failures by class (rate-limit, max-turns, auth, other), limit stops, restarts and items with 3 or more limit stops (an item is a pull request run's head, else the event and the `#N` that ends the run title), then turn headroom (max and p90 turns against the max-turns cap) with a `CHECK` line and run links when a run hit max-turns or the p90 is at or above 80% of the cap. A run the action stopped for exceeding its turn cap counts as max-turns whatever class the lane record gives. New flags: `--lane-workflows`, `--lane-read-limit`, and the fixture flags `--lane-runs-json` and `--lane-annotations-json`.
+
+- `/harness-ops:morning-brief`'s Lanes section gains a model-usage table, a baseline before model routing changes anything: per activity and profile over the runs that carry a lane record, runs, passes, median turns, max-turns hits and the models the lane records name (`models=`), with no sizes or costs. A pipeline lane's activity comes from its job's name in the jobs read the section already makes; the profile is the record's `profile=`, else `unknown`. New flag `--max-turns-hits N`: a row whose max-turns hits exceed it gets a `RECOMMENDED` line; unset by default, and the table then says no threshold is set.
+
+- **`/harness-ops:audit-mod-posture`**: a read-only inventory of the mods this Claude Code can run. Installed mods are found by `modules` in `hooks/hooks.json` (or an inline hooks object) and read with `claude plugin validate`, which does not load them or change their directory; built-in mods come from an `/harness-ops:inventory` report, with whether each can be turned off read from the live mods overview. Each row's tier is its install scope (managed, local, project or user) or builtin, and a built-in reads on only when its setting is on and it is not gated (a gated one reads off when a listed gate flag is false, else unknown). It states whether the built-in guard is seated (managed settings, or a Team or Enterprise plan) and scores M1-M5. It prints names only, never settings, env or account values. Runtime impact: on demand only, no hook. The installed tier takes about 3.5 s (five mods on the measured host: validate per mod plus one cached docs fetch); the inventory report the built-in tier reads took about 41 s and is produced only when built-ins are wanted. Without it, a footer says built-in mods were not read.
+
+### Fixed
+
+- `/harness-ops:plugins` no longer trusts the cwd to pick the project-scope record when sibling worktrees hold a record of the same id. `converge` Step 4 now checks that the intended record moved and reports a misfire as its own row. `sync` reads a project or local version only from the `currentProject` record, and reports an update that moved another record as a failed row.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
+- `prerequisites.json` declares the Claude Code 2.1.287 floor the hooks module needs, so the prerequisites report names an older Claude Code instead of the module silently not loading.
+
 ## [3.16.2] - 2026-10-16
 
 ### Fixed

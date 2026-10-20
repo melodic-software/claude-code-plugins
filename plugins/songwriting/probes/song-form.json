@@ -1,0 +1,132 @@
+{
+  "skill": "songwriting:song-form",
+  "plugin": "songwriting",
+  "skill_dir": "plugins/songwriting/skills/song-form",
+  "ranking_note": "Authored from the before descriptions at commit 11a25e8bb3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling songwriting skills the near-miss negatives aim at; one or two negatives are adjacent non-songwriting requests.",
+  "competitors": [
+    "songwriting:meter-prosody",
+    "songwriting:rhyme",
+    "songwriting:diagnose",
+    "songwriting:co-write",
+    "songwriting:metaphor",
+    "songwriting:suno"
+  ],
+  "competitor_dirs": {
+    "songwriting:meter-prosody": "plugins/songwriting/skills/meter-prosody",
+    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
+    "songwriting:diagnose": "plugins/songwriting/skills/diagnose",
+    "songwriting:co-write": "plugins/songwriting/skills/co-write",
+    "songwriting:metaphor": "plugins/songwriting/skills/metaphor",
+    "songwriting:suno": "plugins/songwriting/skills/suno"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is my song AABA or verse-chorus? Lyrics below."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Where in the chorus should the title sit to hit hardest?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Verse two says the same thing as verse one. How do I move the story forward?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Should this song have a bridge, and what should it say if so?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How can my chorus mean something different each time it comes back?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Help me lay out the sections for a song about my dad's retirement."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My key line comes at the end of each verse. Is that a refrain song?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What should the third verse add that the first two don't?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My chorus doesn't feel like a payoff. What's off structurally?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Scan the meter of this line."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rhymes for 'retire'."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Give me five versions of line 3."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Name ideas for this song, give me a list."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Outline the sections of my blog post."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is this verse stable or unstable?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me a metaphor for retirement."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a Suno style prompt with [Bridge] tags."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Structure my PowerPoint deck into sections."
+    }
+  ]
+}

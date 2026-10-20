@@ -68,6 +68,42 @@
         "An Agent call dispatches user-experience:evaluator",
         "The brief to the evaluator names the artifact path and the cognitive walkthrough method, without the reasoning behind the flow"
       ]
+    },
+    {
+      "id": 7,
+      "name": "primary-action-below-the-fold",
+      "prompt": "Expert-review the live interview page at http://localhost:3000/interview/3. Each question shows an enlarged product screenshot above the Yes and No answer buttons. Run an expert review of the answering task.",
+      "expected_output": "An expert review of the live app that walks the task at phone, tablet and desktop sizes, records whether the answer buttons are on screen without scrolling, and reports the below-the-fold primary action as a finding with the size and distance.",
+      "files": [],
+      "expectations": [
+        "The review checks the task at a phone, a tablet and a desktop size",
+        "The review reports the answer buttons as below the fold at desktop size, as a finding with a severity rating",
+        "The finding states how far down the page the buttons sit or that they need scrolling, and recommends bringing the primary action on screen"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "ambiguous-this-page-question",
+      "prompt": "Run an expert review of our live research app. It has three views: Home, Study and Results, and each ends with the prompt \"What would you change about this page?\"",
+      "expected_output": "An expert review that reads the questions the app shows and flags \"this page\" as ambiguous across the three views, naming the possible readings.",
+      "files": [],
+      "expectations": [
+        "The review flags \"this page\" in the question as able to point at more than one view",
+        "The finding names at least two of the possible readings (Home, Study, Results, or the page the person is on)",
+        "The recommendation names the view or element the question is about"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "stale-upscaled-in-product-screenshot",
+      "prompt": "Run an expert review of our live onboarding page. It shows a screenshot of our product inside the product. The page's image is a 400 px wide file shown at 1,200 px wide, taken from an older build with a toolbar and a notification badge; the live screen is in dark theme and the screenshot is light.",
+      "expected_output": "An expert review that compares the in-product screenshot with the live screen and theme, checks natural against displayed size, and reports the out-of-date content, theme mismatch and upscale as findings.",
+      "files": [],
+      "expectations": [
+        "The review reports the screenshot as out of date against the live screen (the retired toolbar, the fake badge)",
+        "The review reports the 400 px image displayed at 1,200 px as an upscale",
+        "The review reports the theme mismatch between the screenshot and the live screen"
+      ]
     }
   ]
 }

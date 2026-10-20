@@ -1,6 +1,6 @@
 {
   "name": "eol-normalizer",
-  "version": "0.10.0",
+  "version": "0.10.2",
   "description": "Normalize the line endings of the files a batch of tool calls wrote to their .gitattributes eol value in the working tree, once per batch; silent and never blocking.",
   "author": {
     "name": "Melodic Software",

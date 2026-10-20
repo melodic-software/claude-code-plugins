@@ -1,6 +1,6 @@
 {
   "name": "review",
-  "version": "0.46.2",
+  "version": "0.48.0",
   "description": "Code-review toolkit: nine agents, read-only over the reviewed code, plus orchestration skills for the quality gate, fan-out, and enforceability audit (/review:audit-enforceability), a pull-request change digest with an interactive view (/review:explain-change), a fan-out sweep workflow (/review:fanout-sweep), and CI lane commands (/review:code-review, /review:security-review) for org reusable workflows.",
   "author": {
     "name": "Melodic Software",
@@ -18,6 +18,12 @@
     "skill"
   ],
   "userConfig": {
+    "connected_page_guard_enabled": {
+      "type": "boolean",
+      "title": "Connected-page guard",
+      "description": "Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page.",
+      "default": true
+    },
     "ratchet_offer": {
       "type": "boolean",
       "title": "Ratchet offers",

@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [SKILL-NAME|ROOT ...]` runs a twenty-nine-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [SKILL-NAME]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [ROOT ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. `check` and `validate-evals` FAILs block; the other two actions are advisory. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [SKILL-NAME|ROOT ...]` runs a thirty-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [SKILL-NAME]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [ROOT ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. `check` and `validate-evals` FAILs block; the other two actions are advisory. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget|measure-invocation] [<skill-or-root> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -12,7 +12,7 @@ metadata:
 ## Purpose
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
-`check-skill.sh`. Twenty-nine checks with no model invocation, so results are reproducible in CI or a
+`check-skill.sh`. Thirty checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
 JSON schema, then runs the bundled `check-evals-quality.sh`, a deterministic eval-quality lint
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
@@ -291,6 +291,11 @@ and review against the invariant.
   `CHECK_SKILL_SKILLS_ROOT` (or `CLAUDE_PROJECT_DIR`) so the non-git checks still resolve a
   skills root; without either and without a git toplevel, the script exits 2 naming the
   missing root.
+- Check 31 (a `${user_config.KEY}` token as a condition with no fallback) FAILs only where a
+  settings-token baseline applies: `CHECK_SKILL_SETTINGS_TOKEN_BASELINE`, or the bundled default
+  when the checker runs from the repository holding the skill. In a consumer repository or a
+  plugin-cache tree its hits are WARNs; set that variable to your own baseline file (empty for
+  none) to make them block.
 - `check-skill.sh` runs `npx markdownlint-cli2` for check 6; when `npx` is absent that check downgrades
   to a WARN rather than failing, so a run on a machine without Node still gates on every other check.
 - **Check 6 defers to the skill's own repo markdownlint config.** `markdownlint-cli2` discovers config

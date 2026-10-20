@@ -1,7 +1,9 @@
 name: pr-require-checks
 
 on:
-  # A dispatch runs the full contract corpus.
+  # A dispatch runs the full contract corpus. pr-merge.yml's
+  # `dispatch-full-run` starts one on main after every merge, whoever merged,
+  # collapsing a burst of merges into one run of the newest tip.
   workflow_dispatch:
   # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
   # repository's merge-queue ruleset, with the org `pull_request` rule and no
@@ -313,10 +315,8 @@ jobs:
       # pull request touching only a lockfile, only a workflow file or only the
       # ShellCheck configuration changes what every lane would find, so it must
       # run every lane rather than none. `shell`, `python`, `docs` and
-      # `powershell` feed no output: `shell`, `python` and `powershell` are the
-      # groups the path filters of .github/workflows/pr-test-windows.yml repeat,
-      # and the unread groups exist so a consumer can be added without touching
-      # the resolver. The test lanes read the plan below, not a group.
+      # `powershell` feed no output: the unread groups exist so a consumer can
+      # be added without touching the resolver. The test lanes read the plan below, not a group.
       # Patterns are ROOT-ANCHORED gitignore rules, and the action rejects `!`,
       # `?` and `+` outright.
       #
@@ -592,7 +592,9 @@ jobs:
       # reusable ran in SARIF mode and gated on `fail-on-severity: low`; the
       # github format exits non-zero on any finding, which is the same
       # threshold. GH_TOKEN comes from the job's read-only workflow token, for
-      # the online audits.
+      # the online audits. scripts/run-zizmor.sh runs the offline audits first,
+      # then the online ones, where only a GitHub API network error (403, 429,
+      # 5xx, no response) becomes a warning instead of a failure.
       #
       # Every `uses: ./.github/actions/download-full-history` in this repository
       # carries `# zizmor: ignore[self-repository]`. zizmor 1.30 added that
@@ -612,7 +614,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash scripts/run-hygiene-gate.sh zizmor {0}
-        run: zizmor --format=github --persona=regular --color=never -- .
+        run: scripts/run-zizmor.sh
 
       # The rate-limit guard's operable floor is INLINED into six surfaces on
       # purpose: an installed plugin cannot read a sibling plugin's files at
@@ -718,8 +720,15 @@ jobs:
       # Stale-base squash merges can silently revert recently-landed fixes when
       # a PR is cut from a base that has since moved, and the squash deletes
       # the tests that would have caught the drop (claude-code-plugins#2691).
-      # This gate covers the stale-BASE class only; a branch stale in content
+      # This check covers the stale-BASE class only; a branch stale in content
       # but current in history belongs to the post-merge silent-revert canary.
+      #
+      # ADVISORY ON pull_request (#7871). `--warn` reports every overlap as a
+      # ::warning listing the overlapping paths and exits 0; only an
+      # inconclusive git state (exit 2) fails the step. The merge queue builds
+      # and tests each change on the current base before it lands, so a PR
+      # that is only behind a fast-moving main is not failed here. merge_group
+      # declines below, as before.
       #
       # THE HEAD COMMIT, NOT THE MERGE COMMIT. On a pull_request event this job
       # checks out the synthetic merge commit, whose merge-base with the target
@@ -728,7 +737,7 @@ jobs:
       # exactly that reason. Running it in a detached worktree of the same
       # clone keeps that head-tip comparison while leaving every other step in
       # this job on the merge commit, where the diff-scoped gates want to be.
-      - name: Fail when behind base on overlapping paths
+      - name: Warn when behind base on overlapping paths
         id: stale_base
         continue-on-error: true
         env:
@@ -757,7 +766,7 @@ jobs:
           }
           trap cleanup EXIT
           cd "$head_tree"
-          "$GITHUB_WORKSPACE/scripts/check-stale-base-overlap.sh" --check "origin/$BASE_REF"
+          "$GITHUB_WORKSPACE/scripts/check-stale-base-overlap.sh" --warn "origin/$BASE_REF"
 
       # The docs-only short-circuit is a fail-open shape by construction:
       # getting it wrong makes a heavy lane report success without running. Its
@@ -952,7 +961,6 @@ jobs:
           builtin-schema: vendor.github-workflows
           files: >-
             .github/workflows/pr-require-checks.yml
-            .github/workflows/pr-bump-plugin-version.yml
             .github/workflows/post-merge-detect-silent-revert.yml
             .github/workflows/pr-test-windows.yml
             .github/workflows/release-publish-plugins.yml
@@ -1669,10 +1677,12 @@ jobs:
         run: scripts/check-plugin-catalog-enablement.sh
 
       # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose
-      # newest version heading does not outrun the manifest (static --check), a
-      # change that bumps a plugin's manifest version must update that plugin's
-      # CHANGELOG.md in the same diff (--check-bump), and no change may DROP a
-      # version heading a changelog already carried (--check-preserved).
+      # newest version heading does not outrun the manifest (static --check),
+      # only the release pull request may move a plugin's version or add a
+      # CHANGELOG heading, and its bump must be monotonic and documented
+      # (--check-bump), and no change may DROP a version heading a changelog
+      # already carried (--check-preserved). Every plugin is in fragment mode,
+      # so no other pull request bumps a version.
       # Existing "versioned but changelog-less" debt is grandfathered by name
       # in scripts/changelog-parity-baseline.txt with a stale guard; the bump
       # gate is never relaxed by the baseline.
@@ -1718,7 +1728,7 @@ jobs:
             echo "head_ref=$head_ref"
             echo "head_sha=$head_sha"
           } >>"$GITHUB_OUTPUT"
-      - name: Verify a version bump updates the plugin's CHANGELOG.md
+      - name: Verify only the release pull request versions a plugin, monotonically
         id: changelog_parity_bump
         continue-on-error: true
         env:
@@ -1737,7 +1747,10 @@ jobs:
             fi
             scripts/check-changelog-parity.sh --check-bump 'HEAD^1'
           elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
+            # A version collision or regression here means the branch is only
+            # behind a main that moved; the merge queue run above enforces it
+            # against the tree the change lands on (#7871).
+            CHANGELOG_PARITY_COLLISIONS=advisory scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
           else
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
           fi
@@ -2562,6 +2575,10 @@ jobs:
             requirements+=(--requirement plugins/animation/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
+          # The animation render tests capture through the locked playwright's headless Chromium.
+          if [[ "$leg_needs" == *animation* ]]; then
+            node node_modules/playwright/cli.js install --only-shell chromium
+          fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           # The inventory's parser packages, installed the way a first
@@ -2618,7 +2635,7 @@ jobs:
       # makes no more legs than it has suites.
       - name: Run this leg's shell suites
         env:
-          # The animation suites fail on a missing numpy or opencv here instead of skipping green.
+          # The animation suites fail on a missing numpy, opencv or Chromium here instead of skipping green.
           ANIMATION_REQUIRE_DEPS: '1'
           # The speech suite fails on a missing numpy here instead of skipping green.
           SPEECH_REQUIRE_DEPS: '1'
@@ -2629,6 +2646,10 @@ jobs:
           # The check-visual-parity pixel cases fail on a missing pixelmatch or pngjs here instead of skipping green.
           VISUAL_COMPARE_REQUIRE: '1'
           VISUAL_COMPARE_DEPS_DIR: .work
+          # On main (schedule, dispatch) a failing suite in
+          # scripts/run-plugin-tests-advisory.txt warns instead of failing the
+          # leg; pull requests and merge groups still fail on it.
+          PLUGIN_TEST_ADVISORY: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
         run: |
           jq -r --arg leg "$LEG" '.[$leg] // [] | .[]' <<<"$PLAN" >"$RUNNER_TEMP/leg-suites.txt"
           if [ ! -s "$RUNNER_TEMP/leg-suites.txt" ]; then
@@ -2704,6 +2725,10 @@ jobs:
             requirements+=(--requirement plugins/animation/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
+          # The animation render tests capture through the locked playwright's headless Chromium.
+          if [[ "$leg_needs" == *animation* ]]; then
+            node node_modules/playwright/cli.js install --only-shell chromium
+          fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           # test_fixture_parse.py and test_parser_reader.py run instead of skipping.
@@ -2872,11 +2897,21 @@ jobs:
 
       # resolve-config has pinned dependencies (yaml, ajv) that
       # run-outside-node-suites.sh never installs, so it installs and tests here.
+      #
+      # This suite and the next print `::error` lines on purpose, from fixtures
+      # that exercise a script's own failure messages, so each runs with
+      # workflow commands stopped: a green run raises no failure annotations.
+      # Pinned by scripts/ci-test-node-stop-commands.test.sh.
       - name: Test resolve-config
         run: |
           [[ " $PACKAGES " == *" .github/actions/resolve-config "* ]] || exit 0
           npm ci --ignore-scripts --prefix .github/actions/resolve-config
-          npm test --prefix .github/actions/resolve-config
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          rc=0
+          npm test --prefix .github/actions/resolve-config || rc=$?
+          echo "::$token::"
+          exit "$rc"
 
       # The packages of scripts/outside-node-packages.txt, each through its own
       # `npm test` (#3703); the runner takes a package directory as a path
@@ -2889,7 +2924,12 @@ jobs:
             echo "The plan names none of these packages."
             exit 0
           fi
-          scripts/run-outside-node-suites.sh --paths "$RUNNER_TEMP/outside-node-paths.txt"
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          rc=0
+          scripts/run-outside-node-suites.sh --paths "$RUNNER_TEMP/outside-node-paths.txt" || rc=$?
+          echo "::$token::"
+          exit "$rc"
       - name: Save the npm cache
         if: github.ref == 'refs/heads/main' && steps.npm_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -2978,6 +3018,51 @@ jobs:
           # linkage check and its pull requests stay mergeable. An exact-login
           # match, never a `*[bot]` pattern.
           exempt-authors: 'dependabot[bot]'
+      # A BROKER-FETCHED CHANGE NAMES ITS PIN PULL REQUEST. The lanes token
+      # broker in melodic-software/azure-iac runs resolve-config at the commit
+      # in its src/lanes-token-broker/resolve-config.pin, fetched by its
+      # scripts/deploy/fetch-resolve-config.sh; BROKER_PATHS below is that
+      # script's runtime list and changes when it does. A change to one of
+      # those files without a pin bump leaves the broker on the old code (#8313
+      # denied every pr-unblock token as config-invalid until azure-iac#44).
+      # The body line names the paired pin pull request; it is re-read on a
+      # body edit, since this job runs on every contract-only event. A merge
+      # group carries no body; the pull request was checked before enqueue.
+      # Pinned by scripts/ci-broker-pin.test.sh, which runs this body.
+      - name: Require a broker pin PR for a broker-fetched change
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          BROKER_PATHS='.github/actions/resolve-config/resolve.mjs
+          .github/actions/resolve-config/dimensions.mjs
+          .github/actions/resolve-config/predicate.mjs
+          .github/actions/resolve-config/vocabulary.mjs
+          .github/actions/resolve-config/package.json
+          .github/actions/resolve-config/package-lock.json'
+          for attempt in 1 2 3; do
+            if files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | .filename, (.previous_filename // empty)'); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          touched=
+          for path in $BROKER_PATHS; do
+            if grep -qxF "$path" <<<"$files"; then touched="$touched $path"; fi
+          done
+          if [ -z "$touched" ]; then
+            echo "No file the lanes token broker fetches changed."
+            exit 0
+          fi
+          pin=$(tr -d '\r' <<<"$PR_BODY" | sed -nE 's/^Broker pin: (melodic-software\/azure-iac#[0-9]+)[[:blank:]]*$/\1/p')
+          if [ -z "$pin" ]; then
+            echo "::error::this pull request changes files the lanes token broker runs at a pinned commit:$touched. Open the azure-iac pull request that will bump src/lanes-token-broker/resolve-config.pin to this change's merge commit, and add a body line 'Broker pin: melodic-software/azure-iac#<n>' naming it."
+            exit 1
+          fi
+          echo "Broker-fetched change:$touched; paired pin pull request: $pin"
       # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
       # and tested nothing, and the aggregate below passes those skips. A green
       # draft cannot admit a merge: a draft cannot merge, and the merge-queue

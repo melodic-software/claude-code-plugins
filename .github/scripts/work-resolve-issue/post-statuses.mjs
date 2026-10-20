@@ -21,7 +21,7 @@ import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { isLaneBranch, readBranch, readOutcome } from "./report-outcome.mjs";
+import { isLaneBranch, readBranch, readFunding, readOutcome, readTurnCap } from "./report-outcome.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
 const STEP_STATES = { pass: "success", fail: "failure" };
@@ -33,12 +33,15 @@ const DESCRIPTION = {
   failure: "Failed in the work lane run.",
   error: "Did not finish, or was not reported, in the work lane run.",
 };
+const TURN_CAP = "Stopped at the turn cap.";
+const FUNDING = "Stopped on the lane's funding.";
 
 // The statuses to post, in order; none without a lane branch. A null outcome
 // is a reused branch whose run's report this run never read: only this run's
 // report-outcome posts, so the statuses the earlier run posted on the same
-// head stand.
-export function plan({ outcome, branch, resolveResult, reportResult }) {
+// head stand. `turnCap` and `funding` are the runner's records, which name the
+// cause only for a run that left no outcome of its own; funding wins.
+export function plan({ outcome, branch, resolveResult, reportResult, turnCap = null, funding = null }) {
   if (!branch) {
     return [];
   }
@@ -73,10 +76,11 @@ export function plan({ outcome, branch, resolveResult, reportResult }) {
       }
     }
   }
+  const cause = outcome.unread === true ? (funding !== null ? FUNDING : turnCap !== null ? TURN_CAP : null) : null;
   return [...states].map(([activity, state]) => ({
     context: `pipeline/${activity}`,
     state,
-    description: DESCRIPTION[state],
+    description: cause && activity === "resolve-issue" ? cause : DESCRIPTION[state],
   }));
 }
 
@@ -121,6 +125,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
       branch,
       resolveResult: env.RESOLVE_RESULT,
       reportResult: env.REPORT_RESULT,
+      turnCap: readTurnCap(dir),
+      funding: readFunding(dir),
     });
     if (!statuses.length) {
       console.log("post-statuses: no lane branch, so no status is posted");

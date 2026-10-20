@@ -110,6 +110,13 @@ Two further shapes, both first seen in 2.1.284:
   with `Qi=[{kind:"report",...},...]`. When the table binding is an array of object literals, each
   row is expanded into its own skill and `bundled_skill_notes.rosters_resolved` records the table
   and row count. A loop over anything else stays a `dynamic_roster`.
+- **Arrow over a mode table.** `description:()=>s().description(),menuDescription:()=>s().menu()`
+  with `s=()=>vs[n()??"consent"]` and `vs={types:{...},hub:{...},consent:{...}}` (the `design`
+  skill, 2.1.302). When the arrow returns `<local>().<member>()` (or `.<member>`), `<local>` is an
+  arrow returning `<table>[<expr>??"<key>"]`, and `<table>` is an object literal of object
+  literals, the field resolves with source `arrow`: `value` is the `<key>` row's member and
+  `variants` lists every row's member. A row member that does not reduce to a string is left out;
+  a `<key>` row that does not reduce, or no row that does, leaves the field `unresolved`.
 
 `resolved` counts registration calls, not rows, so an expanded roster never masks an unresolved
 call. A registrar call must stand alone: `productionRemoteToolsAnnounceDeps({` ends in `ps` and is
@@ -299,7 +306,10 @@ Per tool: `description` through `resolve_field` with methods read as getters (`a
 description(){return X}`), which often yields the per-call permission text or nothing, so
 `search_hint` is kept beside it; `deferred` from `shouldDefer`, `always_load` from `alwaysLoad`
 (absent is false, `!0`/`!1` as written, anything else null and listed in `flag_driven`); `gated`
-when the literal carries `isEnabled`; `aliases`; `user_facing_name` when it differs.
+when the literal carries `isEnabled`; `aliases`, with `aliases_source` always written: `literal`
+when every element resolved, `absent` when the tool declares none, `partial` when an element of
+the array (a `...spread` included) did not resolve, so the list is a floor, and `unresolved` when
+the field is not an array literal; `user_facing_name` when it differs.
 
 ### 11. Find built-in plugins by the registry the binary keeps
 

@@ -7,6 +7,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.13.1] - 2026-10-20
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [0.13.0] - 2026-10-18
+
+### Added
+
+- `/context-budget:audit --measure-only` prints the current startup tokens per category to stdout for a read-only caller. It writes no ledger row, snapshot or other file and never installs or offers the Agent SDK. With the SDK absent it exits 4 with a one-line message and does not fall back to `cli-parse`.
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
+- `prerequisites.json` declares the Claude Code 2.1.287 floor the hooks module needs, so the prerequisites report names an older Claude Code instead of the module silently not loading.
+
 ## [0.12.1] - 2026-10-16
 
 ### Changed

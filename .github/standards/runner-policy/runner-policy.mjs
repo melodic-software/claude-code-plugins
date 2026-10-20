@@ -231,12 +231,25 @@ export function validatePolicy(value) {
           );
         }
       }
+      if (contract.role && !contract.allowedInputs.includes("role")) {
+        throw new ConfigurationError(
+          `reusable workflow contract ${reference}.allowedInputs must include role when role is declared`,
+        );
+      }
       if (Object.hasOwn(contract, "allowedCallerPermissions")) {
+        // A secret maps to its own name, or, for a contract that declares a
+        // funding role, to that role's prefixed name: several roles can then
+        // share one repository, and the role is a reviewed literal.
+        const prefix = contract.role ? `${contract.role.toUpperCase().replaceAll("-", "_")}_` : "";
         for (const [name, expression] of Object.entries(contract.allowedSecrets)) {
           const expected = `\${{ secrets.${name} }}`;
-          if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name) || expression !== expected) {
+          const roleNamed = prefix ? `\${{ secrets.${prefix}${name} }}` : expected;
+          if (
+            !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name) ||
+            (expression !== expected && expression !== roleNamed)
+          ) {
             throw new ConfigurationError(
-              `reusable workflow contract ${reference}.allowedSecrets.${name} must be exactly ${JSON.stringify(expected)} when allowedCallerPermissions is present`,
+              `reusable workflow contract ${reference}.allowedSecrets.${name} must be exactly ${JSON.stringify(expected)}${prefix ? ` or ${JSON.stringify(roleNamed)}` : ""} when allowedCallerPermissions is present`,
             );
           }
         }
@@ -267,6 +280,7 @@ export function validatePolicy(value) {
     approvedReusableWorkflowContracts.set(reference, {
       routing: contract.routing,
       ...(contract.runnerInput ? { runnerInput: contract.runnerInput } : {}),
+      ...(contract.role ? { role: contract.role } : {}),
       allowedInputs: new Set(contract.allowedInputs),
       allowedSecrets: contract.allowedSecrets,
       allowedSecretNames: new Set(Object.keys(contract.allowedSecrets)),
@@ -958,6 +972,13 @@ function reusableWorkflowStatus(job, policy, workflow) {
       isReusable: true,
       approved: false,
       reason: `the reviewed reusable workflow must receive its ${contract.runnerInput} input explicitly`,
+    };
+  }
+  if (contract.role && inputs.role !== contract.role) {
+    return {
+      isReusable: true,
+      approved: false,
+      reason: `the reviewed reusable workflow must receive role: ${contract.role} as a literal`,
     };
   }
   if (contract.allowedCallerPermissions) {
@@ -1863,6 +1884,7 @@ function reviewedContractSurface(contract) {
   return normalizeStructuralValue({
     routing: contract.routing,
     ...(contract.runnerInput ? { runnerInput: contract.runnerInput } : {}),
+    ...(contract.role ? { role: contract.role } : {}),
     allowedInputs: [...contract.allowedInputs].sort((left, right) => left.localeCompare(right)),
     allowedSecrets: contract.allowedSecrets,
     ...(contract.fixedRunsOn

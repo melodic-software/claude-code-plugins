@@ -3,6 +3,24 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.1] - 2026-10-20
+
+### Fixed
+
+- All planning rows (design, interview, plan and PRD) leave the settings-token baseline, since those skills now state each token with an inline fallback.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [0.30.0] - 2026-10-18
+
+### Added
+
+- `check` gains check 31: a `${user_config.KEY}` token used as the subject of a condition ("When `${user_config.x}` is true") with no inline fallback for the unexpanded token FAILs. Files recorded in `scripts/settings-token-baseline.txt` with their hit count WARN while the count holds, and the list can only shrink. Those rules apply where a baseline applies: one named by `CHECK_SKILL_SETTINGS_TOKEN_BASELINE`, or the bundled default when the checker runs from the repository holding the skill; in a consumer repository or a plugin-cache tree every hit WARNs. Runtime impact: CI and on-demand runs only.
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.29.4] - 2026-10-16
 
 ### Changed

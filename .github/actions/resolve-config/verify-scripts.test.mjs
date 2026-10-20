@@ -76,8 +76,9 @@ for (const path of [
   });
 }
 
-// Only the write runner grants them, so a read skill's list would do nothing.
-test("verify-scripts with effect read fails the schema", () => {
+// Only the runner that stages edit tools grants them, so a read skill that
+// hands on no patch would list them for nothing.
+test("verify-scripts with effect read and no applied-by.patch fails the schema", () => {
   rejected({ effect: "read", "verify-scripts": ["scripts/check-x.sh"] });
 });
 

@@ -37,7 +37,10 @@ extraction waits for the third (Rule of Three).
   not page content: it takes no tag and no `tag-exempt` sub-shape, stays out of every Key claims
   section, and `SOURCES.md` records it once as a channel artifact. Fence attributes arrive as `theme={null}`. Formatter
   hooks expand hard tabs on the surfaces they are allowed to touch, never `source.*`, which
-  stays the unaltered fetch. URLs arrive `\&`-escaped. Digest text reproduces these artifacts
+  stays the unaltered fetch. URLs arrive `\&`-escaped. Some real headings arrive as HTML tags
+  (`<h2 id="where-skills-live">`, any of `<h1>`-`<h6>` with an `id`) instead of `#` lines, so the
+  Phase 2 inventory counts both forms; a `#`-only scan drops an H2 and merges its section into
+  the previous unit. Digest text reproduces these artifacts
   byte-exact and never repairs them. The reader-facing exception under **Archive-reading
   conventions** covers escaped links: a downstream artifact written *for a reader* repairs the
   corruption and discloses that it did.
@@ -99,6 +102,12 @@ extraction waits for the third (Rule of Three).
   original: a row reads from it only the values the payload states and cites `source.html` as its
   original. Never compute a number from SVG geometry (path coordinates, bar lengths, axis
   positions); a value the figure shows only as geometry is recorded as not stated.
+- **Figure text parts (both blog hosts).** Reading figure text from `source.html` covers every
+  part a figure carries, not only its caption: the figcaption title, subtitle and `FIG X` id; the
+  `alt` and `aria-label` values; inline SVG `<text>`; and control labels (button, tab, slider
+  and preset text). After extracting, check the extracted file against this list, one part at a
+  time, and add the rows for any part found in `source.html` and missing from it. Rows go under
+  `## Figure claims` as `**FN.**`.
 - **PDFs (model/system cards):** download the original binary as `source.pdf` plus a text
   extraction as `source.txt`; both are originals, the extraction tooling is named in the
   checklist.
@@ -281,7 +290,8 @@ asserts:
 - **A quote whose clauses differ in applicability is split.** When one source sentence joins
   clauses that would take different tags (one transfers to the harness, another names an API
   request parameter, say), the digest writes one claim row per clause. Each row quotes its own
-  clause verbatim, marking the cut with an ellipsis per the `SKILL.md` Phase 3 truncation rule,
+  clause as an exact contiguous substring, noting the cut outside the fence per the
+  `SKILL.md` Phase 3 verbatim rule,
   and carries its own tag and evidence. A row never carries two tags. Where a clause cannot be
   read without the other, each row quotes the whole sentence and its tag line names the clause
   the tag covers; that is the only case where a tag covers less than its row's quote.

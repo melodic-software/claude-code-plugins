@@ -94,6 +94,14 @@ async page => {
   ok("Notes tab", await page.textContent("#flyTitle") === "Notes to Claude" && !!(await page.$("#noteText")));
   await page.click('#tabs [data-panel="settings"]'); await page.waitForTimeout(200);
   ok("Settings tab", await page.textContent("#flyTitle") === "Settings" && !!(await page.$('[data-set="shortcuts"]')));
+  await page.focus('#tabs [data-panel="settings"]'); await page.keyboard.press("ArrowRight"); await page.waitForTimeout(200);
+  ok("ArrowRight wraps from the last tab to the first and moves focus with it", await page.evaluate(() => document.activeElement.dataset.panel === "visuals" && document.activeElement.getAttribute("aria-selected") === "true" && document.getElementById("flyTitle").textContent.startsWith("Visuals")));
+  await page.keyboard.press("End"); await page.waitForTimeout(150);
+  ok("End goes to the last tab; only the selected tab is in the tab order", await page.evaluate(() => document.activeElement.dataset.panel === "settings" && [...document.querySelectorAll('#tabs [role="tab"]')].filter(b => b.tabIndex === 0).length === 1));
+  await page.keyboard.press("ArrowLeft"); await page.waitForTimeout(150);
+  ok("ArrowLeft goes back one tab", await page.evaluate(() => document.activeElement.dataset.panel === "activity"));
+  await page.keyboard.press("ArrowRight"); await page.waitForTimeout(150); // back on Settings, where the steps below expect to be
+  ok("the font stacks name no web font the CSP cannot load", await page.evaluate(() => { const c = getComputedStyle(document.documentElement); return !/Plex|Newsreader/.test(c.getPropertyValue("--sans") + c.getPropertyValue("--mono") + c.getPropertyValue("--display")); }));
   await page.click("#pinBtn"); await page.waitForTimeout(200);
   const pinned = await page.evaluate(() => getComputedStyle(document.getElementById("fly")).position);
   ok("Pin splits the screen", pinned === "static", pinned);
@@ -173,6 +181,7 @@ async page => {
     if (w === 820) ok("at 820 px the rail ends in a border", m.railB === "1px", m.railB);
     ok("an option title may take two lines at " + w + " px", m.choice === "2", m.choice);
     await page.click(".sumbtn"); await page.waitForTimeout(250);
+    ok("the summary renders no Decisions table without a decision row at " + w + " px", await page.evaluate(() => [...document.querySelectorAll("#dscroll table.sum")].every(t => t.tBodies[0] && t.tBodies[0].rows.length > 0)));
     ok("the summary does not widen the page at " + w + " px", await page.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1));
     await page.click('.qbtn[data-q="N2"]').catch(() => {}); await page.waitForTimeout(150);
   }
@@ -185,9 +194,37 @@ async page => {
   await page.evaluate(() => scrollTo(0, 0)); await page.click('.qbtn[data-q="N2"]').catch(() => {});
   await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(250);
   ok("the meter title states the archived count", /\d+ archived/.test(await page.getAttribute("#meterText", "title")), await page.getAttribute("#meterText", "title"));
+  ok("the header shows live and archived counts as visible text", /^\d+ live, \d+ archived$/.test(await page.textContent("#qCounts")), await page.textContent("#qCounts"));
   await page.selectOption("#filter", "pending"); await page.waitForTimeout(200);
   ok("a filter that matches nothing says so in the rail, not a blank list", (await page.$$(".rail-list .qbtn")).length > 0 || /No questions match/.test(await page.textContent("#railList")));
   await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
+
+  // a session with no answered question, on a second page whose state has its events, page responses and terminal decisions stripped and whose stream is refused (the 3 s poll then feeds the page the same stripped state)
+  const stripped = await page.context().newPage();
+  await stripped.route("**/events", r => r.abort());
+  await stripped.route("**/api/state", async route => { const res = await route.fetch(); const body = await res.json(); body.responses.events = []; body.responses.responses = {}; for (const q of body.questions.questions) delete q.terminal; await route.fulfill({response: res, json: body}); });
+  await stripped.setViewportSize({width: 1400, height: 860});
+  await stripped.goto(base); await stripped.waitForSelector(".qbtn", {state: "attached"});
+  await stripped.click(".sumbtn"); await stripped.waitForTimeout(400);
+  const sum0 = await stripped.evaluate(() => { const hs = [...document.querySelectorAll("#dscroll h4")].map(h => h.textContent.trim()); return {table: !!document.querySelector("#dscroll table.sum"), decisions: hs.includes("Decisions"), loose: hs.includes("Loose ends")}; });
+  ok("with no answered question the summary has no Decisions table or heading but still renders its other sections", !sum0.table && !sum0.decisions && sum0.loose, JSON.stringify(sum0));
+  await stripped.close();
+
+  // the connection pill: neutral Connecting until a first attempt has failed, then Connection lost
+  const pillOf = p => p.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent}));
+  const wake = p => p.evaluate(() => { Object.defineProperty(document, "visibilityState", {configurable: true, get: () => "visible"}); document.dispatchEvent(new Event("visibilitychange")); });
+  const hung = await page.context().newPage();
+  await hung.route("**/api/state", () => {}); await hung.route("**/events", () => {});
+  await hung.goto(base, {waitUntil: "domcontentloaded"}); await wake(hung); await hung.waitForTimeout(500);
+  const pc = await pillOf(hung);
+  ok("before any connection result the pill reads Connecting, not Connection lost", /\bconnecting\b/.test(pc.cls) && pc.text === "Connecting", JSON.stringify(pc));
+  await hung.close();
+  const refused = await page.context().newPage();
+  await refused.route("**/api/state", r => r.abort()); await refused.route("**/events", r => r.abort());
+  await refused.goto(base, {waitUntil: "domcontentloaded"}); await wake(refused); await refused.waitForTimeout(500);
+  const pd = await pillOf(refused);
+  ok("after a failed connection attempt the pill reads Connection lost", /\boffline\b/.test(pd.cls) && /^Connection lost/.test(pd.text), JSON.stringify(pd));
+  await refused.close();
 
   // set up the 409 test on N2: pick a choice and write a note
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);

@@ -3,6 +3,16 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2] - 2026-10-20
+
+### Changed
+
+- `reduce` gains a `## Next` section naming `/verification:confirm` as its successor ([#7972](https://github.com/melodic-software/claude-code-plugins/issues/7972)).
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.4.1] - 2026-10-16
 
 ### Changed

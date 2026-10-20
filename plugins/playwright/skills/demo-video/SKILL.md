@@ -55,13 +55,20 @@ removes its layer in either style. Pass them to `build_edl.py` as
 
 1. **Explore, unrecorded.** Drive the flow with `/playwright:playwright` until every step works and
    you know a stable locator for each target. Nothing is recorded here: agent think-time is what
-   makes a raw recording unwatchable.
+   makes a raw recording unwatchable. Keep what exploring leaves behind out of the repository:
+   `/playwright:playwright` says where its artifacts land, so run it from `<work>` or move them
+   into `<work>/explore/`. When the flow changes stored state (a save, a submit, a setting),
+   explore on a throwaway copy of the app or its data and reset that state before every
+   recording, so each replay starts from the state the demo shows.
 2. **Write the replay script.** One ES module default-exporting `async (demo) => {}`, one
    `demo.click(...)` to `demo.settle(...)` per step, step ids that key the captions. The API and the
    example over the bundled fixture: [reference/replay-script.md](reference/replay-script.md),
    [scripts/fixture/replay.mjs](scripts/fixture/replay.mjs). Write `script.json` beside it: title,
-   subtitle, and per step `caption`, `outcome` (for a step that lands on a new page), and the
-   narration lines.
+   subtitle, and per step `caption`, `outcome` (the result the viewer reads once the step lands,
+   on a new page or in place), and the narration lines. A hold that shows an outcome lasts its
+   reading time (`captions.seconds_per_word`, never under `captions.min_seconds`, in
+   `scripts/defaults.json`), and quality control lets it stay still that much longer than the
+   stillness limit; a hold with no outcome keeps the limit.
 3. **Replay with 4K capture.**
    `node ${CLAUDE_SKILL_DIR}/scripts/record.mjs [--playwright-core DIR] replay.mjs <work>/capture`.
    The viewport is 1920x1080 at device scale 2, so every frame is a 3840x2160 PNG; cursor travel and
@@ -76,7 +83,9 @@ removes its layer in either style. Pass them to `build_edl.py` as
    `RUN build_edl.py <work>/capture script.json <work>/edl.json --style ... --layers ... [--audio-dir <work>/audio]`.
    It refuses (exit 1, plan kept as `edl.rejected.json`) when a rule breaks: a zoom edge through
    text, a navigation cut not at 1.0x, a camera move over the limits, a caption with no empty
-   anchor. Fix the replay (a tighter `block`, a pause) or the script, never the rule.
+   anchor. A `shot search:` line after the rules names the steps no zoom shot fits; a caption
+   with no empty anchor often follows from it. Fix the replay (a tighter `block`, a pause) or the
+   script, never the rule.
 6. **Render.** `RUN produce.py <work>/edl.json <work>/demo.mp4`
    (add `--preset veryfast` for drafts). It writes `demo.render.json` beside the video.
 7. **Frame quality control.** `RUN quality_control.py <work>/edl.json <work>/demo.mp4 <work>/quality-control`
@@ -99,6 +108,12 @@ Return to it to re-run the flow when the review asks for a change to the app or 
 
 - **Backdrop blur stalls capture.** A `backdrop-filter` (a DocSearch-style search modal) dropped
   software-rendered capture to about 3 fps; `record.mjs` disables it, and the caret, on every page.
+- **Looping animations never settle.** `demo.settle` waits for identical captures, so an endless
+  CSS animation (a pulsing status dot, a spinner), often drawn on `::before` or `::after`, makes
+  `record.mjs` stop with "page never went still". Find it with `document.getAnimations()` while
+  exploring and stop it in the replay with `demo.style(...)`, naming the pseudo-element in the
+  selector (`.pill::before { animation: none !important; }`): a rule on the element, or on `*`
+  under it, does not reach its pseudo-elements.
 - **Kokoro pads each clip.** The local voice adds about 0.35 s of silence before the first word;
   `build_edl.py` trims each clip to its first word using `words.json`, so keep that file beside
   each `narration.wav`.

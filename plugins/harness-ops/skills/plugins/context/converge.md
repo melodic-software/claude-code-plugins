@@ -120,13 +120,33 @@ running the bare form for a row whose `projectPath` isn't the current directory 
 mutate, or fail against, the wrong repo's settings. `--keep-data` applies to `uninstall` only:
 `update` has no such flag, and the uninstall half is a pin removal, never a data deletion.
 
-Two `git worktree` checkouts of one repository pin independently, verified on Claude Code 2.1.228
-by uninstalling one id in a repo's main checkout and observing the worktree's record for the same id
-survive untouched. They share one `.git` and one tracked `.claude/settings.json` yet hold separate
+Two `git worktree` checkouts of one repository pin independently for `uninstall`, verified on Claude
+Code 2.1.228 by uninstalling one id in a repo's main checkout and observing the worktree's record for
+the same id survive untouched. They do not behave independently for `update` (see the linked-worktree
+section below and [scope-semantics.md](scope-semantics.md)). They share one `.git` and one tracked `.claude/settings.json` yet hold separate
 `projectPath` records, so never collapse them into one row and never assume converging one clears
 the other: each needs its own `cd`. Per [scope-semantics.md](scope-semantics.md), the CLI keys
 `projectPath` on the literal cwd while `fleet-state.sh` matches on the checkout root. That gap is a
 blind spot in its own right, recorded in [gotchas.md](gotchas.md).
+
+### Linked-worktree rows: no update strategy
+
+A row whose `scopes[].linkedWorktree` is `true` (the git dir differs from the git common dir;
+`fleet-state.sh` reads it from the worktree's `.git` file) never gets the update strategy, proposed or
+run. The record behind that decision, and the trigger to recheck it, are in
+[scope-semantics.md](scope-semantics.md). Emit it as:
+
+```text
+- <id>@<marketplace>: update is not offered here: "<projectPath>" is a linked worktree, and
+  its record is at <version>. The uninstall strategy clears it, and edits that worktree's
+  tracked `.claude/settings.json` (Step 5).
+```
+
+The row keeps the label `fleet-state.sh` gave it, `update ineffective; uninstall clears it`, and stays
+in the divergence count. Offer only the uninstall strategy for it, still confirmed per pin; when the
+highest version is at `project`/`local` scope and no uninstall would bring the row current, report the
+row with this label and offer nothing. A main checkout, and a submodule (its `.git` file points into
+`modules/`, not `worktrees/`), behave as before.
 
 ### Precondition: never emit a `cd` command into a path that is not present
 
@@ -189,8 +209,10 @@ update a sibling worktree's record of the same id instead of the cwd's
   The intended record is still at <version>.
 ```
 
-A record that did not move and no other record that did is reported as "did not move", with the CLI's
-output.
+A record that did not move and no other record that did is a **failure**, never "ok": report it as
+"did not move", with the CLI's output, and count it with the failed rows. This holds whatever the CLI
+printed, including "already at the latest version" and `updated from X to Y`, because the exit status
+and the CLI's line are not evidence that the record changed. The re-read is the only evidence.
 
 ## Step 5: Surface the resulting diff
 

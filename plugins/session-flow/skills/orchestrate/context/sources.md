@@ -258,14 +258,15 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   tighter specs. Pointer:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#capability-improvements>.
   As of: 2026-06-14. Recheck trigger: that section moves or stops covering delegation.
-- **Advisor / verifier availability, context pressure, and concurrent-session / rate-limit
-  headroom** are operational authoring convention, NOT canonical Anthropic orchestration guidance.
-  They scale the same underlying trade-offs (a fresh-context verifier is worth leaning on when one
-  is on hand; a filling window is itself the context-protection trigger imperative 1 names; thin
-  rate-limit headroom is a hard ceiling on parallel workers).
-- **Unobservable headroom → reactive-only.** The rate-limit-guard reader contract classifies a
+- **Advisor / verifier availability and context pressure** are operational authoring
+  convention, NOT canonical Anthropic orchestration guidance. They scale the same underlying
+  trade-offs (a fresh-context verifier is worth leaning on when one is on hand; a filling window is
+  itself the context-protection trigger imperative 1 names). Usage or rate-limit headroom is not a
+  sizing input: it never lowers tier, effort, review depth or worker count (maintainer rule,
+  2026-10-11, #7118/#7135).
+- **Rate limits → reactive-only.** The rate-limit-guard reader contract classifies a
   missing, stale, or `rate_limits`-less snapshot as **unknown → reactive-only**. Imperative 7's
-  sibling-429 backoff and "never invent window percentages" clauses are the orchestration
+  backoff on this session's own rate-limit errors and sibling 429s is the orchestration
   consumption of that classification, not a second contract. Pointer:
   `plugins/rate-limit-guard/reference/reader-contract.md` ("Capability detection (fail-open)",
   "Cloud / remote sessions").
@@ -282,6 +283,12 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields> (the `effort` field).
   As of: 2026-10-01. Recheck trigger: that field is renamed, removed, or stops overriding the
   session's effort.
+- **Delegating bulk work and tuning effort are judgment calls.**
+  Our reading: past a wide fan-out the cheaper tier is the default, and effort is matched to the
+  subtask. The upstream page is linked, not restated. Pointer:
+  <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work>
+  and <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort>.
+  As of: 2026-10-18. Recheck trigger: either section changes its advice.
 - **Volume-driven default: a fleet inherits the session model unless explicitly routed.** A
   workflow stage that does not need the strongest model names a smaller one; an unrouted fleet runs
   on the session's model, the same resolution as the subagent path at fan-out scale. Pointer:
@@ -295,4 +302,6 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   <https://code.claude.com/docs/en/workflows#set-a-size-guideline> and
   <https://code.claude.com/docs/en/workflows#behavior-and-limits>. As of: 2026-10-01. Recheck
   trigger: that page changes a size-guideline agent count or default, the warning threshold, or
-  the concurrency bound or its override.
+  the concurrency bound or its override. The anchor's small and medium bands follow the
+  size-guideline table; its large band starts where medium ends and is not the guideline's
+  `large`, which has its own count in the table.

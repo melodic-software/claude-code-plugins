@@ -33,3 +33,11 @@ readonly WIT_HUMAN_FLOOR_WORK_CLASS_LABELS=(
 # from a signal is C5 whatever its work-class label says.
 # shellcheck disable=SC2034
 readonly WIT_HUMAN_FLOOR_PROVENANCE_LABELS=("provenance: signal")
+
+# An item waiting on an owner decision or on information is not workable by an
+# autonomous lane, whatever else it carries. Fixed strings, no binding key.
+# shellcheck disable=SC2034
+readonly WIT_HUMAN_FLOOR_STATUS_LABELS=(
+  "status: needs-decision"
+  "status: needs-info"
+)
