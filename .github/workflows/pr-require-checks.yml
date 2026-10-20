@@ -1790,6 +1790,9 @@ jobs:
       # request against the base, and in the merge queue against the group's
       # base commit, `merge_group.base_sha` ("The SHA of the merge group's
       # parent commit", https://docs.github.com/en/webhooks/webhook-events-and-payloads#merge_group).
+      # That base already holds the entries ahead in the queue: a group has
+      # "changes from pull requests ahead of it in the queue"
+      # (https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue).
       # The queue checks out a single-parent squash whose HEAD^1 is that base,
       # so the release is read from the queued pull request's head instead.
       - name: Verify every changelog fragment is well formed
