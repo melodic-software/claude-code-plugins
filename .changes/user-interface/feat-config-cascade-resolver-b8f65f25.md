@@ -11,7 +11,7 @@ bump: minor
 
 - The config cascade has four layers (default, `userConfig`, team, personal): a file under `~/docs/conventions/` is no longer read. An invalid team or `userConfig` value falls to the default, never to a lower layer's value; an invalid personal value leaves the team value standing.
 - With no `--root`, `resolve-convention-home.sh` reads the git toplevel of `CLAUDE_PROJECT_DIR` (else of the current directory): one home per git root.
-- `detect.mjs` treats the resolver's declined (4) and not-applicable (5) exits like an unbound repository, so the default home stands.
+- `detect.mjs --config` reads no team or overlay file when the repository declined a convention home or none applies (the project is `$HOME`, an ancestor of it, or outside git): the bundled defaults apply, and `home_skipped` says why.
 
 ### Fixed
 

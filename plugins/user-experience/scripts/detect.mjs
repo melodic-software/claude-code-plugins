@@ -148,8 +148,11 @@ function inside(p) {
 function teamSurface() {
   if (opts.team) return { path: opts.team, file: resolve(opts.team) };
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", opts.project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
-  // 1 no pointer, 4 declined, 5 not applicable (home, ancestor of home, or outside git): none binds a home, so the default stands.
-  if (r.status !== 0 && r.status !== 1 && r.status !== 4 && r.status !== 5) {
+  // 4 declined and 5 not applicable (the project is $HOME, an ancestor of it, or outside git): no
+  // repository file is read, so the bundled defaults apply. 1 (no pointer) keeps the default home.
+  if (r.status === 4) return { path: null, cause: "the repository declined a convention home" };
+  if (r.status === 5) return { path: null, cause: "convention home not applicable (the project is $HOME, an ancestor of it, or outside git)" };
+  if (r.status !== 0 && r.status !== 1) {
     const cause = r.error?.code || r.stderr?.trim().split("\n").at(-1) || `exit ${r.status}`;
     return { path: null, cause: `convention home unresolved (${cause})` };
   }

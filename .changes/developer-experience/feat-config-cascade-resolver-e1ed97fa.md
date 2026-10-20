@@ -12,4 +12,5 @@ bump: minor
 
 ### Fixed
 
+- Setup's `pointer-line.sh` no longer stops with an internal error in a repository that declined a convention home (it reports `source: declined`, writes nothing and exits 0) or outside a git work tree (it falls back to `docs/conventions/developer-experience.md`).
 - A `CLAUDE.md` symlinked to `AGENTS.md`, or the reverse, no longer prints a `duplicate:` notice.

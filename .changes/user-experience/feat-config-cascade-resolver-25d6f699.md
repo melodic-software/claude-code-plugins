@@ -9,7 +9,7 @@ bump: minor
 ### Changed
 
 - With no `--root`, `resolve-convention-home.sh` reads the git toplevel of `CLAUDE_PROJECT_DIR` (else of the current directory): one home per git root.
-- `detect.mjs` treats the resolver's declined (4) and not-applicable (5) exits like an unbound repository, so the default home stands.
+- `detect.mjs` reads no team file when the repository declined a convention home or none applies (the project is `$HOME`, an ancestor of it, or outside git): the built-in routes and defaults apply, and `skipped_reason` says why.
 
 ### Fixed
 

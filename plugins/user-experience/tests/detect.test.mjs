@@ -403,6 +403,27 @@ describe("team surface", () => {
     assert.deepEqual(routes.map(({ present, ...row }) => row), ROWS);
   });
 
+  for (const [label, bind, reason] of [
+    ["a declined region", (dir) => {
+      gitInit(dir);
+      writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\ndeclined\n<!-- END GENERATED: convention-home -->\n");
+    }, /declined/],
+    ["a project outside any git work tree", () => {}, /not applicable/],
+  ]) {
+    test(`${label} does not read docs/conventions: bundled defaults apply`, () => {
+      const project = join(scratch, `no-home-${label.replace(/\W+/g, "-")}`);
+      mkdirSync(join(project, "docs/conventions"), { recursive: true });
+      bind(project);
+      writeFileSync(join(project, "docs/conventions/user-experience.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\n");
+      const { team, routes } = detect(["--project", project, ...seams]);
+      assert.equal(team.loaded, false);
+      assert.equal(team.path, null);
+      assert.equal(team.jtbd_school, "unset");
+      assert.match(team.skipped_reason, reason);
+      assert.deepEqual(routes.map(({ present, ...row }) => row), ROWS);
+    });
+  }
+
   test("a team file that resolves outside the project through a symlink is skipped", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
     const outside = join(scratch, "outside-conventions");
     mkdirSync(outside, { recursive: true });

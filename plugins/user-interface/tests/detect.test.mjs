@@ -373,6 +373,30 @@ describe("--config", () => {
     for (const name of ["team", "local"]) assert.equal(broken.layers.find((l) => l.name === name).state, "absent", name);
   });
 
+  for (const [label, bind, reason] of [
+    ["a declined region", (dir) => {
+      gitInit(dir);
+      writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\ndeclined\n<!-- END GENERATED: convention-home -->\n");
+    }, /declined/],
+    ["a project outside any git work tree", () => {}, /not applicable/],
+  ]) {
+    test(`${label} reads neither the team nor the local layer: bundled defaults apply`, () => {
+      const dir = join(scratch, `no-home-${label.replace(/\W+/g, "-")}`);
+      mkdirSync(join(dir, "docs/conventions"), { recursive: true });
+      bind(dir);
+      writeFileSync(join(dir, "docs/conventions/user-interface.yaml"), "css:\n  important: allow\n");
+      writeFileSync(join(dir, "docs/conventions/user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
+      const { config: c } = detect(["--project", dir, ...seams, "--config"]);
+      assert.equal(c.home, null);
+      assert.match(c.home_skipped, reason);
+      assert.ok(!("home_error" in c));
+      assert.equal(c.values.css.important, "avoid");
+      assert.equal(c.provenance["css.important"], "defaults");
+      assert.equal(c.values.css.token_fallback, "ask");
+      for (const name of ["team", "local"]) assert.equal(c.layers.find((l) => l.name === name).state, "absent", name);
+    });
+  }
+
   test("--team refuses a local layer whose convention home leaves the project", () => {
     const outside = join(scratch, "outside-home");
     mkdirSync(outside, { recursive: true });

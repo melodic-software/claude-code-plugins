@@ -7,7 +7,9 @@
 // style_files [kinds]. With --config, a top-level "config" holds the resolved settings
 // (lib/config-cascade.mjs output: values, provenance, prose, layers, legacy) plus "home", the
 // convention home. When the project's pointer line is unusable, "home" is null, "home_error" says
-// why, and the team and local layers are not read.
+// why, and the team and local layers are not read. When the repository declined a home or none
+// applies (the project is $HOME, an ancestor of it, or outside git), "home" is null,
+// "home_skipped" says which, and the bundled defaults apply without the team and local layers.
 // Detection rules live in lib/installed.mjs.
 // Usage: detect.mjs [--project DIR] [--home DIR] [--plugin-list-json FILE] [--mcp-list FILE]
 //                   [--config [--team FILE] [--user-config FILE]]
@@ -169,14 +171,16 @@ function projectSignals() {
   };
 }
 
-/** {home, error?}: the convention home the project's pointer line names, the default when there is
- * none, or null with the error when the line is unusable. The resolver gets --root, so
+/** {home, error?, skipped?}: the convention home the project's pointer line names, the default
+ * when there is none, null with the error when the line is unusable, or null with `skipped` when
+ * the repository declined a home (exit 4) or none applies (exit 5). The resolver gets --root, so
  * CLAUDE_PROJECT_DIR never chooses the project. */
 function conventionHome() {
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", opts.project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
   if (r.status === 0) return { home: r.stdout.trim() };
-  // 1 no pointer, 4 declined, 5 not applicable (home, ancestor of home, or outside git): none binds a home, so the default stands.
-  if (r.status === 1 || r.status === 4 || r.status === 5) return { home: DEFAULT_HOME };
+  if (r.status === 1) return { home: DEFAULT_HOME };
+  if (r.status === 4) return { home: null, skipped: "the repository declined a convention home; bundled defaults apply" };
+  if (r.status === 5) return { home: null, skipped: "convention home not applicable (the project is $HOME, an ancestor of it, or outside git); bundled defaults apply" };
   const cause = r.error?.code || r.stderr?.trim().split("\n").at(-1) || `exit ${r.status}`;
   return { home: null, error: `convention home unresolved (${cause}); the team and local layers are not read` };
 }
@@ -291,7 +295,7 @@ function checkRouting(out) {
 }
 
 function config() {
-  const { home, error } = conventionHome();
+  const { home, error, skipped } = conventionHome();
   const user = readUserConfig(opts["user-config"]);
   const seam = opts.team || home === null ? scratchHome(home) : null;
   const schema = JSON.parse(readFileSync(join(ROOT, "reference/team.schema.json"), "utf8"));
@@ -320,7 +324,7 @@ function config() {
       }
     }
     checkRouting(out);
-    return { ...out, home, ...(error && { home_error: error }) };
+    return { ...out, home, ...(error && { home_error: error }), ...(skipped && { home_skipped: skipped }) };
   } finally {
     if (seam) rmSync(seam.dir, { recursive: true, force: true });
   }
