@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.14.1] - 2026-10-20
+
+### Fixed
+
+- The pr-merge gate no longer enqueues a stale-input pull request at its old head after an `update-branch` call that got no answer. A timeout, a failure with no HTTP status, or a server error may have landed the update, so the gate now holds with `check-inputs-changed` and records `updated: null` and the `updateError`; only a 4xx refusal enqueues as before.
+- `merge.check-inputs` now reads only a full-history clone that is neither shallow nor partial. A blobless clone missing the base tip's `scripts/shared-copies.txt` read it as empty and answered `current` for a pull request it should have updated; it now answers `unknown`.
+
+## [1.14.0] - 2026-10-20
+
+### Added
+
+- pr-merge requests a whole review of a lane pull request held only by findings an incremental review cannot clear: it records the request in the reasons comment, then converts the pull request to a draft and marks it ready, once per head, at most twice per pull request and once per run, only while fewer than 35 jobs run or wait and both tokens have 30% of each rate-limit bucket left ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
 ## [1.13.3] - 2026-10-20
 
 ### Fixed

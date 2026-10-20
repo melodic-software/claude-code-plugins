@@ -1626,6 +1626,7 @@ class TestClaudeActivity(DirCase):
                     "seq": 1,
                     "text": "Q3 pending research: research on ghq",
                     "ids": ["Q3"],
+                    "waits": True,
                 }
             ],
         )
@@ -2071,6 +2072,24 @@ class TestClaudeActivity(DirCase):
         self.assertEqual((e["text"], e["ids"]), ("Replied on Q1", ["Q1"]))
         for key in ("notes", "added", "restate"):
             self.assertNotIn(key, e)
+
+    def test_reply_and_revise_mark_what_the_page_sorts_on(self):
+        self.apply({"op": "reply", "id": "Q1", "text": "Because."})
+        self.assertIs(self.entries()[-1].get("waits"), True)
+        self.assertNotIn("revised", self.entries()[-1])
+        rc, out, err = self.rp("revise", "Q1", "--rec", "Do it now.", "--affects", "none", "--keep-alternatives", "--force")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIs(self.entries()[-1].get("revised"), True)
+        self.assertNotIn("waits", self.entries()[-1])
+
+    def test_a_note_reply_that_asks_marks_the_entry_asks(self):
+        self.apply({"op": "note-reply", "text": "Noted."})
+        self.assertNotIn("asks", self.entries()[-1])
+        self.apply({"op": "note-reply", "needsAnswer": True, "text": "Anything else?"})
+        self.assertIs(self.entries()[-1].get("asks"), True)
+        rc, out, err = self.rp("note-reply", "--text", "Which one?", "--needs-answer")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIs(self.entries()[-1].get("asks"), True)
 
     def test_a_note_reply_marks_the_entry(self):
         self.apply(

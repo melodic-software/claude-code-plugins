@@ -1198,7 +1198,7 @@
       const s = await r.json().catch(() => ({}));
       if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true, youWaiting: false }; good(); return; }
       // Approve new joins: the person waits until the owner lets them in; the poll keeps asking.
-      if (r.status === 403 && s.error === "waiting") { Core.state = { ...structuredClone(DEFAULTS), title: Core.state.title, youWaiting: true }; good(); return; }
+      if (r.status === 403 && s.error === "waiting") { Core.state = { ...structuredClone(DEFAULTS), title: s.title ?? Core.state.title, intro: s.intro || "", youWaiting: true }; good(); return; }
       if (r.status === 401 && !ownerToken && s.error === "merged-into-owner") { etag = ""; markMerged(); return; }
       if (r.status === 401 && !ownerToken) { forget(); etag = ""; askName(errorText(s)); return; }
       if (!r.ok) return;

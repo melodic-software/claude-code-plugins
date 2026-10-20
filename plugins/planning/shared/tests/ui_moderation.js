@@ -150,7 +150,7 @@ async function main() {
       if (!p || p.hidden) return false;
       const items = [...p.querySelectorAll(".vf-ppv-item")].map(i => i.textContent);
       return items.some(t => t.includes("Q2") && t.includes("A pub crawl") && t.includes("Hide") && t.includes("Edit")) && items.some(t => t.includes("Lunch at noon?"))
-        && /Remove Gus/.test(p.textContent);
+        && !!p.querySelector(".vf-ppv-acts [aria-label='Remove Gus']") && !!p.querySelector(".vf-ppv-acts [aria-label='Leader: Gus']");
     }));
     const clearedRow = owner.locator(".vf-personpop .vf-ppv-item", { hasText: "Q3, cleared" });
     ok("View all lists the hidden answer Gus cleared, marked hidden", await clearedRow.waitFor({ timeout: 8000 }).then(() => clearedRow.textContent()).then(t => /\(hidden\)/.test(t), () => false));
@@ -171,8 +171,37 @@ async function main() {
     await jib.fill("#core-n", "Jib");
     await jib.click("dialog.core-name button");
     ok("a new person waits, and is told so", await until(jib, () => !document.querySelector("dialog.core-name") && window.Core.state.youWaiting === true
-      && document.querySelector(".vf-ev-title")?.textContent === "Waiting for the host to let you in"));
+      && document.querySelector(".vf-ev-note")?.textContent === "Waiting for the host to let you in. This page opens by itself; keep it open."));
     ok("a waiting person reads nothing of the session", await jib.evaluate(() => window.Core.state.questions.length === 0 && !window.Core.snapshot()));
+    // Follow-up 50: one centered card, the title, "Why you're here" and the wait; none of the session's controls.
+    const waitView = page => page.evaluate(() => {
+      const seen = sel => [...document.querySelectorAll(sel)].some(e => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== "hidden");
+      const ev = document.querySelector(".vf-ev"), r = ev.getBoundingClientRect(), mid = (r.left + r.right) / 2;
+      return { title: document.querySelector(".vf-ev-title").textContent, intro: seen(".vf-ev-intro") ? document.querySelector(".vf-ev-intro").textContent : "",
+        centered: Math.abs(mid - innerWidth / 2) < 24,
+        shown: ["banner .vf-banner", "rail .vf-rail", "rounds .vf-round", "Propose .vf-ev > .vf-btn", "Ask Claude .vf-asktop", "Follow .vf-follow", "chat .vf-fab",
+          "here count .vf-here", "people .vf-person", "tabs .vf-tabs", "Help .vf-keysbtn"].filter(x => seen(x.split(" ").pop())).map(x => x.split(" ")[0]) };
+    });
+    const jw = await waitView(jib);
+    ok("the waiting page is one centered card: the session title and \"Why you're here\" with the host's intro", jw.title === "Offsite" && jw.intro === "Why you're here" + INTRO && jw.centered, JSON.stringify(jw));
+    ok("  with no banner, questions, rounds, Propose, Ask Claude, Follow host, chat button, here count or Help", jw.shown.length === 0, jw.shown.join(", "));
+    await jib.locator("body").press("?");
+    await jib.waitForTimeout(400);
+    ok("  and ? opens no Help while waiting", await jib.evaluate(() => document.querySelector(".vf-keys").hidden));
+    const kai = await rec.open(A.localUrl, { context: PHONE });
+    await kai.waitForSelector("dialog.core-name[open]");
+    await kai.fill("#core-n", "Kai");
+    await kai.click("dialog.core-name button");
+    await until(kai, () => window.Core.state.youWaiting === true && !!document.querySelector(".vf-ev-intro:not([hidden])"));
+    const kw = await waitView(kai);
+    ok("on a phone the same card, with no tab bar", kw.title === "Offsite" && kw.intro === "Why you're here" + INTRO && kw.shown.length === 0, JSON.stringify(kw));
+    // F10: turning someone away affects them, so Decline asks first; Cancel keeps them waiting.
+    const kaiRow = owner.locator(".vf-qitem", { hasText: "Wants to join: Kai" });
+    await kaiRow.waitFor({ timeout: 8000 });
+    await kaiRow.getByRole("button", { name: "Decline" }).click();
+    ok("declining a join asks first", await until(owner, () => /Turn Kai away\?/.test(document.querySelector("dialog.vf-cdlg[open]")?.textContent || "")));
+    await owner.keyboard.press("Escape");
+    ok("  and Escape keeps them waiting", await until(owner, () => !document.querySelector("dialog.vf-cdlg[open]")) && await kai.evaluate(() => window.Core.state.youWaiting === true));
     const gus2 = await rec.openIn(gus.context(), A.localUrl); // a new tab: the stored secret, no join
     ok("a guest already here keeps going in a new tab", await until(gus2, pid => window.Core.snapshot()?.me?.pid === pid && window.Core.state.questions.length === 3, gusPid));
     ok("the owner's queue says \"Wants to join: Jib\", first in line, on a computer in Chrome", await until(owner, () => [...document.querySelectorAll(".vf-qitem")]
