@@ -35,7 +35,6 @@ docs-hygiene
 docs-naming
 domain-driven-design
 dometrain
-dometrain-mcp
 education
 eol-normalizer
 evals

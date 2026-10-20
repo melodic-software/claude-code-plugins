@@ -3,28 +3,27 @@
   "evals": [
     {
       "id": 1,
-      "name": "no-server-names-both-supported-setups",
+      "name": "no-server-points-to-user-scope-server",
       "prompt": "/dometrain:setup",
-      "expected_output": "Checks Dometrain tool availability by server segment and tool name, not a fixed prefix, without inspecting the token, settings, or environment variables. When neither resolves, names the two supported setups (install dometrain-mcp, or add a user-scope dometrain server per the README) and requires a reload before rechecking.",
+      "expected_output": "Checks Dometrain tool availability by server segment and tool name, not a fixed prefix, without inspecting the token, settings, or environment variables. When none resolves, points to adding a user-scope dometrain server per the README and requires a new session before rechecking.",
       "files": [],
       "expectations": [
         "Never reads settings, environment variables, credential storage, logs, or the API key",
         "Matches Dometrain tools by server segment and tool name in the runtime inventory, not a fixed full prefix",
-        "Names both supported setups: install dometrain-mcp, or add a user-scope dometrain server per the README",
-        "Warns that installing dometrain-mcp next to a user-scope server at the same URL produces a duplicate-server warning",
+        "Points to adding a user-scope dometrain server per the README",
         "Distinguishes no server present from a configured server whose tools do not resolve",
         "Never claims to read '/mcp' connection status directly \u2014 reports tool-inventory / ToolSearch signals only",
-        "Requires reload-plugins or a new session after configuration"
+        "Requires a new session after configuration"
       ]
     },
     {
       "id": 2,
       "name": "already-enabled-server-is-reported-reachable",
       "prompt": "/dometrain:setup \u2014 mcp__dometrain__search_dometrain already appears in my tool list (my own user-scope server).",
-      "expected_output": "Treats the user-scope tools as present, reports connected as a user-scope server, and does not open the native plugin prompt or inspect the API key, settings, or environment.",
+      "expected_output": "Treats the user-scope tools as present, reports connected, and does not open the native plugin prompt or inspect the API key, settings, or environment.",
       "files": [],
       "expectations": [
-        "Reports connected as a user-scope server and does not ask for dometrain-mcp",
+        "Reports connected and does not ask to install another plugin",
         "Reports the server as reachable from tool inventory, not from reading the key",
         "Does not prompt to re-enter or rotate the API key",
         "Never reads settings, environment variables, or credential storage"
@@ -34,12 +33,12 @@
       "id": 3,
       "name": "auth-error-routes-to-native-prompt-not-key-inspection",
       "prompt": "/dometrain:setup \u2014 search_dometrain just failed with an authentication error. Fix the key.",
-      "expected_output": "Does not open settings, logs, or the environment to look at the key. For a dometrain-mcp key, routes reconfiguration through Claude Code's native plugin prompt for dometrain-mcp; for a user-scope server, points to claude mcp list and the README. Requires reload-plugins or a new session before rechecking.",
+      "expected_output": "Does not open settings, logs, or the environment to look at the key. Points to claude mcp list and the README, not /plugin configure. Requires a new session before rechecking.",
       "files": [],
       "narration": true,
       "expectations": [
         "Never reads or prints the API key",
-        "Routes a dometrain-mcp key through /plugin configure dometrain-mcp and a user-scope server through claude mcp list and the README",
+        "Routes the fix through claude mcp list and the README, not /plugin configure",
         "Requires a reload or new session before claiming the error is gone"
       ]
     }
