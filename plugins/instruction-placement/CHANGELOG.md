@@ -3,6 +3,24 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2] - 2026-10-20
+
+### Added
+
+- The bundled git-hook check library's `checks_file_text` takes `--tip` and, in pre-push mode, reads a path from the tip of the pushed range that changed it; the new `checks_regular_file` reports whether the path is a regular file in the same place.
+
+### Fixed
+
+- The shared git-hook check library reads the range diff with `--text`, so a tracked `-diff` attribute no longer hides a text file's added lines from a check, and drops a file whose content holds a NUL byte in its first 8000 bytes, so binary content never reaches a check as changed lines.
+
+## [0.25.1] - 2026-10-20
+
+### Fixed
+
+- The `migrate` skill's AGENTS.md source record now points at the "Develop without a marketplace" section of the plugin-creation page with an anchor, an as-of date and a recheck trigger, in place of a quoted passage.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.25.0] - 2026-10-18
 
 ### Added

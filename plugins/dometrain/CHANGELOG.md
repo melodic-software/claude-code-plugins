@@ -3,6 +3,16 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-10-20
+
+### Changed
+
+- `/dometrain:sync`'s `scripts/update.sh` follows the shared drift-check exit-code contract: 0 no drift, 1 drift (including a missing baseline), 2 unverifiable (a missing tool, a failed fetch or write, or an unknown mode). Drift used to exit 2 and an unverifiable state 1. (#6493)
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.6.9] - 2026-10-16
 
 ### Changed

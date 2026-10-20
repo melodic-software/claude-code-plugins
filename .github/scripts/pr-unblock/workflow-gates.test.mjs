@@ -1,6 +1,6 @@
 // The job if: gates that keep a pipeline workflow from starting a runner, or
 // a lane, that could only skip or fail: pr-feedback-dispatch.yml on a review
-// run GitHub skipped (a draft), and pr-refine.yml on a pull_request event a
+// run GitHub skipped (a draft) or cancelled (a newer push superseded it), and pr-refine.yml on a pull_request event a
 // bot sent, which claude-code-action refuses.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -32,7 +32,7 @@ function evaluate(expression, context) {
   return Function(`return (${body});`)();
 }
 
-test("pr-feedback-dispatch.yml starts no runner for a skipped review run", () => {
+test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled review run", () => {
   const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
   const runs = (conclusion) =>
     evaluate(gate, {
@@ -43,7 +43,8 @@ test("pr-feedback-dispatch.yml starts no runner for a skipped review run", () =>
       "github.event.workflow_run.conclusion": conclusion,
     });
   assert.equal(runs("skipped"), false);
-  for (const conclusion of ["success", "failure", "cancelled"]) {
+  assert.equal(runs("cancelled"), false);
+  for (const conclusion of ["success", "failure"]) {
     assert.equal(runs(conclusion), true, conclusion);
   }
 });

@@ -208,13 +208,7 @@
       }
     },
     "merge": { "$ref": "#/$defs/merge" },
-    "models": { "$ref": "#/$defs/models" },
-    "funding": {
-      "type": "object",
-      "propertyNames": { "$ref": "#/$defs/name" },
-      "additionalProperties": { "enum": ["reviews", "automations", "issue-lane"] },
-      "description": "Claude lane id -> the funding role whose secrets pay for its runs. The lane passes the role to run-claude-cli with <ROLE>_CLAUDE_API_KEY and <ROLE>_CLAUDE_CODE_OAUTH_TOKEN, role upper-snake (README.md, Funding)."
-    }
+    "models": { "$ref": "#/$defs/models" }
   },
   "$defs": {
     "name": {
@@ -358,6 +352,19 @@
         }
       }
     },
+    "edit-runner": {
+      "anyOf": [
+        { "properties": { "effect": { "not": { "const": "read" } } } },
+        {
+          "required": ["applied-by"],
+          "properties": {
+            "applied-by": { "required": ["patch"] },
+            "prepare": { "not": { "const": "ci-context" } }
+          }
+        }
+      ],
+      "description": "Only the runner that stages a skill's edit tools grants checks, self-checks, verify-scripts and web-access: the write runner, or the read runner for a skill with applied-by.patch and no prepare: ci-context. Anywhere else they would do nothing, so they are refused."
+    },
     "leaf": {
       "type": "object",
       "additionalProperties": false,
@@ -367,11 +374,16 @@
         "checks": ["skill"],
         "self-checks": ["skill"],
         "verify-scripts": ["skill"],
-        "web-access": ["skill"]
+        "web-access": ["skill"],
+        "applied-by": ["skill"]
       },
       "dependentSchemas": {
-        "verify-scripts": { "properties": { "effect": { "not": { "const": "read" } } } },
-        "self-checks": { "properties": { "effect": { "not": { "const": "read" } } } },
+        "applied-by": {
+          "properties": { "effect": { "const": "read" }, "gating": { "const": "advisory" } }
+        },
+        "checks": { "$ref": "#/$defs/edit-runner" },
+        "self-checks": { "$ref": "#/$defs/edit-runner" },
+        "verify-scripts": { "$ref": "#/$defs/edit-runner" },
         "prepare": {
           "oneOf": [
             {
@@ -387,13 +399,21 @@
         "properties": { "web-access": { "properties": { "enabled": { "const": true } } } }
       },
       "then": {
-        "properties": { "reads-untrusted": { "const": true }, "effect": { "not": { "const": "read" } } }
+        "properties": { "reads-untrusted": { "const": true } },
+        "$ref": "#/$defs/edit-runner"
       },
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
           "enum": ["merge-base", "review-threads", "dependency-review", "ci-context", "apply-patch"],
-          "description": "What the runner does around the activity. ci-context is the one mode for a read skill, apply-patch the one mode for a script (a mutate-branch one); the others need a skill with an effect other than read. ci-context: the read runner downloads the failing-check context file a base job wrote, checks its SHA-256 and head, makes it read-only and names it to the skill, which also gets Bash, Edit and Write; the run must use output-mode: patch. apply-patch: before the mint, check the patch artifact a ci-context run left (one patch.diff with its SHA-256, on the head it worked on) and read its report; the script applies it to the gated head, refuses the whole patch on any change to .github/**, an agent instruction path (CLAUDE.md, AGENTS.md, .claude/ or .claude-plugin/, a plugin's hooks/, .mcp.json, .gitmodules, CODEOWNERS), a symbolic link or a gitlink, and pushes it as one commit without force. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded, which a review-replies script job validates and posts with the round marker. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; move the PR branch only to commits that touch nothing under .github/ and carry [dependabot skip]; after it, upload the verdict, which a dependency-verdict script job validates and acts on."
+          "description": "What the runner does around the activity (README.md, Activities; pr-run-activity.md, the prepare sections). apply-patch is the one mode for a script, a mutate-branch one; the others run around a skill. ci-context needs effect read and hands its change on as a patch; merge-base, review-threads and dependency-review need an effect other than read until their activity hands its change on as a patch. ci-context: download the failing-check context file a base job wrote, check its SHA-256 and head, make it read-only and name it to the skill, which also gets Bash, Edit and Write. apply-patch: check the patch artifact a producer left (one patch.diff with its SHA-256, on the head it worked on), apply it to the gated head, and push it as one commit without force; patch-rules.json registers the rules each producer's patch is to be held to (README.md, Patch rules). merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap; give the skill the review-thread tool; after it, upload the replies it recorded for a script job to validate and post. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; after it, upload the verdict for a script job to validate and act on."
+        },
+        "applied-by": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "enum": ["patch", "feedback-replies", "dependency-verdict", "work-outcome"] },
+          "additionalProperties": { "$ref": "#/$defs/name" },
+          "description": "What this read skill hands on, keyed by artifact, and the script activity that applies each: patch (its change to the tree, applied by a prepare: apply-patch script), feedback-replies, dependency-verdict, work-outcome. Only a skill with effect read and gating advisory sets it. The config reader rejects a target that is not a script, is not in every lane that holds the producer, or whose slot does not need the producer (README.md, Activities)."
         },
         "args": {
           "type": "string",
@@ -408,7 +428,7 @@
             "type": "string",
             "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
           },
-          "description": "Repository check scripts a skill with an effect other than read may run, each with its fixed flags. The write runner runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
+          "description": "Repository check scripts the skill may run, each with its fixed flags. The runner that stages the skill's edit tools (the write runner, or the read runner for a skill with applied-by.patch) runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
         },
         "self-checks": {
           "type": "array",
@@ -418,7 +438,7 @@
             "type": "string",
             "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
           },
-          "description": "Advisory repository check scripts a skill with an effect other than read runs and fixes before it commits, each with its fixed flags, through the same wrapper as checks. Unlike checks, the runner never runs them again, so a failure the skill cannot fix still opens the PR and is named in its report."
+          "description": "Advisory repository check scripts the skill runs and fixes before it hands its change on, each with its fixed flags, through the same wrapper as checks. Unlike checks, the runner never runs them again, so a failure the skill cannot fix still opens the PR and is named in its report."
         },
         "verify-scripts": {
           "type": "array",
@@ -428,7 +448,7 @@
             "type": "string",
             "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
           },
-          "description": "Exact repository-relative paths of scripts a skill with an effect other than read may run with any arguments. The write runner copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. Needs an effect other than read. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does."
+          "description": "Exact repository-relative paths of scripts the skill may run with any arguments. The runner that stages the skill's edit tools copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does."
         },
         "web-access": {
           "type": "object",
@@ -454,7 +474,7 @@
           },
           "if": { "properties": { "enabled": { "const": true } } },
           "then": { "required": ["domains"] },
-          "description": "Whether a skill with an effect other than read may read the web, off when absent. On, the write runner allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true and an effect other than read."
+          "description": "Whether the skill may read the web, off when absent. On, the runner that stages the skill's edit tools allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true."
         },
         "script": {
           "type": "string",
@@ -469,7 +489,7 @@
             "publish-artifact",
             "merge"
           ],
-          "description": "What the activity may change. The runner derives ordering and the token grant from it and checks that a read activity left the tree clean."
+          "description": "What the activity may change. The runner derives ordering and the token grant from it and checks that a read activity left the tree clean, unless the activity hands its change on as a patch."
         },
         "gating": {
           "enum": ["gate", "advisory"],
@@ -752,6 +772,18 @@
           "maximum": 20,
           "default": 2,
           "description": "Merge-queue removals for failed checks since the pull request's head last changed (a pushed commit or a force push) at which the unattended merge gate stops enqueuing that head: the queue would eject it again on the same commits. A push resets the count."
+        },
+        "risk-escalation-minutes": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 60,
+          "description": "Minutes the agent identity's MED or HIGH reasons comment must have stood unchanged (same score, reasons and head), timed from its last change, before the unattended merge gate adds the tracker's human-gated role label. 0: no minimum, so the second run that finds the same comment labels it. A rewrite of the reasons restarts the time."
+        },
+        "check-inputs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": [],
+          "description": "Git pathspecs of files the pull request checks read but a pull request rarely changes (a registry, an allowlist). When the base changed one since a pull request's merge base, the unattended merge gate updates its branch from the base (a merge, never a rebase) instead of enqueuing it, and enqueues the new head once its checks pass. `scripts/shared-copies.txt` counts only for a pull request whose own changes touch a path it registers. Empty or absent: nothing is updated."
         },
         "verify-authors": {
           "enum": ["lane", "any"],

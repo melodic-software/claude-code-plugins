@@ -3,11 +3,13 @@ ui_attach_paste.js 45
 ui_chat.js 66
 ui_chat_history.js 18
 ui_clientlog.js 3
+ui_composer.js 60
 ui_connect.js 16
 ui_discussion.js 13
 ui_formats.js 34
 ui_general.js 12
 ui_inbox.js 21
+ui_inbox_page.js 25
 ui_inputs.js 33
 ui_journey.js 20
 ui_kbreadout.js 15

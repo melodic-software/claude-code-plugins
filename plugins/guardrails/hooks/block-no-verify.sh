@@ -30,7 +30,15 @@
 # command string. It does NOT evaluate shell variable / command substitution
 # ($VAR, $(…), $IFS) — a determined author can construct an expansion-based
 # bypass. It is a friction guard against accidental/casual bypass, not a
-# sandbox. The whole-guard deliberate bypass is the kill switch
+# sandbox. The `git config core.hooksPath .githooks` allow reads the dispatcher
+# marker in the hook's own working directory, not a `cd other &&` target, so
+# that compound sets the key in a clone whose `.githooks/` it never checked;
+# that clone's commits then run whatever its `.githooks/` holds, or no hooks
+# if it has none. The allow trusts any real (non-symlink)
+# `.githooks/pre-commit|pre-push|commit-msg` holding `# checks-dispatcher v1`:
+# enabling `.githooks` only runs repository content a merged change already
+# controls, and the marker only keeps the guard from approving the key where
+# guardrails is not installed. The whole-guard deliberate bypass is the kill switch
 # (block_no_verify_enabled userConfig option set to false). PowerShell
 # fail-closed sink shapes listed in the sibling `block_dangerous_git_allow`
 # option (ps-unparsable-<trigger>) set aside only the unreadable region; a
@@ -228,15 +236,27 @@ alias_record() {
 # A persistent `git config core.hooksPath <dir>` (any scope, `set`, `--add`,
 # `--replace-all`, `--file`) points every later commit and push at other hooks.
 # Only `.githooks`, the directory plain shared git hooks live in, which setup
-# sets per clone, is allowed. Reading or unsetting the key writes no path.
+# sets per clone, is allowed, and only at local scope while `.githooks/` holds
+# the guardrails dispatcher (what setup writes before it hands over the
+# hooks-path decision): at global or system scope the value would turn off the
+# hooks of every clone that installs them elsewhere. Reading or unsetting the
+# key writes no path.
 hookspath_write_check() {
   local -a pos=()
+  local scoped=0 top f
   while (($# > 0)); do
     case "$1" in
     --get | --get-all | --get-regexp | --get-urlmatch | --unset | --unset-all | \
       --remove-section | --rename-section | -l | --list | -e | --edit) return 0 ;;
-    -f | --file | --blob | -t | --type | --default | --comment) shift ;;
-    -*) ;;
+    -f | --file | --blob)
+      scoped=1
+      shift
+      ;;
+    -t | --type | --default | --comment) shift ;;
+    # Only these options keep the write in the clone's own config; any other
+    # (--global, --file=x, --glob, an abbreviation) may reach another file.
+    --local | --add | --replace-all | --fixed-value | --no-includes | --includes | --show-origin) ;;
+    -*) scoped=1 ;;
     *) pos+=("$1") ;;
     esac
     shift
@@ -248,9 +268,19 @@ hookspath_write_check() {
   esac
   ((${#pos[@]} >= 2)) || return 0
   [[ "${pos[0],,}" == core.hookspath ]] || return 0
-  [[ "${pos[1]}" == .githooks ]] && return 0
+  # A global option before `config` (-C <dir>, --git-dir) may point at another repository.
+  ((HOOK_GITINV_SUB_IDX == HOOK_GITINV_GI + 1)) || scoped=1
+  if [[ "${pos[1]}" == .githooks ]] && ((scoped == 0)); then
+    top="$(git rev-parse --show-toplevel 2>/dev/null)" || top=""
+    # A symlinked directory or hook file could carry a marker from outside the clone.
+    if [[ -n "$top" && -d "$top/.githooks" && ! -L "$top/.githooks" ]]; then
+      for f in "$top"/.githooks/{pre-commit,pre-push,commit-msg}; do
+        [[ -f "$f" && ! -L "$f" ]] && grep -qs '^# checks-dispatcher v1$' "$f" && return 0
+      done
+    fi
+  fi
   block "hooksPath-config" \
-    "BLOCKED: git config core.hooksPath ${pos[1]} points every later commit and push at other hooks. Only .githooks, the shared hooks directory, is allowed. $BYPASS_FIX"
+    "BLOCKED: git config core.hooksPath ${pos[1]} points every later commit and push at other hooks. Only .githooks, set at local scope while it holds the guardrails dispatcher, is allowed. $BYPASS_FIX"
 }
 
 # $1 subcommand, $2 its index, then the segment argv. Re-checks every definition

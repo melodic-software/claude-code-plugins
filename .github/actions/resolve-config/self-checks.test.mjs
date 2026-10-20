@@ -60,8 +60,9 @@ for (const entry of ["scripts/x.sh; rm -rf /", "../scripts/x.sh", "scripts/x.sh 
   });
 }
 
-// Only the write runner stages them, so a read skill's list would do nothing.
-test("self-checks with effect read fail the schema", () => {
+// Only the runner that stages edit tools stages them, so a read skill that
+// hands on no patch would list them for nothing.
+test("self-checks with effect read and no applied-by.patch fail the schema", () => {
   rejected(() => run({ effect: "read", "self-checks": ["scripts/check-x.sh"] }));
 });
 

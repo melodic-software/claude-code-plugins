@@ -3,6 +3,48 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.1] - 2026-10-20
+
+### Fixed
+
+- `block-dangerous-git` and `block-noncanonical-commit` cap how deep their git alias walk nests, sized to the process's stack, and deny past the cap. A long inline alias chain used to overflow a small stack (512 KB) and crash the guard with exit 139, which Claude Code lets through; it now exits 2 with the alias-chain deny. Without `/proc` (macOS, Git Bash) or with an unlimited stack the cap falls back to 25 levels, and no stack raises it past 409. The test overrides can only lower the cap.
+
+## [0.55.0] - 2026-10-20
+
+### Changed
+
+- The `reference-verify` pre-push entry reads pushed files through the shared check library's `checks_file_text` and `checks_regular_file` instead of its own copies; what it reports is unchanged.
+
+### Fixed
+
+- `pre-commit-content` decides a file is binary from a NUL byte in its content, not from `--numstat`, and reads the range diff with `--text`, so a tracked `-diff` attribute (`*.yml -diff`) no longer turns the content scan off for a text file.
+- `block-no-verify` allows `git config core.hooksPath .githooks` only at local scope and only while `.githooks/` holds the guardrails dispatcher; `--global`, `--system`, `--worktree` and `--file` are refused.
+- `reference-verify` verifies a changed file whose name git quotes (`"`, `\` or a control byte) in full instead of skipping it.
+- `block-no-verify` allows `git config core.hooksPath .githooks` only when `.githooks/` is a real directory and the dispatcher file it reads is a regular file, not a symlink, so a marker from outside the clone no longer counts.
+- The shared git-hook check library drops a file whose content holds a NUL byte in its first 8000 bytes from the changed-line ranges, so `reference-verify` never reads binary content as changed lines.
+
+- The `pre-commit-content` git hook no longer skips a staged file holding a NUL byte. It scans that file's whole raw content for the secret patterns and blocks on a match, so one NUL byte can no longer hide a token. A second pass with the NUL bytes removed catches a token in UTF-16LE text, such as a Windows `.reg` export or PowerShell `>` output. An ordinary binary with no match still commits, and such a file is not judged for machine-specific paths.
+
+## [0.54.0] - 2026-10-20
+
+### Added
+
+- **`block-fix-request-post`: an agent can no longer post the PR-fix lane fix request (#8438).** The address-feedback lane acts, with push credentials, on a comment line starting `PR-fix lane: please fix this finding` from someone with write access, and a local session posts with the owner's token. The guard blocks that line in `gh pr|issue comment|review|create|edit`, a writing `gh api` (GraphQL only for a mutation), `curl` with a body to a GitHub API route, and the GitHub MCP server's comment, review, issue and pull-request write tools. It reads the body inline, from heredocs, and from body files (`--body-file`, `-F k=@file`, `--input`, `-d @file`, `cat`, `<`). A line after `>`, inside a fence, or a mention later in a line passes, as does a command that only reads or greps the phrase. On by default; `block_fix_request_post_enabled` turns it off.
+
+### Changed
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- `block-convention-violation` and the `commit-msg-convention` git hook no longer read a failing convention resolver as "no convention tracked". Exit 1 with empty stderr stays quiet; exit 1 with a diagnostic (a non-ERE pattern, a broken `convention_source`) or exit 2 now fails open for that key alone with a notice naming the check that did not run, carrying the resolver's diagnostic: once per session on both channels from the guard, on stderr from the git hook. A key that resolved still enforces, and a failed resolution is not cached.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.53.0] - 2026-10-18
 
 ### Added
