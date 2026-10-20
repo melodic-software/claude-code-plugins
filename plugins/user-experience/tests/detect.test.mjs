@@ -687,6 +687,41 @@ describe("team paths may not start with a dot (.claude, .git, .env, .aws)", () =
     });
   }
 
+  for (const missing of ["rootlink/.claude", "rootlink/.github/workflows"]) {
+    test(`a missing path under a link to the root resolves to a dot path and is dropped for both keys: ${missing}`, { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+      const project = mkdtempSync(join(scratch, "reserved-missing-dot-"));
+      symlinkSync(".", join(project, "rootlink"));
+      const file = join(scratch, `reserved-${++n}.yaml`);
+      writeFileSync(file, `version: 1\noutput_home: ${missing}\nresearch_paths:\n  - ${missing}\n`);
+      const { team } = detect(["--project", project, ...seams, "--team", file]);
+      assert.equal(team.output_home, null);
+      assert.deepEqual(team.research_paths, []);
+      const dropped = team.warnings.filter((w) => w.includes(JSON.stringify(missing)) && w.includes("starts with a dot"));
+      assert.equal(dropped.length, 2, team.warnings.join("\n"));
+    });
+  }
+
+  test("a missing path under a link to the root keeps a non-dot child for output_home", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+    const project = mkdtempSync(join(scratch, "reserved-missing-new-"));
+    symlinkSync(".", join(project, "rootlink"));
+    const file = join(scratch, `reserved-${++n}.yaml`);
+    writeFileSync(file, "version: 1\noutput_home: rootlink/new\n");
+    const { team } = detect(["--project", project, ...seams, "--team", file]);
+    assert.equal(team.output_home, "rootlink/new");
+  });
+
+  test("a missing path under a link that leads outside the project is dropped for both keys", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+    const project = mkdtempSync(join(scratch, "reserved-missing-out-"));
+    symlinkSync("..", join(project, "up"));
+    const file = join(scratch, `reserved-${++n}.yaml`);
+    writeFileSync(file, "version: 1\noutput_home: up/new/deep\nresearch_paths:\n  - up/new/deep\n");
+    const { team } = detect(["--project", project, ...seams, "--team", file]);
+    assert.equal(team.output_home, null);
+    assert.deepEqual(team.research_paths, []);
+    const dropped = team.warnings.filter((w) => w.includes('"up/new/deep"') && w.includes("is outside the project"));
+    assert.equal(dropped.length, 2, team.warnings.join("\n"));
+  });
+
   test("a symlink inside the project that resolves outside it is refused for both keys", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
     const project = mkdtempSync(join(scratch, "reserved-out-link-"));
     symlinkSync("..", join(project, "up"));

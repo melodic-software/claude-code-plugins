@@ -353,13 +353,17 @@ function teamSettings(doc, warn, from) {
   // location cannot carry a path there.
   const resolved = (rel) => {
     const root = realpathSync(resolve(opts.project));
-    let at = resolve(opts.project, rel);
-    const exists = existsSync(at);
+    const abs = resolve(opts.project, rel);
+    let at = abs;
     while (!existsSync(at)) at = dirname(at);
-    return { real: relative(root, realpathSync(at)), exists };
+    // A missing tail is appended to its deepest existing ancestor's real path, so a link in the
+    // ancestry carries the tail to where the link leads.
+    const real = [relative(root, realpathSync(at)), relative(at, abs)].filter(Boolean).join("/");
+    return { real, exists: at === abs };
   };
   // relative() gives "" for the root, so an existing path that resolves there (a symlink to the
-  // root) is the root; a missing path whose nearest existing ancestor is the root is not.
+  // root) is the root; a missing path whose nearest existing ancestor is the root is not, and
+  // resolves to its tail under the root.
   const resolvesToRoot = (rel) => {
     const { real, exists } = resolved(rel);
     return exists && real === "";
