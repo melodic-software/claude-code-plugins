@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Recreate before resuming. Run in this exact order:\n\n```text\nTaskCreate(subject=\"Cap retry delay at 30 seconds\", description=\"...\") → status=pending\nTaskCreate(subject=\"Run ./test.sh\", description=\"...\") → status=pending\n```",
+      "why": "literal recreate calls for both items"
+    },
+    {
+      "answer": "{\"content\":\"Recreate:\\nTaskCreate(subject=\\\"Run ./test.sh\\\", description=\\\"x\\\")\"}",
+      "why": "same call inside a JSON-escaped trace line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- [ ] Cap retry delay at 30 seconds\n- [ ] Run ./test.sh\n\nRecreate these tasks in the next session.",
+      "why": "glyph list only, no recreate calls"
+    },
+    {
+      "answer": "Task list: 0 active tasks, nothing to recreate.",
+      "why": "list not captured"
+    },
+    {
+      "answer": "TaskCreate(subject=\"Refactor logging\", description=\"...\")",
+      "why": "recreate call for a task the session never had"
+    }
+  ]
+}

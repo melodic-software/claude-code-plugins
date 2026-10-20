@@ -101,6 +101,26 @@ expect "pre-commit on an unborn branch sees the first file" $'x.txt\t1\t1' \
 expect "worktree mode on an unborn branch sees the first file" 'x.txt' \
   "$(in_repo "$U" pre-commit 'checks_files' --worktree | nul_list | sort -u)"
 
+# --- binary content and the -diff attribute ---------------------------------------
+# A NUL in the first 8000 bytes makes a file binary whatever its attributes say;
+# a -diff attribute on a text file must not hide its lines.
+new_repo; B="$REPO"
+printf 'bin\0ary\nline\n' >"$B/blob.dat"
+printf 'text\n' >"$B/t.md"
+printf 'hidden.yml -diff\n' >"$B/.gitattributes"
+printf 'key: value\n' >"$B/hidden.yml"
+git -C "$B" add blob.dat t.md .gitattributes hidden.yml
+expect "pre-commit ranges: a binary file (NUL) staged beside text files is dropped" \
+  $'.gitattributes\t1\t1\nhidden.yml\t1\t1\nt.md\t1\t1' \
+  "$(in_repo "$B" pre-commit 'checks_changed_lines; sort "$CHECKS_TMP/ranges"')"
+expect "pre-commit filter: a finding in a binary file is not reported" 't.md:1: x' \
+  "$(in_repo "$B" pre-commit 'checks_changed_lines; printf "blob.dat:1: x\nt.md:1: x\n" | checks_filter_findings')"
+expect "pre-commit ranges: a text file with a -diff attribute is still scanned" yes \
+  "$(in_repo "$B" pre-commit 'checks_changed_lines; grep -q "^hidden.yml	1	1$" "$CHECKS_TMP/ranges" && echo yes || echo no')"
+printf 'loose\0bin\n' >"$B/loose.dat"
+expect "worktree ranges: an untracked binary file is dropped" no \
+  "$(in_repo "$B" pre-commit 'checks_changed_lines; grep -q "^loose.dat" "$CHECKS_TMP/ranges" && echo yes || echo no' --worktree)"
+
 # --- missing tool and skip-propagation ------------------------------------------
 new_repo; H="$REPO"
 cat >"$H/.git/hooks/pre-commit" <<EOF
@@ -169,6 +189,16 @@ expect "pre-push: a new branch starts at its merge-base with <remote>/HEAD" "$ba
   "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic_sha" "$zero" | in_repo "$P" pre-push 'cat "$CHECKS_TMP/push-ranges"' origin url)"
 expect "pre-push: the range's changed lines" $'f.txt\t2\t2' \
   "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic_sha" "$zero" | in_repo "$P" pre-push 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' origin url)"
+# The pushed commit's blob decides, not the index or the work tree.
+printf 'pushed\0bin\n' >"$P/p.dat"
+git -C "$P" add p.dat
+git -C "$P" commit -q -m bin
+bin_sha="$(git -C "$P" rev-parse HEAD)"
+git -C "$P" rm -q --cached p.dat
+expect "pre-push ranges: a binary file in the pushed commit is dropped" $'f.txt\t2\t2' \
+  "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$bin_sha" "$zero" | in_repo "$P" pre-push 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' origin url)"
+git -C "$P" reset -q --hard "$topic_sha"
+rm -f "$P/p.dat"
 
 git -C "$P" remote set-head origin -d >/dev/null
 expect "pre-push: without <remote>/HEAD, ls-remote --symref finds the default branch" "$base_sha $topic_sha" \
@@ -250,9 +280,15 @@ expect "pre-push reader: a symlink at the tip is not a regular file" no \
   "$(printf '%s\n' "$push_one" | in_repo "$Q" pre-push 'checks_regular_file link && echo yes || echo no' origin url)"
 expect "pre-push reader: a path no pushed range touches is not readable" "|1" \
   "$(printf '%s\n' "$push_one" | in_repo "$Q" pre-push 'checks_file_text h.txt; echo "|$?"' origin url)"
+expect "pre-push reader: a <rev> argument reads that commit, as --tip does" $'one\nother ref' \
+  "$(printf '%s\n' "$push_two" | in_repo "$Q" pre-push 'checks_file_text f.txt "$3"' origin url "$qtwo")"
 expect "worktree reader: reads the file on disk" $'worktree edit\nthat shifts lines' \
-  "$(in_repo "$Q" pre-commit 'checks_file_text f.txt')"
+  "$(in_repo "$Q" pre-commit 'checks_file_text f.txt' --worktree)"
 expect "worktree reader: a symlink is not a regular file" no \
+  "$(in_repo "$Q" pre-commit 'checks_regular_file link && echo yes || echo no' --worktree)"
+expect "pre-commit reader: reads the index, not the unstaged edit" $'one\ncommitted' \
+  "$(in_repo "$Q" pre-commit 'checks_file_text f.txt')"
+expect "pre-commit reader: a symlink in the index is not a regular file" no \
   "$(in_repo "$Q" pre-commit 'checks_regular_file link && echo yes || echo no')"
 
 # --- bash 3.2 syntax lint ---------------------------------------------------------
