@@ -16,5 +16,19 @@
     "vocabulary",
     "bounded-contexts",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "glossary_file": {
+      "type": "string",
+      "title": "Glossary file name",
+      "description": "File name curate-language proposes for a bounded context's glossary when the repository has no glossary convention. A file name, never a path. docs/conventions/domain-driven-design.yaml overrides this.",
+      "default": "GLOSSARY.md"
+    },
+    "glossary_map_file": {
+      "type": "string",
+      "title": "Glossary map file name",
+      "description": "File name curate-language proposes for the root context map once more than one bounded context exists. A file name, never a path. docs/conventions/domain-driven-design.yaml overrides this.",
+      "default": "GLOSSARY-MAP.md"
+    }
+  }
 }

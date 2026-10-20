@@ -376,6 +376,7 @@ plugins/planning/reference/*.md
 plugins/planning/skills/*/SKILL.md
 plugins/planning/skills/*/context/*.md
 plugins/planning/skills/*/templates/*.md
+plugins/planning/skills/questionnaire/templates/questionnaire.md
 plugins/planning/skills/design-handoff/evals/fixtures/*.md
 plugins/planning/skills/interview/evals/fixtures/*/*.md
 # The playbooks plugin was purged whole; the Boris and model-adaptation chapters
