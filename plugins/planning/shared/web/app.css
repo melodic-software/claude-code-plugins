@@ -190,7 +190,7 @@
 .app[data-live="off"] .vf-live-dot { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in oklch, var(--warn) 22%, transparent); }
 .app[data-live="off"] .vf-live { color: var(--warn); }
 .app .vf-people { display: flex; align-items: center; padding-inline-start: 6px; }
-.app .vf-person { margin-inline-start: -6px; border-radius: 50%; display: inline-grid; cursor: default; }
+.app .vf-person { margin-inline-start: -3px; border-radius: 50%; display: inline-grid; cursor: default; } /* overlaps the ring, not the initials */
 .app .vf-person-act { cursor: pointer; }
 .app .vf-person .core-avatar { box-shadow: 0 0 0 2px var(--bg); }
 .app .vf-person[data-role="host"] .core-avatar { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent); }
@@ -781,7 +781,8 @@
 
 /* ---------- title ---------- */
 .app .vf-brand { min-width: 0; }
-.app .vf-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-inline-size: 36ch; }
+/* the title takes the free width and cuts only when the bar is full (sweep S28) */
+.app .vf-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-inline-size: 72ch; }
 .app .vf-title-input { inline-size: min(36ch, 46vw); block-size: 30px; padding-block: 4px; font-size: 14px; font-weight: 650; }
 .app .vf-pencil { color: var(--faint); }
 
@@ -970,6 +971,7 @@
 .app .vf-merge-item { display: flex; align-items: center; gap: 8px; inline-size: 100%; min-block-size: 36px; padding: 4px 8px; border-radius: var(--r-sm); }
 .app .vf-merge .vf-crow { margin: 0; }
 .app .vf-pop-sub { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0; }
+.app .vf-help-rec + .vf-pop-sub { margin-block-start: 12px; } /* Keyboard shortcuts clears the "What this page records" link above it */
 .app .vf-settings .vf-pop-sub { margin-block: 10px 6px; padding-inline: 8px; }
 .app .vf-settings .vf-theme { padding-inline: 8px; }
 .app .vf-theme { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
@@ -1160,7 +1162,7 @@
 .app .vf-titlerow, .app .vf-goalrow { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .app .vf-titlerow .vf-tbtn, .app .vf-goalrow .vf-tbtn { block-size: 22px; min-inline-size: 22px; inline-size: 22px; }
 .app .vf-titlerow .vf-tbtn .vf-i, .app .vf-goalrow .vf-tbtn .vf-i { inline-size: 13px; block-size: 13px; }
-.app .vf-goal { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-inline-size: 52ch; }
+.app .vf-goal { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-inline-size: 96ch; }
 .app .vf-goal-add {
   all: unset; box-sizing: border-box; cursor: pointer; font-size: 11.5px; font-weight: 600; color: var(--accent-text);
   text-decoration: underline; text-decoration-color: color-mix(in oklch, var(--accent-text) 40%, transparent); text-underline-offset: 2px;
@@ -1479,16 +1481,18 @@
   margin-block-start: 24px; border-radius: var(--r-lg); background: var(--sunk); scroll-margin-block-start: 8px;
   border: 1px solid color-mix(in oklch, var(--claude) 30%, var(--line));
 }
-.app .vf-clhead { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 6px 10px 6px 6px; }
+/* the fold chevron sits at the head's right edge, after Ask Claude, where the Discussion's sits (sweep S37); it stays
+   inside the toggle button, so a click on it still folds */
+.app .vf-clhead { position: relative; display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 6px 40px 6px 6px; }
 .app .vf-clh { flex: 1 1 16em; min-width: 0; font-size: inherit; }
 .app .vf-cltoggle {
   /* A 20px first line inside 12px padding (44px for one line). When the counts wrap on a phone, the chevron stays
      pinned to that first line, beside the title, rather than dropping to the wrapped line. */
-  position: relative; display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; inline-size: 100%; min-block-size: 44px;
-  padding: 12px 34px 12px 8px; border-radius: var(--r-md); text-align: start; color: var(--text);
+  display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; inline-size: 100%; min-block-size: 44px;
+  padding: 12px 8px; border-radius: var(--r-md); text-align: start; color: var(--text);
 }
 .app .vf-cltitle { font-size: 14px; font-weight: 650; line-height: 20px; }
-.app .vf-cltoggle .vf-chev { position: absolute; inset-block-start: 14px; inset-inline-end: 10px; }
+.app .vf-cltoggle .vf-chev { position: absolute; inset-block-start: 20px; inset-inline-end: 14px; }
 .app .vf-clsec[data-open="true"] .vf-cltoggle .vf-chev { rotate: 180deg; }
 .app .vf-clhead > .vf-qtools { margin: 0; }
 .app .vf-clbody { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; padding: 0 14px 14px; }
@@ -1565,8 +1569,9 @@
 .app .vf-citedby { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 @media (min-width: 1200px) {
   .app .vf-scroll > *, .app .vf-composer > * { max-inline-size: 1080px; }
-  .app .vf-composer { padding-inline-end: 88px; } /* clear of the chat button */
 }
+/* the whole column keeps clear of the chat button, so it never covers Answer, Comment or Pass at the right edge (sweep S29) */
+@media (min-width: 721px) { .app .vf-scroll { padding-inline-end: max(clamp(16px, 4vw, 48px), 88px); } }
 @media (prefers-reduced-motion: no-preference) {
   .app .vf-hl { animation: vf-hl 1.2s var(--ease-out) both; }
 }
@@ -1619,6 +1624,12 @@
 /* Attach is one square icon button wherever it sits: the answer box, Discussion, chat, Ask Claude (44 px on a phone) */
 .app .vf-attach { --att: 32px; inline-size: var(--att); block-size: var(--att); padding: 0; border-radius: var(--r-sm); }
 .app .vf-attach .vf-i { margin: 0; }
+/* the file field's button looks like the page's own buttons, not the browser's "Choose File" */
+.app .vf-filein { padding: 4px; font-size: 12.5px; color: var(--muted); }
+.app .vf-filein::file-selector-button {
+  margin-inline-end: 10px; block-size: 30px; padding-inline: 12px; border-radius: var(--r-sm); border: 1px solid var(--line-strong);
+  background: var(--raise); color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+}
 .app .vf-crow > .vf-count-txt { order: -1; }
 
 /* ---------- uploads (Q75) ---------- */
@@ -2054,7 +2065,7 @@
 .app .vf-ibtab[hidden], .app .vf-ixgroup[hidden] { display: none; }
 .app .vf-ixgh { margin: 2px 0 0; padding-inline: 2px; font-size: 12px; font-weight: 600; color: var(--faint); }
 .app .vf-ixgroup { display: grid; gap: 8px; }
-.app .vf-ibempty { padding-block: 24px; text-align: center; }
+.app .vf-ibempty { padding-block: 24px; text-align: start; } /* on the column's start line, as the header and tabs are (sweep S36) */
 .app .vf-ibq { gap: 8px; grid-template-columns: minmax(0, 1fr); }
 .app .vf-ibq .vf-acts > .vf-ibgo { margin-inline-end: auto; }
 /* Follow-up 51: Pop-ups and the switches sit after the messages; below 1100 px the button folds them away */

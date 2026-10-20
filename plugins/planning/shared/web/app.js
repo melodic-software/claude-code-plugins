@@ -318,7 +318,7 @@
       return a;
     };
     /** Avatar sizes: one set for the whole page. */
-    const AV = { s: 16, m: 22, l: 26, xl: 34 };
+    const AV = { s: 20, m: 22, l: 26, xl: 34 }; // the smallest still reads its initials (sweep S25)
     /** A person as the page names them: "You" for me, else their shown name. */
     const youOr = (cid, name) => (isMe(cid) ? "You" : disp(name || "Someone"));
     /** F14: avatar, name and time, drawn the same everywhere. The avatar opens the person card: focusable, except
@@ -3660,7 +3660,7 @@
     adForm.append(adTitle, adSeg, ...Object.values(adF), adNote, adMineHead, adMine, adErr, adRow);
     attDlg.append(adForm);
     root.append(attDlg);
-    const AD = { kind: "link", qid: "", ref: false, taken: [], onAdd: null, from: null };
+    const AD = { kind: "link", qid: "", ref: false, taken: [], onAdd: null, from: null, title: "" };
     /** Which tabs the picker shows. A reference takes a link or a quote. Every form people write in takes an upload,
      *  and only while Uploads is on. Pictures come from Claude's add-asset. */
     function attKinds(ref) {
@@ -3672,7 +3672,7 @@
       .sort((a, b) => b.ts - a.ts);
     const adFirst = () => ({ file: adFile, image: adImg, link: adUrl, quote: adQText })[AD.kind];
     function openAttach(o) {
-      Object.assign(AD, { qid: "", ref: false, taken: [], onAdd: null, from: null }, o);
+      Object.assign(AD, { qid: "", ref: false, taken: [], onAdd: null, from: null, title: "" }, o);
       const ok = attKinds(AD.ref);
       if (!ok[AD.kind]) AD.kind = Object.keys(ok).find(k => ok[k]) || "link";
       for (const x of [adFile, adImg, adCap, adUrl, adLTitle, adQText, adQSrc, adQUrl]) x.value = "";
@@ -3683,7 +3683,7 @@
     }
     function paintAttach() {
       const ok = attKinds(AD.ref), k = AD.kind, owner = Core.me.isOwner, trusted = owner || Core.me.isTrusted;
-      adTitle.textContent = AD.ref ? "Add a reference" : "Attach to this";
+      adTitle.textContent = AD.ref ? "Add a reference" : AD.title || "Attach a file";
       for (const [kk, b] of Object.entries(adKinds)) { b.hidden = !ok[kk]; b.setAttribute("aria-pressed", String(kk === k)); }
       adSeg.hidden = Object.values(ok).filter(Boolean).length < 2;
       adF.file.hidden = k !== "file"; adF.image.hidden = adF.cap.hidden = k !== "image";
@@ -3768,7 +3768,7 @@
       };
       b.onclick = () => {
         if (slot.get().length >= 4) return flash("Four files at most go with one post.");
-        openAttach({ qid: getQid(), taken: slot.get().map(a => a.upload), from: b, onAdd: att => slot.put([...slot.get(), att]) });
+        openAttach({ qid: getQid(), taken: slot.get().map(a => a.upload), from: b, title: slot.title, onAdd: att => slot.put([...slot.get(), att]) });
       };
       if (field) on(field, "paste", e => {
         const pics = [...(e.clipboardData?.files || [])].filter(f => /^image\/(png|jpeg|webp|gif)$/.test(f.type));
@@ -4164,10 +4164,14 @@
     const sugSlot = attSlot(() => ui.cur, null, perQuestion(), sugTa);
     sugRow.prepend(sugSlot.btn); sugForm.insertBefore(sugSlot.chips, sugRow);
     const chatSlot = attSlot(() => "", null, null, mInput);
+    // the attach dialog names what the file goes with (sweep S26)
+    for (const [sl, t] of [[cSlot, "Attach to your answer"], [apSlot, "Attach to your request"], [askSlot, "Attach to your request"], [sugSlot, "Attach to your suggestion"],
+      [chatSlot, "Attach to your message"]]) sl.title = t;
     mForm.prepend(chatSlot.btn); chat.insertBefore(chatSlot.chips, mForm);
     const discSlot = attSlot(() => ui.cur, null, perQuestion(), discTa);
     discRow.prepend(discSlot.btn); discForm.insertBefore(discSlot.chips, discRow);
     const propSlot = attSlot(() => "", null, null, propTa);
+    discSlot.title = "Attach to your comment"; propSlot.title = "Attach to your proposal";
     propRowB.prepend(propSlot.btn); proposePop.insertBefore(propSlot.chips, propRowB);
     const sameAtt = qid => attKey(ui.attDraft[qid] ?? (myRec(qid)?.att || [])) === attKey(myRec(qid)?.att || []);
 
@@ -4486,6 +4490,7 @@
     const REP = { ctx: null, image: "", size: null };
     function paintSent() {
       const c = REP.ctx;
+      if (!c) return; // the form has not opened yet: a screenshot picked or cleared before it has nothing to list (sweep S30)
       const rows = [...ctxLines(c),
         c.errors.length ? `Recent errors: ${c.errors.join("; ")}` : "Recent errors: none",
         ...(REP.image ? [`Your screenshot, ${REP.size.w} × ${REP.size.h}`] : []),
@@ -5518,7 +5523,7 @@
       ask.after(fromDisc);
       li.append(head, bodyR);
       head.onclick = () => { const id = li._x.id; ui.resClosed.has(id) ? ui.resClosed.delete(id) : ui.resClosed.add(id); render(); };
-      full.onclick = () => openReader(`${KIND_LABEL[li._x.kind] || "Research"} report`, `${li._x.skill}, ${li._q.id}: ${li._q.text}`, li._x.report, full);
+      full.onclick = () => openReader(`${KIND_LABEL[li._x.kind] || "Research"} report`, `${li._x.skill ? li._x.skill + ", " : ""}${li._q.id}: ${li._q.text}`, li._x.report, full);
       li._k = { head, ttl, via, isNew, tm, bodyR, ask, sum, srcs, full, citedBy, share, shareNote, discard, publish, takeDown, fromDisc, useRow };
       return li;
     }
@@ -5530,7 +5535,7 @@
       k.ttl.textContent = x.own ? `${x.kind === "ask" ? "Answer" : KIND_LABEL[x.kind] || "Answer"} from ${isMe(x.byCid) ? "your" : `${disp(x.by || "someone")}'s`} own Claude`
         : x.kind === "ask" ? "Claude's answer" : KIND_LABEL[x.kind] || "Research";
       li.classList.toggle("vf-res-own", !!x.own);
-      k.via.textContent = `via ${x.skill}`;
+      k.via.textContent = x.skill ? `via ${x.skill}` : ""; k.via.hidden = !x.skill; // nothing named: no "via Claude" under "Claude's answer"
       k.via.title = x.why || ""; // C37: why Claude routed it there
       // Shared, held for the owner's Share, or out to its asker alone (private: Just me, or taken down by the owner).
       const draft = x.published === false, owner = Core.me.isOwner, asker = isMe(x.byCid), who = disp(x.by || "the person who asked");
@@ -5565,7 +5570,7 @@
       k.ask.hidden = !x.ask;
       fillFromDisc(k.fromDisc, Core.state, q, x.requestId);
       li.classList.toggle("vf-qa-noask", !x.ask);
-      fillClamp(k.sum, "x:" + x.id, x.summary, k.ttl.textContent, `${x.skill}, ${q.id}: ${q.text}`);
+      fillClamp(k.sum, "x:" + x.id, x.summary, k.ttl.textContent, `${x.skill ? x.skill + ", " : ""}${q.id}: ${q.text}`);
       const sk = JSON.stringify(x.sources);
       if (k.srcs._sk !== sk) {
         k.srcs._sk = sk;
@@ -5800,7 +5805,7 @@
         const b = li.firstChild, on2 = (ui.cites[q.id] || []).includes(x.id);
         b.setAttribute("aria-pressed", String(on2));
         b.firstChild.textContent = `${KIND_LABEL[x.kind] || "Research"} ${x.id}${x.by ? `, asked by ${isMe(x.byCid) ? "you" : disp(x.by)}` : ""}`;
-        b.lastChild.textContent = `via ${x.skill}, ${since(x.ts)}`;
+        b.lastChild.textContent = x.skill ? `via ${x.skill}, ${since(x.ts)}` : since(x.ts);
       });
       const shown = picked.filter(id => res.some(x => x.id === id));
       sync(citeChips, ro ? [] : shown, id => id, id => {
