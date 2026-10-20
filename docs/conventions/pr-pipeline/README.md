@@ -69,6 +69,19 @@ no renumbering.
 `maintenance` and `upstream` are scheduled producers, not steps in a PR's path. They file work
 into `intake`.
 
+An answered issue re-enters `intake` through
+[`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
+model. On a new comment on an open issue, not a pull request, it acts on a `status: needs-decision`
+issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
+trusted-actors list, not posted through an App, unedited or last edited by a listed human), or on a
+`status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
+status label, and `needs-human` for a decision, and adds `needs-triage`. It dispatches
+`intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
+or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
+cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
+claim, so a second answer dispatches nothing. It never adds `agent-ready`, and it holds the job's
+own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
+
 Pipeline lanes skip draft PRs; `ci-status` still reports on them, and passes the skipped lanes.
 The `ready_for_review` run tests the head, and the merge queue re-runs every lane before a merge.
 Converting a PR back to draft
