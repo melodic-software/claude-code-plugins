@@ -15,11 +15,12 @@
 // The two list flags replace the live `claude plugin list --json` and `claude mcp list` calls;
 // --team replaces the team file the convention home resolves to.
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
+import { resolve as resolveConfig } from "./lib/config-cascade.mjs";
 import { installed } from "./lib/installed.mjs";
 import { rejections } from "./lib/team-policy.mjs";
 import { parse as parseYaml } from "./lib/yaml-subset.mjs";
@@ -28,7 +29,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ROUTING = join(ROOT, "reference/routing.json");
 const ROW_SCHEMA = JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.json"), "utf8")).properties.rows.items;
 const TEAM_SCHEMA = JSON.parse(readFileSync(join(ROOT, "reference/team.schema.json"), "utf8"));
-const TEAM_FILE = "user-experience.yaml";
+const PLUGIN = "user-experience";
+const TEAM_FILE = `${PLUGIN}.yaml`;
+// What the resolver is told of the team file's shape: each key is an open leaf, because this script
+// checks the values itself, entry by entry, so one bad value drops alone with its own warning.
+const TEAM_LAYOUT = { type: "object", properties: Object.fromEntries(Object.keys(TEAM_SCHEMA.properties).map((k) => [k, {}])) };
 const DEFAULT_HOME = "docs/conventions";
 const SETUP = "/user-experience:setup";
 
@@ -142,11 +147,11 @@ function inside(p) {
   return relative(root, abs).split(sep).join("/") || ".";
 }
 
-/** Where the team surface is: {path, file} or {path, cause}. The one function that knows the
- * surface's form, a file at <home>/user-experience.yaml; a later folder form changes only this.
- * The resolver gets --root, so CLAUDE_PROJECT_DIR never chooses the project. */
+/** Where the team surface is: {path, home} or {path, cause}; {path, file, seam} for --team. The one
+ * function that knows the surface's form, a file at <home>/user-experience.yaml; a later folder form
+ * changes only this. The resolver gets --root, so CLAUDE_PROJECT_DIR never chooses the project. */
 function teamSurface() {
-  if (opts.team) return { path: opts.team, file: resolve(opts.team) };
+  if (opts.team) return { path: opts.team, file: resolve(opts.team), seam: true };
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", opts.project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
   // 4 declined and 5 not applicable (the project is $HOME, an ancestor of it, or outside git): no
   // repository file is read, so the bundled defaults apply. 1 (no pointer) keeps the default home.
@@ -156,36 +161,68 @@ function teamSurface() {
     const cause = r.error?.code || r.stderr?.trim().split("\n").at(-1) || `exit ${r.status}`;
     return { path: null, cause: `convention home unresolved (${cause})` };
   }
-  const path = `${r.status === 0 ? r.stdout.trim() : DEFAULT_HOME}/${TEAM_FILE}`;
+  const home = r.status === 0 ? r.stdout.trim() : DEFAULT_HOME;
+  const path = `${home}/${TEAM_FILE}`;
   if (inside(path) === null) return { path, cause: "resolves outside the project" };
-  return { path, file: join(opts.project, path) };
+  return { path, home };
 }
 
-/** {path, doc} for a team file that parses at a known version, or {path, cause}. */
-function readTeam({ path, file, cause }) {
+const notRead = (e) => (e.code === "ENOENT" ? "not found" : `unreadable (${e.code ?? e.message})`);
+
+/** {path, doc, notes} for a team file that resolves at a known version, or {path, cause}. The
+ * shared resolver finds and parses the file; a --team file is copied under a scratch home first,
+ * so it stands in for the one the convention home names and the other layers are not read. */
+function readTeam({ path, file, home, seam, cause }) {
   if (cause) return { path, cause };
-  let text;
+  let scratch = null;
   try {
-    text = readFileSync(file, "utf8");
-  } catch (e) {
-    return { path, cause: e.code === "ENOENT" ? "not found" : `unreadable (${e.code ?? e.message})` };
+    if (seam) {
+      let text;
+      try {
+        text = readFileSync(file, "utf8");
+      } catch (e) {
+        return { path, cause: notRead(e) };
+      }
+      scratch = mkdtempSync(join(tmpdir(), "ux-home-"));
+      writeFileSync(join(scratch, TEAM_FILE), text);
+    }
+    return checkTeam(path, seam ? scratch : home, seam);
+  } finally {
+    if (scratch) rmSync(scratch, { recursive: true, force: true });
   }
-  let doc;
-  try {
-    doc = parseYaml(text);
-  } catch (e) {
-    return { path, cause: `malformed: ${e.message}` };
-  }
-  if (!isMapping(doc)) return { path, cause: "malformed: the top level is not a mapping" };
+}
+
+/** The resolver's merged team settings in `home`, held to the layout versions this plugin reads. */
+function checkTeam(path, home, seam) {
+  // Under --team the scratch home is also the user home, so only the --team file is read.
+  const out = resolveConfig({ plugin: PLUGIN, projectRoot: opts.project, home, schema: TEAM_LAYOUT, teamOnly: ["routing", "version"], userHome: seam ? home : opts.home });
+  const layer = out.layers.find((l) => l.name === "team");
+  const prefix = `team (${layer.path}): `;
+  const shown = (m) => m.replaceAll(layer.path, path);
+  const own = layer.errors.filter((e) => e.startsWith(prefix)).map((e) => e.slice(prefix.length));
+  // A file-level refusal or parse error; a rejected value starts with its quoted key.
+  const fileError = own.find((m) => !m.startsWith('"'));
+  const outside = layer.errors.find((e) => e.includes("resolves outside the project"));
+  if (outside) return { path, cause: "resolves outside the project" };
+  if (fileError) return { path, cause: /^(is a symlink|is not a regular file)/.test(fileError) ? `unreadable (${fileError})` : `malformed: ${fileError === "the top level must be a mapping" ? "the top level is not a mapping" : fileError}` };
+  if (!existsSync(layer.path)) return { path, cause: "not found" };
+  // The resolver reads an empty file as an empty mapping; for this plugin it is malformed.
+  if (parseYaml(readFileSync(layer.path, "utf8")) == null) return { path, cause: "malformed: the top level is not a mapping" };
+  // The user and local layers merge into out.values too, so their refusals are warnings as well.
+  const notes = out.layers.filter((l) => ["team", "local", "user"].includes(l.name)).flatMap((l) => l.errors).map((e) => shown(e));
+  const doc = out.values;
+  // A setting's warning names the local layer when that layer supplied the value.
+  const local = out.layers.find((l) => l.name === "local");
+  const from = (k) => (out.provenance[k] === "local" ? `local (${local.path}): ` : "");
   const { version, routing: routingSchema } = TEAM_SCHEMA.properties;
   if (doc.version !== version.const) return { path, cause: `version ${quote(doc.version ?? null)} is not one this plugin reads (${version.const})` };
   const { routing } = doc;
-  if (routing == null) return { path, doc };
+  if (routing == null) return { path, doc, notes, from };
   if (!isMapping(routing)) return { path, cause: "malformed: routing is not a mapping" };
   const major = typeof routing.version === "number" ? Math.trunc(routing.version) : routing.version;
   const known = routingSchema.properties.version.const;
   if (major !== known) return { path, cause: `routing.version ${quote(routing.version ?? null)} is not one this plugin reads (${known})` };
-  return { path, doc };
+  return { path, doc, notes, from };
 }
 
 /** Errors for `value` against the row-schema keywords routing.schema.json uses. */
@@ -297,12 +334,13 @@ function mergeRoutes(bundled, teamRouting, path, warn, presence) {
 const DEFAULTS = { jtbd_school: "unset", research_paths: [], persona_paths: [], output_home: null };
 
 /** The team file's settings beyond routing; a bad value falls back to its default with a warning. */
-function teamSettings(doc, warn) {
+function teamSettings(doc, warn, from) {
   const props = TEAM_SCHEMA.properties;
-  for (const k of Object.keys(doc)) if (!Object.hasOwn(props, k)) warn(`unknown key ${quote(k)} ignored`);
+  const at = (k) => (m) => warn(`${from(k)}${m}`);
+  for (const k of Object.keys(doc)) if (!Object.hasOwn(props, k)) at(k)(`unknown key ${quote(k)} ignored`);
   let school = doc.jtbd_school ?? DEFAULTS.jtbd_school;
   if (!props.jtbd_school.enum.includes(school)) {
-    warn(`jtbd_school ${quote(school)} is not one of ${props.jtbd_school.enum.join(", ")}; unset used`);
+    at("jtbd_school")(`jtbd_school ${quote(school)} is not one of ${props.jtbd_school.enum.join(", ")}; unset used`);
     school = DEFAULTS.jtbd_school;
   }
   // A project path whose first segment is not a dotfile or dot-directory: a deliverable under
@@ -337,15 +375,15 @@ function teamSettings(doc, warn) {
     return rel === "." || (rel !== null && resolvesToRoot(rel)) ? ROOT_REASON : fallback;
   };
   const paths = (k) =>
-    listAt(doc[k], k, warn).flatMap((p) => {
+    listAt(doc[k], k, at(k)).flatMap((p) => {
       const rel = usable(p);
-      if (rel === null) warn(`${k} entry ${quote(p)} ${why(p, "is outside the project, starts with a dot, or is not a path")}; dropped`);
+      if (rel === null) at(k)(`${k} entry ${quote(p)} ${why(p, "is outside the project, starts with a dot, or is not a path")}; dropped`);
       return rel === null ? [] : [rel];
     });
   let home = DEFAULTS.output_home;
   if (doc.output_home != null) {
     home = usable(doc.output_home);
-    if (home === null) warn(`output_home ${quote(doc.output_home)} ${why(doc.output_home, "is outside the project, starts with a dot, or is not a path")}; default used`);
+    if (home === null) at("output_home")(`output_home ${quote(doc.output_home)} ${why(doc.output_home, "is outside the project, starts with a dot, or is not a path")}; default used`);
   }
   return { jtbd_school: school, research_paths: paths("research_paths"), persona_paths: paths("persona_paths"), output_home: home };
 }
@@ -369,10 +407,10 @@ let rows = bundled;
 let touched = new Set();
 let team;
 if (source.doc) {
-  const warnings = [];
+  const warnings = [...source.notes];
   const warn = (w) => warnings.push(w);
   ({ rows, touched } = mergeRoutes(bundled, source.doc.routing ?? {}, source.path, warn, presence));
-  team = { path: source.path, loaded: true, warnings, ...teamSettings(source.doc, warn) };
+  team = { path: source.path, loaded: true, warnings, ...teamSettings(source.doc, warn, source.from) };
 } else {
   const named = source.path ?? `the ${TEAM_FILE} team file`;
   const skipped_reason = `${named} skipped: ${source.cause}. Built-in routes used; team overrides and the deny floor were not applied. Run ${SETUP} to create or repair it.`;
