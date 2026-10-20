@@ -137,6 +137,7 @@
         out.format = "scale"; out.min = f.min; out.max = f.max; out.labels = f.labels || {};
         out.options = Array.from({ length: f.max - f.min + 1 }, (_, i) => ({ id: String(f.min + i), label: String(f.min + i) }));
       }
+      if (q.context) out.context = plain(q.context); // a mention in it reads as @Name, as the question's text does
       out.formatKind = f.kind;
       out.needsReview = flag ? { because: flag.because, ts: flag.at, ...(flag.why?.suggestion ? { suggestion: flag.why.suggestion } : {}) } : null;
       if (!flag) delete out.needsReview;
@@ -228,7 +229,7 @@
         const r = x.request ? reqText.get(x.request) : null, by = x.by?.kind === "guest-claude" ? x.by.pid : r?.pid;
         return { id: x.id, kind: x.kind, summary: x.summary, msg: x.msg || "", sources: x.sources || [], report: x.report || "", ts: x.at, requestId: x.request || "",
           // A guest's own Claude names its own tools in `used`; the label never repeats them.
-          skill: x.by?.kind === "guest-claude" ? "their own Claude" : (x.used || []).map(u => u.name).join(", ") || "Claude", why: x.why || "", published: x.published !== false,
+          skill: x.by?.kind === "guest-claude" ? "their own Claude" : (x.used || []).map(u => u.name).join(", "), why: x.why || "", published: x.published !== false,
           own: x.by?.kind === "guest-claude", // the requester's own Claude answered it (Connect your Claude), not the host's
           // Unshared and out to its asker (a Just me answer, or one the owner took down), and taken down by the owner.
           private: !!x.private, takenDown: !!x.takenDown, ...(r?.audience === "me" ? { justMe: true } : {}),
@@ -403,7 +404,7 @@
       a.style.setProperty("--av", Core.colorFor(personCid));
       a.dataset.who = personCid || "";
       a.style.width = a.style.height = size + "px";
-      a.style.fontSize = Math.round(size * 0.4) + "px";
+      a.style.fontSize = Math.max(9, Math.round(size * 0.4)) + "px"; // initials never below 9 px
       a.title = name;
       return a;
     },
@@ -746,6 +747,8 @@
       if (!r.ok) throw { status: r.status, ...j };
       secret = j.secret; Core.me.cid = j.pid;
       put("secret", secret); put("pid", j.pid);
+      // the server makes a name unique ("Ivy 2"): the page says so, so nobody is renamed silently
+      Core.renamedFrom = name && j.name && j.name !== name.trim() ? name.trim() : null;
       if (j.name) { Core.me.name = j.name; put("name", j.name); }
       Core.joinedAs = j.was || null; // someone offline already used this name
       return j;
@@ -1190,7 +1193,10 @@
    *  identity and no query is an old page, which gets only a reload notice. */
   // A poll asked for while one runs runs once more after it, so an action's poll always starts after its answer.
   let polling = null, pollNext = null;
+  let waitPolled = 0;
   function poll() {
+    // waiting to be let in, the page asks every 5 s, not every 1.5 s: each ask is a 403 the console logs (sweep S31)
+    if (Core.state.youWaiting && !polling) { if (Date.now() - waitPolled < 5000) return Promise.resolve(); waitPolled = Date.now(); }
     if (!polling) {
       polling = pollOnce().finally(() => { polling = null; });
       return polling;
@@ -1270,7 +1276,8 @@
   const visibleNow = () => document.visibilityState !== "hidden";
   function beat() { HB.wanted = true; pumpBeat(); }
   function pumpBeat() {
-    if (HB.busy || HB.timer || !HB.wanted || (!ownerToken && !secret)) return;
+    // a person still waiting to be let in has no presence to send: the server refuses it (403) every beat (sweep S31)
+    if (HB.busy || HB.timer || !HB.wanted || (!ownerToken && !secret) || Core.state.youWaiting) return;
     const visible = visibleNow(), change = HB.visible !== null && (visible !== HB.visible || away !== HB.away);
     const due = (change ? HB.changeDone : HB.done) + GAP - Date.now();
     if (due > 0) { HB.timer = setTimeout(() => { HB.timer = 0; pumpBeat(); }, due); return; }
