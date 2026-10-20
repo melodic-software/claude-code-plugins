@@ -1,7 +1,8 @@
 # Release plugins from changelog fragments through a bot-maintained release PR
 
 - Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild) and
-  2026-10-20 (a push run never rebuilds), see the amendments below
+  2026-10-20 (a push run never rebuilds, and a release may merge past newer fragments), see the
+  amendments below
 - Date: 2026-10-03
 
 ## Context
@@ -328,7 +329,7 @@ The statement under Trigger and cadence that rebuilds happen only as often as fr
 plugins in the open release land no longer holds: while main keeps moving, a failing release pull
 request, from a flake or from its own content, is rebuilt on every run.
 
-## Amendment (2026-10-20): a push run never rebuilds
+## Amendment (2026-10-20): a push run never rebuilds, and newer fragments ride the next release
 
 A run started by a push of a fragment to main only queues the open release pull request when it is
 current and green, and builds one when none is open; it never rebuilds an open one. Every rebuild
@@ -342,3 +343,17 @@ running checks. On 2026-10-20, with fragments landing on main faster than those 
 push-triggered rebuilds cancelled them run after run (`pr-require-checks` runs
 [39375083134](https://github.com/melodic-software/claude-code-plugins/actions/runs/39375083134) and
 [39375176650](https://github.com/melodic-software/claude-code-plugins/actions/runs/39375176650)), so the release pull request never reached a green `ci-status` and never merged.
+
+"Current" also changes. A release pull request is current when no file it changes, meaning a
+fragment it consumed, a `CHANGELOG.md` or a `plugin.json`, has changed on main since its build base,
+the main commit the release was cut from (its merge base with main, since the build job cuts it as
+one commit on main's tip). `check-changelog-fragments.sh --check-release` compares each such path's
+blob on main with its blob at the build base, so a consumed fragment edited or removed on main, or a
+plugin's `CHANGELOG.md` or version changed there, still starts a rebuild on the next scheduled run.
+A fragment main added after the build no longer does, for any plugin: the merge leaves it untouched
+and it rides the next release. The release bullets under The release pull request that rebuild or
+eject a release for an unconsumed fragment no longer hold, and in the merge queue the check now
+passes, since `HEAD^1` is also the queued commit's merge base. While fragments keep landing, the
+previous rule made every release stale before its checks finished, so each scheduled run would
+rebuild it and cancel them as the push rebuilds did in the 2026-10-20 runs above. The release and
+pull-request-merge owner decided this rule in an owner-session committee decision on 2026-10-20.

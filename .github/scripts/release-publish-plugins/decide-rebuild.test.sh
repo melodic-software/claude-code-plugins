@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Tests for decide-rebuild.sh on a throwaway origin and clone, with a stub gh
-# on PATH and a stub fragment gate on main whose exit code GATE_RC sets.
+# on PATH and a stub fragment gate on main whose exit code GATE_RC sets; the
+# gate's own cases (scripts/check-changelog-fragments.test.sh) cover what it
+# counts as current.
 # Canned gh responses follow the shapes the script reads: `gh pr list --json`
 # rows, GraphQL PullRequest.isInMergeQueue, and the REST check-runs list.
 set -euo pipefail
@@ -96,7 +98,7 @@ check 'none: exit 0' 0 "$RC"
 check 'none: rebuild' true "$(val rebuild)"
 check 'none: found=false' false "$(val found)"
 
-echo '# queued release pull request with an unconsumed fragment'
+echo '# queued release pull request that main went stale under'
 new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide FAKE_QUEUED=true GATE_RC=1
 check 'queued: exit 0' 0 "$RC"
@@ -115,7 +117,7 @@ FAKE_PRS="$(pr_json MERGEABLE)" run_decide FAKE_QUEUED=fail GATE_RC=1
 check 'lookup failure: non-zero exit' 1 "$((RC != 0))"
 check 'lookup failure: no rebuild written' '' "$(val rebuild)"
 
-echo '# not queued, unconsumed fragment'
+echo '# not queued, main changed a file it changes'
 new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=1
 check 'stale: exit 0' 0 "$RC"
@@ -127,7 +129,7 @@ new_fixture no
 FAKE_PRS="$(pr_json CONFLICTING)" run_decide
 check 'conflict: rebuild' true "$(val rebuild)"
 
-echo '# not queued, current and consumed'
+echo '# not queued, current'
 new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_CI=failure
 check 'current: exit 0' 0 "$RC"
@@ -155,7 +157,7 @@ FAKE_PRS='[]' run_decide GITHUB_EVENT_NAME=push
 check 'push none: exit 0' 0 "$RC"
 check 'push none: builds one (no checks to cancel)' 'true ' "$(val rebuild) $(val deferred)"
 
-echo '# push: unconsumed fragment'
+echo '# push: main changed a file it changes'
 new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=1
 check 'push stale: exit 0' 0 "$RC"
@@ -172,12 +174,12 @@ new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_CI=failure
 check 'push behind+failed: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
 
-echo '# push: current and consumed'
+echo '# push: current'
 new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0
 check 'push current: no rebuild, not deferred' 'false ' "$(val rebuild) $(val deferred)"
 
-echo '# workflow_dispatch: unconsumed fragment'
+echo '# workflow_dispatch: main changed a file it changes'
 new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=workflow_dispatch GATE_RC=1
 check 'dispatch stale: rebuild' true "$(val rebuild)"

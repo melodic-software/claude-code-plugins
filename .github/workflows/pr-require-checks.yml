@@ -1784,10 +1784,12 @@ jobs:
       # takes a fragment under .changes/<plugin>/ in each pull request, and the
       # release pull request (branch release/plugins) bumps it. --check
       # validates every fragment in the tree; --check-required asks a change to
-      # such a plugin for one. --check-release keeps a release from merging past
-      # a fragment it never consumed: on the release pull request against the
-      # base, and in the merge queue against HEAD^1, the tree the queued squash
-      # commit lands on (main plus every entry ahead of it).
+      # such a plugin for one. --check-release keeps a release from merging over
+      # a file it changes (a consumed fragment, a CHANGELOG.md, a plugin.json)
+      # that the base changed since the release was cut: on the release pull
+      # request against the base, and in the merge queue against HEAD^1, the
+      # tree the queued squash commit lands on (main plus every entry ahead of
+      # it), which is also its merge base, so it passes there.
       - name: Verify every changelog fragment is well formed
         id: changelog_fragments_check
         continue-on-error: true

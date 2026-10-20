@@ -275,13 +275,7 @@ fragment "$f" alpha late-z-fedcba98 patch
 fragment "$f" beta late-z-fedcba98 patch
 commit "$f" late
 git_test_config "$f" checkout -q release/plugins
-expect "--check-release fails on a fragment that landed on the base after the release was cut" 1 "UNCONSUMED FRAGMENT: .changes/alpha/late-z-fedcba98.md" "$f" --check-release main
-out="$(run_gate "$f" --check-release main 2>&1)"
-if [[ "$out" != *".changes/beta/"* ]]; then
-  ok "--check-release ignores a pending fragment for a plugin the release does not bump"
-else
-  fail "--check-release should not name beta: $out"
-fi
+expect "--check-release passes when the base only added fragments after the release was cut" 0 "for the 1 plugin(s) it bumps" "$f" --check-release main
 rm -rf "$f"
 
 base_fixture f alpha
@@ -293,6 +287,35 @@ fragment "$f" alpha feat-x-0123abcd minor "### Added
 commit "$f" edit-consumed
 git_test_config "$f" checkout -q release/plugins
 expect "--check-release fails when a consumed fragment was edited on the base after the cut" 1 "EDITED FRAGMENT: .changes/alpha/feat-x-0123abcd.md" "$f" --check-release main
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+git_test_config "$f" checkout -q main
+git_test_config "$f" rm -q .changes/alpha/feat-x-0123abcd.md
+commit "$f" remove-consumed
+git_test_config "$f" checkout -q release/plugins
+expect "--check-release fails when a consumed fragment was removed on the base after the cut" 1 "REMOVED FRAGMENT: .changes/alpha/feat-x-0123abcd.md" "$f" --check-release main
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+printf '# Changelog\n\n## [1.1.0] - 2026-10-02\n\n### Fixed\n\n- A fix.\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First.\n' >"$f/plugins/alpha/CHANGELOG.md"
+commit "$f" "release changelog"
+git_test_config "$f" checkout -q main
+printf '# Changelog\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First, reworded.\n' >"$f/plugins/alpha/CHANGELOG.md"
+commit "$f" changelog-on-main
+git_test_config "$f" checkout -q release/plugins
+expect "--check-release fails when a released CHANGELOG.md changed on the base after the cut" 1 "CHANGED ON BASE: plugins/alpha/CHANGELOG.md" "$f" --check-release main
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+git_test_config "$f" checkout -q main
+printf '{\n  "name": "alpha",\n  "version": "1.0.1"\n}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
+commit "$f" version-on-main
+git_test_config "$f" checkout -q release/plugins
+expect "--check-release fails when a released plugin.json version changed on the base after the cut" 1 "CHANGED ON BASE: plugins/alpha/.claude-plugin/plugin.json" "$f" --check-release main
 rm -rf "$f"
 
 base_fixture f alpha beta
@@ -325,7 +348,7 @@ git_test_config "$f" checkout -qb queue-behind main
 fragment "$f" alpha queued-a-0badc0de patch
 commit "$f" "fragment pull request ahead in the queue"
 git_test_config "$f" cherry-pick "$release_commit" >/dev/null
-expect "--check-release HEAD^1 ejects a queued release behind a fragment for a plugin it bumps" 1 "UNCONSUMED FRAGMENT: .changes/alpha/queued-a-0badc0de.md" "$f" --check-release 'HEAD^1'
+expect "--check-release HEAD^1 passes a queued release behind a newer fragment for a plugin it bumps" 0 "for the 1 plugin(s) it bumps" "$f" --check-release 'HEAD^1'
 git_test_config "$f" checkout -qb queue-other main
 printf 'v2\n' >"$f/plugins/beta/skills/a.md"
 printf '{\n  "name": "beta",\n  "version": "1.0.1"\n}\n' >"$f/plugins/beta/.claude-plugin/plugin.json"
@@ -381,7 +404,7 @@ git_test_config "$f" checkout -q main
 fragment "$f" demo late-z-fedcba98 patch
 commit "$f" late
 git_test_config "$f" checkout -q release/plugins
-expect "--check-release fails on a convention fragment that landed after the cut" 1 "UNCONSUMED FRAGMENT: .changes/demo/late-z-fedcba98.md" "$f" --check-release main
+expect "--check-release passes a convention fragment that landed after the cut" 0 "for the 1 plugin(s) it bumps" "$f" --check-release main
 rm -rf "$f"
 
 # --- usage ------------------------------------------------------------------------

@@ -15,12 +15,14 @@ name: release-publish-plugins
 #
 # A scheduled run, and a push of a fragment to main, run `merge`: it queues a
 # release pull request that is current and green, and builds one when none is
-# open. A scheduled run also rebuilds one that is stale, conflicted, or failing
-# ci-status on a base behind main; a push run never rebuilds, since each rebuild
-# cancels the release pull request's running checks, so fragments that land
-# between scheduled runs ride the next one (ADR 0048, Rollout 3, Resolved
-# decisions 1 and 2, and the 2026-10-17 and 2026-10-20 amendments). Neither
-# action rebuilds one in the merge queue:
+# open. Current means main has changed no file the release changes (a fragment
+# it consumed, a CHANGELOG.md, a plugin.json) since its build base, the main
+# commit it was cut from; fragments main added since then ride the next
+# release. A scheduled run also rebuilds one that is not current, conflicted,
+# or failing ci-status on a base behind main; a push run never rebuilds, since
+# each rebuild cancels the release pull request's running checks (ADR 0048,
+# Rollout 3, Resolved decisions 1 and 2, and the 2026-10-17 and 2026-10-20
+# amendments). Neither action rebuilds one in the merge queue:
 # .github/scripts/release-publish-plugins/decide-rebuild.sh decides for both.
 # workflow_dispatch runs either action by hand.
 on:
