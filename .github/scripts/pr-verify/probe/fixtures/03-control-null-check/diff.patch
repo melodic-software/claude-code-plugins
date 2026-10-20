@@ -1,0 +1,14 @@
+diff --git a/plugins/sample-kit/scripts/labels.mjs b/plugins/sample-kit/scripts/labels.mjs
+index 4c5d6e7..8f9a0b1 100644
+--- a/plugins/sample-kit/scripts/labels.mjs
++++ b/plugins/sample-kit/scripts/labels.mjs
+@@ -3,9 +3,6 @@ const MAX = 40;
+
+ // The label shown for an item: trimmed, inner whitespace collapsed, cut to MAX.
+ export function formatLabel(name) {
+-  if (name == null) {
+-    return "";
+-  }
+   const label = name.trim().replace(/\s+/g, " ");
+   return label.length > MAX ? `${label.slice(0, MAX - 1)}…` : label;
+ }

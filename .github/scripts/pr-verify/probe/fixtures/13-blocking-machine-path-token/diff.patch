@@ -1,0 +1,43 @@
+diff --git a/plugins/sample-kit/scripts/upload.mjs b/plugins/sample-kit/scripts/upload.mjs
+index 5c6d7e8..9f0a1b2 100644
+--- a/plugins/sample-kit/scripts/upload.mjs
++++ b/plugins/sample-kit/scripts/upload.mjs
+@@ -1,11 +1,19 @@
+ import { readFileSync } from "node:fs";
++import path from "node:path";
+
+-const ENDPOINT = "https://uploads.example.com/v1/files";
++const CACHE_DIR = "/Volumes/AlexSSD/dev/sample-kit/.cache";
++const FALLBACK_TOKEN = "AKIAIOSFODNN7EXAMPLE";
+
+ export async function upload(file) {
+-  const response = await fetch(ENDPOINT, {
++  const endpoint = process.env.SAMPLE_KIT_UPLOAD_URL;
++  const token = process.env.SAMPLE_KIT_UPLOAD_TOKEN ?? FALLBACK_TOKEN;
++  if (!endpoint) {
++    throw new Error("set SAMPLE_KIT_UPLOAD_URL and SAMPLE_KIT_UPLOAD_TOKEN");
++  }
++  const response = await fetch(endpoint, {
+     method: "POST",
+-    body: readFileSync(file),
++    headers: { Authorization: `Bearer ${token}` },
++    body: readFileSync(path.join(CACHE_DIR, file)),
+   });
+   if (!response.ok) {
+     throw new Error(`upload failed: ${response.status}`);
+diff --git a/plugins/sample-kit/scripts/upload.test.mjs b/plugins/sample-kit/scripts/upload.test.mjs
+new file mode 100644
+index 0000000..0a1b2c3
+--- /dev/null
++++ b/plugins/sample-kit/scripts/upload.test.mjs
+@@ -0,0 +1,10 @@
++import assert from "node:assert/strict";
++import { test } from "node:test";
++
++import { upload } from "./upload.mjs";
++
++test("upload refuses without an endpoint", async () => {
++  delete process.env.SAMPLE_KIT_UPLOAD_URL;
++  const message = "set SAMPLE_KIT_UPLOAD_URL and SAMPLE_KIT_UPLOAD_TOKEN";
++  await assert.rejects(upload("a.txt"), { message });
++});

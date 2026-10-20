@@ -1,0 +1,7 @@
+{
+  "class": "control",
+  "expected": "pass",
+  "scored": "main",
+  "defect": "none: `size >= 100` looks off by one but is the exclusive bound the issue states",
+  "mentions": []
+}
