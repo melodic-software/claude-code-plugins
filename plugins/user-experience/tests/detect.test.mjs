@@ -390,6 +390,107 @@ describe("team surface", () => {
     assert.equal(team.jtbd_school, "jobs-to-be-done-theory");
   });
 
+  test("the team file at the convention home is read through the shared resolver, and --team overrides it", () => {
+    const project = join(scratch, "cascade-project");
+    mkdirSync(join(project, "docs/conventions"), { recursive: true });
+    gitInit(project);
+    writeFileSync(join(project, "docs/conventions/user-experience.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\noutput_home: docs/ux\n");
+    // Only the cascade reads a .local file beside the team file; it wins per key.
+    writeFileSync(join(project, "docs/conventions/user-experience.local.yaml"), "jtbd_school: jobs-to-be-done-theory\n");
+    const home = detect(["--project", project, ...seams]).team;
+    assert.equal(home.path, "docs/conventions/user-experience.yaml");
+    assert.equal(home.loaded, true);
+    assert.equal(home.jtbd_school, "jobs-to-be-done-theory", "the local layer overrides the team layer");
+    assert.equal(home.output_home, "docs/ux", "a key the local layer omits keeps the team value");
+    const seam = detect(["--project", project, ...seams, "--team", join(FIX, "team", "valid.yaml")]).team;
+    assert.equal(seam.jtbd_school, "outcome-driven-innovation", "--team replaces the resolved team file and the layers beside it");
+    assert.equal(seam.output_home, "docs/ux");
+  });
+
+  test("a refusal in the local layer is a warning naming that layer, and a user-global file is not read", () => {
+    const project = join(scratch, "layer-warnings");
+    mkdirSync(join(project, "docs/conventions"), { recursive: true });
+    gitInit(project);
+    writeFileSync(join(project, "docs/conventions/user-experience.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\n");
+    writeFileSync(join(project, "docs/conventions/user-experience.local.yaml"), "routing:\n  deny: [x]\n");
+    const home = join(scratch, "layer-warnings-home");
+    mkdirSync(join(home, "docs/conventions"), { recursive: true });
+    writeFileSync(join(home, "docs/conventions/user-experience.yaml"), "routing:\n  deny: [y]\n");
+    const { team } = detect(["--project", project, "--home", home, "--plugin-list-json", PLUGINS, "--mcp-list", MCP]);
+    assert.equal(team.loaded, true);
+    const refused = (layer) => team.warnings.some((w) => w.startsWith(`${layer} (`) && w.includes('"routing": accepted only in the team layer'));
+    assert.ok(refused("local"), team.warnings.join("\n"));
+    assert.ok(!team.warnings.some((w) => w.startsWith("user (")), team.warnings.join("\n"));
+  });
+
+  /** detect's team result for a scratch git project holding `files` under docs/conventions. */
+  const withLayers = (name, files) => {
+    const project = join(scratch, name);
+    mkdirSync(join(project, "docs/conventions"), { recursive: true });
+    gitInit(project);
+    for (const [file, text] of Object.entries(files)) writeFileSync(join(project, "docs/conventions", file), text);
+    return detect(["--project", project, ...seams]).team;
+  };
+  const TEAM_YAML = "version: 1\njtbd_school: outcome-driven-innovation\noutput_home: docs/ux\n";
+
+  test("a rejected value in the local layer is a warning naming the layer and key; the key takes its default", () => {
+    const team = withLayers("local-rejected", { "user-experience.yaml": TEAM_YAML, "user-experience.local.yaml": "output_home: 5\n" });
+    assert.equal(team.loaded, true);
+    assert.equal(team.jtbd_school, "outcome-driven-innovation", "the team keys still load");
+    assert.equal(team.output_home, null, "ADR 0075: a lower layer's value is never used for an invalid one");
+    assert.ok(team.warnings.some((w) => w.startsWith("local (") && w.includes("output_home 5")), team.warnings.join("\n"));
+  });
+
+  test("a clean local layer adds no warnings", () => {
+    const team = withLayers("local-clean", { "user-experience.yaml": TEAM_YAML, "user-experience.local.yaml": "output_home: docs/ux/mine\n" });
+    assert.equal(team.output_home, "docs/ux/mine");
+    assert.deepEqual(team.warnings, []);
+  });
+
+  test("a local version cannot admit a team file at an unknown version", () => {
+    const team = withLayers("local-version", { "user-experience.yaml": "version: 2\noutput_home: docs/ux\n", "user-experience.local.yaml": "version: 1\n" });
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /version 2 is not one this plugin reads/);
+  });
+
+  test("an empty team file is malformed", () => {
+    const team = withLayers("empty-team", { "user-experience.yaml": "" });
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /malformed: the top level is not a mapping/);
+  });
+
+  test("an empty routing key is accepted, and a routing that is not a mapping degrades", () => {
+    const empty = join(scratch, "routing-empty.yaml");
+    writeFileSync(empty, "version: 1\nrouting:\n");
+    const ok = detect(["--project", join(FIX, "idea"), ...seams, "--team", empty]).team;
+    assert.equal(ok.loaded, true);
+    assert.deepEqual(ok.warnings, []);
+    const bad = join(scratch, "routing-scalar.yaml");
+    writeFileSync(bad, "version: 1\nrouting: x\n");
+    const { team } = detect(["--project", join(FIX, "idea"), ...seams, "--team", bad]);
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /malformed: routing is not a mapping/);
+  });
+
+  test("--team ignores a user-layer file under --home", () => {
+    const home = join(scratch, "user-layer-home");
+    mkdirSync(join(home, "docs/conventions"), { recursive: true });
+    writeFileSync(join(home, "docs/conventions/user-experience.yaml"), "output_home: docs/from-user\n");
+    const args = ["--project", join(FIX, "idea"), "--home", home, "--plugin-list-json", PLUGINS, "--mcp-list", MCP];
+    assert.equal(detect([...args, "--team", join(FIX, "team", "valid.yaml")]).team.output_home, "docs/ux");
+  });
+
+  test("a team file that is a symlink is not read", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+    const project = join(scratch, "symlinked-team");
+    mkdirSync(join(project, "docs/conventions"), { recursive: true });
+    gitInit(project);
+    writeFileSync(join(project, "docs/real.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\n");
+    symlinkSync(join(project, "docs/real.yaml"), join(project, "docs/conventions/user-experience.yaml"));
+    const { team } = detect(["--project", project, ...seams]);
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /unreadable \(is a symlink/);
+  });
+
   test("a failing resolver (exit 3) degrades with its cause", () => {
     const project = join(scratch, "broken-pointer");
     mkdirSync(project, { recursive: true });

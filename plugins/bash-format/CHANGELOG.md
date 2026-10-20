@@ -3,6 +3,16 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2] - 2026-10-20
+
+### Added
+
+- The bundled git-hook check library's `checks_file_text` takes `--tip` and, in pre-push mode, reads a path from the tip of the pushed range that changed it; the new `checks_regular_file` reports whether the path is a regular file in the same place.
+
+### Fixed
+
+- The shared git-hook check library reads the range diff with `--text`, so a tracked `-diff` attribute no longer hides a text file's added lines from a check, and drops a file whose content holds a NUL byte in its first 8000 bytes, so binary content never reaches a check as changed lines.
+
 ## [0.12.1] - 2026-10-20
 
 ### Changed

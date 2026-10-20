@@ -3,6 +3,22 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.0] - 2026-10-20
+
+### Changed
+
+- The `reference-verify` pre-push entry reads pushed files through the shared check library's `checks_file_text` and `checks_regular_file` instead of its own copies; what it reports is unchanged.
+
+### Fixed
+
+- `pre-commit-content` decides a file is binary from a NUL byte in its content, not from `--numstat`, and reads the range diff with `--text`, so a tracked `-diff` attribute (`*.yml -diff`) no longer turns the content scan off for a text file.
+- `block-no-verify` allows `git config core.hooksPath .githooks` only at local scope and only while `.githooks/` holds the guardrails dispatcher; `--global`, `--system`, `--worktree` and `--file` are refused.
+- `reference-verify` verifies a changed file whose name git quotes (`"`, `\` or a control byte) in full instead of skipping it.
+- `block-no-verify` allows `git config core.hooksPath .githooks` only when `.githooks/` is a real directory and the dispatcher file it reads is a regular file, not a symlink, so a marker from outside the clone no longer counts.
+- The shared git-hook check library drops a file whose content holds a NUL byte in its first 8000 bytes from the changed-line ranges, so `reference-verify` never reads binary content as changed lines.
+
+- The `pre-commit-content` git hook no longer skips a staged file holding a NUL byte. It scans that file's whole raw content for the secret patterns and blocks on a match, so one NUL byte can no longer hide a token. A second pass with the NUL bytes removed catches a token in UTF-16LE text, such as a Windows `.reg` export or PowerShell `>` output. An ordinary binary with no match still commits, and such a file is not judged for machine-specific paths.
+
 ## [0.54.0] - 2026-10-20
 
 ### Added
