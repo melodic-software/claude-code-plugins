@@ -58,14 +58,14 @@ class TestChain(unittest.TestCase):
 
 class TestMigrate(unittest.TestCase):
     def test_current_version_comes_back_unchanged(self):
-        doc = {"schemaVersion": 6, "rev": 3}
-        self.assertEqual(migrate.migrate(doc), {"schemaVersion": 6, "rev": 3})
+        doc = {"schemaVersion": migrate.CURRENT, "rev": 3}
+        self.assertEqual(migrate.migrate(doc), {"schemaVersion": migrate.CURRENT, "rev": 3})
 
     def test_newer_version_is_refused_naming_both_versions(self):
         with self.assertRaises(migrate.MigrationError) as ctx:
-            migrate.migrate({"schemaVersion": 7})
-        self.assertIn("schemaVersion 7", str(ctx.exception))
-        self.assertIn("newer than 6", str(ctx.exception))
+            migrate.migrate({"schemaVersion": 8})
+        self.assertIn("schemaVersion 8", str(ctx.exception))
+        self.assertIn("newer than 7", str(ctx.exception))
 
     def test_missing_or_non_integer_version_is_refused(self):
         for doc in (
@@ -93,11 +93,11 @@ class TestMigrate(unittest.TestCase):
 
     def test_a_gap_in_the_chain_is_refused(self):
         with (
-            mock.patch.object(migrate, "CURRENT", 7),
+            mock.patch.object(migrate, "CURRENT", 8),
             self.assertRaises(migrate.MigrationError) as ctx,
         ):
-            migrate.migrate({"schemaVersion": 6})
-        self.assertIn("no migration from schemaVersion 6 to 7", str(ctx.exception))
+            migrate.migrate({"schemaVersion": 7})
+        self.assertIn("no migration from schemaVersion 7 to 8", str(ctx.exception))
 
     def test_v3_gains_inbox_seen_with_each_persons_requests_read_and_nothing_else_changes(self):
         raw = (FIXTURES / "state-v3.json").read_text(encoding="utf-8")
@@ -138,12 +138,12 @@ class TestMigrate(unittest.TestCase):
         out = migrate.migrate(doc, notes)
         self.assertEqual([r["status"].get("cancelled") for r in out["requests"]], [True, False, True, False, False, False, None])
         self.assertEqual(out["inboxSeen"], {"host": {"R9": "answered", "fail:R2": "open"}})
-        self.assertEqual((out["schemaVersion"], json.dumps(doc)), (6, raw))
+        self.assertEqual((out["schemaVersion"], json.dumps(doc)), (migrate.CURRENT, raw))
         self.assertEqual(notes, ["inbox: 1 requests Claude failed start read for the owner", "requests: 1 discarded ones marked cancelled"])
 
     def test_v5_with_nothing_to_mark_changes_only_its_version(self):
         doc = json.loads((FIXTURES / "state-v5.json").read_text(encoding="utf-8"))
-        self.assertEqual(migrate.migrate(doc), {**doc, "schemaVersion": 6})
+        self.assertEqual(migrate.migrate(doc), {**doc, "schemaVersion": migrate.CURRENT})
 
     def test_v4_gains_empty_discussions_and_seen_marks_and_nothing_else_changes(self):
         raw = (FIXTURES / "state-v4.json").read_text(encoding="utf-8")
@@ -153,6 +153,28 @@ class TestMigrate(unittest.TestCase):
         self.assertEqual({k: v for k, v in out.items() if k not in ("discussions", "discussionSeen", "schemaVersion")}, {k: v for k, v in doc.items() if k != "schemaVersion"})
         self.assertEqual((doc, notes), (json.loads(raw), []))
         self.assertIsNone(schema.first_error(out, STATE))
+
+
+class TestV6ToV7Uploads(unittest.TestCase):
+    """6 -> 7: an upload is carried (never under its question) unless its server-set `at` is before #8420 and nothing
+    names it in `attachments`. Expected marks come from that rule and the times written here."""
+
+    def test_only_an_early_offer_nothing_names_stays_uncarried(self):
+        early, late = migrate.ATTACH_PASTE_AT - 3600, migrate.ATTACH_PASTE_AT + 1
+        def up(uid, at, **x):
+            return {"id": uid, "pid": "host", "qid": "Q1", **({} if at is ... else {"at": at}), **x}
+        doc = {"schemaVersion": 6, "uploads": [
+            up("U1", early), up("U2", late), up("U3", early), up("U4", ...), up("U5", "2026-10-01"), up("U6", True),
+            up("U7", float("nan")), up("U8", None), up("U9", 0), up("U10", late, carried=True)],
+            "cards": {"Q1": [{"pid": "p1", "cleared": True, "history": [{"attachments": ["U3"]}]}]}}
+        raw, notes = json.dumps(doc), []
+        out = migrate.migrate(doc, notes)
+        self.assertEqual({u["id"]: u.get("carried") for u in out["uploads"]},
+                         {"U1": None, "U2": True, "U3": True, "U4": True, "U5": True, "U6": True, "U7": True, "U8": True, "U9": True, "U10": True})
+        self.assertEqual((notes, json.dumps(doc), out["schemaVersion"]), (["uploads: 8 marked carried"], raw, 7))
+
+    def test_v6_with_no_uploads_changes_only_its_version(self):
+        self.assertEqual(migrate.migrate({"schemaVersion": 6, "rev": 1}), {"schemaVersion": 7, "rev": 1})
 
 
 class TestV3ToV4RemovedGuest(unittest.TestCase):

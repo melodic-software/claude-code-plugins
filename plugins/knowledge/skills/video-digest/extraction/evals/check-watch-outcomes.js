@@ -199,7 +199,7 @@ export function parseTalkingHeadOnlySessions(visualGapsBody) {
 /**
  * @typedef {object} WatchOutcomeSlice
  * @property {string} sliceDir
- * @property {object} watch
+ * @property {import('../watch/watch-state.js').WatchState} watch
  * @property {object|null} selection
  * @property {number} durationSec
  * @property {number} contactSheetCount

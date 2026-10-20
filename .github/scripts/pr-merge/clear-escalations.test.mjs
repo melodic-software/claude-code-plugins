@@ -299,6 +299,16 @@ test("a pr-merge comment rewritten just before the label pairs with it", async (
   assert.equal(w.writes().at(-1)?.method, "DELETE");
 });
 
+test("a pr-merge risk comment created long ago and rewritten to escalate just before the label pairs with it", async () => {
+  // babysit_merge.py appends its persisted-refusal line, then adds the label.
+  const escalatedRisk = `${riskBody(OLD)}\n\nThis refusal has stood unchanged at this head, so a person is needed: the pr-merge lane added the human-gated label.`;
+  const w = world({ timeline: [commented(BOT, escalatedRisk, "2026-10-18T08:30:00Z", "2026-10-18T09:59:59Z"), labeled(BOT, "2026-10-18T10:00:00Z")] });
+  await run(w);
+  assert.equal(w.writes().length, 2);
+  assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
+  assert.deepEqual(w.writes()[1], { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
 test("an old pr-merge comment with nothing written beside a later label is kept", async () => {
   // The label came on for another reason whose comment write failed.
   const w = world({ timeline: [commented(BOT, riskBody(OLD), "2026-10-17T08:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z")] });

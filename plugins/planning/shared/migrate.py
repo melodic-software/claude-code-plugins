@@ -15,7 +15,7 @@ import re
 import secrets
 import time
 
-CURRENT = 6
+CURRENT = 7
 MIGRATIONS = {}
 
 PROTOTYPE_KEYS = frozenset({"questions", "answers", "ideas", "people", "secrets", "round"})
@@ -35,6 +35,7 @@ MAX_URL = 2000
 URL = re.compile(r"https?://\S+", re.IGNORECASE)  # a link, as every v1 write route takes one
 IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")  # an image asset's file name
 NOT_SHARED = "The owner did not share the result."  # session.py: a discarded result's request fails with this reason
+ATTACH_PASTE_AT = 1792421286  # 5026be8b (#8420, 2026-10-19T14:48:06Z): from then a form offers a picture with its qid
 OTHER_OPTION = {"id": "other", "label": "Something else…", "other": True}  # the server adds it to every choice question
 
 
@@ -913,3 +914,42 @@ def _v5_to_v6(doc, ctx):
 
 
 MIGRATIONS[5] = _v5_to_v6
+
+
+# -- 6 -> 7: which uploads may show under their question ---------------------------------------------
+
+
+def _attachment_ids(v):
+    """Every upload id an `attachments` list anywhere in v names: records, their history, tombstones."""
+    if isinstance(v, dict):
+        for k, x in v.items():
+            if k == "attachments" and isinstance(x, list):
+                yield from (i for i in x if isinstance(i, str))
+            else:
+                yield from _attachment_ids(x)
+    elif isinstance(v, list):
+        for x in v:
+            yield from _attachment_ids(x)
+
+
+def _v6_to_v7(doc, ctx):
+    """Mark `carried` every upload but the ones follow-up 32's strip is for: an offer from before forms attached
+    pictures (#8420) that nothing carries. An upload records no origin, so its server-set `at` decides; one with no
+    usable `at`, from #8420 on (a form's paste or pick, sent or not), or that anything names in `attachments` (a hidden
+    record included) is carried, so it never shows under its question."""
+    named = set(_attachment_ids({k: v for k, v in doc.items() if k != "uploads"}))
+    uploads, n = [], 0
+    for u in _list(doc.get("uploads")):
+        at = _dict(u).get("at")
+        early = isinstance(at, (int, float)) and not isinstance(at, bool) and 0 < at < ATTACH_PASTE_AT
+        if isinstance(u, dict) and not u.get("carried") and (not early or u.get("id") in named):
+            u = {**u, "carried": True}
+            n += 1
+        uploads.append(u)
+    if n:
+        ctx.note(f"uploads: {n} marked carried")
+        return {**doc, "uploads": uploads}
+    return doc
+
+
+MIGRATIONS[6] = _v6_to_v7
