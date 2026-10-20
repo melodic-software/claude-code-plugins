@@ -484,7 +484,8 @@
 .app :is(.vf-ta, .vf-input)::placeholder { color: var(--faint); }
 .app :is(.vf-ta, .vf-input):focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .app .vf-crow { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-block-start: 8px; }
-.app .vf-hint { margin-inline-end: auto; min-width: 0; color: var(--faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* one line, cut with an ellipsis where its row is short; it takes the row's free room and never widens the row */
+.app .vf-hint { flex: 1 1 auto; contain: inline-size; min-width: 0; color: var(--faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- compare ---------- */
 .app .vf-cmp { position: relative; }
@@ -1493,7 +1494,7 @@
 /* the fold chevron sits at the head's right edge, after Ask Claude, where the Discussion's sits (sweep S37); it stays
    inside the toggle button, so a click on it still folds */
 .app .vf-clhead { position: relative; display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 6px 40px 6px 6px; }
-.app .vf-clh { flex: 1 1 16em; min-width: 0; font-size: inherit; }
+.app .vf-clh { flex: 1 1 20em; min-width: 0; font-size: inherit; } /* Ask Claude wraps under it before its title would wrap */
 .app .vf-cltoggle {
   /* A 20px first line inside 12px padding (44px for one line). When the counts wrap on a phone, the chevron stays
      pinned to that first line, beside the title, rather than dropping to the wrapped line. */
@@ -1501,7 +1502,7 @@
   padding: 12px 8px; border-radius: var(--r-md); text-align: start; color: var(--text);
 }
 .app .vf-cltitle { font-size: 14px; font-weight: 650; line-height: 20px; }
-.app .vf-cltoggle .vf-chev { position: absolute; inset-block-start: 20px; inset-inline-end: 14px; }
+.app .vf-cltoggle .vf-chev { position: absolute; inset-block-start: calc(6px + 12px + (20px - 14px) / 2); inset-inline-end: 14px; } /* centered on the title's 20 px line */
 .app .vf-clsec[data-open="true"] .vf-cltoggle .vf-chev { rotate: 180deg; }
 .app .vf-clhead > .vf-qtools { margin: 0; }
 .app .vf-clbody { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; padding: 0 14px 14px; }
