@@ -554,6 +554,14 @@ unresolvable "backtick inside double quotes" 'gh pr merge 42 -R acme/widgets --b
 assert_contains "backtick -> says why" "$ERR" "backtick"
 unresolvable "apostrophe in a comment, then a backtick" $'# don\'t\ngh pr merge 5`echo 0` -R acme/widgets'
 unresolvable "apostrophe in a heredoc, then a backtick" $'cat <<EOF\ndon\'t\nEOF\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "line continuation between pr and merge, then a backtick" $'gh pr \\\nmerge 5`echo 0` -R acme/widgets'
+# A continuation inside a word is joined, so the merge is found and checked.
+scenario none none green green
+run "continuation inside 'merge'" $'gh pr mer\\\nge 5 -R acme/widgets' 0
+assert_contains "continuation inside 'merge' -> checks that PR" "$(calls)" "repos/acme/widgets/pulls/5"
+scenario none none green green
+run "continuation inside a REST route" $'gh api -X PUT repos/acme/widgets/pulls/\\\n5/merge' 0
+assert_contains "continuation inside a REST route -> checks that PR" "$(calls)" "repos/acme/widgets/pulls/5"
 unresolvable "merge inside backticks, echoed" 'echo `gh pr merge 42 -R acme/widgets`'
 unresolvable "merge inside backticks, assigned" 'x=`gh pr merge 42 -R o/r`'
 unresolvable "single-quoted body with a backtick" 'gh pr merge 42 -R acme/widgets --squash --body '"'"'see `notes.md`'"'"''

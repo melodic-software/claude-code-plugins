@@ -413,6 +413,9 @@ else
   [[ -n "$COMMAND" ]] || exit 0
   # Past the row's shared ceiling the command is not parsed.
   ((${#COMMAND} > 16384)) && exit 0
+  # Bash joins a backslash-newline before it runs the line, so join it here too:
+  # otherwise `gh pr \<newline>merge` or `mer\<newline>ge` hides the merge.
+  [[ "$TOOL_NAME" == PowerShell ]] || COMMAND="${COMMAND//$'\\\n'/}"
   # Cheap pre-filter: every matched path names `merge` or `enqueue`.
   _bupm_lc="${COMMAND,,}"
   [[ "$_bupm_lc" == *merge* || "$_bupm_lc" == *enqueue* ]] || exit 0
