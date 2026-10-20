@@ -1,30 +1,64 @@
 // pr-verify.yml's ordering rules, from its concurrency comment and the
 // README's "Verifier verdict" section: GitHub cancels an older pending run in the same concurrency group, so a cancelled
-// run must leave no verdict. The upload is therefore the job's only artifact
+// run must leave no verdict. The upload is therefore each job's only artifact
 // step, it runs after the verdict file is written, and only when writing it
 // succeeded; the group is per PR and head, never cancelling a running judgment.
+// The key job judges first; the subscription job repeats it on the other
+// credential only when the key job hands the judgment on, so one job per run
+// writes a verdict.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
-// Each step starts at a `      - name:` line of the one job.
-const steps = text
-  .split(/\n(?=      - name: )/)
-  .slice(1)
-  .map((block) => ({ name: /^      - name: (.*)$/m.exec(block)[1], block }));
-const index = (name) => steps.findIndex((step) => step.name === name);
+const KEY = "check-intent";
+const SUB = "check-intent-subscription";
+const JOBS = [KEY, SUB];
+const jobText = (id) => {
+  const found = new RegExp(`\\n  ${id}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(text);
+  assert.ok(found, `a job ${id}`);
+  return found[1];
+};
+// Each step starts at a `      - name:` line of its job.
+const stepsOf = (id) =>
+  jobText(id)
+    .split(/\n(?=      - name: )/)
+    .slice(1)
+    .map((block) => ({ name: /^      - name: (.*)$/m.exec(block)[1], block }));
+const STEPS = Object.fromEntries(JOBS.map((id) => [id, stepsOf(id)]));
+const index = (name, job = KEY) => STEPS[job].findIndex((step) => step.name === name);
+const step = (name, job = KEY) => {
+  const found = STEPS[job].find((s) => s.name === name);
+  assert.ok(found, `a step named ${name} in ${job}`);
+  return found.block;
+};
+const input = (block, key) => new RegExp(`^ {10}${key}: (.*)$`, "m").exec(block)?.[1];
+const list = (block, key) => {
+  const body = new RegExp(`^ {10}${key}: \\|\\n((?: {12}.*\\n?)+)`, "m").exec(block)?.[1] ?? "";
+  return body.split("\n").map((line) => line.trim()).filter(Boolean);
+};
+const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@[0-9a-f]{40} # v\d+\.\d+\.\d+$/;
+const CREDENTIAL = {
+  [KEY]: ["api-key", "AUTOMATIONS_CLAUDE_API_KEY"],
+  [SUB]: ["subscription-token", "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"],
+};
 
-test("the upload is the only artifact step and follows the written verdict", () => {
-  const uploads = steps.filter((step) => /uses: actions\/upload-artifact@/.test(step.block));
-  assert.deepEqual(
-    uploads.map((step) => step.name),
-    ["Upload the verdict"],
-  );
-  assert.ok(index("Judge the pull request") >= 0 && index("Write the verdict") > index("Judge the pull request"));
-  assert.ok(index("Upload the verdict") > index("Write the verdict"));
-  assert.match(uploads[0].block, /if: steps\.verdict\.outcome == 'success'/);
-  assert.doesNotMatch(text, /actions\/upload-artifact\/merge|gh api .*artifacts.* -X (POST|PUT)/);
+test("the upload is each job's only artifact step and follows the written verdict", () => {
+  for (const job of JOBS) {
+    const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
+    assert.deepEqual(
+      uploads.map((s) => s.name),
+      ["Upload the verdict"],
+      job,
+    );
+    assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
+    assert.ok(index("Upload the verdict", job) > index("Write the verdict", job), job);
+    assert.match(uploads[0].block, /if: steps\.verdict\.outcome == 'success'/, job);
+    // A verdict needs a judge step that succeeded, which run-claude-cli never
+    // reports with a lane-class, so a credit stop writes none.
+    assert.match(step("Write the verdict", job), /^ {8}if: steps\.judge\.outcome == 'success'$/m, job);
+  }
+  assert.doesNotMatch(text, /actions\/upload-artifact\/merge|gh api .*artifacts.* -X (POST|PUT)|actions\/download-artifact|actions\/cache/);
 });
 
 test("pr-merge.yml gives the gate an Actions token for the verdict reads only", () => {
@@ -50,82 +84,174 @@ test("the concurrency group is per PR and head and never cancels a running judgm
 // Funding: pr-verify takes the automations role), under the launcher's input
 // contract (its action.yml: managed settings while sudo works, then runner
 // isolation) and the deny rules that keep the model on its data files.
-const step = (name) => {
-  const found = steps.find((s) => s.name === name);
-  assert.ok(found, `a step named ${name}`);
-  return found.block;
-};
-const input = (block, key) => new RegExp(`^ {10}${key}: (.*)$`, "m").exec(block)?.[1];
-const list = (block, key) => {
-  const body = new RegExp(`^ {10}${key}: \\|\\n((?: {12}.*\\n?)+)`, "m").exec(block)?.[1] ?? "";
-  return body.split("\n").map((line) => line.trim()).filter(Boolean);
-};
-const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@[0-9a-f]{40} # v\d+\.\d+\.\d+$/;
-
-test("the judge runs on run-claude-cli as the automations role with both of its secrets", () => {
-  const judge = step("Judge the pull request");
-  assert.equal(PIN.exec(/^ {8}uses: (.*)$/m.exec(judge)[1])?.[1], "run-claude-cli");
-  assert.doesNotMatch(text, /anthropics\/claude-code-action/);
-  assert.equal(input(judge, "lane"), "pr-verify");
-  assert.equal(input(judge, "role"), "automations");
-  assert.equal(input(judge, "api-key"), "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}");
-  assert.equal(input(judge, "subscription-token"), "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}");
-  for (const key of ["model", "effort", "max-turns"]) {
-    assert.equal(input(judge, key), `\${{ steps.models.outputs.${key} }}`, key);
+test("each job judges on run-claude-cli as the automations role with its one secret", () => {
+  const pins = new Set();
+  for (const job of JOBS) {
+    const judge = step("Judge the pull request", job);
+    const uses = /^ {8}uses: (.*)$/m.exec(judge)[1];
+    assert.equal(PIN.exec(uses)?.[1], "run-claude-cli", job);
+    pins.add(uses);
+    assert.equal(input(judge, "lane"), "pr-verify", job);
+    assert.equal(input(judge, "role"), "automations", job);
+    const [own, secret] = CREDENTIAL[job];
+    const [other] = CREDENTIAL[job === KEY ? SUB : KEY];
+    assert.equal(input(judge, own), `\${{ secrets.${secret} }}`, job);
+    assert.equal(input(judge, other), undefined, job);
+    assert.match(judge, /^ {8}if: steps\.credential\.outputs\.present == 'true'$/m, job);
+    for (const key of ["model", "effort", "max-turns"]) {
+      assert.equal(input(judge, key), `\${{ steps.models.outputs.${key} }}`, key);
+    }
+    assert.equal(input(judge, "permission-mode"), "dontAsk", job);
+    assert.equal(input(judge, "leg-timeout-minutes"), '"10"', job);
+    assert.match(judge, /^ {8}continue-on-error: true$/m, job);
+    assert.match(judge, /^ {8}timeout-minutes: 22$/m, job);
+    assert.match(judge, /^ {10}CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"$/m, job);
+    assert.match(input(judge, "prompt-file"), /^\$\{\{ runner\.temp \}\}\//, job);
+    assert.match(input(judge, "json-schema-file"), /^\$\{\{ runner\.temp \}\}\//, job);
   }
-  assert.equal(input(judge, "permission-mode"), "dontAsk");
-  assert.equal(input(judge, "leg-timeout-minutes"), '"10"');
-  assert.match(judge, /^ {8}continue-on-error: true$/m);
-  assert.match(judge, /^ {8}timeout-minutes: 22$/m);
-  assert.match(judge, /^ {10}CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"$/m);
-  assert.match(input(judge, "prompt-file"), /^\$\{\{ runner\.temp \}\}\//);
-  assert.match(input(judge, "json-schema-file"), /^\$\{\{ runner\.temp \}\}\//);
+  assert.equal(pins.size, 1, "both jobs pin the same run-claude-cli");
+  assert.doesNotMatch(text, /anthropics\/claude-code-action/);
+});
+
+test("each secret appears only in its own job", () => {
+  for (const job of JOBS) {
+    const [, own] = CREDENTIAL[job];
+    const [, other] = CREDENTIAL[job === KEY ? SUB : KEY];
+    assert.ok(jobText(job).includes(`secrets.${own}`), job);
+    assert.ok(!jobText(job).includes(other), job);
+  }
+  assert.doesNotMatch(text, /secrets\.(?!AUTOMATIONS_CLAUDE_API_KEY\b|AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN\b)/);
+  assert.doesNotMatch(text, /secrets: inherit|toJSON\(secrets\)/);
+});
+
+test("the subscription job runs only on a clean credit stop or an empty key, on a fixed runner", () => {
+  const job = jobText(SUB);
+  assert.match(job, /^ {4}needs: check-intent$/m);
+  const gate = /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1].replace(/\s+/g, " ").trim();
+  assert.equal(
+    gate,
+    "(needs.check-intent.outputs.lane-class == 'credit-stop' && needs.check-intent.outputs.key-leg-clean == 'true') || needs.check-intent.outputs.credential-present == 'false'",
+  );
+  // No status function, so GitHub adds success(): a failed key job skips it.
+  assert.doesNotMatch(gate, /always\(\)|failure\(\)|cancelled\(\)|success\(\)/);
+  assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
+  // The key job's outputs reach only that if, never a step.
+  assert.equal(job.match(/needs\./g).length, 3);
+  const key = jobText(KEY);
+  const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(key)?.[1];
+  assert.equal(
+    outputs,
+    [
+      "      lane-class: ${{ steps.judge.outputs.lane-class }}",
+      "      credential-present: ${{ steps.credential.outputs.present }}",
+      "      key-leg-clean: ${{ steps.key-leg.outputs.clean }}",
+      "",
+    ].join("\n"),
+  );
+  assert.doesNotMatch(job, /^ {4}outputs:/m);
+  for (const id of JOBS) {
+    assert.match(jobText(id), /^ {4}permissions:\n {6}contents: read #.*\n {6}pull-requests: read #.*\n {6}actions: read #.*\n {4}[a-z]/m, id);
+  }
+});
+
+test("the key job hands the judgment on only after a clean credit stop or with no key", () => {
+  const leg = step("Check the key leg");
+  assert.match(leg, /^ {8}if: steps\.judge\.outputs\.lane-class == 'credit-stop'$/m);
+  assert.match(leg, /^ {10}LOG_FILE: \$\{\{ steps\.judge\.outputs\.log-file \}\}$/m);
+  assert.match(leg, /write-verdict\.mjs check-key-leg\n/);
+  assert.ok(index("Check the key leg") > index("Judge the pull request"));
+  assert.ok(index("Check the key leg") < index("Write the verdict"));
+  assert.equal(index("Check the key leg", SUB), -1);
+  for (const job of JOBS) {
+    const credential = step("Check the credential", job);
+    assert.match(credential, /^ {8}if: steps\.agree\.outcome == 'success'$/m, job);
+    assert.match(credential, new RegExp(`^ {10}PRESENT: \\$\\{\\{ secrets\\.${CREDENTIAL[job][1]} != '' \\}\\}$`, "m"), job);
+    assert.ok(index("Check the credential", job) < index("Judge the pull request", job), job);
+  }
+});
+
+test("the subscription job repeats the key job's steps but for the credential", () => {
+  // Each difference the two-job pattern needs, normalized away on the key
+  // job's side; everything else, the gates and hardening included, matches.
+  const normalize = (blocks) =>
+    blocks
+      .filter((s) => s.name !== "Check the key leg")
+      .map((s) =>
+        s.block
+          .split("\n")
+          .filter((line) => line.trim() !== "" && !line.trim().startsWith("#"))
+          .join("\n")
+          .replace(/AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN/g, "AUTOMATIONS_CLAUDE_API_KEY")
+          .replace(/^( {10})subscription-token: /m, "$1api-key: ")
+          .replace(/^( {8}if: )\((steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure')\) && steps\.judge\.outputs\.lane-class != 'credit-stop'$/m, "$1$2")
+          .replace(/ && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success'$/m, ""),
+      );
+  assert.deepEqual(normalize(STEPS[SUB]), normalize(STEPS[KEY]));
 });
 
 test("the model reads only the data directory, with Read alone, and is told nothing is posted", () => {
-  const judge = step("Judge the pull request");
-  assert.equal(input(judge, "tools"), "Read");
-  assert.equal(input(judge, "allowed-tools"), "Read(./pr-verify-data/**)");
-  const denied = list(judge, "disallowed-tools");
-  for (const rule of ["Read(./.base/**)", "Glob", "Grep", "Bash", "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch", "Agent", "mcp__*"]) {
-    assert.ok(denied.includes(rule), `disallowed-tools holds ${rule}`);
+  for (const job of JOBS) {
+    const judge = step("Judge the pull request", job);
+    assert.equal(input(judge, "tools"), "Read", job);
+    assert.equal(input(judge, "allowed-tools"), "Read(./pr-verify-data/**)", job);
+    const denied = list(judge, "disallowed-tools");
+    for (const rule of ["Read(./.base/**)", "Glob", "Grep", "Bash", "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch", "Agent", "mcp__*"]) {
+      assert.ok(denied.includes(rule), `${job}: disallowed-tools holds ${rule}`);
+    }
+    const preamble = /^ {10}preamble: >-\n((?: {12}.*\n)+)/m.exec(judge)?.[1].replace(/\s+/g, " ").trim();
+    assert.match(preamble ?? "", /unattended/, job);
+    assert.match(preamble ?? "", /nothing you write is posted/, job);
   }
-  const preamble = /^ {10}preamble: >-\n((?: {12}.*\n)+)/m.exec(judge)?.[1].replace(/\s+/g, " ").trim();
-  assert.match(preamble ?? "", /unattended/);
-  assert.match(preamble ?? "", /nothing you write is posted/);
 });
 
 test("every data path the model reads sits under the working directory", () => {
   assert.doesNotMatch(text, /runner\.temp \}\}\/pr-verify-data/);
-  for (const name of ["Resolve the pull request", "Select the trusted PR text", "Write the diff", "Write the prompt and schema", "Write the verdict"]) {
-    assert.match(step(name), /\$\{\{ github\.workspace \}\}\/pr-verify-data/, name);
+  for (const job of JOBS) {
+    for (const name of ["Resolve the pull request", "Select the trusted PR text", "Write the diff", "Write the prompt and schema", "Write the verdict"]) {
+      assert.match(step(name, job), /\$\{\{ github\.workspace \}\}\/pr-verify-data/, `${job}: ${name}`);
+    }
   }
 });
 
-test("the managed settings are written while sudo works, before the runner is isolated", () => {
-  const settings = step("Apply the Claude managed settings");
-  assert.equal(PIN.exec(/^ {8}uses: (.*)$/m.exec(settings)[1])?.[1], "apply-claude-managed-settings");
-  assert.match(settings, /^ {8}if: steps\.agree\.outcome == 'success'$/m);
-  assert.ok(index("Apply the Claude managed settings") < index("Isolate the runner"));
-  assert.ok(index("Isolate the runner") < index("Judge the pull request"));
+test("each job checks out main fresh and writes the managed settings before isolating the runner", () => {
+  for (const job of JOBS) {
+    assert.equal(STEPS[job][0].name, "Check out the default branch tip", job);
+    assert.match(STEPS[job][0].block, /^ {10}ref: refs\/heads\/main$/m, job);
+    assert.match(STEPS[job][0].block, /^ {10}persist-credentials: false$/m, job);
+    const settings = step("Apply the Claude managed settings", job);
+    assert.equal(PIN.exec(/^ {8}uses: (.*)$/m.exec(settings)[1])?.[1], "apply-claude-managed-settings", job);
+    assert.match(settings, /^ {8}if: steps\.agree\.outcome == 'success'$/m, job);
+    assert.ok(index("Apply the Claude managed settings", job) < index("Isolate the runner", job), job);
+    assert.ok(index("Isolate the runner", job) < index("Judge the pull request", job), job);
+  }
 });
 
-test("the outcome is reported whenever the judge ran, and a missing verdict fails the job last", () => {
-  const report = step("Report the judgment's outcome");
-  assert.equal(PIN.exec(/^ {8}uses: (.*)$/m.exec(report)[1])?.[1], "report-lane-outcome");
-  assert.ok(index("Report the judgment's outcome") === index("Judge the pull request") + 1);
-  assert.match(report, /^ {8}if: steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'$/m);
-  assert.equal(input(report, "credential"), "${{ steps.judge.outputs.credential }}");
-  assert.equal(input(report, "known-failure-class"), "${{ steps.judge.outputs.lane-class }}");
-  assert.equal(input(report, "step-timeout-minutes"), "22");
-  // The start time is taken right before the judge, so a timeout is told from other failures.
-  assert.equal(input(report, "step-started-at"), "${{ steps.prompt.outputs.started-at }}");
-  assert.ok(index("Write the prompt and schema") === index("Judge the pull request") - 1);
-  assert.match(step("Write the verdict"), /^ {10}EXECUTION_FILE: \$\{\{ steps\.judge\.outputs\.execution-file \}\}$/m);
-  assert.match(step("Write the verdict"), /^ {10}LOG_FILE: \$\{\{ steps\.judge\.outputs\.log-file \}\}$/m);
-
-  const last = steps.at(-1);
-  assert.equal(last.name, "Fail without a verdict");
-  assert.match(last.block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
-  assert.match(last.block, /exit 1/);
+test("the outcome is reported whenever a judge ran to a final class, and a missing verdict fails the job last", () => {
+  for (const job of JOBS) {
+    const report = step("Report the judgment's outcome", job);
+    assert.equal(PIN.exec(/^ {8}uses: (.*)$/m.exec(report)[1])?.[1], "report-lane-outcome", job);
+    assert.ok(index("Report the judgment's outcome", job) === index("Judge the pull request", job) + 1, job);
+    assert.equal(input(report, "credential"), "${{ steps.judge.outputs.credential }}", job);
+    assert.equal(input(report, "known-failure-class"), "${{ steps.judge.outputs.lane-class }}", job);
+    assert.equal(input(report, "step-timeout-minutes"), "22", job);
+    // The start time is taken right before the judge, so a timeout is told from other failures.
+    assert.equal(input(report, "step-started-at"), "${{ steps.prompt.outputs.started-at }}", job);
+    assert.ok(index("Write the prompt and schema", job) === index("Judge the pull request", job) - 1, job);
+    assert.match(step("Write the verdict", job), /^ {10}EXECUTION_FILE: \$\{\{ steps\.judge\.outputs\.execution-file \}\}$/m, job);
+    assert.match(step("Write the verdict", job), /^ {10}LOG_FILE: \$\{\{ steps\.judge\.outputs\.log-file \}\}$/m, job);
+    assert.equal(STEPS[job].at(-1).name, "Fail without a verdict", job);
+    assert.match(STEPS[job].at(-1).block, /exit 1/, job);
+  }
+  // A credit stop is reported once, by the subscription job that judges after it.
+  assert.match(
+    step("Report the judgment's outcome", KEY),
+    /^ {8}if: \(steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'\) && steps\.judge\.outputs\.lane-class != 'credit-stop'$/m,
+  );
+  assert.match(step("Report the judgment's outcome", SUB), /^ {8}if: steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'$/m);
+  // Only a hand-off spares the key job its red; an empty token fails the subscription job.
+  assert.match(
+    STEPS[KEY].at(-1).block,
+    /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success' && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success'$/m,
+  );
+  assert.match(STEPS[SUB].at(-1).block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
 });
