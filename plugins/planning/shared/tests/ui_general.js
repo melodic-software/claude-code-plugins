@@ -17,7 +17,9 @@ const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 
 const openChat = async page => { if (await page.evaluate(() => document.querySelector(".vf-chat").hidden)) await page.click(".vf-fab"); return until(page, () => !document.querySelector(".vf-chat").hidden); };
-const openInbox = async page => { if (await page.evaluate(() => document.querySelector(".vf-inboxpop").hidden)) await page.click(".vf-bell"); return until(page, () => !document.querySelector(".vf-inboxpop").hidden); };
+const openInbox = async page => { if (await page.evaluate(() => document.querySelector(".vf-inboxpage").hidden)) await page.click(".vf-bell"); return until(page, () => !document.querySelector(".vf-inboxpage").hidden); };
+/** The Inbox page on one tab (needs, mine, notes, history). */
+const showTab = async (page, k) => { await openInbox(page); await page.click(`.vf-ixtabs [data-k=${k}]`); return until(page, x => document.querySelector(`.vf-ixtabs [data-k=${x}]`)?.getAttribute("aria-pressed") === "true", k); };
 const toast = (page, re) => until(page, src => new RegExp(src).test(document.querySelector(".vf-toast.vf-on span")?.textContent || ""), re.source, 10000);
 const msg = (page, text) => page.locator(".vf-msg", { hasText: text });
 
@@ -52,7 +54,7 @@ async function main() {
     ok("sending it says it went to Claude and runs once the host presses Run", await toast(ann, /^Sent, and sent to Claude\. It runs once the host presses Run\.$/));
     ok("Ann's message reads Sent to Claude · Waiting for the host", await until(ann, t => [...document.querySelectorAll(".vf-msg")].some(li => li.textContent.includes(t)
       && li.querySelector(".vf-msent:not([hidden])")?.textContent === "Sent to Claude · Waiting for the host"), ASK));
-    await openInbox(ann);
+    await showTab(ann, "mine");
     const row = await ann.evaluate(() => { const li = document.querySelector(".vf-ixmine .vf-ixlist > li"); const qEl = li?.querySelector(".vf-ixq");
       return li && { q: qEl.textContent, gen: qEl.classList.contains("vf-ixgen"), shown: !qEl.hidden, label: li.querySelector(".vf-ixitem").getAttribute("aria-label") }; });
     ok("Ann's Inbox lists it under General, not a question id", !!row && row.q === "General" && row.gen && row.shown && /^General\. /.test(row.label), JSON.stringify(row));
@@ -69,10 +71,11 @@ async function main() {
     // ---------- Run, Claude's answer, the host's Share: it replies in chat ----------
     await owner.evaluate(id => window.Core.requestAct(id, "run"), rid.id);
     s.apply(A.dir, [{ op: "result", request: rid.id, kind: "ask", summary: ANSWER, sources: [], report: "", used: [], why: "" }]);
-    ok("the host is told Claude answered about the session", await toast(owner, /^Claude answered about the session\. Share it from the Inbox\.$/));
+    ok("the answer waits on the host's Share in the Inbox, with no pop-up", await until(owner, () => window.Core.state.inbox.some(i => i.kind === "share"), null, 10000)
+      && await owner.evaluate(() => !/Share it from the Inbox/.test(document.querySelector(".vf-toast span")?.textContent || "")));
     ok("before the Share no guest's page holds the answer", !(await ann.evaluate(a => JSON.stringify(window.Core.snapshot()).includes(a), ANSWER)));
-    await openInbox(owner);
-    await owner.locator(".vf-revlist > li", { hasText: ANSWER }).locator(".vf-rev-open").click();
+    await showTab(owner, "needs");
+    await owner.locator(".vf-ibneeds .vf-revlist > li", { hasText: ANSWER }).locator(".vf-rev-open").click();
     ok("opening it shows the answer in Ask Claude, About the whole session", await until(owner, a => !document.querySelector(".vf-drawer").hidden
       && document.querySelector(".vf-apq select").value === "session" && [...document.querySelectorAll(".vf-apgen .vf-res")].some(li => li.textContent.includes(a)), ANSWER));
     await owner.locator(".vf-apgen .vf-res", { hasText: ANSWER }).locator("button", { hasText: "Share with everyone" }).click();
@@ -98,7 +101,7 @@ async function main() {
     await ann.route(/\/api\/state\?/, lostMsg);
     await ann.reload();
     await until(ann, () => (window.Core.state.research.session || []).some(x => x.msg === "M999999"), null, 10000);
-    await openInbox(ann);
+    await showTab(ann, "mine");
     await ann.locator(".vf-ixmine .vf-ixlist > li", { hasText: ASK }).locator(".vf-ixitem").click();
     ok("opening it from the Inbox shows the answer in Ask Claude", await until(ann, a => !document.querySelector(".vf-drawer").hidden
       && [...document.querySelectorAll(".vf-apgen .vf-res")].some(li => li.textContent.includes(a)), ANSWER, 10000));
@@ -127,6 +130,7 @@ async function main() {
     // ---------- a reply to Claude's answer quotes Claude ----------
     await ann.keyboard.press("Escape");
     await openChat(ann);
+    ok("Ann's chat holds Claude's answer after the reload", await until(ann, a => (window.Core.state.chat || []).some(m => m.claude && m.text === a), ANSWER, 10000));
     const cmid = await ann.evaluate(a => window.Core.state.chat.find(m => m.claude && m.text === a)?.id, ANSWER);
     await ann.evaluate(id => window.Core.chat("Thanks, Claude", id), cmid);
     ok("Bo sees a reply to Claude's answer quoting Claude, not the host", await until(bo, () => [...document.querySelectorAll(".vf-msg")].some(li =>
@@ -135,7 +139,8 @@ async function main() {
     // ---------- with chat off, the page says the answer shows in Ask Claude ----------
     await owner.evaluate(() => window.Core.saveSettings({ chat: false }));
     await until(owner, () => window.Core.state.settings.chat === false);
-    await owner.keyboard.press("Escape");
+    // the first Escape takes an urgent pop-up away when one shows (Q39); Ask Claude closes on the next
+    for (let i = 0; i < 3 && await owner.evaluate(() => !document.querySelector(".vf-drawer").hidden); i++) await owner.keyboard.press("Escape");
     await owner.click(".vf-asktop");
     await owner.selectOption(".vf-apq select", "session");
     ok("about the whole session Ask Claude starts on Just me", await until(owner, () => document.querySelector(".vf-apform .vf-aud [aria-pressed=true]")?.textContent === "Just me"));

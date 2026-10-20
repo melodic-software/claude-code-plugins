@@ -306,7 +306,10 @@ Per tool: `description` through `resolve_field` with methods read as getters (`a
 description(){return X}`), which often yields the per-call permission text or nothing, so
 `search_hint` is kept beside it; `deferred` from `shouldDefer`, `always_load` from `alwaysLoad`
 (absent is false, `!0`/`!1` as written, anything else null and listed in `flag_driven`); `gated`
-when the literal carries `isEnabled`; `aliases`; `user_facing_name` when it differs.
+when the literal carries `isEnabled`; `aliases`, with `aliases_source` always written: `literal`
+when every element resolved, `absent` when the tool declares none, `partial` when an element of
+the array (a `...spread` included) did not resolve, so the list is a floor, and `unresolved` when
+the field is not an array literal; `user_facing_name` when it differs.
 
 ### 11. Find built-in plugins by the registry the binary keeps
 

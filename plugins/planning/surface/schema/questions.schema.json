@@ -100,11 +100,13 @@
       }
     },
     "sections": {
-      "description": "Restatement sections, each markdown. `outOfScope` lists what the interview excluded. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make.",
+      "description": "Restatement sections, each markdown. `problem` holds the Brief's Problem fields and `workSize` its Work size fields. `outOfScope` lists what the interview excluded. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "problem": {"type": "string"},
         "goal": {"type": "string"},
+        "workSize": {"type": "string"},
         "constraints": {"type": "string"},
         "decisions": {"type": "string"},
         "acceptance": {"type": "string"},

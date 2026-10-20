@@ -37,8 +37,10 @@ from a completed, successful one. Any other artifact is ignored.
   other than the pull request's author, else `verify:untrusted-spec`;
 - otherwise `verify:missing`.
 
-`verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and
-`verify:untrusted-spec` need a human, who merges in person. Any read that fails refuses
+`verify:fail`, `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed`
+and `verify:untrusted-spec` need a human, who merges in person; a
+`verify:fail` escalation quotes the newest head FAIL's summary
+(`Reader.fail_summary`). Any read that fails refuses
 (`verify:unreadable`). The repository's artifacts are listed once per
 `Reader`, every page, and filtered on the name here: the API's name filter
 matches whole names only, and a FAIL counts under any number and head.
@@ -115,7 +117,7 @@ UNREADABLE = "verify:unreadable"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
 SPEC_CHANGED = "verify:spec-changed"
-NEEDS_HUMAN = (EARLIER_FAIL, TOO_OLD, UNTRUSTED_SPEC, SPEC_CHANGED)
+NEEDS_HUMAN = (FAIL, EARLIER_FAIL, TOO_OLD, UNTRUSTED_SPEC, SPEC_CHANGED)
 CLOSING_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){closingIssuesReferences(first:10){totalCount "
@@ -160,6 +162,11 @@ class _Unreadable(Exception):
 
 class _Transient(_Unreadable):
     """A failed read that may succeed if repeated."""
+
+
+class SummaryUnreadable(Exception):
+    """`Reader.fail_summary` could not read the record, which is not the
+    same as a record with nothing to quote."""
 
 
 def _transient(detail: str) -> bool:
@@ -216,6 +223,8 @@ class Evidence:
     verdicts: tuple[Verdict, ...]
     ignored: int
     detail: str | None = None
+    # The newest counted FAIL at the head: its run id and artifact name.
+    head_fail: tuple[int, str] | None = None
 
     @property
     def needs_human(self) -> bool:
@@ -236,6 +245,11 @@ class Evidence:
             ),
             "ignored": self.ignored,
             "detail": self.detail,
+            "headFail": (
+                {"run": self.head_fail[0], "artifact": self.head_fail[1]}
+                if self.head_fail
+                else None
+            ),
         }
 
 
@@ -309,6 +323,15 @@ class Reader:
         self._saved = self._own = False
         self._save(listing, fetched_at)
         return listing
+
+    def listing(self) -> list[dict[str, Any]]:
+        """Every repository artifact, as a judgment reads it, saved to
+        `listing_path` for the run's gate processes. Raises `RuntimeError`
+        when it cannot be read."""
+        try:
+            return self._listing()
+        except _Unreadable as exc:
+            raise RuntimeError(str(exc)) from exc
 
     @property
     def saved(self) -> bool:
@@ -729,6 +752,7 @@ class Reader:
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str]] = []
+        head_fails: list[tuple[int, str]] = []
         ignored = 0
         unreadable: str | None = None
         for item in map(json_object, self._listing()):
@@ -772,6 +796,8 @@ class Reader:
                 if not head_ref or recorded != head_ref:
                     continue
             verdicts.append(Verdict(sha, verdict, run_id))
+            if sha == head and verdict == "fail":
+                head_fails.append((run_id, name))
         fails = [v for v in verdicts if v.verdict == "fail"]
         refusal: str | None
         detail = unreadable
@@ -794,7 +820,35 @@ class Reader:
             )
         else:
             refusal = MISSING
-        return Evidence(refusal, head, tuple(verdicts), ignored, detail)
+        return Evidence(
+            refusal,
+            head,
+            tuple(verdicts),
+            ignored,
+            detail,
+            max(head_fails) if refusal == FAIL else None,
+        )
+
+    def fail_summary(
+        self, run_id: int, name: str, number: int, head: str
+    ) -> str | None:
+        """The `summary` a FAIL artifact's verdict.json records for pull
+        request `number` at `head`, or None when it records another pull
+        request, head or verdict. Raises `SummaryUnreadable` when it cannot be
+        read. Untrusted model text: the caller frames it as data."""
+        try:
+            record = self._record(run_id, name)
+        except _Unreadable as exc:
+            raise SummaryUnreadable(str(exc)) from exc
+        summary = record.get("summary")
+        if (
+            record.get("pr") != number
+            or record.get("head_sha") != head
+            or record.get("verdict") != "fail"
+            or not isinstance(summary, str)
+        ):
+            return None
+        return summary
 
     def _pass_refusal(
         self,

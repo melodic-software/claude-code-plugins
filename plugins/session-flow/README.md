@@ -17,7 +17,7 @@ it for delegation-heavy tasks.
 | `/session-flow:find-handoff` | I wrote a handoff, ran `/clear`, and lost the resume prompt. Where is it and how do I resume? |
 | `/session-flow:clean-stop` | Before I lose this machine, is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
-| `/session-flow:audit-sessions` | Across every session on this machine, which ones lost the most time, tokens or corrections, and what would fix it? |
+| `/session-flow:audit-sessions` | Across every session on this machine, which ones lost the most time or tokens, and what would fix it? |
 | `/session-flow:audit-friction` | Where do permission prompts, auto-mode denials, hook blocks and the agent's own asks get in my way, and what should change? |
 | `/session-flow:running-retro` | Mid-flight: how is this session going, what is drifting, and what should change before it costs more? |
 | `/session-flow:orient` | Where do we stand, what are we doing, and why, from the durable + off-thread state, not just the conversation? |

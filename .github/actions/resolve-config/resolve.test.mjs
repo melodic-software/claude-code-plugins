@@ -7,7 +7,9 @@ import { parse, stringify } from "yaml";
 import { WIP_DEFAULTS, resolveWip } from "../../scripts/work-resolve-issue/limits.mjs";
 
 import {
+  checkAppliedBySupported,
   checkConfigPath,
+  checkPatchRules,
   neededFacts,
   Rejection,
   resolve,
@@ -1540,4 +1542,210 @@ test("integration: the README example resolves against the synced standards voca
     JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")),
   );
   assert.equal(Object.keys(results).length, 14);
+});
+
+// applied-by: a read skill names the script activity that applies each thing
+// it hands on (README.md, Activities). The live vocabulary: the fixture lacks
+// the verb "apply".
+
+const liveVocabulary = () => ({ vocabulary: JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")) });
+const APPLIED_BY = fixture("invalid-applied-by-missing-needs.yaml").replace(
+  "      - activity: apply-patch\n",
+  "      - activity: apply-patch\n        needs: [fix-ci]\n",
+);
+const unblock = (config, activity = "fix-ci", facts = {}) =>
+  run(config, { lane: "pr-unblock", activity, facts: { ...FACTS, ...facts } }, liveVocabulary()).selected;
+const appliedByEdit = (edit) => {
+  const doc = parse(APPLIED_BY);
+  edit(doc);
+  return stringify(doc);
+};
+
+test("applied-by: a read skill whose patch an apply-patch script in its lane needs resolves and carries the map", () => {
+  assert.deepEqual(unblock(APPLIED_BY)["applied-by"], { patch: "apply-patch" });
+  assert.equal(Object.hasOwn(unblock(APPLIED_BY, "apply-patch"), "applied-by"), false);
+});
+
+// Each fixture breaks one rule, and the message names that rule.
+const assertAppliedByRejected = (fn, message) =>
+  assert.throws(fn, (error) => {
+    assert.ok(error instanceof Rejection, `expected a Rejection, got ${error}`);
+    assert.equal(error.code, "invalid-applied-by", error.message);
+    assert.match(error.message, message);
+    return true;
+  });
+
+for (const [name, why, message] of [
+  ["invalid-applied-by-not-script.yaml", "a target that is a skill", /`review-patch`, which is not a script activity/],
+  ["invalid-applied-by-outside-lane.yaml", "a target outside the producer's lane", /`apply-patch` is not in the lane/],
+  [
+    "invalid-applied-by-apply-patch-prepare.yaml",
+    "an apply-patch target without prepare: apply-patch",
+    /`apply-patch`, which does not set prepare: apply-patch/,
+  ],
+  ["invalid-applied-by-missing-needs.yaml", "a target whose slot does not need the producer", /slot `apply-patch` .* does not need it/],
+]) {
+  test(`applied-by: ${why} is rejected (${name})`, () => {
+    assertAppliedByRejected(() => unblock(fixture(name)), message);
+  });
+}
+
+test("applied-by: an apply-issue-patch target without prepare: apply-patch is rejected", () => {
+  assertAppliedByRejected(
+    () =>
+      run(
+        fixture("invalid-applied-by-apply-issue-patch-prepare.yaml"),
+        { lane: "work-resolve-issue", activity: "resolve-issue" },
+        liveVocabulary(),
+      ),
+    /`apply-issue-patch`, which does not set prepare: apply-patch/,
+  );
+});
+
+test("applied-by: a target no activity defines is rejected", () => {
+  const config = appliedByEdit((doc) => {
+    doc.activities["fix-ci"]["applied-by"]["feedback-replies"] = "publish-feedback";
+  });
+  assertAppliedByRejected(() => unblock(config), /`publish-feedback`, which is not a script activity/);
+});
+
+test("applied-by: a non-patch target needs no prepare mode", () => {
+  const config = appliedByEdit((doc) => {
+    doc.activities["fix-ci"]["applied-by"]["feedback-replies"] = "publish-feedback";
+    doc.activities["publish-feedback"] = {
+      script: ".github/scripts/pr-unblock/publish-feedback.mjs",
+      effect: "publish-artifact",
+      gating: "advisory",
+      "reads-untrusted": true,
+    };
+    doc.lanes["pr-unblock"].slots.push({ activity: "publish-feedback", needs: ["fix-ci"] });
+  });
+  assert.deepEqual(unblock(config)["applied-by"], { patch: "apply-patch", "feedback-replies": "publish-feedback" });
+});
+
+for (const [why, edit] of [
+  ["on a script", (doc) => (doc.activities["apply-patch"]["applied-by"] = { patch: "apply-patch" })],
+  ["with effect mutate-branch", (doc) => (doc.activities["fix-ci"].effect = "mutate-branch")],
+  ["with gating gate", (doc) => (doc.activities["fix-ci"].gating = "gate")],
+  ["with a key outside the closed set", (doc) => (doc.activities["fix-ci"]["applied-by"].verdict = "apply-patch")],
+  ["empty", (doc) => (doc.activities["fix-ci"]["applied-by"] = {})],
+]) {
+  test(`applied-by ${why} fails the schema`, () => {
+    assertRejected(() => unblock(appliedByEdit(edit)), "invalid-config");
+  });
+}
+
+// Only the runner that stages a skill's edit tools grants these, and the read
+// runner does so only for applied-by.patch without ci-context.
+for (const [key, value] of [
+  ["checks", ["scripts/check-x.sh"]],
+  ["self-checks", ["scripts/check-x.sh"]],
+  ["verify-scripts", ["scripts/check-x.sh"]],
+  ["web-access", { enabled: true, domains: "any" }],
+]) {
+  test(`${key} on a read skill that hands on a patch resolves and is carried`, () => {
+    const config = appliedByEdit((doc) => {
+      delete doc.activities["fix-ci"].prepare;
+      doc.activities["fix-ci"][key] = value;
+    });
+    assert.deepEqual(unblock(config)[key], value);
+  });
+
+  test(`${key} on a read skill with prepare: ci-context fails the schema`, () => {
+    assertRejected(() => unblock(appliedByEdit((doc) => (doc.activities["fix-ci"][key] = value))), "invalid-config");
+  });
+}
+
+test("applied-by-supported: an applying leaf fails on a key its runner does not name", () => {
+  const selected = unblock(APPLIED_BY);
+  assert.doesNotThrow(() => checkAppliedBySupported(selected, "patch"));
+  assert.doesNotThrow(() => checkAppliedBySupported(selected, "feedback-replies, patch"));
+  for (const supported of ["", "feedback-replies", "patches"]) {
+    assertRejected(() => checkAppliedBySupported(selected, supported), "applied-by-unsupported");
+  }
+});
+
+test("applied-by-supported: a leaf with no applied-by, or one that does not apply, passes on any runner", () => {
+  assert.doesNotThrow(() => checkAppliedBySupported(unblock(APPLIED_BY, "apply-patch"), ""));
+  assert.doesNotThrow(() => checkAppliedBySupported({ ...unblock(APPLIED_BY), applies: false }, ""));
+});
+
+test("changed-paths: a read skill that hands on a patch is not asked to fix instruction surfaces or owned paths", () => {
+  const config = appliedByEdit((doc) => {
+    doc.activities["fix-ci"].inputs = ["changed-paths"];
+  });
+  const changed = ["docs/guide.md", "CLAUDE.md", "plugins/ai-slop/README.md"];
+  const selected = run(
+    config,
+    { lane: "pr-unblock", activity: "fix-ci", facts: { ...FACTS, changedPaths: changed, changedTargets: changed } },
+    { ...liveVocabulary(), codeowners: CODEOWNERS },
+  ).selected;
+  assert.deepEqual(selected["changed-paths"], ["docs/guide.md"]);
+});
+
+// patch-rules.json: apply-patch's registry, one row per prepare mode
+// (README.md, Patch rules).
+
+const PATCH_RULES = JSON.parse(read("./patch-rules.json"));
+const PATCH_RULES_SCHEMA = JSON.parse(read("./patch-rules.schema.json"));
+const patchRules = (name) => JSON.parse(fixture(name));
+
+test("patch rules: the shipped registry passes, with a row for each prepare mode and the default and issue targets", () => {
+  assert.equal(checkPatchRules(PATCH_RULES, PATCH_RULES_SCHEMA), PATCH_RULES);
+  assert.deepEqual(Object.keys(PATCH_RULES).sort(), [
+    "ci-context",
+    "default",
+    "dependency-review",
+    "issue",
+    "merge-base",
+    "review-threads",
+  ]);
+});
+
+for (const [name, why, message] of [
+  ["patch-rules-missing-universal.json", "a row that does not refuse the universal set", /row `issue` does not refuse claude$/],
+  ["patch-rules-unknown-predicate.json", "an allow rule apply-patch does not know", /fails its schema: \/default\/allow\/0/],
+  [
+    "patch-rules-merge-parents.json",
+    "a two-parent commit without allow merge-result",
+    /row `merge-base` commits with the base as a parent, so its allow must be exactly \[merge-result\]/,
+  ],
+  [
+    "patch-rules-merge-allow-any.json",
+    "a two-parent commit that also allows any path",
+    /row `merge-base` commits with the base as a parent, so its allow must be exactly \[merge-result\]/,
+  ],
+]) {
+  test(`patch rules: ${why} is rejected (${name})`, () => {
+    assert.throws(
+      () => checkPatchRules(patchRules(name), PATCH_RULES_SCHEMA),
+      (error) => error instanceof Rejection && error.code === "patch-rules" && message.test(error.message),
+    );
+  });
+}
+
+test("patch rules: a missing registry or schema is rejected", () => {
+  assertRejected(() => checkPatchRules(undefined, PATCH_RULES_SCHEMA), "patch-rules");
+  assertRejected(() => checkPatchRules(PATCH_RULES, undefined), "patch-rules");
+});
+
+test("patch rules: a row with an unknown key, or a registry without the default or issue row, fails its schema", () => {
+  assertRejected(
+    () => checkPatchRules({ ...PATCH_RULES, default: { ...PATCH_RULES.default, paths: ["**"] } }, PATCH_RULES_SCHEMA),
+    "patch-rules",
+  );
+  for (const row of ["default", "issue"]) {
+    const { [row]: _dropped, ...rest } = PATCH_RULES;
+    assertRejected(() => checkPatchRules(rest, PATCH_RULES_SCHEMA), "patch-rules");
+  }
+});
+
+test("patch rules: a patch producer whose prepare mode has no row is rejected; one with no prepare mode takes default", () => {
+  const { "ci-context": _dropped, ...withoutCiContext } = PATCH_RULES;
+  const producer = { skill: "source-control:pull-request", effect: "read", "applied-by": { patch: "apply-patch" } };
+  assertRejected(
+    () => checkPatchRules(withoutCiContext, PATCH_RULES_SCHEMA, { "fix-ci": { ...producer, prepare: "ci-context" } }),
+    "patch-rules",
+  );
+  assert.doesNotThrow(() => checkPatchRules(withoutCiContext, PATCH_RULES_SCHEMA, { "fix-docs": producer }));
 });
