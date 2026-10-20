@@ -27,6 +27,11 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   import-ledger   seed an empty data dir from an existing ledger
   sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
                   --ledger merges
+  supersede       set an answered register row of --ledger F to superseded-by-plan with --proposes
+                  (needs no data dir): the row's resolution becomes `was`, escaped as the exporter does
+  resolve         clear a superseded row of --ledger F: reconfirm (answered, the proposal accepted) or
+                  restore (the row as it was before supersede); both back the ledger up and print the
+                  check-open-questions verdict
   doctor          report what the running version needs and --ledger F or the page lacks (writes nothing;
                   exit 1 on a missing element)
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
@@ -2039,6 +2044,51 @@ def cmd_sync_ledger(d, a):
     report_notes(write_synced_ledger(d, a.ledger), ("conflict",))
 
 
+def edit_ledger(a, edit):
+    """Rewrite the register row `edit` changes, behind a timestamped backup, then print the
+    check-open-questions verdict (a verdict that still counts open rows does not fail this command)."""
+    path = Path(a.ledger)
+    text = read_input(path, "ledger", newline="")
+    new = edit(text, str(path))
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    backup, n = path.with_name(f"{path.name}.{stamp}.bak"), 1
+    while backup.exists():
+        backup, n = path.with_name(f"{path.name}.{stamp}-{n}.bak"), n + 1
+    shutil.copyfile(path, backup)
+    tmp = path.with_name(f".{path.name}.edit")
+    write_text(tmp, new)
+    os.replace(tmp, path)
+    print(f"updated {a.qid} in {path} (backup {backup})")
+    check = HERE.parent / "scripts" / "check-open-questions.sh"
+    try:
+        r = subprocess.run(
+            ["bash", str(check), "--ledger", str(path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as e:
+        print(f"check-open-questions.sh did not run: {e}", file=sys.stderr)
+        return
+    print(r.stdout.strip() or f"check-open-questions.sh exit {r.returncode}")
+    if r.stderr.strip():
+        print(r.stderr.strip(), file=sys.stderr)
+
+
+def cmd_supersede(d, a):
+    edit_ledger(
+        a, lambda text, where: exporters.supersede_row(text, a.qid, a.proposes, where)
+    )
+
+
+def cmd_resolve(d, a):
+    edit_ledger(
+        a,
+        lambda text, where: exporters.resolve_row(text, a.qid, a.how, a.note, where),
+    )
+
+
 def cmd_import_ledger(d, a):
     text = read_input(a.ledger, "ledger")
     with sidecar_lock(d):
@@ -2595,6 +2645,34 @@ def main(argv=None):
     s.set_defaults(fn=cmd_sync_ledger)
 
     s = sub.add_parser(
+        "supersede",
+        help="set an answered register row of a ledger to superseded-by-plan (no data dir needed)",
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.add_argument(
+        "qid",
+        metavar="Q",
+        help="the row: Q<N>, or the [<id>] a renumbered row leads with",
+    )
+    s.add_argument("--proposes", required=True, help="what the plan proposes instead")
+    s.set_defaults(fn=cmd_supersede)
+
+    s = sub.add_parser(
+        "resolve",
+        help="clear a superseded-by-plan register row: reconfirm the proposal or restore the "
+        "answer (no data dir needed)",
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.add_argument(
+        "qid",
+        metavar="Q",
+        help="the row: Q<N>, or the [<id>] a renumbered row leads with",
+    )
+    s.add_argument("how", choices=("reconfirm", "restore"))
+    s.add_argument("--note", help="reconfirm only: the accept's note")
+    s.set_defaults(fn=cmd_resolve)
+
+    s = sub.add_parser(
         "ensure-running",
         help="start the server for the data dir or reuse it; prints the URL",
     )
@@ -2647,6 +2725,9 @@ def main(argv=None):
     a = p.parse_args(argv)
     if a.cmd == "revise" and a.commit == ["none"]:
         a.commit = []
+    if a.fn in (cmd_supersede, cmd_resolve):
+        a.fn(None, a)
+        return
     if not a.dir:
         p.error("--dir DATA_DIR is required (the data dir holding questions.json)")
     d = Path(a.dir).resolve()
