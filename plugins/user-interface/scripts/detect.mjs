@@ -255,6 +255,9 @@ const relabel = (v, names) => {
   return isMapping(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, relabel(x, names)])) : v;
 };
 
+// How many problems checkRouting named: team.errors also holds the layer's non-routing problems.
+let routingProblems = 0;
+
 /** Checks the team `routing` key entry by entry, naming each problem on the team layer: an unknown
  * key drops only that key, a row, disable or deny entry that still fails drops alone, and an unknown
  * version drops routing. A row matching a bundled concern plus id may re-rank it, so it needs only
@@ -263,7 +266,10 @@ function checkRouting(out) {
   const routing = out.values.routing;
   if (!isMapping(routing)) return;
   const team = out.layers.find((l) => l.name === "team");
-  const fail = (errors) => team.errors.push(...errors.map((e) => `team (${team.path}): ${e}`)) && errors.length > 0;
+  const fail = (errors) => {
+    routingProblems += errors.length;
+    return team.errors.push(...errors.map((e) => `team (${team.path}): ${e}`)) && errors.length > 0;
+  };
   const strip = (props, v, at) => {
     if (isMapping(v)) for (const k of Object.keys(v)) if (!Object.hasOwn(props, k)) fail([`${at}: unknown key ${k}, dropped`]) && delete v[k];
     return v;
@@ -360,7 +366,9 @@ function applyRouting(bundled, cfg) {
   const team = cfg.layers.find((l) => l.name === "team");
   const notes = [];
   if (cfg.home_error) notes.push(`${cfg.home_error}; built-in routes used, with no team overrides or deny floor`);
-  const n = team?.errors.length ?? 0;
+  // A surviving routing mapping means only checkRouting's problems touch routing; with none, the
+  // team layer's errors are what dropped it.
+  const n = isMapping(cfg.values.routing) ? routingProblems : team?.errors.length ?? 0;
   if (n > 0) {
     notes.push(`${team.path} has ${n} problem${n === 1 ? "" : "s"} (see config.layers); built-in routes are used for any team routing it could not supply, so those overrides and deny entries were not applied. Run /user-interface:setup check`);
   }
