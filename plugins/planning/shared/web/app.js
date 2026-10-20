@@ -464,6 +464,8 @@
       return p;
     }
     const optionsOf = q => q?.options || [];
+    /** Every pick format's one line while results wait for my vote. */
+    const RESULTS_HINT = "Everyone's votes show once you vote.";
     /** A question that takes a pick (its options are the vote), not a written answer. */
     const isChoice = q => ["choice", "confirm", "multi", "scale", "rank"].includes(q?.format);
     const isFormat = q => ["multi", "scale", "rank"].includes(q?.format);
@@ -928,9 +930,10 @@
     const repRow = E("div", "vf-crow"), repCancel = btn("vf-btn vf-btn-ghost", "Cancel");
     const repSend = E("button", "vf-btn vf-btn-primary", "Send report"); repSend.type = "submit";
     repRow.append(repCount, repK.hint, repCancel, repSend);
-    reportPop.append(E("h2", "vf-pop-title", "Report a problem"), repLabel, repTa, repRow,
+    // the screenshot and what goes with the report come before Send, which ends the form within thumb reach
+    reportPop.append(E("h2", "vf-pop-title", "Report a problem"), repLabel, repTa,
       E("p", "vf-pop-note", "Take a screenshot first, then add or paste it here. Only the host and Claude see your report."),
-      E("h3", "vf-pop-sub", "Sent with this report"), repSent, repErr);
+      E("h3", "vf-pop-sub", "Sent with this report"), repSent, repErr, repRow);
 
     // Follow-up item 3: Your reports, the person's own problem reports in this session with where each stands. While one
     // is not fixed they can add a line or a screenshot to it (the same screenshot path and caps). Only they and the host
@@ -1259,7 +1262,9 @@
     fmtRes.append(fmtResHead, fmtResSum, fmtResList);
     // Q98: a prototype question shows a preview tile and opens its own page, where the variants run and take notes.
     const protoBox = E("section", "vf-proto"); protoBox.setAttribute("aria-label", "Prototype");
-    const protoTile = E("div", "vf-proto-tile"), protoInfo = E("div", "vf-proto-info");
+    // the tile opens the prototype too (a mouse shortcut; the named link below is the one keyboards and screen readers get)
+    const protoTile = E("a", "vf-proto-tile"), protoInfo = E("div", "vf-proto-info");
+    protoTile.target = "_blank"; protoTile.rel = "noopener noreferrer"; protoTile.tabIndex = -1; protoTile.setAttribute("aria-hidden", "true");
     const protoMeta = E("p", "vf-proto-meta"), protoOpen = E("a", "vf-btn vf-btn-primary vf-btn-sm vf-proto-open", "Open prototype");
     protoOpen.target = "_blank"; protoOpen.rel = "noopener noreferrer";
     protoInfo.append(protoMeta, protoOpen);
@@ -4280,11 +4285,13 @@
       if (S.youWaiting) { // Approve new joins: one card, the title, the intro and the wait; nothing to read or do until let in
         evTitle.textContent = S.title || "Interview";
         evIntroT.textContent = S.intro || "";
-        evNote.textContent = "Waiting for the host to let you in. This page opens by itself; keep it open.";
+        evNote.textContent = `${renamedLine()}Waiting for the host to let you in. This page opens by itself; keep it open.`;
         evNext.hidden = evPropose.hidden = evHere.hidden = evShare.hidden = evGoalNow.hidden = true;
       }
     }
 
+    /** Sweep S22: the name the server gave when the one typed was taken, said once, before anything else. */
+    const renamedLine = () => (Core.renamedFrom && Core.me.name ? `You joined as ${Core.me.name}: someone here already uses ${Core.renamedFrom}. ` : "");
     // ---------- events ----------
     qPrev.onclick = () => step(-1);
     qNext.onclick = () => step(1);
@@ -4546,7 +4553,7 @@
     }
     const repShot = shotSlot(repTa, err => { REP.image = repShot.image; REP.size = repShot.size; repErr.textContent = err || ""; paintSent(); });
     const repShotRow = E("div", "vf-crow vf-rep-shotrow"); repShotRow.append(repShot.btn);
-    reportPop.insertBefore(repShot.chips, repRow); repRow.after(repShotRow); reportPop.append(repShot.input);
+    repTa.after(repShot.chips, repShotRow); reportPop.append(repShot.input);
     const dropShot = () => { repShot.clear(); REP.image = ""; REP.size = null; paintSent(); };
     const repBack = () => { const r = reportPop._return || reportPop._anchor; closePop(); if (r?.isConnected && r.offsetParent) r.focus({ preventScroll: true }); };
     repCancel.onclick = repBack;
@@ -5308,20 +5315,21 @@
       const locked = lockedQ || ro || pollWait || ownOpt;
       ta.disabled = !qid || locked;
       if (ta.disabled) closeSheet();
-      ta.placeholder = S.youRemoved ? "The host removed you from this session."
+      // a phone's composer is one line between the paperclip and send, so every placeholder there fits it whole (sweep S24)
+      ta.placeholder = S.youRemoved ? (phone.matches ? "The host removed you" : "The host removed you from this session.")
         : S.ended && !Core.me.isOwner ? "This session has ended."
-        : q && notOpenYet(q) ? `Round ${roundOf(q)} opens after round ${curRound().current}. You can answer then.`
+        : q && notOpenYet(q) ? (phone.matches ? `Opens after round ${curRound().current}` : `Round ${roundOf(q)} opens after round ${curRound().current}. You can answer then.`)
         // no "above" or "below": where Edit, Unlock and Suggest a change sit differs by width; a phone gets the short form
         : ro ? (phone.matches ? "Read-only: sent to Claude" : `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Use Suggest a change." : ""}`)
         : lockedQ ? (phone.matches ? "Locked" : Core.canModerate() ? "This question is locked. Use Edit or Unlock." : "This question is locked. Use Suggest a change.")
-        : ownOpt ? "Your own option is your answer here. Change it above."
+        : ownOpt ? (phone.matches ? "Your own option is your answer" : "Your own option is your answer here. Change it above.")
         // A phone's composer is one line: the first half alone, so it is never cut mid-word.
         : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option first" : q?.format === "rank" ? "Save your ranking first" : "Pick first")
           + (phone.matches ? "" : ", then add a comment if you like.")
         : early ? "Add a comment (optional)…" + (phone.matches ? "" : " It goes in with your pick.")
-        : q?.format === "choice" ? (picked ? "Add a comment (optional)…" : "Pick an option, or write your own answer…")
+        : q?.format === "choice" ? (picked ? "Add a comment (optional)…" : phone.matches ? "Or answer in your own words…" : "Pick an option, or answer in your own words…")
         : isFormat(q) ? "Add a comment (optional)…"
-        : q?.format === "confirm" ? (picked && q.purpose === "poll" ? "Add a comment (optional)…" : "Not exactly? Say what you meant…")
+        : q?.format === "confirm" ? (picked && q.purpose === "poll" ? "Add a comment (optional)…" : phone.matches ? "Not exactly? What did you mean…" : "Not exactly? Say what you meant…")
         : "Write your answer…";
       cForm.classList.toggle("vf-composer-locked", locked);
       const commenting = (q?.format === "choice" || isFormat(q) || q?.purpose === "poll") && (picked || early);
@@ -5329,6 +5337,8 @@
       ta.setAttribute("aria-label", commenting ? "Comment on your pick" : q?.format === "confirm" ? "Not exactly: what you meant" : "Your answer");
       sendBtn.setAttribute("aria-disabled", String(locked || (ta.value.trim() === mine && sameCites(qid) && sameAtt(qid)) || !qid));
       clearBtn.hidden = !ta.value || locked;
+      // a comment written before the picks goes in with Save my picks (or Save my ranking): one primary button, not two
+      sendBtn.hidden = early && ["multi", "rank"].includes(q?.format);
       cRow.hidden = locked;
     }
     function renderAsk() {
@@ -5815,11 +5825,11 @@
       if (protoTile._key !== key) {
         protoTile._key = key;
         if (pic) { const im = E("img"); im.alt = ""; im.loading = "lazy"; im.src = assetUrl(pic.asset); protoTile.replaceChildren(im); }
-        else protoTile.replaceChildren(E("span", null, "Interactive prototype"));
+        else protoTile.replaceChildren(icon("open", "vf-i vf-proto-ico"), E("span", null, `${vs.length} interactive variant${vs.length === 1 ? "" : "s"}`));
       }
       const n = (Core.state.annotations || []).filter(a => a.qid === q.id).length;
       protoMeta.textContent = `${vs.length} variants: ${vs.map(v => v.label).join(", ")}. ${n ? `${n} note${n === 1 ? "" : "s"} pinned so far.` : "Try them and pin notes on any part."}`;
-      protoOpen.href = Core.pageLink(`/proto/${q.id}`);
+      protoOpen.href = protoTile.href = Core.pageLink(`/proto/${q.id}`);
       protoOpen.setAttribute("aria-label", `Open prototype for ${q.id} in a new tab`);
     }
 
@@ -5905,7 +5915,7 @@
         fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
           : picked?.other ? "You wrote your own option. It shows in Answers, where others can back it."
           : picked ? `You chose ${picked.label}. Add a comment below if you like.`
-          : hideResults ? "Pick one to see how everyone voted." : "Your choice is your vote. You can add a comment below.";
+          : hideResults ? RESULTS_HINT : "Your choice is your vote. You can add a comment below.";
       } else {
         fmtHint.textContent = `${tapW()} the picture to see it bigger.`;
         fmtHint.hidden = false;
@@ -6057,7 +6067,7 @@
         });
         fmtHint.textContent = "Pick every option that fits, then save. Your picks are your vote.";
         fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
-          : rec?.picks?.length ? `You picked ${rec.picks.length}. Add a comment below if you like.` : hideResults ? "Pick to see how everyone voted." : "";
+          : rec?.picks?.length ? `You picked ${rec.picks.length}. Add a comment below if you like.` : hideResults ? RESULTS_HINT : "";
       } else if (q.format === "scale") {
         const v = draftOf(q, rec), labels = q.labels || {}, mid = (q.min + q.max) % 2 === 0 ? (q.min + q.max) / 2 : null;
         const named = n => (n === q.min ? labels.min : n === q.max ? labels.max : n === mid ? labels.mid : "") || "";
@@ -6079,7 +6089,7 @@
         scaleMid.textContent = labels.mid ? (mid != null ? `${mid}: ${labels.mid}` : labels.mid) : ""; // kept empty, it holds the middle column
         fmtHint.textContent = `${tapW()} a number from ${q.min} to ${q.max}, or use the arrow keys. It saves by itself.`;
         fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
-          : rec?.value != null ? `You chose ${rec.value}. Add a comment below if you like.` : hideResults ? "Choose to see how everyone voted." : "";
+          : rec?.value != null ? `You chose ${rec.value}. Add a comment below if you like.` : hideResults ? RESULTS_HINT : "";
       } else {
         const order = draftOf(q, rec), n = order.length;
         if (rankList._q !== q.id) { resetList(rankList); rankList._q = q.id; }
@@ -6100,7 +6110,7 @@
         const saved = !!rec?.order?.length, dirty = !sameList(order, rec?.order) || ownChanged(q, rec);
         fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The order is decided.") : ro ? "Read-only now."
           : saved && !dirty ? "Your ranking is saved. Add a comment below if you like." : saved ? "Not saved yet: save to update your ranking."
-          : hideResults ? "Save your ranking to see everyone's." : "Not saved yet.";
+          : hideResults ? RESULTS_HINT : "Not saved yet.";
       }
       fmtHint.hidden = ro;
       paintFmtActs(q, rec, ro);
@@ -6125,7 +6135,7 @@
       } else fmtClear.textContent = "Clear my choice";
       fmtClear.hidden = !saved;
     }
-    const fmtOwn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-fmt-own", "Add your own option");
+    const fmtOwn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-fmt-own", "Write your own"); // the choice card's words
     fmtActs.insertBefore(fmtOwn, fmtActs.children[1]);
     fmtOwn.onclick = () => openOther(ui.cur);
     function toggleMulti(o, checked) {
@@ -6715,7 +6725,13 @@
       // round changes: a toast with a way to go there; the view moves only for people following the host
       if (Core.live) {
         const flash = (me.isOwner || popsUp("round")) ? flashNow : () => {}; // round 11: a guest's round pop-up, theirs to turn off
-        if (ui.round == null) { ui.round = cur; ui.rstat = R.status; }
+        // the baseline is what a person first sees once in (sweep S32): no "Round 2 is here." on arriving in round 2
+        const inNow = !!S.me && !S.youWaiting;
+        if (ui.round == null || !ui.roundIn) {
+          ui.round = cur; ui.rstat = R.status;
+          if (inNow && !ui.roundIn && Core.renamedFrom) flashNow(renamedLine().trim());
+          ui.roundIn = inNow;
+        }
         else if (cur > ui.round) {
           ui.round = cur; ui.rstat = R.status; ui.freshRound = cur; ui.cmpRound = null;
           const first = S.questions.find(q => roundOf(q) === cur);

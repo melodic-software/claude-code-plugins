@@ -746,6 +746,8 @@
       if (!r.ok) throw { status: r.status, ...j };
       secret = j.secret; Core.me.cid = j.pid;
       put("secret", secret); put("pid", j.pid);
+      // the server makes a name unique ("Ivy 2"): the page says so, so nobody is renamed silently
+      Core.renamedFrom = name && j.name && j.name !== name.trim() ? name.trim() : null;
       if (j.name) { Core.me.name = j.name; put("name", j.name); }
       Core.joinedAs = j.was || null; // someone offline already used this name
       return j;

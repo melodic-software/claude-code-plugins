@@ -483,7 +483,7 @@
 .app :is(.vf-ta, .vf-input)::placeholder { color: var(--faint); }
 .app :is(.vf-ta, .vf-input):focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .app .vf-crow { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-block-start: 8px; }
-.app .vf-hint { margin-inline-end: auto; color: var(--faint); font-size: 11.5px; }
+.app .vf-hint { margin-inline-end: auto; min-width: 0; color: var(--faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- compare ---------- */
 .app .vf-cmp { position: relative; }
@@ -1808,6 +1808,13 @@
   .app .vf-titles { row-gap: 0; }
   .app .vf-goal { max-inline-size: none; font-size: 11px; }
   .app .vf-titlerow .vf-tbtn, .app .vf-goalrow .vf-tbtn { block-size: 22px; min-inline-size: 22px; inline-size: 22px; }
+  /* phone tap targets of 44 px where the drawing stays small: the pencils in the 48 px top bar and the reaction chips
+     take a transparent ring; a question link is at least 44 px wide (its height is 44 already) */
+  .app :is(.vf-titlerow, .vf-goalrow) .vf-pencil { position: relative; }
+  .app :is(.vf-titlerow, .vf-goalrow) .vf-pencil::after { content: ""; position: absolute; inset: -11px; }
+  .app .vf-qref { min-inline-size: 44px; }
+  .app .vf-mreact { position: relative; min-inline-size: 44px; justify-content: center; }
+  .app .vf-mreact::after { content: ""; position: absolute; inset: -8px 0; }
   .app .vf-asktop { inline-size: 44px; padding: 0; }
   .app .vf-asktop > span { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .app .vf-asktop .vf-i { margin: 0; }
@@ -2192,6 +2199,7 @@
   /* the Propose sheet keeps its label, field and buttons above the keyboard: its title and note step aside */
   .app[data-kb] :is(.vf-proposepop, .vf-reportpop) { max-block-size: calc(100% - 8px); padding-block-end: 8px; }
   .app[data-kb] :is(.vf-proposepop, .vf-reportpop) > :is(.vf-pop-title, .vf-pop-note) { display: none; }
+  .app[data-kb] .vf-reportpop:not(.vf-myreps) > :is(.vf-pop-sub, .vf-rep-sent) { display: none; } /* Send stays above the keyboard */
 }
 
 /* Dialogs: confirmations and the attach picker. Native modal dialogs, so they sit above every panel and sheet. */
@@ -2350,6 +2358,8 @@
 
 .app .vf-optfoot[hidden] { display: none; }
 @media (max-width: 720px) { .app .vf-optfoot[data-empty="true"] { display: none; } }
+/* a foot empty on every card (results wait, nothing leads) takes no row anywhere: alignment holds, no blank band */
+.app .vf-opts:not(:has(.vf-optfoot[data-empty="false"])) .vf-optfoot { display: none; }
 .app .vf-bar > .vf-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 720px) {
   .app .vf-orient { padding: 14px; }
@@ -2473,8 +2483,9 @@
 .app .vf-proto { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: center; margin-block-end: 10px; padding: 10px;
   border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--sunk); }
 .app .vf-proto[hidden] { display: none; }
-.app .vf-proto-tile { display: grid; place-items: center; inline-size: 120px; aspect-ratio: 4 / 3; overflow: hidden; border-radius: var(--r-sm);
-  background: var(--raise); color: var(--faint); font-size: 12px; text-align: center; }
+.app .vf-proto-tile { display: grid; place-content: center; justify-items: center; gap: 6px; inline-size: 120px; aspect-ratio: 4 / 3; overflow: hidden; border-radius: var(--r-sm);
+  background: color-mix(in oklch, var(--accent) 10%, var(--raise)); color: var(--accent-text); font-size: 12px; font-weight: 600; text-align: center; text-decoration: none; padding: 6px; }
+.app .vf-proto-tile .vf-proto-ico { inline-size: 22px; block-size: 22px; }
 .app .vf-proto-tile img { inline-size: 100%; block-size: 100%; object-fit: cover; object-position: top; }
 .app .vf-proto-info { display: grid; gap: 6px; min-inline-size: 0; }
 .app .vf-proto-meta { margin: 0; color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
