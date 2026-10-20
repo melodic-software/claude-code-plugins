@@ -130,7 +130,7 @@ export function revertAppliesWithGit(basePath) {
   };
 }
 
-export async function report(env, { call, sleep, now, loadConfig, revertApplies }) {
+export async function report(env, { call, sleep, clock, loadConfig, revertApplies }) {
   const repo = env.REPOSITORY;
   if (!/^[0-9a-f]{40}$/.test(env.RUN_SHA ?? "") || !/^[1-9][0-9]*$/.test(env.RUN_ID ?? "") || !Number.isFinite(Date.parse(env.RUN_CREATED))) {
     throw new Error("RUN_SHA, RUN_ID and RUN_CREATED must be a full commit SHA, a run id and a time");
@@ -142,6 +142,8 @@ export async function report(env, { call, sleep, now, loadConfig, revertApplies 
   const run = await awaitRerun(call, repo, env.RUN_ID, config["confirm-wait-minutes"], sleep);
   const evidence = await attempts(call, repo, run);
   const verdict = confirm(evidence.first, evidence.latest);
+  // The decision time, read after the wait: it drives the age and cap windows.
+  const now = clock();
   const runInfo = { id: run.id, attempt: run.run_attempt, sha: env.RUN_SHA, url: runUrl };
   if (!verdict.confirmed) {
     return { posted: false, summary: `Red main not confirmed for ${runUrl}: ${verdict.reason}. Nothing to attribute.` };
@@ -294,7 +296,7 @@ async function main(env = process.env) {
   const result = await report(env, {
     call: client(env),
     sleep: (ms) => delay(ms),
-    now: new Date().toISOString(),
+    clock: () => new Date().toISOString(),
     loadConfig: () => redMainFromBase({ BASE_PATH: env.BASE_PATH }),
     revertApplies: revertAppliesWithGit(env.BASE_PATH),
   });

@@ -98,7 +98,7 @@ const run = (env, w, over = {}) =>
   report(env, {
     call: w.call,
     sleep: async () => {},
-    now: NOW,
+    clock: () => NOW,
     loadConfig: () => ({ redMain: {}, agentIdentity: LANES }),
     revertApplies: () => true,
     ...over,
@@ -245,4 +245,23 @@ test("an open canary record on a merge in the range is a suspected platform faul
 test("a revert of a revert is never auto-reverted", async () => {
   const w = world({ merges: [{ sha: HEAD, number: 104, by: LANES, message: "revert: fix(x): y (#104)" }] });
   assert.equal(decisionOf((await run(ENV, w)).body), "human");
+});
+
+test("the culprit's age is read after the wait for the re-run, not before it", async () => {
+  // Merged 23 h 40 min before the job starts; the re-run finishes 30 minutes later.
+  let minutes = 0;
+  const start = Date.parse("2026-10-20T12:00:00Z");
+  const w = world({ merges: [{ sha: HEAD, number: 101, by: LANES }], startAttempt: 1 });
+  w.call = ((inner) => async (method, path, body) => {
+    const value = await inner(method, path, body);
+    return /\/pulls\/101$/.test(path) ? { ...value, merged_at: "2026-10-19T12:20:00Z" } : value;
+  })(w.call);
+  const result = await run(ENV, w, {
+    sleep: async () => {
+      minutes += 30;
+    },
+    clock: () => new Date(start + minutes * 60_000).toISOString(),
+  });
+  assert.equal(decisionOf(result.body), "human");
+  assert.match(result.body, /past max-culprit-age-hours/);
 });

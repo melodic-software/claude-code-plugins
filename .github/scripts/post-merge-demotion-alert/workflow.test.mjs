@@ -56,3 +56,7 @@ test("the run step takes every event field through env", () => {
   const run = /\n {8}run: (.*)\n?$/.exec(job)[1];
   assert.doesNotMatch(run, /\$\{\{/);
 });
+
+test("reports run one at a time across the repository, so two cannot both read the log before writing", () => {
+  assert.match(job, /\n {4}concurrency:\n {6}group: red-main-report\n {6}cancel-in-progress: false\n/);
+});

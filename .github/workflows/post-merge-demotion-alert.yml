@@ -480,9 +480,11 @@ jobs:
       contents: read # check out main; compare the failing range
       issues: write # file and comment on the log issue
       pull-requests: read # read each merge's merge-queue entry
-    # One report per run: a later attempt's event waits, then finds it logged.
+    # One report at a time, repository-wide, so two runs cannot both read the
+    # log before either writes: one cap slot, one decision per culprit, one log
+    # issue. A later attempt's event waits, then finds its run logged.
     concurrency:
-      group: post-merge-red-main-${{ github.event.workflow_run.id }}
+      group: red-main-report
       cancel-in-progress: false
     steps:
       # Full history, so the revert's fit to main's tip is checked in memory.
