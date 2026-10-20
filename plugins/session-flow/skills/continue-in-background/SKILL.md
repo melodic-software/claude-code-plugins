@@ -100,9 +100,8 @@ The launch payload is `/goal`, a space, then text taken from the emitted prompt,
 We rely on a background launch arming the whole multi-line payload as its goal, which our probe
 observed.
 
-- **Pointer**: the `--bg` probe in the Verification section of
-  [#8742](https://github.com/melodic-software/claude-code-plugins/pull/8742); the docs section for
-  non-interactive goals, <https://code.claude.com/docs/en/goal#run-non-interactively>.
+- **Pointer**: the probe record in [reference/goal-probe.md](reference/goal-probe.md); the docs
+  section for non-interactive goals, <https://code.claude.com/docs/en/goal#run-non-interactively>.
 - **As of**: 2026-10-20
 - **Recheck trigger**: a Claude Code release note changes how a background session's first prompt
   runs a slash command, or that section starts or stops naming background sessions.
