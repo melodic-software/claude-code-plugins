@@ -7,7 +7,7 @@
 // one intake admits on open (a listed human or the lanes App). Anything else
 // changes nothing, and `agent-ready` is never added.
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -239,6 +239,12 @@ test("a failed dispatch keeps a needs-triage label the issue already had", async
   const w = world({ labels: ["status: needs-info", "needs-triage"], comments: [{ id: 1, user: OWNER, body: "Answer." }], fail: `POST ${DISPATCH}` });
   assert.equal(await run(w, 1), 1);
   assert.deepEqual(w.labels(), ["needs-triage", "status: needs-info"]);
+});
+
+test("every answer waits in line instead of replacing a waiting run", () => {
+  const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
+  const block = /^ {4}concurrency:\n((?: {6}.*\n)+)/m.exec(workflow)?.[1] ?? "";
+  assert.match(block, /^ {6}queue: max$/m);
 });
 
 test("never adds agent-ready", async () => {

@@ -37,9 +37,12 @@ jobs:
       contents: read # check out main
       issues: write # read the issue and comments; edit its labels
       actions: write # dispatch intake-triage.yml
+    # Every comment on a parked issue starts a run, so runs wait in line
+    # (`queue: max`): the default keeps one waiting run and cancels it when a
+    # later comment arrives, which would drop an answer behind a chat reply.
     concurrency:
       group: intake-reenter-${{ github.event.issue.number }}
-      cancel-in-progress: false
+      queue: max
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
