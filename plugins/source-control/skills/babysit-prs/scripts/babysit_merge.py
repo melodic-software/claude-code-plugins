@@ -2694,13 +2694,12 @@ def _queue_position(queue: dict[str, Any]) -> str:
 
 # A queue push the signed-commit rule refuses is removed as
 # `branch_protection_failure`. One known cause: GitHub wraps the body into the
-# squash message, and a message line starting with a git header keyword breaks
+# squash message, and a message line starting with `committer ` breaks
 # the commit's signature (#7279, #7360). Requeuing rebuilds the same message.
 SQUASH_SIGNATURE_CAUSE = (
     "if the base requires signed commits, the likely cause is a body line that "
-    "GitHub's 72-character wrap starts with a git header keyword (tree, parent, "
-    "author, committer, gpgsig, encoding, mergetag) and a space, which breaks the "
-    "squash commit's signature; reword the body before requeuing"
+    "GitHub's 72-character wrap starts with 'committer ', which breaks the squash "
+    "commit's signature; reword the body before requeuing"
 )
 
 

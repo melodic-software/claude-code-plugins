@@ -4,10 +4,12 @@
 # Actions gives a step with no `shell:` (bash -e).
 #
 # GitHub builds the squash commit message from the pull request body and wraps
-# it. A message line that starts with a git header keyword and a space is read
-# as a header when GitHub signs the commit, so the signature verifies invalid,
+# it. A message line that starts with `committer ` is read as a header when
+# GitHub signs the commit, so the signature verifies invalid,
 # the signed-commit rule refuses the push, and the merge queue removes the pull
-# request as `branch_protection_failure` (#7279, #7360). The wrap the step
+# request as `branch_protection_failure` (#7279, #7360). Only that word is
+# checked: lines starting `author ` (#8489) and `parent ` (#7933) are in squash
+# messages that verified valid. The wrap the step
 # models: a line of at most 72 characters is kept as written; a longer one is
 # split on runs of spaces and tabs and filled greedily to 72 characters.
 # test-scope: .github/workflows/pr-require-checks.yml
@@ -72,15 +74,27 @@ expect() {
 }
 
 PR=pull_request
-# 70 characters, so the keyword after it starts the second wrapped line.
+# 70 characters, so the word after it starts the second wrapped line.
 PAD='aaaaaaaaa bbbbbbbbb ccccccccc ddddddddd eeeeeeeee fffffffff gggggggggg'
-for key in tree parent author committer gpgsig encoding mergetag; do
-  expect "'$key ' at a wrap point fails" 1 $PR "Closes #1
+expect "'committer ' at a wrap point fails" 1 $PR "Closes #1
 
-$PAD $key identity set in the step env." "::error::"
-  expect "'$key ' at a line start fails" 1 $PR "Closes #1
-$key identity set in the step env." "starts with '$key '"
+$PAD committer identity set in the step env." "starts with 'committer '"
+expect "'committer ' at a line start fails" 1 $PR "Closes #1
+committer identity set in the step env." "starts with 'committer '"
+# The other header words are not checked: no evidence they break signing.
+for key in tree parent author gpgsig encoding mergetag; do
+  expect "'$key ' at a wrap point passes" 0 $PR "Closes #1
+
+$PAD $key identity set in the step env." "" "::error::"
+  expect "'$key ' at a line start passes" 0 $PR "Closes #1
+$key identity set in the step env." "" "::error::"
 done
+# Lines from squash messages that verified valid: #8489 (line 32) and #7933
+# (line 15).
+expect "the #8489 'author ' line passes" 0 $PR \
+  "author or a listed human, not through an App. It removes \`status:" "" "::error::"
+expect "the #7933 'parent ' line passes" 0 $PR \
+  "parent pins \`smol-toml\` 1.8.0 and \`micromark-extension-math\` 3.1.0" "" "::error::"
 
 # The #7225 body line that broke the queue's squash commit c2b54b0.
 expect "the #7225 line fails at its real wrap point" 1 $PR \
@@ -90,9 +104,9 @@ expect "the error names the line, the keyword and the fix" 1 $PR "Closes #1
 
 committer x" "line 3"
 expect "the error says how to reword" 1 $PR "committer x" "Reword"
-expect "every offending line is reported" 1 $PR "author a
+expect "every offending line is reported" 1 $PR "committer a
 ok
-tree t" "line 3"
+committer t" "line 3"
 
 expect "a normal body passes" 0 $PR "Closes #1
 
