@@ -352,8 +352,9 @@ blob on main with its blob at the build base, so a consumed fragment edited or r
 plugin's `CHANGELOG.md` or version changed there, still starts a rebuild on the next scheduled run.
 A fragment main added after the build no longer does, for any plugin: the merge leaves it untouched
 and it rides the next release. The release bullets under The release pull request that rebuild or
-eject a release for an unconsumed fragment no longer hold, and in the merge queue the check now
-passes, since `HEAD^1` is also the queued commit's merge base. While fragments keep landing, the
+eject a release for an unconsumed fragment no longer hold. In the merge queue the check compares
+`merge_group.base_sha` with the queued pull request's head (`CHANGELOG_PR_HEAD`), and refuses when
+either is missing. While fragments keep landing, the
 previous rule made every release stale before its checks finished, so each scheduled run would
 rebuild it and cancel them as the push rebuilds did in the 2026-10-20 runs above. The release and
 pull-request-merge owner decided this rule in an owner-session committee decision on 2026-10-20.

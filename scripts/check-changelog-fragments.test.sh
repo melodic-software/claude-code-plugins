@@ -362,7 +362,7 @@ fragment "$f" beta late-z-fedcba98 patch
 commit "$f" late
 queue_on "$f" newer
 expect_queue "--check-release in the queue passes when the group's base only added newer fragments" 0 "for the 1 plugin(s) it bumps" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
-expect_queue "--check-release in the queue refuses an absent group base" 2 "" "$release_head" ""
+expect_queue "--check-release in the queue refuses an absent group base" 2 "base ref '' is not a resolvable commit" "$release_head" ""
 expect_queue "--check-release in the queue refuses an unreadable group base" 2 "not a resolvable commit" "$release_head" 0000000000000000000000000000000000000000
 expect_queue "--check-release in the queue refuses without the queued release's head" 2 "CHANGELOG_PR_HEAD" "" "$(git -C "$f" rev-parse HEAD^1)"
 rm -rf "$f"
@@ -389,6 +389,26 @@ printf '# Changelog\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First, reworded
 commit "$f" changelog-on-main
 queue_on "$f" changelog
 expect_queue "--check-release in the queue fails when the group's base changed a released CHANGELOG.md" 1 "CHANGED ON BASE: plugins/alpha/CHANGELOG.md" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+release_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q main
+git_test_config "$f" rm -q .changes/alpha/feat-x-0123abcd.md
+commit "$f" remove-consumed
+queue_on "$f" removed
+expect_queue "--check-release in the queue fails when the group's base removed a consumed fragment" 1 "REMOVED FRAGMENT: .changes/alpha/feat-x-0123abcd.md" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
+rm -rf "$f"
+
+base_fixture f alpha
+release_branch "$f"
+release_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q main
+printf '{\n  "name": "alpha",\n  "version": "1.0.1"\n}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
+commit "$f" version-on-main
+queue_on "$f" version
+expect_queue "--check-release in the queue fails when the group's base changed a released plugin.json version" 1 "CHANGED ON BASE: plugins/alpha/.claude-plugin/plugin.json" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
 rm -rf "$f"
 
 # --- a listed convention under docs/conventions/<name>/ ---------------------------

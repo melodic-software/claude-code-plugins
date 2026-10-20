@@ -1790,8 +1790,8 @@ jobs:
       # request against the base, and in the merge queue against the group's
       # base commit, `merge_group.base_sha` ("The SHA of the merge group's
       # parent commit", https://docs.github.com/en/webhooks/webhook-events-and-payloads#merge_group).
-      # HEAD^1 there is the queued squash's own merge base, so it cannot see
-      # the change; the release is read from the queued pull request's head.
+      # The queue checks out a single-parent squash whose HEAD^1 is that base,
+      # so the release is read from the queued pull request's head instead.
       - name: Verify every changelog fragment is well formed
         id: changelog_fragments_check
         continue-on-error: true
