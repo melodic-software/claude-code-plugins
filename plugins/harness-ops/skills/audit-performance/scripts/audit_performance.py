@@ -206,7 +206,7 @@ MATCHER_MATCH_ALL = frozenset({"*", ""})
 #: means a file no gate names.
 PROJECTION_FILE_KINDS = (".md", ".py", ".sh", ".ts", ".json", "other")
 PROJECTION_OTHER_KIND = "other"
-#: Tools whose calls carry a file path, so an `Edit(*.<ext>)` gate is decided by extension.
+#: Tools whose calls carry a file path, so an `Edit(...)` or `Write(...)` extension gate is decided by extension.
 FILE_WRITING_TOOLS = ("Write", "Edit", "NotebookEdit")
 #: Tools the projection runs. Bash carries no single file path, so it gets one tool-only row.
 PROJECTION_TOOLS = FILE_WRITING_TOOLS + ("Bash",)

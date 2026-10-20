@@ -211,16 +211,20 @@ than one, and a non-match as spawning nothing.
   live. **As of**: 2026-10-11. **Recheck trigger**: `if` gains combining syntax, or a non-match
   starts spawning.
 
-The engine classifies exactly one `if` shape, `Edit(*.<ext>)`, and reports every other shape in
-`unclassified_rows` with the reason, counting it as firing. That direction is deliberate: an
+The engine classifies one `if` family: an `Edit(...)` or `Write(...)` rule whose glob is a single
+dotted suffix, `*.<ext>` or a multi-dot `*.Tests.ps1`, optionally under a `**/` or literal
+directory prefix. It decides the rule by the last extension. A rule narrowed by a directory prefix
+other than a bare `**/`, by a multi-dot suffix, or by `Write` on a tool other than `Write`, is
+listed in `unclassified_rows` and counted only toward the ceiling, never the floor. Every other
+shape is listed there with the reason and counted as firing. That direction is deliberate: an
 unmodelled rule inflates the projection, which an operator can investigate, where the opposite
 would hide a spawn nobody goes looking for. The file kinds projected are a fixed baseline plus
 every extension a classified gate names, so a gate on a kind outside the baseline gets its own
 row and `other` means a file no gate names.
 
-**Drift record.** *Claim:* an `Edit(*.<ext>)` `if` rule is evaluated by file extension for all
-three file-writing tools, `Write`, `Edit`, and `NotebookEdit`, so a `Write` of `notes.md` fires a
-handler gated `Edit(*.md)`. *Basis:* no single page states it, so the premise is assembled. The
+**Drift record.** *Claim:* an `Edit(*.<ext>)` or `Write(*.<ext>)` `if` rule is evaluated by file
+extension for all three file-writing tools, `Write`, `Edit`, and `NotebookEdit`, so a `Write` of
+`notes.md` fires a handler gated `Edit(*.md)`, and an `Edit` of it fires one gated `Write(*.md)`. *Basis:* no single page states it, so the premise is assembled. The
 hooks reference points `if` at permission-rule syntax without naming the input field or tool set;
 the permissions reference's file-path section says which rule names govern the file-writing tools;
 the 2.1.176 changelog entry is the closest statement that a file-tool path is what the rule sees;
