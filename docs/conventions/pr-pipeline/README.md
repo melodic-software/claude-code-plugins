@@ -1161,7 +1161,7 @@ every hour (and on a manual run from `main`) with no model. It reads the signals
 |---|---|---|
 | 1 main red | the newest dispatched or scheduled `pr-require-checks` run on `main` failed, read from each failed job's failure-level annotations; the flake class is named only from GitHub's own runner messages (a timeout, a lost runner) | `main-red:<job>` |
 | 2 ceiling | a reading in the window is over 90%: the lanes App and `GITHUB_TOKEN` REST quotas from pr-merge's `api-budget` notices plus the lane's own `GET /rate_limit`, and this repository's in-progress Actions jobs against 60 | `ceiling:lanes-app-rest`, `ceiling:github-token`, `ceiling:actions-jobs` |
-| 3 throttling | a failure annotation in a failed lane run names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining; or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
+| 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-windows` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining; or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
 | 4 merge-queue ejections | more than 2 merge groups failed in the last 24 hours, each listed with its PR and failing steps | `merge-queue-ejections` |
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
 | 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-check-upstream-drift` failed, which each does on findings | `audit:<workflow>` |
@@ -1170,8 +1170,8 @@ every hour (and on a manual run from `main`) with no model. It reads the signals
 
 An issue's first body line is `<!-- factory-monitor key=<key> fp=<fingerprint> -->`; the body names
 the signal, the owning area and the key, and carries the evidence inside a text fence as inert lines.
-The fingerprint changes only when the evidence does: the failure text, the run, PR or merge-group
-set, the incident status, the last merge, or the day for a ceiling. The newest issue for a key
+The fingerprint changes only when the evidence does: the failure text, the run or PR set, the newest
+failed merge group, the incident status, the last merge, or the day for a ceiling. The newest issue for a key
 decides: open with the same fingerprint, nothing is written; open with a new one, a comment carries
 the evidence and the marker records it; closed as not planned, the key is muted; closed as completed,
 a new issue is filed only on new evidence, or for `main-red` on a failed run that started after the

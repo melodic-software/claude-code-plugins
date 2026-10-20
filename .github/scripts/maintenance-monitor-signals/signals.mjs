@@ -187,7 +187,8 @@ export function ejectionFindings({ mergeGroupFailures = [] }) {
       facts: mergeGroupFailures.map(
         (r) => `#${r.pr ?? "?"} ${r.workflow} ${r.createdAt}: ${(r.failedSteps ?? []).join("; ") || "no failed step listed"} ${r.url}`,
       ),
-      evidence: ["merge-queue-ejections", mergeGroupFailures.map((r) => String(r.id)).sort()],
+      // The newest group only: an old group leaving the 24-hour window is not new evidence.
+      evidence: ["merge-queue-ejections", Math.max(...mergeGroupFailures.map((r) => Number(r.id)))],
     }),
   ];
 }

@@ -17,6 +17,9 @@ export const AUDIT_WORKFLOWS = ["maintenance-audit-test-selection", "maintenance
 // Pull-request and merge-group runs hold no lane token, and a merge-group
 // failure is counted as an ejection instead.
 const SKIP_FAILED_EVENTS = new Set(["pull_request", "merge_group"]);
+// The test-suite runs hold no lane token either, and their failure annotations
+// name tests, some of them for rate limits; signal 1 reads main's suite.
+const SKIP_FAILED_PATHS = new Set([".github/workflows/pr-require-checks.yml", ".github/workflows/pr-test-windows.yml"]);
 const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
 // Only main's own scheduled or dispatched pr-merge runs are trusted: a PR,
 // fork or branch run can upload an artifact or annotation of the same name.
@@ -94,7 +97,7 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
   await source("failed runs", async () => {
     const runs = (await get(`/repos/${repo}/actions/runs?status=failure&created=${created}&per_page=100`)).workflow_runs;
     data.failedRuns = [];
-    for (const run of runs.filter((r) => !SKIP_FAILED_EVENTS.has(r.event) && ownHead(r) && completedInWindow(r)).slice(0, LIMITS.failedRuns)) {
+    for (const run of runs.filter((r) => !SKIP_FAILED_EVENTS.has(r.event) && !SKIP_FAILED_PATHS.has(r.path) && ownHead(r) && completedInWindow(r)).slice(0, LIMITS.failedRuns)) {
       const annotations = [];
       for (const job of failedJobs(await jobsOf(run.id)).slice(0, LIMITS.failedJobsPerRun)) {
         for (const a of await annotationsOf(job.id)) annotations.push({ level: a.annotation_level, message: a.message });

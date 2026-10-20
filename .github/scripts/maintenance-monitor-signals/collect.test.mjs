@@ -268,6 +268,29 @@ test("failed runs from a fork head are skipped", async () => {
   assert.ok(!api.calls.some((p) => /runs\/3[23]\/jobs/.test(p)));
 });
 
+test("failed test-suite runs on main are not read as lane runs, so a test named for a 429 files nothing", async () => {
+  const api = fakeApi([
+    [
+      /actions\/runs\?status=failure/,
+      {
+        workflow_runs: [
+          run(35, { name: "pr-require-checks", path: ".github/workflows/pr-require-checks.yml" }),
+          run(36, { name: "pr-test-windows", path: ".github/workflows/pr-test-windows.yml", event: "workflow_dispatch" }),
+          run(30, { name: "pr-unblock" }),
+        ],
+      },
+    ],
+    [/runs\/3[56]\/jobs/, { jobs: [{ id: 350, name: "test-bash (1/4)", conclusion: "failure" }] }],
+    [/check-runs\/350\/annotations/, [{ annotation_level: "failure", message: "not ok 7 - retries on 429" }]],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.deepEqual(
+    data.failedRuns.map((r) => r.id),
+    [30],
+  );
+});
+
 // GitHub's `created` range filter, applied the way the runs list applies it.
 const createdIn = (path, runs) => {
   const m = /created=([^&.]+)\.\.([^&]+)/.exec(path);

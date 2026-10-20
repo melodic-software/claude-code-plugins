@@ -121,6 +121,15 @@ for (const [signal, first, changed] of CASES) {
   });
 }
 
+test("4 merge-queue ejections: the oldest group leaving the 24-hour window writes nothing", async () => {
+  const s = store();
+  await runOnce(s, { mergeGroupFailures: [ejection(1), ejection(2), ejection(3), ejection(4)] });
+  const callsBefore = s.calls.length;
+  const aged = await runOnce(s, { mergeGroupFailures: [ejection(2), ejection(3), ejection(4)] });
+  assert.deepEqual(aged, { filed: [], updated: [], failed: [] });
+  assert.equal(s.calls.length, callsBefore);
+});
+
 test("an update keeps the body below the marker line", async () => {
   const s = store();
   await runOnce(s, CASES[2][1]);
