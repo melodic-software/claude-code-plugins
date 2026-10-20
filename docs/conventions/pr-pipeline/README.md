@@ -1133,7 +1133,9 @@ before it reaches the default branch. Residuals, accepted by the owner:
   the default branch and `release/plugins`), run any shell command through `git -c
   core.hooksPath=<dir>` or `git -c alias.<name>='!<command>'`, and push unsigned commits that skip
   the signed-commit tool and the lane-branch freshness check. Unsigned commits on the PR branch
-  fail the check run's signed-commit step; a push to another branch is not checked;
+  fail the check run's signed-commit step; a push to another branch is not checked. The same
+  shell command can make the read-only plugin copy in `$RUNNER_TEMP/base-marketplace` writable
+  again and rewrite the hooks the plugin runs from it;
 - a lane commit can change instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/`, skills) that
   the PR author's local session loads once it checks out the branch.
 
