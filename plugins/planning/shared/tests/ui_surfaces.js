@@ -76,7 +76,10 @@ async function main() {
     await until(pho, () => !document.querySelector(".vf-moresheet").hidden);
     const more = await pho.evaluate(() => [...document.querySelectorAll(".vf-moresheet .vf-msitem")].filter(b => !b.hidden).map(b => b.querySelector(".vf-ms-l").textContent + "|" + b.querySelector(".vf-ms-d").textContent));
     const helpRows = await gus.evaluate(() => [...document.querySelectorAll(".vf-keys .vf-hitem")].filter(b => !b.hidden).map(b => b.querySelector(".vf-ms-l").textContent + "|" + b.querySelector(".vf-ms-d").textContent));
-    ok("every Help entry is in a guest's phone More, in the same words", helpRows.length > 0 && helpRows.every(h => more.includes(h)), JSON.stringify({ helpRows, more }));
+    // F12: Help's entries for a guest, in More's own words (the menu entries the spec moves out of the two copies).
+    const HELP = ["Settings|Your name, accent and devices", "Show me around|A one-minute tour", "Why you're here|", "Report a problem|Tell the host something is broken"];
+    ok("a guest's desktop Help lists Settings, the tour, Why you're here and Report a problem, in those words", JSON.stringify(helpRows) === JSON.stringify(HELP), JSON.stringify(helpRows));
+    ok("  and a guest's phone More lists each of them in the same words", HELP.every(h => more.includes(h)), JSON.stringify(more));
 
     // ---------- F5: one list of person actions, the card's and the Host view people row's ----------
     const acts = (page, sel) => page.evaluate(x => [...document.querySelectorAll(x)].filter(b => !b.hidden).map(b => b.getAttribute("aria-label") || b.textContent), sel);
@@ -93,7 +96,10 @@ async function main() {
     ok("Gus's device badge in the Host view reads \"On a computer, Chrome\"", await until(owner, () => [...document.querySelectorAll(".vf-hperson")].some(li => li.textContent.includes("Gus")
       && /^On a computer, Chrome, 1440×900, in Focus$/.test(li.querySelector(".vf-ctx")?.getAttribute("aria-label") || "")), null, 10000),
       await owner.evaluate(() => [...document.querySelectorAll(".vf-hperson .vf-ctx")].map(e => e.getAttribute("aria-label")).join(" | ")));
-    ok("Gus's card offers the Host view row's actions, in the same words: View all, Leader, Trusted, Merge, Remove", card.length === 5 && JSON.stringify(card) === JSON.stringify(row), JSON.stringify({ card, row }));
+    // F5: the host row's list (the most complete), by accessible name.
+    const PERSON = ["View everything Gus did", "Leader: Gus", "Trusted: Gus", "Merge Gus into someone", "Remove Gus"];
+    ok("the Host view row offers View all, Leader, Trusted, Merge and Remove for Gus", JSON.stringify(row) === JSON.stringify(PERSON), JSON.stringify(row));
+    ok("  and Gus's card offers the same five, in the same words", JSON.stringify(card) === JSON.stringify(PERSON), JSON.stringify(card));
 
     // ---------- F6: one set of proposal actions and toasts, in Proposed and the Inbox ----------
     const IDEA = "Show the delivery date beside the total";
@@ -138,12 +144,77 @@ async function main() {
     // ---------- F10: Send round asks through the one confirm dialog while questions are open ----------
     await owner.keyboard.press("Escape");
     await owner.locator(".vf-seg-btn", { hasText: "Focus" }).click();
+    const sends = [];
+    owner.on("request", r => { if (new URL(r.url()).pathname === "/api/round/send") sends.push(r.method()); });
     await owner.locator(".vf-round-cur .vf-send").click();
     ok("Send round with Q1 still open asks in the confirm dialog, Keep answering first", await until(owner, () => {
       const d = document.querySelector("dialog.vf-cdlg[open]"); return !!d && /Send round 1 to Claude\?/.test(d.textContent) && /1 question is still open in round 1/.test(d.textContent) && document.activeElement?.textContent === "Keep answering";
     }), await owner.evaluate(() => document.querySelector("dialog.vf-cdlg[open]")?.textContent || "no dialog"));
     await owner.keyboard.press("Escape");
-    ok("  Escape keeps the round open", await until(owner, () => !document.querySelector("dialog.vf-cdlg[open]")) && await owner.evaluate(() => window.Core.state.rounds?.find?.(r => r.n === 1)?.status === "open" || window.Core.snapshot().round?.status === "open"));
+    await until(owner, () => !document.querySelector("dialog.vf-cdlg[open]"));
+    await owner.waitForTimeout(1500); // a poll or two: a send made anyway would have gone out by now
+    ok("  Escape sends nothing: no round send request went out", sends.length === 0, JSON.stringify(sends));
+
+    // ---------- the message menu and React open beside what opened them (chat and a Discussion comment) ----------
+    const beside = (page, menuSel, btnSel) => page.evaluate(([m, b]) => {
+      const r = document.querySelector(m).getBoundingClientRect(), a = [...document.querySelectorAll(b)].find(x => x.getAttribute("aria-expanded") === "true" || x === document.activeElement)?.getBoundingClientRect()
+        || document.querySelector(b).getBoundingClientRect();
+      const gapX = Math.max(0, r.left - a.right, a.left - r.right), gapY = Math.max(0, r.top - a.bottom, a.top - r.bottom);
+      return { ok: gapX < 24 && gapY < 24, menu: [r.left, r.top].map(Math.round), btn: [a.left, a.top].map(Math.round) };
+    }, [menuSel, btnSel]);
+    await owner.keyboard.press("Escape");
+    await owner.evaluate(() => window.Core.saveSettings({ chat: true }));
+    await gus.waitForTimeout(1100);
+    await gus.evaluate(() => window.Core.chat("Where does the total go on phones?"));
+    await owner.click(".vf-fab");
+    const chatMsg = owner.locator(".vf-msg", { hasText: "Where does the total go on phones?" });
+    await chatMsg.waitFor({ timeout: 10000 });
+    await chatMsg.hover();
+    await chatMsg.locator(".vf-msgmore").click();
+    await until(owner, () => !document.querySelector(".vf-msgmenu").hidden);
+    let b = await beside(owner, ".vf-msgmenu", ".vf-msg .vf-msgmore");
+    ok("a chat message's ⋯ menu opens beside its ⋯ button", b.ok, JSON.stringify(b));
+    await owner.keyboard.press("Escape");
+    await chatMsg.hover();
+    await chatMsg.locator(".vf-mreact-add").click();
+    await until(owner, () => !document.querySelector(".vf-reactpop").hidden);
+    b = await beside(owner, ".vf-reactpop", ".vf-msg .vf-mreact-add");
+    ok("  and React opens beside its button", b.ok, JSON.stringify(b));
+    await owner.keyboard.press("Escape");
+    await owner.click(".vf-fab");
+    await gus.waitForTimeout(1100);
+    await owner.click(".vf-disc-head");
+    await owner.fill(".vf-disc-ta", "A comment to open the menu on");
+    await owner.click(".vf-disc-post");
+    const com = owner.locator(".vf-disc-list > .vf-cm", { hasText: "A comment to open the menu on" });
+    await com.waitFor({ timeout: 10000 });
+    await com.locator(".vf-cm-more").click();
+    await until(owner, () => !document.querySelector(".vf-msgmenu").hidden);
+    b = await beside(owner, ".vf-msgmenu", ".vf-cm .vf-cm-more");
+    ok("a Discussion comment's ⋯ menu opens beside its ⋯ button", b.ok, JSON.stringify(b));
+    await owner.keyboard.press("Escape");
+    await com.locator(".vf-cm-react").click();
+    await until(owner, () => !document.querySelector(".vf-reactpop").hidden);
+    b = await beside(owner, ".vf-reactpop", ".vf-cm .vf-cm-react");
+    ok("  and its React opens beside its button", b.ok, JSON.stringify(b));
+    await owner.keyboard.press("Escape");
+
+    // ---------- read-only: once the session ends, a guest's menu offers no Ask Claude about this (the server refuses it) ----------
+    await owner.evaluate(() => window.Core.endSession(true));
+    await until(gus, () => window.Core.state.ended === true, null, 10000);
+    const roMenu = async (open) => { await open(); await until(gus, () => !document.querySelector(".vf-msgmenu").hidden);
+      const m = await gus.evaluate(() => [...document.querySelectorAll(".vf-msgmenu [role=menuitem]")].filter(x => !x.hidden).map(x => x.textContent.trim())); await gus.keyboard.press("Escape"); return m; };
+    const roChat = await roMenu(async () => { await gus.click(".vf-fab"); const m = gus.locator(".vf-msg", { hasText: "Where does the total go on phones?" }); await m.hover(); await m.locator(".vf-msgmore").click(); });
+    await gus.click(".vf-fab");
+    await until(gus, () => document.querySelector(".vf-center").dataset.mode === "tree");
+    // An ended session opens guests on the Tree; View options brings back the view switcher, and Focus the Discussion.
+    if (!(await gus.locator(".vf-seg-btn", { hasText: "Focus" }).isVisible())) await gus.click(".vf-viewopts");
+    await gus.locator(".vf-seg-btn", { hasText: "Focus" }).click();
+    await until(gus, () => document.querySelector(".vf-center").dataset.mode === "focus");
+    await gus.evaluate(() => { const h = document.querySelector(".vf-disc-head"); if (h.getAttribute("aria-expanded") !== "true") h.click(); });
+    const roCm = await roMenu(() => gus.locator(".vf-disc-list > .vf-cm", { hasText: "A comment to open the menu on" }).locator(".vf-cm-more").click());
+    ok("once the session ends, a guest's chat menu has no Reply or Ask Claude about this", !roChat.includes("Ask Claude about this") && !roChat.includes("Reply") && roChat.includes("Copy"), JSON.stringify(roChat));
+    ok("  nor does a Discussion comment's", !roCm.includes("Ask Claude about this") && !roCm.includes("Reply") && roCm.includes("Copy"), JSON.stringify(roCm));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));

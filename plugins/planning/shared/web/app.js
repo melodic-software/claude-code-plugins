@@ -217,8 +217,8 @@
     const radioDot = () => { const s = E("span", "vf-radio"); s.setAttribute("aria-hidden", "true"); return s; };
     // ---------- confirmations for actions that are hard to take back ----------
     // The rule (F10): an action asks first, through confirmAct, when it is hard to undo or affects someone else (send a
-    // round, decline a request, join, merge or file, remove, discard, take down, delete). One that is undoable and that
-    // the owner can take back at once (Hide, then Show) runs without asking.
+    // round while questions are open, decline a request, join, merge or file, remove, discard, take down, delete). One
+    // that is undoable and that the owner can take back at once (Hide, then Show) runs without asking.
     // A modal dialog: it names the consequence, Cancel has focus, Escape cancels, and the risky button looks risky.
     const cdlg = E("dialog", "vf-dlg vf-cdlg"); cdlg.setAttribute("role", "alertdialog");
     const cdTitle = E("h2", "vf-dlg-title"), cdBody = E("p", "vf-dlg-body");
@@ -1600,7 +1600,7 @@
       ["digestNames", "Names to Claude", "Send who answered along with the round, except people a question is aimed at, who are always named"],
       ["uploads", "Uploads", "Let people offer files; you accept each one"],
       ["hideClaude", "Answer first", "Claude's cards show once a person answered or voted; each person can change it"],
-      ["approveJoins", "Approve new joins", "New people wait in the queue until you let them in; people already here are not affected"],
+      ["approveJoins", "Approve new joins", "New people wait in the queue until you let them in; while they wait they see the title and Why you're here. People already here are not affected"],
       ["reviewAnswers", "Review Claude's answers before they are shared", "Each answer to a guest's request waits for your Share; off, an answer asked for everyone is shared when it arrives"],
     ]) {
       const b = btn("vf-sw-row"); b.setAttribute("role", "switch");
@@ -1841,6 +1841,7 @@
     // F4: one message-actions menu for chat messages and Discussion comments, opened by ⋯ or a long press on either.
     // An answer card's reactions stay apart: on an answer they stand in for a vote, so they never join this menu.
     const msgMenu = E("div", "vf-pop vf-menu vf-msgmenu"); msgMenu.setAttribute("role", "menu"); msgMenu.setAttribute("aria-label", "Message actions"); msgMenu.hidden = true;
+    msgMenu.dataset.kind = "pop"; // beside the ⋯ (or the long-pressed message) that opened it
     const mmPropose = lbtn("vf-menu-item vf-menu-plain", "forward", "Propose as question");
     const mmAsk = lbtn("vf-menu-item vf-menu-plain", "sparkle", "Ask Claude about this");
     const mmCopy = lbtn("vf-menu-item vf-menu-plain", "copy", "Copy");
@@ -2698,6 +2699,7 @@
 
     // ---------- Phase 4c: chat reactions ----------
     const reactPop = E("div", "vf-pop vf-reactpop"); reactPop.setAttribute("role", "dialog"); reactPop.setAttribute("aria-label", "Add a reaction"); reactPop.hidden = true;
+    reactPop.dataset.kind = "pop";
     const rpQuick = E("div", "vf-rp-quick"); rpQuick.setAttribute("role", "group"); rpQuick.setAttribute("aria-label", "Quick reactions");
     const rpMore = btn("vf-btn vf-btn-ghost vf-btn-sm vf-rp-more", "More"); rpMore.setAttribute("aria-expanded", "false");
     const rpGrid = E("div", "vf-rp-grid"); rpGrid.setAttribute("role", "group"); rpGrid.setAttribute("aria-label", "More reactions"); rpGrid.hidden = true;
@@ -2751,7 +2753,7 @@
       const S = Core.state, ro = (!!S.ended && !Core.me.isOwner) || !!S.youRemoved, mine = isMe(m.cid);
       mmPropose.hidden = !!m.forwarded || !!m.claude || ro;
       mmReact.hidden = cantReact() || !!m.hidden;
-      mmReply.hidden = ro;
+      mmReply.hidden = mmAsk.hidden = ro; // read-only: the server refuses a reply and a request
       // The server lets a comment's author edit (until its text went to Claude) and delete it, and the owner hide it.
       mmEdit.hidden = !cmt || !mine || ro || !!m.request;
       mmDelete.hidden = !cmt || !mine || ro;
@@ -4839,6 +4841,7 @@
       const t = e.target;
       if (t.closest?.("input, textarea, select, [contenteditable]") || !reader.hidden || !lb.hidden) return;
       if (e.key === "?") {
+        if (Core.state.youWaiting) return; // a waiting person gets no controls until let in
         e.preventDefault();
         if (ui.pop === keysPop) return closePop();
         const from = document.activeElement; // Escape returns here, where "?" was pressed

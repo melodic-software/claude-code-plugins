@@ -1981,7 +1981,7 @@
 .app .vf-ev-next { color: var(--faint); font-size: 13px; }
 .app .vf-ev > .vf-btn { justify-self: start; gap: 6px; }
 /* Approve new joins: a waiting person sees one centered card; the session's controls come with admission. */
-.app[data-waiting] :is(.vf-banner, .vf-rail, .vf-tabs, .vf-fab, .vf-chat, .vf-people, .vf-here, .vf-asktop, .vf-sharebtn, .vf-follow, .vf-inboxbtn, .vf-gear, .vf-introbtn) { display: none; }
+.app[data-waiting] :is(.vf-banner, .vf-rail, .vf-tabs, .vf-fab, .vf-chat, .vf-people, .vf-here, .vf-asktop, .vf-sharebtn, .vf-follow, .vf-inboxbtn, .vf-gear, .vf-introbtn, .vf-keysbtn) { display: none; }
 .app[data-waiting] .vf-body { grid-template-columns: minmax(0, 1fr); }
 .app[data-waiting] .vf-emptyv { display: grid; align-content: center; }
 .app[data-waiting] .vf-ev { text-align: center; justify-items: center; }
