@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import importlib.util
+import json
 import os
 import platform
 import pty
@@ -131,6 +132,37 @@ class LinuxTreeTests(unittest.TestCase):
             root.wait()
             os.close(primary)
             os.close(secondary)
+
+    def test_cli_as_non_ancestor_on_blocked_child(self):
+        # The skill runs the checker as its own process, a sibling of the
+        # shell's children: under Yama ptrace_scope>=1 it reads only wchan,
+        # where a pipe read is "unknown" (exit 4); otherwise syscall gives "yes".
+        root = self.spawn("bash -c 'read x'; true")
+        try:
+            deadline = time.time() + 10
+            child = None
+            while child is None and time.time() < deadline:
+                table = mod._linux_table()
+                child = next((p for p, d in mod.descendants(table, root.pid)
+                              if d > 0 and "read x" in table[p][1]), None)
+                time.sleep(0.2)
+            self.assertIsNotNone(child)
+            probe = subprocess.run(
+                [sys.executable, "-c", f"open('/proc/{child}/syscall').read()"],
+                capture_output=True,
+            )
+            want, field = (1, "waiting") if probe.returncode == 0 else (4, "unknown")
+            code = out = None
+            while time.time() < deadline:
+                code, out, _ = run_checker(root.pid)
+                if code == want:
+                    break
+                time.sleep(0.2)
+            self.assertEqual(code, want, out)
+            self.assertIn(child, json.loads(out)[field])
+        finally:
+            root.kill()
+            root.wait()
 
     def test_sleeping_child_is_not_flagged(self):
         root = self.spawn("sleep 30; true")
