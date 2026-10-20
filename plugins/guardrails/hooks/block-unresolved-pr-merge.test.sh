@@ -542,14 +542,25 @@ invoke "$(jq -n --arg c 'gh pr merge --squash' --arg d "$REPO" '{tool_name:"Bash
 assert_exit "bare merge on a branch with an open PR" 0 "$RC"
 quiet "--disable-auto with a variable repo" 'gh pr merge 42 -R $R --disable-auto'
 
-# --- 8d. an unquoted backtick, or more than one merge, FAILS CLOSED ----------
+# --- 8d. any backtick, or more than one merge, FAILS CLOSED -----------------
 # A backtick substitution is split off by the tokenizer, so the target the guard
 # reads need not be the one the shell runs: `5`echo 0`` checks #5 and merges #50.
+# Quoting is not judged: a comment or heredoc apostrophe would open a quote the
+# shell never opens, and a merge inside the backticks must not be hidden either.
 unresolvable "backtick glued to the number" 'gh pr merge 5`echo 0` -R acme/widgets --squash'
 unresolvable "backtick after the repo" 'gh pr merge 42 -R acme/widgets`echo x` --squash'
 unresolvable "REST merge with a backtick" 'gh api -X PUT repos/acme/widgets/pulls/4`echo 2`/merge'
 unresolvable "backtick inside double quotes" 'gh pr merge 42 -R acme/widgets --body "`cat notes`"'
 assert_contains "backtick -> says why" "$ERR" "backtick"
+unresolvable "apostrophe in a comment, then a backtick" $'# don\'t\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "apostrophe in a heredoc, then a backtick" $'cat <<EOF\ndon\'t\nEOF\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "merge inside backticks, echoed" 'echo `gh pr merge 42 -R acme/widgets`'
+unresolvable "merge inside backticks, assigned" 'x=`gh pr merge 42 -R o/r`'
+unresolvable "single-quoted body with a backtick" 'gh pr merge 42 -R acme/widgets --squash --body '"'"'see `notes.md`'"'"''
+assert_contains "single-quoted backtick -> names --body-file" "$ERR" "--body-file"
+unresolvable "escaped backtick" 'gh pr merge 42 -R acme/widgets --squash --body "see \`notes\`"'
+# The pre-filter matches any command naming merge, so this one is refused too.
+unresolvable "backtick in git merge-base" 'git merge-base HEAD `git rev-parse origin/main`'
 # Only one merge per command can be checked, so a second one is refused.
 multi() { # <label> <command>
   unresolvable "$1" "$2"
@@ -560,13 +571,7 @@ multi "two literal merges with ;" 'gh pr merge 1 -R acme/widgets; gh pr merge 2 
 multi "a literal merge, then a variable merge" 'gh pr merge 1 -R acme/widgets && gh pr merge $n -R acme/widgets'
 multi "gh pr merge, then a REST merge" 'gh pr merge 1 -R acme/widgets && gh api -X PUT repos/acme/widgets/pulls/2/merge'
 
-# MUST stay quiet: a quoted backtick hides no target, and --disable-auto is not a merge.
-scenario none none green green
-run "single-quoted body with a backtick" 'gh pr merge 42 -R acme/widgets --squash --body '"'"'see `notes.md`'"'"'' 0
-assert_contains "single-quoted backtick -> reads that PR" "$(calls)" "repos/acme/widgets/pulls/42"
-scenario none none green green
-run "escaped backtick" 'gh pr merge 42 -R acme/widgets --squash --body "see \`notes\`"' 0
-quiet "backtick in a command that is not a merge" 'git merge-base HEAD `git rev-parse origin/main`'
+# MUST stay quiet: --disable-auto is not a merge.
 quiet "--disable-auto, then gh pr view" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr view 42'
 scenario none none green green
 run "--disable-auto, then one merge" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr merge 42 -R acme/widgets --squash' 0
