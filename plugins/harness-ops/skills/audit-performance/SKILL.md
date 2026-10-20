@@ -209,7 +209,7 @@ spawns. Read `fan_out` in this order:
    `projection` beside it for what one tool call of a given shape actually spawns, and
    `unclassified_rows` for the `if` gates the engine could not decide and therefore counted as
    firing. Each projection row carries a `floor` (rows known to fire) and a `ceiling` (the
-   floor plus `fire_always_unclassified` and `settings_duplicates`); quote the pair, never the ceiling alone, as the
+   floor plus `fire_always_unclassified`); quote the pair, never the ceiling alone, as the
    count one edit spawns. **Never present hook cost as a sum**: hooks on one event run in parallel, so the
    wall-clock cost is roughly the slowest hook plus contention, and adding them up can overstate
    the total several times over. To find which hook is the wall on `Stop`, point the operator at

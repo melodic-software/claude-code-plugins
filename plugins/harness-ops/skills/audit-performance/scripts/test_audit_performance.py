@@ -741,7 +741,7 @@ class TestFanOutProjection(unittest.TestCase):
             self.assertEqual(row["ceiling"], row["fires"])
             self.assertEqual(
                 row["ceiling"] - row["floor"],
-                row["fire_always_unclassified"] + row["settings_duplicates"],
+                row["fire_always_unclassified"],
                 row,
             )
         bash = self.rows(engine.project_fan_out(self.ENTRIES))[("PreToolUse", "Bash", None)]
@@ -758,24 +758,46 @@ class TestFanOutProjection(unittest.TestCase):
                 "source": source,
             }
 
-        projection = engine.project_fan_out(
+        return engine.project_fan_out(
             [handler("fmt.sh", "settings.json"), handler(second_command, second_source)]
         )
-        return self.rows(projection)[("PostToolUse", "Edit", ".md")]
 
     def test_one_handler_in_two_settings_files_counts_once_toward_the_floor(self):
-        row = self.settings_pair("fmt.sh", "project settings.json")
+        projection = self.settings_pair("fmt.sh", "project settings.json")
+        row = self.rows(projection)[("PostToolUse", "Edit", ".md")]
         self.assertEqual((row["floor"], row["ceiling"]), (1, 2))
-        self.assertEqual(row["settings_duplicates"], 1)
+        self.assertEqual(row["ceiling"] - row["floor"], row["fire_always_unclassified"])
+        listed = projection["unclassified_rows"]
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(listed[0]["source"], "project settings.json")
+        self.assertIn("duplicate settings handler", listed[0]["reason"])
 
     def test_two_different_settings_handlers_both_count_toward_the_floor(self):
-        row = self.settings_pair("lint.sh", "project settings.json")
+        projection = self.settings_pair("lint.sh", "project settings.json")
+        row = self.rows(projection)[("PostToolUse", "Edit", ".md")]
         self.assertEqual((row["floor"], row["ceiling"]), (2, 2))
-        self.assertEqual(row["settings_duplicates"], 0)
+        self.assertEqual(projection["unclassified_rows"], [])
 
     def test_a_plugin_copy_of_a_settings_handler_stays_on_the_floor(self):
-        row = self.settings_pair("fmt.sh", "formatter")
+        projection = self.settings_pair("fmt.sh", "formatter")
+        row = self.rows(projection)[("PostToolUse", "Edit", ".md")]
         self.assertEqual((row["floor"], row["ceiling"]), (2, 2))
+
+    def test_a_gate_whose_suffix_case_differs_counts_toward_the_ceiling_only(self):
+        upper = {
+            "event": "PostToolUse",
+            "matcher": "Edit",
+            "command": "up.sh",
+            "args": [],
+            "if": "Edit(*.MD)",
+            "source": "up",
+        }
+        projection = engine.project_fan_out([upper])
+        row = self.rows(projection)[("PostToolUse", "Edit", ".md")]
+        self.assertEqual((row["floor"], row["ceiling"]), (0, 1))
+        listed = projection["unclassified_rows"]
+        self.assertEqual(len(listed), 1)
+        self.assertIn("letter case", listed[0]["reason"])
 
     def test_the_projection_note_names_the_regex_stand_in(self):
         note = engine.project_fan_out([])["note"]
@@ -920,7 +942,7 @@ class TestByMatcherAndBucketCounters(unittest.TestCase):
         notes = engine.classify_hooks([])["notes"]
         joined = " ".join(notes)
         self.assertIn("outside the project directory", joined)
-        self.assertIn("settings_duplicates", joined)
+        self.assertIn("count once toward the floor", joined)
         self.assertIn("parallel", joined)
         self.assertIn(engine.classify_hooks([])["note"], notes)
 

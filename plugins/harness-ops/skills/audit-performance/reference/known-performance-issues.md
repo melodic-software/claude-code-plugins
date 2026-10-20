@@ -214,10 +214,11 @@ than one, and a non-match as spawning nothing.
 The engine classifies one `if` family: an `Edit(...)` or `Write(...)` rule whose glob is a single
 dotted suffix, `*.<ext>` or a multi-dot `*.Tests.ps1`, optionally under a `**/` or literal
 directory prefix. It decides the rule by the last extension. A rule narrowed by a directory prefix
-other than a bare `**/` or by a multi-dot suffix, and a `Write(...)` rule on an `Edit` or
-`NotebookEdit` row, count only toward the ceiling, never the floor. Each is listed in
-`unclassified_rows` with the reason "decided by extension only; its directory prefix, multi-dot
-suffix or `Write` tool is not modeled, so a matching extension is not known to fire", followed by
+other than a bare `**/`, by a multi-dot suffix or by an upper-case letter in its suffix, and a
+`Write(...)` rule on an `Edit` or `NotebookEdit` row, count only toward the ceiling, never the
+floor. Each is listed in `unclassified_rows` with the reason "decided by extension only; its
+directory prefix, multi-dot suffix, letter case or `Write` tool is not modeled, so a matching
+extension is not known to fire", followed by
 the compile error when its matcher also fails to compile. Every other
 shape is listed there with the reason and counted as firing. That direction is deliberate: an
 unmodelled rule inflates the projection, which an operator can investigate, where the opposite
@@ -230,7 +231,8 @@ tools, `Write`, `Edit`, and `NotebookEdit`, the premise this repository's format
 already rest on with one `if: Edit(*.ext)` row per extension. We treat a `Write(*.<ext>)` rule as
 known to fire on `Write` rows only: on `Edit` and `NotebookEdit` rows the engine counts it as
 uncertain, toward the ceiling only, until a cited section settles which file-writing tools it
-reaches.
+reaches. *Basis:* no single page states the `Edit` premise, so it is assembled from the three
+sections below, and stays unconfirmed upstream until one of them states it.
 
 - **Pointer**: when re-deriving either decision, fetch
   [permissions: read and edit](https://code.claude.com/docs/en/permissions#read-and-edit), the
@@ -245,7 +247,10 @@ Two things the projection models only as over-counts rather than hidden spawns. 
 matches only under its anchor, so an edit to a file outside the project directory never matches
 one and every gated row there is counted as firing when none of them is. And for dedup we
 collapse only settings-file handlers that spawn the same command and arguments: each extra copy
-is counted in `settings_duplicates`, toward the ceiling only, never the floor. Collapsing on what
+is listed in `unclassified_rows` with the reason "duplicate settings handler: an earlier
+settings-file handler spawns the same command and arguments, so this copy counts toward the
+ceiling only (see HOOK_DEDUP_NOTE)" and counted in `fire_always_unclassified`, so ceiling minus
+floor stays the unclassified count. Collapsing on what
 the row spawns can only lower the floor, so it holds whichever fields the product compares.
 Plugin and skill copies are never collapsed, and any other duplicate is counted in full.
 

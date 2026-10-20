@@ -236,9 +236,13 @@ HOOK_ANCHOR_NOTE = (
 SETTINGS_SOURCES = frozenset({"settings.json", "project settings.json"})
 HOOK_DEDUP_NOTE = (
     "Handlers from settings files that spawn the same command and arguments count once toward "
-    "the floor; each extra copy is counted in `settings_duplicates`, toward the ceiling only, "
-    "because which fields make two handlers the same is not modeled. Plugin and skill copies "
-    "are never collapsed."
+    "the floor; each extra copy is listed in `unclassified_rows` and counted toward the "
+    "ceiling only, because which fields make two handlers the same is not modeled. Plugin and "
+    "skill copies are never collapsed."
+)
+SETTINGS_DUPLICATE_REASON = (
+    "duplicate settings handler: an earlier settings-file handler spawns the same command and "
+    "arguments, so this copy counts toward the ceiling only (see HOOK_DEDUP_NOTE)"
 )
 #: Shell executables whose repeated appearance in one command line means nested shells.
 SHELL_TOKENS = ("bash", "sh", "zsh", "pwsh", "powershell", "cmd")
@@ -1611,7 +1615,7 @@ def classify_if_gate(rule: object) -> dict:
     directories. It is decided by its last extension alone. A file of another extension never
     matches it, which is what removes a `.yml` gate from a `.md` edit. `narrowed` is true when
     the rule can match fewer files than every file of that extension (a directory prefix other
-    than a bare `**/`, or a multi-dot suffix such as `*.Tests.ps1`), so the projection can
+    than a bare `**/`, a multi-dot suffix such as `*.Tests.ps1`, or an upper-case letter), so the projection can
     count it at the extension's ceiling without presenting it as known to fire. Everything
     wider stays unclassified and is counted as firing, so an unmodelled rule over-counts the
     fan-out rather than hiding a spawn.
@@ -1621,15 +1625,18 @@ def classify_if_gate(rule: object) -> dict:
     text = str(rule).strip()
     match = IF_EXTENSION_GATE.match(text)
     if match:
-        # Lower-cased so a mixed-case extension folds into its projection row and
-        # over-counts at worst; kept as-is it would match no file kind and vanish.
-        components = match.group("suffix").lower().split(".")[1:]
+        # Lower-cased so a mixed-case extension folds into its projection row; kept as-is it
+        # would match no file kind and vanish. Its case is not modeled, so it is narrowed.
+        suffix = match.group("suffix")
+        components = suffix.lower().split(".")[1:]
         return {
             "kind": "extension",
             "extension": "." + components[-1],
             "reason": None,
             "rule_tool": match.group("tool"),
-            "narrowed": match.group("dir") not in ("", "**/") or len(components) > 1,
+            "narrowed": match.group("dir") not in ("", "**/")
+            or len(components) > 1
+            or suffix != suffix.lower(),
         }
     if not text.startswith(("Edit(", "Write(")):
         named = text.split("(", 1)[0] or text
@@ -1756,9 +1763,9 @@ def project_fan_out(entries: list[dict]) -> dict:
             for tool in FILE_WRITING_TOOLS
         ):
             reason = (
-                "decided by extension only; its directory prefix, multi-dot suffix "
-                "or `Write` tool is not modeled, so a matching extension is not "
-                "known to fire"
+                "decided by extension only; its directory prefix, multi-dot suffix, "
+                "letter case or `Write` tool is not modeled, so a matching extension is "
+                "not known to fire"
             )
             if matcher_error is not None:
                 reason += f"; {matcher_error}"
@@ -1772,6 +1779,7 @@ def project_fan_out(entries: list[dict]) -> dict:
 
     file_kinds = projected_file_kinds(gate_kinds)
     rows: list[dict] = []
+    duplicate_ids: set[int] = set()
     for event in sorted({(e.get("event") or "unknown") for e, _, _ in gated}):
         for tool in PROJECTION_TOOLS:
             kinds: tuple = file_kinds if tool in FILE_WRITING_TOOLS else (None,)
@@ -1779,7 +1787,6 @@ def project_fan_out(entries: list[dict]) -> dict:
                 firing: list[dict] = []
                 fire_always = 0
                 settings_seen: set[str] = set()
-                settings_duplicates = 0
                 for entry, gate, matcher_unknown in gated:
                     if (entry.get("event") or "unknown") != event:
                         continue
@@ -1799,7 +1806,8 @@ def project_fan_out(entries: list[dict]) -> dict:
                         fire_always += 1
                     elif entry.get("source") in SETTINGS_SOURCES:
                         if command_key(entry) in settings_seen:
-                            settings_duplicates += 1
+                            fire_always += 1
+                            duplicate_ids.add(id(entry))
                         settings_seen.add(command_key(entry))
                     firing.append(entry)
                 rows.append(
@@ -1810,11 +1818,21 @@ def project_fan_out(entries: list[dict]) -> dict:
                         "fires": len(firing),
                         "distinct_commands": len({command_key(e) for e in firing}),
                         "fire_always_unclassified": fire_always,
-                        "settings_duplicates": settings_duplicates,
-                        "floor": len(firing) - fire_always - settings_duplicates,
+                        "floor": len(firing) - fire_always,
                         "ceiling": len(firing),
                     }
                 )
+    for entry, _, _ in gated:
+        if id(entry) in duplicate_ids:
+            unclassified_rows.append(
+                {
+                    "event": entry.get("event") or "unknown",
+                    "matcher": entry.get("matcher"),
+                    "source": entry.get("source"),
+                    "if": entry.get("if"),
+                    "reason": SETTINGS_DUPLICATE_REASON,
+                }
+            )
     return {
         "file_kinds": list(file_kinds),
         "baseline_file_kinds": list(PROJECTION_FILE_KINDS),
@@ -1832,8 +1850,8 @@ def project_fan_out(entries: list[dict]) -> dict:
             "`fires` is the `ceiling`: a row whose `if` could not be classified, whose "
             "matcher Python cannot compile, or whose extension gate is narrowed by a directory "
             "or multi-dot suffix is counted as firing and appears in "
-            "`fire_always_unclassified`; `floor` is `fires` minus those rows and minus "
-            "`settings_duplicates`, the count known to fire. A `Write(...)` gate is decided "
+            "`fire_always_unclassified`, as is each extra copy of a settings-file handler; "
+            "`floor` is `fires` minus those rows, the count known to fire. A `Write(...)` gate is decided "
             "by extension like an `Edit(...)` gate, and counts toward the floor only on the "
             "`Write` tool."
         ),
