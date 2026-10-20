@@ -386,12 +386,13 @@ head:
 | `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head |
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
 | `feedback-protected-path` | the PR changes nothing under `.github/` |
+| `head-moved` (pr-merge's `babysit-merge-verify-escalation` and `babysit-merge-risk`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
 when a person commented, reviewed or left a review comment since that event (a bot account, such
 as an AI review or another lane, does not count), or when an App comment
-written or edited since then carries any marker other than pr-unblock's escalation (pr-merge's
-own `babysit-merge-*` escalations, another lane's). Every other reason
+written or edited since then carries any marker other than the escalation being judged (another
+`babysit-merge-*` marker, another lane's). Every other reason
 (`unexpected-path-staged`, the round and repeat caps, and the `feedback-*`, `dependency-*` and
 `ci-fix-*` verdicts) waits for a person. Rules: `.github/scripts/pr-merge/clear-escalations.mjs`.
 
@@ -689,6 +690,29 @@ except six:
   a missing flag or any other value holds the rung at `off`.
 - **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
+
+An eligible pull request scored MED or HIGH gets one `<!-- babysit-merge-risk -->` reasons comment
+naming the score, the reasons and the head. While `merge.report-only` is false, a run that finds the
+lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
+least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
+minimum) escalates the refusal ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
+rewrites that comment once to end with a line saying the refusal persisted and needs a person, then
+adds the tracker's human-gated role label when no label matches it ignoring case, so the pull
+request leaves the WIP count and reaches the attended queue. The rewrite dates the comment beside
+the label, which the head-moved clear needs to pair them. The minimum lets a review still
+running at the head, which scores MED, finish first. Changed reasons rewrite the comment and
+restart the time; a new head, or a score back at LOW, writes no label. A LOW score rewrites a
+refusal comment naming that head, unless it is escalated, to say the refusal no longer holds, so a
+later refusal at the head starts its time afresh. The merge gate never removes the label; the
+`head-moved` clear above removes it once the head moves, and otherwise a person does.
+
+Finding closure (owner decision, #8450): a clean newer review on the current head closes a review
+finding whoever resolved its thread, and a HIGH security finding also needs the security review lane
+clean on that head. The gate does not apply that rule yet
+([#8478](https://github.com/melodic-software/claude-code-plugins/issues/8478)): today a resolved
+thread closes only when a human resolved it, the whole review chain covering the head reports no
+finding, or it is outdated with none of its flagged lines left at the head (`_open_findings` in
+`babysit_review_evidence.py`).
 
 While `merge.report-only` is true and `merge.dependabot.mode` is not `enforce`, the workflow starts
 no full CI run either; its summary says whether it would have.

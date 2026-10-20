@@ -1301,7 +1301,7 @@
     const row = Core.el("div", "core-row"), keep = Core.el("button", null, "Keep"), change = Core.el("button", "core-btn-quiet", "Switch");
     keep.type = change.type = "button";
     keep.onclick = () => dlg.close();
-    change.onclick = () => { put("secret", other); drop("pid"); drop("name"); location.reload(); };
+    change.onclick = () => { put("secret", other); drop("pid"); drop("name"); Core.switching = true; location.reload(); };
     row.append(change, keep);
     dlg.append(h, row);
     dlg.addEventListener("close", () => dlg.remove());

@@ -32,7 +32,7 @@ function allLessons(course) {
 
 /**
  * Validate course-level metadata completeness.
- * @param {object} course — parsed course.json
+ * @param {import('./types.js').Course} course — parsed course.json
  * @returns {Array<{passed, severity, message, details}>}
  */
 export function checkMetadata(course) {
@@ -84,7 +84,7 @@ export function checkMetadata(course) {
 
 /**
  * Validate transcript files for extracted lessons.
- * @param {object} course
+ * @param {import('./types.js').Course} course
  * @param {string} modulesDir
  * @returns {Array}
  */
@@ -161,7 +161,7 @@ export function checkTranscripts(course, modulesDir) {
 
 /**
  * Validate schema consistency across lessons.
- * @param {object} course
+ * @param {import('./types.js').Course} course
  * @returns {Array}
  */
 export function checkSchema(course) {
@@ -224,7 +224,7 @@ export function checkSchema(course) {
 
 /**
  * Validate resource flags match filesystem state.
- * @param {object} course
+ * @param {import('./types.js').Course} course
  * @param {string} modulesDir
  * @returns {Array}
  */
@@ -277,8 +277,8 @@ export function checkResourceFlags(course, modulesDir) {
 
 /**
  * Compare current validation against a previous report for regressions.
- * @param {{ summary: object, checks: Array }} current
- * @param {{ summary: object, checks: Array }|null} previous
+ * @param {{ summary: { passed: number }, checks: Array<{ passed: boolean, severity: string, message: string }> }} current
+ * @param {{ summary: { passed: number }, checks: Array<{ passed: boolean, severity: string, message: string }> }|null} previous
  * @returns {Array}
  */
 export function checkRegression(current, previous) {

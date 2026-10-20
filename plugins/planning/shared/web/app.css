@@ -1019,7 +1019,7 @@
 .app .vf-propose { inline-size: 100%; margin-block-start: 6px; color: var(--text); }
 .app :is(.vf-proposepop, .vf-reportpop) { inline-size: 340px; display: grid; gap: 8px; }
 .app :is(.vf-proposepop, .vf-reportpop) .vf-pop-title { margin: 0; }
-/* Report a problem: the file input hides behind its label button; the screenshot shows small; the sent list wraps */
+/* Report a problem: the screenshot row hides once its chip shows; the sent list wraps */
 .app .vf-rep-shotrow { justify-content: flex-start; margin-block-start: 0; }
 .app .vf-rep-shotrow:has(> [hidden]:only-child) { display: none; }
 .app .vf-rep-shot { display: block; max-inline-size: 100%; max-block-size: 140px; border-radius: var(--r-sm); border: 1px solid var(--line); }

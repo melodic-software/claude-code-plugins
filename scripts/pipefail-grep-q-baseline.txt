@@ -61,7 +61,6 @@ plugins/mcp-tools/skills/audit/scripts/discover.sh
 plugins/mutation-testing/scripts/suppression-lint.sh
 plugins/performance/lib/state-key.sh
 plugins/performance/scripts/ab.test.sh
-plugins/planning/surface/surface.test.sh
 plugins/planning/surface/watch.test.sh
 plugins/playbooks/skills/boris/scripts/update.test.sh
 plugins/playbooks/skills/repo-sweep/scripts/tick.sh
