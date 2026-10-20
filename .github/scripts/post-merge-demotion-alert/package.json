@@ -1,0 +1,7 @@
+{
+  "name": "post-merge-demotion-alert",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
