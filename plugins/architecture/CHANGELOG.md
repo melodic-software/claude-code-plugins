@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.1] - 2026-10-20
+
+### Changed
+
+- **`/architecture:improve` deepening reads `GLOSSARY.md`.** The domain-glossary lookup names the nearest `GLOSSARY.md` (or the domain-driven-design `glossary_file` setting) and `GLOSSARY-MAP.md` in a multi-context repository, in place of `UBIQUITOUS-LANGUAGE.md`.
+
 ## [0.26.0] - 2026-10-20
 
 ### Added
