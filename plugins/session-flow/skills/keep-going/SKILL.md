@@ -81,7 +81,12 @@ itself the thing this skill removes.
    cannot inspect, a platform with no signal, or on Linux a process the
    script can read only through `/proc/<pid>/wchan`, which flags a tty
    read and nothing else) is never read as `no`: inspect that process by
-   other means before calling it slow.
+   other means before calling it slow. On Linux each row also carries
+   `stdin`, where fd 0 points: a Claude Code shell's children inherit
+   `/dev/null`, which cannot hang on a prompt, and a `pipe:[...]` there
+   is usually a pipeline waiting on its producer, not on a person. A Linux
+   `yes` needs `/proc/<pid>/syscall`, which only an ancestor can read
+   under Yama `ptrace_scope` 1 or higher.
 2. **Inspect real state, never assume.** Read each item's actual state
    from the source of truth, per that doc's inspect-real-state invariant:
    do not infer "it probably finished" or "it probably died". Only the

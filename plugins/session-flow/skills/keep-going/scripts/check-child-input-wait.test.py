@@ -160,6 +160,8 @@ class LinuxTreeTests(unittest.TestCase):
                 time.sleep(0.2)
             self.assertEqual(code, want, out)
             self.assertIn(child, json.loads(out)[field])
+            row = next(p for p in json.loads(out)["processes"] if p["pid"] == child)
+            self.assertRegex(row["stdin"], r"^pipe:\[\d+\]$")
         finally:
             root.kill()
             root.wait()

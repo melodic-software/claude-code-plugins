@@ -108,6 +108,14 @@ def _linux_verdict(pid: int) -> str:
     return "yes" if wchan == TTY_READ_WCHAN else "unknown"
 
 
+def _linux_stdin(pid: int) -> str | None:
+    """Where fd 0 points (a tty, a pipe, /dev/null), or None when unreadable."""
+    try:
+        return os.readlink(f"/proc/{pid}/fd/0")
+    except OSError:
+        return None
+
+
 def _ps_table() -> tuple[dict[int, tuple[int, str]], dict[int, str]]:
     out = subprocess.run(
         ["ps", "-axo", "pid=,ppid=,stat=,command="],
@@ -192,6 +200,7 @@ def main(argv: list[str]) -> int:
         procs.append({
             "pid": pid, "ppid": table[pid][0], "depth": depth,
             "command": table[pid][1], "waiting_on_input": verdict,
+            "stdin": _linux_stdin(pid) if system == "Linux" else None,
         })
     waiting = [p["pid"] for p in procs if p["waiting_on_input"] == "yes"]
     unknown = [p["pid"] for p in procs if p["waiting_on_input"] == "unknown"]
