@@ -47,7 +47,7 @@
   "issue": {
     "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"],
     "allow": ["any"],
-    "max-files": null,
+    "max-files": 300,
     "requires": [],
     "commit": { "parents": ["head"], "message": "Resolve issue #{issue}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": null,

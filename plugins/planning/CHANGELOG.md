@@ -3,6 +3,13 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.83.2] - 2026-10-20
+
+### Changed
+
+- **`/planning:interview` and `/planning:prd` look for `GLOSSARY.md`.** The domain-vocabulary lookup names `GLOSSARY.md` (or the domain-driven-design `glossary_file` setting) and `GLOSSARY-MAP.md` in a multi-context repository, in place of `UBIQUITOUS-LANGUAGE.md`.
+- **The `/planning:questionnaire` template carries no em dashes**, and the em-dash gate now names it.
+
 ## [0.83.1] - 2026-10-20
 
 ### Added
