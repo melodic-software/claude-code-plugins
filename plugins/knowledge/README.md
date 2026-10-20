@@ -87,11 +87,12 @@ defaults keep every pipeline working):
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `library_dir` | directory | `.` (working-tree root) | Directory where the plugin's ingestion pipelines land synthesized artifacts; a relative value resolves against the root of the working tree the session is in, its worktree when it has entered one. Portable non-project roots: an absolute path, a leading `~` (home-relative), or an env-var reference `${NAME}` / `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`) so a machine-varying root never needs a literal machine path in the stored value. Expanded when a pipeline resolves the root (the `video-digest` launcher and the `docpage-digest` work root today), failing loud on an unset variable. `book-distill` is unaffected. It writes to the target skill you name at invocation. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+| `library_dir` | directory | `.` (working-tree root) | Directory where the plugin's ingestion pipelines land synthesized artifacts; a relative value resolves against the root of the working tree the session is in, its worktree when it has entered one. Portable non-project roots: an absolute path, a leading `~` (home-relative), or an env-var reference `${NAME}` / `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`) so a machine-varying root never needs a literal machine path in the stored value. Expanded when a pipeline resolves the root (the `video-digest` launcher and the `docpage-digest` work root today), failing loud on an unset variable. `book-distill` is unaffected. It writes to the target skill you name at invocation. `video-digest` relocates its work root here and supports one re-layout (`watch/relayout-slice.js`, run before `close` to keep media). Other project artifacts conventions are not applied automatically. |
 | `yt_dlp_js_runtimes` | string | `node` | `video-digest`: JavaScript runtime yt-dlp uses for YouTube signature deciphering. Set to `off` to omit the flag entirely. |
 | `yt_dlp_cookies_file` | string | (empty) | `video-digest`: path to a Netscape cookies.txt for authenticated acquisition. Never commit cookie files. |
 | `yt_dlp_cookies_from_browser` | string | (empty) | `video-digest`: browser to pull YouTube cookies from (`chrome`, `firefox`, `edge`, …), forcing one instead of the automatic fallback. A cookies file wins over this. |
 | `max_concurrent_acquires` | number | `1` | `video-digest`: cap on concurrent yt-dlp acquisitions during a batch (1–3). Higher increases HTTP 429 risk. |
+| `asr_python` | string | (empty) | `video-digest`: path to the Python interpreter that imports `faster_whisper`, probed before `python`, `python3` and `py` on PATH. Nothing is installed. |
 
 `book-distill` itself writes to a **target skill** you name at invocation, so it
 needs no configuration to run; `library_dir` is the shared setting the
@@ -104,8 +105,9 @@ because a `sensitive` option persists as plaintext on Windows today.
 
 **`library_dir`.** A leading `~` is home-relative. An environment-variable reference such as
 `${KNOWLEDGE_CORPUS_DIR}` lets a machine-varying root avoid a literal machine path in the stored
-value. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules
-takes precedence.
+value. `video-digest` relocates its work root to `library_dir` and supports one re-layout
+(`watch/relayout-slice.js`, run before `close` to keep media). A working-notes or artifacts
+convention declared in your own project's `CLAUDE.md` or rules is not applied automatically.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -117,11 +119,12 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `library_dir` | directory | `"."` | `CLAUDE_PLUGIN_OPTION_LIBRARY_DIR` | Where synthesized knowledge artifacts land. The default, ., is the session's working-tree root (its worktree, once entered); a relative value resolves there. An absolute path, a leading ~, or a ${NAME} or %NAME% variable also work. An artifacts convention in your project's CLAUDE.md or rules wins. |
+| `library_dir` | directory | `"."` | `CLAUDE_PLUGIN_OPTION_LIBRARY_DIR` | Where synthesized knowledge artifacts land. The default, ., is the session's working-tree root (its worktree, once entered); relative values resolve there. video-digest moves its work root here, with watch/relayout-slice.js before close; other artifacts conventions are not auto-applied. |
 | `yt_dlp_js_runtimes` | string | `"node"` | `CLAUDE_PLUGIN_OPTION_YT_DLP_JS_RUNTIMES` | JavaScript runtime yt-dlp uses for YouTube signature deciphering in video-digest. Default 'node'; any other value selects that runtime. Set to 'off' to omit the --js-runtimes flag entirely. |
 | `yt_dlp_cookies_file` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_YT_DLP_COOKIES_FILE` | Path to a Netscape-format cookies.txt for authenticated video acquisition (YouTube bot checks; the three login-required X cases). Empty by default (unauthenticated; YouTube adds an automatic browser-cookie fallback on a bot check, and X never iterates browser profiles). Never commit cookie files. |
 | `yt_dlp_cookies_from_browser` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_YT_DLP_COOKIES_FROM_BROWSER` | Browser to pull cookies from (e.g. chrome, firefox, edge), forcing one instead of the automatic platform-ordered fallback. YouTube only, since the X adapter is cookies-file-only. Empty by default. A cookies file, when set, wins over this. |
 | `max_concurrent_acquires` | number<br>*min 1, max 3* | `1` | `CLAUDE_PLUGIN_OPTION_MAX_CONCURRENT_ACQUIRES` | Cap on concurrent yt-dlp acquisition runs during a video-digest batch, 1 to 3. Default 1; raising it increases HTTP 429 throttling risk. |
+| `asr_python` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_ASR_PYTHON` | Path to the Python interpreter that imports faster_whisper, probed before python, python3 and py on PATH (video-digest's optional ASR rung). Use it when the default Python refuses pip install --user. Empty by default. Nothing is installed. |
 
 ### How to set these
 

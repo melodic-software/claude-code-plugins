@@ -40,7 +40,9 @@ const log = createLogger(resolveLogLevel(args));
 /**
  * Yield every lesson that has screenshots on disk, with its PNG paths.
  *
- * @returns {Generator<{ module: object, lesson: object, pngs: string[] }>}
+ * @param {string} courseDir
+ * @param {import('./lib/types.js').Course} course
+ * @returns {Generator<{ module: import('./lib/types.js').CourseModule, lesson: import('./lib/types.js').CourseLesson, pngs: string[] }>}
  */
 function* eachLessonWithFrames(courseDir, course) {
   const modulesDir = join(courseDir, "modules");

@@ -29,6 +29,13 @@ on:
         description: The activity to run from the lane's slots.
         required: true
         type: string
+      output-mode:
+        description: >-
+          clean-tree fails a run that leaves the tree changed; patch uploads
+          the change as a patch artifact instead.
+        required: false
+        type: string
+        default: clean-tree
       config-path:
         description: The config, relative to the base checkout. For test callers only.
         required: false
@@ -44,10 +51,62 @@ on:
         required: false
         type: number
         default: 30
+      dispatcher-run-id:
+        description: >-
+          On a workflow_dispatch sent by github-actions[bot], the
+          pr-unblock-dispatch.yml run that sent it; empty otherwise.
+        required: false
+        type: string
+        default: ""
+      trusted-base:
+        description: >-
+          pr-base trusts the PR's base SHA; default-tip trusts the default
+          branch tip, for a lane whose PR keeps a stale base.
+        required: false
+        type: string
+        default: pr-base
+      ci-context-attempt:
+        description: >-
+          For a prepare: ci-context activity, the run attempt whose
+          ci-context-<attempt> artifact holds the context file a base job of
+          this workflow run wrote; empty otherwise.
+        required: false
+        type: string
+        default: ""
+      ci-context-sha256:
+        description: >-
+          For a prepare: ci-context activity, that context file's SHA-256.
+        required: false
+        type: string
+        default: ""
     secrets:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
         required: false
+    # Patch output mode. Head code ran in the job that sets the patch outputs:
+    # the job that applies the patch checks it against patch-sha256.
+    outputs:
+      head-sha:
+        description: The PR head the trigger gate passed, set before any head code ran.
+        value: ${{ jobs.run.outputs.head-sha }}
+      patch-state:
+        description: >-
+          `written` (the patch artifact holds the change), `empty` (no change,
+          no artifact), or '' when the run collected no patch.
+        value: ${{ jobs.run.outputs.patch-state }}
+      patch-sha256:
+        description: The SHA-256 of patch.diff in the patch artifact, when patch-state is written.
+        value: ${{ jobs.run.outputs.patch-sha256 }}
+      patch-attempt:
+        description: >-
+          The run attempt in the artifact name
+          patch-<lane>-<activity>-<attempt>, when patch-state is written.
+        value: ${{ jobs.run.outputs.patch-attempt }}
+      reply-attempt:
+        description: >-
+          The run attempt in the artifact name
+          skill-reply-<lane>-<activity>-<attempt>, when the skill ran.
+        value: ${{ jobs.run.outputs.reply-attempt }}
 
 permissions: {}
 
@@ -152,6 +211,14 @@ jobs:
         || steps.act-turns.outcome != 'success') && 'failure'
         || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
         || steps.act-script.outcome }}
+      # Set after head code ran; see the collect step.
+      # The verdict step's PATCH_STATE repeats this expression.
+      patch-state: >-
+        ${{ steps.patch-upload.outcome == 'success' && 'written'
+        || steps.patch.outputs.state == 'empty' && 'empty' || '' }}
+      patch-sha256: ${{ steps.patch-upload.outcome == 'success' && steps.patch.outputs.sha256 || '' }}
+      patch-attempt: ${{ steps.patch-upload.outcome == 'success' && github.run_attempt || '' }}
+      reply-attempt: ${{ steps.reply-upload.outcome == 'success' && github.run_attempt || '' }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
       # silently let the App's own events through. An empty default branch
@@ -222,6 +289,13 @@ jobs:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           pr-number: ${{ inputs.pr-number }}
           triggering-actor: ${{ github.triggering_actor }}
+          # A dispatch from github-actions[bot] proceeds only when it names a
+          # pr-unblock-dispatch.yml run on the default branch that sent it to
+          # pr-unblock.yml; any other run passes no id and the bot stays
+          # unlisted.
+          dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+          dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
+          dispatched-workflow: .github/workflows/pr-unblock.yml
 
       - name: Assert the base is on the default branch
         id: trusted-base
@@ -230,6 +304,7 @@ jobs:
         with:
           base-sha: ${{ steps.gate.outputs.base-sha }}
           pr-number: ${{ steps.gate.outputs.pr-number }}
+          mode: ${{ inputs.trusted-base }}
 
       - name: Resolve the config
         id: config
@@ -243,6 +318,12 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           pr-number: ${{ steps.gate.outputs.pr-number }}
           head-sha: ${{ steps.gate.outputs.head-sha }}
+          # This file performs prepare: ci-context (the context steps below)
+          # and refuses every other mode.
+          prepare-supported: "true"
+          # With output-mode: patch, it collects the activity's change as a patch
+          # artifact.
+          applied-by-supported: patch
 
       # Any other effect belongs in pr-run-activity-write.yml; the caller chose
       # the wrong file. Fails before anything reads the PR head.
@@ -251,6 +332,68 @@ jobs:
         run: |
           echo "::error::effect-not-read: a write activity runs in pr-run-activity-write.yml, not pr-run-activity-read.yml"
           exit 1
+
+      - name: Assert the output mode is known
+        if: inputs.output-mode != 'clean-tree' && inputs.output-mode != 'patch'
+        run: |
+          echo "::error::the output-mode input must be clean-tree or patch"
+          exit 1
+
+      # A gate must judge the head it is posted on, unchanged.
+      - name: Assert a gate activity is not in patch mode
+        if: inputs.output-mode == 'patch' && steps.config.outputs.gating == 'gate'
+        run: |
+          echo "::error::a gating: gate activity cannot use output-mode: patch"
+          exit 1
+
+      # ci-context is this file's one prepare mode, and its edits leave only
+      # as a patch.
+      - name: Assert the prepare mode is ci-context in patch mode
+        if: >-
+          steps.config.outcome == 'success' && steps.config.outputs.prepare != ''
+          && (steps.config.outputs.prepare != 'ci-context' || inputs.output-mode != 'patch')
+        env:
+          PREPARE: ${{ steps.config.outputs.prepare }}
+        run: |
+          echo "::error::prepare: $PREPARE is not a read mode, or ci-context runs without output-mode: patch"
+          exit 1
+
+      # ci-context, before the head checkout: the context file a base job of
+      # this workflow run wrote, downloaded by its attempt. A missing artifact
+      # leaves the directory empty, which the next step refuses.
+      - name: Download the CI context
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'ci-context'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ci-context-${{ inputs.ci-context-attempt }}
+          path: ${{ runner.temp }}/lane-ci
+
+      # Exactly one regular context.json of at most 1 MiB, with the base job's
+      # SHA-256, written for the head this run gated; the stage step then
+      # makes it read-only.
+      - name: Check the CI context
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'ci-context'
+        env:
+          CI_DIR: ${{ runner.temp }}/lane-ci
+          CONTEXT_SHA256: ${{ inputs.ci-context-sha256 }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+        run: |
+          file="$CI_DIR/context.json"
+          if [ "$(find "$CI_DIR" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)" != 1 ] || [ -L "$file" ] || [ ! -f "$file" ] ||
+            [ "$(stat -c %s "$file")" -gt 1048576 ]; then
+            echo "::error::the ci-context artifact is not exactly one context.json of at most 1 MiB"
+            exit 1
+          fi
+          sum=$(sha256sum <"$file")
+          if ! [[ $CONTEXT_SHA256 =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$CONTEXT_SHA256" ]; then
+            echo "::error::the context file does not match the SHA-256 its job recorded"
+            exit 1
+          fi
+          if [ "$(jq -r '.head_sha' "$file")" != "$HEAD_SHA" ]; then
+            echo "::error::the context file was written for another head; the next dispatch reads this one"
+            exit 1
+          fi
 
       # The job token has no issues grant: in a private repository a PR that
       # closes an issue may fail this step red.
@@ -275,6 +418,7 @@ jobs:
           skill: ${{ steps.config.outputs.skill }}
           gating: ${{ steps.config.outputs.gating }}
           effect: ${{ steps.config.outputs.effect }}
+          prepare: ${{ steps.config.outputs.prepare }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
 
       # Nothing after this step needs sudo or docker.
@@ -304,6 +448,14 @@ jobs:
             cp ".base/$file" "$DEST/$file"
           done
           echo "ready=true" >>"$GITHUB_OUTPUT"
+
+      - name: Copy the patch collector from the base
+        if: steps.config.outputs.applies == 'true' && inputs.output-mode == 'patch'
+        env:
+          DEST: ${{ runner.temp }}/read-patch
+        run: |
+          mkdir -p "$DEST"
+          cp .base/.github/scripts/read-patch/collect-patch.sh "$DEST/"
 
       - name: Check out the PR head
         if: steps.config.outputs.applies == 'true'
@@ -350,7 +502,7 @@ jobs:
       - name: Run the skill activity
         id: act-skill
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
-        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
+        uses: anthropics/claude-code-action@5eb090f3c3afd701a0672cd32981197ca27688f6 # v1.0.253
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -376,6 +528,13 @@ jobs:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           github_token: ${{ github.token }}
           use_commit_signing: true
+          # A workflow_run after a lanes App push runs as the App, and a
+          # dispatcher-sent run as github-actions; the trigger gate has
+          # already admitted both, so the action's own bot check only needs
+          # them listed (the App pushes the lane's PRs).
+          allowed_bots: >-
+            ${{ inputs.dispatcher-run-id != '' && 'melodic-automation-lanes[bot],github-actions'
+            || 'melodic-automation-lanes[bot]' }}
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}
@@ -477,6 +636,7 @@ jobs:
             }
 
       - name: Upload the skill's final reply
+        id: reply-upload
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -485,7 +645,7 @@ jobs:
           path: |
             ${{ runner.temp }}/skill-reply/reply.txt
             ${{ runner.temp }}/skill-reply/act-turns.json
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: error
 
       # The verdict comes from the action's structured_output, read through env
@@ -576,7 +736,7 @@ jobs:
 
       - name: Check the working tree is clean
         id: tree
-        if: steps.config.outputs.applies == 'true'
+        if: steps.config.outputs.applies == 'true' && inputs.output-mode != 'patch'
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             git status --short
@@ -584,6 +744,32 @@ jobs:
           else
             echo "dirty-tree=false" >>"$GITHUB_OUTPUT"
           fi
+
+      # Patch output mode, in place of the clean-tree check, and only after an
+      # act step that succeeded: what the activity changed against the gated
+      # head becomes one binary patch. Head code ran in this job and could have
+      # replaced the collector copy, so the patch and its SHA-256 are activity
+      # output; the job that applies the patch checks both.
+      - name: Collect the patch
+        id: patch
+        if: steps.config.outputs.applies == 'true' && inputs.output-mode == 'patch'
+        env:
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          PATCH_DIR: ${{ runner.temp }}/patch
+        run: |
+          rm -rf "$PATCH_DIR"
+          mkdir -p "$PATCH_DIR"
+          bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$PATCH_DIR/patch.diff" >>"$GITHUB_OUTPUT"
+
+      - name: Upload the patch
+        id: patch-upload
+        if: steps.patch.outputs.state == 'written'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/patch/patch.diff
+          retention-days: 7
+          if-no-files-found: error
 
       # Written after head code ran, so the report job only cross-checks it.
       - name: Write the verdict
@@ -605,6 +791,7 @@ jobs:
             || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
             || steps.act-script.outcome }}
           DIRTY_TREE: ${{ steps.tree.outputs.dirty-tree }}
+          PATCH_STATE: ${{ steps.patch-upload.outcome == 'success' && 'written' || steps.patch.outputs.state == 'empty' && 'empty' || '' }}
           VERDICT_DIR: ${{ runner.temp }}/verdict
         run: |
           mkdir -p "$VERDICT_DIR"
@@ -619,6 +806,7 @@ jobs:
             --arg skip "$SKIP_REASON" \
             --arg act "$ACT_OUTCOME" \
             --arg dirty "$DIRTY_TREE" \
+            --arg patch "$PATCH_STATE" \
             'def gate($proceed; $reason): if $proceed == "" then null else {proceed: $proceed, reason: $reason} end;
             def nullable: if . == "" then null else . end;
             {
@@ -631,7 +819,8 @@ jobs:
               config: ({success: "valid", failure: "invalid"}[$config] // "not-read"),
               "skip-reason": ($skip | nullable),
               outcome: (if $act == "success" or $act == "failure" or $act == "skipped" then $act else "not-run" end),
-              "dirty-tree": {"true": true, "false": false}[$dirty]
+              "dirty-tree": {"true": true, "false": false}[$dirty],
+              patch: ($patch | nullable)
             }' >"$VERDICT_DIR/verdict.json"
 
       - name: Upload the verdict
@@ -640,6 +829,7 @@ jobs:
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict/verdict.json
+          retention-days: 1
           if-no-files-found: error
 
   report:

@@ -3,6 +3,29 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1] - 2026-10-20
+
+### Changed
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [0.3.0] - 2026-10-18
+
+### Changed
+
+- **`/explainer-video:produce` normalizes narrated loudness.** `render.py` runs ffmpeg `loudnorm` in two passes on the narration before the mux, measures the muxed file again, and fails it when its integrated loudness is off the target or its true peak is over the ceiling (`loudness` in the new `scripts/defaults.json`). `report.json` records the source and delivered measurements and whether linear or dynamic normalization ran.
+- **Captions are timed to be read.** Each sentence splits into the fewest balanced cues, so no cue is a one-word tail; a cue too short to stand joins its neighbor; each cue stays up for the minimum and the reading time per word where the next cue allows. A cue still under the minimum fails the render; one read faster than the per-word time is a `FLAG:` line (`captions` in `scripts/defaults.json`).
+- **Still spans are reported.** Every render lists each span with no change in picture (ffmpeg `freezedetect`) and, when narrated, the words spoken during it, as `STILL:` lines and `stills` in `report.json`. They never fail a render.
+- The skill states the read-back frame cap and the summary line says how many animation ends the frame list covers.
+
 ## [0.2.14] - 2026-10-16
 
 ### Fixed

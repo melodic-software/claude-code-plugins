@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "TaskCreate", "input": {"subject": "1. Explore", "description": "Read the report export code"}},
+        {"tool": "TaskCreate", "input": {"subject": "4. Contract", "description": "Lock acceptance criteria"}},
+        {"tool": "TaskCreate", "input": {"subject": "8. Implement", "description": "Add the currency filter"}}
+      ],
+      "why": "three stage tasks"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "session-flow:workflow"}},
+        {"tool": "TaskCreate", "input": {"subject": "Explore"}},
+        {"tool": "TaskCreate", "input": {"subject": "Plan"}},
+        {"tool": "TaskCreate", "input": {"subject": "Implement"}},
+        {"tool": "TaskCreate", "input": {"subject": "Test"}}
+      ],
+      "why": "more than the minimum"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool calls"
+    },
+    {
+      "answer": [
+        {"tool": "TaskCreate", "input": {"subject": "Explore"}},
+        {"tool": "TaskCreate", "input": {"subject": "Plan"}}
+      ],
+      "why": "two tasks is below the three-stage minimum"
+    },
+    {
+      "answer": [
+        {"tool": "TodoWrite", "input": {"todos": [{"content": "Explore"}, {"content": "Plan"}, {"content": "Implement"}]}}
+      ],
+      "why": "the TodoWrite branch, not the Task tools"
+    },
+    {
+      "answer": [
+        {"tool": "TaskList", "input": {}},
+        {"tool": "Read", "input": {"file_path": "src/report.py"}}
+      ],
+      "why": "reads only"
+    }
+  ]
+}

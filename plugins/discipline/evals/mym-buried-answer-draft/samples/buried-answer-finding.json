@@ -17,6 +17,14 @@
     },
     {
       "answer": "Buried lede: the answer is in the last paragraph."
+    },
+    {
+      "answer": "Dana asked a yes/no question and the answer came last.",
+      "why": "past tense 'came last'"
+    },
+    {
+      "answer": "The answer was last in the draft.",
+      "why": "'was last'"
     }
   ],
   "fail": [
@@ -43,6 +51,10 @@
     {
       "answer": "The reply never buries the answer.",
       "why": "negation: never"
+    },
+    {
+      "answer": "Fixed the last paragraph; the answer was already clear.",
+      "why": "'last' not about the answer"
     }
   ]
 }

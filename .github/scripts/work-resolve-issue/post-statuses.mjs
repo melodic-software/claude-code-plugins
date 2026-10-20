@@ -14,6 +14,11 @@
 //   REUSE_BRANCH        the lane branch an earlier run left that resolve-issue
 //                       reused instead of running the model, or empty; its
 //                       outcome counts only when lane.json names it
+//   RESUME_BRANCH       the earlier run's lane branch resolve-issue resumed
+//                       (issue-prior's output), or empty
+//   RUNNER_CHECKS       the run-checks job's output, or empty
+//   LANES_BOT_LOGIN     the lanes App bot login (default
+//                       melodic-automation-lanes[bot])
 //   RESOLVE_RESULT      the resolve-issue job's result
 //   REPORT_RESULT       the report-outcome job's result
 //   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID
@@ -21,7 +26,17 @@ import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { isLaneBranch, readBranch, readOutcome } from "./report-outcome.mjs";
+import {
+  allLaneCommits,
+  checksPassed,
+  isLaneBranch,
+  listedCommits,
+  readBranch,
+  readChecks,
+  readFunding,
+  readOutcome,
+  readTurnCap,
+} from "./report-outcome.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
 const STEP_STATES = { pass: "success", fail: "failure" };
@@ -33,12 +48,15 @@ const DESCRIPTION = {
   failure: "Failed in the work lane run.",
   error: "Did not finish, or was not reported, in the work lane run.",
 };
+const TURN_CAP = "Stopped at the turn cap.";
+const FUNDING = "Stopped on the lane's funding.";
 
 // The statuses to post, in order; none without a lane branch. A null outcome
 // is a reused branch whose run's report this run never read: only this run's
 // report-outcome posts, so the statuses the earlier run posted on the same
-// head stand.
-export function plan({ outcome, branch, resolveResult, reportResult }) {
+// head stand. `turnCap` and `funding` are the runner's records, which name the
+// cause only for a run that left no outcome of its own; funding wins.
+export function plan({ outcome, branch, resolveResult, reportResult, turnCap = null, funding = null }) {
   if (!branch) {
     return [];
   }
@@ -73,10 +91,11 @@ export function plan({ outcome, branch, resolveResult, reportResult }) {
       }
     }
   }
+  const cause = outcome.unread === true ? (funding !== null ? FUNDING : turnCap !== null ? TURN_CAP : null) : null;
   return [...states].map(([activity, state]) => ({
     context: `pipeline/${activity}`,
     state,
-    description: DESCRIPTION[state],
+    description: cause && activity === "resolve-issue" ? cause : DESCRIPTION[state],
   }));
 }
 
@@ -112,7 +131,26 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
     }
     const dir = env.WORK_OUTCOME_DIR ?? "";
     const ran = readBranch(dir, Number(env.ISSUE_NUMBER));
-    const branch = reuse || ran;
+    const repo = `/repos/${env.GITHUB_REPOSITORY}`;
+    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
+    // A resumed run that committed nothing has its PR opened from the branch
+    // it resumed, at the tip run-checks checked, so its statuses go on that
+    // tip, under report-outcome's gate: lane.json's resume (rewritable) is
+    // the runner's, a check ran and none failed, and every commit ahead of
+    // the default branch is the lanes App's. Otherwise none is posted.
+    const resume = env.RESUME_BRANCH ?? "";
+    const resumed =
+      !reuse && !ran && resume !== "" && readBranch(dir, Number(env.ISSUE_NUMBER), "resume") === resume ? resume : "";
+    const checks = resumed ? readChecks(env.RUNNER_CHECKS ?? "", { branch: resumed }) : null;
+    let checkedTip;
+    if (checksPassed(checks)) {
+      const base = (await github("GET", repo))?.default_branch;
+      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${checks.tip}`);
+      if (allLaneCommits(listedCommits(comparison), env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]")) {
+        checkedTip = checks.tip;
+      }
+    }
+    const branch = reuse || ran || (checkedTip ? resumed : "");
     // On a reuse, an outcome this run cannot read counts as none, as in
     // report-outcome: the earlier run's statuses on the branch stand.
     const own = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));
@@ -121,15 +159,15 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
       branch,
       resolveResult: env.RESOLVE_RESULT,
       reportResult: env.REPORT_RESULT,
+      turnCap: readTurnCap(dir),
+      funding: readFunding(dir),
     });
     if (!statuses.length) {
       console.log("post-statuses: no lane branch, so no status is posted");
       return 0;
     }
-    const repo = `/repos/${env.GITHUB_REPOSITORY}`;
-    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
     const ref = branch.split("/").map(encodeURIComponent).join("/");
-    const sha = (await github("GET", `${repo}/git/ref/heads/${ref}`))?.object?.sha;
+    const sha = checkedTip ?? (await github("GET", `${repo}/git/ref/heads/${ref}`))?.object?.sha;
     if (!/^[0-9a-f]{40}$/.test(sha ?? "")) {
       throw new Error(`no head SHA read for ${branch}`);
     }

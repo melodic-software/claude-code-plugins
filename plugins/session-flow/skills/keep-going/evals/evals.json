@@ -128,6 +128,89 @@
         "Names a single verdict, with its reason, from the four: ratify, ship the finished recommendation, continue, restart",
         "The report lists work carried over from the trail apart from work done again"
       ]
+    },
+    {
+      "id": 11,
+      "name": "inventories-nested-subagent",
+      "prompt": "keep going — we got cut off. Before the disconnect you had a research subagent running, and I think it had spawned its own helper subagent to read the test logs.",
+      "expected_output": "The inventory descends below the top level: it lists the research subagent and the helper subagent it spawned, as two separate items, and reads each one's real state from its own transcript or output rather than assuming the helper followed the parent. A level that cannot be enumerated from the resumed session is named in the report, not omitted.",
+      "files": [],
+      "expectations": [
+        "Inventories both the research subagent and the subagent it spawned, not only the top-level one",
+        "Reads the nested subagent's real state from its own artifact rather than inferring it from the parent's",
+        "Reports each in the recovered / restarted / still-running / lost list",
+        "Says so in the report if a nested level cannot be enumerated, rather than omitting it"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "rate-limited-subagents-resumed-or-restarted",
+      "prompt": "keep going — we hit the usage limit and it has since reset. Two subagents were mid-task when it hit: the docs-writer, whose agent id is still live in this session, and the tests-fixer, which was launched from a session that has since closed. Your live /usage reading shows headroom.",
+      "expected_output": "Both agents are singled out in the inventory as ended on a usage limit: the docs-writer by its last notification, the tests-fixer by the user's prompt and its trail, since its closed session's notifications are gone. After a live re-check shows headroom, the docs-writer is resumed with SendMessage to its live id; the tests-fixer's id no longer resolves, so it is restarted from its trail (branch, commits, worktree). Each is listed in the report with its partial-work evidence and one action.",
+      "files": [],
+      "expectations": [
+        "Singles out both subagents in the inventory as ended on a rate limit",
+        "Re-checks the live windows and reads each agent's partial work (branch, commits, worktree, files written) before acting",
+        "Resumes the docs-writer with SendMessage to its live id rather than spawning a fresh agent",
+        "Restarts the tests-fixer from its branch and commits because its session is gone and its id does not resolve",
+        "The report lists each rate-limited agent with its partial-work evidence and one action: resumed, restarted, or abandoned with a reason"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "rate-limited-worker-window-still-holds",
+      "prompt": "keep going — a worker subagent stopped on a rate-limit error, and the limit message says it resets in a few hours. Your live rate_limits reading for this account shows the window is still full.",
+      "expected_output": "The worker is singled out as rate-limited. The live re-check confirms the window still holds, so the skill does not resume it with SendMessage and does not spawn a replacement; it hands back through /session-flow:handoff and lists the worker in the report with its partial-work evidence and the reset it waits on.",
+      "files": [],
+      "expectations": [
+        "Singles out the worker as ended on a rate limit",
+        "Re-checks the live window and finds it still holds",
+        "Does not resume the worker with SendMessage and does not spawn a fresh agent in its place",
+        "Hands back by invoking /session-flow:handoff and stops, not busy-waiting",
+        "Lists the worker in the report with its partial-work evidence"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "account-changed-across-rate-limit-stop",
+      "prompt": "keep going — we hit the usage limit earlier (\"resets 3:45pm\"); the handoff recorded the account as work@example.com. I switched accounts before resuming, and `claude auth status` now reports the identifying field personal@example.com. Is the limit still on?",
+      "expected_output": "The skill reads the active account from `claude auth status`, takes the account at the stop from the stop entry or handoff, and reports both with their sources. They differ, so it states the account changed and does not read the captured 3:45pm message against the current account; it takes a live reading of the current account instead, and asks the operator if none is obtainable. It never concludes still-blocked from the old message and does not switch accounts.",
+      "files": [],
+      "expectations": [
+        "Reads the active account's identity from `claude auth status` and names the source of each reading",
+        "Names the account at the time of the stop and where that came from",
+        "States changed, unchanged, or unknown explicitly, here changed",
+        "Does not read the captured limit message against the current account, and does not conclude still-blocked from it",
+        "Uses a live reading of the current account, or asks the operator when none is obtainable",
+        "When `claude auth status` cannot be read or is ambiguous, states unknown and asks the operator rather than guessing",
+        "Does not switch accounts or drive account rotation"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "background-shell-child-waiting-on-prompt",
+      "prompt": "keep going — the deploy shell you started in the background has been quiet for 15 minutes. It runs an elevated script that calls a CLI which may be asking something.",
+      "expected_output": "The inventory lists the background shell's child process tree with the bundled check-child-input-wait.py instead of stopping at the shell. A child sitting on a [y/N] confirmation is named in the report with its command line and its waiting-on-input verdict, a process the checker cannot inspect is reported as unknown rather than not waiting, and killing the child is held behind the side-effect gate instead of done on a hunch.",
+      "files": [],
+      "expectations": [
+        "Runs the child-tree checker for the background shell instead of inspecting only the parent shell",
+        "Names the child process waiting on the prompt, with its command line, in the report",
+        "Reports a process it could not inspect as unknown, not as not waiting",
+        "Does not kill the waiting child without asking first, and does not answer the prompt itself"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "report-states-the-measured-gap-after-a-rate-limit-stop",
+      "prompt": "keep going — we hit a rate limit and I was away for a while. The session transcript is at ~/.claude/projects/app/session.jsonl.",
+      "expected_output": "In step 2 the skill runs measure-stop-gap.py on the transcript instead of estimating how long the session was stopped, and the report states the measured gap (from the limit entry to now). It re-reads limit windows, leases, PR state and CI runs older than the gap rather than trusting remembered values. If the checker exits non-zero, the report says the gap is unknown and does not guess one.",
+      "files": [],
+      "expectations": [
+        "Runs measure-stop-gap.py on the session transcript during inspection rather than estimating the stop's length",
+        "The report states the gap length measured from the limit entry to now",
+        "Re-reads limit windows, leases, PR state and CI runs older than the gap instead of trusting remembered state",
+        "If the checker exits non-zero, reports the gap as unknown and does not invent a duration"
+      ]
     }
   ]
 }

@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: ow-bare-timed-prompt
+graders:
+  - name: ninety-second-timer
+    type: regex
+    pattern: '\b90[- ]?(?:seconds?|secs?)\b|\bninety seconds\b|\b(?:1\.5|one and a half)[- ]minutes?\b'
+    flags: 'i'
+    target: last_message
+  - name: seed-labeled
+    type: regex
+    pattern: '\b(?:seed|object|category)\b(?:\*\*)?[ \t]*:'
+    flags: 'i'
+    target: last_message
+  - name: organic-kinesthetic-senses
+    type: regex
+    pattern: '(?=[\s\S]*\b(?:smell|smells|scent)\b)(?=[\s\S]*\b(?:organic|kinesthetic)\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-clarifying-question
+    type: regex
+    pattern: '\b(?:what|which)\s+(?:object|topic|subject|seed|word|theme|category|timer)\b[^\n?]{0,60}\?|\bdo you (?:want|have)\s+(?:a\s+)?(?:specific\s+)?(?:object|topic|subject|seed|theme)\b[^\n?]{0,40}\?'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: no-curriculum
+    type: regex
+    pattern: '^[ \t>*|#-]*(?:\*\*)?(?:day|week)\s*(?:2|two)\b'
+    flags: 'im'
+    match: not_contains
+    target: last_message

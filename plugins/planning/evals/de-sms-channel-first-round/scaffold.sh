@@ -60,14 +60,32 @@ cat >.work/sms-notifications/PLAN.md <<'MD'
 
 ## Brief
 
-**Goal:** Users who opt in also receive their notifications by SMS, sent through Twilio.
+### Problem
 
-**Constraints:**
+- **Gap:** notifications reach users only by email, so users away from their inbox miss them.
+- **Who / how many:** users who have asked for text alerts; support counts about 40 such requests.
+- **Frequency:** every notification for those users.
+- **Trend:** growing; requests rose each month this quarter.
+- **Cost:** missed notifications lead to late responses and follow-up support tickets.
+- **Evidence:** support's request tally (reported); no delivery metric for missed email exists.
+
+### Goal
+
+Users who opt in also receive their notifications by SMS, sent through Twilio.
+
+### Work size
+
+- **Appetite:** Medium. A real piece of work the human will fund with some care.
+- **Size:** Medium. Several coordinated changes inside one deliverable.
+- **Uncertainty:** Knowable. The open points can be settled by looking.
+- **Split signals:** none.
+
+### Constraints
 
 - Email keeps working exactly as today for users who do not opt in.
 - Twilio is the only SMS provider under contract; no second provider is planned.
 
-**Acceptance criteria:**
+### Acceptance criteria
 
 - An opted-in user with a phone number gets the SMS and the email for each notification.
 - A Twilio outage never blocks the email.

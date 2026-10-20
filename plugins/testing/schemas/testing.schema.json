@@ -26,6 +26,11 @@
       }
     },
     "adapter_dirs": { "$ref": "#/$defs/strings", "description": "Directories of consumer adapter files, relative to the repository root or starting with ~/." },
+    "project_kinds": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[^=]+=(unit|integration|functional|architecture|live|operational)$" },
+      "description": "Entries of the form <glob>=<kind>. A C# test project whose repository-relative .csproj path the glob matches gets that kind in /testing:audit findings, over the name and package evidence; the first match wins. Kinds live and operational add a do-not-run warning. Quote an entry that starts with *."
+    },
     "extend": {
       "type": "object",
       "description": "Per adapter id, items appended to that adapter's list fields (files, test_start, assertion.calls and the rest the loader names).",

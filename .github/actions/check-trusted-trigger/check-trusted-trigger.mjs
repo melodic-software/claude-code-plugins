@@ -48,8 +48,8 @@ export class GitHubError extends Error {
 }
 
 // One function every API read and write goes through; tests replace it.
-export function createGitHub({ token, apiUrl = "https://api.github.com", fetchImpl = fetch }) {
-  return async function github(method, apiPath, body) {
+export function createGitHub({ token, apiUrl = "https://api.github.com", fetchImpl = fetch, onResponse }) {
+  return async function github(method, apiPath, body, headers = {}) {
     const response = await fetchImpl(`${apiUrl}${apiPath}`, {
       method,
       headers: {
@@ -57,16 +57,20 @@ export function createGitHub({ token, apiUrl = "https://api.github.com", fetchIm
         Authorization: `Bearer ${token}`,
         "X-GitHub-Api-Version": "2022-11-28",
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    onResponse?.(response);
     if (!response.ok) {
       throw new GitHubError(response.status, `${method} ${apiPath}`);
     }
-    if (response.status === 204) {
+    // A success can carry no body: 204, or the 201 a workflow re-run answers.
+    const text = await response.text();
+    if (text === "") {
       return null;
     }
-    const json = await response.json();
+    const json = JSON.parse(text);
     if (Array.isArray(json?.errors) && json.errors.length > 0) {
       throw new GitHubError(response.status, `${method} ${apiPath} (GraphQL errors)`);
     }
@@ -333,7 +337,7 @@ async function verifyDispatcher({
   // and head_sha, so the branch and ancestry checks below hold for it too.
   const viaRun = dispatcher.event === "workflow_run";
   const expectedPath = viaRun ? runDispatcherWorkflow : dispatcherWorkflow;
-  // Comparisons with NaN are false, so a missing or unparseable time refuses.
+  // Comparisons with NaN are false, so a missing or unparsable time refuses.
   const trusted =
     own.path === dispatchedWorkflow &&
     own.event === "workflow_dispatch" &&

@@ -1,0 +1,84 @@
+name: maintenance-monitor-signals
+
+# The monitoring lane: every hour, reads a fixed set of factory signals and
+# keeps one issue per signal and key, so a recurrence updates the existing
+# issue instead of filing a second. docs/conventions/pr-pipeline/README.md,
+# "The monitoring lane", lists the signals and the dedup rules; the scripts
+# and tests are in .github/scripts/maintenance-monitor-signals/.
+#
+# It runs no model and holds no lanes App token or secret: the job's own
+# GITHUB_TOKEN reads runs, jobs, annotations, artifacts and pull requests,
+# and writes only issues, so its issues come from github-actions[bot] and
+# start no workflow. Only the schedule and a manual run with no inputs start
+# it, on main. Run, annotation and pull-request text reaches an issue only as
+# inert lines inside a text fence, never through a `${{ }}` expression.
+#
+# How to stop it: set the organization or repository lanes kill-switch
+# variable to anything but "false".
+#
+# :52 sits clear of the other scheduled runs here.
+
+on:
+  schedule:
+    - cron: "52 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: maintenance-monitor-signals
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  monitor:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read # list runs, jobs and artifacts, download pr-merge-summary
+      checks: read # read check-run annotations
+      contents: read # check out main
+      issues: write # file and update the lane's own issues
+      pull-requests: read # list merged pull requests
+    steps:
+      - name: Check out the run's main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or filed"
+
+      - name: Read the signals and file their issues
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          CALL_BUDGET: "250"
+          WINDOW_MINUTES: "65"
+        run: |
+          AGENT_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          export AGENT_IDENTITY
+          node .base/.github/scripts/maintenance-monitor-signals/monitor.mjs

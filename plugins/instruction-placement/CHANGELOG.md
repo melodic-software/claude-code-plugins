@@ -3,6 +3,44 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2] - 2026-10-20
+
+### Added
+
+- The bundled git-hook check library's `checks_file_text` takes `--tip` and, in pre-push mode, reads a path from the tip of the pushed range that changed it; the new `checks_regular_file` reports whether the path is a regular file in the same place.
+
+### Fixed
+
+- The shared git-hook check library reads the range diff with `--text`, so a tracked `-diff` attribute no longer hides a text file's added lines from a check, and drops a file whose content holds a NUL byte in its first 8000 bytes, so binary content never reaches a check as changed lines.
+
+## [0.25.1] - 2026-10-20
+
+### Fixed
+
+- The `migrate` skill's AGENTS.md source record now points at the "Develop without a marketplace" section of the plugin-creation page with an anchor, an as-of date and a recheck trigger, in place of a quoted passage.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+## [0.25.0] - 2026-10-18
+
+### Added
+
+- Git-hook drift notices honor a decline key at any git config scope: `decline --global` declines an entry in every clone, `checks.git-hooks.declined` set true declines every entry of every plugin, and an entry's own key set to `false` in a clone opts it back in.
+
+- `/instruction-placement:check` fails a `.claude/rules/` file whose YAML frontmatter will not parse. Claude Code ignores such frontmatter and loads the rule as if it had no `paths`, so the rule silently applies to every session. `glob-tools.sh rules` prints a `FRONTMATTER` row per file (line and reason) and exits 1. It screens for a tab in indentation, a plain value starting with `*`, `@` or a backtick (the unquoted `paths: **/*.ts`), and a plain value holding a colon followed by a space or ending in a colon; it is not a full YAML parser.
+
+### Changed
+
+- The routing rubric names a path-scoped skill (a `SKILL.md` with `paths:`) as a destination for procedure content scoped to file types; constraints stay in rules. It records that the deny on routing file-creation rules to `paths:` stays until a canary measures whether a Write-triggered rule arrives before the file is written.
+
+- Setup links the marketplace adoption guide for what each install scope means to the user.
+
+### Fixed
+
+- The setup git-hook decisions reference now covers the `unsafe-path` decision and the fuller `modified` case the installer reports, and is generated from one shared source so it no longer falls behind.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.24.1] - 2026-10-16
 
 ### Fixed

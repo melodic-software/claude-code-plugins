@@ -3,6 +3,30 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0] - 2026-10-20
+
+### Changed
+
+- `/education:illustrate` delivers a local file by default: with no medium argument and no `rendered-views` layer setting `medium:`, the ladder is now `file`, then `terminal`, and publishes an artifact only when an argument or a layer asks for it. (#6175)
+
+- `teach` pre-compute note points to the `/source-control:worktree` accepted-shapes heading instead of restating the `$`-expansion probe ([#5673](https://github.com/melodic-software/claude-code-plugins/issues/5673)).
+
+### Fixed
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- The shared settings checker behind `/education:setup` validates string and object settings, and reports a setting whose schema shape it does not check instead of stopping with a JavaScript error.
+
+## [0.17.1] - 2026-10-18
+
+### Fixed
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
+### Security
+
+- **illustrate keeps the model-chosen slug out of its build command.** The builder takes `--out-dir` and reads the slug from the model JSON, refuses one that is not lowercase letters, digits and hyphens (exit 2), and derives the record and page paths itself, so the command the skill runs carries only fixed paths. The model file is per session, so two sessions sharing the data directory cannot build each other's topic. (#7374)
+
 ## [0.17.0] - 2026-10-14
 
 ### Added

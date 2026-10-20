@@ -2,6 +2,10 @@
 # Gate: refuse a PR whose merge-base is behind the target tip on overlapping paths.
 #
 #   scripts/check-stale-base-overlap.sh --check <base-ref>
+#   scripts/check-stale-base-overlap.sh --warn <base-ref>
+#
+# --warn reports any overlap as a GitHub Actions ::warning and exits 0: the
+# pull_request step runs it, and the merge queue is the gate (#7871).
 #
 # Why: squash-merging a PR cut from a stale base can silently drop commits that
 # landed on the base after the PR branched — including the tests that would have
@@ -43,11 +47,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
 usage() {
-  echo "usage: $(basename "$0") --check <base-ref>" >&2
+  echo "usage: $(basename "$0") --check|--warn <base-ref>" >&2
   exit 2
 }
 
-GE_FLAGS=("--check:ref")
+GE_FLAGS=("--check:ref" "--warn:ref")
 GE_BAD_REF_MSG="check-stale-base-overlap: base ref not resolvable: ${2-}"
 # shellcheck disable=SC2310  # the non-zero return IS the handled case
 gate_entry::classify "$@" || usage
@@ -119,6 +123,12 @@ behind_by="$(git rev-list --count "$merge_base..$base_tip" 2>/dev/null || echo '
 
 if [[ -z "$overlap" ]]; then
   echo "check-stale-base-overlap: HEAD is $behind_by commit(s) behind $base_ref but touches no overlapping paths"
+  gate_entry::finish 0
+fi
+
+if [[ "$GE_MODE" == --warn ]]; then
+  # A workflow command is one line, so the paths are joined.
+  echo "::warning title=Stale base::HEAD is $behind_by commit(s) behind $base_ref on overlapping paths: ${overlap//$'\n'/, }"
   gate_entry::finish 0
 fi
 

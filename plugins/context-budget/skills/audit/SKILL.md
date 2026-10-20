@@ -1,6 +1,6 @@
 ---
 description: "When the bundled explain-usage skill resolves in this session, prefer it for where this session's tokens went; this skill for startup cost before any work, per-tool attribution, and whether a settings change saved anything. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'did that settings change save tokens'. Read-only; `fix` applies one trim behind approval."
-argument-hint: "[--full-sweep|--tools T1,T2|--ledger|fix]"
+argument-hint: "[--full-sweep|--tools T1,T2|--ledger|--measure-only|fix]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,30 @@ metadata:
   summary: Measure the startup context payload per item and ledger every lever's real delta
 ---
 
-**Arguments.** `[--full-sweep|--tools T1,T2|--ledger|fix]`. Full form: [--full-sweep] every live tool, engine flag --tools from-baseline | [--tools T1,T2] | [--ledger] history | [fix] guided trim (explicit override)
+**Arguments.** `[--full-sweep|--tools T1,T2|--ledger|--measure-only|fix]`. Full form: [--full-sweep] every live tool, engine flag --tools from-baseline | [--tools T1,T2] | [--ledger] history | [--measure-only] read-only startup figures, see below | [fix] guided trim (explicit override)
+
+## Measure-only mode (`--measure-only`)
+
+For a read-only caller, such as a sweep that must write nothing outside its own data folder. Run
+this and stop; skip the Prerequisites install offer and every Workflow step below:
+
+```shell
+node "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs" snapshot --measure-only \
+  --sdk-dir "${CLAUDE_PLUGIN_DATA}/sdk"
+```
+
+- **Output.** One measurement session; the snapshot record on stdout, stamped as every report is.
+  Report `categories` (tokens per category) with the stamp.
+- **Writes nothing of its own.** No ledger row, snapshot, report or other file, under the plugin
+  data directory or anywhere else. The engine refuses `--out`, `--deny` and `--label` here
+  (exit 2). Any file the spawned headless session keeps for itself is not this skill's output and
+  is not covered by this claim.
+- **Installs nothing.** It never runs or offers the SDK install.
+- **Exit codes.** `0` measured; `2` usage error; `3` measurement failed (no binary, or the SDK
+  session failed); `4` the Agent SDK is absent, with a `context-budget.error/1` record
+  (`error: "sdk-absent"`) on stdout. It does not fall back to `cli-parse`, so exit 4 is not
+  exit 3. The engine also prints a one-line message on stderr; relay it and stop; the caller reports the area as not checked.
+- Each measurement still spawns a short-lived headless session, as the full audit does.
 
 ## Purpose
 

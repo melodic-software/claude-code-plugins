@@ -19,11 +19,12 @@ import dataclasses
 import io
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -33,8 +34,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_dependabot as dependabot
 import babysit_gh as gh
 import babysit_merge as merge
+import babysit_merge_prefilter as prefilter
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
+import babysit_run_cache as run_cache
 import test_babysit_merge as fixtures
 import test_babysit_merge_async as async_fixtures
 from babysit_risk import ChangedFile, LaneEvidence
@@ -43,9 +46,12 @@ from repo_config_fake import RepoConfigFake
 HEAD = fixtures.HEAD
 BASE = "c" * 40
 PR = fixtures.PR_NUMBER
+OPERATOR_LOGIN = "operator"
 IDENTITY = "agent-lanes[bot]"
 INERT = policy.UnattendedPolicy(reason="authority-unconfigured")
 INERT_BLOCKER = "unattended merge refused: authority-unconfigured"
+# Captured before setUpModule stubs `_role_label` for the rest of the module.
+REAL_ROLE_LABEL = postmerge._role_label
 
 # The report keys `evaluate()` returned before the unattended path existed,
 # copied from its return statement. A run without a policy must return exactly
@@ -171,6 +177,180 @@ def _evaluate(
         )
 
 
+class RemappedHumanGatedLabel(unittest.TestCase):
+    """A tracker that maps `human-gated` to another label: the label the
+    verifier escalation adds is the one every autonomous hold reads."""
+
+    LABEL = "human-review"
+
+    def setUp(self) -> None:
+        patcher = mock.patch.object(postmerge, "_role_label", return_value=self.LABEL)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_the_escalation_label_is_the_hold_label(self) -> None:
+        capture = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "", ""))
+        with (
+            mock.patch.object(merge, "gh_capture", capture),
+            mock.patch.object(merge, "upsert_marker_comment", return_value="created"),
+        ):
+            merge.escalate_verify(
+                "owner/repo",
+                fixtures.PR_NUMBER,
+                IDENTITY,
+                "verify:spec-changed",
+                {"pr": {"head": {"sha": HEAD}, "labels": []}},
+            )
+        added = [
+            a for c in capture.call_args_list for a in c.args[0] if "labels[]=" in a
+        ]
+        self.assertEqual(added, [f"labels[]={self.LABEL}"])
+
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        held = _evaluate(
+            fixtures._pr(labels=[{"name": "Human-Review"}]), HEAD, None, permits
+        )
+        self.assertTrue(
+            any(f"'{self.LABEL}' label" in b for b in held["blockers"]),
+            held["blockers"],
+        )
+        self.assertEqual(
+            prefilter.hold({"labels": ["Human-Review"]}, self.LABEL), self.LABEL
+        )
+        # The unmapped default no longer holds.
+        free = _evaluate(
+            fixtures._pr(labels=[{"name": "needs-human"}]), HEAD, None, permits
+        )
+        self.assertEqual(free["blockers"], [])
+        self.assertIsNone(prefilter.hold({"labels": ["needs-human"]}, self.LABEL))
+
+
+class UnreadableHumanGatedLabel(unittest.TestCase):
+    """A tracker config read that fails for any reason but a 404 refuses an
+    autonomous merge instead of holding on `needs-human`, and no fallback is
+    shared with the run's later gate processes."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {run_cache.ENV: str(pathlib.Path(tmp.name, "run.json"))}
+        for patcher in (
+            mock.patch.dict("os.environ", env),
+            mock.patch.object(
+                postmerge,
+                "_role_label",
+                side_effect=postmerge.PostMergeReadError("tracker: HTTP 502"),
+            ),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_the_gate_refuses_and_caches_nothing(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        result = _evaluate(
+            fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
+        )
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any(
+                "human-gated role label is unreadable" in b for b in result["blockers"]
+            ),
+            result["blockers"],
+        )
+        self.assertIsNone(run_cache.get(merge.HUMAN_GATED_SECTION, "owner/repo", None))
+
+    def test_the_escalation_falls_back_to_the_default(self) -> None:
+        capture = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "", ""))
+        with (
+            mock.patch.object(merge, "gh_capture", capture),
+            mock.patch.object(merge, "upsert_marker_comment", return_value="created"),
+        ):
+            merge.escalate_verify(
+                "owner/repo",
+                fixtures.PR_NUMBER,
+                IDENTITY,
+                "verify:spec-changed",
+                {"pr": {"head": {"sha": HEAD}, "labels": []}},
+            )
+        added = [
+            a for c in capture.call_args_list for a in c.args[0] if "labels[]=" in a
+        ]
+        self.assertEqual(added, ["labels[]=needs-human"])
+        self.assertIsNone(run_cache.get(merge.HUMAN_GATED_SECTION, "owner/repo", None))
+
+
+class HumanGatedLabelReadIsStrict(unittest.TestCase):
+    """The gate reads the tracker config through the real `_role_label`: a
+    502 must refuse, not fall back to `needs-human`, which would let a PR
+    carrying a remapped label merge."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {run_cache.ENV: str(pathlib.Path(tmp.name, "run.json"))}
+        failed = subprocess.CompletedProcess([], 1, "", "gh: Server Error (HTTP 502)")
+        for patcher in (
+            mock.patch.dict("os.environ", env),
+            mock.patch.object(postmerge, "_role_label", REAL_ROLE_LABEL),
+            mock.patch.object(postmerge, "gh_capture", return_value=failed),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_a_server_error_refuses_and_caches_nothing(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        result = _evaluate(
+            fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
+        )
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any(
+                "human-gated role label is unreadable" in b for b in result["blockers"]
+            ),
+            result["blockers"],
+        )
+        self.assertIsNone(run_cache.get(merge.HUMAN_GATED_SECTION, "owner/repo", None))
+
+
+class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
+    """`needs-human` holds an autonomous merge (unattended or the autopilot
+    tier); the person it asks for may still merge attended. `do-not-merge`
+    holds both."""
+
+    def test_needs_human_holds_the_unattended_gate_not_an_attended_one(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        pr = fixtures._pr(labels=[{"name": "Needs-Human"}])
+        attended = _evaluate(pr, HEAD, None)
+        unattended = _evaluate(pr, HEAD, None, unattended=permits)
+        self.assertEqual(attended["blockers"], [])
+        self.assertTrue(attended["ready"])
+        self.assertFalse(unattended["ready"])
+        self.assertTrue(
+            any("'needs-human' label" in b for b in unattended["blockers"]),
+            unattended["blockers"],
+        )
+        # The pr-merge prefilter drops what the unattended gate refuses.
+        self.assertEqual(prefilter.hold({"labels": ["Needs-Human"]}), "needs-human")
+
+    def test_needs_human_holds_the_autopilot_merge_tier(self) -> None:
+        # The tier merges with no person present, like --unattended.
+        result = _evaluate(
+            fixtures._pr(labels=[{"name": "needs-human"}]), HEAD, fixtures.TIER
+        )
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any("'needs-human' label" in b for b in result["blockers"]),
+            result["blockers"],
+        )
+
+    def test_do_not_merge_holds_both(self) -> None:
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
+        pr = fixtures._pr(labels=[{"name": "do-not-merge"}])
+        for run in (None, permits):
+            with self.subTest(unattended=run is not None):
+                self.assertFalse(_evaluate(pr, HEAD, None, unattended=run)["ready"])
+
+
 class EvaluateWithoutPolicyIsUnchanged(unittest.TestCase):
     """`unattended=None` keeps each fixture's verdict and the report's key set.
 
@@ -244,8 +424,10 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
                 )
             raise AssertionError(f"unexpected gh call: {args}")
 
-        # The process seams every real gh read reaches, whichever module makes it.
+        # The process seams every real gh read reaches, whichever module makes
+        # it; no local clone holds the SHA, so the config comes from the API.
         with (
+            mock.patch.object(policy, "_history_checkouts", return_value=[]),
             mock.patch.object(policy, "gh_capture", side_effect=fake_gh),
             mock.patch.object(gh, "_run_gh", side_effect=AssertionError("gh call")),
             mock.patch.object(
@@ -335,6 +517,13 @@ class Unattended(unittest.TestCase):
         self.entries = [entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
         self.queued: list[int] = []
         self.holds: dict[int, str] = {}
+        # Every queued entry the sweep judged, in order.
+        self.hold_reads: list[int] = []
+        self.dequeue_error: Exception | None = None
+        # The permission reader the policy builds, and what a queued entry's
+        # hold read does with its keyword arguments first.
+        self.permission_reader: Any = lambda repo: lambda login: "write"
+        self.hold_hook: Any = lambda kwargs: None
         self.prior: dict[str, Any] | None = None
         self.log: list[str] = []
         self.rules = QUEUE_RULES
@@ -363,8 +552,17 @@ class Unattended(unittest.TestCase):
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
         self.pr_labels: list[dict[str, Any]] = []
         self.dependabot_reads: list[policy.Eligibility] = []
+        self.dependabot_kwargs: list[dict[str, Any]] = []
+        # The default branch head the in-flight cap is read at: the base, so
+        # the cap is `self.config`'s.
+        self.main_head = BASE
+        # Reads of the pipeline config at `main_head` when it is not the
+        # base, in order: a config, or an exception to raise. Empty reads
+        # `self.config`.
+        self.head_configs: list[Any] = []
 
     def _dependabot_eligibility(self, *args: Any, **kwargs: Any) -> Any:
+        self.dependabot_kwargs.append(kwargs)
         if not self.dependabot_reads:
             raise AssertionError("the Dependabot class was read for this pull request")
         return (
@@ -374,14 +572,35 @@ class Unattended(unittest.TestCase):
         )
 
     def _lane_evidence(self, *args: Any) -> Any:
+        self.lane_args = args
         if self.lane_error is not None:
             raise self.lane_error
         return self.lanes, self.comments
 
-    def _default_branch(self, repo: str) -> str:
+    def _paginated(self, endpoint: str, label: str, **kwargs: Any) -> Any:
+        # The comments a write reads itself when no lane evidence was read
+        # (a verifier refusal skips it).
+        if endpoint == f"repos/owner/repo/issues/{PR}/comments?per_page=100":
+            return self.comments
+        return self._real_paginated(endpoint, label, **kwargs)
+
+    def _default_branch(self, repo: str, *, shared: bool = False) -> str:
         if self.default_branch is None:
             raise policy.PolicyReadError("the default branch could not be read")
         return self.default_branch
+
+    def _read_config_at(self, repo: str, sha: str, *args: Any) -> Any:
+        if sha != self.main_head or sha == BASE or not self.head_configs:
+            return self.config
+        read = self.head_configs.pop(0)
+        if isinstance(read, Exception):
+            raise read
+        return read
+
+    def _get(self, endpoint: str) -> tuple[int | None, Any]:
+        if endpoint == "repos/owner/repo/commits/main":
+            return 200, {"sha": self.main_head}
+        return self._real_get(endpoint)
 
     def _dispatch(self, repo: str, ref: str) -> None:
         self.log.append("dispatch")
@@ -441,13 +660,18 @@ class Unattended(unittest.TestCase):
             argv += ["--merge", "--expected-head", HEAD]
         argv += list(flags)
         out = io.StringIO()
+        self._real_get = policy._get
+        self._real_paginated = merge.fetch_paginated_api
         patches = [
             mock.patch.object(sys, "argv", argv),
+            mock.patch.object(policy, "_get", side_effect=self._get),
             mock.patch.object(policy, "pull_request", return_value=pr_record),
             mock.patch.object(
                 policy, "_default_branch", side_effect=self._default_branch
             ),
-            mock.patch.object(policy, "read_config_at", return_value=self.config),
+            mock.patch.object(
+                policy, "read_config_at", side_effect=self._read_config_at
+            ),
             mock.patch.object(policy, "read_acting_login", return_value=self.acting),
             mock.patch.object(
                 policy, "credential_refusal", return_value=self.credentials
@@ -456,7 +680,7 @@ class Unattended(unittest.TestCase):
                 policy, "read_kill_switch", side_effect=lambda repo: kills.pop(0)
             ),
             mock.patch.object(
-                policy, "permission_reader", return_value=lambda login: "write"
+                policy, "permission_reader", side_effect=self.permission_reader
             ),
             mock.patch.object(policy, "read_demotion", return_value=self.demotion),
             mock.patch.object(
@@ -482,7 +706,7 @@ class Unattended(unittest.TestCase):
             mock.patch.object(
                 policy,
                 "_base_refusal",
-                side_effect=lambda *a: self.base_reads.append(a) or self.base_now,
+                side_effect=lambda *a, **k: self.base_reads.append(a) or self.base_now,
             ),
             *(
                 []
@@ -503,12 +727,18 @@ class Unattended(unittest.TestCase):
                 side_effect=self._dependabot_eligibility,
             ),
             mock.patch.object(policy, "changed_files", return_value=self.files),
+            mock.patch.object(policy, "declarations_at", return_value=()),
             mock.patch.object(
                 policy,
                 "entry_hold",
-                side_effect=lambda r, n, i, **_: self.holds.get(n),
+                side_effect=lambda r, n, i, **kw: (
+                    self.hold_reads.append(n) or self.hold_hook(kw) or self.holds.get(n)
+                ),
             ),
             mock.patch.object(merge, "_lane_evidence", side_effect=self._lane_evidence),
+            mock.patch.object(
+                merge, "fetch_paginated_api", side_effect=self._paginated
+            ),
             mock.patch.object(
                 policy,
                 "recheck_opt_in",
@@ -573,6 +803,8 @@ class Unattended(unittest.TestCase):
     def _dequeue(self, repo: str, branch: str, identity: str, **kwargs: Any) -> int:
         numbers = kwargs.get("numbers")
         self.log.append(f"dequeue:{sorted(numbers) if numbers is not None else 'all'}")
+        if self.dequeue_error is not None:
+            raise self.dequeue_error
         return 0
 
     def assert_no_merge(self, code: int) -> None:
@@ -627,6 +859,102 @@ class LaneMode(Unattended):
         self.assertEqual(
             out["unattended"]["rungCap"], {"value": None, "reason": "no-cap"}
         )
+
+    def test_an_in_flight_refusal_skips_the_risk_and_verifier_reads(self) -> None:
+        # Another pull request's lane entry is queued; this one is not.
+        self.flight = policy.InFlight(False, "identity-entry-queued:#9", frozenset({9}))
+        self.queued = [9]
+        self.lane_error = AssertionError("risk evidence read")
+        later = mock.Mock(side_effect=AssertionError("read after the refusal"))
+        passing = merge.verify_evidence.Reader.evidence
+        verdicts: list[int] = []
+
+        def evidence(reader: Any, number: int, *args: Any) -> Any:
+            verdicts.append(number)
+            return passing(reader, number, *args)
+
+        with (
+            mock.patch.object(merge.verify_evidence.Reader, "evidence", evidence),
+            mock.patch.object(policy, "changed_files", later),
+        ):
+            code, out = self.lane("--merge")
+        self.assert_no_merge(code)
+        later.assert_not_called()
+        # Only the sweep's read of the queued entry, never this pull request's.
+        self.assertEqual(verdicts, [9])
+        self.assertIn(
+            merge.UNATTENDED_REFUSED + "in-flight:identity-entry-queued:#9",
+            out["blockers"],
+        )
+        self.assertNotIn("risk", out["unattended"])
+        self.assertNotIn("riskComment", out["unattended"]["writes"])
+        # The queue sweep still judges the queued entry.
+        self.assertIn(9, self.hold_reads)
+
+    def shared_rules(self) -> None:
+        """A run cache holding the base's rules as an earlier candidate read
+        them (QUEUE_RULES)."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        merge.run_cache.put(merge.RULES_SECTION, "owner/repo|main", QUEUE_RULES)
+
+    def test_rules_changed_since_the_shared_read_hold_the_enqueue(self) -> None:
+        self.shared_rules()
+        extra = {
+            "type": "required_status_checks",
+            "parameters": {"required_status_checks": [{"context": "new-check"}]},
+        }
+        self.rules = [*QUEUE_RULES, extra]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            merge.UNATTENDED_REFUSED
+            + "the base branch's rules changed since the gate read them",
+            out["blockers"],
+        )
+
+    def test_rules_shared_for_another_landing_base_are_read_again(self) -> None:
+        # The gate read the rules of a landing base other than the pull
+        # request's base (a `rules_base` override): that base is the one
+        # read again before the enqueue.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        merge.run_cache.put(merge.RULES_SECTION, "owner/repo|trunk", QUEUE_RULES)
+        real = merge.branch_rules
+        patcher = mock.patch.object(
+            merge,
+            "branch_rules",
+            side_effect=lambda repo, branch, **kw: real(
+                repo, "trunk" if kw.get("shared", True) else branch, **kw
+            ),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        extra = {
+            "type": "required_status_checks",
+            "parameters": {"required_status_checks": [{"context": "new-check"}]},
+        }
+        self.rules = [*QUEUE_RULES, extra]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            merge.UNATTENDED_REFUSED
+            + "the base branch's rules changed since the gate read them",
+            out["blockers"],
+        )
+
+    def test_unchanged_shared_rules_still_enqueue(self) -> None:
+        self.shared_rules()
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
 
     def test_a_workflow_cap_below_the_rung_refuses(self) -> None:
         code, out = self.run_main(
@@ -829,6 +1157,32 @@ class DependabotLane(Unattended):
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
         self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
 
+    def test_a_stale_dependabot_head_is_enqueued_not_written(self) -> None:
+        self.config = dataclasses.replace(
+            self.config, check_inputs=("scripts/shared-copies.txt",)
+        )
+        stale = {"state": "stale", "mergeBase": "e" * 40, "changed": ["x"]}
+        with mock.patch.object(
+            merge.check_inputs, "changed_since_merge_base", return_value=stale
+        ):
+            code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_an_in_flight_refusal_still_reads_the_dependabot_class(self) -> None:
+        # Off the queue and refused in flight: the class is still read, so
+        # the gate keeps no dependency-manager hold it would not keep anyway.
+        self.flight = policy.InFlight(False, "identity-entry-queued:#9", frozenset({9}))
+        self.queued = [9]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            merge.UNATTENDED_REFUSED + "in-flight:identity-entry-queued:#9",
+            out["blockers"],
+        )
+        self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
+        self.assertEqual(out["unattended"]["dependabot"]["mode"], "enforce")
+
     def test_report_mode_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, dependabot_mode="report")
         code, out = self.lane()
@@ -897,6 +1251,26 @@ class DependabotLane(Unattended):
             "unattended merge refused: ineligible:human-blocking-comment:maintainer",
             out["blockers"],
         )
+
+    def test_the_enqueue_recheck_holds_a_major_under_the_config(self) -> None:
+        held = "dependabot-major-held:x"
+        tier = dependabot.Classification("review", ("major:x",), approved="55-1")
+        for majors, hold in (("hold", True), ("review", False)):
+            with self.subTest(majors=majors):
+                self.config = dataclasses.replace(self.config, dependabot_majors=majors)
+                self.dependabot_kwargs = []
+                self.dependabot_reads = [
+                    policy.Eligibility(True, None, "C2", dependabot=tier),
+                    policy.Eligibility(False, held, "C2", dependabot=tier),
+                ]
+                code, out = self.lane()
+                self.assert_no_merge(code)
+                self.assertIn(
+                    f"unattended merge refused: ineligible:{held}", out["blockers"]
+                )
+                self.assertEqual(
+                    [k["hold_majors"] for k in self.dependabot_kwargs], [hold, hold]
+                )
 
     def test_a_lane_authored_pr_still_reads_report_only(self) -> None:
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
@@ -985,6 +1359,24 @@ class AllInputsGood(Unattended):
         self.dispatch.assert_called_once_with("owner/repo", ref="main")
         self.assertIs(out["unattended"]["dispatched"], True)
         self.assertEqual(code, 10)
+
+    def test_a_landed_entry_read_back_under_a_cap_with_room_exits_zero(self) -> None:
+        # At a cap of 5 the landed merge leaves room, so no refusal stands.
+        self.config = dataclasses.replace(self.config, max_in_flight=5)
+        self.flight = policy.InFlight(True, None, frozenset(), 1)
+        self.pr_view = fixtures._pr(state="MERGED")
+        self.prior = {
+            "queued": True,
+            "head": HEAD,
+            "status": "merged",
+            "verification": {"verified": True, "mismatches": []},
+            "requestedAt": "2026-10-12T10:00:00Z",
+        }
+        with tempfile.TemporaryDirectory() as state:
+            code, out = self.run_main("--state-dir", state)
+        self.assertIs(out["merged"], True)
+        self.assertIs(out["unattended"]["dispatched"], True)
+        self.assertEqual(code, 0)
 
     def test_a_failed_dispatch_is_reported_and_left_to_the_remediate_check(
         self,
@@ -1186,6 +1578,77 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(self.log, ["disarm"])
         self.assertIs(out["unattended"]["enqueue"]["disarmed"], True)
 
+    def test_a_head_the_queue_ejected_twice_is_not_enqueued_again(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        with mock.patch.object(merge, "_failed_merge_group_runs", return_value=[]):
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertFalse([e for e in self.log if not e.startswith("write:")], self.log)
+        self.assertTrue(
+            any("queue-ejected:2" in b and HEAD in b for b in out["blockers"]),
+            out["blockers"],
+        )
+
+    def test_a_refused_head_gets_one_marked_comment_naming_its_runs(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        url = "https://github.com/owner/repo/actions/runs/7"
+        with mock.patch.object(
+            merge, "_failed_merge_group_runs", return_value=[url]
+        ) as runs:
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        runs.assert_called_once_with("owner/repo", "main", PR)
+        (write,) = [
+            c.args[0]
+            for c in self.capture.call_args_list
+            if any(merge.QUEUE_EJECTION_MARKER in a for a in c.args[0])
+        ]
+        self.assertIn("POST", write)
+        body = write[-1].removeprefix("body=")
+        self.assertTrue(body.startswith(merge.QUEUE_EJECTION_MARKER + "\n"))
+        self.assertIn(f"`{HEAD}`", body)
+        self.assertIn(url, body)
+        self.assertIn("A push resets the count.", body)
+        self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "created")
+        # A rerun finds the same comment and writes nothing.
+        self.comments = [
+            {
+                "id": 91,
+                "user": {"login": IDENTITY, "type": "Bot"},
+                "created_at": "2026-10-12T10:00:00Z",
+                "body": body,
+            }
+        ]
+        self.capture.reset_mock()
+        with mock.patch.object(merge, "_failed_merge_group_runs", return_value=[url]):
+            _, out = self.run_main()
+        self.assertEqual(out["unattended"]["enqueue"]["ejectionComment"], "unchanged")
+        self.assertFalse(
+            any(
+                merge.QUEUE_EJECTION_MARKER in a
+                for c in self.capture.call_args_list
+                for a in c.args[0]
+            )
+        )
+
+    def test_one_ejection_still_enqueues(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=1)
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_the_ejection_cap_is_the_configured_one(self) -> None:
+        self.config = dataclasses.replace(self.config, max_queue_ejections=3)
+        self.queue = fixtures._queue_read(required=True, failed_ejections=2)
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+
+    def test_unreadable_ejections_refuse_the_enqueue(self) -> None:
+        self.queue = fixtures._queue_read(required=True, failed_ejections=None)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+
     def test_a_base_without_a_merge_queue_is_refused(self) -> None:
         # C4: an unattended merge only ever enqueues.
         self.rules = fixtures.RULES
@@ -1202,6 +1665,111 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(out["unattended"]["reason"], "risk:MED")
 
 
+class CheckInputsChangedOnTheBase(Unattended):
+    """A ready head whose merge base predates a base change to a
+    `merge.check-inputs` path is updated from the base, not enqueued."""
+
+    MERGE_BASE = "e" * 40
+    UPDATE = f"repos/owner/repo/pulls/{PR}/update-branch"
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.config = dataclasses.replace(
+            self.config, check_inputs=("scripts/shared-copies.txt",)
+        )
+        self.update_code = 0
+        self.inputs_reads: list[tuple[Any, ...]] = []
+        self.inputs_answer: dict[str, Any] = {
+            "state": "stale",
+            "mergeBase": self.MERGE_BASE,
+            "baseTip": BASE,
+            "changed": ["scripts/shared-copies.txt"],
+        }
+
+    def _capture(self, args: list[str]) -> Any:
+        if self.UPDATE in args:
+            self.log.append("update-branch:" + args[-1])
+            if self.update_code == 0:
+                return subprocess.CompletedProcess(args, 0, "{}", "")
+            return subprocess.CompletedProcess(
+                args,
+                self.update_code,
+                '{"message":"Resource not accessible by integration","status":"403"}',
+                "gh: Resource not accessible by integration (HTTP 403)",
+            )
+        return super()._capture(args)
+
+    def run_main(self, *flags: str, merge_flag: bool = True) -> Any:
+        def read(*args: Any) -> dict[str, Any]:
+            self.inputs_reads.append(args)
+            return dict(self.inputs_answer)
+
+        with mock.patch.object(
+            merge.check_inputs, "changed_since_merge_base", side_effect=read
+        ):
+            return super().run_main(*flags, merge_flag=merge_flag)
+
+    def test_a_stale_head_is_updated_from_the_base_and_not_enqueued(self) -> None:
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [f"update-branch:expected_head_sha={HEAD}"])
+        self.assertEqual(
+            self.inputs_reads, [(("scripts/shared-copies.txt",), HEAD, "main")]
+        )
+        (blocker,) = [b for b in out["blockers"] if "check-inputs-changed:" in b]
+        self.assertIn("scripts/shared-copies.txt", blocker)
+        self.assertIn(self.MERGE_BASE, blocker)
+        self.assertIs(out["unattended"]["enqueue"]["checkInputs"]["updated"], True)
+
+    def test_an_unchanged_or_unknown_read_enqueues_as_before(self) -> None:
+        for state in ("current", "unknown", "off"):
+            with self.subTest(state=state):
+                self.log = []
+                self.inputs_answer = {"state": state}
+                code, out = self.run_main()
+                self.assertEqual(code, 0, out["blockers"])
+                self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_a_refused_update_enqueues_as_before(self) -> None:
+        self.update_code = 1
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(
+            self.log,
+            [
+                f"update-branch:expected_head_sha={HEAD}",
+                "pin",
+                f"enqueue:{HEAD}:merge_queue",
+            ],
+        )
+        read = out["unattended"]["enqueue"]["checkInputs"]
+        self.assertIs(read["updated"], False)
+        self.assertEqual(
+            read["updateError"],
+            {"status": 403, "message": "Resource not accessible by integration"},
+        )
+
+    def test_a_kill_switch_stop_writes_no_update(self) -> None:
+        self.kill = [PROCEED, policy.KillSwitch(False, "disabled")]
+        code, _ = self.run_main()
+        self.assert_no_merge(code)
+        self.assertFalse(any(e.startswith("update-branch") for e in self.log))
+
+
+class UpdateError(unittest.TestCase):
+    def test_a_body_that_is_not_json_keeps_the_stderr_status_and_text(self) -> None:
+        proc = subprocess.CompletedProcess([], 1, "not json", "gh: Bad (HTTP 422)\n")
+        self.assertEqual(
+            merge.update_error(proc), {"status": 422, "message": "gh: Bad (HTTP 422)"}
+        )
+
+    def test_no_status_is_none(self) -> None:
+        proc = subprocess.CompletedProcess([], 1, "", "timed out")
+        self.assertEqual(
+            merge.update_error(proc), {"status": None, "message": "timed out"}
+        )
+
+
 class OneUnattendedMergeInFlight(Unattended):
     def test_two_identity_entries_the_later_dequeues_itself(self) -> None:
         # Another host enqueued #5 first in the same window (D4).
@@ -1216,6 +1784,83 @@ class OneUnattendedMergeInFlight(Unattended):
         )
         self.assertIs(out["unattended"]["enqueue"]["dequeuedSelf"], True)
         self.assertIs(out["enqueued"], False)
+
+    def test_a_cap_of_five_keeps_an_entry_within_the_room(self) -> None:
+        # Three earlier entries and one unverified merge: four in flight, so
+        # this fifth entry stays; with two unverified merges it leaves.
+        self.config = dataclasses.replace(self.config, max_in_flight=5)
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+        for unverified, kept in ((1, True), (2, False)):
+            with self.subTest(unverified=unverified):
+                self.log.clear()
+                self.flight = policy.InFlight(True, None, frozenset(), unverified)
+                code, out = self.run_main()
+                self.assertIs(out["enqueued"], kept)
+                self.assertEqual(
+                    "dequeue-self:id=PR_self" in self.log, not kept, self.log
+                )
+                self.assertEqual(code, 0 if kept else 10)
+
+    def test_the_room_check_reads_the_cap_again_not_from_the_run_cache(
+        self,
+    ) -> None:
+        # Another gate process saved a cap of 1; the head's is 5, so the
+        # fifth entry stays only on a fresh read.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {run_cache.ENV: path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        run_cache.put(policy.MAX_IN_FLIGHT_SECTION, "owner/repo", 1)
+        self.config = dataclasses.replace(self.config, max_in_flight=5)
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+        self.flight = policy.InFlight(True, None, frozenset(), 1)
+        code, out = self.run_main()
+        self.assertIs(out["enqueued"], True)
+        self.assertNotIn("dequeue-self:id=PR_self", self.log)
+        self.assertEqual(code, 0)
+
+    def test_the_room_check_reads_the_cap_at_the_default_branch_head(
+        self,
+    ) -> None:
+        # Three earlier entries and one unverified merge: the fifth entry
+        # stays only at a cap of 5, read at main's head, not at the base.
+        self.main_head = "d" * 40
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.flight = policy.InFlight(True, None, frozenset(), 1)
+        for base_cap, head_cap, kept in ((1, 5, True), (5, 1, False)):
+            with self.subTest(base_cap=base_cap, head_cap=head_cap):
+                self.log.clear()
+                self.config = dataclasses.replace(self.config, max_in_flight=base_cap)
+                head = dataclasses.replace(self.config, max_in_flight=head_cap)
+                self.head_configs = [head, head]
+                self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+                code, out = self.run_main()
+                self.assertEqual(out["unattended"]["inFlight"]["cap"], head_cap)
+                self.assertIs(out["enqueued"], kept)
+                self.assertEqual(
+                    "dequeue-self:id=PR_self" in self.log, not kept, self.log
+                )
+
+    def test_a_failed_room_check_read_keeps_the_lower_applied_cap(self) -> None:
+        # The gate applied main's cap of 1; the re-read fails, and the base's
+        # 5 would leave room, so the lower cap holds and the entry leaves.
+        self.main_head = "d" * 40
+        self.config = dataclasses.replace(self.config, max_in_flight=5)
+        self.head_configs = [
+            dataclasses.replace(self.config, max_in_flight=1),
+            policy.PolicyReadError("HTTP 502"),
+        ]
+        earlier = [entry(5 + i, f"2026-10-12T09:5{i}:00Z", f"PR_{i}") for i in range(3)]
+        self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
+        self.flight = policy.InFlight(True, None, frozenset(), 0)
+        code, out = self.run_main()
+        self.assertIn("dequeue-self:id=PR_self", self.log)
+        self.assertIs(out["enqueued"], False)
+        self.assertEqual(code, 10)
 
     def test_the_earliest_entry_stays(self) -> None:
         self.entries = [
@@ -1313,6 +1958,85 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assertEqual(self.log, ["dequeue:[5]"])
 
 
+class TheQueueSweepIsSharedPerRun(Unattended):
+    """pr-merge.yml runs one gate process per candidate and names a file in
+    `BABYSIT_RUN_CACHE`: another queued entry one process judged and kept is
+    not judged again by the next within the bound, and nothing else is
+    shared. Each `run_main` here is one candidate's gate process."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.flight = policy.InFlight(False, "identity-entry-queued:#5")
+        self.queued = [PR, 5]
+
+    def candidates(self, count: int) -> None:
+        for _ in range(count):
+            code, _ = self.run_main()
+            self.assert_no_merge(code)
+
+    def test_a_kept_entry_is_judged_once_across_candidates(self) -> None:
+        self.candidates(3)
+        self.assertEqual(self.hold_reads.count(5), 1)
+        # A gate always judges its own entry.
+        self.assertEqual(self.hold_reads.count(PR), 3)
+        self.assertEqual(self.log, [])
+
+    def test_a_kept_entry_is_judged_again_past_the_bound(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        with mock.patch("babysit_run_cache.now", side_effect=lambda: clock[0]):
+            self.candidates(1)
+            clock[0] += merge.run_cache.MAX_AGE
+            self.candidates(1)
+            clock[0] += timedelta(seconds=1)
+            self.candidates(1)
+        self.assertEqual(self.hold_reads.count(5), 2)
+
+    def test_a_held_entry_is_judged_by_every_candidate(self) -> None:
+        self.holds = {5: "do-not-merge"}
+        self.candidates(2)
+        self.assertEqual(self.hold_reads.count(5), 2)
+        self.assertEqual(self.log, ["dequeue:[5]", "dequeue:[5]"])
+
+    def test_a_failed_dequeue_keeps_nothing(self) -> None:
+        self.queued = [PR, 5, 6]
+        self.holds = {6: "do-not-merge"}
+        self.dequeue_error = postmerge.PostMergeWriteError("dequeue #6: boom")
+        self.candidates(2)
+        self.assertEqual(self.hold_reads.count(5), 2)
+
+    def test_a_kept_entry_is_dated_by_its_oldest_shared_read(self) -> None:
+        # The hold read uses a permission another process shared 90 s before
+        # the judgment, so the entry is kept as of then and judged again by
+        # the candidate 31 s later.
+        self.permission_reader = policy.permission_reader
+        self.hold_hook = lambda kwargs: kwargs["permission"](OPERATOR_LOGIN) and None
+        start = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+        clock = [start - timedelta(seconds=90)]
+        with (
+            mock.patch("babysit_run_cache.now", side_effect=lambda: clock[0]),
+            mock.patch.object(
+                policy, "_get", return_value=(200, {"permission": "write"})
+            ),
+        ):
+            merge.run_cache.put("permission", f"owner/repo|{OPERATOR_LOGIN}", "write")
+            for seconds in (90, 121):
+                clock[0] = start - timedelta(seconds=90) + timedelta(seconds=seconds)
+                self.candidates(1)
+        self.assertEqual(self.hold_reads.count(5), 2)
+        self.assertEqual(self.log, [])  # kept both times, never dequeued
+
+    def test_without_the_file_every_candidate_judges_every_entry(self) -> None:
+        with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": ""}):
+            self.candidates(2)
+        self.assertEqual(self.hold_reads.count(5), 2)
+
+
 class GateReviewFixes(Unattended):
     """Phase 13 Fable gate findings, red first."""
 
@@ -1371,6 +2095,49 @@ class GateReviewFixes(Unattended):
         self.async_merge.assert_not_called()
 
 
+class FloorReadsCapabilityText(Unattended):
+    """With the floor on, the scorer gets each capability file's base and head
+    text, so a prose-only SKILL.md edit scores LOW instead of unreadable."""
+
+    def test_a_prose_only_skill_edit_scores_low(self) -> None:
+        self.config = dataclasses.replace(self.config, high_path_floor=True)
+        path = "plugins/foo/skills/bar/SKILL.md"
+        self.files = (
+            (ChangedFile(path, None, "modified", 1, 1, True, "100644", "100644"),),
+            True,
+        )
+        front = "---\nname: bar\ndescription: y\n---\n\n"
+        texts = {BASE: front + "Old prose.\n", HEAD: front + "New prose.\n"}
+        policy._TEXT_AT.clear()
+        self.addCleanup(policy._TEXT_AT.clear)
+        with mock.patch.object(
+            policy, "_file_at", side_effect=lambda o, n, p, sha: texts[sha]
+        ):
+            code, out = self.run_main(merge_flag=False)
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+
+
+class LaneEvidenceGetsTheChangedPaths(Unattended):
+    """The review evidence is bound against the diff's paths, both sides of
+    a rename, and against None when the file list is incomplete."""
+
+    def test_every_changed_path_reaches_the_lane_evidence(self) -> None:
+        moved = ChangedFile(
+            "docs/b.md", "docs/a.md", "renamed", 0, 0, True, "100644", "100644"
+        )
+        self.files = ((LOW_FILE, moved), True)
+        self.run_main(merge_flag=False)
+        self.assertEqual(
+            set(self.lane_args[-1]), {"docs/guide.md", "docs/b.md", "docs/a.md"}
+        )
+
+    def test_an_incomplete_file_list_passes_none(self) -> None:
+        self.files = ((LOW_FILE,), False)
+        self.run_main(merge_flag=False)
+        self.assertIsNone(self.lane_args[-1])
+
+
 class ReasonsComment(Unattended):
     """MED/HIGH on an eligible pull request: one upserted comment (T14, D15)."""
 
@@ -1395,21 +2162,321 @@ class ReasonsComment(Unattended):
         self.assertIn("evidence-unbound:claude-review", body)
         self.assertIn(HEAD, body)
 
-    def test_an_unchanged_assessment_is_not_rewritten(self) -> None:
-        body = self.body()
-        self.setUp()
+    def test_a_floor_hold_says_a_human_merges_it(self) -> None:
+        # Owner decision Q648: only the owner merges a floor-held PR.
+        self.files = ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)
+        self.run_main()
+        body = next(
+            c.args[0][-1]
+            for c in self.capture.call_args_list
+            if "babysit-merge-risk" in " ".join(c.args[0])
+        )
+        self.assertIn("high-path:.github/**", body)
+        self.assertIn("a human merges it in person, never an agent or a lane", body)
+
+    def test_a_med_hold_does_not_claim_the_floor(self) -> None:
+        self.assertNotIn("never an agent", self.body())
+
+    def test_an_unsafe_path_hold_does_not_claim_the_floor(self) -> None:
+        # A symlink or unreadable list scores this code with the floor off.
+        unsafe = merge.babysit_risk.Reason(
+            merge.babysit_risk.UNSAFE_PATH_CODE, merge.babysit_risk.Risk.HIGH, "x"
+        )
+        risk = merge.babysit_risk.RiskResult(merge.babysit_risk.Risk.HIGH, (unsafe,))
+        self.assertNotIn("never an agent", merge.risk_comment_body(risk, HEAD))
+
+    LABEL = (
+        f"write:api -X POST repos/owner/repo/issues/{PR}/labels -f labels[]=needs-human"
+    )
+    # The earlier sweep's comment was written at 10:00; by default this run
+    # is two hours on, past the 60-minute minimum.
+    WRITTEN = datetime(2026, 10, 12, 10, 0, tzinfo=UTC)
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.now = self.WRITTEN + timedelta(hours=2)
+
+    def run_main(
+        self, *flags: str, merge_flag: bool = True
+    ) -> tuple[int, dict[str, Any]]:
+        with mock.patch.object(merge, "_now", return_value=self.now):
+            return super().run_main(*flags, merge_flag=merge_flag)
+
+    def earlier_sweep(
+        self,
+        body: str,
+        login: str = IDENTITY,
+        kind: str | None = None,
+        updated: datetime | None = None,
+    ) -> None:
+        """The reasons comment an earlier run left, read before this one."""
+        stamp = self.WRITTEN.isoformat().replace("+00:00", "Z")
         self.comments = [
             {
                 "id": 77,
-                "user": {"login": IDENTITY, "type": "Bot"},
-                "created_at": "2026-10-12T10:00:00Z",
+                "user": {
+                    "login": login,
+                    "type": kind or ("Bot" if login == IDENTITY else "User"),
+                },
+                "created_at": stamp,
+                "updated_at": (updated.isoformat().replace("+00:00", "Z"))
+                if updated
+                else stamp,
                 "body": body,
             }
         ]
+
+    def test_a_review_still_running_reaches_the_score_as_med(self) -> None:
+        # A review job in progress at the head binds no evidence, so the
+        # pull request is scored, MED, not held back before scoring.
+        running = {
+            "path": merge.review_evidence.LANES["claude-review"][0],
+            "event": "pull_request",
+            "id": 1,
+            "head_sha": HEAD,
+            "status": "in_progress",
+            "conclusion": None,
+            "created_at": "2026-10-12T10:00:00Z",
+        }
+        lanes = merge.review_evidence.bind(
+            HEAD, [running], [], [], is_human=lambda actor: False, changed_paths=()
+        )
+        self.assertEqual(lanes[0].unbound_reason, "run-not-success")
+        self.lanes = lanes
+        _, out = self.run_main()
+        self.assertEqual(out["unattended"]["risk"]["score"], "MED")
+        self.assertEqual(self.log, ["risk-comment:POST"])
+
+    def test_a_review_pending_med_ten_minutes_on_gets_no_label(self) -> None:
+        # A review still running scores MED on every
+        # sweep; two sweeps minutes apart must not label it for good.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.now = self.WRITTEN + timedelta(minutes=10)
         self.lanes = UNBOUND
         _, out = self.run_main()
-        self.assertEqual(out["unattended"]["writes"]["riskComment"], "unchanged")
         self.assertEqual(self.log, [])
+        self.assertEqual(out["unattended"]["writes"]["riskComment"], "unchanged")
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_the_same_reasons_sixty_one_minutes_on_get_the_label(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.now = self.WRITTEN + timedelta(minutes=61)
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "added", "comment": "updated"},
+        )
+
+    def patched_body(self) -> str:
+        """The body this run's PATCH of the reasons comment wrote."""
+        patches = [
+            c.args[0][-1].removeprefix("body=")
+            for c in self.capture.call_args_list
+            if "PATCH" in c.args[0] and "/issues/comments/" in " ".join(c.args[0])
+        ]
+        self.assertEqual(len(patches), 1)
+        return patches[0]
+
+    def test_escalating_rewrites_the_comment_before_the_label(self) -> None:
+        # The rewrite stamps the comment's updated_at beside the label, so
+        # the head-moved clear pairs the two.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.lanes = UNBOUND
+        self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        patched = self.patched_body()
+        self.assertEqual(patched.split("\n")[:2], body.split("\n")[:2])
+        self.assertTrue(patched.startswith(body))
+        self.assertEqual(patched.count(merge.RISK_ESCALATION_LINE), 1)
+        self.assertTrue(patched.endswith(merge.RISK_ESCALATION_LINE))
+
+    def test_an_escalated_comment_is_not_extended_again(self) -> None:
+        # A rerun after a failed label write retries only the label.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "added", "comment": "unchanged"},
+        )
+
+    def test_an_escalated_comment_at_a_new_head_drops_the_line(self) -> None:
+        old = self.body().replace(HEAD, "d" * 40)
+        self.setUp()
+        self.earlier_sweep(f"{old}\n\n{merge.RISK_ESCALATION_LINE}")
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH"])
+        self.assertNotIn(merge.RISK_ESCALATION_LINE, self.patched_body())
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_a_recent_rewrite_of_the_reasons_resets_the_age(self) -> None:
+        # Written two hours ago, its reasons rewritten ten minutes ago.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body, updated=self.now - timedelta(minutes=10))
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, [])
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_no_minimum_labels_the_second_sweep(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.config = dataclasses.replace(self.config, risk_escalation_minutes=0)
+        self.now = self.WRITTEN + timedelta(minutes=1)
+        self.lanes = UNBOUND
+        self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+
+    def test_another_bot_accounts_marker_is_not_an_earlier_sweep(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body, login="other-app[bot]", kind="Bot")
+        self.lanes = UNBOUND
+        self.run_main()
+        self.assertEqual(self.log, ["risk-comment:POST"])
+
+    def test_the_first_sweep_comments_without_a_label(self) -> None:
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:POST"])
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_a_second_sweep_at_the_same_head_adds_the_human_gated_label(self) -> None:
+        # A MED or HIGH refusal on two sweeps at one head is
+        # labeled, the reasons comment first extended to say so.
+        for name, files in (
+            ("MED", ((LOW_FILE,), True)),
+            ("HIGH", ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)),
+        ):
+            with self.subTest(name):
+                self.setUp()
+                self.files = files
+                body = self.body()
+                self.setUp()
+                self.files = files
+                self.lanes = UNBOUND
+                self.earlier_sweep(body)
+                _, out = self.run_main()
+                self.assertEqual(out["unattended"]["risk"]["score"], name)
+                self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+                self.assertEqual(
+                    out["unattended"]["writes"]["riskEscalation"],
+                    {"label": "added", "comment": "updated"},
+                )
+
+    def test_changed_reasons_at_the_same_head_rewrite_without_a_label(
+        self,
+    ) -> None:
+        # The rewrite restarts the age the next sweep measures.
+        self.earlier_sweep(f"{merge.RISK_MARKER}\nrisk **HIGH** at head `{HEAD}`.")
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH"])
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_a_same_head_rerun_with_the_label_writes_nothing(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
+        self.pr_labels = [{"name": "Needs-Human"}]
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, [])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
+    def test_a_new_head_rewrites_the_comment_without_a_label(self) -> None:
+        self.earlier_sweep(f"{merge.RISK_MARKER}\nrisk **MED** at head `{'d' * 40}`.")
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH"])
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_another_accounts_comment_at_the_head_is_not_an_earlier_sweep(
+        self,
+    ) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body, login="maintainer")
+        self.lanes = UNBOUND
+        self.run_main()
+        self.assertEqual(self.log, ["risk-comment:POST"])
+
+    def comment_writes(self) -> list[str]:
+        """This run's reasons-comment writes; a LOW run also enqueues."""
+        return [e for e in self.log if e.startswith("risk-comment")]
+
+    def test_a_low_score_after_an_earlier_sweep_clears_the_comment(self) -> None:
+        # The refusal ended at this head: a later MED or HIGH with the same
+        # reasons must not read the old comment's age as its own.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        _, out = self.run_main()
+        self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
+        self.assertEqual(self.comment_writes(), ["risk-comment:PATCH"])
+        self.assertEqual(out["unattended"]["writes"]["riskComment"], "updated")
+        patched = self.patched_body()
+        self.assertEqual(patched, merge.risk_cleared_body(HEAD))
+        self.assertEqual(patched.split("\n")[0], merge.RISK_MARKER)
+        self.assertIn(f"at head `{HEAD}`", patched.split("\n")[1])
+
+    def test_a_low_score_with_the_comment_cleared_writes_nothing(self) -> None:
+        self.earlier_sweep(merge.risk_cleared_body(HEAD))
+        _, out = self.run_main()
+        self.assertEqual(self.comment_writes(), [])
+        self.assertNotIn("riskComment", out["unattended"]["writes"])
+
+    def test_a_low_score_leaves_an_escalated_comment(self) -> None:
+        # The label it explains stands; the head-moved clear pairs the two.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
+        self.run_main()
+        self.assertEqual(self.comment_writes(), [])
+
+    def test_a_low_score_leaves_a_comment_at_an_old_head(self) -> None:
+        # A later refusal at this head renders a different body anyway.
+        old = self.body().replace(HEAD, "d" * 40)
+        self.setUp()
+        self.earlier_sweep(old)
+        self.run_main()
+        self.assertEqual(self.comment_writes(), [])
+
+    def test_a_refusal_after_a_cleared_comment_restarts_the_time(self) -> None:
+        # MED, then LOW, then MED again with the same reasons: the cleared
+        # comment has stood two hours, but the refusal is new.
+        self.earlier_sweep(merge.risk_cleared_body(HEAD))
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH"])
+        self.assertNotIn("riskEscalation", out["unattended"]["writes"])
+
+    def test_report_only_writes_nothing_after_an_earlier_sweep(self) -> None:
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.config = dataclasses.replace(self.config, report_only=True)
+        self.lanes = UNBOUND
+        _, out = self.run_main()
+        self.assertIs(out["unattended"]["reportOnly"], True)
+        self.capture.assert_not_called()
 
     def test_a_changed_assessment_rewrites_the_identitys_comment(self) -> None:
         self.comments = [
@@ -1499,6 +2566,7 @@ class HeadPushers(unittest.TestCase):
                 IDENTITY,
                 frozenset(),
                 lambda login: "write",
+                (),
             )
 
     def test_an_unlinked_author_or_committer_is_unproven(self) -> None:
@@ -1532,6 +2600,125 @@ class HeadPushers(unittest.TestCase):
         bot = {"login": IDENTITY}
         lanes, _ = self.read([{"sha": "a" * 40, "author": bot, "committer": bot}])
         self.assertEqual(len(lanes), 2)
+
+
+class CandidateReadsOnce(unittest.TestCase):
+    """One candidate's gate process reads the pull request's commits once
+    per head, and the record's commit count once, across the policy, the
+    lane evidence, the verifier reader and the signature check. Before the
+    scope existed those readers made three commit-list reads and a second
+    record read (the pr-merge profile in the scope notes)."""
+
+    BASE = "b" * 40
+
+    def run_readers(self, rows: list[dict[str, Any]], *, scoped: bool) -> list[str]:
+        """Every gh REST endpoint the four readers request, in order."""
+        record = {
+            "number": PR,
+            "commits": len(rows),
+            "created_at": "2026-10-12T00:00:00Z",
+            "user": {"login": IDENTITY},
+            "base": {"ref": "main", "sha": self.BASE},
+            "head": {"ref": "feat", "sha": HEAD},
+        }
+        endpoints: list[str] = []
+
+        def fake_gh(args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+            endpoint = args[1]
+            endpoints.append(endpoint + (" --jq" if "--jq" in args else ""))
+            if "--jq" in args:
+                payload: Any = record["commits"]
+            elif endpoint.endswith("/commits?per_page=100"):
+                payload = [rows]
+            elif "--paginate" in args:
+                payload = [[]]
+            elif endpoint == f"repos/owner/repo/pulls/{PR}":
+                payload = record
+            else:
+                raise AssertionError(f"unexpected gh call: {args}")
+            return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
+
+        scope = gh.candidate_reads() if scoped else contextlib.nullcontext()
+        with (
+            mock.patch.object(gh, "_run_gh", side_effect=fake_gh),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            mock.patch.object(merge, "collect_lane_runs", return_value=[]),
+            scope,
+        ):
+            pr = policy.pull_request("owner/repo", PR)
+            merge._lane_evidence(
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", ()
+            )
+            reader = merge.verify_evidence.Reader("owner/repo", "main")
+            self.assertEqual(
+                reader._commits(PR, HEAD), {str(row["sha"]) for row in rows}
+            )
+            blockers, _ = merge.evaluate_required_signatures("owner/repo", PR, HEAD)
+            self.assertEqual(blockers, [])
+        return endpoints
+
+    def signed(self, *shas: str) -> list[dict[str, Any]]:
+        bot = {"login": IDENTITY}
+        verified = {"verification": {"verified": True, "reason": "valid"}}
+        return [
+            {"sha": sha, "author": bot, "committer": bot, "commit": verified}
+            for sha in shas
+        ]
+
+    def counts(self, endpoints: list[str]) -> tuple[int, int, int]:
+        """(commit-list reads, record reads, record count reads)."""
+        commits = f"repos/owner/repo/pulls/{PR}/commits?per_page=100"
+        record = f"repos/owner/repo/pulls/{PR}"
+        return (
+            endpoints.count(commits),
+            endpoints.count(record),
+            endpoints.count(record + " --jq"),
+        )
+
+    def test_outside_a_candidate_scope_every_reader_reads(self) -> None:
+        endpoints = self.run_readers(self.signed("a" * 40, HEAD), scoped=False)
+        self.assertEqual(self.counts(endpoints), (3, 1, 1))
+
+    def test_a_candidate_scope_reads_the_commits_and_the_record_once(self) -> None:
+        endpoints = self.run_readers(self.signed("a" * 40, HEAD), scoped=True)
+        self.assertEqual(self.counts(endpoints), (1, 1, 0))
+
+    def test_a_list_not_ending_at_the_head_is_read_again(self) -> None:
+        # Read while the head moved: no reader reuses it.
+        endpoints = self.run_readers(self.signed("a" * 40, "c" * 40), scoped=True)
+        # The record's count is for the head, so the signature check reads a
+        # count alongside rows that do not end there.
+        self.assertEqual(self.counts(endpoints), (3, 1, 1))
+
+    def test_a_moved_head_at_the_cap_is_refused_on_a_live_count(self) -> None:
+        # The record counted 249 at the head; the head moved to 260 commits
+        # and the list stops at 250. The old count would pass the cap check.
+        rows = self.signed(*(f"{n:040x}" for n in range(250)))
+        with (
+            gh.candidate_reads(),
+            mock.patch.object(gh, "fetch_paginated_api", return_value=rows),
+            mock.patch.object(gh, "gh_json", return_value=260),
+        ):
+            gh.record_pull_request_total("owner/repo", PR, HEAD, 249)
+            with self.assertRaisesRegex(RuntimeError, "walked 250 of 260"):
+                gh.fetch_pull_request_commits("owner/repo", PR, HEAD)
+
+    def test_another_head_is_read_fresh(self) -> None:
+        rows = self.signed(HEAD)
+        with (
+            gh.candidate_reads(),
+            mock.patch.object(
+                gh, "fetch_paginated_api", side_effect=[rows, self.signed("d" * 40)]
+            ) as read,
+        ):
+            for head in (HEAD, HEAD, "d" * 40):
+                gh.pull_request_commits_once(
+                    "owner/repo",
+                    PR,
+                    head,
+                    lambda: gh.fetch_paginated_api("commits", "label"),
+                )
+        self.assertEqual(read.call_count, 2)
 
 
 class QueueRead(unittest.TestCase):
@@ -1643,9 +2830,21 @@ class UnattendedCheckOnly(MainHarness):
         unattended = self.evaluate.call_args.kwargs["unattended"]
         self.assertEqual(unattended.details["postMergeShared"], "unused:unreadable")
 
+    def test_a_recompute_is_written_back_to_the_postmerge_result(self) -> None:
+        lane = ("--unattended", "--authority", "pr-merge")
+        with (
+            mock.patch.object(merge.postmerge, "read_shared", return_value=None),
+            mock.patch.object(merge.postmerge, "write_shared") as write,
+        ):
+            self._main(*lane, "--postmerge-result", "/tmp/post-merge.json")
+            share = self.assess.call_args.kwargs["share"]
+            share(mock.sentinel.answer)
+        write.assert_called_once_with("/tmp/post-merge.json", mock.sentinel.answer)
+
     def test_without_a_postmerge_result_the_policy_reads_its_own(self) -> None:
         self._main("--unattended", "--authority", "pr-merge")
         self.assertIsNone(self.assess.call_args.kwargs["shared"])
+        self.assertIsNone(self.assess.call_args.kwargs["share"])
         unattended = self.evaluate.call_args.kwargs["unattended"]
         self.assertNotIn("postMergeShared", unattended.details or {})
 
@@ -1828,6 +3027,203 @@ class LandedRequestUnderARefusingCheck(async_fixtures.AsyncMergeHarness):
         self.assertIs(self.output["merged"], True)
         self.assertIs(self.output["ready"], True)
         self.assertEqual(self.output["blockers"], [])
+
+
+# The tracker's human-gated label read an autonomous gate makes: stubbed so
+# no test reads GitHub.
+_role_label = fixtures.role_label_stub()
+
+
+def setUpModule() -> None:
+    _role_label.start()
+
+
+def tearDownModule() -> None:
+    _role_label.stop()
+
+
+class DependabotMajorEscalation(unittest.TestCase):
+    """A Dependabot major held under `merge.dependabot.majors: hold` gets the
+    escalation contract: one marked comment, then the tracker's human-gated
+    role label, once."""
+
+    REPO, PR, HEAD = "owner/repo", 7, "e" * 40
+
+    def setUp(self) -> None:
+        self.calls: list[list[str]] = []
+        self.pr_labels: list[dict[str, str]] = []
+        self.comments: list[dict[str, Any]] = []
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(
+            mock.patch.object(postmerge, "identity_queue", return_value=([], 0))
+        )
+        stack.enter_context(
+            mock.patch.object(postmerge, "dequeue_identity_entries", return_value=0)
+        )
+        self.role = stack.enter_context(
+            mock.patch.object(
+                merge, "human_gated_label", return_value="status: needs-decision"
+            )
+        )
+
+        def capture(args: list[str]) -> subprocess.CompletedProcess[str]:
+            self.calls.append(args)
+            return subprocess.CompletedProcess(args, 0, "{}", "")
+
+        stack.enter_context(mock.patch.object(merge, "gh_capture", capture))
+
+    def writes(self, reason: str, eligibility: str | None = None) -> dict[str, Any]:
+        inputs = {
+            "identity": "agent-lanes[bot]",
+            "branch": "main",
+            "pr": {"head": {"sha": self.HEAD}, "labels": self.pr_labels},
+            "comments": self.comments,
+        }
+        return merge.unattended_writes(
+            self.REPO,
+            self.PR,
+            policy.UnattendedPolicy(
+                reason,
+                "agent-lanes[bot]",
+                {
+                    "eligibility": {
+                        "eligible": False,
+                        "reason": eligibility or reason.removeprefix("ineligible:"),
+                    }
+                },
+                inputs=inputs,
+            ),
+        )
+
+    def test_a_held_major_is_labeled_with_the_role_label_once(self) -> None:
+        out = self.writes("ineligible:dependabot-major-held:x")
+        comment, label = self.calls
+        self.assertIn(f"repos/{self.REPO}/issues/{self.PR}/comments", comment)
+        body = comment[-1].removeprefix("body=")
+        self.assertTrue(
+            body.startswith(
+                f"{merge.ATTEND_QUEUE_MARKER}\n{merge.MAJOR_ESCALATION_MARKER}\n"
+            )
+        )
+        self.assertIn("`x`", body)
+        self.assertIn(self.HEAD, body)
+        self.assertIn("`(disagree)`", body)
+        self.assertEqual(
+            label[-4:],
+            ["POST", f"repos/{self.REPO}/issues/{self.PR}/labels"]
+            + ["-f", "labels[]=status: needs-decision"],
+        )
+        self.assertNotIn("do-not-merge", " ".join(" ".join(c) for c in self.calls))
+        self.assertEqual(
+            out["majorEscalation"], {"label": "added", "comment": "created"}
+        )
+
+    def test_an_unreadable_version_hold_is_escalated_the_same_way(self) -> None:
+        out = self.writes("ineligible:dependabot-major-held:x(unreadable)")
+        comment, label = self.calls
+        self.assertIn("`x(unreadable)`", comment[-1])
+        self.assertEqual(label[-1], "labels[]=status: needs-decision")
+        self.assertEqual(
+            out["majorEscalation"], {"label": "added", "comment": "created"}
+        )
+
+    def test_a_rerun_writes_nothing(self) -> None:
+        self.pr_labels = [{"name": "Status: Needs-Decision"}]
+        self.comments = [
+            {
+                "id": 90,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": merge.major_escalation_body("x", self.HEAD),
+            }
+        ]
+        out = self.writes("ineligible:dependabot-major-held:x")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "unchanged"}
+        )
+
+    def test_the_first_line_is_the_attend_queue_escalation_marker(self) -> None:
+        # The grammar and kinds come from the work-items reference, so a
+        # change there fails here.
+        reference = (
+            pathlib.Path(__file__).resolve().parents[6]
+            / "plugins/work-items/reference/escalation-marker.md"
+        ).read_text(encoding="utf-8")
+        template = re.search(
+            r"## Comment prefix.*?```text\n(.+?)\n```", reference, re.S
+        ).group(1)
+        grammar = re.escape(template)
+        grammar = grammar.replace(re.escape("<lane>"), r"(?P<lane>[a-z-]+)")
+        grammar = grammar.replace(re.escape("<kind>"), r"(?P<kind>[a-z0-9-]+)")
+        kinds = re.search(r"\| `<kind>` \| (.+?) \|\n", reference).group(1)
+        body = merge.major_escalation_body("x", self.HEAD)
+        match = re.fullmatch(grammar, body.split("\n", 1)[0])
+        self.assertIsNotNone(match)
+        self.assertIn(f"`{match['kind']}`", kinds)
+        # attend-queue lists `escalated` and `routed-advisory` as escalated rows.
+        self.assertIn(match["kind"], ("escalated", "routed-advisory"))
+
+    def test_an_old_format_comment_is_rewritten_not_duplicated(self) -> None:
+        self.pr_labels = [{"name": "status: needs-decision"}]
+        old = merge.major_escalation_body("x", self.HEAD).removeprefix(
+            merge.ATTEND_QUEUE_MARKER + "\n"
+        )
+        self.comments = [
+            {
+                "id": 92,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": old,
+            }
+        ]
+        out = self.writes("ineligible:dependabot-major-held:x")
+        (comment,) = self.calls
+        self.assertIn("PATCH", comment)
+        self.assertIn(f"repos/{self.REPO}/issues/comments/92", comment)
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "updated"}
+        )
+
+    def test_a_held_major_under_an_earlier_refusal_escalates_once(self) -> None:
+        out = self.writes("in-flight:queue-full", "dependabot-major-held:x")
+        comment, label = self.calls
+        self.assertIn("`x`", comment[-1])
+        self.assertEqual(label[-1], "labels[]=status: needs-decision")
+        self.assertEqual(
+            out["majorEscalation"], {"label": "added", "comment": "created"}
+        )
+        # The next run finds both and writes nothing.
+        self.calls.clear()
+        self.pr_labels = [{"name": "status: needs-decision"}]
+        self.comments = [
+            {
+                "id": 91,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": comment[-1].removeprefix("body="),
+            }
+        ]
+        out = self.writes("in-flight:queue-full", "dependabot-major-held:x")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(
+            out["majorEscalation"], {"label": "present", "comment": "unchanged"}
+        )
+
+    def test_other_refusals_are_not_escalated(self) -> None:
+        for reason in (
+            "ineligible:dependabot-review:major:x",
+            "ci-status:pending",
+            "kill-switch:off",
+        ):
+            with self.subTest(reason):
+                out = self.writes(
+                    reason,
+                    "dependabot-major-held:x" if reason.startswith("kill") else None,
+                )
+                self.assertEqual(self.calls, [])
+                self.assertNotIn("majorEscalation", out)
 
 
 if __name__ == "__main__":

@@ -19,10 +19,24 @@ wit_gh_version_raw() {
   fi
 }
 
-# wit_gh_has_native_surface — 0 when gh is present and >= 2.94. Does not exit.
+# Claude Code cloud sessions run behind a GitHub proxy that rejects every GraphQL request
+# with a 403 whose message starts with this prefix, whatever the credentials:
+# https://code.claude.com/docs/en/cloud-environments#github-proxy
+# shellcheck disable=SC2034  # read by adapters/github/common.sh; this file is sourced-only
+readonly WIT_GH_GRAPHQL_REFUSAL_PREFIX='GitHub GraphQL is not available from Claude Code sessions'
+
+# wit_gh_session_refuses_graphql — 0 in a Claude Code cloud session, which sets
+# CLAUDE_CODE_REMOTE=true and never sets it locally. Does not exit.
+wit_gh_session_refuses_graphql() {
+  [[ "${CLAUDE_CODE_REMOTE:-}" == "true" ]]
+}
+
+# wit_gh_has_native_surface — 0 when gh is present, >= 2.94, and the session does not
+# refuse GraphQL (the native paths are GraphQL-backed). Does not exit.
 wit_gh_has_native_surface() {
   local raw major minor
   command -v gh >/dev/null 2>&1 || return 1
+  wit_gh_session_refuses_graphql && return 1
   raw="$(wit_gh_version_raw)"
   major="${raw%%.*}"
   minor="${raw#*.}"

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Lyrics field (use Custom mode so the tags work):\n\n```\n[Intro: solo piano, soft]\n\n[Verse 1: piano only, no drums, intimate]\nYou left the porch light on again\nLike that could keep the evening in\n\n[Pre-Chorus: strings enter, building]\nI'm not asking you to stay\nI'm not asking you to stay, not today\n\n[Chorus: piano and soft strings]\nSo let it burn down slow\nLet it burn down slow\n\n[Verse 2: piano only, close vocal]\nYour coffee's still in the cupboard\nI drink it black like you did\n\n[Bridge | stripped | dry | whispered]\nMaybe I was the one who left\n\n[Final Chorus: full band kicks in, gang vocals, distorted guitar]\nSO LET IT BURN DOWN SLOW\nLet it burn... down slow\n\n[Outro: piano alone]\n[End]\n```\n\nAbout 700 characters, well under the ~3,000 sweet spot. Tweak: if the drums still appear in the verses, add `no drums` to the Exclude field."
+    },
+    {
+      "answer": "```text\n[Verse 1 | piano only | intimate | no drums]\nKitchen clock is ticking loud\nHalf your things still in the hall\n\n[Chorus: sparse, piano and voice]\nI'll be fine, I'll be fine\nTell the neighbors I'll be fine\n\n[Verse 2 | piano only | breathy]\nFound your jacket in the car\nDidn't cry, I didn't call\n\n[Final Chorus: explosive, full band, gang vocals]\nI'LL BE FINE, I'll be fine\nTell the neighbors... I'll be fine\n[End]\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "[Chorus: full band]\nI'll be fine (x2)"
+    },
+    {
+      "answer": "[Chorus: full band]\nLet it burn down slow x2"
+    },
+    {
+      "answer": "[Chorus: gang vocals]\nI'll be fine [x3]",
+      "why": "bracketed repeat"
+    }
+  ]
+}
